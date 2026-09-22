@@ -8,6 +8,7 @@ import dns from 'node:dns';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
+import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance } from './db/localDb';
 
 
 // Initialize and configure structured logging
@@ -358,10 +359,11 @@ function handleDeepLink(url: string) {
 
 function setupCSP() {
   const isDev = !app.isPackaged;
-  const apiUrl = process.env.NAFID_CLOUD_API || process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+  // Cloud API URL — set VENDORA_CLOUD_API in .env
+  const apiUrl = process.env.NAFID_CLOUD_API || process.env.VENDORA_CLOUD_API;
   const apiOrigin = (() => {
     try {
-      return new URL(apiUrl).origin;
+      return apiUrl ? new URL(apiUrl).origin : '';
     } catch {
       return '';
     }
@@ -380,7 +382,9 @@ function setupCSP() {
 
   if (isDev) {
     directives.push("script-src 'self' 'unsafe-inline'");
-    directives.push("connect-src 'self' ws://localhost:* http://localhost:* https://clients3.google.com");
+    const devServerUrl = process.env.ELECTRON_DEV_SERVER_URL;
+    const devConnect = devServerUrl ? [devServerUrl, devServerUrl.replace(/^http/, 'ws')] : [];
+    directives.push(`connect-src 'self' ${devConnect.join(' ')} https://clients3.google.com`.trim());
   } else {
     directives.push("script-src 'self'");
     const allowedConnect = ["'self'", "https://clients3.google.com"];
@@ -401,13 +405,7 @@ function setupCSP() {
 }
 
 function createWindow() {
-  const winIcoPath = path.join(__dirname, '../build/icon.ico');
-  const iconPath = process.platform === 'win32' && fs.existsSync(winIcoPath)
-    ? winIcoPath
-    : (app.isPackaged
-        ? path.join(__dirname, '../dist/logo.png')
-        : path.join(__dirname, '../build/icon.png'));
-
+  const iconPath = path.join(__dirname, '../public/icon.png');
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -415,15 +413,18 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
     },
     autoHideMenuBar: true,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
   });
 
   if (!app.isPackaged) {
-    // Development: Load from Vite dev server
-    mainWindow.loadURL('http://localhost:5173');
+    // Development: Load from Vite dev server — requires ELECTRON_DEV_SERVER_URL in .env
+    const devUrl = process.env.ELECTRON_DEV_SERVER_URL;
+    if (!devUrl) {
+      throw new Error('[Electron] ELECTRON_DEV_SERVER_URL environment variable is required in development mode.');
+    }
+    mainWindow.loadURL(devUrl);
     mainWindow.webContents.openDevTools();
   } else {
     // Production: Load from built files
@@ -757,7 +758,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
 
     console.log(`[db:getProducts] Called — tenantId=${tenantId} arg=${JSON.stringify(arg)}`);
 
-    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField)) {
+    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField && (!arg.stockStatus || arg.stockStatus === 'all'))) {
       const rows = db.prepare(`
         SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
           COALESCE((
@@ -778,7 +779,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
       return rows;
     }
 
-    const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField } = arg;
+    const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField, stockStatus } = arg;
     let query = `
       SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
         COALESCE((
@@ -799,6 +800,16 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (isGst !== undefined) {
        query += ' AND p.is_gst_applicable = ?';
        params.push(isGst ? 1 : 0);
+    }
+
+    if (stockStatus && stockStatus !== 'all') {
+      if (stockStatus === 'low_stock' || stockStatus === 'low') {
+        query += ' AND p.current_stock <= p.reorder_level AND p.reorder_level > 0 AND p.current_stock > 0';
+      } else if (stockStatus === 'out_of_stock' || stockStatus === 'out') {
+        query += ' AND p.current_stock <= 0';
+      } else if (stockStatus === 'in_stock' || stockStatus === 'in') {
+        query += ' AND p.current_stock > 0';
+      }
     }
 
     if (barcode) {
@@ -907,6 +918,16 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
          query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
          params.push(arg.filterDate, arg.filterDate);
        }
+    }
+
+    if (arg?.stockStatus && arg.stockStatus !== 'all') {
+      if (arg.stockStatus === 'low_stock' || arg.stockStatus === 'low') {
+        query += ' AND current_stock <= reorder_level AND reorder_level > 0 AND current_stock > 0';
+      } else if (arg.stockStatus === 'out_of_stock' || arg.stockStatus === 'out') {
+        query += ' AND current_stock <= 0';
+      } else if (arg.stockStatus === 'in_stock' || arg.stockStatus === 'in') {
+        query += ' AND current_stock > 0';
+      }
     }
 
     const result = db.prepare(query).get(...params) as { count: number };
@@ -1126,6 +1147,22 @@ ipcMain.handle('db:deleteProduct', (event, productId) => {
   } catch (error: any) {
     console.error('[db:deleteProduct]', error);
     return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:bulkDeleteProducts', (event, productIds: string[]) => {
+  try {
+    const db = getDb();
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+    const placeholders = productIds.map(() => '?').join(',');
+    const stmt = db.prepare(`UPDATE products SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id IN (${placeholders})`);
+    const res = stmt.run(...productIds);
+    return { success: true, count: res.changes };
+  } catch (error: any) {
+    console.error('[db:bulkDeleteProducts]', error);
+    return { success: false, error: 'Bulk delete failed: ' + (error?.message || 'Unknown error') };
   }
 });
 
@@ -3135,9 +3172,10 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
   try {
     const db = getDb();
 
-    // Only OWNER can apply discounts
-    if (role !== 'OWNER') {
-      return { success: false, error: 'Only owners can apply discounts' };
+    // Only ADMIN or SUPER_ADMIN can apply discounts
+    const normalizedRole = (role || '').toUpperCase();
+    if (!['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(normalizedRole)) {
+      return { success: false, error: 'Admin access required to apply discounts' };
     }
     
     const invoice = db.prepare('SELECT subtotal, tax_total FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
@@ -3174,9 +3212,13 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
 
     let query = `
       SELECT i.*, u.name as biller_name,
+        st_biller.name as biller_staff_name,
+        st_sales.name as sales_staff_name,
         COALESCE((SELECT COUNT(*) FROM invoice_items ii WHERE ii.invoice_id = i.invoice_id), 0) as item_count
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
+      LEFT JOIN staff st_biller ON i.biller_staff_id = st_biller.staff_id
+      LEFT JOIN staff st_sales ON i.sales_staff_id = st_sales.staff_id
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
@@ -3446,9 +3488,10 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     isServiceItem?: boolean;
   }>;
 }) => {
-  // Only OWNER or ADMINISTRATOR can update invoices
-  if (payload.role !== 'OWNER' && payload.role !== 'ADMINISTRATOR') {
-    return { success: false, error: 'Only owners or administrators can edit past bills' };
+  // Only ADMIN or SUPER_ADMIN can update invoices
+  const normalizedRole = (payload.role || '').toUpperCase();
+  if (!['ADMIN', 'SUPER_ADMIN', 'OWNER', 'ADMINISTRATOR'].includes(normalizedRole)) {
+    return { success: false, error: 'Only administrators can edit past bills' };
   }
   const { items, ...invoice } = payload;
   const db = getDb();
@@ -4527,7 +4570,7 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
   const rawHost = payload?.lanHostIp || '';
   const port = Number(payload?.lanPort) || 3888;
   const cleanHost = String(rawHost).trim().replace(/^https?:\/\//i, '').replace(/:\d+$/, '').replace(/\/.*$/, '');
-  const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
+  const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || '').replace(/\/$/, '');
 
   if (syncMode === 'LAN' || syncMode === 'HYBRID') {
     if (lanRole === 'PRIMARY') {
@@ -4670,7 +4713,8 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
 
     const { getSyncEndpoints } = await import('./sync/syncWorker.js');
     const endpoints = getSyncEndpoints();
-    const apiUrl = (endpoints.primaryUrl || process.env.VENDORA_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
+    // Cloud API URL — set VENDORA_CLOUD_API in .env
+    const apiUrl = (endpoints.primaryUrl || process.env.VENDORA_CLOUD_API || '').replace(/\/$/, '');
     const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
@@ -6602,7 +6646,12 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
     autoClosePastOpenDrawers(db, tenant_id);
     const date = localDate();
 
-    const existing = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    const existing = db.prepare(`
+      SELECT * FROM cash_drawer 
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+        AND (business_date = ? OR date(business_date) = ?)
+      ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, created_at DESC LIMIT 1
+    `).get(tenant_id, date, date) as any;
     
     if (existing) {
       const newOpening = Number(opening_balance);
@@ -6639,7 +6688,12 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
     }
     
     const dId = existing ? existing.drawer_id : '';
-    const targetDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    const targetDrawer = db.prepare(`
+      SELECT * FROM cash_drawer 
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+        AND (business_date = ? OR date(business_date) = ?)
+      ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, created_at DESC LIMIT 1
+    `).get(tenant_id, date, date) as any;
     if (targetDrawer) {
       db.prepare(`
         UPDATE cash_transactions 
@@ -7273,3 +7327,33 @@ ipcMain.handle('db:getCustomerLoyaltyTransactions', (event, { customer_id, tenan
     return { error: 'Operation failed' };
   }
 });
+
+// ── Staff Management Handlers ──────────────────────────────────────────────
+ipcMain.handle('db:getStaff', safeHandler((event, params: any) => {
+  return dbGetStaff(params);
+}));
+
+ipcMain.handle('db:saveStaff', safeHandler((event, params: any) => {
+  return dbSaveStaff(params);
+}));
+
+ipcMain.handle('db:verifyBillerPin', safeHandler((event, params: any) => {
+  return dbVerifyBillerPin(params);
+}));
+
+ipcMain.handle('db:getStaffLedger', safeHandler((event, params: any) => {
+  return dbGetStaffLedger(params);
+}));
+
+ipcMain.handle('db:addStaffTransaction', safeHandler((event, params: any) => {
+  return dbAddStaffTransaction(params);
+}));
+
+ipcMain.handle('db:getStaffAttendance', safeHandler((event, params: any) => {
+  return dbGetStaffAttendance(params);
+}));
+
+ipcMain.handle('db:saveStaffAttendance', safeHandler((event, params: any) => {
+  return dbSaveStaffAttendance(params);
+}));
+

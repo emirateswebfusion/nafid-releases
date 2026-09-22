@@ -200,7 +200,8 @@ export function initPrinter() {
       if (app.isPackaged) {
         printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-a4' });
       } else {
-        printWindow.loadURL(`http://localhost:5173/#/print-a4`);
+        // Dev server URL — set ELECTRON_DEV_SERVER_URL in .env
+        printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-a4`);
       }
 
       currentA4Html = htmlContent;
@@ -432,7 +433,8 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     if (app.isPackaged) {
       printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}` });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}`);
+      // Dev server URL — set ELECTRON_DEV_SERVER_URL in .env
+      printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}`);
     }
 
     const timer = setTimeout(() => {
@@ -483,7 +485,8 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
     if (app.isPackaged) {
       printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-bulk-barcode?columns=${columns || 1}${sizeParams}&codeType=${codeType || 'barcode'}` });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-bulk-barcode?columns=${columns || 1}${sizeParams}&codeType=${codeType || 'barcode'}`);
+      // Dev server URL — set ELECTRON_DEV_SERVER_URL in .env
+      printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-bulk-barcode?columns=${columns || 1}${sizeParams}&codeType=${codeType || 'barcode'}`);
     }
 
     const timer = setTimeout(() => {

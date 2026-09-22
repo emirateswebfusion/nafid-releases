@@ -32,7 +32,7 @@ export interface TabSnapshot {
   editingQuotationNumber: string | null;
   editingInvoiceId: string | null;
   editingInvoiceNumber: string | null;
-  editingInvoiceRole: 'OWNER' | 'BILLER' | null;
+  editingInvoiceRole: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | null;
   pendingScrapInvoiceToEdit: string | null;
 }
 

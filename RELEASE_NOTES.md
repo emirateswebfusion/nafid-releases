@@ -1,3 +1,10 @@
+# Vendora v1.5.73 Release Notes
+
+## What's Changed
+- Integrated `BillerPinModal` component, enhanced `StaffManager`, `PermissionSelector`, `InventoryManager`, `OwnerDashboard`, `PartyManager`, `ActionPane`, and `BillingPage`
+- Updated Electron main process IPC handlers, SQLite database tables & migrations in `localDb.ts`, auth and cart state stores, and granular permission enforcement
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.72...v1.5.73
+
 # Vendora v1.5.72 Release Notes
 
 ## What's Changed

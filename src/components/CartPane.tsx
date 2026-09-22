@@ -6,6 +6,8 @@ import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { isAdminRole } from '../utils/permissions';
+
 
 export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => void } = {}) {
   const { items, lastAddedProductId, updateQuantity, updatePiecesOverride, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
@@ -297,7 +299,7 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                       {item.pricing_mode === 'GRADE_RATE' && (
                         <span className="text-indigo-500 font-medium">Grade Rate: ₹{item.grade_rate}</span>
                       )}
-                      {currentUserRole === 'OWNER' && item.purchase_price > 0 && (
+                      {isAdminRole(currentUserRole) && item.purchase_price > 0 && (
                         <span className="text-primary font-mono bg-primary/10 px-1.5 rounded">
                           Margin: {((effectiveRate - item.purchase_price) / effectiveRate * 100).toFixed(1)}%
                         </span>

@@ -12,6 +12,7 @@ import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
 import { ScrollText } from './ScrollText';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
+import { formatRoleName, isAdminRole } from '../utils/permissions';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { sortProductsBySearchPriority } from '../utils/productSort';
 import { parseUTCDate } from '../utils/receiptGenerator';
@@ -91,7 +92,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('created_at');
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at' | 'stock'>('created_at');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -177,12 +179,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   // read current values without suffering from stale closures.
   const searchQueryRef = useRef(searchQuery);
   const sortByRef = useRef(sortBy);
+  const stockFilterRef = useRef(stockFilter);
   const filterDateRef = useRef(filterDate);
   const filterDateEndRef = useRef(filterDateEnd);
   const offsetRef = useRef(offset);
 
   useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
   useEffect(() => { sortByRef.current = sortBy; }, [sortBy]);
+  useEffect(() => { stockFilterRef.current = stockFilter; }, [stockFilter]);
   useEffect(() => { filterDateRef.current = filterDate; }, [filterDate]);
   useEffect(() => { filterDateEndRef.current = filterDateEnd; }, [filterDateEnd]);
   useEffect(() => { offsetRef.current = offset; }, [offset]);
@@ -197,7 +201,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   }, [view]);
 
-  // Load products when search or sort changes (reset)
+  // Load products when search or sort or stock filter changes (reset)
   useEffect(() => {
     const timeout = setTimeout(() => {
       setOffset(0);
@@ -205,7 +209,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       loadProducts(true);
     }, 300); // debounce search
     return () => clearTimeout(timeout);
-  }, [searchQuery, sortBy, filterDate, filterDateEnd]);
+  }, [searchQuery, sortBy, filterDate, filterDateEnd, stockFilter]);
 
   // Sync listener — auto-refresh silently, using refs so current search/
   // filter state is preserved even though this effect runs only once.
@@ -377,6 +381,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       // (e.g. the sync listener is registered once and must not use old state).
       const currentSearch = searchQueryRef.current;
       const currentSortBy = sortByRef.current;
+      const currentStockFilter = stockFilterRef.current;
       const currentFilterDate = filterDateRef.current;
       const currentFilterDateEnd = filterDateEndRef.current;
       const currentOffset = reset ? 0 : offsetRef.current;
@@ -388,7 +393,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         search: currentSearch,
         sortBy: currentSortBy,
         filterDate: currentFilterDate,
-        filterDateEnd: currentFilterDateEnd
+        filterDateEnd: currentFilterDateEnd,
+        stockStatus: currentStockFilter
       });
 
       if (reset) {
@@ -396,7 +402,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           tenant_id: tenantId,
           search: currentSearch,
           filterDate: currentFilterDate,
-          filterDateEnd: currentFilterDateEnd
+          filterDateEnd: currentFilterDateEnd,
+          stockStatus: currentStockFilter
         });
         setTotalCount(count);
       }
@@ -659,6 +666,109 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     } finally {
       setIsDeleting(false);
       setDeleteConfirmProduct(null);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  };
+
+  const filtered = useMemo(() =>
+    products.filter(p => {
+      // Service charge belongs on the billing page only — never in inventory
+      // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
+      if (Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge') return false;
+
+      // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
+      const { role, restrictedPage } = useAuthStore.getState();
+      if (role === 'BILLER') {
+        const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
+        const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
+        if (!hasOptViewGst && Number(p.is_gst_applicable) !== 1) {
+          return false;
+        }
+      }
+
+      // GST/Estimate membership follows the manual GST Product toggle only.
+      if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
+      if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
+
+      // Stock status filter
+      if (stockFilter === 'low_stock') {
+        if (!(Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0 && Number(p.current_stock) > 0)) return false;
+      } else if (stockFilter === 'out_of_stock') {
+        if (Number(p.current_stock) > 0) return false;
+      } else if (stockFilter === 'in_stock') {
+        if (Number(p.current_stock) <= 0) return false;
+      }
+
+      return true;
+    }),
+    [products, viewMode, stockFilter]
+  );
+
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const filteredIds = useMemo(() => filtered.map(p => p.product_id), [filtered]);
+
+  const isAllSelected = useMemo(() => {
+    if (filteredIds.length === 0) return false;
+    return filteredIds.every(id => selectedProductIds.has(id));
+  }, [filteredIds, selectedProductIds]);
+
+  const isSomeSelected = useMemo(() => {
+    return filteredIds.some(id => selectedProductIds.has(id)) && !isAllSelected;
+  }, [filteredIds, selectedProductIds, isAllSelected]);
+
+  const toggleSelectProduct = (productId: string) => {
+    setSelectedProductIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedProductIds(prev => {
+        const next = new Set(prev);
+        filteredIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedProductIds(prev => {
+        const next = new Set(prev);
+        filteredIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    const ids = Array.from(selectedProductIds);
+    if (ids.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      if (window.electronAPI) {
+        const res = await window.electronAPI.dbBulkDeleteProducts(ids);
+        if (res.success) {
+          const deleteSet = new Set(ids);
+          setProducts(prev => prev.filter(p => !deleteSet.has(p.product_id)));
+          setTotalCount(prev => prev !== null ? Math.max(0, prev - ids.length) : null);
+          setSelectedProductIds(new Set());
+          setStatusMessage({ text: `Successfully deleted ${ids.length} product(s)`, type: 'success' });
+        } else {
+          setStatusMessage({ text: 'Bulk delete failed: ' + res.error, type: 'error' });
+        }
+      }
+    } catch (err: any) {
+      console.error('Bulk delete product error:', err);
+      setStatusMessage({ text: 'Failed to delete selected products', type: 'error' });
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteConfirm(false);
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
@@ -1100,6 +1210,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         tenant_id: tenantId,
         filterDate: filterDate,
         filterDateEnd: filterDateEnd,
+        stockStatus: stockFilterRef.current,
         limit: 100000 
       });
       if (Array.isArray(result) && result.length > 0) {
@@ -1318,30 +1429,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setLoading(false);
   };
 
-  const filtered = useMemo(() =>
-    products.filter(p => {
-      // Service charge belongs on the billing page only — never in inventory
-      // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
-      if (Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge') return false;
-
-      // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
-      const { role, restrictedPage } = useAuthStore.getState();
-      if (role === 'BILLER') {
-        const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
-        const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
-        if (!hasOptViewGst && Number(p.is_gst_applicable) !== 1) {
-          return false;
-        }
-      }
-
-      // GST/Estimate membership follows the manual GST Product toggle only.
-      if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
-      if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
-      return true;
-    }),
-    [products, viewMode]
-  );
-
 
 
   const formatDate = (dateStr?: string) => {
@@ -1391,9 +1478,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               {view === 'list' && <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">{totalCount !== null ? totalCount : '...'} products in stock</p>}
               {view !== 'list' && (
                 <span className="text-[11px] text-muted-foreground font-medium bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
-                  {useAuthStore.getState().role === 'OWNER' ? 'Owner' : (useAuthStore.getState().userName || 'Staff')}
+                  {isAdminRole(useAuthStore.getState().role) ? formatRoleName(useAuthStore.getState().role) : (useAuthStore.getState().userName || 'Staff')}
                 </span>
               )}
+
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1410,7 +1498,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       
       {/* Action Header inside page */}
       {view === 'list' && (
-        <div className="max-w-7xl mx-auto w-full px-6 pt-6 select-none shrink-0">
+        <div className="w-full px-4 sm:px-6 pt-4 select-none shrink-0">
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
           <div className="relative w-full sm:max-w-xs flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
@@ -1467,12 +1555,34 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             />
             <div className="h-5 w-px bg-border" />
             <Select
+              value={stockFilter}
+              onChange={v => setStockFilter(v as any)}
+              options={[
+                { value: 'all', label: 'All Stock' },
+                { value: 'low_stock', label: 'Low Stock' },
+                { value: 'out_of_stock', label: 'Out of Stock' },
+                { value: 'in_stock', label: 'In Stock' },
+              ]}
+              className="min-w-[145px]"
+              triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
+              renderOption={(option, isSelected) => (
+                <div className="flex items-center gap-2">
+                  {option.value === 'low_stock' && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                  {option.value === 'out_of_stock' && <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />}
+                  {option.value === 'in_stock' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                  {option.value === 'all' && <Layers className="w-3.5 h-3.5 text-primary shrink-0" />}
+                  <span className={clsx(isSelected && "font-bold")}>{option.label}</span>
+                </div>
+              )}
+            />
+            <Select
               value={sortBy}
               onChange={v => setSortBy(v as any)}
               options={[
                 { value: 'name', label: 'Sort by Name' },
                 { value: 'created_at', label: 'Sort by Date Added' },
                 { value: 'updated_at', label: 'Sort by Date Updated' },
+                { value: 'stock', label: 'Sort by Stock (Low to High)' },
               ]}
               className="min-w-[180px]"
               triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
@@ -1480,6 +1590,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             <button onClick={downloadCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0" title="Download CSV">
               <Save className="w-4 h-4" />
             </button>
+            {selectedProductIds.size > 0 && (
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-destructive text-destructive-foreground shadow-sm font-bold hover:bg-destructive/90 transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer text-xs shrink-0 animate-in fade-in"
+              >
+                <Trash className="w-4 h-4" /> Delete ({selectedProductIds.size})
+              </button>
+            )}
             <button onClick={openAdd} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0">
               <Plus className="w-4 h-4" /> Add Product
             </button>
@@ -1489,11 +1607,23 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       )}
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
-      <div className={`flex-1 px-6 pb-6 pt-3 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>
+      <div className={`flex-1 px-4 sm:px-6 pb-6 pt-3 bg-muted/[0.02] w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>
         <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
           {/* Table Header - Fixed at Top */}
           <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none shrink-0">
-            <div className="col-span-4 text-xs font-black text-muted-foreground uppercase tracking-widest">Product</div>
+            <div className="col-span-4 text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={el => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={handleToggleSelectAll}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer accent-primary shrink-0"
+                title={isAllSelected ? "Deselect all" : "Select all visible products"}
+              />
+              <span>Product</span>
+            </div>
             <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">Purchase</div>
             <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">MRP</div>
             <div className="col-span-1 text-right text-xs font-black text-emerald-500 uppercase tracking-widest">Final</div>
@@ -1537,7 +1667,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16">
                 <PackagePlus className="w-12 h-12 mb-3" />
                 <p className="font-medium text-foreground">No products found</p>
-                <p className="text-sm mt-1">Click "Add Product" to seed your inventory</p>
+                <p className="text-sm mt-1">
+                  {stockFilter !== 'all' ? `No products match "${stockFilter === 'low_stock' ? 'Low Stock' : stockFilter === 'out_of_stock' ? 'Out of Stock' : 'In Stock'}" filter` : 'Click "Add Product" to seed your inventory'}
+                </p>
               </div>
             ) : Object.entries(groupedByDate).map(([date, items]) => (
               <Fragment key={date}>
@@ -1584,14 +1716,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       key={p.product_id}
                       className={clsx(
                         "border-b border-border last:border-b-0 transition-all duration-300 hover:bg-muted/10 grid grid-cols-12 gap-3 px-6 py-3.5 items-center bg-card group",
+                        selectedProductIds.has(p.product_id) && "bg-primary/5 dark:bg-primary/10",
                         highlightedProductId === p.product_id && "ring-2 ring-primary/60 bg-primary/5 dark:bg-primary/10 shadow-sm"
                       )}
                     >
                       <div className="col-span-4">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
-                            <Package className="w-3.5 h-3.5" />
-                          </div>
+                          <input
+                            type="checkbox"
+                            checked={selectedProductIds.has(p.product_id)}
+                            onChange={() => toggleSelectProduct(p.product_id)}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer accent-primary shrink-0"
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <ScrollText text={p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')} className="flex-1 text-foreground font-bold text-sm min-w-0" />
@@ -1646,7 +1782,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[72px]', isLowStock ? 'text-amber-500' : 'text-foreground')}>
+                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[72px]', isLowStock ? 'text-amber-500' : p.current_stock <= 0 ? 'text-red-500' : 'text-foreground')}>
                           {adjustingStockId === p.product_id ? (
                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                           ) : (
@@ -1658,11 +1794,15 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                                    Paper: {p.paper_stock}
                                  </span>
                                )}
-                               {isLowStock && (
+                               {p.current_stock <= 0 ? (
+                                 <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-bold mt-0.5">
+                                   <AlertCircle className="w-2.5 h-2.5" /> Out of Stock
+                                 </span>
+                               ) : isLowStock ? (
                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">
                                    <AlertTriangle className="w-2.5 h-2.5" /> Low
                                  </span>
-                               )}
+                               ) : null}
                              </>
                           )}
                         </span>
@@ -1715,6 +1855,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-4 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span className="flex-1">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) at or below Low Stock Alert</span>
+              {stockFilter !== 'low_stock' && (
+                <button
+                  onClick={() => setStockFilter('low_stock')}
+                  className="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer"
+                >
+                  Filter Low Stock
+                </button>
+              )}
               <button onClick={() => setShowLowStockAlert(false)} className="p-1 rounded-md border border-amber-500/30 hover:bg-amber-500/15 transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
@@ -2857,6 +3005,57 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   <>
                     <Trash className="w-4 h-4" />
                     <span>Delete Product</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ─── CONFIRM BULK DELETE MODAL ─── */}
+      {showBulkDeleteConfirm && (
+        <Modal
+          isOpen={showBulkDeleteConfirm}
+          onClose={() => !isBulkDeleting && setShowBulkDeleteConfirm(false)}
+          title={`Confirm Bulk Delete (${selectedProductIds.size})`}
+          className="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3.5 bg-destructive/10 text-destructive rounded-xl border border-destructive/20">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <div>
+                <p className="font-bold text-sm">Delete {selectedProductIds.size} Products?</p>
+                <p className="text-xs text-muted-foreground mt-0.5">This action will remove all selected products from inventory.</p>
+              </div>
+            </div>
+            <p className="text-sm text-foreground">
+              Are you sure you want to permanently delete <span className="font-bold text-destructive">{selectedProductIds.size}</span> selected product(s)? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={isBulkDeleting}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkDelete}
+                disabled={isBulkDeleting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isBulkDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Deleting {selectedProductIds.size}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash className="w-4 h-4" />
+                    <span>Delete {selectedProductIds.size} Items</span>
                   </>
                 )}
               </button>

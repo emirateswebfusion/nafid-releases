@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/authStore';
 
-export const API_BASE = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
+// API base URL — set VITE_CLOUD_API in .env
+export const API_BASE = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const token = useAuthStore.getState().token;

@@ -51,7 +51,7 @@ const ALLOWED_TABLES = new Set([
   'cash_transactions', 'cashier_audit_log', 'cash_categories', 'purchase_bill_items',
   'returns', 'return_items', 'customers', 'loyalty_transactions', 'payment_sources',
   'payment_source_transactions', 'pricing_tiers', 'product_pricing', 'combo_offers',
-  'combo_items', 'sync_meta'
+  'combo_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance', 'sync_meta'
 ]);
 
 function parseJsonBody(req: http.IncomingMessage): Promise<any> {
@@ -345,7 +345,7 @@ export function startLocalHostServer(port: number = 3888) {
       return;
     }
 
-    const url = new URL(req.url || '/', `http://localhost:${port}`);
+    const url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
     const pathname = url.pathname;
 
     try {

@@ -121,7 +121,7 @@ export function PartyManager({
   const { tenantId, userId, userName, role } = useAuthStore();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
-  const isOwner = role === 'OWNER';
+  const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,9 +159,54 @@ export function PartyManager({
   const [partyToDelete, setPartyToDelete] = useState<Party | null>(null);
   const [deletePartySaving, setDeletePartySaving] = useState(false);
 
+  const [enablePartyGst, setEnablePartyGst] = useState(true);
+  const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
+
   const showStatus = (text: string, type: 'success' | 'error') => {
     setStatusMessage({ text, type });
     setTimeout(() => setStatusMessage(null), 3500);
+  };
+
+  const loadPartySettings = useCallback(async () => {
+    if (!tenantId || !window.electronAPI) return;
+    try {
+      const [gstVal, estVal] = await Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_gst_balance' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_estimate_balance' }),
+      ]);
+      let g = gstVal !== null && gstVal !== undefined ? Boolean(gstVal) : true;
+      let e = estVal !== null && estVal !== undefined ? Boolean(estVal) : true;
+      if (!g && !e) g = true;
+      setEnablePartyGst(g);
+      setEnablePartyEstimate(e);
+    } catch (err) {
+      console.error('Failed to load party balance settings', err);
+    }
+  }, [tenantId]);
+
+  useEffect(() => { loadPartySettings(); }, [loadPartySettings]);
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => { loadPartySettings(); };
+    window.addEventListener('settings:updated', handleSettingsUpdate);
+    return () => window.removeEventListener('settings:updated', handleSettingsUpdate);
+  }, [loadPartySettings]);
+
+  const openTxForm = (transactionType: 'CREDIT' | 'DEBIT' = 'CREDIT') => {
+    setEditingTx(null);
+    const defaultBalanceType = enablePartyGst ? 'GST' : 'ESTIMATE';
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    setTxForm({
+      amount: '',
+      transaction_type: transactionType,
+      description: '',
+      transaction_date: dateStr,
+      reference_number: '',
+      balance_type: defaultBalanceType,
+      payment_method: 'CASH',
+    });
+    setView('tx_form');
   };
 
   const loadParties = useCallback(async () => {
@@ -305,6 +350,8 @@ export function PartyManager({
     const parsedAmount = parseFloat(txForm.amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) { showStatus('Enter a valid positive amount', 'error'); return; }
 
+    const effectiveBalanceType = !enablePartyGst ? 'ESTIMATE' : !enablePartyEstimate ? 'GST' : txForm.balance_type;
+
     setIsSavingTx(true);
     try {
       if (editingTx) {
@@ -316,7 +363,7 @@ export function PartyManager({
           description: txForm.description.trim(),
           transaction_date: toUtcIso(txForm.transaction_date) ?? undefined,
           reference_number: txForm.reference_number.trim() || null,
-          balance_type: txForm.balance_type,
+          balance_type: effectiveBalanceType,
           payment_method: txForm.payment_method,
         });
         showStatus('Transaction updated', 'success');
@@ -330,7 +377,7 @@ export function PartyManager({
           description: txForm.description.trim(),
           transaction_date: toUtcIso(txForm.transaction_date) || new Date().toISOString(),
           reference_number: txForm.reference_number.trim() || null,
-          balance_type: txForm.balance_type,
+          balance_type: effectiveBalanceType,
           payment_method: txForm.payment_method,
           created_by: userId,
           created_by_name: userName || undefined,
@@ -488,11 +535,7 @@ export function PartyManager({
 
             {view === 'ledger' && isOwner && (
               <button
-                onClick={() => {
-                  setEditingTx(null);
-                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', balance_type: 'GST', payment_method: 'CASH' });
-                  setView('tx_form');
-                }}
+                onClick={() => openTxForm('CREDIT')}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" /> Add Tx
@@ -1040,14 +1083,16 @@ export function PartyManager({
                 <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
                   {selectedParty.balance > 0 ? 'To Receive' : selectedParty.balance < 0 ? 'To Pay' : 'Settled'}
                 </p>
-                <div className="mt-1.5 pt-1.5 border-t border-white/20 flex flex-col items-end gap-0.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
-                    GST: ₹{Math.abs(selectedParty.gst_balance ?? selectedParty.balance).toFixed(2)}
-                  </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
-                    Est: ₹{Math.abs(selectedParty.estimate_balance ?? 0).toFixed(2)}
-                  </span>
-                </div>
+                {enablePartyGst && enablePartyEstimate && (
+                  <div className="mt-1.5 pt-1.5 border-t border-white/20 flex flex-col items-end gap-0.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
+                      GST: ₹{Math.abs(selectedParty.gst_balance ?? selectedParty.balance).toFixed(2)}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
+                      Est: ₹{Math.abs(selectedParty.estimate_balance ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Credit Limit Card if configured */}
@@ -1091,11 +1136,7 @@ export function PartyManager({
                 </div>
                 {isOwner && (
                   <button
-                    onClick={() => {
-                      setEditingTx(null);
-                      setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', balance_type: 'GST', payment_method: 'CASH' });
-                      setView('tx_form');
-                    }}
+                    onClick={() => openTxForm('CREDIT')}
                     className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
                   >
                     <PlusCircle className="w-4 h-4" /> Add Transaction
@@ -1135,14 +1176,16 @@ export function PartyManager({
                                 {isCredit ? 'Paid' : 'Received'}
                               </span>
                               {/* Balance type badge */}
-                              <span className={clsx(
-                                'inline-flex items-center text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
-                                (entry.balance_type || 'GST') === 'ESTIMATE'
-                                  ? 'bg-violet-500 text-white'
-                                  : 'bg-sky-500 text-white'
-                              )}>
-                                {entry.balance_type || 'GST'}
-                              </span>
+                              {enablePartyGst && enablePartyEstimate && (
+                                <span className={clsx(
+                                  'inline-flex items-center text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
+                                  (entry.balance_type || 'GST') === 'ESTIMATE'
+                                    ? 'bg-violet-500 text-white'
+                                    : 'bg-sky-500 text-white'
+                                )}>
+                                  {entry.balance_type || 'GST'}
+                                </span>
+                              )}
                               {/* Reference badge */}
                               {entry.reference_number && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border px-2 py-1 rounded-lg">
@@ -1227,6 +1270,29 @@ export function PartyManager({
               </div>
             )}
           </div>
+
+          {/* ── Bottom Action Bar for Ledger ── */}
+          {isOwner && (
+            <div className="shrink-0 border-t border-border bg-card px-5 py-3 flex items-center justify-between gap-3 shadow-lg">
+              <p className="text-xs text-muted-foreground font-medium truncate hidden sm:block">
+                Record new entry for <span className="font-bold text-foreground">{selectedParty.name}</span>
+              </p>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => openTxForm('CREDIT')}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" /> + Paid (Credit)
+                </button>
+                <button
+                  onClick={() => openTxForm('DEBIT')}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <MinusCircle className="w-4 h-4" /> − Received (Debit)
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1280,35 +1346,37 @@ export function PartyManager({
               </div>
 
               {/* Balance type selector */}
-              <div className="mb-5">
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
-                <div className="grid grid-cols-2 gap-3 max-w-sm">
-                  <button
-                    type="button"
-                    onClick={() => setTxForm(f => ({ ...f, balance_type: 'GST' }))}
-                    className={clsx(
-                      'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
-                      txForm.balance_type === 'GST'
-                        ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 shadow-sm'
-                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    <FileText className="w-4 h-4" /> GST Balance
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTxForm(f => ({ ...f, balance_type: 'ESTIMATE' }))}
-                    className={clsx(
-                      'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
-                      txForm.balance_type === 'ESTIMATE'
-                        ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 shadow-sm'
-                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    <TrendingUp className="w-4 h-4" /> Estimate Balance
-                  </button>
+              {enablePartyGst && enablePartyEstimate && (
+                <div className="mb-5">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
+                  <div className="grid grid-cols-2 gap-3 max-w-sm">
+                    <button
+                      type="button"
+                      onClick={() => setTxForm(f => ({ ...f, balance_type: 'GST' }))}
+                      className={clsx(
+                        'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
+                        txForm.balance_type === 'GST'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 shadow-sm'
+                          : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                      )}
+                    >
+                      <FileText className="w-4 h-4" /> GST Balance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTxForm(f => ({ ...f, balance_type: 'ESTIMATE' }))}
+                      className={clsx(
+                        'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
+                        txForm.balance_type === 'ESTIMATE'
+                          ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 shadow-sm'
+                          : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                      )}
+                    >
+                      <TrendingUp className="w-4 h-4" /> Estimate Balance
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Amount + Date */}
               <div className="grid grid-cols-2 gap-4 mb-4">

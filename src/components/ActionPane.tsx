@@ -3,7 +3,7 @@ import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { CreditCard, FileText, Settings, XCircle, LogOut, Store, Users, Sun, Moon, TrendingUp, Undo2 } from 'lucide-react';
+import { CreditCard, FileText, Settings, XCircle, LogOut, Store, Users, Sun, Moon, TrendingUp, Undo2, ShieldCheck, UserCheck } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
@@ -14,10 +14,11 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
 import { loadFeatureFlags } from '../featureFlags';
 import { useTabStore } from '../store/tabStore';
+import { BillerPinModal } from './BillerPinModal';
 
 export function ActionPane() {
   const discountInputRef = useRef<HTMLInputElement>(null);
-  const { items, invoiceType, setInvoiceType, clearCart, setDiscount, currentUserRole, setRole, discountType, discountValue } = useCartStore();
+  const { items, invoiceType, setInvoiceType, clearCart, setDiscount, currentUserRole, setRole, discountType, discountValue, salesStaffId, salesStaffName, billerStaffId, billerStaffName, setSalesStaff, setBillerStaff } = useCartStore();
   const { shopName, role: authRole, tenantId, logout } = useAuthStore();
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal } = useCartTotals();
   const { theme, toggleTheme } = useThemeStore();
@@ -25,9 +26,21 @@ export function ActionPane() {
   const isCheckingOutRef = useRef(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [staffList, setStaffList] = useState<any[]>([]);
 
   useEffect(() => {
     loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (window.electronAPI?.dbGetStaff) {
+      window.electronAPI.dbGetStaff({ tenant_id: tenantId || 'global', status: 'ACTIVE' })
+        .then((res: any) => {
+          if (Array.isArray(res)) setStaffList(res);
+        })
+        .catch(() => {});
+    }
   }, [tenantId]);
 
   const [reservedInvoiceNumber, setReservedInvoiceNumber] = useState('');
@@ -51,6 +64,13 @@ export function ActionPane() {
 
   const handleCheckout = async () => {
     if (grandTotal === 0 || items.length === 0) return;
+
+    // Check Biller PIN accountability requirement
+    if (featureFlags?.biller_pin && !useCartStore.getState().billerStaffId) {
+      setIsPinModalOpen(true);
+      return;
+    }
+
     if (isCheckingOutRef.current) return;
     isCheckingOutRef.current = true;
 
@@ -220,6 +240,8 @@ export function ActionPane() {
           invoice_id,
           tenant_id: tenantId || 'unset',
           user_id: useAuthStore.getState().userId || 'unset',
+          biller_staff_id: cartState.billerStaffId || null,
+          sales_staff_id: cartState.salesStaffId || null,
           invoice_number,
           invoice_type: invoiceType,
           subtotal,
@@ -304,27 +326,27 @@ export function ActionPane() {
           <Store className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="text-sm font-semibold truncate">{shopName || 'My Shop'}</span>
           {authRole && (
-            <Badge variant={authRole === 'OWNER' ? 'default' : 'secondary'} className="text-[10px]">
-              {authRole}
+            <Badge variant={(authRole === 'ADMIN' || authRole === 'OWNER') ? 'default' : 'secondary'} className="text-[10px]">
+              {(authRole === 'ADMIN' || authRole === 'OWNER') ? 'ADMIN' : 'STAFF'}
             </Badge>
           )}
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Role toggle */}
-          {authRole === 'OWNER' && (
+          {/* Role toggle for Admin */}
+          {(authRole === 'ADMIN' || authRole === 'OWNER') && (
             <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
               <button
-                onClick={() => setRole('BILLER')}
-                className={clsx('px-2 py-1 text-[10px] font-bold rounded transition-colors', currentUserRole === 'BILLER' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground')}
+                onClick={() => setRole('STAFF')}
+                className={clsx('px-2 py-1 text-[10px] font-bold rounded transition-colors', currentUserRole === 'STAFF' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground')}
               >
-                BILLER
+                STAFF
               </button>
               <button
-                onClick={() => setRole('OWNER')}
-                className={clsx('px-2 py-1 text-[10px] font-bold rounded transition-colors', currentUserRole === 'OWNER' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground')}
+                onClick={() => setRole('ADMIN')}
+                className={clsx('px-2 py-1 text-[10px] font-bold rounded transition-colors', (currentUserRole === 'ADMIN' || currentUserRole === 'OWNER') ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground')}
               >
-                OWNER
+                ADMIN
               </button>
             </div>
           )}
@@ -337,7 +359,7 @@ export function ActionPane() {
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
 
-          {currentUserRole === 'OWNER' && (
+          {(currentUserRole === 'ADMIN' || currentUserRole === 'OWNER') && (
             <>
               {(!featureFlags || featureFlags.inventory) && (
               <button
@@ -505,6 +527,56 @@ export function ActionPane() {
           </div>
         </div>
 
+        {/* Staff Accountability Section */}
+        {(!featureFlags || featureFlags.staff) && (featureFlags?.sales_staff || featureFlags?.biller_pin) && (
+          <div className="px-5 py-2.5 bg-muted/40 border-y border-border flex items-center justify-between text-xs gap-3">
+            {/* Sales Staff / Customer Handler */}
+            {featureFlags?.sales_staff && (
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <UserCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span className="text-muted-foreground font-semibold text-[11px]">Sales:</span>
+                <select
+                  value={salesStaffId || ''}
+                  onChange={(e) => {
+                    const s = staffList.find(st => st.staff_id === e.target.value);
+                    setSalesStaff(e.target.value || null, s ? s.name : null);
+                  }}
+                  className="bg-transparent text-foreground font-bold text-[11px] border border-border rounded px-1.5 py-0.5 focus:outline-none focus:border-primary truncate max-w-[120px]"
+                >
+                  <option value="">(None)</option>
+                  {staffList.map(st => (
+                    <option key={st.staff_id} value={st.staff_id}>{st.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Biller Staff status / switch */}
+            {featureFlags?.biller_pin && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <ShieldCheck className={clsx("w-3.5 h-3.5", billerStaffId ? "text-emerald-500" : "text-amber-500")} />
+                <span className="text-muted-foreground font-semibold text-[11px]">Biller:</span>
+                {billerStaffName ? (
+                  <button
+                    onClick={() => setIsPinModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 hover:bg-emerald-500/20"
+                    title="Click to switch biller PIN"
+                  >
+                    <span className="truncate max-w-[80px]">{billerStaffName}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setIsPinModalOpen(true)}
+                    className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 hover:bg-amber-500/20"
+                  >
+                    + PIN
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Hardware Error Notification */}
         {hardwareError && (
           <div className="mx-6 mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-3 text-destructive animate-in fade-in slide-in-from-top-2">
@@ -515,7 +587,6 @@ export function ActionPane() {
             </button>
           </div>
         )}
-
 
       {/* Action Buttons */}
       <div className="p-4 grid grid-cols-2 gap-3 border-t border-border bg-card">
@@ -548,7 +619,16 @@ export function ActionPane() {
         </Button>
       </div>
 
-
+      <BillerPinModal
+        isOpen={isPinModalOpen}
+        tenantId={tenantId || 'global'}
+        onClose={() => setIsPinModalOpen(false)}
+        onVerified={(staff) => {
+          setBillerStaff(staff.staff_id, staff.name);
+          setIsPinModalOpen(false);
+          handleCheckout();
+        }}
+      />
     </div>
   );
 }

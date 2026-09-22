@@ -561,6 +561,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         }
       }).catch(() => {});
     }
+    if (window.electronAPI?.runInitialSync) {
+      window.electronAPI.runInitialSync().catch(() => {});
+    }
     Promise.all([load()]).finally(() => setLoading(false));
   }, [load, tenantId]);
 
@@ -910,9 +913,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             {showSettlement && (
               <>
                 <button
-                  onClick={() => load()}
+                  onClick={async () => {
+                    if (window.electronAPI?.runInitialSync) {
+                      try { await window.electronAPI.runInitialSync(); } catch {}
+                    }
+                    await load();
+                  }}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
-                  title="Instant Refresh Pending Queue"
+                  title="Instant Refresh & Sync Pending Queue"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-emerald-500 animate-spin" style={{ animationDuration: '3s' }} />
                   <span className="hidden sm:inline">Syncing</span>

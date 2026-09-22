@@ -58,7 +58,7 @@ export function initDb() {
         tenant_id TEXT NOT NULL,
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        role TEXT DEFAULT 'BILLER',
+        role TEXT DEFAULT 'STAFF',
         restricted_page TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -582,13 +582,98 @@ export function initDb() {
         FOREIGN KEY (product_id) REFERENCES products(product_id)
     );
 
+    CREATE TABLE IF NOT EXISTS staff (
+        staff_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        staff_code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        role_designation TEXT,
+        user_id TEXT,
+        biller_pin_hash TEXT,
+        joining_date TEXT,
+        monthly_salary REAL DEFAULT 0,
+        status TEXT DEFAULT 'ACTIVE',
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, staff_code)
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_salaries (
+        salary_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        staff_id TEXT NOT NULL,
+        monthly_salary REAL NOT NULL,
+        effective_date TEXT NOT NULL,
+        notes TEXT,
+        created_by TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (staff_id) REFERENCES staff(staff_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        staff_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        payment_method TEXT DEFAULT 'CASH',
+        payment_source_id TEXT,
+        cash_transaction_id TEXT,
+        reference_number TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_by_name TEXT,
+        transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (staff_id) REFERENCES staff(staff_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_ledger (
+        ledger_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        staff_id TEXT NOT NULL,
+        transaction_id TEXT,
+        transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        description TEXT NOT NULL,
+        debit_amount REAL DEFAULT 0,
+        credit_amount REAL DEFAULT 0,
+        running_balance REAL NOT NULL,
+        reference_type TEXT,
+        created_by TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (staff_id) REFERENCES staff(staff_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_attendance (
+        attendance_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        staff_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        check_in_time TEXT,
+        check_out_time TEXT,
+        notes TEXT,
+        created_by TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, staff_id, date),
+        FOREIGN KEY (staff_id) REFERENCES staff(staff_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS sync_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
   `);
-
-  // Migration: Add missing columns if they don't exist (Idempotent)
   const schemaMap: any = {
     product_grades: [
         'tenant_id', 'category', 'grade_name', 'rate', 'purchase_price', 'offer_price', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -611,7 +696,23 @@ export function initDb() {
         'converted_from_invoice_id', 'converted_from_invoice_number',
         'converted_to_invoice_id', 'converted_to_invoice_number',
         'settled_at',
-        'is_deleted'
+        'is_deleted',
+        'biller_staff_id', 'sales_staff_id'
+    ],
+    staff: [
+        'staff_id', 'tenant_id', 'staff_code', 'name', 'phone', 'email', 'role_designation', 'user_id', 'biller_pin_hash', 'joining_date', 'monthly_salary', 'status', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+    ],
+    staff_salaries: [
+        'salary_id', 'tenant_id', 'staff_id', 'monthly_salary', 'effective_date', 'notes', 'created_by', 'sync_status', 'created_at'
+    ],
+    staff_transactions: [
+        'transaction_id', 'tenant_id', 'staff_id', 'type', 'amount', 'payment_method', 'payment_source_id', 'cash_transaction_id', 'reference_number', 'notes', 'created_by', 'created_by_name', 'transaction_date', 'sync_status', 'created_at', 'updated_at'
+    ],
+    staff_ledger: [
+        'ledger_id', 'tenant_id', 'staff_id', 'transaction_id', 'transaction_date', 'description', 'debit_amount', 'credit_amount', 'running_balance', 'reference_type', 'created_by', 'sync_status', 'created_at'
+    ],
+    staff_attendance: [
+        'attendance_id', 'tenant_id', 'staff_id', 'date', 'status', 'check_in_time', 'check_out_time', 'notes', 'created_by', 'sync_status', 'created_at', 'updated_at'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item',
@@ -1234,8 +1335,9 @@ export function initDb() {
       console.warn('[DB Migration] Failed to add payment_type to purchase_bills:', e.message);
     }
 
-  // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
-  db.exec("UPDATE users SET role = 'BILLER' WHERE role = 'CASHIER'");
+  // Migration: Consolidate user roles to SUPER_ADMIN, ADMIN, STAFF
+  db.exec("UPDATE users SET role = 'ADMIN' WHERE role IN ('OWNER', 'ADMINISTRATOR')");
+  db.exec("UPDATE users SET role = 'STAFF' WHERE role IN ('BILLER', 'CASHIER')");
 
   // Migration: Add gst_balance & estimate_balance columns to parties
   try {
@@ -1307,6 +1409,52 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add adjustment columns to returns:', e.message);
+  }
+
+  // Migration: Recalibrate return totals for historical returns where original invoice had a discount
+  try {
+    const historicalReturns = db.prepare(`
+      SELECT r.return_id, r.invoice_id, r.subtotal as ret_subtotal, r.grand_total as ret_grand_total,
+             i.subtotal as inv_subtotal, i.discount_total as inv_discount, COALESCE(i.points_redeemed_discount, 0) as inv_points_disc
+      FROM returns r
+      JOIN invoices i ON r.invoice_id = i.invoice_id
+      WHERE i.subtotal > 0 AND (COALESCE(i.discount_total, 0) + COALESCE(i.points_redeemed_discount, 0)) > 0
+    `).all() as any[];
+
+    if (historicalReturns.length > 0) {
+      const updateReturnStmt = db.prepare(`UPDATE returns SET subtotal = ?, grand_total = ? WHERE return_id = ?`);
+      const updateReturnItemStmt = db.prepare(`UPDATE return_items SET unit_price = ?, total = ? WHERE return_item_id = ?`);
+      const getReturnItemsStmt = db.prepare(`SELECT return_item_id, quantity, unit_price, total FROM return_items WHERE return_id = ?`);
+
+      db.transaction(() => {
+        for (const ret of historicalReturns) {
+          const invSubtotal = Number(ret.inv_subtotal) || 0;
+          const invDiscount = (Number(ret.inv_discount) || 0) + (Number(ret.inv_points_disc) || 0);
+          if (invSubtotal <= 0 || invDiscount <= 0) continue;
+          const discountRatio = Math.min(1, Math.max(0, invDiscount / invSubtotal));
+
+          const rItems = getReturnItemsStmt.all(ret.return_id) as any[];
+          let newRetSubtotal = 0;
+          for (const item of rItems) {
+            const currentPrice = Number(item.unit_price) || 0;
+            const currentTotal = Number(item.total) || 0;
+            const effPrice = Number((currentPrice * (1 - discountRatio)).toFixed(2));
+            const effTotal = Number((effPrice * Number(item.quantity)).toFixed(2));
+            if (Math.abs(currentTotal - effTotal) > 0.01) {
+              updateReturnItemStmt.run(effPrice, effTotal, item.return_item_id);
+              newRetSubtotal += effTotal;
+            } else {
+              newRetSubtotal += currentTotal;
+            }
+          }
+          if (newRetSubtotal > 0 && Math.abs(Number(ret.ret_grand_total) - newRetSubtotal) > 0.01) {
+            updateReturnStmt.run(newRetSubtotal, newRetSubtotal, ret.return_id);
+          }
+        }
+      })();
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Recalibrating return totals failed:', e.message);
   }
 
   // Migration: Add skip_stock_update to purchase_bill_items and qty_from_paper_stock to invoice_items
@@ -1702,4 +1850,374 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
     console.error('[DB Migration] Failed customer backfill:', err.message);
   }
 }
+
+// ── Staff Management & Finance DB Handlers ─────────────────────────────────────
+
+function hashStaffPin(pin: string, tenantId: string): string {
+  return crypto.createHash('sha256').update(`${pin}:${tenantId}`).digest('hex');
+}
+
+export function dbGetStaff(params: { tenant_id: string; search?: string; status?: string }) {
+  const tenantId = params.tenant_id;
+  let sql = `
+    SELECT s.*, u.email as user_email, u.role as user_role,
+      (
+        SELECT COALESCE(running_balance, 0)
+        FROM staff_ledger sl
+        WHERE sl.staff_id = s.staff_id AND sl.tenant_id = s.tenant_id
+        ORDER BY sl.created_at DESC, sl.ledger_id DESC
+        LIMIT 1
+      ) as current_balance
+    FROM staff s
+    LEFT JOIN users u ON s.user_id = u.user_id
+    WHERE s.tenant_id = ? AND s.is_deleted = 0
+  `;
+  const sqlParams: any[] = [tenantId];
+
+  if (params.status && params.status !== 'ALL') {
+    sql += ` AND s.status = ?`;
+    sqlParams.push(params.status);
+  }
+  if (params.search && params.search.trim()) {
+    const q = `%${params.search.trim()}%`;
+    sql += ` AND (s.name LIKE ? OR s.phone LIKE ? OR s.email LIKE ? OR s.staff_code LIKE ?)`;
+    sqlParams.push(q, q, q, q);
+  }
+
+  sql += ` ORDER BY s.status ASC, s.created_at DESC`;
+  const rows = db.prepare(sql).all(...sqlParams);
+  return rows.map((r: any) => ({
+    ...r,
+    has_pin: Boolean(r.biller_pin_hash),
+    biller_pin_hash: undefined,
+  }));
+}
+
+export function dbGetStaffById(params: { tenant_id: string; staff_id: string }) {
+  const row: any = db.prepare(`
+    SELECT s.*, u.email as user_email, u.role as user_role
+    FROM staff s
+    LEFT JOIN users u ON s.user_id = u.user_id
+    WHERE s.staff_id = ? AND s.tenant_id = ? AND s.is_deleted = 0
+  `).get(params.staff_id, params.tenant_id);
+
+  if (!row) return null;
+
+  const current_balance = db.prepare(`
+    SELECT COALESCE(running_balance, 0) as balance
+    FROM staff_ledger
+    WHERE staff_id = ? AND tenant_id = ?
+    ORDER BY created_at DESC, ledger_id DESC
+    LIMIT 1
+  `).get(params.staff_id, params.tenant_id) as any;
+
+  return {
+    ...row,
+    current_balance: current_balance?.balance || 0,
+    has_pin: Boolean(row.biller_pin_hash),
+    biller_pin_hash: undefined,
+  };
+}
+
+export function dbSaveStaff(params: {
+  staff_id?: string;
+  tenant_id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  role_designation?: string;
+  user_id?: string | null;
+  joining_date?: string;
+  monthly_salary?: number;
+  status?: 'ACTIVE' | 'INACTIVE';
+  biller_pin?: string;
+}) {
+  const tenantId = params.tenant_id;
+  const staffId = params.staff_id || crypto.randomUUID();
+  const name = params.name.trim();
+  if (!name) throw new Error('Staff name is required');
+
+  const existing = db.prepare('SELECT staff_id, staff_code, biller_pin_hash FROM staff WHERE staff_id = ? AND tenant_id = ?').get(staffId, tenantId) as any;
+
+  let staffCode = existing?.staff_code;
+  if (!staffCode) {
+    const countRow = db.prepare('SELECT COUNT(*) as cnt FROM staff WHERE tenant_id = ?').get(tenantId) as any;
+    const nextSeq = (countRow?.cnt || 0) + 1;
+    staffCode = `STF-${String(nextSeq).padStart(4, '0')}`;
+  }
+
+  let pinHash = existing?.biller_pin_hash || null;
+  if (params.biller_pin !== undefined) {
+    if (params.biller_pin && params.biller_pin.trim().length === 4) {
+      const newHash = hashStaffPin(params.biller_pin.trim(), tenantId);
+      const dup = db.prepare('SELECT staff_id FROM staff WHERE tenant_id = ? AND biller_pin_hash = ? AND staff_id != ? AND is_deleted = 0 AND status = "ACTIVE"').get(tenantId, newHash, staffId);
+      if (dup) throw new Error('This 4-digit PIN is already assigned to another staff member');
+      pinHash = newHash;
+    } else if (params.biller_pin === '' || params.biller_pin === null) {
+      pinHash = null;
+    }
+  }
+
+  const now = localTimestamp(new Date(), tenantId);
+
+  if (existing) {
+    db.prepare(`
+      UPDATE staff SET
+        name = ?, phone = ?, email = ?, role_designation = ?, user_id = ?,
+        biller_pin_hash = ?, joining_date = ?, monthly_salary = ?, status = COALESCE(?, status),
+        sync_status = 'PENDING', updated_at = ?
+      WHERE staff_id = ? AND tenant_id = ?
+    `).run(
+      name, params.phone || null, params.email || null, params.role_designation || null, params.user_id || null,
+      pinHash, params.joining_date || null, params.monthly_salary || 0, params.status || 'ACTIVE',
+      now, staffId, tenantId
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO staff (
+        staff_id, tenant_id, staff_code, name, phone, email, role_designation, user_id,
+        biller_pin_hash, joining_date, monthly_salary, status, sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+    `).run(
+      staffId, tenantId, staffCode, name, params.phone || null, params.email || null,
+      params.role_designation || null, params.user_id || null, pinHash,
+      params.joining_date || null, params.monthly_salary || 0, params.status || 'ACTIVE',
+      now, now
+    );
+  }
+
+  if (params.monthly_salary !== undefined && params.monthly_salary !== null) {
+    const latestSalary: any = db.prepare(`SELECT monthly_salary FROM staff_salaries WHERE staff_id = ? AND tenant_id = ? ORDER BY effective_date DESC LIMIT 1`).get(staffId, tenantId);
+    if (!latestSalary || Number(latestSalary.monthly_salary) !== Number(params.monthly_salary)) {
+      db.prepare(`
+        INSERT INTO staff_salaries (salary_id, tenant_id, staff_id, monthly_salary, effective_date, notes, sync_status, created_at)
+        VALUES (?, ?, ?, ?, ?, 'Salary updated', 'PENDING', ?)
+      `).run(crypto.randomUUID(), tenantId, staffId, params.monthly_salary, now.split(' ')[0], now);
+    }
+  }
+
+  return dbGetStaffById({ tenant_id: tenantId, staff_id: staffId });
+}
+
+export function dbVerifyBillerPin(params: { tenant_id: string; pin: string }) {
+  const { tenant_id, pin } = params;
+  if (!pin || pin.trim().length !== 4) {
+    return { success: false, error: 'PIN must be exactly 4 digits' };
+  }
+  const hash = hashStaffPin(pin.trim(), tenant_id);
+  const staffMember: any = db.prepare(`
+    SELECT staff_id, staff_code, name, role_designation, status
+    FROM staff
+    WHERE tenant_id = ? AND biller_pin_hash = ? AND is_deleted = 0
+  `).get(tenant_id, hash);
+
+  if (!staffMember) {
+    return { success: false, error: 'Invalid Biller PIN' };
+  }
+  if (staffMember.status !== 'ACTIVE') {
+    return { success: false, error: 'Staff account is inactive' };
+  }
+
+  return {
+    success: true,
+    staff: {
+      staff_id: staffMember.staff_id,
+      staff_code: staffMember.staff_code,
+      name: staffMember.name,
+      role_designation: staffMember.role_designation,
+    }
+  };
+}
+
+export function dbGetStaffLedger(params: { tenant_id: string; staff_id: string }) {
+  const rows = db.prepare(`
+    SELECT * FROM staff_ledger
+    WHERE tenant_id = ? AND staff_id = ?
+    ORDER BY transaction_date DESC, created_at DESC, ledger_id DESC
+  `).all(params.tenant_id, params.staff_id);
+  return rows;
+}
+
+export function dbAddStaffTransaction(params: {
+  tenant_id: string;
+  staff_id: string;
+  type: 'ADVANCE' | 'SALARY_PAYMENT' | 'BONUS' | 'DEDUCTION' | 'SALARY_ACCRUAL' | 'ADJUSTMENT';
+  amount: number;
+  payment_method?: string;
+  payment_source_id?: string;
+  reference_number?: string;
+  notes?: string;
+  user_id?: string;
+  user_name?: string;
+  create_cash_transaction?: boolean;
+}) {
+  const { tenant_id, staff_id, type, amount, payment_method = 'CASH', payment_source_id, reference_number, notes, user_id, user_name } = params;
+  if (amount <= 0) throw new Error('Transaction amount must be greater than zero');
+
+  const staff = db.prepare('SELECT staff_id, name FROM staff WHERE staff_id = ? AND tenant_id = ?').get(staff_id, tenant_id) as any;
+  if (!staff) throw new Error('Staff member not found');
+
+  const now = localTimestamp(new Date(), tenant_id);
+  const txId = crypto.randomUUID();
+  let cashTxId: string | null = null;
+
+  if (params.create_cash_transaction !== false && (type === 'ADVANCE' || type === 'SALARY_PAYMENT') && payment_method === 'CASH') {
+    const activeDrawer: any = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY opened_at DESC LIMIT 1`).get(tenant_id);
+    if (activeDrawer) {
+      cashTxId = crypto.randomUUID();
+      const catName = type === 'ADVANCE' ? 'Staff Advance' : 'Staff Salary Payment';
+      db.prepare(`
+        INSERT INTO cash_transactions (
+          transaction_id, tenant_id, drawer_id, type, amount, category, notes,
+          reference_number, entered_by, entered_by_name, transaction_date, sync_status, created_at, updated_at
+        ) VALUES (?, ?, ?, 'CASH_OUT', ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+      `).run(
+        cashTxId, tenant_id, activeDrawer.drawer_id, amount, catName,
+        `Paid to ${staff.name}${notes ? ': ' + notes : ''}`, reference_number || null,
+        user_id || null, user_name || null, now, now, now
+      );
+
+      db.prepare(`
+        UPDATE cash_drawer
+        SET cash_out = cash_out + ?,
+            current_cash = opening_balance + cash_sales + cash_in - (cash_out + ?),
+            expected_closing = opening_balance + cash_sales + cash_in - (cash_out + ?),
+            updated_at = ?
+        WHERE drawer_id = ?
+      `).run(amount, amount, amount, now, activeDrawer.drawer_id);
+    }
+  }
+
+  db.prepare(`
+    INSERT INTO staff_transactions (
+      transaction_id, tenant_id, staff_id, type, amount, payment_method, payment_source_id,
+      cash_transaction_id, reference_number, notes, created_by, created_by_name,
+      transaction_date, sync_status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+  `).run(
+    txId, tenant_id, staff_id, type, amount, payment_method, payment_source_id || null,
+    cashTxId, reference_number || null, notes || null, user_id || null, user_name || null,
+    now, now, now
+  );
+
+  let debitAmt = 0;
+  let creditAmt = 0;
+  let desc = '';
+
+  switch (type) {
+    case 'SALARY_ACCRUAL':
+      debitAmt = amount;
+      desc = `Monthly Salary Accrual${notes ? ': ' + notes : ''}`;
+      break;
+    case 'BONUS':
+      debitAmt = amount;
+      desc = `Bonus / Incentive${notes ? ': ' + notes : ''}`;
+      break;
+    case 'ADVANCE':
+      creditAmt = amount;
+      desc = `Salary Advance (${payment_method})${notes ? ': ' + notes : ''}`;
+      break;
+    case 'SALARY_PAYMENT':
+      creditAmt = amount;
+      desc = `Salary Payment (${payment_method})${notes ? ': ' + notes : ''}`;
+      break;
+    case 'DEDUCTION':
+      creditAmt = amount;
+      desc = `Deduction${notes ? ': ' + notes : ''}`;
+      break;
+    case 'ADJUSTMENT':
+      if (amount >= 0) { debitAmt = amount; desc = `Balance Adjustment (+)${notes ? ': ' + notes : ''}`; }
+      else { creditAmt = Math.abs(amount); desc = `Balance Adjustment (-)${notes ? ': ' + notes : ''}`; }
+      break;
+  }
+
+  const prevBalanceRow: any = db.prepare(`
+    SELECT running_balance FROM staff_ledger
+    WHERE tenant_id = ? AND staff_id = ?
+    ORDER BY transaction_date DESC, created_at DESC, ledger_id DESC
+    LIMIT 1
+  `).get(tenant_id, staff_id);
+
+  const prevBal = Number(prevBalanceRow?.running_balance || 0);
+  const newBal = prevBal + debitAmt - creditAmt;
+
+  const ledgerId = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO staff_ledger (
+      ledger_id, tenant_id, staff_id, transaction_id, transaction_date, description,
+      debit_amount, credit_amount, running_balance, reference_type, created_by, sync_status, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+  `).run(
+    ledgerId, tenant_id, staff_id, txId, now, desc,
+    debitAmt, creditAmt, newBal, type, user_id || null, now
+  );
+
+  return {
+    success: true,
+    transaction_id: txId,
+    ledger_id: ledgerId,
+    new_balance: newBal
+  };
+}
+
+export function dbGetStaffAttendance(params: { tenant_id: string; staff_id?: string; date?: string; month?: string }) {
+  const { tenant_id, staff_id, date, month } = params;
+  let sql = `
+    SELECT sa.*, s.name as staff_name, s.staff_code
+    FROM staff_attendance sa
+    JOIN staff s ON sa.staff_id = s.staff_id
+    WHERE sa.tenant_id = ?
+  `;
+  const sqlParams: any[] = [tenant_id];
+
+  if (staff_id) {
+    sql += ` AND sa.staff_id = ?`;
+    sqlParams.push(staff_id);
+  }
+  if (date) {
+    sql += ` AND sa.date = ?`;
+    sqlParams.push(date);
+  } else if (month) {
+    sql += ` AND sa.date LIKE ?`;
+    sqlParams.push(`${month}%`);
+  }
+
+  sql += ` ORDER BY sa.date DESC, s.name ASC`;
+  return db.prepare(sql).all(...sqlParams);
+}
+
+export function dbSaveStaffAttendance(params: {
+  tenant_id: string;
+  staff_id: string;
+  date: string;
+  status: 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LEAVE' | 'HOLIDAY';
+  check_in_time?: string;
+  check_out_time?: string;
+  notes?: string;
+  user_id?: string;
+}) {
+  const { tenant_id, staff_id, date, status, check_in_time, check_out_time, notes, user_id } = params;
+  const now = localTimestamp(new Date(), tenant_id);
+  const existing: any = db.prepare(`SELECT attendance_id FROM staff_attendance WHERE tenant_id = ? AND staff_id = ? AND date = ?`).get(tenant_id, staff_id, date);
+
+  if (existing) {
+    db.prepare(`
+      UPDATE staff_attendance SET
+        status = ?, check_in_time = COALESCE(?, check_in_time), check_out_time = COALESCE(?, check_out_time),
+        notes = COALESCE(?, notes), created_by = COALESCE(?, created_by), sync_status = 'PENDING', updated_at = ?
+      WHERE attendance_id = ?
+    `).run(status, check_in_time || null, check_out_time || null, notes || null, user_id || null, now, existing.attendance_id);
+    return { success: true, attendance_id: existing.attendance_id };
+  } else {
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO staff_attendance (
+        attendance_id, tenant_id, staff_id, date, status, check_in_time, check_out_time,
+        notes, created_by, sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+    `).run(id, tenant_id, staff_id, date, status, check_in_time || null, check_out_time || null, notes || null, user_id || null, now, now);
+    return { success: true, attendance_id: id };
+  }
+}
+
 

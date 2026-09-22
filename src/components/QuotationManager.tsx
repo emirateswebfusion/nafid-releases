@@ -9,6 +9,7 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
 import { DEFAULT_BILL_SETTINGS, type ReceiptData, parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { isAdminRole } from '../utils/permissions';
 
 interface Quotation {
   quotation_id: string;
@@ -475,7 +476,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             )}
             {showDetail && (
               <span className="text-[11px] text-muted-foreground font-medium bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
-                {authRole === 'OWNER' ? 'Owner Mode' : (userName || 'Staff')}
+                {isAdminRole(authRole) ? 'Admin Mode' : (userName || 'Staff')}
               </span>
             )}
           </div>

@@ -7,7 +7,7 @@ export interface AuthState {
   token: string | null;
   tenantId: string | null;
   userId: string | null;
-  role: 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER' | 'SUPER_ADMIN' | null;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | null;
   permissions: string[];
   userName: string | null;
   shopName: string | null;
@@ -26,7 +26,16 @@ export interface AuthState {
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-const CLOUD_API = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
+export function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' {
+  if (!rawRole) return 'STAFF';
+  const r = rawRole.toUpperCase().trim();
+  if (r === 'SUPER_ADMIN') return 'SUPER_ADMIN';
+  if (r === 'ADMIN' || r === 'OWNER' || r === 'ADMINISTRATOR') return 'ADMIN';
+  return 'STAFF';
+}
+
+// Cloud API URL — set VITE_CLOUD_API in .env
+const CLOUD_API = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -41,7 +50,8 @@ function parsePermissionsFromToken(token: string): string[] {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     if (Array.isArray(payload.permissions)) return payload.permissions;
-    if (payload.role === 'OWNER' || payload.role === 'ADMIN' || payload.role === 'SUPER_ADMIN') return ['*'];
+    const r = (payload.role || '').toUpperCase();
+    if (r === 'ADMIN' || r === 'OWNER' || r === 'SUPER_ADMIN') return ['*'];
     return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
   } catch {
     return [];

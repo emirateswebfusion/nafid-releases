@@ -236,17 +236,17 @@ export function hasPermission(user: UserPermissions | null | undefined, permissi
   if (permissionKey === 'dashboard.view' || permissionKey === 'dashboard') return true;
 
   const role = (user.role || '').toUpperCase();
-  if (role === 'OWNER' || role === 'ADMIN' || role === 'SUPER_ADMIN') {
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'OWNER') {
     return true;
   }
-  if (role === 'STAFF' || role === 'BILLER' || role === 'CASHIER') {
-    const userPerms = user.permissions || [];
-    if (userPerms.includes('*')) return true;
+  
+  const userPerms = user.permissions || [];
+  if (userPerms.includes('*')) return true;
 
     // Direct check
     if (userPerms.includes(permissionKey)) return true;
 
-    // Check parent permission fallbacks for granular keys
+    // Parent permission check: if user has parent permission, grant child permission
     if (permissionKey === 'sales.view_gst' || permissionKey === 'sales.view_estimate') {
       if (userPerms.includes('sales.view')) return true;
     }
@@ -263,6 +263,50 @@ export function hasPermission(user: UserPermissions | null | undefined, permissi
       if (userPerms.includes('purchases.view')) return true;
     }
 
+    // Child -> Parent permission check: if checking module view/create, grant if user has ANY child permission in that module
+    if (permissionKey === 'sales.create') {
+      if (userPerms.some(p => p.startsWith('sales.create') || p === 'sales.create_gst' || p === 'sales.create_estimate')) return true;
+    }
+    if (permissionKey === 'sales.view') {
+      if (userPerms.some(p => p.startsWith('sales.'))) return true;
+    }
+    if (permissionKey === 'products.view') {
+      if (userPerms.some(p => p.startsWith('products.'))) return true;
+    }
+    if (permissionKey === 'products.create') {
+      if (userPerms.some(p => p.startsWith('products.'))) return true;
+    }
+    if (permissionKey === 'purchases.view') {
+      if (userPerms.some(p => p.startsWith('purchases.'))) return true;
+    }
+    if (permissionKey === 'cash_register.view') {
+      if (userPerms.some(p => p.startsWith('cash_register.'))) return true;
+    }
+    if (permissionKey === 'quotations.view') {
+      if (userPerms.some(p => p.startsWith('quotations.'))) return true;
+    }
+    if (permissionKey === 'scrap.view') {
+      if (userPerms.some(p => p.startsWith('scrap.'))) return true;
+    }
+    if (permissionKey === 'warranties.view') {
+      if (userPerms.some(p => p.startsWith('warranties.'))) return true;
+    }
+    if (permissionKey === 'combos.view') {
+      if (userPerms.some(p => p.startsWith('combos.'))) return true;
+    }
+    if (permissionKey === 'reports.view') {
+      if (userPerms.some(p => p.startsWith('reports.'))) return true;
+    }
+    if (permissionKey === 'settings.view') {
+      if (userPerms.some(p => p.startsWith('settings.'))) return true;
+    }
+    if (permissionKey === 'customers.view') {
+      if (userPerms.some(p => p.startsWith('customers.'))) return true;
+    }
+    if (permissionKey === 'users.view') {
+      if (userPerms.some(p => p.startsWith('users.'))) return true;
+    }
+
     // Legacy fallback check from restrictedPage string if present
     if (user.restrictedPage) {
       const legacyPerms = convertLegacyRestrictedPageToPermissions(user.restrictedPage);
@@ -270,7 +314,20 @@ export function hasPermission(user: UserPermissions | null | undefined, permissi
     }
 
     return false;
-  }
-  return false;
 }
+
+export function isAdminRole(role: string | null | undefined): boolean {
+  if (!role) return false;
+  const r = role.toUpperCase().trim();
+  return r === 'ADMIN' || r === 'OWNER' || r === 'SUPER_ADMIN' || r === 'ADMINISTRATOR';
+}
+
+export function formatRoleName(role: string | null | undefined): string {
+  if (!role) return 'Staff';
+  const r = role.toUpperCase().trim();
+  if (r === 'SUPER_ADMIN') return 'Super Admin';
+  if (r === 'ADMIN' || r === 'OWNER' || r === 'ADMINISTRATOR') return 'Admin';
+  return 'Staff';
+}
+
 

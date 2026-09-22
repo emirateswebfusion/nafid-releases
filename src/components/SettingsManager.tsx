@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
-  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen
+  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -18,6 +18,8 @@ import { Modal } from './ui/Modal';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
+import { isAdminRole } from '../utils/permissions';
+
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, setFeatureFlag, type FeatureFlags } from '../featureFlags';
@@ -175,7 +177,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string, title?: string } | null>(null);
-  const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'store' : 'hardware');
+  const [activeSection, setActiveSection] = useState(isAdminRole(role) ? 'store' : 'hardware');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
 
   const [barcodePrinter, setBarcodePrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
@@ -239,6 +241,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
+  const [enablePartyGst, setEnablePartyGst] = useState(true);
+  const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -355,7 +359,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           setMessage({ type: 'error', text: result.error || 'Connection failed' });
         }
       } else {
-        const defaultCloud = (import.meta.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
+        // Cloud API URL — set VITE_CLOUD_API in .env
+        const defaultCloud = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
         if (syncMode === 'LAN' || syncMode === 'HYBRID') {
           if (lanRole === 'PRIMARY') {
             const hostIp = detectedLocalIp || cleanHost || '192.168.1.100';
@@ -516,6 +521,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     lanHostIp: overrides.lanHostIp !== undefined ? overrides.lanHostIp : lanHostIp,
     lanPort: overrides.lanPort !== undefined ? overrides.lanPort : lanPort,
     syncFrequency: overrides.syncFrequency !== undefined ? overrides.syncFrequency : syncFrequency,
+    enablePartyGst: overrides.enablePartyGst !== undefined ? overrides.enablePartyGst : enablePartyGst,
+    enablePartyEstimate: overrides.enablePartyEstimate !== undefined ? overrides.enablePartyEstimate : enablePartyEstimate,
     features: JSON.stringify(overrides.featureFlags !== undefined ? overrides.featureFlags : featureFlags)
   });
 
@@ -524,7 +531,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -606,6 +613,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
+          'enable_party_gst_balance', 'enable_party_estimate_balance',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -962,6 +970,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setBankIfsc(finalBankIfsc);
       setBankBranch(finalBankBranch);
 
+      const pGst = allSettings['enable_party_gst_balance'];
+      const pEst = allSettings['enable_party_estimate_balance'];
+      let finalPartyGst = pGst !== null && pGst !== undefined ? Boolean(pGst) : true;
+      let finalPartyEst = pEst !== null && pEst !== undefined ? Boolean(pEst) : true;
+      if (!finalPartyGst && !finalPartyEst) finalPartyGst = true;
+      setEnablePartyGst(finalPartyGst);
+      setEnablePartyEstimate(finalPartyEst);
+
       initialSnapshot.current = buildSettingsSnapshot({
         barcodePrinter: finalBarcode,
         receiptPrinter: finalReceipt,
@@ -1021,6 +1037,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         lanHostIp: finalLanHostIp,
         lanPort: finalLanPort,
         syncFrequency: finalSyncFreq,
+        enablePartyGst: finalPartyGst,
+        enablePartyEstimate: finalPartyEst,
         featureFlags: finalFlags
       });
 
@@ -1092,7 +1110,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     setSaving(true); setMessage(null);
     try {
       const { tenantId } = useAuthStore.getState();
-      if (localDomain !== shopDomain && role === 'OWNER') {
+      if (localDomain !== shopDomain && isAdminRole(role)) {
         const res = await updateDomain(localDomain);
         if (!res.success) throw new Error(res.error);
       }
@@ -1143,6 +1161,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         : `${cleanCode}-QTN`;
 
       const checks: { promise: Promise<any>; name: string }[] = [
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'party_estimate' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config', value: formattedReceiptPrinter }), name: 'receipt' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'a4_printer_config', value: a4Printer }), name: 'a4' },
@@ -1451,7 +1471,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     const productTabs = [
       { id: 'coding', label: 'Price Coding', icon: Key, ownerOnly: true },
       { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
-    ].filter(t => !t.ownerOnly || role === 'OWNER');
+    ].filter(t => !t.ownerOnly || isAdminRole(role));
 
     switch (sectionId) {
       case 'store':
@@ -3214,6 +3234,76 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   Disabled features are hidden everywhere — dashboards, billing page buttons, and manager screens. Existing data is never deleted; re-enabling a feature restores it. Changes apply after saving.
                 </p>
               </div>
+
+              {/* Party Ledger Balance Modes Card */}
+              <div className="mt-6 bg-card border border-border rounded-[28px] p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border">
+                  <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                    <Handshake className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Party Ledger Balance Modes</h3>
+                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Control whether party ledgers track separate GST &amp; Estimate balances or a single balance</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3.5">
+                  {/* GST Balance Toggle */}
+                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                    <div className="flex-1 min-w-0">
+                      <label className="text-xs font-bold text-foreground block">Track GST Balance in Parties</label>
+                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate GST tax invoice balance for credit parties</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (enablePartyGst && !enablePartyEstimate) {
+                          setMessage({ type: 'error', text: 'Cannot turn off both GST and Estimate balance tracking. At least one must remain active.' });
+                          return;
+                        }
+                        setEnablePartyGst(!enablePartyGst);
+                      }}
+                      className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enablePartyGst ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                      title={enablePartyGst ? 'Enabled' : 'Disabled'}
+                    >
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enablePartyGst ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  {/* Estimate Balance Toggle */}
+                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                    <div className="flex-1 min-w-0">
+                      <label className="text-xs font-bold text-foreground block">Track Estimate Balance in Parties</label>
+                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate Estimate / Non-GST invoice balance for credit parties</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (enablePartyEstimate && !enablePartyGst) {
+                          setMessage({ type: 'error', text: 'Cannot turn off both GST and Estimate balance tracking. At least one must remain active.' });
+                          return;
+                        }
+                        setEnablePartyEstimate(!enablePartyEstimate);
+                      }}
+                      className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enablePartyEstimate ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                      title={enablePartyEstimate ? 'Enabled' : 'Disabled'}
+                    >
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enablePartyEstimate ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  {(!enablePartyGst || !enablePartyEstimate) && (
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300 font-medium leading-relaxed">
+                      <Info className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>
+                        {enablePartyGst
+                          ? 'Estimate Balance is turned OFF. Parties & Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'
+                          : 'GST Balance is turned OFF. Parties & Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -3566,7 +3656,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         <aside className="w-56 lg:w-64 shrink-0 bg-muted/30 border-r border-border overflow-y-auto hidden md:block">
           <nav className="py-4 px-3.5 space-y-6">
             {SIDEBAR_GROUPS.map((group) => {
-              const visibleItems = group.items.filter(item => !item.ownerOnly || role === 'OWNER');
+              const visibleItems = group.items.filter(item => !item.ownerOnly || isAdminRole(role));
               if (visibleItems.length === 0) return null;
               const GroupIcon = group.icon;
               return (
@@ -3613,7 +3703,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         {/* â”€â”€ Mobile Section Picker â”€â”€ */}
         <div className="md:hidden shrink-0 border-b border-border bg-muted/20 overflow-x-auto">
           <div className="flex gap-1.5 p-2 whitespace-nowrap">
-            {SIDEBAR_GROUPS.flatMap(g => g.items).filter(item => !item.ownerOnly || role === 'OWNER').map((item) => {
+            {SIDEBAR_GROUPS.flatMap(g => g.items).filter(item => !item.ownerOnly || isAdminRole(role)).map((item) => {
               const ItemIcon = item.icon;
               const isActive = activeSection === item.id;
               return (

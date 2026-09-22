@@ -20,6 +20,7 @@ export interface IElectronAPI {
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateProductName: (params: { tenant_id: string; product_id: string; name: string }) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbBulkDeleteProducts: (product_ids: string[]) => Promise<{ success: boolean; count?: number; error?: string }>;
   dbAdjustStock: (args: { product_id: string; delta?: number; pcsDelta?: number }) => Promise<{ success: boolean; error?: string }>;
   dbBulkImportProducts: (products: any[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
@@ -49,6 +50,14 @@ export interface IElectronAPI {
   dbGetProductPricing: (tenantId: string) => Promise<any[]>;
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
+  dbGetStaff: (params: { tenant_id: string; search?: string; status?: string }) => Promise<any[]>;
+  dbSaveStaff: (params: any) => Promise<any>;
+  dbVerifyBillerPin: (params: { tenant_id: string; pin: string }) => Promise<{ success: boolean; staff?: any; error?: string }>;
+  dbGetStaffLedger: (params: { tenant_id: string; staff_id: string }) => Promise<any[]>;
+  dbAddStaffTransaction: (params: any) => Promise<{ success: boolean; transaction_id?: string; ledger_id?: string; new_balance?: number; error?: string }>;
+  dbGetStaffAttendance: (params: { tenant_id: string; staff_id?: string; date?: string; month?: string }) => Promise<any[]>;
+  dbSaveStaffAttendance: (params: any) => Promise<{ success: boolean; attendance_id?: string; error?: string }>;
+
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
   forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;

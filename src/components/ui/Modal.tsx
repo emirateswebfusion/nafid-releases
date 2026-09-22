@@ -9,13 +9,14 @@ interface ModalProps {
   title?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
   size?: string;
   fullScreen?: boolean;
   closeButton?: React.ReactNode;
   overlayClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, className, fullScreen = false, closeButton, overlayClassName }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, className, contentClassName, fullScreen = false, closeButton, overlayClassName }: ModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -29,15 +30,18 @@ export function Modal({ isOpen, onClose, title, children, className, fullScreen 
           )
         )}
       >
-        <div className="flex items-center justify-between px-6 py-4.5 border-b border-border/40 bg-muted/20 dark:bg-muted/5">
-          <div className="text-sm font-black uppercase tracking-widest text-foreground">{title}</div>
-          {closeButton !== undefined ? closeButton : (
-            <button onClick={onClose} className="p-2 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-sm" title="Close">
-              <X className="w-4 h-4 text-destructive" />
-            </button>
-          )}
-        </div>
-        <div className={clsx("flex-1 overflow-y-auto", !fullScreen && "p-6")}>
+        {/* Only render header row when title is not explicitly null */}
+        {title !== null && (
+          <div className="flex items-center justify-between px-6 py-4.5 border-b border-border/40 bg-muted/20 dark:bg-muted/5">
+            <div className="text-sm font-black uppercase tracking-widest text-foreground">{title}</div>
+            {closeButton !== undefined ? closeButton : (
+              <button onClick={onClose} className="p-2 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-sm" title="Close">
+                <X className="w-4 h-4 text-destructive" />
+              </button>
+            )}
+          </div>
+        )}
+        <div className={twMerge(clsx('flex-1 overflow-y-auto', !fullScreen && title !== null && 'p-6'), contentClassName)}>
           {children}
         </div>
       </div>

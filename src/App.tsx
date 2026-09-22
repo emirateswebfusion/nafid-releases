@@ -62,7 +62,7 @@ import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
-import { loadFeatureFlags, type FeatureKey, type FeatureFlags } from './featureFlags';
+import { loadFeatureFlags, DEFAULT_FEATURE_FLAGS, type FeatureKey, type FeatureFlags } from './featureFlags';
 
 function App() {
   const [showFinancialReport, setShowFinancialReport] = useState(false);
@@ -136,7 +136,7 @@ function App() {
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
   enableScrapRef.current = enableScrap;
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ billing: true, cash_settlement: true, cash_register: true, inventory: true, combo_offers: true, categories_grades: true, pricing_tiers: true, stock_report: true, quotations: true, purchase_bills: true, warranties: true, returns: true, scrap: true, parties: true, payments: true, customers: true, staff: true, sales_history: true, loyalty: true });
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ ...DEFAULT_FEATURE_FLAGS });
   const featureFlagsRef = useRef(featureFlags);
   featureFlagsRef.current = featureFlags;
   const [showQuotationManager, setShowQuotationManager] = useState(false);

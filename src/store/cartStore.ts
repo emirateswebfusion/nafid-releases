@@ -45,7 +45,7 @@ export interface CartItem {
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
-export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER' | 'SUPER_ADMIN';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'OWNER' | 'MANAGER' | 'BILLER' | 'STAFF';
 export type ShopDomain = 'GENERAL' | 'HARDWARE' | 'JEWELRY' | 'GROCERY';
 
 interface CartState {
@@ -70,7 +70,7 @@ interface CartState {
   editingQuotationNumber: string | null;
   editingInvoiceId: string | null;
   editingInvoiceNumber: string | null;
-  editingInvoiceRole: 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER' | null;
+  editingInvoiceRole: UserRole | null;
   pendingScrapInvoiceToEdit: string | null;
 
   lastAddedProductId: string | null;
@@ -97,10 +97,19 @@ interface CartState {
   clearReturnDeduction: () => void;
   setReturnMode: (isReturnMode: boolean) => void;
   setIsScrapMode: (isScrapMode: boolean) => void;
+  salesStaffId: string | null;
+  salesStaffName: string | null;
+  billerStaffId: string | null;
+  billerStaffName: string | null;
+
+  setSalesStaff: (id: string | null, name: string | null) => void;
+  setBillerStaff: (id: string | null, name: string | null) => void;
+  clearStaff: () => void;
+
   setReturnRefundMethod: (method: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL') => void;
   setQuotationMode: (isQuotationMode: boolean) => void;
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
-  setEditingInvoice: (id: string | null, number: string | null, role: 'OWNER' | 'BILLER' | null) => void;
+  setEditingInvoice: (id: string | null, number: string | null, role: UserRole | null) => void;
   setPendingScrapInvoiceToEdit: (invoiceNumber: string | null) => void;
   setLastAddedProductId: (id: string | null) => void;
   clearCart: () => void;
@@ -111,12 +120,16 @@ export const useCartStore = create<CartState>()(
     (set) => ({
       items: [],
       lastAddedProductId: null,
+      salesStaffId: null,
+      salesStaffName: null,
+      billerStaffId: null,
+      billerStaffName: null,
       invoiceType: 'BILL_OF_SUPPLY',
       discountType: 'FIXED',
       discountValue: 0,
       customerState: 'KL', // Default to same state (Kerala)
       shopState: 'KL', // Shop is in KL
-      currentUserRole: 'OWNER',
+      currentUserRole: 'ADMIN',
       shopDomain: 'GENERAL',
       shopDomainConfirmed: true,
       scrapDeduction: 0,
@@ -133,6 +146,9 @@ export const useCartStore = create<CartState>()(
       editingInvoiceNumber: null,
       editingInvoiceRole: null,
       pendingScrapInvoiceToEdit: null,
+      setSalesStaff: (id, name) => set({ salesStaffId: id, salesStaffName: name }),
+      setBillerStaff: (id, name) => set({ billerStaffId: id, billerStaffName: name }),
+      clearStaff: () => set({ salesStaffId: null, salesStaffName: null, billerStaffId: null, billerStaffName: null }),
       setPendingScrapInvoiceToEdit: (invoiceNumber) => set({ pendingScrapInvoiceToEdit: invoiceNumber }),
       setIsScrapMode: (isScrapMode) => set({ isScrapMode }),
       setLastAddedProductId: (id) => set({ lastAddedProductId: id }),

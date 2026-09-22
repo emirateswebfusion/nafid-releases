@@ -147,7 +147,7 @@ const MatrixRow = React.memo(({
 export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
   useCloseOnEscape(onClose);
   const { tenantId, role } = useAuthStore();
-  const isOwner = role === 'OWNER';
+  const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role.toUpperCase());
 
   const [view, setView] = useState<'list' | 'matrix'>('list');
   const [tiers, setTiers] = useState<PricingTier[]>([]);
@@ -785,7 +785,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* Toolbar */}
-          <div className="max-w-7xl mx-auto w-full px-6 pt-6 shrink-0">
+          <div className="w-full px-4 sm:px-6 pt-4 shrink-0">
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
               {/* Search */}
               <div className="relative w-full sm:max-w-xs flex-1">
@@ -840,7 +840,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
           </div>
 
           {/* Product Price Table */}
-          <div className="max-w-7xl mx-auto w-full px-6 pb-6 pt-3 flex flex-col flex-1 min-h-0">
+          <div className="w-full px-4 sm:px-6 pb-6 pt-3 flex flex-col flex-1 min-h-0">
             <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
 
               {/* Column Header */}

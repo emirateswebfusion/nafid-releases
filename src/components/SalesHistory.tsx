@@ -1965,6 +1965,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 {selectedInvoice.customer_gstin && (
                   <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
                 )}
+                <div className="pt-1 border-t border-border/50 text-[10px] text-muted-foreground space-y-0.5">
+                  {(selectedInvoice.biller_staff_name || selectedInvoice.biller_name) && (
+                    <div>Biller: <span className="font-bold text-foreground">{selectedInvoice.biller_staff_name || selectedInvoice.biller_name}</span></div>
+                  )}
+                  {selectedInvoice.sales_staff_name && (
+                    <div>Sales Handler: <span className="font-bold text-foreground">{selectedInvoice.sales_staff_name}</span></div>
+                  )}
+                </div>
               </div>
               <div className="p-3.5 rounded-xl border border-border bg-card space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>

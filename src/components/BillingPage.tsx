@@ -25,6 +25,9 @@ import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { BillerPinModal } from './BillerPinModal';
+import { isAdminRole, formatRoleName } from '../utils/permissions';
+
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -288,9 +291,10 @@ export function BillingPage() {
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
   const [upiSources, setUpiSources] = useState<any[]>([]);
   const [isUpiSelectModalOpen, setIsUpiSelectModalOpen] = useState(false);
+  const [isBillerPinModalOpen, setIsBillerPinModalOpen] = useState(false);
   const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
-  const canOverrideTier = authRole === 'OWNER' || allowBillerOverride;
+  const canOverrideTier = isAdminRole(authRole) || allowBillerOverride;
 
   // Sync local discount + pcs/kg state when items are added/removed
   useEffect(() => {
@@ -2162,12 +2166,24 @@ export function BillingPage() {
           returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
         });
 
+        const invSubtotal = Number(invoice.subtotal) || rawItems.reduce((s: number, i: any) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
+        const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
+        const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
+
         const enriched = rawItems
-          .map((item: any) => ({
-            ...item,
-            already_returned: returnedMap[item.item_id] || 0,
-            available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
-          }))
+          .map((item: any) => {
+            const origPrice = Number(item.unit_price) || 0;
+            const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
+            const origTax = Number(item.tax_amount) || 0;
+            const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
+            return {
+              ...item,
+              unit_price: effPrice,
+              tax_amount: effTax,
+              already_returned: returnedMap[item.item_id] || 0,
+              available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
+            };
+          })
           .filter((item: any) => item.available_to_return > 0);
 
         if (enriched.length === 0) {
@@ -2738,11 +2754,23 @@ export function BillingPage() {
       (returnedQtys || []).forEach((r: any) => {
         returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
       });
-      const enriched = (rawItems || []).map((item: any) => ({
-        ...item,
-        already_returned: returnedMap[item.item_id] || 0,
-        available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
-      })).filter((item: any) => item.available_to_return > 0);
+      const invSubtotal = Number(inv.subtotal) || (rawItems || []).reduce((s: number, i: any) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
+      const invDiscount = (Number(inv.discount_total) || 0) + (Number(inv.points_redeemed_discount) || 0);
+      const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
+
+      const enriched = (rawItems || []).map((item: any) => {
+        const origPrice = Number(item.unit_price) || 0;
+        const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
+        const origTax = Number(item.tax_amount) || 0;
+        const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
+        return {
+          ...item,
+          unit_price: effPrice,
+          tax_amount: effTax,
+          already_returned: returnedMap[item.item_id] || 0,
+          available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
+        };
+      }).filter((item: any) => item.available_to_return > 0);
 
       if (enriched.length === 0) {
         setSelectedReturnInvoice(null);
@@ -3120,11 +3148,23 @@ export function BillingPage() {
       (returnedQtys || []).forEach((r: any) => {
         returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
       });
-      const enriched = (rawItems || []).map((item: any) => ({
-        ...item,
-        already_returned: returnedMap[item.item_id] || 0,
-        available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
-      })).filter((item: any) => item.available_to_return > 0);
+      const invSubtotal = Number(invoice.subtotal) || (rawItems || []).reduce((s: number, i: any) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
+      const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
+      const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
+
+      const enriched = (rawItems || []).map((item: any) => {
+        const origPrice = Number(item.unit_price) || 0;
+        const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
+        const origTax = Number(item.tax_amount) || 0;
+        const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
+        return {
+          ...item,
+          unit_price: effPrice,
+          tax_amount: effTax,
+          already_returned: returnedMap[item.item_id] || 0,
+          available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
+        };
+      }).filter((item: any) => item.available_to_return > 0);
 
       if (enriched.length === 0) { setHardwareError('All items already returned'); return; }
 
@@ -3947,6 +3987,11 @@ export function BillingPage() {
       }
 
       // ── Normal Mode Checkout ──
+      const flags = getFeatureFlags();
+      if (flags?.biller_pin && !useCartStore.getState().billerStaffId) {
+        setIsBillerPinModalOpen(true);
+        return;
+      }
       // Read PCS directly from DOM input elements (100% reliable — avoids ALL React state closure/batching issues)
       const pcsSnapshot: Record<string, number> = {};
       items.forEach(item => {
@@ -4338,7 +4383,10 @@ export function BillingPage() {
         });
       } else {
         result = await window.electronAPI.dbCheckout({
-          invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
+          invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset',
+          biller_staff_id: useCartStore.getState().billerStaffId || null,
+          sales_staff_id: useCartStore.getState().salesStaffId || null,
+          invoice_number,
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
@@ -4928,7 +4976,7 @@ export function BillingPage() {
         return;
       }
       // Otherwise close/logout the page
-      if (authRole === 'OWNER') setRole('OWNER');
+      if (isAdminRole(authRole)) setRole('ADMIN');
       else logout();
     },
     'F1': () => {
@@ -5146,7 +5194,7 @@ export function BillingPage() {
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => {
-                if (authRole === 'OWNER') setRole('OWNER');
+                if (isAdminRole(authRole)) setRole('ADMIN');
                 window.dispatchEvent(new CustomEvent('open-dashboard'));
               }}
               className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
@@ -5158,10 +5206,6 @@ export function BillingPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-md border border-border/80 bg-muted/60 text-muted-foreground shrink-0 flex items-center gap-1 shadow-xs" title="Assigned Computer Code">
-                  <span className="text-[9px] uppercase font-bold text-muted-foreground/70 tracking-wider">Code:</span>
-                  <span className="text-primary font-black">{terminalCodeState || 'POS1'}</span>
-                </span>
               </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={clsx(
@@ -5177,7 +5221,7 @@ export function BillingPage() {
                 {isReturnMode ? (nextReturnNumber || '') : isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
               </span>
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
-                {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
+                {isAdminRole(authRole) ? formatRoleName(authRole) : (userName || currentUserRole || 'Staff')}
               </span>
             </div>
           </div>
@@ -5376,7 +5420,7 @@ export function BillingPage() {
           <span className="w-px h-5 bg-border/40" />
           <button
             onClick={() => {
-              if (authRole === 'OWNER') setRole('OWNER');
+              if (isAdminRole(authRole)) setRole('ADMIN');
               window.dispatchEvent(new CustomEvent('open-dashboard'));
             }}
             className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
@@ -9188,6 +9232,16 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
           </div>
         </div>
       )}
+
+      <BillerPinModal
+        isOpen={isBillerPinModalOpen}
+        tenantId={tenantId || 'global'}
+        onClose={() => setIsBillerPinModalOpen(false)}
+        onVerified={(staff) => {
+          useCartStore.getState().setBillerStaff(staff.staff_id, staff.name);
+          setIsBillerPinModalOpen(false);
+        }}
+      />
     </div>
   );
 }

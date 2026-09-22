@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
   dbUpdateProductName: (params: { tenant_id: string; product_id: string; name: string }) => ipcRenderer.invoke('db:updateProductName', params),
   dbDeleteProduct: (product_id: string) => ipcRenderer.invoke('db:deleteProduct', product_id),
+  dbBulkDeleteProducts: (product_ids: string[]) => ipcRenderer.invoke('db:bulkDeleteProducts', product_ids),
   dbAdjustStock: (args: { product_id: string; delta?: number; pcsDelta?: number }) => ipcRenderer.invoke('db:adjustStock', args),
   dbBulkImportProducts: (products: any[]) => ipcRenderer.invoke('db:bulkImportProducts', products),
   dbUpdatePrintStatus: (productIds: string[]) => ipcRenderer.invoke('db:updatePrintStatus', productIds),
@@ -60,6 +61,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
   settingsGetAll: (payload: { tenant_id: string }) => ipcRenderer.invoke('settings:getAll', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),
+
+  // Staff Management
+  dbGetStaff: (params: { tenant_id: string; search?: string; status?: string }) => ipcRenderer.invoke('db:getStaff', params),
+  dbSaveStaff: (params: any) => ipcRenderer.invoke('db:saveStaff', params),
+  dbVerifyBillerPin: (params: { tenant_id: string; pin: string }) => ipcRenderer.invoke('db:verifyBillerPin', params),
+  dbGetStaffLedger: (params: { tenant_id: string; staff_id: string }) => ipcRenderer.invoke('db:getStaffLedger', params),
+  dbAddStaffTransaction: (params: any) => ipcRenderer.invoke('db:addStaffTransaction', params),
+  dbGetStaffAttendance: (params: { tenant_id: string; staff_id?: string; date?: string; month?: string }) => ipcRenderer.invoke('db:getStaffAttendance', params),
+  dbSaveStaffAttendance: (params: any) => ipcRenderer.invoke('db:saveStaffAttendance', params),
+
 
   // Auth
   authSaveToken: (payload: any) => ipcRenderer.invoke('auth:saveToken', payload),

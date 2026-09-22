@@ -7,6 +7,8 @@ import { Skeleton } from './ui/Skeleton';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
+import { isAdminRole } from '../utils/permissions';
+
 
 function formatCurrency(amount: number): string {
   return `\u20B9${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -79,9 +81,27 @@ export function CreateReturn({
             : item
         );
 
-        setInvoiceItems(normalized);
+        // Factor in proportional invoice-level discount so return refund matches actual net paid amount
+        const invSubtotal = Number(invoice.subtotal) || normalized.reduce((sum: number, it: any) => sum + (Number(it.unit_price) * Number(it.quantity)), 0);
+        const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
+        const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
+
+        const itemsWithDiscount = normalized.map((item: InvoiceItem) => {
+          const origPrice = Number(item.unit_price) || 0;
+          const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
+          const origTax = Number(item.tax_amount) || 0;
+          const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
+          return {
+            ...item,
+            unit_price: effPrice,
+            tax_amount: effTax,
+            total: Number((effPrice * item.quantity).toFixed(2)),
+          };
+        });
+
+        setInvoiceItems(itemsWithDiscount);
         setSelections(
-          normalized.map((item: InvoiceItem) => ({
+          itemsWithDiscount.map((item: InvoiceItem) => ({
             invoice_item_id: item.item_id,
             product_id: item.product_id,
             name: item.name,
@@ -92,7 +112,7 @@ export function CreateReturn({
             total: item.total,
           }))
         );
-        if (isConvertedBos && normalized.length === 0) {
+        if (isConvertedBos && itemsWithDiscount.length === 0) {
           setError('All items from this Bill of Supply were converted to GST. Return them from the GST copy instead.');
         }
       }
@@ -123,7 +143,7 @@ export function CreateReturn({
       prev.map((s) => ({
         ...s,
         quantity: s.max_quantity,
-        total: s.unit_price * s.max_quantity,
+        total: Number((s.unit_price * s.max_quantity).toFixed(2)),
         tax_amount: s.tax_amount,
       }))
     );
@@ -142,8 +162,8 @@ export function CreateReturn({
       setError('Select at least one item to return');
       return;
     }
-    if (role !== 'OWNER') {
-      setError('Only owners can process returns');
+    if (!isAdminRole(role)) {
+      setError('Only administrators can process returns');
       return;
     }
     setSaving(true);

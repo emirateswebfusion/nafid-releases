@@ -16,6 +16,9 @@ export type FeatureKey =
   | 'payments'
   | 'customers'
   | 'staff'
+  | 'staff_attendance'
+  | 'biller_pin'
+  | 'sales_staff'
   | 'sales_history'
   | 'loyalty';
 
@@ -44,14 +47,39 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'parties', label: 'Parties / Credit', desc: 'Track credit parties, balances, and payments' },
   { key: 'payments', label: 'Payment Methods', desc: 'Manage bank accounts, cards & UPI ids for receiving payments' },
   { key: 'customers', label: 'Customers', desc: 'Browse customer list, points balances, and purchase history' },
-  { key: 'staff', label: 'Staff Administration', desc: 'Manage biller accounts and permissions' },
+  { key: 'staff', label: 'Staff Management', desc: 'Central employee directory, salary book, advances, and staff ledger' },
+  { key: 'staff_attendance', label: 'Enable Staff Attendance', desc: 'Track daily staff attendance, leaves, and working hours' },
+  { key: 'biller_pin', label: 'Enable Biller PIN', desc: 'Require 4-digit PIN verification when printing bills for accountability' },
+  { key: 'sales_staff', label: 'Enable Customer Handler / Sales Staff', desc: 'Allow selecting customer handler / sales staff on billing for sales attribution' },
   { key: 'sales_history', label: 'Sales History', desc: 'Review past transactions and reports' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
 ];
 
-export const DEFAULT_FEATURE_FLAGS: FeatureFlags = Object.fromEntries(
-  FEATURE_LIST.map(f => [f.key, true])
-) as FeatureFlags;
+export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
+  billing: true,
+  cash_settlement: true,
+  cash_register: true,
+  inventory: true,
+  combo_offers: true,
+  categories_grades: true,
+  pricing_tiers: true,
+  stock_report: true,
+  quotations: true,
+  purchase_bills: true,
+  warranties: true,
+  returns: true,
+  scrap: true,
+  parties: true,
+  payments: true,
+  customers: true,
+  staff: true,
+  staff_attendance: false,
+  biller_pin: false,
+  sales_staff: false,
+  sales_history: true,
+  loyalty: true,
+};
+
 
 export function cashierPageTitle(flags: Partial<Record<string, boolean>> | null | undefined): string {
   if (!flags) return 'Cash Settlement';

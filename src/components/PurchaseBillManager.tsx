@@ -905,7 +905,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
       {/* ── ADD FORM ── */}
       {showAddForm && (
-        <div className="max-w-7xl mx-auto w-full px-6 pt-6 pb-6 select-none flex flex-col flex-1 min-h-0">
+        <div className="w-full px-4 sm:px-6 pt-4 pb-4 select-none flex flex-col flex-1 min-h-0">
           {/* ── Shared Info Card ── */}
           <div className="bg-card border border-border rounded-[28px] shadow-sm px-6 py-4 shrink-0">
             <div className="flex items-center gap-4 flex-wrap">

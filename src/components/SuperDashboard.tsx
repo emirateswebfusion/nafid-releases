@@ -177,7 +177,8 @@ export default function SuperDashboard() {
     });
     setConnectionHealth({ ...healthMap });
 
-    const apiBase = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
+    // API base URL read from env — set VITE_CLOUD_API in .env
+    const apiBase = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
     for (const t of tenantList) {
       try {
@@ -602,7 +603,7 @@ export default function SuperDashboard() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 overflow-y-auto max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         
         {/* Statistics Hero Grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

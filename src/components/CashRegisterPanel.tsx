@@ -96,6 +96,12 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const [txnPartyName, setTxnPartyName] = useState('');
   const [partySearch, setPartySearch] = useState('');
 
+  // ── Staff Link for Transactions ──
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [txnStaffId, setTxnStaffId] = useState('');
+  const [txnStaffName, setTxnStaffName] = useState('');
+  const [staffSearch, setStaffSearch] = useState('');
+
   const drawerOpen = drawer?.status === 'OPEN';
   const totalIn = drawer?.status === 'CLOSED' ? 0 : transactions.filter(t => t.type === 'CASH_IN').reduce((s, t) => s + Number(t.amount), 0);
   const totalOut = drawer?.status === 'CLOSED' ? 0 : transactions.filter(t => t.type === 'CASH_OUT').reduce((s, t) => s + Number(t.amount), 0);
@@ -103,12 +109,13 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
     setLoading(true);
-    const [d, txs, invs, pts, srcs] = await Promise.all([
+    const [d, txs, invs, pts, srcs, stf] = await Promise.all([
       window.electronAPI.dbCashierGetDrawer({ tenant_id: tenantId }),
       window.electronAPI.dbCashierGetTransactions({ tenant_id: tenantId }),
       window.electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId, search: pendingSearch || undefined }),
       window.electronAPI.dbGetParties(tenantId),
       window.electronAPI.dbPaymentGetSources ? window.electronAPI.dbPaymentGetSources(tenantId) : Promise.resolve([]),
+      window.electronAPI.dbGetStaff ? window.electronAPI.dbGetStaff({ tenant_id: tenantId, status: 'ACTIVE' }) : Promise.resolve([]),
     ]);
     if (d && !d.error) { setDrawer(d); }
     else { setDrawer(null); }
@@ -116,10 +123,16 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
     if (Array.isArray(invs)) setPendingInvoices(invs);
     if (Array.isArray(pts)) setParties(pts);
     if (Array.isArray(srcs)) setPaymentSources(srcs);
+    if (Array.isArray(stf)) setStaffList(stf);
     setLoading(false);
   }, [tenantId, pendingSearch]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (window.electronAPI?.runInitialSync) {
+      window.electronAPI.runInitialSync().catch(() => {});
+    }
+    load();
+  }, [load]);
 
   useEffect(() => {
     const refresh = () => { load(); };
@@ -185,6 +198,26 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const handleAddTransaction = async () => {
     if (!tenantId || !userId || txnAmt <= 0) return;
     setTxnSubmitting(true);
+
+    if (txnStaffId && (txnCat === 'Staff Advance' || txnCat === 'Staff Salary Payment' || txnCat === 'Salary')) {
+      const r = await window.electronAPI!.dbAddStaffTransaction({
+        tenant_id: tenantId,
+        staff_id: txnStaffId,
+        type: txnCat === 'Staff Advance' ? 'ADVANCE' : 'SALARY_PAYMENT',
+        amount: txnAmt,
+        payment_method: 'CASH',
+        notes: txnNote,
+        user_id: userId,
+        user_name: userName || undefined,
+        create_cash_transaction: true,
+      });
+      setTxnSubmitting(false);
+      if (r.success) {
+        setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnStaffId(''); setTxnStaffName(''); setStaffSearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load();
+      }
+      return;
+    }
+
     const r = await window.electronAPI!.dbCashierAddTransaction({
       tenant_id: tenantId, type: txnType, amount: txnAmt,
       category: txnCat || undefined, notes: txnNote || undefined,
@@ -205,7 +238,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
       });
     }
     setTxnSubmitting(false);
-    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load(); }
+    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnStaffId(''); setTxnStaffName(''); setStaffSearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load(); }
   };
 
   const handleDayClose = async () => {
@@ -630,7 +663,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                     options={(() => {
                       const defaults = txnType === 'CASH_IN'
                         ? [{ value: 'Cash Deposit', label: 'Cash Deposit' }, { value: 'Petty Cash Return', label: 'Petty Cash Return' }, { value: 'Loan Repayment', label: 'Loan Repayment' }, { value: 'Customer Payment', label: 'Customer Payment' }, { value: 'Other Income', label: 'Other Income' }]
-                        : [{ value: 'Petty Cash', label: 'Petty Cash' }, { value: 'Electricity', label: 'Electricity' }, { value: 'Rent', label: 'Rent' }, { value: 'Salary', label: 'Salary' }, { value: 'Transport', label: 'Transport' }, { value: 'Stationery', label: 'Stationery' }, { value: 'Maintenance', label: 'Maintenance' }, { value: 'Other', label: 'Other' }];
+                        : [{ value: 'Staff Advance', label: 'Staff Advance' }, { value: 'Staff Salary Payment', label: 'Staff Salary Payment' }, { value: 'Petty Cash', label: 'Petty Cash' }, { value: 'Electricity', label: 'Electricity' }, { value: 'Rent', label: 'Rent' }, { value: 'Salary', label: 'Salary' }, { value: 'Transport', label: 'Transport' }, { value: 'Stationery', label: 'Stationery' }, { value: 'Maintenance', label: 'Maintenance' }, { value: 'Other', label: 'Other' }];
                       const defaultValues = new Set(defaults.map(d => d.value));
                       const custom = customCategories.filter(c => c.type === txnType && !defaultValues.has(c.name)).map(c => ({ value: c.name, label: c.name }));
                       return [...defaults, ...custom, { value: '__ADD_NEW__', label: '+ Add New Category' }];
@@ -641,6 +674,33 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Notes <span className="font-normal normal-case text-muted-foreground/50">(optional)</span></label>
                 <input type="text" value={txnNote} onChange={e => setTxnNote(e.target.value)} placeholder="Add a note..." className="w-full bg-background border border-border/80 rounded-xl px-4 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary transition-all" />
               </div>
+              {txnType === 'CASH_OUT' && (
+                <div>
+                  <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Link to Staff Member <span className="font-normal normal-case text-muted-foreground/50">(for Advance / Salary)</span></label>
+                  {txnStaffId ? (
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border rounded-2xl shadow-sm">
+                      <span className="text-sm font-bold text-foreground flex-1 truncate">{txnStaffName}</span>
+                      <button onClick={() => { setTxnStaffId(''); setTxnStaffName(''); setStaffSearch(''); }} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <User2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <input type="text" value={staffSearch} onChange={(e) => setStaffSearch(e.target.value)} placeholder="Search staff member..." className="w-full pl-9 pr-3 py-2.5 text-sm bg-card border border-border rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 shadow-sm transition-all" />
+                      {staffSearch && (
+                        <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-10 max-h-40 overflow-y-auto">
+                          {staffList.filter((s: any) => s.name.toLowerCase().includes(staffSearch.toLowerCase())).slice(0, 20).map((s: any) => (
+                            <button key={s.staff_id} onClick={() => { setTxnStaffId(s.staff_id); setTxnStaffName(s.name); setStaffSearch(''); }} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors cursor-pointer border-b border-border last:border-0 font-medium flex items-center justify-between">
+                              <span>{s.name}</span>
+                              <span className="text-xs text-muted-foreground font-mono">{s.staff_code}</span>
+                            </button>
+                          ))}
+                          {staffList.filter((s: any) => s.name.toLowerCase().includes(staffSearch.toLowerCase())).length === 0 && <p className="px-4 py-3 text-xs text-muted-foreground text-center">No staff found</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Link to Party <span className="font-normal normal-case text-muted-foreground/50">(optional)</span></label>
                 {txnPartyId ? (

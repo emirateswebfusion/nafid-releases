@@ -154,7 +154,7 @@ export function CustomersPage({
 }) {
   useCloseOnEscape(onClose);
   const { tenantId, role } = useAuthStore();
-  const isOwner = role === 'OWNER';
+  const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [parties, setParties] = useState<Party[]>([]);

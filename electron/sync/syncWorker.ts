@@ -83,7 +83,7 @@ export function setSyncActive(active: boolean) {
 }
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items', 'combo_offers', 'quotations', 'quotation_items'];
+  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items', 'combo_offers', 'quotations', 'quotation_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -410,7 +410,8 @@ export interface SyncEndpoints {
 }
 
 export function getSyncEndpoints(): SyncEndpoints {
-  const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
+  // Cloud API URL — set VENDORA_CLOUD_API in .env (required; no hardcoded fallback)
+  const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || '').replace(/\/$/, '');
   try {
     const db = getDb();
     const config = getAuthConfig();
@@ -746,7 +747,7 @@ function isCashSettlementFeatureEnabled(): boolean {
   setInterval(async () => {
     const isCashPageActive = (activePageContext === 'cash_settlement' || activePageContext === 'cash_drawer') && isCashSettlementFeatureEnabled();
     const effective = calculateEffectiveCloudAccess();
-    if (isSyncActive && isCashPageActive && !fastCashPullInProgress && !syncInProgress && effective.isCloudAllowed) {
+    if (isSyncActive && isCashPageActive && !fastCashPullInProgress && !syncInProgress) {
       const config = getAuthConfig();
       if (config && !isJwtExpired(config.jwt_token)) {
         fastCashPullInProgress = true;
@@ -3438,6 +3439,7 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
 
   if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash drawer records from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+    notifyRenderer('cash-drawer-pulled');
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash drawer failed.');
   }
