@@ -4577,6 +4577,9 @@ export function BillingPage() {
       const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
       invoice_number = confirmedInvoiceNumber;
       receiptData.invoiceNumber = confirmedInvoiceNumber;
+      if (result && result.created_at) {
+        receiptData.date = formatBillDateTime(result.created_at);
+      }
 
       // Consume ADJUST_BILL return credit. Only the portion actually applied to this
       // bill (clamped to the bill total) is settled; any leftover stays as pending
@@ -4962,6 +4965,9 @@ export function BillingPage() {
       discount_value: discountValue,
       grand_total: grandTotal,
       payment_method: paymentMethod || 'PENDING',
+      split_details: paymentMethod === 'SPLIT'
+        ? { ...(splitDetails || {}), upi_id: currentSelectedUpi?.upi_id, upi_name: currentSelectedUpi?.name, upi_source_id: currentSelectedUpi?.source_id }
+        : (rawSplitDetails || null),
       received_amount: receivedAmount ?? 0,
       balance_amount: balanceAmount,
       customer_name: customerName || null,
@@ -5065,7 +5071,17 @@ export function BillingPage() {
         }
       }
 
-      // Restore customer info
+      // Parse split_details safely
+      let recalledSplitDetails: any = null;
+      if (result.invoice?.split_details && result.invoice.split_details !== 'null') {
+        let curr = result.invoice.split_details;
+        while (typeof curr === 'string') {
+          try { curr = JSON.parse(curr); } catch { break; }
+        }
+        if (curr && typeof curr === 'object') recalledSplitDetails = curr;
+      }
+
+      // Restore customer info & split payment details
       updateActiveTab({
         customerName: result.invoice?.customer_name || '',
         customerPhone: result.invoice?.customer_phone || '',
@@ -5073,6 +5089,10 @@ export function BillingPage() {
         customerAddress: result.invoice?.customer_address || '',
         paymentMethod: (!isCashSettlementEnabled && (!result.invoice?.payment_method || result.invoice?.payment_method === 'PENDING')) ? 'CASH' : (result.invoice?.payment_method || (isCashSettlementEnabled ? 'PENDING' : 'CASH')),
         receivedAmount: Number(result.invoice?.received_amount) || 0,
+        splitDetails: recalledSplitDetails || undefined,
+        selectedUpiId: recalledSplitDetails?.upi_id,
+        selectedUpiName: recalledSplitDetails?.upi_name,
+        selectedUpiSourceId: recalledSplitDetails?.upi_source_id,
       });
 
       // Set customer state

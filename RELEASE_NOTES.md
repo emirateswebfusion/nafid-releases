@@ -1,3 +1,10 @@
+# Vendora v1.5.75 Release Notes
+
+## What's Changed
+- Integrated `SplashScreen` component for application startup and initialization
+- Enhanced `timezoneHelper`, `receiptGenerator`, `OwnerDashboard`, `BillingPage`, Electron main process IPC channels, and LAN sync routines
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.74...v1.5.75
+
 # Vendora v1.5.74 Release Notes
 
 ## What's Changed

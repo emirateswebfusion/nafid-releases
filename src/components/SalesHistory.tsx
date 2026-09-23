@@ -167,13 +167,16 @@ function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: string; t
 }
 
 function parseSplitDetails(splitDetailsRaw: any) {
-  if (!splitDetailsRaw) return null;
-  if (typeof splitDetailsRaw === 'object') return splitDetailsRaw;
-  try {
-    return JSON.parse(splitDetailsRaw);
-  } catch {
-    return null;
+  if (!splitDetailsRaw || splitDetailsRaw === 'null') return null;
+  let curr = splitDetailsRaw;
+  while (typeof curr === 'string') {
+    try {
+      curr = JSON.parse(curr);
+    } catch {
+      break;
+    }
   }
+  return (curr && typeof curr === 'object') ? curr : null;
 }
 
 function getUpiDetailsFromInvoice(inv: any, upiSourcesList: any[] = []) {
@@ -1049,7 +1052,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           payment_method: collectPaymentMethod,
           received_amount: collectReceivedAmount,
           balance_amount: balanceAmount,
-          split_details: typeof collectSplitDetails === 'object' ? JSON.stringify(collectSplitDetails) : collectSplitDetails,
+          split_details: collectSplitDetails && typeof collectSplitDetails === 'object' ? JSON.stringify(collectSplitDetails) : (collectSplitDetails && collectSplitDetails !== 'null' ? collectSplitDetails : null),
         });
         // Refresh the full list
         loadInvoices(true);

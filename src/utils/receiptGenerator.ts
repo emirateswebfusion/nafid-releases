@@ -196,11 +196,39 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
     if (!isNaN(d.getTime())) return d;
   }
 
-  // For YYYY-MM-DD HH:mm:ss or YYYY-MM-DDTHH:mm:ss without timezone offset, parse local wall-clock components
+  // For YYYY-MM-DD HH:mm:ss or YYYY-MM-DDTHH:mm:ss without timezone offset, parse relative to store timezone
   const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (match) {
     const [_, y, m, d, hh, mm, ss] = match;
-    return new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss || 0));
+    const storeTz = getStoreTimezone();
+    const targetY = Number(y), targetM = Number(m), targetD = Number(d);
+    const targetH = Number(hh), targetMin = Number(mm), targetSec = Number(ss || 0);
+
+    let date = new Date(Date.UTC(targetY, targetM - 1, targetD, targetH, targetMin, targetSec));
+
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: storeTz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+      const parts = Object.fromEntries(formatter.formatToParts(date).map(p => [p.type, p.value]));
+      let h = parseInt(parts.hour, 10);
+      if (h === 24) h = 0;
+      const tzAsUtc = Date.UTC(
+        parseInt(parts.year, 10),
+        parseInt(parts.month, 10) - 1,
+        parseInt(parts.day, 10),
+        h,
+        parseInt(parts.minute, 10),
+        parseInt(parts.second, 10)
+      );
+      const offsetMs = tzAsUtc - date.getTime();
+      return new Date(date.getTime() - offsetMs);
+    } catch {
+      return new Date(targetY, targetM - 1, targetD, targetH, targetMin, targetSec);
+    }
   }
 
   const d = new Date(dateStr);
@@ -211,15 +239,27 @@ export function formatBillDateTime(date: Date | string | number): string {
   const d = parseUTCDate(date);
   if (isNaN(d.getTime())) return String(date);
   const tz = getStoreTimezone();
-  const [dd, mm, yyyy] = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
-  const timeStr = d.toLocaleTimeString('en-US', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: appTimeFormat !== '24h'
-  });
-  return `${dd}/${mm}/${yyyy}, ${timeStr}`;
+  
+  try {
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: tz,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    const parts = Object.fromEntries(formatter.formatToParts(d).map(p => [p.type, p.value]));
+    const datePart = `${parts.day}/${parts.month}/${parts.year}`;
+    const timeStr = d.toLocaleTimeString('en-US', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: appTimeFormat !== '24h'
+    });
+    return `${datePart}, ${timeStr}`;
+  } catch {
+    return d.toLocaleString('en-IN', { timeZone: tz });
+  }
 }
 
 

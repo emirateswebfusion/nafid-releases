@@ -64,6 +64,7 @@ import { CustomersPage } from './components/CustomersPage';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 import { loadFeatureFlags, DEFAULT_FEATURE_FLAGS, type FeatureKey, type FeatureFlags } from './featureFlags';
+import { SplashScreen } from './components/SplashScreen';
 
 function App() {
   const [showFinancialReport, setShowFinancialReport] = useState(false);
@@ -619,14 +620,7 @@ function App() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Starting Nafid...</p>
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (!isAuthenticated) {

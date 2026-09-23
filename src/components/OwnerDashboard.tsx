@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark } from 'lucide-react';
+import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -52,6 +52,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [syncMode, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
     const [enableScrap, setEnableScrap] = useState(false);
     const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
+    const [gridMode, setGridMode] = useState<'2COL' | '3COL'>('2COL');
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -411,6 +412,22 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             </div>
                             <span className="w-px h-5 bg-border/40" />
                         </div>
+                        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
+                            <button
+                                onClick={() => setGridMode('2COL')}
+                                className={clsx("p-1.5 rounded-lg transition-all cursor-pointer", gridMode === '2COL' ? "bg-card text-primary shadow-sm border border-border" : "text-muted-foreground hover:text-foreground")}
+                                title="2-Column Grid View"
+                            >
+                                <LayoutGrid className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setGridMode('3COL')}
+                                className={clsx("p-1.5 rounded-lg transition-all cursor-pointer", gridMode === '3COL' ? "bg-card text-primary shadow-sm border border-border" : "text-muted-foreground hover:text-foreground")}
+                                title="Compact Grid View"
+                            >
+                                <Grid3x3 className="w-4 h-4" />
+                            </button>
+                        </div>
                         <button
                             onClick={toggleTheme}
                             className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
@@ -473,7 +490,11 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+                    <div className={clsx(
+                        "grid gap-4 items-stretch transition-all duration-300",
+                        gridMode === '2COL' && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+                        gridMode === '3COL' && "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+                    )}>
                         {visibleCards.map((card) => (
                             <Card
                                 key={card.id}

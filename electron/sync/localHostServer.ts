@@ -178,6 +178,9 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
         } else if (typeof val === 'object' && val !== null) {
           val = JSON.stringify(val);
         }
+        if (col === 'split_details' && (val === 'null' || val === 'undefined' || val === '')) {
+          val = null;
+        }
         paramObj[col] = val !== undefined ? val : null;
       }
 

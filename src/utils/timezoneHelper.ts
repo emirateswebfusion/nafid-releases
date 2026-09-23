@@ -34,10 +34,6 @@ export function getStoreTimezone(): string {
     const saved = localStorage.getItem('app_store_timezone');
     if (saved) return saved;
   } catch {}
-  try {
-    const sysTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (sysTz) return sysTz;
-  } catch {}
   return activeStoreTimezone || DEFAULT_STORE_TIMEZONE;
 }
 
@@ -49,21 +45,116 @@ export function nowUTC(): string {
 }
 
 /**
+ * Returns current business date in Store Timezone (YYYY-MM-DD)
+ */
+export function getStoreBusinessDate(timeZone: string = getStoreTimezone()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+}
+
+/**
  * Converts any UTC date/timestamp to Store Business Date string (YYYY-MM-DD)
  */
 export function utcToStoreDate(dateInput?: string | Date | number | null, timeZone: string = getStoreTimezone()): string {
   if (!dateInput) {
-    const d = new Date();
-    return new Intl.DateTimeFormat('en-CA', { timeZone }).format(d);
+    return getStoreBusinessDate(timeZone);
   }
   const str = String(dateInput).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
 
-  const d = new Date(dateInput);
+  const d = parseToDate(dateInput, timeZone);
   if (isNaN(d.getTime())) {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: getStoreTimezone() }).format(new Date());
+    return getStoreBusinessDate(timeZone);
   }
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(d);
+}
+
+/**
+ * Internal robust date parser that handles UTC ISO, timestamps, and store wall-clock strings
+ */
+function parseToDate(dateInput: Date | string | number | null | undefined, timeZone: string = getStoreTimezone()): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+  if (typeof dateInput === 'number') return new Date(dateInput);
+
+  let dateStr = String(dateInput).trim();
+  if (!dateStr) return new Date();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+
+  // If string explicitly contains UTC 'Z' or offset like +04:00, parse absolute instant
+  if (/Z$/i.test(dateStr) || /[\+\-]\d{2}:?\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // For YYYY-MM-DD HH:mm:ss without timezone offset, parse relative to store timezone
+  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const [_, y, m, d, hh, mm, ss] = match;
+    const targetY = Number(y), targetM = Number(m), targetD = Number(d);
+    const targetH = Number(hh), targetMin = Number(mm), targetSec = Number(ss || 0);
+
+    let date = new Date(Date.UTC(targetY, targetM - 1, targetD, targetH, targetMin, targetSec));
+
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+      const parts = Object.fromEntries(formatter.formatToParts(date).map(p => [p.type, p.value]));
+      let h = parseInt(parts.hour, 10);
+      if (h === 24) h = 0;
+      const tzAsUtc = Date.UTC(
+        parseInt(parts.year, 10),
+        parseInt(parts.month, 10) - 1,
+        parseInt(parts.day, 10),
+        h,
+        parseInt(parts.minute, 10),
+        parseInt(parts.second, 10)
+      );
+      const offsetMs = tzAsUtc - date.getTime();
+      return new Date(date.getTime() - offsetMs);
+    } catch {
+      return new Date(targetY, targetM - 1, targetD, targetH, targetMin, targetSec);
+    }
+  }
+
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+/**
+ * Calculates start and end UTC ISO strings for a business date (YYYY-MM-DD) in store timezone
+ */
+export function getBusinessDayUtcRange(dateStr?: string, timeZone: string = getStoreTimezone()): { startUtc: string; endUtc: string } {
+  const targetDate = dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : getStoreBusinessDate(timeZone);
+  const [y, m, d] = targetDate.split('-').map(Number);
+
+  const startLocal = parseToDate(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} 00:00:00`, timeZone);
+  const endLocal = parseToDate(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} 23:59:59`, timeZone);
+
+  return {
+    startUtc: startLocal.toISOString(),
+    endUtc: new Date(endLocal.getTime() + 999).toISOString(),
+  };
+}
+
+/**
+ * Calculates start and end UTC ISO strings for a custom date range (YYYY-MM-DD to YYYY-MM-DD) in store timezone
+ */
+export function getBusinessDateRangeUtc(fromDate?: string, toDate?: string, timeZone: string = getStoreTimezone()): { startUtc: string; endUtc: string } {
+  const startDay = fromDate || toDate || getStoreBusinessDate(timeZone);
+  const endDay = toDate || fromDate || getStoreBusinessDate(timeZone);
+
+  const { startUtc } = getBusinessDayUtcRange(startDay, timeZone);
+  const { endUtc } = getBusinessDayUtcRange(endDay, timeZone);
+
+  return { startUtc, endUtc };
 }
 
 /**
@@ -74,7 +165,7 @@ export function formatStoreDateTime(
   options?: { timeZone?: string; is12h?: boolean; dateOnly?: boolean; timeOnly?: boolean }
 ): string {
   if (!dateInput) return '—';
-  const d = new Date(dateInput);
+  const d = parseToDate(dateInput, options?.timeZone || getStoreTimezone());
   if (isNaN(d.getTime())) return String(dateInput);
 
   const tz = options?.timeZone || getStoreTimezone();

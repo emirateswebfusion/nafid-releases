@@ -8,6 +8,8 @@ import clsx from 'clsx';
 import { Select } from '../components/ui/Select';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { RedCrossButton } from './ui/RedCrossButton';
+import { getStoreTimezone, formatStoreDateTime } from '../utils/timezoneHelper';
+import { getAppTimeFormat } from '../utils/receiptGenerator';
 
 const formatCurrency = (v: any) => {
   const n = Number(v) || 0;
@@ -16,28 +18,27 @@ const formatCurrency = (v: any) => {
 
 const formatBusinessDate = (d: string | null | undefined): string => {
   if (!d) return '—';
+  const tz = getStoreTimezone();
   const cleanStr = String(d).split('T')[0].split(' ')[0];
   const parts = cleanStr.split('-');
   let date: Date;
   if (parts.length === 3 && parts[0].length === 4) {
     const [year, month, day] = parts;
-    date = new Date(Number(year), Number(month) - 1, Number(day));
+    date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   } else {
     date = new Date(d);
   }
   if (isNaN(date.getTime())) return String(d);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  const day = date.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit' });
+  const month = date.toLocaleDateString('en-IN', { timeZone: tz, month: '2-digit' });
+  const year = date.toLocaleDateString('en-IN', { timeZone: tz, year: 'numeric' });
+  const dayName = date.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long' }).toUpperCase();
   return `${day}-${month}-${year} ${dayName}`;
 };
 
 const formatTime = (d: string) => {
   if (!d) return '—';
-  const date = new Date(d);
-  if (isNaN(date.getTime())) return d;
-  return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return formatStoreDateTime(d, { timeOnly: true, is12h: getAppTimeFormat() !== '24h' });
 };
 
 export function CashRegisterPanel({ onClose }: { onClose: () => void }) {

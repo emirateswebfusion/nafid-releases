@@ -227,41 +227,72 @@ function getStoreTimezoneSetting(db: any, tenantId?: string): string {
   return 'Asia/Kolkata';
 }
 
-/** Returns store timezone timestamp: YYYY-MM-DD HH:mm:ss */
-function localTimestamp(d: Date = new Date(), tenantId?: string): string {
-  try {
-    const db = getDb();
-    const tz = getStoreTimezoneSetting(db, tenantId || 'global');
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).formatToParts(d);
-
-    const getPart = (type: string) => parts.find(p => p.type === type)?.value || '00';
-    let h = getPart('hour');
-    if (h === '24') h = '00';
-    return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${h}:${getPart('minute')}:${getPart('second')}`;
-  } catch {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  }
+/** Returns store timestamp in UTC ISO format: YYYY-MM-DDTHH:mm:ss.sssZ */
+function localTimestamp(d: Date = new Date()): string {
+  return d.toISOString();
 }
 
-/** Returns store timezone date: YYYY-MM-DD */
+/** Returns store business date string in store timezone: YYYY-MM-DD */
 function localDate(d: Date = new Date(), tenantId?: string): string {
   try {
     const db = getDb();
     const tz = getStoreTimezoneSetting(db, tenantId || 'global');
     return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
   } catch {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+  }
+}
+
+/** Helper to compute start and end UTC bounds for business date range in store timezone */
+function getUtcRangeForStoreDateRange(fromDate?: string, toDate?: string, tenantId: string = 'global'): { startUtc: string; endUtc: string } {
+  try {
+    const db = getDb();
+    const tz = getStoreTimezoneSetting(db, tenantId);
+    const today = localDate(new Date(), tenantId);
+
+    const startDay = fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : today;
+    const endDay = toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate) ? toDate : startDay;
+
+    const parseWallClock = (dateStr: string, isEnd: boolean): Date => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const targetH = isEnd ? 23 : 0;
+      const targetMin = isEnd ? 59 : 0;
+      const targetSec = isEnd ? 59 : 0;
+
+      const baseUtc = new Date(Date.UTC(y, m - 1, d, targetH, targetMin, targetSec));
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: tz,
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+          hour12: false,
+        });
+        const parts = Object.fromEntries(formatter.formatToParts(baseUtc).map(p => [p.type, p.value]));
+        let h = parseInt(parts.hour, 10);
+        if (h === 24) h = 0;
+        const tzAsUtc = Date.UTC(
+          parseInt(parts.year, 10),
+          parseInt(parts.month, 10) - 1,
+          parseInt(parts.day, 10),
+          h,
+          parseInt(parts.minute, 10),
+          parseInt(parts.second, 10)
+        );
+        const offsetMs = tzAsUtc - baseUtc.getTime();
+        const resolved = new Date(baseUtc.getTime() - offsetMs);
+        return isEnd ? new Date(resolved.getTime() + 999) : resolved;
+      } catch {
+        return baseUtc;
+      }
+    };
+
+    return {
+      startUtc: parseWallClock(startDay, false).toISOString(),
+      endUtc: parseWallClock(endDay, true).toISOString(),
+    };
+  } catch {
+    const now = new Date();
+    return { startUtc: now.toISOString(), endUtc: now.toISOString() };
   }
 }
 
@@ -538,6 +569,9 @@ app.whenReady().then(async () => {
         WHERE (COALESCE(discount_total, 0) > 0 OR COALESCE(points_redeemed_discount, 0) > 0 OR COALESCE(scrap_deduction, 0) > 0 OR COALESCE(return_deduction, 0) > 0)
           AND grand_total > (COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0) + 0.01)
       `).run();
+      
+      // Self-heal: fix any invoices with literal string 'null' or empty string in split_details
+      _db.prepare("UPDATE invoices SET split_details = NULL WHERE split_details = 'null' OR split_details = 'undefined' OR split_details = ''").run();
       
       const staleBills = _db.prepare(
         "SELECT invoice_id, tenant_id FROM invoices WHERE invoice_type = 'HOLD' AND is_held = 1 AND held_until <= datetime('now', 'localtime')"
@@ -1963,12 +1997,14 @@ export function syncInvoiceCreditLedger(
 
     // Parse split_details if present
     let splitCredit = 0;
-    if ((invoice as any).split_details) {
+    if ((invoice as any).split_details && (invoice as any).split_details !== 'null') {
       try {
         const s = typeof (invoice as any).split_details === 'string'
           ? JSON.parse((invoice as any).split_details)
           : (invoice as any).split_details;
-        splitCredit = Number(s?.credit) || 0;
+        if (s && typeof s === 'object') {
+          splitCredit = Number(s?.credit) || 0;
+        }
       } catch {}
     }
 
@@ -2475,13 +2511,14 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     }
   }
 
+  let checkoutCreatedAt = '';
   const transaction = db.transaction(() => {
     // Credit Limit enforcement guard
     const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
     let splitObj: any = null;
-    if (typeof invoice.split_details === 'string') {
+    if (invoice.split_details && typeof invoice.split_details === 'string') {
       try { splitObj = JSON.parse(invoice.split_details); } catch {}
-    } else if (typeof invoice.split_details === 'object') {
+    } else if (invoice.split_details && typeof invoice.split_details === 'object') {
       splitObj = invoice.split_details;
     }
     const isCreditBilling = paymentMethodUpper === 'CREDIT' || (paymentMethodUpper === 'SPLIT' && Number(splitObj?.credit) > 0);
@@ -2520,6 +2557,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     );
 
     const nowTimestamp = localTimestamp();
+    checkoutCreatedAt = nowTimestamp;
     const invStmt = db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
@@ -2543,7 +2581,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.discount_value || 0,
       invoice.grand_total,
       invoice.payment_method || 'PENDING',
-      typeof invoice.split_details === 'object' ? JSON.stringify(invoice.split_details) : (invoice.split_details || null),
+      invoice.split_details && typeof invoice.split_details === 'object' ? JSON.stringify(invoice.split_details) : (invoice.split_details && invoice.split_details !== 'null' ? invoice.split_details : null),
       invoice.received_amount ?? 0,
       invoice.balance_amount ?? 0,
       invoice.customer_name || null,
@@ -2744,7 +2782,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       runInitialSync().catch(e => console.error('[Main] Immediate sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
 
-    const res = { success: true, invoice_id: invoice.invoice_id, invoice_number: finalInvoiceNumber };
+    const res = { success: true, invoice_id: invoice.invoice_id, invoice_number: finalInvoiceNumber, created_at: checkoutCreatedAt };
     recentCheckoutsCache.set(cacheKey, { timestamp: now, result: res });
     if (recentCheckoutsCache.size > 100) {
       for (const [k, v] of recentCheckoutsCache.entries()) {
@@ -2776,12 +2814,12 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
-        payment_method, received_amount, balance_amount, customer_name, customer_phone, 
+        payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, 
         customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number,
         held_until, is_held, hold_note
       )
-      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, datetime('now', '+24 hours', 'localtime'), 1, ?)
+      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, datetime('now', '+24 hours', 'localtime'), 1, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -2795,6 +2833,7 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
       invoice.discount_value || 0,
       invoice.grand_total,
       invoice.payment_method || 'PENDING',
+      invoice.split_details && typeof invoice.split_details === 'object' ? JSON.stringify(invoice.split_details) : (invoice.split_details && invoice.split_details !== 'null' ? invoice.split_details : null),
       invoice.received_amount ?? 0,
       invoice.balance_amount ?? 0,
       invoice.customer_name || null,
@@ -3436,19 +3475,13 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     if (filterDate) {
       const cleanStart = parseCleanDate(filterDate);
       const cleanEnd = filterDateEnd ? parseCleanDate(filterDateEnd) : cleanStart;
-      const partsS = cleanStart.split('-');
-      const altStart = partsS.length === 3 ? `${partsS[2]}-${partsS[1]}-${partsS[0]}` : cleanStart;
-      const partsE = cleanEnd.split('-');
-      const altEnd = partsE.length === 3 ? `${partsE[2]}-${partsE[1]}-${partsE[0]}` : cleanEnd;
+      const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, activeTenantId);
 
       query += ` AND (
-        substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ? 
-        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
+        (COALESCE(i.settled_at, i.created_at) >= ? AND COALESCE(i.settled_at, i.created_at) <= ?)
         OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) BETWEEN ? AND ?
-        OR COALESCE(i.settled_at, i.created_at) LIKE ?
-        OR COALESCE(i.settled_at, i.created_at) LIKE ?
       )`;
-      params.push(cleanStart, altStart, cleanStart, cleanEnd, `${cleanStart}%`, `${altStart}%`);
+      params.push(startUtc, endUtc, cleanStart, cleanEnd);
     }
 
     query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
@@ -3554,19 +3587,13 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     if (filterDate) {
       const cleanStart = parseCleanDate(filterDate);
       const cleanEnd = filterDateEnd ? parseCleanDate(filterDateEnd) : cleanStart;
-      const partsS = cleanStart.split('-');
-      const altStart = partsS.length === 3 ? `${partsS[2]}-${partsS[1]}-${partsS[0]}` : cleanStart;
-      const partsE = cleanEnd.split('-');
-      const altEnd = partsE.length === 3 ? `${partsE[2]}-${partsE[1]}-${partsE[0]}` : cleanEnd;
+      const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, activeTenantId);
 
       query += ` AND (
-        substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ? 
-        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
+        (COALESCE(i.settled_at, i.created_at) >= ? AND COALESCE(i.settled_at, i.created_at) <= ?)
         OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) BETWEEN ? AND ?
-        OR COALESCE(i.settled_at, i.created_at) LIKE ?
-        OR COALESCE(i.settled_at, i.created_at) LIKE ?
       )`;
-      params.push(cleanStart, altStart, cleanStart, cleanEnd, `${cleanStart}%`, `${altStart}%`);
+      params.push(startUtc, endUtc, cleanStart, cleanEnd);
     }
 
     const row = db.prepare(query).get(...params) as any;
@@ -3688,7 +3715,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
       invoice.grand_total, invoice.payment_method || 'PENDING',
       finalReceivedAmount, finalBalanceAmount,
-      typeof (invoice as any).split_details === 'object' ? JSON.stringify((invoice as any).split_details) : ((invoice as any).split_details || null),
+      (invoice as any).split_details && typeof (invoice as any).split_details === 'object' ? JSON.stringify((invoice as any).split_details) : ((invoice as any).split_details && (invoice as any).split_details !== 'null' ? (invoice as any).split_details : null),
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
       invoice.customer_address || null,
@@ -3794,7 +3821,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
-    return { success: true };
+    return { success: true, created_at: existingInv?.created_at };
   } catch (error: any) {
     console.error('[db:updateInvoice]', error);
     return { success: false, error: 'Operation failed' };
@@ -3817,14 +3844,16 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
     }
     const oldCash = getCashAmountFromInvoice(existingInv);
 
-    const splitDetailsVal = payload.split_details ? (typeof payload.split_details === 'object' ? JSON.stringify(payload.split_details) : payload.split_details) : null;
+    const splitDetailsVal = payload.split_details && typeof payload.split_details === 'object'
+      ? JSON.stringify(payload.split_details)
+      : (payload.split_details && payload.split_details !== 'null' ? payload.split_details : null);
 
     db.prepare(`
       UPDATE invoices SET
         payment_method = ?,
         received_amount = ?,
         balance_amount = ?,
-        split_details = COALESCE(?, split_details),
+        split_details = ?,
         sync_status = 'PENDING',
         updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
@@ -6556,11 +6585,16 @@ function getCashAmountFromInvoice(inv: any): number {
     return netPayable;
   }
   if (pm === 'SPLIT') {
-    if (inv.split_details) {
+    if (inv.split_details && inv.split_details !== 'null') {
       try {
-        const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
-        const cashSplit = Math.max(0, Number(sd.cash) || 0);
-        return Math.min(cashSplit, netPayable);
+        let sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+        while (typeof sd === 'string') {
+          try { sd = JSON.parse(sd); } catch { break; }
+        }
+        if (sd && typeof sd === 'object') {
+          const cashSplit = Math.max(0, Number(sd.cash) || 0);
+          return Math.min(cashSplit, netPayable);
+        }
       } catch {}
     }
   }
@@ -6755,10 +6789,12 @@ function adjustPaymentSourcesForInvoice(
   try {
     const pm = (invoice.payment_method || '').toUpperCase();
     let splitObj: any = null;
-    if (typeof invoice.split_details === 'string') {
-      try { splitObj = JSON.parse(invoice.split_details); } catch {}
-    } else if (typeof invoice.split_details === 'object') {
-      splitObj = invoice.split_details;
+    if (invoice.split_details && invoice.split_details !== 'null') {
+      if (typeof invoice.split_details === 'string') {
+        try { splitObj = JSON.parse(invoice.split_details); } catch {}
+      } else if (typeof invoice.split_details === 'object') {
+        splitObj = invoice.split_details;
+      }
     }
 
     const processSourceTransaction = (sourceId: string | undefined, sourceType: string, amount: number) => {
@@ -6967,7 +7003,9 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       const discountValue = newDiscountTotal;
       const discountType = 'FIXED';
 
-      const splitStr = split_details ? (typeof split_details === 'object' ? JSON.stringify(split_details) : split_details) : null;
+      const splitStr = split_details && typeof split_details === 'object'
+        ? JSON.stringify(split_details)
+        : (split_details && split_details !== 'null' ? split_details : null);
 
       db.prepare(`
         UPDATE invoices SET 
@@ -6987,7 +7025,15 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       const date = localDate();
       const drawer = getOpenCashDrawer(db, targetTenantId, date);
 
-      if (payment_method === 'CASH' || (payment_method === 'SPLIT' && split_details?.cash)) {
+      let parsedSplitObj: any = null;
+      if (split_details && split_details !== 'null') {
+        try {
+          parsedSplitObj = typeof split_details === 'string' ? JSON.parse(split_details) : split_details;
+        } catch {}
+      }
+      const splitCashAmt = Number(parsedSplitObj?.cash) || 0;
+
+      if (payment_method === 'CASH' || (payment_method === 'SPLIT' && splitCashAmt > 0)) {
         if (drawer) {
           const scrapD = Number(invoice.scrap_deduction) || 0;
           const returnD = Number(invoice.return_deduction) || 0;
