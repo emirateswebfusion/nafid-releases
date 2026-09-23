@@ -102,6 +102,20 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+
+  useEffect(() => {
+    const loadRealPaperSetting = () => {
+      if (window.electronAPI?.settingsGet) {
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
+          if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
+        }).catch(() => {});
+      }
+    };
+    loadRealPaperSetting();
+    window.addEventListener('settings:updated', loadRealPaperSetting);
+    return () => window.removeEventListener('settings:updated', loadRealPaperSetting);
+  }, [tenantId]);
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [printQuantity, setPrintQuantity] = useState<number | string>(1);
@@ -1787,7 +1801,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                              <>
                                <span>{formattedStock}</span>
                                {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
-                               {isGstFlag && p.paper_stock !== undefined && (
+                               {enableRealPaperStock && isGstFlag && p.paper_stock !== undefined && (
                                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold mt-0.5" title="Paper Stock from Dummy GST purchases">
                                    Paper: {p.paper_stock}
                                  </span>
@@ -2375,28 +2389,30 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       </div>
 
                       {/* Stock Type toggle */}
-                      <div
-                        onClick={() => handleInputChange('gst_purchase_is_dummy', !formData.gst_purchase_is_dummy)}
-                        className={clsx(
-                          'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
-                          formData.gst_purchase_is_dummy
-                            ? 'bg-amber-500/10 border-amber-500/30 shadow-sm'
-                            : 'bg-emerald-500/10 border-emerald-500/30 shadow-sm'
-                        )}
-                      >
-                        <div className={clsx(
-                          'w-5 h-5 rounded-md border border-border flex items-center justify-center shrink-0 transition-all duration-200',
-                          formData.gst_purchase_is_dummy ? 'bg-amber-500 border-amber-500' : 'bg-emerald-500 border-emerald-500'
-                        )}>
-                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      {enableRealPaperStock && (
+                        <div
+                          onClick={() => handleInputChange('gst_purchase_is_dummy', !formData.gst_purchase_is_dummy)}
+                          className={clsx(
+                            'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
+                            formData.gst_purchase_is_dummy
+                              ? 'bg-amber-500/10 border-amber-500/30 shadow-sm'
+                              : 'bg-emerald-500/10 border-emerald-500/30 shadow-sm'
+                          )}
+                        >
+                          <div className={clsx(
+                            'w-5 h-5 rounded-md border border-border flex items-center justify-center shrink-0 transition-all duration-200',
+                            formData.gst_purchase_is_dummy ? 'bg-amber-500 border-amber-500' : 'bg-emerald-500 border-emerald-500'
+                          )}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-bold text-foreground">Stock Type: {formData.gst_purchase_is_dummy ? 'Paper' : 'Real'}</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {formData.gst_purchase_is_dummy ? 'Paper stock only (tax record)' : 'Adds to physical stock'}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-bold text-foreground">Stock Type: {formData.gst_purchase_is_dummy ? 'Paper' : 'Real'}</span>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formData.gst_purchase_is_dummy ? 'Paper stock only (tax record)' : 'Adds to physical stock'}
-                          </p>
-                        </div>
-                      </div>
+                      )}
                     </div>
 
                     {/* Purchase Price & Quantity */}

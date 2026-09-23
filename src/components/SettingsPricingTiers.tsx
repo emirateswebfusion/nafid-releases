@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Plus, Trash, Pencil, Check, X, Loader2,
   Tags, ChevronUp, ChevronDown, Shield, Save, Search,
-  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee, BadgePercent
+  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee, BadgePercent, Star
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { useAuthStore } from '../store/authStore';
@@ -16,7 +16,13 @@ interface PricingTier {
   is_active: number | boolean;
   sort_order: number;
   is_deleted?: number | boolean;
+  is_default?: number | boolean | string;
 }
+
+const isTierDefault = (t?: PricingTier): boolean => {
+  if (!t) return false;
+  return t.is_default === 1 || t.is_default === true || t.is_default === '1' || t.is_default === 'true';
+};
 
 interface Product {
   product_id: string;
@@ -191,12 +197,12 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     if (showFullLoading) setLoading(true);
     setError(null);
     try {
-      const tid = tenantId || '';
+      const tid = tenantId || 'global';
       const [tierRes, productRes, pricingRes, overrideRes] = await Promise.all([
         window.electronAPI.dbGetPricingTiers(tid),
         window.electronAPI.dbGetProducts({ tenant_id: tid, include_inactive: true }),
         window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([]),
-        window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'allow_biller_price_override' }),
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'allow_biller_price_override' }),
       ]);
       if (Array.isArray(tierRes)) {
         setTiers(tierRes);
@@ -237,7 +243,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     setOperating(true);
     const res = await window.electronAPI.dbAddPricingTier({
       pricing_tier_id: crypto.randomUUID(),
-      tenant_id: tenantId || '',
+      tenant_id: tenantId || 'global',
       name: newName.trim(),
       is_active: true,
       sort_order: tiers.length,
@@ -289,6 +295,26 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
       await loadData(false);
     } else {
       setError(res.error || 'Failed to delete tier');
+    }
+    setOperating(false);
+  };
+
+  const handleSetDefaultTier = async (tier: PricingTier) => {
+    setOperating(true);
+    const isAlreadyDefault = isTierDefault(tier);
+    const targetId = isAlreadyDefault ? '' : tier.pricing_tier_id;
+    const res = await window.electronAPI.dbSetDefaultPricingTier({
+      tenant_id: tenantId || 'global',
+      pricing_tier_id: targetId,
+    });
+    if (res.success) {
+      setStatusMessage({
+        text: targetId ? `"${tier.name}" set as default viewing tier in Billing` : 'Default pricing tier unset',
+        type: 'success',
+      });
+      await loadData(false);
+    } else {
+      setError(res.error || 'Failed to set default tier');
     }
     setOperating(false);
   };
@@ -657,9 +683,17 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                         </div>
                       ) : (
                         <div>
-                          <p className={clsx('text-sm font-bold', tier.is_active ? 'text-foreground' : 'text-muted-foreground line-through')}>
-                            {tier.name}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className={clsx('text-sm font-bold', tier.is_active ? 'text-foreground' : 'text-muted-foreground line-through')}>
+                              {tier.name}
+                            </p>
+                            {isTierDefault(tier) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                Default
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                             {tier.is_active ? 'Visible in Inventory & POS Billing' : 'Hidden from all selections'}
                           </p>
@@ -699,6 +733,19 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
 
                     {/* Action Buttons */}
                     <div className="col-span-2 flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => handleSetDefaultTier(tier)}
+                        disabled={operating}
+                        className={clsx(
+                          'p-1.5 rounded-lg cursor-pointer transition-all',
+                          isTierDefault(tier)
+                            ? 'text-amber-400 hover:text-amber-500 bg-amber-500/10'
+                            : 'text-muted-foreground hover:text-amber-400 hover:bg-muted'
+                        )}
+                        title={isTierDefault(tier) ? 'Default viewing tier in Billing (Click to unset)' : 'Set as Default viewing tier in Billing'}
+                      >
+                        <Star className={clsx('w-3.5 h-3.5', isTierDefault(tier) && 'fill-amber-400 text-amber-400')} />
+                      </button>
                       <button
                         onClick={() => { setTierFilter(tier.pricing_tier_id); setView('matrix'); }}
                         className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"

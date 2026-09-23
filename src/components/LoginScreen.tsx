@@ -109,9 +109,7 @@ export function LoginScreen() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
-              <StoreIcon className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <img src="/logo.png" alt="NAFID Logo" className="w-11 h-11 rounded-xl object-contain shadow-lg shadow-primary/25 bg-primary/10 p-1" />
             <span className="text-3xl font-black text-foreground tracking-tight">NAFID</span>
           </div>
             <p className="text-muted-foreground text-sm ml-1">The Smarter Way to Sell</p>

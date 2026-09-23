@@ -124,7 +124,7 @@ function renderHtmlBalanceRows(data: InvoiceData, layout: 'table' | 'div' = 'tab
   if (bs.showCreditBalance === false) return '';
 
   const pm = (data.paymentMethod || '').toUpperCase();
-  const isCredit = pm === 'CREDIT' || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
+  const isCredit = pm === 'CREDIT' || (data.oldBalance != null && data.oldBalance !== 0) || (data.customerBalance != null) || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
 
   let html = '';
 

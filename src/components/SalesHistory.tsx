@@ -22,6 +22,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { isAdminRole } from '../utils/permissions';
 
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -398,6 +399,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
 export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  const { tenantId } = useAuthStore();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [canReturn, setCanReturn] = useState(true);
@@ -446,6 +448,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
+  const [enableConvertToGst, setEnableConvertToGst] = useState(true);
+
+  useEffect(() => {
+    const loadConvertSetting = () => {
+      if (window.electronAPI?.settingsGet) {
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst' }).then((v: any) => {
+          if (v !== null && v !== undefined) setEnableConvertToGst(Boolean(v));
+        }).catch(() => {});
+      }
+    };
+    loadConvertSetting();
+    window.addEventListener('settings:updated', loadConvertSetting);
+    return () => window.removeEventListener('settings:updated', loadConvertSetting);
+  }, [tenantId]);
 
   const handleForceResync = async () => {
     if (!window.electronAPI) return;
@@ -968,7 +984,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
     localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     onClose();
-    if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
+    if (isAdminRole(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 50);
   };
 
@@ -1613,7 +1629,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
                 {loading ? '…' : invoices.length === summary.totalInvoices ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}` : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
               </div>
-              {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
+              {enableConvertToGst && isAdminRole(useAuthStore.getState().role) && (
                 !selectionMode ? (
                   <button
                     onClick={() => setSelectionMode(true)}
@@ -1886,7 +1902,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 )}
               </div>
               <div className="flex gap-2">
-                {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
+                {isAdminRole(useAuthStore.getState().role) && (
                   <>
                     <button onClick={handleEditBill}
                       className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
@@ -1905,7 +1921,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       // Store invoice ref and close — BillingPage will open in return mode
                       localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
                       // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
-                      if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) {
+                      if (isAdminRole(useAuthStore.getState().role)) {
                         useCartStore.getState().setRole('BILLER');
                       }
                       closeDrawer();
@@ -1932,7 +1948,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <span>Collect Payment</span>
                   </button>
                 )}
-                {selectedInvoice.payment_method !== 'PENDING' && ['OWNER', 'ADMINISTRATOR', 'ADMIN'].includes(useAuthStore.getState().role) && (
+                {selectedInvoice.payment_method !== 'PENDING' && isAdminRole(useAuthStore.getState().role) && (
                   <button onClick={openCollectPayment}
                     className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 rounded-xl transition-all text-xs font-bold border border-violet-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
                     title="Change Payment Method (Admin Only)"

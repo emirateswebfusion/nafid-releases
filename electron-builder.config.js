@@ -7,7 +7,7 @@ const repoUrl = process.env.GITHUB_REPO_URL || '';
 let repository = {};
 
 if (repoUrl) {
-  const parts = repoUrl.replace('https://github.com/', '').split('/');
+  const parts = repoUrl.replace(/^https?:\/\/[^\/]+\//, '').split('/');
   if (parts.length >= 2) {
     repository = {
       owner: parts[0],
@@ -38,6 +38,7 @@ module.exports = {
     '.env.production'
   ],
   mac: {
+    icon: 'build/icon.png',
     target: [
       {
         target: 'dmg',
@@ -52,6 +53,7 @@ module.exports = {
     gatekeeperAssess: false
   },
   win: {
+    icon: 'build/icon.ico',
     target: [
       {
         target: 'nsis',
@@ -64,6 +66,11 @@ module.exports = {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: 'Nafid POS',
+    installerIcon: 'build/icon.ico',
+    uninstallerIcon: 'build/icon.ico',
+    installerHeaderIcon: 'build/icon.ico',
     runAfterFinish: true,
   },
   publish: repoUrl ? [

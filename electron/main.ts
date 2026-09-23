@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, session, safeStorage, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
@@ -74,7 +74,7 @@ ipcMain.handle('app:getLocalIp', () => {
   } catch (e) {
     console.error('[app:getLocalIp] Failed to detect IP address', e);
   }
-  return '192.168.1.100';
+  return process.env.DEFAULT_LAN_IP || '';
 });
 
 ipcMain.handle('app:getNetworkDetails', () => {
@@ -157,11 +157,11 @@ ipcMain.handle('app:getNetworkDetails', () => {
   } catch (e) {
     console.error('[app:getNetworkDetails] Failed to detect network details', e);
     return {
-      ip: '192.168.1.100',
+      ip: process.env.DEFAULT_LAN_IP || '',
       subnetPrefix: '24',
       netmask: '255.255.255.0',
-      gateway: '192.168.1.1',
-      dns: '8.8.8.8'
+      gateway: process.env.DEFAULT_GATEWAY || '',
+      dns: process.env.DEFAULT_DNS || ''
     };
   }
 });
@@ -314,6 +314,10 @@ import { initSyncWorker, setSyncActive, triggerUrgentInvoiceSync, triggerUrgentC
 let mainWindow: BrowserWindow | null = null;
 const PROTOCOL = 'nafid';
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.nafid');
+}
+
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
@@ -372,7 +376,7 @@ function setupCSP() {
   const directives = [
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "object-src 'none'",
     "frame-ancestors 'none'",
@@ -380,17 +384,25 @@ function setupCSP() {
     "form-action 'self'",
   ];
 
+  const allowedConnect = ["'self'"];
+  const envOrigins = (process.env.ALLOWED_CONNECT_ORIGINS || process.env.VITE_CLOUD_API || process.env.VENDORA_CLOUD_API || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+  for (const o of envOrigins) {
+    if (!allowedConnect.includes(o)) allowedConnect.push(o);
+  }
+  if (apiOrigin && !allowedConnect.includes(apiOrigin)) {
+    allowedConnect.push(apiOrigin);
+  }
+
   if (isDev) {
     directives.push("script-src 'self' 'unsafe-inline'");
-    const devServerUrl = process.env.ELECTRON_DEV_SERVER_URL;
-    const devConnect = devServerUrl ? [devServerUrl, devServerUrl.replace(/^http/, 'ws')] : [];
-    directives.push(`connect-src 'self' ${devConnect.join(' ')} https://clients3.google.com`.trim());
   } else {
     directives.push("script-src 'self'");
-    const allowedConnect = ["'self'", "https://clients3.google.com"];
-    if (apiOrigin && apiOrigin !== 'self') allowedConnect.push(apiOrigin);
-    directives.push(`connect-src ${allowedConnect.join(' ')}`);
   }
+
+  directives.push(`connect-src ${allowedConnect.join(' ')}`);
 
   const csp = directives.join('; ');
 
@@ -404,8 +416,33 @@ function setupCSP() {
   });
 }
 
+function getAppIconPath(): string | undefined {
+  const isWin = process.platform === 'win32';
+  const candidates = [
+    isWin ? path.join(__dirname, '../public/icon.ico') : path.join(__dirname, '../public/icon.png'),
+    path.join(__dirname, '../public/icon.png'),
+    path.join(__dirname, '../public/logo.png'),
+    isWin ? path.join(__dirname, '../dist/icon.ico') : path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../dist/logo.png'),
+    isWin ? path.join(__dirname, '../build/icon.ico') : path.join(__dirname, '../build/icon.png'),
+    path.join(__dirname, '../build/icon.png'),
+    path.join(process.resourcesPath, isWin ? 'icon.ico' : 'icon.png'),
+    path.join(process.resourcesPath, 'icon.png'),
+    path.join(process.resourcesPath, 'app.asar.unpacked/build/icon.ico'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function createWindow() {
-  const iconPath = path.join(__dirname, '../public/icon.png');
+  const iconPath = getAppIconPath();
+  console.log(`[Main] Using window icon path: ${iconPath || 'None'}`);
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -415,8 +452,19 @@ function createWindow() {
       nodeIntegration: false,
     },
     autoHideMenuBar: true,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: iconPath,
   });
+
+  if (iconPath) {
+    try {
+      const img = nativeImage.createFromPath(iconPath);
+      if (!img.isEmpty()) {
+        mainWindow.setIcon(img);
+      }
+    } catch (err) {
+      console.error('[Main] Error setting native icon:', err);
+    }
+  }
 
   if (!app.isPackaged) {
     // Development: Load from Vite dev server — requires ELECTRON_DEV_SERVER_URL in .env
@@ -519,7 +567,7 @@ app.whenReady().then(async () => {
   });
 
   // Auto-Update Configuration
-  const updaterToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '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';
+  const updaterToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
   if (updaterToken) {
     autoUpdater.requestHeaders = {
       Authorization: `token ${updaterToken}`
@@ -761,20 +809,24 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField && (!arg.stockStatus || arg.stockStatus === 'all'))) {
       const rows = db.prepare(`
         SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
-          COALESCE((
-            SELECT SUM(pbi.quantity) 
-            FROM purchase_bill_items pbi
-            WHERE pbi.product_id = p.product_id AND pbi.skip_stock_update = 1 AND pbi.tenant_id = p.tenant_id
-          ), 0) - COALESCE((
-            SELECT SUM(ii.qty_from_paper_stock)
-            FROM invoice_items ii
-            WHERE ii.product_id = p.product_id AND ii.tenant_id = p.tenant_id
-          ), 0) as paper_stock
+          (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) as paper_stock
         FROM products p 
         LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
+        LEFT JOIN (
+          SELECT product_id, SUM(quantity) as paper_in
+          FROM purchase_bill_items
+          WHERE skip_stock_update = 1 AND tenant_id = ?
+          GROUP BY product_id
+        ) pb_paper ON p.product_id = pb_paper.product_id
+        LEFT JOIN (
+          SELECT product_id, SUM(qty_from_paper_stock) as paper_out
+          FROM invoice_items
+          WHERE tenant_id = ?
+          GROUP BY product_id
+        ) inv_paper ON p.product_id = inv_paper.product_id
         WHERE p.tenant_id = ? AND p.is_deleted = 0 
         ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC
-      `).all(tenantId);
+      `).all(tenantId, tenantId, tenantId);
       console.log(`[db:getProducts] Full list query → ${rows.length} rows returned for tenant ${tenantId}`);
       return rows;
     }
@@ -782,20 +834,24 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField, stockStatus } = arg;
     let query = `
       SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
-        COALESCE((
-          SELECT SUM(pbi.quantity) 
-          FROM purchase_bill_items pbi
-          WHERE pbi.product_id = p.product_id AND pbi.skip_stock_update = 1 AND pbi.tenant_id = p.tenant_id
-        ), 0) - COALESCE((
-          SELECT SUM(ii.qty_from_paper_stock)
-          FROM invoice_items ii
-          WHERE ii.product_id = p.product_id AND ii.tenant_id = p.tenant_id
-        ), 0) as paper_stock
+        (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) as paper_stock
       FROM products p 
       LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
+      LEFT JOIN (
+        SELECT product_id, SUM(quantity) as paper_in
+        FROM purchase_bill_items
+        WHERE skip_stock_update = 1 AND tenant_id = ?
+        GROUP BY product_id
+      ) pb_paper ON p.product_id = pb_paper.product_id
+      LEFT JOIN (
+        SELECT product_id, SUM(qty_from_paper_stock) as paper_out
+        FROM invoice_items
+        WHERE tenant_id = ?
+        GROUP BY product_id
+      ) inv_paper ON p.product_id = inv_paper.product_id
       WHERE p.tenant_id = ? AND p.is_deleted = 0
     `;
-    const params: any[] = [tenantId];
+    const params: any[] = [tenantId, tenantId, tenantId];
 
     if (isGst !== undefined) {
        query += ' AND p.is_gst_applicable = ?';
@@ -1438,6 +1494,46 @@ ipcMain.handle('db:reorderPricingTiers', safeHandler((event, tiers: Array<{ pric
   }
 }));
 
+ipcMain.handle('db:setDefaultPricingTier', safeHandler((event, payload: { tenant_id: string; pricing_tier_id: string }) => {
+  try {
+    const db = getDb();
+    let { tenant_id, pricing_tier_id } = payload || {};
+    pricing_tier_id = pricing_tier_id || '';
+
+    if (!tenant_id && pricing_tier_id) {
+      const targetTier = db.prepare('SELECT tenant_id FROM pricing_tiers WHERE pricing_tier_id = ?').get(pricing_tier_id) as any;
+      if (targetTier?.tenant_id) tenant_id = targetTier.tenant_id;
+    }
+    const tid = tenant_id || 'global';
+
+    if (pricing_tier_id) {
+      const targetTier = db.prepare('SELECT tenant_id FROM pricing_tiers WHERE pricing_tier_id = ?').get(pricing_tier_id) as any;
+      const actualTenantId = targetTier?.tenant_id || tid;
+
+      db.prepare(`
+        UPDATE pricing_tiers
+        SET is_default = CASE WHEN pricing_tier_id = ? THEN 1 ELSE 0 END,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ? OR tenant_id = ? OR tenant_id = 'global'
+      `).run(pricing_tier_id, actualTenantId, tid);
+    } else {
+      db.prepare(`
+        UPDATE pricing_tiers
+        SET is_default = 0,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ? OR tenant_id = 'global'
+      `).run(tid);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:setDefaultPricingTier]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
 ipcMain.handle('db:getProductPricing', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -1619,6 +1715,7 @@ ipcMain.handle('db:setProductPricing', safeHandler((event, payload: { tenant_id:
     const db = getDb();
     const { tenant_id, product_id, pricing } = payload;
     if (!tenant_id || !product_id || !Array.isArray(pricing)) return { success: false, error: 'Invalid payload' };
+    const findExisting = db.prepare(`SELECT product_pricing_id FROM product_pricing WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
     const upsert = db.prepare(`
       INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -1637,7 +1734,10 @@ ipcMain.handle('db:setProductPricing', safeHandler((event, payload: { tenant_id:
           clear.run(product_id, item.pricing_tier_id, tenant_id);
           continue;
         }
-        upsert.run(`${product_id}:${item.pricing_tier_id}`, tenant_id, product_id, item.pricing_tier_id, Number(item.price) || 0);
+        const existing = findExisting.get(product_id, item.pricing_tier_id, tenant_id) as any;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const pricingId = (existing?.product_pricing_id && uuidRegex.test(existing.product_pricing_id)) ? existing.product_pricing_id : crypto.randomUUID();
+        upsert.run(pricingId, tenant_id, product_id, item.pricing_tier_id, Number(item.price) || 0);
       }
     });
     tx(pricing);
@@ -1655,6 +1755,7 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
     const db = getDb();
     const { tenant_id, pricing_tier_id, pricing } = payload;
     if (!tenant_id || !pricing_tier_id || !Array.isArray(pricing)) return { success: false, error: 'Invalid payload' };
+    const findExisting = db.prepare(`SELECT product_pricing_id FROM product_pricing WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
     const upsert = db.prepare(`
       INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -1673,7 +1774,10 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
           clear.run(item.product_id, pricing_tier_id, tenant_id);
           continue;
         }
-        upsert.run(`${item.product_id}:${pricing_tier_id}`, tenant_id, item.product_id, pricing_tier_id, Number(item.price) || 0);
+        const existing = findExisting.get(item.product_id, pricing_tier_id, tenant_id) as any;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const pricingId = (existing?.product_pricing_id && uuidRegex.test(existing.product_pricing_id)) ? existing.product_pricing_id : crypto.randomUUID();
+        upsert.run(pricingId, tenant_id, item.product_id, pricing_tier_id, Number(item.price) || 0);
       }
     });
     tx(pricing);
@@ -1710,11 +1814,13 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
       ? Math.abs(p.balance || 0)
       : -Math.abs(p.balance || 0);
     const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
+    const partyType = p.party_type || 'CUSTOMER';
+    const customCategory = p.custom_category || null;
 
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, pricing_tier_id, credit_limit, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, p.notes || null, p.pricing_tier_id || null, creditLimit);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, pricing_tier_id, credit_limit, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit);
 
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
@@ -1747,6 +1853,8 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     const db = getDb();
     const hasTier = p.pricing_tier_id !== undefined;
     const hasCreditLimit = p.credit_limit !== undefined;
+    const hasPartyType = p.party_type !== undefined;
+    const hasCustomCategory = p.custom_category !== undefined;
     const creditLimit = hasCreditLimit ? Math.max(0, Number(p.credit_limit) || 0) : 0;
 
     let updateSql = `UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?`;
@@ -1759,6 +1867,14 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     if (hasCreditLimit) {
       updateSql += `, credit_limit = ?`;
       params.push(creditLimit);
+    }
+    if (hasPartyType) {
+      updateSql += `, party_type = ?`;
+      params.push(p.party_type || 'CUSTOMER');
+    }
+    if (hasCustomCategory) {
+      updateSql += `, custom_category = ?`;
+      params.push(p.custom_category || null);
     }
 
     updateSql += `, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`;
@@ -1886,30 +2002,73 @@ export function syncInvoiceCreditLedger(
 
     if (!custName && !custPhone) return;
 
-    // Find party by phone, then by name
+    // Find matching party or re-use existing
     let party: any = null;
-    if (custPhone) {
-      party = db.prepare(`
-        SELECT * FROM parties 
-        WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      `).get(tenantId, custPhone);
-    }
-    if (!party && custName) {
-      party = db.prepare(`
-        SELECT * FROM parties 
-        WHERE tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)
-      `).get(tenantId, custName);
+
+    // 1. If invoice already had ledger entries under a party, attempt to reuse that party first
+    if (existingEntries.length > 0) {
+      const firstEntry = existingEntries[0];
+      if (firstEntry.party_id) {
+        party = db.prepare(`
+          SELECT * FROM parties 
+          WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+        `).get(firstEntry.party_id, tenantId);
+      }
     }
 
-    if (!party) {
+    // 2. Find party by normalized phone
+    const normPhone = custPhone.replace(/\D/g, '');
+    if (!party && normPhone.length >= 5) {
+      const allParties = db.prepare(`
+        SELECT * FROM parties 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      `).all(tenantId) as any[];
+
+      party = allParties.find((p: any) => {
+        if (!p.phone) return false;
+        const pPhoneDigits = p.phone.replace(/\D/g, '');
+        return pPhoneDigits === normPhone || (normPhone.length >= 10 && pPhoneDigits.slice(-10) === normPhone.slice(-10));
+      });
+    }
+
+    // 3. Find party by normalized name
+    if (!party && custName) {
+      const normName = custName.toLowerCase().replace(/\s+/g, ' ');
+      party = db.prepare(`
+        SELECT * FROM parties 
+        WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      `).get(tenantId, normName);
+
+      if (!party) {
+        const allParties = db.prepare(`
+          SELECT * FROM parties 
+          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+        `).all(tenantId) as any[];
+
+        party = allParties.find((p: any) => (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName);
+      }
+    }
+
+    if (party) {
+      // Keep party phone, address, and gstin updated if new details were provided
+      db.prepare(`
+        UPDATE parties 
+        SET phone = COALESCE(?, phone),
+            address = COALESCE(?, address),
+            gstin = COALESCE(?, gstin),
+            sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE party_id = ?
+      `).run(custPhone || null, custAddress, custGstin, party.party_id);
+    } else {
       const newPartyId = crypto.randomUUID();
       db.prepare(`
         INSERT INTO parties (
           party_id, tenant_id, name, phone, address, gstin, 
-          balance, gst_balance, estimate_balance, balance_type, 
+          balance, gst_balance, estimate_balance, balance_type, party_type,
           notes, pricing_tier_id, credit_limit, is_deleted, sync_status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', NULL, NULL, 0, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', NULL, NULL, 0, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
         newPartyId, tenantId, custName || custPhone, custPhone || null, custAddress, custGstin
       );
@@ -4581,7 +4740,7 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
       };
     }
 
-    const host = cleanHost || '192.168.1.100';
+    const host = cleanHost || process.env.DEFAULT_LAN_IP || '';
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3500);
@@ -5483,31 +5642,60 @@ ipcMain.handle('db:getProductBillQuantities', (event, tenantId: string) => {
     const db = getDb();
     if (!tenantId) return [];
     return db.prepare(`
-      SELECT p.product_id,
-             COALESCE((
-               SELECT SUM(ii.quantity)
-               FROM invoice_items ii
-               JOIN invoices i ON ii.invoice_id = i.invoice_id
-               WHERE ii.product_id = p.product_id AND i.invoice_type = 'GST' AND ii.tenant_id = p.tenant_id AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-             ), 0) as gst_qty,
-             COALESCE((
-               SELECT SUM(ii.quantity)
-               FROM invoice_items ii
-               JOIN invoices i ON ii.invoice_id = i.invoice_id
-               WHERE ii.product_id = p.product_id AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND ii.tenant_id = p.tenant_id AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-             ), 0) as estimate_qty,
-             COALESCE((
-               SELECT SUM(pbi.quantity)
-               FROM purchase_bill_items pbi
-               JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
-               WHERE pbi.product_id = p.product_id AND pb.bill_type = 'GST' AND pb.tenant_id = p.tenant_id
-             ), 0) as gst_purchased_qty
+      SELECT 
+        p.product_id,
+        COALESCE(inv_summary.gst_qty, 0) as gst_qty,
+        COALESCE(inv_summary.estimate_qty, 0) as estimate_qty,
+        COALESCE(pb_summary.gst_purchased_qty, 0) as gst_purchased_qty
       FROM products p
+      LEFT JOIN (
+        SELECT 
+          ii.product_id,
+          SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END) as gst_qty,
+          SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL THEN ii.quantity ELSE 0 END) as estimate_qty
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.invoice_id
+        WHERE ii.tenant_id = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+        GROUP BY ii.product_id
+      ) inv_summary ON p.product_id = inv_summary.product_id
+      LEFT JOIN (
+        SELECT 
+          pbi.product_id,
+          SUM(pbi.quantity) as gst_purchased_qty
+        FROM purchase_bill_items pbi
+        JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+        WHERE pb.tenant_id = ? AND pb.bill_type = 'GST'
+        GROUP BY pbi.product_id
+      ) pb_summary ON p.product_id = pb_summary.product_id
       WHERE p.tenant_id = ? AND p.is_deleted = 0
-    `).all(tenantId);
+    `).all(tenantId, tenantId, tenantId);
   } catch (error: any) {
     console.error('[db:getProductBillQuantities]', error);
     return [];
+  }
+});
+
+ipcMain.handle('db:getProductSuppliers', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return {};
+    const rows = db.prepare(`
+      SELECT DISTINCT pbi.product_id, pb.supplier_name
+      FROM purchase_bill_items pbi
+      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+      WHERE pb.tenant_id = ? AND pb.supplier_name IS NOT NULL AND TRIM(pb.supplier_name) != ''
+    `).all(tenantId);
+    const map: Record<string, string[]> = {};
+    for (const row of rows as any[]) {
+      if (!map[row.product_id]) map[row.product_id] = [];
+      if (!map[row.product_id].includes(row.supplier_name)) {
+        map[row.product_id].push(row.supplier_name);
+      }
+    }
+    return map;
+  } catch (error: any) {
+    console.error('[db:getProductSuppliers]', error);
+    return {};
   }
 });
 

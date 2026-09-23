@@ -167,6 +167,16 @@ export function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_invoice_items_tenant_product ON invoice_items(tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_products_tenant_deleted ON products(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(sku_barcode);
+    CREATE INDEX IF NOT EXISTS idx_products_item_code ON products(item_code);
+    CREATE INDEX IF NOT EXISTS idx_products_grade ON products(grade_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_tenant_type_deleted ON invoices(tenant_id, invoice_type, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_purchase_bill_items_tenant_product ON purchase_bill_items(tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_purchase_bills_tenant_supplier ON purchase_bills(tenant_id, supplier_name);
+    CREATE INDEX IF NOT EXISTS idx_product_pricing_tenant_product ON product_pricing(tenant_id, product_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_pricing_tiers_tenant ON pricing_tiers(tenant_id, is_deleted);
 
     CREATE TABLE IF NOT EXISTS parties (
         party_id TEXT PRIMARY KEY,
@@ -180,6 +190,8 @@ export function initDb() {
         estimate_balance REAL NOT NULL DEFAULT 0,
         pricing_tier_id TEXT,
         credit_limit REAL NOT NULL DEFAULT 0,
+        party_type TEXT DEFAULT 'CUSTOMER',
+        custom_category TEXT,
         notes TEXT,
         last_transaction_date DATETIME,
         is_deleted INTEGER DEFAULT 0,
@@ -534,6 +546,7 @@ export function initDb() {
         name TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
         sort_order INTEGER NOT NULL DEFAULT 0,
+        is_default INTEGER DEFAULT 0,
         is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -725,7 +738,7 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id', 'credit_limit'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id', 'credit_limit', 'party_type', 'custom_category'
     ],
     party_ledger: [
         'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'balance_type', 'payment_method', 'reference_number', 'created_by', 'created_by_name', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -796,7 +809,7 @@ export function initDb() {
         'sync_status', 'created_at', 'updated_at'
     ],
     pricing_tiers: [
-        'pricing_tier_id', 'tenant_id', 'name', 'is_active', 'sort_order', 'is_deleted',
+        'pricing_tier_id', 'tenant_id', 'name', 'is_active', 'sort_order', 'is_default', 'is_deleted',
         'sync_status', 'created_at', 'updated_at'
     ],
     product_pricing: [
@@ -820,7 +833,7 @@ export function initDb() {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
         let type = 'TEXT';
-        if (col === 'weight_override_allowed' || col === 'is_service_item' || col === 'is_held' || col === 'is_deleted') {
+        if (['weight_override_allowed', 'is_service_item', 'is_held', 'is_deleted', 'is_default', 'is_active', 'is_enabled'].includes(col)) {
           type = 'INTEGER DEFAULT 0';
         } else if (col === 'print_status') {
           type = "TEXT DEFAULT 'PENDING'";
@@ -842,6 +855,10 @@ export function initDb() {
   
   // Cleanup/Migration for legacy columns (if any existed before restoration)
   try {
+     // Normalize pricing_tiers is_default column values to INTEGER 0 / 1
+     db.exec("UPDATE pricing_tiers SET is_default = 0 WHERE is_default = '0' OR is_default IS NULL OR is_default = 'false'");
+     db.exec("UPDATE pricing_tiers SET is_default = 1 WHERE is_default = '1' OR is_default = 'true' OR is_default = true");
+
      // If user had total_amount instead of grand_total
      const invInfo = db.prepare(`PRAGMA table_info(invoices)`).all();
      if (invInfo.some((c: any) => c.name === 'total_amount') && invInfo.some((c: any) => c.name === 'grand_total')) {
@@ -1271,6 +1288,23 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add/normalize columns in invoices:', e.message);
   }
 
+  // Migration: Fix non-UUID product_pricing_id in product_pricing
+  try {
+    const invalidRows = db.prepare(`
+      SELECT product_pricing_id, product_id, pricing_tier_id, tenant_id 
+      FROM product_pricing 
+      WHERE product_pricing_id NOT LIKE '________-____-____-____-____________'
+    `).all() as any[];
+    if (Array.isArray(invalidRows) && invalidRows.length > 0) {
+      const updStmt = db.prepare(`UPDATE product_pricing SET product_pricing_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+      for (const r of invalidRows) {
+        updStmt.run(crypto.randomUUID(), r.product_id, r.pricing_tier_id, r.tenant_id);
+      }
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to fix non-UUID product_pricing_id:', e.message);
+  }
+
   // Migration: Add bill_type column to purchase_bills
   try {
     const pbCols = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
@@ -1353,6 +1387,14 @@ export function initDb() {
     if (!partyCols.includes('credit_limit')) {
       console.log('[DB Migration] Adding credit_limit to parties...');
       db.exec("ALTER TABLE parties ADD COLUMN credit_limit REAL NOT NULL DEFAULT 0");
+    }
+    if (!partyCols.includes('party_type')) {
+      console.log('[DB Migration] Adding party_type to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN party_type TEXT DEFAULT 'CUSTOMER'");
+    }
+    if (!partyCols.includes('custom_category')) {
+      console.log('[DB Migration] Adding custom_category to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN custom_category TEXT");
     }
     // Backfill: existing balances are treated as GST balance (legacy behavior)
     db.exec("UPDATE parties SET gst_balance = balance WHERE gst_balance = 0 AND balance != 0");

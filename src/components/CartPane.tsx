@@ -25,6 +25,26 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const searchResultListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (searchResultListRef.current && selectedIndex >= 0) {
+      const container = searchResultListRef.current;
+      const selectedEl = container.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`);
+      if (selectedEl) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elTop = selectedEl.offsetTop;
+        const elBottom = elTop + selectedEl.offsetHeight;
+
+        if (elTop < containerTop) {
+          container.scrollTop = elTop;
+        } else if (elBottom > containerBottom) {
+          container.scrollTop = elBottom - container.clientHeight;
+        }
+      }
+    }
+  }, [selectedIndex]);
 
   useEffect(() => {
     if (searchQuery.length < 1) {
@@ -154,7 +174,11 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
             type="text" 
             placeholder="Search products or scan barcode... [F2]"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearchQuery(val);
+              if (!val.trim()) setResults([]);
+            }}
             onKeyDown={handleKeyDown}
             className="w-full pl-11 pr-10 py-5 bg-background shadow-sm"
           />
@@ -169,15 +193,16 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
           )}
 
           {/* Search Results Dropdown */}
-          {results.length > 0 && (
+          {searchQuery.trim().length > 0 && results.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
               <div className="p-2 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/50">
                 Found {results.length} matching products
               </div>
-              <div className="max-h-80 overflow-y-auto">
+              <div ref={searchResultListRef} className="max-h-80 overflow-y-auto">
                 {results.map((p, i) => (
                   <button
                     key={p.product_id}
+                    data-search-index={i}
                     onClick={() => handleSelectProduct(p)}
                     className={clsx(
                       "w-full flex items-center justify-between p-3 transition-colors text-left border-b border-border/50 last:border-0",

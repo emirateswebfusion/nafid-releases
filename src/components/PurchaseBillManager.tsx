@@ -512,6 +512,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         gstin: newPartyForm.gstin.trim() || null,
         balance: parseFloat(newPartyForm.opening_balance) || 0,
         balance_type: newPartyForm.balance_type,
+        party_type: 'SUPPLIER',
         notes: newPartyForm.notes.trim() || null,
         created_by: userId,
         created_by_name: userName || undefined,
@@ -1779,6 +1780,20 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
   const [editingProductItemId, setEditingProductItemId] = useState<string | null>(null);
   const [sharedEstimateMode, setSharedEstimateMode] = useState(false);
+  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+
+  useEffect(() => {
+    const loadRealPaperSetting = () => {
+      if (window.electronAPI?.settingsGet) {
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
+          if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
+        }).catch(() => {});
+      }
+    };
+    loadRealPaperSetting();
+    window.addEventListener('settings:updated', loadRealPaperSetting);
+    return () => window.removeEventListener('settings:updated', loadRealPaperSetting);
+  }, [tenantId]);
 
   const openProductEditor = async (item: typeof billItems[0]) => {
     setEditingProductItemId(item.product_id);
@@ -3230,27 +3245,29 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         <div className="flex gap-3 items-start">
                           {type === 'GST' ? (
                             <>
-                              <div className="min-w-[140px]">
-                                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Stock Type</label>
-                                <div
-                                  onClick={() => setNewProductIsDummy(!newProductIsDummy)}
-                                  onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
-                                  data-focusable-checkbox
-                                  tabIndex={-1}
-                                  className={clsx(
-                                    'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
-                                    !newProductIsDummy
-                                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                                      : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
-                                  )}
-                                >
-                                  <input type="checkbox" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
-                                    className="w-3 h-3 rounded pointer-events-none accent-primary" />
-                                  <span className="font-bold text-xs select-none">
-                                    {newProductIsDummy ? 'Paper' : 'Real'}
-                                  </span>
+                              {enableRealPaperStock && (
+                                <div className="min-w-[140px]">
+                                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Stock Type</label>
+                                  <div
+                                    onClick={() => setNewProductIsDummy(!newProductIsDummy)}
+                                    onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
+                                    data-focusable-checkbox
+                                    tabIndex={-1}
+                                    className={clsx(
+                                      'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
+                                      !newProductIsDummy
+                                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                                    )}
+                                  >
+                                    <input type="checkbox" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
+                                      className="w-3 h-3 rounded pointer-events-none accent-primary" />
+                                    <span className="font-bold text-xs select-none">
+                                      {newProductIsDummy ? 'Paper' : 'Real'}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                               <div className="flex-1 min-w-[120px]">
                                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">HSN / SAC Code</label>
                                 <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)}
@@ -3269,30 +3286,32 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           ) : null}
                         </div>
                       ) : (
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className={clsx("grid gap-4", enableRealPaperStock ? "grid-cols-3" : "grid-cols-2")}>
                           {type === 'GST' ? (
                             <>
-                              <div>
-                                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Stock Type</label>
-                                <div
-                                  onClick={() => setNewProductIsDummy(!newProductIsDummy)}
-                                  onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
-                                  data-focusable-checkbox
-                                  tabIndex={-1}
-                                  className={clsx(
-                                    'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
-                                    !newProductIsDummy
-                                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                                      : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
-                                  )}
-                                >
-                                  <input type="checkbox" id="dummy" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
-                                    className={clsx('w-3.5 h-3.5 rounded pointer-events-none', !newProductIsDummy ? 'accent-emerald-500' : 'accent-amber-500')} />
-                                  <label htmlFor="dummy" className="font-bold text-xs cursor-pointer select-none">
-                                    {newProductIsDummy ? 'Paper' : 'Real'}
-                                  </label>
+                              {enableRealPaperStock && (
+                                <div>
+                                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Stock Type</label>
+                                  <div
+                                    onClick={() => setNewProductIsDummy(!newProductIsDummy)}
+                                    onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
+                                    data-focusable-checkbox
+                                    tabIndex={-1}
+                                    className={clsx(
+                                      'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                                      !newProductIsDummy
+                                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                                    )}
+                                  >
+                                    <input type="checkbox" id="dummy" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
+                                      className={clsx('w-3.5 h-3.5 rounded pointer-events-none', !newProductIsDummy ? 'accent-emerald-500' : 'accent-amber-500')} />
+                                    <label htmlFor="dummy" className="font-bold text-xs cursor-pointer select-none">
+                                      {newProductIsDummy ? 'Paper' : 'Real'}
+                                    </label>
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                               <div>
                                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
                                 <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)}
@@ -3445,7 +3464,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   const gstAmt = hasGst ? taxableAmt * (taxRate / 100) : 0;
                   const itemTotal = taxableAmt + gstAmt;
                   // Dummy = paper stock / tax record only (no stock add); Real = stock-in.
-                  const isDummy = (item.skip_stock_update ?? ((getOtherSectionItems?.() ?? []).some(i => i.product_id === item.product_id) ? 1 : 0)) === 1;
+                  const isDummy = enableRealPaperStock && (item.skip_stock_update ?? ((getOtherSectionItems?.() ?? []).some(i => i.product_id === item.product_id) ? 1 : 0)) === 1;
                   return (
                     <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                       <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
@@ -3461,19 +3480,21 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           )}
                         </span>
                         <span className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => toggleBillItemDummy(item)}
-                            title={isDummy ? 'Paper stock (no stock added) — click for Real stock' : 'Real stock (adds stock) — click for paper stock'}
-                            className={clsx(
-                              'text-[9px] px-1.5 py-0.5 rounded font-bold border transition-all cursor-pointer select-none',
-                              isDummy
-                                ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
-                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                            )}
-                          >
-                            {isDummy ? 'Paper' : 'Real'}
-                          </button>
+                          {enableRealPaperStock && (
+                            <button
+                              type="button"
+                              onClick={() => toggleBillItemDummy(item)}
+                              title={isDummy ? 'Paper stock (no stock added) — click for Real stock' : 'Real stock (adds stock) — click for paper stock'}
+                              className={clsx(
+                                'text-[9px] px-1.5 py-0.5 rounded font-bold border transition-all cursor-pointer select-none',
+                                isDummy
+                                  ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                              )}
+                            >
+                              {isDummy ? 'Paper' : 'Real'}
+                            </button>
+                          )}
                           {item.stock !== undefined && item.stock !== '' && (
                             <span className="text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>
                           )}

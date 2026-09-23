@@ -57,9 +57,21 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
     }, [open, searchable]);
 
     React.useEffect(() => {
-      if (open && listRef.current) {
-        const items = listRef.current.querySelectorAll<HTMLElement>('[data-option-index]');
-        items[focusedIndex]?.scrollIntoView({ block: 'nearest' });
+      if (open && listRef.current && focusedIndex >= 0) {
+        const container = listRef.current;
+        const selectedEl = container.querySelector<HTMLElement>(`[data-option-index="${focusedIndex}"]`);
+        if (selectedEl) {
+          const containerTop = container.scrollTop;
+          const containerBottom = containerTop + container.clientHeight;
+          const elTop = selectedEl.offsetTop;
+          const elBottom = elTop + selectedEl.offsetHeight;
+
+          if (elTop < containerTop) {
+            container.scrollTop = elTop;
+          } else if (elBottom > containerBottom) {
+            container.scrollTop = elBottom - container.clientHeight;
+          }
+        }
       }
     }, [focusedIndex, open]);
 

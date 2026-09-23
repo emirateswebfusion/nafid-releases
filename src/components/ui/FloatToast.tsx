@@ -15,9 +15,18 @@ interface FloatToastProps {
   title?: string;
   type?: 'success' | 'error' | 'info' | 'warning';
   position?: 'bottom-right' | 'bottom-left';
+  duration?: number;
 }
 
-export function FloatToast({ message, onClose, title, type = 'success', position = 'bottom-right' }: FloatToastProps) {
+export function FloatToast({ message, onClose, title, type = 'success', position = 'bottom-right', duration = 4000 }: FloatToastProps) {
+  React.useEffect(() => {
+    if (!message || duration <= 0) return;
+    const timer = setTimeout(() => {
+      onClose();
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [message, duration, onClose]);
+
   if (!message) return null;
 
   const msgText = typeof message === 'string' ? message : message.text;

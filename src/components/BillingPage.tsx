@@ -211,6 +211,67 @@ function ItemTotalInput({
   );
 }
 
+function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; phone?: string; balance?: number } | null }) {
+  const [activeParty, setActiveParty] = useState(partyObj);
+  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (partyObj && partyObj.balance != null && Number(partyObj.balance) !== 0) {
+      setActiveParty(partyObj);
+      setMounted(true);
+      const timer = setTimeout(() => {
+        setVisible(true);
+      }, 20);
+      return () => clearTimeout(timer);
+    } else {
+      setVisible(false);
+      const timer = setTimeout(() => {
+        setMounted(false);
+        setActiveParty(null);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [partyObj?.name, partyObj?.phone, partyObj?.balance]);
+
+  if (!mounted || !activeParty) return null;
+
+  const bal = Number(activeParty.balance || 0);
+  const isDue = bal > 0;
+  const fmtN = (n: number) => Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div
+      className={clsx(
+        "transition-all duration-300 ease-in-out shrink-0 overflow-hidden flex items-center",
+        visible
+          ? "opacity-100 scale-100 max-w-[200px] translate-x-0"
+          : "opacity-0 scale-95 max-w-0 translate-x-2 pointer-events-none"
+      )}
+    >
+      <div
+        className={clsx(
+          "h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 border shadow-2xs whitespace-nowrap transition-colors",
+          isDue
+            ? "bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-800/80 text-rose-800 dark:text-rose-200"
+            : "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-200"
+        )}
+        title={isDue ? `Outstanding Old Due: ₹${fmtN(bal)}` : `Advance Credit: ₹${fmtN(bal)}`}
+      >
+        <span className="font-extrabold text-[11px] uppercase tracking-wider opacity-90">
+          {isDue ? 'Due:' : 'Credit:'}
+        </span>
+        <span className={clsx(
+          "px-2 py-0.5 rounded-md text-xs font-black text-white shadow-2xs",
+          isDue ? "bg-rose-600 dark:bg-rose-600" : "bg-emerald-600 dark:bg-emerald-600"
+        )}>
+          ₹{fmtN(bal)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function BillingPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
@@ -414,6 +475,7 @@ export function BillingPage() {
   const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(false);
   const [newProductIsDummy, setNewProductIsDummy] = useState(false);
   const [newProductIsCustomCategory, setNewProductIsCustomCategory] = useState(false);
+  const [productFormTierPrices, setProductFormTierPrices] = useState<Record<string, string>>({});
   const [autoPrintBarcode, setAutoPrintBarcode] = useState(true);
   const [productFormView, setProductFormView] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
@@ -458,6 +520,64 @@ export function BillingPage() {
   const paymentOptionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipCustomerDropdownOnFocusRef = useRef(false);
 
+  const searchResultListRef = useRef<HTMLDivElement>(null);
+  const pastBillListRef = useRef<HTMLDivElement>(null);
+  const customerListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (searchResultListRef.current && selectedIndex >= 0) {
+      const container = searchResultListRef.current;
+      const selectedEl = container.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`);
+      if (selectedEl) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elTop = selectedEl.offsetTop;
+        const elBottom = elTop + selectedEl.offsetHeight;
+
+        if (elTop < containerTop) {
+          container.scrollTop = elTop;
+        } else if (elBottom > containerBottom) {
+          container.scrollTop = elBottom - container.clientHeight;
+        }
+      }
+    }
+    if (pastBillListRef.current && selectedIndex >= 0) {
+      const container = pastBillListRef.current;
+      const selectedEl = container.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`);
+      if (selectedEl) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elTop = selectedEl.offsetTop;
+        const elBottom = elTop + selectedEl.offsetHeight;
+
+        if (elTop < containerTop) {
+          container.scrollTop = elTop;
+        } else if (elBottom > containerBottom) {
+          container.scrollTop = elBottom - container.clientHeight;
+        }
+      }
+    }
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    if (customerListRef.current && showCustomerDropdown && selectedCustomerIndex >= 0) {
+      const container = customerListRef.current;
+      const selectedEl = container.querySelector<HTMLElement>(`[data-customer-index="${selectedCustomerIndex}"]`);
+      if (selectedEl) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elTop = selectedEl.offsetTop;
+        const elBottom = elTop + selectedEl.offsetHeight;
+
+        if (elTop < containerTop) {
+          container.scrollTop = elTop;
+        } else if (elBottom > containerBottom) {
+          container.scrollTop = elBottom - container.clientHeight;
+        }
+      }
+    }
+  }, [selectedCustomerIndex, showCustomerDropdown]);
+
   const focusInputWithoutDropdown = (inputEl: HTMLInputElement | null, selectAll = true) => {
     if (!inputEl) return;
     skipCustomerDropdownOnFocusRef.current = true;
@@ -498,6 +618,7 @@ export function BillingPage() {
   const isScrapActive = isScrapMode || Boolean(editingInvoiceNumber && (editingInvoiceNumber.includes('SCR') || editingInvoiceNumber.includes('Scrap')));
   const [enableScrap, setEnableScrap] = useState(true);
   const [showCashRegister, setShowCashRegister] = useState(false);
+  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
 
   // Safety sync: ensure scrap mode remains active when editing a scrap invoice
   useEffect(() => {
@@ -979,6 +1100,9 @@ export function BillingPage() {
         }
       }).catch(() => {});
     }
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v: any) => {
+      if (v !== null && v !== undefined) setEnableRealPaperStock(Boolean(v));
+    });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
@@ -1009,7 +1133,14 @@ export function BillingPage() {
     });
     window.electronAPI.dbGetPricingTiers(tenantId || 'global')
       .then((res: any) => {
-        if (Array.isArray(res)) setPricingTiers(res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted));
+        if (Array.isArray(res)) {
+          const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
+          setPricingTiers(active);
+          const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
+          if (defaultTier) {
+            setSelectedTierId(defaultTier.pricing_tier_id);
+          }
+        }
       })
       .catch(console.error);
     window.electronAPI.dbGetProductPricing(tenantId || 'global')
@@ -2118,6 +2249,12 @@ export function BillingPage() {
           title: invoice.invoice_number,
         });
 
+        if (invoice.customer_name || invoice.customer_phone) {
+          setTimeout(() => {
+            applyPartyTier(invoice.customer_name || '', invoice.customer_phone || '');
+          }, 50);
+        }
+
         // Sync tab snapshot so items persist across tab switches
         syncActiveSnapshot();
         setTimeout(() => {
@@ -2256,15 +2393,20 @@ export function BillingPage() {
   };
 
   const applyPartyTier = (name: string, phone: string) => {
-    if (!name && !phone) return;
+    const defaultTier = pricingTiers.find(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');
+    const defaultTierId = defaultTier ? defaultTier.pricing_tier_id : '';
+    if (!name && !phone) {
+      setSelectedTierId(defaultTierId);
+      return;
+    }
     const match = partiesForTier.find(p =>
       (name && p.name?.toLowerCase() === name.toLowerCase()) ||
       (phone && p.phone && String(p.phone) === phone)
     );
     if (match?.pricing_tier_id && pricingTiers.some(t => t.pricing_tier_id === match.pricing_tier_id)) {
       setSelectedTierId(match.pricing_tier_id);
-    } else if (match) {
-      setSelectedTierId('');
+    } else {
+      setSelectedTierId(defaultTierId);
     }
   };
 
@@ -4307,15 +4449,20 @@ export function BillingPage() {
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveReceivedAmount,
-              balanceAmount: partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)),
-              customerBalance: partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)),
+              balanceAmount: partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0),
+              customerBalance: partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0),
               paymentMethod: 'CREDIT',
             }
           : (paymentMethod === 'CASH' && !isPaymentPending)
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveReceivedAmount,
-              balanceAmount: effectiveBalanceAmount,
+              balanceAmount: partyOldBalance !== 0
+                ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
+                : effectiveBalanceAmount,
+              customerBalance: partyOldBalance !== 0
+                ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
+                : undefined,
               paymentMethod: 'CASH',
             }
           : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
@@ -4328,6 +4475,7 @@ export function BillingPage() {
             }
           : {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
+              customerBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               ...(paymentMethod === 'SPLIT' ? { receivedAmount: effectiveReceivedAmount } : {}),
               paymentMethod: paymentMethod,
             }
@@ -4362,7 +4510,7 @@ export function BillingPage() {
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
           received_amount: effectiveReceivedAmount,
           balance_amount: paymentMethod === 'CREDIT'
-            ? (partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)))
+            ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
             : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : effectiveBalanceAmount,
@@ -4397,7 +4545,7 @@ export function BillingPage() {
                 : (splitDetails || undefined)),
           received_amount: effectiveReceivedAmount,
           balance_amount: paymentMethod === 'CREDIT'
-            ? (partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)))
+            ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
             : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : effectiveBalanceAmount,
@@ -5228,7 +5376,7 @@ export function BillingPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {items.length > 0 && (
+          {(items.length > 0 || Boolean((customerName || '').trim() || (customerPhone || '').trim() || (customerGstin || '').trim() || (customerAddress || '').trim() || (activeTab?.shippingName || '').trim())) && (
             <button
               onClick={async () => {
                 const tab = getActiveTab();
@@ -5462,7 +5610,16 @@ export function BillingPage() {
                     autoFocus
                     placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
                     value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSearchQuery(val);
+                      if (!val.trim()) {
+                        setResults([]);
+                        setScrapSearchResults([]);
+                        setReturnSearchResults([]);
+                        setPastBillResults([]);
+                      }
+                    }}
                     onKeyDown={handleSearchKey}
                     className="search-dynamic w-full pl-10 pr-9 py-2.5 bg-background rounded-xl text-sm font-medium text-foreground transition-all duration-300 placeholder:text-muted-foreground/50 focus:outline-none"
                     style={{
@@ -5508,7 +5665,14 @@ export function BillingPage() {
                   />
                   {searchQuery && (
                     <button
-                      onClick={() => { setSearchQuery(''); setResults([]); searchRef.current?.focus(); }}
+                      onClick={() => {
+                        setSearchQuery('');
+                        setResults([]);
+                        setScrapSearchResults([]);
+                        setReturnSearchResults([]);
+                        setPastBillResults([]);
+                        searchRef.current?.focus();
+                      }}
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors border border-destructive/30"
                     >
                       <X className="w-4 h-4 text-destructive" />
@@ -5592,9 +5756,9 @@ export function BillingPage() {
 
 
 
-              {isPastBillMode && pastBillResults.length > 0 && (
+              {isPastBillMode && searchQuery.trim().length > 0 && pastBillResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div className="max-h-[320px] overflow-y-auto">
+                  <div ref={pastBillListRef} className="max-h-[320px] overflow-y-auto">
                     <div className="px-3 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border">
                       Past Bills ({pastBillResults.length})
                     </div>
@@ -5603,6 +5767,7 @@ export function BillingPage() {
                       return (
                         <div
                           key={inv.invoice_id}
+                          data-search-index={i}
                           className={clsx(
                             'flex items-center gap-2 px-3 py-2 border-b border-border last:border-0 transition-colors',
                             isSelected ? 'bg-teal-500/10 border-l-4 border-l-teal-500 pl-2' : 'hover:bg-teal-500/5'
@@ -5644,7 +5809,7 @@ export function BillingPage() {
                   </div>
                 </div>
               )}
-              {!isPastBillMode && (isScrapMode ? scrapSearchResults.length > 0 : isReturnMode ? returnSearchResults.length > 0 : results.length > 0) && (
+              {!isPastBillMode && searchQuery.trim().length > 0 && (isScrapMode ? scrapSearchResults.length > 0 : isReturnMode ? returnSearchResults.length > 0 : results.length > 0) && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   {!isScrapMode && !isReturnMode && (
                     <div className="px-3 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border flex items-center justify-between">
@@ -5652,7 +5817,7 @@ export function BillingPage() {
                       {searchQuery && <span className="text-primary font-bold">Matching "{searchQuery}"</span>}
                     </div>
                   )}
-                  <div className="max-h-[350px] overflow-y-auto">
+                  <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
                     {!isScrapMode && !isReturnMode && results.map((p, i) => {
                       const mrp = getTierPriceForProduct(p) ?? (p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price);
                       const showOffer = p.offer_price && Number(p.offer_price) > 0;
@@ -5661,6 +5826,7 @@ export function BillingPage() {
                       return (
                         <button
                           key={p.product_id}
+                          data-search-index={i}
                           onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(p); }}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
@@ -5739,6 +5905,7 @@ export function BillingPage() {
                       return (
                         <button
                           key={s.scrap_category_id}
+                          data-search-index={i}
                           onMouseDown={(e) => { e.preventDefault(); handleSelectScrapItem(s); }}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
@@ -5776,6 +5943,7 @@ export function BillingPage() {
                       return (
                         <button
                           key={inv.invoice_id}
+                          data-search-index={i}
                           onMouseDown={(e) => { e.preventDefault(); handleSelectReturnInvoice(inv); }}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
@@ -5832,7 +6000,7 @@ export function BillingPage() {
           <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1" ref={customerNameContainerRef}>
-                <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
+                <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
                 <input
                   ref={customerNameInputRef}
                   placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
@@ -5851,7 +6019,7 @@ export function BillingPage() {
                   }}
                   onKeyDown={handleCustomerNameKeyDown}
                   className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 dark:placeholder:text-gray-400 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all duration-300',
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
                       ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
                       : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
@@ -5900,11 +6068,11 @@ export function BillingPage() {
                   );
                 })()}
               </div>
-              <div className="relative flex-1">
-                <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
+              <div className="relative flex-1 min-w-0">
+                <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
                 <input
                   ref={customerPhoneInputRef}
-                  placeholder={invoiceType === 'GST' ? "Phone Number *" : "Phone Number"}
+                  placeholder={invoiceType === 'GST' ? "Phone *" : "Phone Number"}
                   value={customerPhone}
                   onFocus={() => {
                     if (!skipCustomerDropdownOnFocusRef.current) {
@@ -5920,7 +6088,7 @@ export function BillingPage() {
                   }}
                   onKeyDown={handleCustomerPhoneKeyDown}
                   className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 dark:placeholder:text-gray-400 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all duration-300',
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
                       ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
                       : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
@@ -5929,52 +6097,24 @@ export function BillingPage() {
                   )}
                 />
               </div>
+              <CustomerOutstandingBadge partyObj={(() => {
+                const cleanName = (customerName || '').trim().toLowerCase();
+                const cleanPhone = (customerPhone || '').trim();
+                if (!cleanName && !cleanPhone) return null;
+                const combinedList = [...(allCustomersList || []), ...(partiesForTier || []), ...(customerSearchResults || [])];
+                return combinedList.find((c: any) => {
+                  if (!c || c.balance == null || Number(c.balance) === 0) return false;
+                  const cName = (c.name || '').trim().toLowerCase();
+                  const cPhone = String(c.phone || '').trim();
+                  const matchName = cleanName && cName && (
+                    cName === cleanName ||
+                    cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
+                  );
+                  const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
+                  return Boolean(matchName || matchPhone);
+                }) || null;
+              })()} />
             </div>
-
-            {/* ── Real-time Customer Old Balance Banner (Visible in ALL payment modes) ── */}
-            {(() => {
-              const cleanName = (customerName || '').trim();
-              const cleanPhone = (customerPhone || '').trim();
-              if (!cleanName && !cleanPhone) return null;
-              const partyObj = (partiesForTier || []).find((p: any) =>
-                (cleanName && p.name && p.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
-                (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone)
-              );
-              if (!partyObj || partyObj.balance == null || Number(partyObj.balance) === 0) return null;
-              const bal = Number(partyObj.balance);
-              const isDue = bal > 0;
-              const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              
-              return (
-                <div className={`mb-2 rounded-xl px-3.5 py-2 border text-xs flex items-center justify-between gap-2 flex-wrap transition-all duration-300 shadow-xs ${
-                  isDue
-                    ? 'border-amber-500/50 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100'
-                    : 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    <User className={`w-4 h-4 shrink-0 ${isDue ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                    <span className="font-extrabold text-sm text-foreground">
-                      {partyObj.name}
-                    </span>
-                    {partyObj.phone && (
-                      <span className="text-xs font-semibold text-muted-foreground">({partyObj.phone})</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className={`font-black text-xs uppercase tracking-wider ${isDue ? 'text-amber-900 dark:text-amber-200' : 'text-emerald-900 dark:text-emerald-200'}`}>
-                      {isDue ? 'Outstanding Old Due:' : 'Advance Credit Balance:'}
-                    </span>
-                    <span className={`text-sm font-black px-3 py-1 rounded-lg shadow-xs text-white ${
-                      isDue
-                        ? 'bg-amber-600 dark:bg-amber-500'
-                        : 'bg-emerald-600 dark:bg-emerald-500'
-                    }`}>
-                      ₹{fmtN(Math.abs(bal))}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* ── Real-time Credit Limit Warning Banner ────────────────────────── */}
             {(() => {
@@ -6027,7 +6167,7 @@ export function BillingPage() {
 
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                 <input
                   ref={customerAddressInputRef}
                   placeholder={invoiceType === 'GST' ? "Customer Address *" : "Customer Address"}
@@ -6035,7 +6175,7 @@ export function BillingPage() {
                   onChange={e => updateActiveTab({ customerAddress: e.target.value })}
                   onKeyDown={handleCustomerAddressKeyDown}
                   className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 dark:placeholder:text-gray-400 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all duration-300',
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
                     (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
                       ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                       : 'border-border focus:ring-primary/20 focus:border-primary'
@@ -6051,16 +6191,14 @@ export function BillingPage() {
                     value={selectedTierId}
                     onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
                     options={[
-                      { value: '', label: 'Default (MRP)' },
-                      ...pricingTiers.map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                      { value: '', label: 'MRP' },
+                      ...pricingTiers.map(t => ({
+                        value: t.pricing_tier_id,
+                        label: (t.is_default === 1 || t.is_default === true || t.is_default === '1') ? `⭐ ${t.name}` : t.name
+                      })),
                     ]}
                     disabled={!canOverrideTier}
                   />
-                  {selectedTierId && (
-                    <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider shrink-0 hidden lg:inline">
-                      {pricingTiers.find(t => t.pricing_tier_id === selectedTierId)?.name} prices
-                    </span>
-                  )}
                   {!canOverrideTier && (
                     <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
                   )}
@@ -8888,7 +9026,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                               </label>
                             </div>
                           </div>
-                          {newProductIsGstApplicable && (
+                          {enableRealPaperStock && newProductIsGstApplicable && (
                             <div>
                               <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Stock Type</label>
                               <div
@@ -8931,6 +9069,39 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     </div>
                   )}
                 </section>
+
+                {/* 5. Customer Price Tiers */}
+                {pricingTiers.length > 0 && (
+                  <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                      <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
+                        <Layers className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-black text-violet-500 uppercase tracking-wider">5. Customer Price Tiers</span>
+                      <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
+                    </div>
+                    <div className="flex gap-4 flex-wrap">
+                      {pricingTiers.map((tier: any) => (
+                        <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
+                            {tier.name}
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                            <input
+                              type="number" step="0.01"
+                              onWheel={e => (e.target as HTMLInputElement).blur()}
+                              value={productFormTierPrices[tier.pricing_tier_id] ?? ''}
+                              onChange={e => setProductFormTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
+                              placeholder={newProductBasePrice ? `= ${newProductBasePrice}` : 'MRP'}
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-8"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </div>
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-background">
                 <button type="button" data-enter-submit onClick={async () => { await handleCreateAndAddProduct(); }} disabled={!newProductName.trim()}

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { fetchApi } from '../lib/api';
 import {
   Search, Loader2, UserPlus, Handshake,
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
@@ -8,7 +9,7 @@ import {
   UserCircle, Banknote, FileText, Phone, MapPin,
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
-  Trash2, RefreshCw, ArrowLeft,
+  Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -31,11 +32,17 @@ interface Party {
   gst_balance?: number;
   estimate_balance?: number;
   balance_type: 'RECEIVABLE' | 'PAYABLE';
+  party_type?: 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM' | string;
+  custom_category?: string | null;
   notes: string;
   last_transaction_date: string;
   created_at: string;
   pricing_tier_id?: string | null;
   credit_limit?: number;
+  connected_tenant_id?: string | null;
+  connected_party_id?: string | null;
+  connection_status?: 'UNLINKED' | 'PENDING' | 'CONNECTED' | string;
+  connect_code?: string | null;
 }
 
 interface LedgerEntry {
@@ -125,6 +132,11 @@ export function PartyManager({
   const isDark = theme === 'dark';
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const lastInteractedPartyId = useRef<string | null>(null);
+  const savedScrollTop = useRef<number>(0);
+  const [highlightedPartyId, setHighlightedPartyId] = useState<string | null>(null);
+
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,10 +148,113 @@ export function PartyManager({
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const [editingParty, setEditingParty] = useState<Party | null>(null);
+  const [activeTab, setActiveTab] = useState<'ALL' | 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM'>('ALL');
+  const [customCategoryFilter, setCustomCategoryFilter] = useState<string>('ALL');
+  const [savedCustomCategories, setSavedCustomCategories] = useState<string[]>([]);
+  const [isCustomCategoryNew, setIsCustomCategoryNew] = useState(false);
   const [partyForm, setPartyForm] = useState({
-    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: '', pricing_tier_id: '', credit_limit: ''
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE',
+    party_type: 'CUSTOMER' as 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM',
+    custom_category: '',
+    notes: '', pricing_tier_id: '', credit_limit: '', connect_code: ''
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
+
+  // Connected Ledger state
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectCodeInput, setConnectCodeInput] = useState('');
+  const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [partyNameForConnect, setPartyNameForConnect] = useState('');
+  const [myConnectCode, setMyConnectCode] = useState<string>('');
+  const [copiedMyCode, setCopiedMyCode] = useState(false);
+
+  const fetchMyConnectCode = useCallback(async () => {
+    try {
+      const res = await fetchApi('/settings/connect-code').catch(() => null);
+      if (res?.connect_code) {
+        setMyConnectCode(res.connect_code);
+      } else {
+        const tId = useAuthStore.getState().tenantId || 'STORE';
+        setMyConnectCode('NF-' + tId.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase());
+      }
+    } catch (e) {
+      console.warn('Failed to fetch my connect code:', e);
+    }
+  }, []);
+
+  const fetchPendingRequests = useCallback(async () => {
+    fetchMyConnectCode();
+    try {
+      const res = await fetchApi('/parties/connect/requests').catch(() => null);
+      if (res && Array.isArray(res)) {
+        setPendingRequests(res.filter((r: any) => r.status === 'PENDING'));
+      }
+    } catch (e) {
+      console.warn('Failed to fetch connect requests:', e);
+    }
+  }, [fetchMyConnectCode]);
+
+  const handleSearchConnectCode = async () => {
+    if (!connectCodeInput.trim()) {
+      showStatus('Please enter a Nafid Connect Code', 'error');
+      return;
+    }
+    setSearching(true);
+    setSearchResult(null);
+    try {
+      const res = await fetchApi('/parties/connect/search', {
+        method: 'POST',
+        body: JSON.stringify({ query: connectCodeInput.trim() })
+      });
+      if (res) {
+        setSearchResult(res);
+        setPartyNameForConnect(res.name || '');
+      }
+    } catch (e: any) {
+      showStatus(e?.message || 'No business found matching code', 'error');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSendConnectRequest = async () => {
+    if (!searchResult?.connect_code) return;
+    setIsSavingParty(true);
+    try {
+      await fetchApi('/parties/connect/request', {
+        method: 'POST',
+        body: JSON.stringify({
+          receiver_connect_code: searchResult.connect_code,
+          party_name: partyNameForConnect.trim() || searchResult.name,
+        })
+      });
+      setShowConnectModal(false);
+      setConnectCodeInput('');
+      setSearchResult(null);
+      showStatus(`Connection request sent to ${searchResult.name}!`, 'success');
+      loadParties();
+    } catch (e: any) {
+      showStatus(e?.message || 'Failed to send connection request', 'error');
+    } finally {
+      setIsSavingParty(false);
+    }
+  };
+
+  const handleRespondConnectRequest = async (requestId: string, action: 'ACCEPT' | 'REJECT') => {
+    try {
+      await fetchApi('/parties/connect/respond', {
+        method: 'POST',
+        body: JSON.stringify({ request_id: requestId, action })
+      });
+      showStatus(action === 'ACCEPT' ? 'Ledger Connection Accepted! 🟢' : 'Connection Request Declined', 'success');
+      fetchPendingRequests();
+      loadParties();
+    } catch (e: any) {
+      showStatus(e?.message || 'Failed to respond to request', 'error');
+    }
+  };
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
@@ -194,6 +309,49 @@ export function PartyManager({
     return () => window.removeEventListener('settings:updated', handleSettingsUpdate);
   }, [loadPartySettings]);
 
+  // Restore scroll position and highlight party row when returning to list
+  useEffect(() => {
+    if (view === 'list' && (lastInteractedPartyId.current || savedScrollTop.current > 0)) {
+      const targetId = lastInteractedPartyId.current;
+      if (targetId) {
+        setHighlightedPartyId(targetId);
+        const timer = setTimeout(() => setHighlightedPartyId(null), 3000);
+      }
+
+      const restore = () => {
+        if (targetId) {
+          const row = document.getElementById(`party-row-${targetId}`);
+          if (row) {
+            row.scrollIntoView({ block: 'center', behavior: 'instant' });
+            return true;
+          }
+        }
+        if (listScrollRef.current && savedScrollTop.current > 0) {
+          listScrollRef.current.scrollTop = savedScrollTop.current;
+          return true;
+        }
+        return false;
+      };
+
+      restore();
+      const raf1 = requestAnimationFrame(() => {
+        if (!restore()) {
+          requestAnimationFrame(restore);
+        }
+      });
+      const t1 = setTimeout(restore, 50);
+      const t2 = setTimeout(restore, 150);
+      const t3 = setTimeout(restore, 300);
+
+      return () => {
+        cancelAnimationFrame(raf1);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+  }, [view]);
+
   const openTxForm = (transactionType: 'CREDIT' | 'DEBIT' = 'CREDIT') => {
     setEditingTx(null);
     const defaultBalanceType = enablePartyGst ? 'GST' : 'ESTIMATE';
@@ -218,13 +376,14 @@ export function PartyManager({
       const data = await window.electronAPI.dbGetParties(tenantId);
       const list = Array.isArray(data) ? data : [];
       setParties(list);
+      fetchPendingRequests();
       return list;
     } catch {
       showStatus('Failed to load parties', 'error');
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, fetchPendingRequests]);
 
   useEffect(() => { loadParties(); }, [loadParties]);
 
@@ -233,6 +392,17 @@ export function PartyManager({
     window.electronAPI.dbGetPricingTiers(tenantId)
       .then(res => {
         if (Array.isArray(res)) setPricingTiers(res);
+      })
+      .catch(console.error);
+
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'custom_party_categories' })
+      .then((val: any) => {
+        if (val) {
+          try {
+            const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+            if (Array.isArray(parsed)) setSavedCustomCategories(parsed);
+          } catch {}
+        }
       })
       .catch(console.error);
   }, [tenantId]);
@@ -271,7 +441,7 @@ export function PartyManager({
   }, [initialPartyIdOrQuery, parties]);
 
   const resetPartyForm = () => {
-    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '', pricing_tier_id: '', credit_limit: '' });
+    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', party_type: 'CUSTOMER', custom_category: '', notes: '', pricing_tier_id: '', credit_limit: '' });
     setEditingParty(null);
   };
 
@@ -288,6 +458,8 @@ export function PartyManager({
           phone: partyForm.phone.trim() || null,
           address: partyForm.address.trim() || null,
           gstin: partyForm.gstin.trim() || null,
+          party_type: partyForm.party_type,
+          custom_category: partyForm.party_type === 'CUSTOM' ? (partyForm.custom_category.trim() || null) : null,
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
@@ -303,6 +475,8 @@ export function PartyManager({
           gstin: partyForm.gstin.trim() || null,
           balance: parseFloat(partyForm.opening_balance) || 0,
           balance_type: partyForm.balance_type,
+          party_type: partyForm.party_type,
+          custom_category: partyForm.party_type === 'CUSTOM' ? (partyForm.custom_category.trim() || null) : null,
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
@@ -311,9 +485,23 @@ export function PartyManager({
         });
         showStatus('Party created successfully', 'success');
       }
+      if (partyForm.party_type === 'CUSTOM' && partyForm.custom_category.trim()) {
+        const catName = partyForm.custom_category.trim();
+        if (!allCustomCategories.map(c => c.toLowerCase()).includes(catName.toLowerCase())) {
+          const updated = [...allCustomCategories, catName];
+          setSavedCustomCategories(updated);
+          window.electronAPI.settingsSet({
+            tenant_id: tenantId || 'global',
+            key: 'custom_party_categories',
+            value: JSON.stringify(updated)
+          }).catch(console.error);
+        }
+      }
+
       await loadParties();
       setView('list');
       resetPartyForm();
+      setIsCustomCategoryNew(false);
     } catch {
       showStatus('Operation failed', 'error');
     } finally {
@@ -458,12 +646,43 @@ export function PartyManager({
     }
   };
 
-  const filteredParties = parties.filter(p =>
-    !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.phone || '').includes(searchQuery)
-  );
+  const allCustomCategories = useMemo(() => {
+    const list = new Set<string>(['KSEB', 'KSFE Chitty', 'Monthly Savings', 'Personal Account', 'Daily Deposit']);
+    (savedCustomCategories || []).forEach(c => { if (c && c.trim()) list.add(c.trim()); });
+    parties.forEach(p => {
+      if ((p.party_type || '').toUpperCase() === 'CUSTOM' && p.custom_category?.trim()) {
+        list.add(p.custom_category.trim());
+      }
+    });
+    return Array.from(list);
+  }, [savedCustomCategories, parties]);
 
-  const totalReceivable = parties.reduce((s, p) => s + (p.balance > 0 ? p.balance : 0), 0);
-  const totalPayable = parties.reduce((s, p) => s + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
+  const filteredParties = parties.filter(p => {
+    const matchesSearch = !searchQuery.trim() ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.phone || '').includes(searchQuery) ||
+      (p.gstin || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    const pType = (p.party_type || 'CUSTOMER').toUpperCase();
+    if (activeTab === 'CUSTOMER') return pType === 'CUSTOMER';
+    if (activeTab === 'SUPPLIER') return pType === 'SUPPLIER';
+    if (activeTab === 'STAFF') return pType === 'STAFF';
+    if (activeTab === 'CUSTOM') {
+      if (pType !== 'CUSTOM') return false;
+      if (customCategoryFilter !== 'ALL') {
+        return (p.custom_category || '').toLowerCase() === customCategoryFilter.toLowerCase();
+      }
+      return true;
+    }
+    return true;
+  });
+
+  const customCategoriesList = allCustomCategories;
+
+  const totalReceivable = filteredParties.reduce((s, p) => s + (p.balance > 0 ? p.balance : 0), 0);
+  const totalPayable = filteredParties.reduce((s, p) => s + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
 
   // ── Shared field style ──
   const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
@@ -515,12 +734,20 @@ export function PartyManager({
           {/* Right actions */}
           <div className="flex items-center gap-2 shrink-0">
             {view === 'list' && isOwner && (
-              <button
-                onClick={() => { resetPartyForm(); setView('party_form'); }}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" /> Add Party
-              </button>
+              <>
+                <button
+                  onClick={() => setShowConnectModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <Link className="w-3.5 h-3.5" /> Connect Party
+                </button>
+                <button
+                  onClick={() => { resetPartyForm(); setView('party_form'); }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> Add Party
+                </button>
+              </>
             )}
 
             {view === 'ledger' && isOwner && (
@@ -545,6 +772,42 @@ export function PartyManager({
       ══════════════════════════════════════════ */}
       {view === 'list' && (
         <div className="flex flex-col flex-1 min-h-0">
+
+          {/* Pending Connection Requests Banner */}
+          {pendingRequests.length > 0 && (
+            <div className="shrink-0 px-5 py-3 border-b border-border bg-indigo-500/10">
+              <div className="space-y-2">
+                {pendingRequests.map((req) => (
+                  <div key={req.request_id} className="flex items-center justify-between gap-3 p-3 bg-card border border-indigo-500/30 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500 shrink-0">
+                        <Link className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">🤝 Connection Request from "{req.sender_tenant_name}"</p>
+                        <p className="text-[11px] text-muted-foreground truncate">Code: {req.sender_connect_code} · Click to connect ledgers & auto-sync transactions</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleRespondConnectRequest(req.request_id, 'ACCEPT')}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Accept
+                      </button>
+                      <button
+                        onClick={() => handleRespondConnectRequest(req.request_id, 'REJECT')}
+                        className="p-1.5 bg-muted hover:bg-rose-500/10 hover:text-rose-500 text-muted-foreground rounded-xl transition-all cursor-pointer"
+                        title="Decline"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Summary strip */}
           <div className="shrink-0 px-5 py-4 border-b border-border bg-transparent">
@@ -610,8 +873,105 @@ export function PartyManager({
             </div>
           </div>
 
-          {/* Party list */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Filter Tabs (Ledger Categorization) */}
+          <div className="shrink-0 px-5 py-2.5 border-b border-border bg-card flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
+              <button
+                onClick={() => setActiveTab('ALL')}
+                className={clsx(
+                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                  activeTab === 'ALL'
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                🌐 All
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
+                  {parties.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('CUSTOMER')}
+                className={clsx(
+                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                  activeTab === 'CUSTOMER'
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                🛒 Customers
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
+                  {parties.filter(p => (p.party_type || 'CUSTOMER').toUpperCase() === 'CUSTOMER').length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('SUPPLIER')}
+                className={clsx(
+                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                  activeTab === 'SUPPLIER'
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                📦 Suppliers
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
+                  {parties.filter(p => (p.party_type || '').toUpperCase() === 'SUPPLIER').length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('STAFF')}
+                className={clsx(
+                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                  activeTab === 'STAFF'
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                👥 Staff
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
+                  {parties.filter(p => (p.party_type || '').toUpperCase() === 'STAFF').length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('CUSTOM')}
+                className={clsx(
+                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                  activeTab === 'CUSTOM'
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                🏦 Custom / Chitty
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
+                  {parties.filter(p => (p.party_type || '').toUpperCase() === 'CUSTOM').length}
+                </span>
+              </button>
+            </div>
+
+            {/* Sub-category filter for Custom parties */}
+            {activeTab === 'CUSTOM' && customCategoriesList.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-muted-foreground">Category:</span>
+                <select
+                  value={customCategoryFilter}
+                  onChange={e => setCustomCategoryFilter(e.target.value)}
+                  className="bg-background border border-border rounded-xl px-3 py-1 text-xs font-bold text-foreground focus:outline-none"
+                >
+                  <option value="ALL">All Categories</option>
+                  {customCategoriesList.map(cat => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div ref={listScrollRef} className="flex-1 overflow-y-auto px-5 py-4">
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
@@ -648,8 +1008,20 @@ export function PartyManager({
                   return (
                     <div
                       key={party.party_id}
-                      className="group flex items-center gap-3.5 p-4 rounded-2xl border border-border bg-card dark:bg-card hover:border-primary/30 hover:bg-card transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
-                      onClick={() => { setSelectedParty(party); setView('ledger'); loadLedger(party.party_id); }}
+                      id={`party-row-${party.party_id}`}
+                      className={clsx(
+                        "group flex items-center gap-3.5 p-4 rounded-2xl border border-border bg-card dark:bg-card hover:border-primary/30 hover:bg-card transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer",
+                        highlightedPartyId === party.party_id && "ring-2 ring-primary ring-offset-2 bg-primary/10 border-primary"
+                      )}
+                      onClick={() => {
+                        lastInteractedPartyId.current = party.party_id;
+                        if (listScrollRef.current) {
+                          savedScrollTop.current = listScrollRef.current.scrollTop;
+                        }
+                        setSelectedParty(party);
+                        setView('ledger');
+                        loadLedger(party.party_id);
+                      }}
                     >
                       {/* Avatar */}
                       <div
@@ -663,6 +1035,27 @@ export function PartyManager({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-bold text-sm text-foreground truncate">{party.name}</p>
+                          {/* Party Type Badge */}
+                          {party.party_type === 'SUPPLIER' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+                              📦 Supplier
+                            </span>
+                          )}
+                          {party.party_type === 'STAFF' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+                              👥 Staff
+                            </span>
+                          )}
+                          {party.party_type === 'CUSTOM' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+                              🏦 {party.custom_category || 'Custom'}
+                            </span>
+                          )}
+                          {(!party.party_type || party.party_type === 'CUSTOMER') && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+                              🛒 Customer
+                            </span>
+                          )}
                           {party.gstin && (
                             <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-1.5 py-0.5 rounded-md shrink-0">
                               GST
@@ -734,10 +1127,17 @@ export function PartyManager({
                         {isOwner && (
                           <button
                             onClick={() => {
+                              lastInteractedPartyId.current = party.party_id;
+                              if (listScrollRef.current) {
+                                savedScrollTop.current = listScrollRef.current.scrollTop;
+                              }
                               setEditingParty(party);
                               setPartyForm({
                                 name: party.name, phone: party.phone || '', address: party.address || '',
-                                gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
+                                gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type,
+                                party_type: (party.party_type as 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM') || 'CUSTOMER',
+                                custom_category: party.custom_category || '',
+                                notes: party.notes || '',
                                 pricing_tier_id: party.pricing_tier_id || '',
                                 credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
                               });
@@ -786,6 +1186,104 @@ export function PartyManager({
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2 space-y-4">
+                  {/* Party Type Selection */}
+                  <div className="mb-4">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-primary" />
+                      Party Type <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { key: 'CUSTOMER', label: '🛒 Customer', desc: 'Customer Billing' },
+                        { key: 'SUPPLIER', label: '📦 Supplier', desc: 'Purchase Supplier' },
+                        { key: 'STAFF', label: '👥 Staff', desc: 'Staff Member' },
+                        { key: 'CUSTOM', label: '🏦 Custom', desc: 'Chitty / Savings / Other' },
+                      ].map(t => (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => setPartyForm(f => ({ ...f, party_type: t.key as any }))}
+                          className={clsx(
+                            "p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-95",
+                            partyForm.party_type === t.key
+                              ? "border-primary bg-primary/10 text-primary font-black shadow-sm"
+                              : "border-border bg-background hover:bg-muted/50 text-muted-foreground font-semibold"
+                          )}
+                        >
+                          <p className="text-xs">{t.label}</p>
+                          <p className="text-[9px] opacity-75 mt-0.5">{t.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Category Selection if party_type === 'CUSTOM' */}
+                  {partyForm.party_type === 'CUSTOM' && (
+                    <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                      <label className="block text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider mb-2">
+                        Choose Custom Category <span className="text-red-500">*</span>
+                      </label>
+
+                      {/* Quick Select Pills */}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                        {allCustomCategories.map(cat => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              setPartyForm(f => ({ ...f, custom_category: cat }));
+                              setIsCustomCategoryNew(false);
+                            }}
+                            className={clsx(
+                              "px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none",
+                              partyForm.custom_category.toLowerCase() === cat.toLowerCase() && !isCustomCategoryNew
+                                ? "bg-amber-600 text-white border-amber-700 shadow-sm"
+                                : "bg-background border-border text-foreground hover:bg-muted"
+                            )}
+                          >
+                            {cat === 'KSEB' ? '⚡ ' : cat.includes('Chitty') || cat.includes('KSFE') ? '🏦 ' : '🏷️ '}
+                            {cat}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCustomCategoryNew(true);
+                            setPartyForm(f => ({ ...f, custom_category: '' }));
+                          }}
+                          className={clsx(
+                            "px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none",
+                            isCustomCategoryNew
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-muted/60 hover:bg-muted border-border text-muted-foreground"
+                          )}
+                        >
+                          ➕ Add New Category
+                        </button>
+                      </div>
+
+                      {/* Input field for custom category */}
+                      {(isCustomCategoryNew || !allCustomCategories.map(c => c.toLowerCase()).includes(partyForm.custom_category.toLowerCase())) && (
+                        <div>
+                          <label className="block text-[11px] font-bold text-amber-800 dark:text-amber-300 mb-1">
+                            Type New Category Name:
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. KSEB Electricity, Partner Deposit, Water Authority"
+                            value={partyForm.custom_category}
+                            onChange={e => setPartyForm(f => ({ ...f, custom_category: e.target.value }))}
+                            className={fieldCls}
+                            autoFocus
+                          />
+                          <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1.5 font-medium">
+                            This new category will be saved automatically in the system and will remain available for future selection.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
                     <input
@@ -797,7 +1295,7 @@ export function PartyManager({
                       autoFocus
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Phone</label>
                       <div className="relative">
@@ -821,6 +1319,20 @@ export function PartyManager({
                           value={partyForm.gstin}
                           onChange={e => setPartyForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
                           className={clsx(fieldCls, 'pl-9 font-mono tracking-wider')}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <Link className="w-3.5 h-3.5" /> Nafid Connect Code
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="e.g. NF-8924K"
+                          value={partyForm.connect_code || ''}
+                          onChange={e => setPartyForm(f => ({ ...f, connect_code: e.target.value.toUpperCase() }))}
+                          className={clsx(fieldCls, 'uppercase font-mono font-bold tracking-wider text-indigo-600 dark:text-indigo-400')}
                         />
                       </div>
                     </div>
@@ -851,7 +1363,7 @@ export function PartyManager({
                       value={partyForm.pricing_tier_id}
                       onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
                       options={[
-                        { value: '', label: 'Default (MRP)' },
+                        { value: '', label: 'MRP' },
                         ...pricingTiers
                           .filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
                           .map(t => ({ value: t.pricing_tier_id, label: t.name })),
@@ -1030,6 +1542,26 @@ export function PartyManager({
                     <span className="flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 dark:bg-violet-500/20 border border-violet-500/20 px-2 py-0.5 rounded-lg">
                       <Tag className="w-3 h-3 shrink-0" /> {pricingTiers.find(t => t.pricing_tier_id === selectedParty.pricing_tier_id)?.name || 'Pricing Tier'}
                     </span>
+                  )}
+                  {selectedParty.connection_status === 'CONNECTED' ? (
+                    <span className="flex items-center gap-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg shadow-sm">
+                      🟢 Connected Ledger
+                    </span>
+                  ) : selectedParty.connection_status === 'PENDING' ? (
+                    <span className="flex items-center gap-1 text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-lg">
+                      🟡 Connection Pending
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setConnectCodeInput(selectedParty.connect_code || '');
+                        setSearchResult(null);
+                        setShowConnectModal(true);
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 px-2.5 py-0.5 rounded-lg transition-all cursor-pointer"
+                    >
+                      <Link className="w-3 h-3" /> Connect Ledger
+                    </button>
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground font-medium mt-1.5">
@@ -1552,6 +2084,99 @@ export function PartyManager({
               )}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Connect Party Modal */}
+      <Modal
+        isOpen={showConnectModal}
+        onClose={() => { setShowConnectModal(false); setSearchResult(null); }}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Link className="w-5 h-5 text-indigo-500" />
+            <span>Connect Party Ledger</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[420px] text-foreground">
+          {/* Your Store Connect Code Banner */}
+          <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase font-black text-indigo-600 dark:text-indigo-400 tracking-wider">Your Store Connect Code (To Share)</p>
+              <p className="text-base font-mono font-black text-indigo-700 dark:text-indigo-300 mt-0.5">{myConnectCode || 'Loading...'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (myConnectCode) {
+                  navigator.clipboard.writeText(myConnectCode);
+                  setCopiedMyCode(true);
+                  setTimeout(() => setCopiedMyCode(false), 2000);
+                }
+              }}
+              className="px-3 py-1.5 text-xs font-bold bg-background hover:bg-muted border border-border text-foreground rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0"
+            >
+              {copiedMyCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedMyCode ? 'Copied!' : 'Copy Code'}
+            </button>
+          </div>
+
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Enter the counterparty's 8-character <strong>Nafid Connect Code</strong> (found in their App Settings).
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Nafid Connect Code *</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. NF-8924K"
+                value={connectCodeInput}
+                onChange={e => setConnectCodeInput(e.target.value.toUpperCase())}
+                className={clsx(fieldCls, 'uppercase font-mono font-bold tracking-wider text-indigo-600 dark:text-indigo-400')}
+              />
+              <button
+                type="button"
+                disabled={searching}
+                onClick={handleSearchConnectCode}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 flex items-center gap-1.5"
+              >
+                {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                Search
+              </button>
+            </div>
+          </div>
+
+          {searchResult && (
+            <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl space-y-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400">Business Found</p>
+                <p className="text-base font-black text-foreground mt-0.5">{searchResult.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Domain: {searchResult.domain_type} · Code: {searchResult.connect_code}</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Display Name in Your Ledger</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Royal Hardwares"
+                  value={partyNameForConnect}
+                  onChange={e => setPartyNameForConnect(e.target.value)}
+                  className={fieldCls}
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={isSavingParty}
+                onClick={handleSendConnectRequest}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
+                Send Connection Request
+              </button>
+            </div>
+          )}
         </div>
       </Modal>
 

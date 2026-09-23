@@ -37,25 +37,39 @@ export function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN'
 // Cloud API URL — set VITE_CLOUD_API in .env
 const CLOUD_API = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
-function isTokenExpired(token: string): boolean {
+function decodeJwtPayload(token: string): any {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp ? payload.exp * 1000 < Date.now() : false;
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4 !== 0) {
+      base64 += '=';
+    }
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
   } catch {
-    return true;
+    return null;
   }
 }
 
+function isTokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return true;
+  return payload.exp ? payload.exp * 1000 < Date.now() : false;
+}
+
 function parsePermissionsFromToken(token: string): string[] {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    if (Array.isArray(payload.permissions)) return payload.permissions;
-    const r = (payload.role || '').toUpperCase();
-    if (r === 'ADMIN' || r === 'OWNER' || r === 'SUPER_ADMIN') return ['*'];
-    return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
-  } catch {
-    return [];
-  }
+  const payload = decodeJwtPayload(token);
+  if (!payload) return [];
+  if (Array.isArray(payload.permissions)) return payload.permissions;
+  const r = (payload.role || '').toUpperCase();
+  if (r === 'ADMIN' || r === 'OWNER' || r === 'SUPER_ADMIN') return ['*'];
+  return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
 }
 
 function formatError(err: any, fallback: string): string {
@@ -104,6 +118,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
           }
           const perms = parsePermissionsFromToken(stored.jwt_token);
           let rawRole = (stored.role || '') as any;
+          if (rawRole === 'SUPER_ADMIN') {
+            if (window.electronAPI) await window.electronAPI.authClearToken();
+            set({ isAuthenticated: false, permissions: [] });
+            return;
+          }
           if (['BILLER', 'CASHIER'].includes(rawRole)) rawRole = 'STAFF';
 
           let resolvedShopName = stored.shop_name;
@@ -168,6 +187,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Login failed') };
 
       let roleVal = (data.role || '') as any;
+      if (roleVal === 'SUPER_ADMIN') {
+        return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
+      }
       if (['BILLER', 'CASHIER'].includes(roleVal)) roleVal = 'STAFF';
       const perms = parsePermissionsFromToken(data.token);
 

@@ -358,7 +358,7 @@ export function formatBalanceLines(
   if (bs.showCreditBalance === false) return lines;
 
   const pm = (data.paymentMethod || '').toUpperCase();
-  const isCredit = pm === 'CREDIT' || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
+  const isCredit = pm === 'CREDIT' || (data.oldBalance != null && data.oldBalance !== 0) || (data.customerBalance != null) || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
 
   if (isCredit) {
     if (data.oldBalance != null && data.oldBalance !== 0) {

@@ -43,6 +43,7 @@ import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
+import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';
 
 import { PartyManager } from './components/PartyManager';
@@ -484,7 +485,7 @@ function App() {
 
     const handleOpenBilling = () => {
       if (!canOpen('billing')) return;
-      if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) {
+      if (isAdminRole(useAuthStore.getState().role)) {
         useCartStore.getState().setRole('BILLER');
       }
       setShowQuotationManager(false);

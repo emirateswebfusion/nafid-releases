@@ -22,6 +22,7 @@ import { parsePrintFormat } from '../utils/printFormatHelper';
 import { loadFeatureFlags, cashierPageTitle } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { isAdminRole } from '../utils/permissions';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
 
@@ -2637,7 +2638,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 )}
               </div>
               <div className="flex gap-2">
-                {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
+                {isAdminRole(useAuthStore.getState().role) && (
                   <button
                     onClick={async () => {
                       if (!window.electronAPI || !selectedInvoice) return;
@@ -2660,7 +2661,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       setShowInvoiceModal(false);
                       setSelectedInvoice(null);
                       setInvoiceItems([]);
-                      if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
+                      if (isAdminRole(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
                       setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 50);
                     }}
                     className="flex items-center justify-center gap-1.5 px-3 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"

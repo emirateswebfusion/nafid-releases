@@ -81,6 +81,20 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesSearch, setSalesSearch] = useState('');
   const [salesFilter, setSalesFilter] = useState<'all' | 'bos' | 'gst'>('all');
+  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+
+  useEffect(() => {
+    const loadRealPaperSetting = () => {
+      if (window.electronAPI?.settingsGet) {
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
+          if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
+        }).catch(() => {});
+      }
+    };
+    loadRealPaperSetting();
+    window.addEventListener('settings:updated', loadRealPaperSetting);
+    return () => window.removeEventListener('settings:updated', loadRealPaperSetting);
+  }, [tenantId]);
 
   const deferredSearch = useDeferredValue(searchQuery);
   const deferredCategory = useDeferredValue(categoryFilter);
@@ -92,7 +106,16 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const buildProductSupplierMap = useCallback(async () => {
     if (!window.electronAPI) return;
     try {
-      const bills = await window.electronAPI.dbGetPurchaseBills({ tenant_id: cacheKey, limit: 2000 });
+      if (window.electronAPI.dbGetProductSuppliers) {
+        const rawMap = await window.electronAPI.dbGetProductSuppliers(cacheKey);
+        const map = new Map<string, Set<string>>();
+        for (const [pid, suppliers] of Object.entries(rawMap || {})) {
+          map.set(pid, new Set(suppliers));
+        }
+        setProductSupplierMap(map);
+        return;
+      }
+      const bills = await window.electronAPI.dbGetPurchaseBills({ tenant_id: cacheKey, limit: 500 });
       if (!Array.isArray(bills)) return;
       const map = new Map<string, Set<string>>();
       const itemPromises = bills.map(bill =>
@@ -1058,7 +1081,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Grade</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Stock</th>
                     {viewMode !== 'estimate' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Qty</th>}
-                    {viewMode !== 'estimate' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Paper Stock</th>}
+                    {viewMode !== 'estimate' && enableRealPaperStock && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Paper Stock</th>}
                     {viewMode !== 'gst' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Est Qty</th>}
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Weight</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Purchase</th>
@@ -1070,12 +1093,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-3" colSpan={viewMode === 'combined' ? 11 : viewMode === 'gst' ? 10 : 9}><Skeleton className="h-5 w-full rounded" /></td>
+                        <td className="px-4 py-3" colSpan={viewMode === 'combined' ? (enableRealPaperStock ? 11 : 10) : viewMode === 'gst' ? (enableRealPaperStock ? 10 : 9) : 9}><Skeleton className="h-5 w-full rounded" /></td>
                       </tr>
                     ))
                   ) : Object.entries(groupedByCategory).length === 0 ? (
                     <tr>
-                      <td colSpan={viewMode === 'combined' ? 11 : viewMode === 'gst' ? 10 : 9} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
+                      <td colSpan={viewMode === 'combined' ? (enableRealPaperStock ? 11 : 10) : viewMode === 'gst' ? (enableRealPaperStock ? 10 : 9) : 9} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
                     </tr>
                     ) : (
                     Object.entries(groupedByCategory).map(([cat, items]) => {
@@ -1083,7 +1106,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                       return (
                         <React.Fragment key={cat}>
                           <tr className="bg-primary/5">
-                            <td colSpan={viewMode === 'combined' ? 11 : viewMode === 'gst' ? 10 : 9} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
+                            <td colSpan={viewMode === 'combined' ? (enableRealPaperStock ? 11 : 10) : viewMode === 'gst' ? (enableRealPaperStock ? 10 : 9) : 9} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
                               <div className="flex items-center gap-2">
                                 <span>{cat}</span>
                                 <span className="text-[10px] text-muted-foreground font-semibold">
@@ -1104,7 +1127,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.gradeName}</td>
                               <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', p.isOutOfStock ? 'text-red-500' : p.isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
                               {viewMode !== 'estimate' && <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.gstQty.toFixed(0)}</td>}
-                              {viewMode !== 'estimate' && <td className="px-4 py-2.5 text-right text-sm font-bold text-sky-600 dark:text-sky-400 tabular-nums">{p.gstPaperStock.toFixed(0)}</td>}
+                              {viewMode !== 'estimate' && enableRealPaperStock && <td className="px-4 py-2.5 text-right text-sm font-bold text-sky-600 dark:text-sky-400 tabular-nums">{p.gstPaperStock.toFixed(0)}</td>}
                               {viewMode !== 'gst' && <td className="px-4 py-2.5 text-right text-sm text-amber-600 dark:text-amber-400">{p.estimateQty.toFixed(0)}</td>}
                               <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-'}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
@@ -1121,7 +1144,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                       <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
                       <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
                       {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-bold text-sm text-muted-foreground">{billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0).toFixed(0)}</td>}
-                      {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-black text-sm text-sky-500 tabular-nums">{filteredProducts.reduce((s, p) => s + (p.paper_stock ?? 0), 0).toFixed(0)}</td>}
+                      {viewMode !== 'estimate' && enableRealPaperStock && <td className="px-4 py-3 text-right font-black text-sm text-sky-500 tabular-nums">{filteredProducts.reduce((s, p) => s + (p.paper_stock ?? 0), 0).toFixed(0)}</td>}
                       {viewMode !== 'gst' && <td className="px-4 py-3 text-right font-bold text-sm text-amber-500">{billQuantities.reduce((s, b) => s + Number(b.estimate_qty), 0).toFixed(0)}</td>}
                       <td className="px-4 py-3 text-right"></td>
                       <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>

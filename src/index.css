@@ -116,6 +116,19 @@
     border-color: var(--search-focus-color, var(--primary)) !important;
     box-shadow: 0 0 0 3px var(--search-focus-shadow, var(--input-focus-ring)) !important;
   }
+
+  /* Prevent browser autofill background override in light & dark mode */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--foreground) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--background) inset !important;
+    box-shadow: 0 0 0px 1000px var(--background) inset !important;
+    transition: background-color 500000s ease-in-out 0s !important;
+  }
 }
 
 @layer base {

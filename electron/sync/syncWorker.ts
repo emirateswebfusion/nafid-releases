@@ -593,7 +593,9 @@ function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
 
 function isJwtExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    const parts = token.split('.');
+    if (parts.length < 2) return true;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
     return payload.exp ? payload.exp * 1000 < Date.now() : false;
   } catch {
     return true;
@@ -1307,6 +1309,7 @@ async function syncPricingTiers(token: string, tenantId: string) {
     const tiers = batch.map((t: any) => ({
       ...t,
       is_active: !!t.is_active,
+      is_default: !!t.is_default,
       is_deleted: !!t.is_deleted,
     }));
 
@@ -1327,12 +1330,28 @@ async function syncPricingTiers(token: string, tenantId: string) {
 // ── Product Pricing Sync (Edge → Cloud) ──────────────────────────────────────
 async function syncProductPricing(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  let pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
+
+  // Sanitize any non-UUID product_pricing_id before pushing
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const fixIdStmt = db.prepare(`UPDATE product_pricing SET product_pricing_id = ? WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+  for (const pp of pending) {
+    if (!pp.product_pricing_id || !uuidRegex.test(pp.product_pricing_id)) {
+      const newUuid = crypto.randomUUID();
+      fixIdStmt.run(newUuid, pp.product_id, pp.pricing_tier_id, tenantId);
+      pp.product_pricing_id = newUuid;
+    }
+  }
+
   console.log(`[SyncWorker] Pushing ${pending.length} product pricing rows to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`UPDATE product_pricing SET sync_status = 'SYNCED' WHERE product_pricing_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`
+    UPDATE product_pricing
+    SET sync_status = 'SYNCED'
+    WHERE tenant_id = ? AND (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
+  `);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -1349,8 +1368,15 @@ async function syncProductPricing(token: string, tenantId: string) {
       `Product pricing batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
-      tx(synced);
+      const syncedSet = new Set(synced);
+      const tx = db.transaction((rows: any[]) => {
+        for (const pp of rows) {
+          if (syncedSet.has(pp.product_pricing_id) || syncedSet.has(pp.product_id)) {
+            updateStmt.run(tenantId, pp.product_pricing_id, pp.product_id, pp.pricing_tier_id);
+          }
+        }
+      });
+      tx(batch);
     }
   }
 }
@@ -1808,16 +1834,17 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
 
   const upsert = db.prepare(`
     INSERT INTO pricing_tiers (
-      pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted,
+      pricing_tier_id, tenant_id, name, is_active, sort_order, is_default, is_deleted,
       sync_status, created_at, updated_at
     ) VALUES (
-      @pricing_tier_id, @tenant_id, @name, @is_active, @sort_order, @is_deleted,
+      @pricing_tier_id, @tenant_id, @name, @is_active, @sort_order, @is_default, @is_deleted,
       'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(pricing_tier_id) DO UPDATE SET
       name = excluded.name,
       is_active = excluded.is_active,
       sort_order = excluded.sort_order,
+      is_default = excluded.is_default,
       is_deleted = excluded.is_deleted,
       created_at = COALESCE(pricing_tiers.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
@@ -1842,6 +1869,7 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
               name: t.name,
               is_active: t.is_active ? 1 : 0,
               sort_order: t.sort_order ?? 0,
+              is_default: t.is_default ? 1 : 0,
               is_deleted: parseIsDeleted(t.is_deleted),
               created_at: toSqliteDate(t.created_at),
               updated_at: toSqliteDate(t.updated_at),

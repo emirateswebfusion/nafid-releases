@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdatePricingTier: (tier: any) => ipcRenderer.invoke('db:updatePricingTier', tier),
   dbDeletePricingTier: (pricing_tier_id: string) => ipcRenderer.invoke('db:deletePricingTier', pricing_tier_id),
   dbReorderPricingTiers: (tiers: Array<{ pricing_tier_id: string; sort_order: number }>) => ipcRenderer.invoke('db:reorderPricingTiers', tiers),
+  dbSetDefaultPricingTier: (payload: { tenant_id: string; pricing_tier_id: string }) => ipcRenderer.invoke('db:setDefaultPricingTier', payload),
   dbGetProductPricing: (tenant_id: string) => ipcRenderer.invoke('db:getProductPricing', tenant_id),
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => ipcRenderer.invoke('db:setProductPricing', payload),
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => ipcRenderer.invoke('db:setTierPricing', payload),
@@ -160,6 +161,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Stock Report
   dbGetStockReport: (tenant_id: string) => ipcRenderer.invoke('db:getStockReport', tenant_id),
   dbGetProductBillQuantities: (tenant_id: string) => ipcRenderer.invoke('db:getProductBillQuantities', tenant_id),
+  dbGetProductSuppliers: (tenant_id: string) => ipcRenderer.invoke('db:getProductSuppliers', tenant_id),
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => ipcRenderer.invoke('db:updateProductGstFlag', payload),
   dbGetProductSalesSummary: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getProductSalesSummary', payload),
   dbGetBosConvertibleInvoices: (tenant_id: string) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id),

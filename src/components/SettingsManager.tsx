@@ -5,12 +5,13 @@ import {
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
-  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake
+  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
+import { fetchApi } from '../lib/api';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
@@ -178,6 +179,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string, title?: string } | null>(null);
+
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => {
+      setMessage(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [message]);
   const [activeSection, setActiveSection] = useState(isAdminRole(role) ? 'store' : 'hardware');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
 
@@ -214,6 +223,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [shopPhone, setShopPhone] = useState('');
   const [shopEmail, setShopEmail] = useState('');
   const [shopWebsite, setShopWebsite] = useState('');
+  const [connectCode, setConnectCode] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
   const [storeTimezone, setStoreTimezoneState] = useState<string>(getStoreTimezone());
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
@@ -594,6 +605,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const { tenantId } = useAuthStore.getState();
       const currentTenant = tenantId || 'global';
       window.electronAPI?.logError?.(`[SettingsManager] tenantId: ${currentTenant}`);
+
+      fetchApi('/settings/connect-code')
+        .then((res: any) => {
+          if (res?.connect_code) setConnectCode(res.connect_code);
+        })
+        .catch((err: any) => {
+          console.warn('[SettingsManager] fetchApi connect-code failed:', err);
+          const tId = useAuthStore.getState().tenantId || 'STORE';
+          setConnectCode('NF-' + tId.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase());
+        });
 
       // 1. Fetch all settings in a single batch query, or parallel fallback
       let allSettings: Record<string, any> = {};
@@ -1478,6 +1499,43 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       case 'store':
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Card 0: Nafid Connect Code Card */}
+            <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-500/30 rounded-[28px] p-6 md:p-8 shadow-sm">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-3.5 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 shrink-0">
+                    <QrCode className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Nafid Connect Code</span>
+                      <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">Peer Sync Active</span>
+                    </div>
+                    <h3 className="text-2xl font-black font-mono tracking-wider text-foreground mt-1">
+                      {connectCode || 'Loading...'}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Share this unique code with counterparty shops or customers to link ledgers & auto-sync transactions in real time.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (connectCode) {
+                      navigator.clipboard.writeText(connectCode);
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2000);
+                    }
+                  }}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2 shrink-0"
+                >
+                  {copiedCode ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                  {copiedCode ? 'Copied to Clipboard!' : 'Copy Connect Code'}
+                </button>
+              </div>
+            </div>
+
             {/* Card 1: Shop Profile */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
@@ -1590,6 +1648,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                 </div>
               </div>
+            </div>
+
             {/* Card 2.5: Bank Account Details */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-indigo-500/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
@@ -1826,10 +1886,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                     <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)}>Enable Loyalty Points System</label>
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); setFeatureFlags(prev => ({ ...prev, loyalty: v })); }}>Enable Loyalty Points System</label>
                       <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for future discounts.</p>
                     </div>
-                    <button type="button" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <button type="button" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); setFeatureFlags(prev => ({ ...prev, loyalty: v })); }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                       <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', loyaltyEnabled ? 'translate-x-5' : 'translate-x-0')} />
                     </button>
                   </div>
@@ -1869,8 +1929,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               </div>
             </div>
           </div>
-        </div>
-      );
+        );
       case 'hardware':
         return (
           <div className="space-y-6 animate-in fade-in duration-300">

@@ -15,6 +15,7 @@ export interface IElectronAPI {
   dbGetProducts: (params: any) => Promise<any[]>;
   dbGetProductsCount: (params: any) => Promise<number>;
   dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => Promise<any[]>;
+  dbGetProductSuppliers?: (tenant_id: string) => Promise<Record<string, string[]>>;
   dbEnsureServiceItem: (params: { tenant_id: string }) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
@@ -47,6 +48,7 @@ export interface IElectronAPI {
   dbUpdatePricingTier: (tier: any) => Promise<{ success: boolean; error?: string }>;
   dbDeletePricingTier: (tier_id: string) => Promise<{ success: boolean; error?: string }>;
   dbReorderPricingTiers: (tiers: Array<{ pricing_tier_id: string; sort_order: number }>) => Promise<{ success: boolean; error?: string }>;
+  dbSetDefaultPricingTier: (payload: { tenant_id: string; pricing_tier_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetProductPricing: (tenantId: string) => Promise<any[]>;
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
