@@ -1,3 +1,10 @@
+# Vendora v1.5.74 Release Notes
+
+## What's Changed
+- Added application icons (`icon.ico`, `icon.png`) and UI components (`FloatToast`, `RedCrossButton`)
+- Enhanced `PartyManager`, `CustomersPage`, `BillingPage`, `PurchaseBillManager`, `SettingsManager`, `electron-builder.config.js`, and main process IPC bridges
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.73...v1.5.74
+
 # Vendora v1.5.73 Release Notes
 
 ## What's Changed
