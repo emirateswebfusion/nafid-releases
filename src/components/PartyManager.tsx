@@ -441,7 +441,7 @@ export function PartyManager({
   }, [initialPartyIdOrQuery, parties]);
 
   const resetPartyForm = () => {
-    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', party_type: 'CUSTOMER', custom_category: '', notes: '', pricing_tier_id: '', credit_limit: '' });
+    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', party_type: 'CUSTOMER', custom_category: '', notes: '', pricing_tier_id: '', credit_limit: '', connect_code: '' });
     setEditingParty(null);
   };
 
@@ -1140,6 +1140,7 @@ export function PartyManager({
                                 notes: party.notes || '',
                                 pricing_tier_id: party.pricing_tier_id || '',
                                 credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
+                                connect_code: (party as any).connect_code || '',
                               });
                               setView('party_form');
                             }}
