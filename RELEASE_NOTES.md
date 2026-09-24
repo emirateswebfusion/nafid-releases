@@ -1,8 +1,8 @@
 # Vendora v1.5.78 Release Notes
 
 ## What's Changed
-- Fixed auto-updater private GitHub asset download redirection & authorization header handling
-- Improved electron main process logging for auto-update checks and progress
+- Included `latest.yml` auto-updater manifest and installer `Nafid-Setup-1.5.78.exe` in release assets
+- Resolved update download failure by ensuring `latest.yml` artifact publish
 - **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.77...v1.5.78
 
 # Vendora v1.5.77 Release Notes
