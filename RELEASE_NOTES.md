@@ -1,3 +1,10 @@
+# Vendora v1.5.77 Release Notes
+
+## What's Changed
+- Fixed TypeScript compilation issues in `BillingPage` and `cartStore`
+- Updated billing UI state management and return mode invoice search handlers
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.76...v1.5.77
+
 # Vendora v1.5.76 Release Notes
 
 ## What's Changed
