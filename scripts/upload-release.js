@@ -5,6 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env.production') });
 
 const token = process.env.GH_TOKEN;
 const owner = 'emirateswebfusion';
+const repo = 'nafid-pos';
 const pkg = require('../package.json');
 const tag = `v${pkg.version}`;
 
