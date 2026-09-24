@@ -90,42 +90,56 @@ function parseToDate(dateInput: Date | string | number | null | undefined, timeZ
     if (!isNaN(d.getTime())) return d;
   }
 
-  // For YYYY-MM-DD HH:mm:ss without timezone offset, parse relative to store timezone
-  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+  // Standard SQL / SQLite datetime stored in UTC (e.g. "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss")
+  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?/);
   if (match) {
-    const [_, y, m, d, hh, mm, ss] = match;
-    const targetY = Number(y), targetM = Number(m), targetD = Number(d);
-    const targetH = Number(hh), targetMin = Number(mm), targetSec = Number(ss || 0);
-
-    let date = new Date(Date.UTC(targetY, targetM - 1, targetD, targetH, targetMin, targetSec));
-
-    try {
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false
-      });
-      const parts = Object.fromEntries(formatter.formatToParts(date).map(p => [p.type, p.value]));
-      let h = parseInt(parts.hour, 10);
-      if (h === 24) h = 0;
-      const tzAsUtc = Date.UTC(
-        parseInt(parts.year, 10),
-        parseInt(parts.month, 10) - 1,
-        parseInt(parts.day, 10),
-        h,
-        parseInt(parts.minute, 10),
-        parseInt(parts.second, 10)
-      );
-      const offsetMs = tzAsUtc - date.getTime();
-      return new Date(date.getTime() - offsetMs);
-    } catch {
-      return new Date(targetY, targetM - 1, targetD, targetH, targetMin, targetSec);
-    }
+    const [_, y, m, d, hh, mm, ss, ms] = match;
+    return new Date(Date.UTC(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      Number(hh),
+      Number(mm),
+      Number(ss || 0),
+      Number((ms || '0').substring(0, 3))
+    ));
   }
 
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function parseWallClockToUtc(dateStr: string, isEnd: boolean, timeZone: string = getStoreTimezone()): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const targetH = isEnd ? 23 : 0;
+  const targetMin = isEnd ? 59 : 0;
+  const targetSec = isEnd ? 59 : 0;
+
+  const baseUtc = new Date(Date.UTC(y, m - 1, d, targetH, targetMin, targetSec));
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    });
+    const parts = Object.fromEntries(formatter.formatToParts(baseUtc).map(p => [p.type, p.value]));
+    let h = parseInt(parts.hour, 10);
+    if (h === 24) h = 0;
+    const tzAsUtc = Date.UTC(
+      parseInt(parts.year, 10),
+      parseInt(parts.month, 10) - 1,
+      parseInt(parts.day, 10),
+      h,
+      parseInt(parts.minute, 10),
+      parseInt(parts.second, 10)
+    );
+    const offsetMs = tzAsUtc - baseUtc.getTime();
+    const resolved = new Date(baseUtc.getTime() - offsetMs);
+    return isEnd ? new Date(resolved.getTime() + 999) : resolved;
+  } catch {
+    return baseUtc;
+  }
 }
 
 /**
@@ -133,14 +147,12 @@ function parseToDate(dateInput: Date | string | number | null | undefined, timeZ
  */
 export function getBusinessDayUtcRange(dateStr?: string, timeZone: string = getStoreTimezone()): { startUtc: string; endUtc: string } {
   const targetDate = dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : getStoreBusinessDate(timeZone);
-  const [y, m, d] = targetDate.split('-').map(Number);
-
-  const startLocal = parseToDate(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} 00:00:00`, timeZone);
-  const endLocal = parseToDate(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} 23:59:59`, timeZone);
+  const startLocal = parseWallClockToUtc(targetDate, false, timeZone);
+  const endLocal = parseWallClockToUtc(targetDate, true, timeZone);
 
   return {
     startUtc: startLocal.toISOString(),
-    endUtc: new Date(endLocal.getTime() + 999).toISOString(),
+    endUtc: endLocal.toISOString(),
   };
 }
 

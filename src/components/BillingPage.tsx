@@ -3053,23 +3053,29 @@ export function BillingPage() {
   };
 
   const handleSelectScrapItem = (cat: any) => {
-    const itemId = uuidv4();
+    const rate = Number(cat.purchase_price ?? cat.rate ?? cat.selling_price) || 0;
+    const scrapProdId = `SCRAP-${cat.scrap_category_id}`;
+    const existing = items.find(i => i.product_id === scrapProdId || (i.isScrap && i.scrap_category_id === cat.scrap_category_id));
+    const targetId = existing ? existing.product_id : scrapProdId;
+
     addItem({
-      product_id: itemId,
+      product_id: targetId,
       name: cat.name,
-      base_price: Number(cat.purchase_price) || 0,
-      purchase_price: Number(cat.purchase_price) || 0,
+      base_price: rate,
+      purchase_price: rate,
       tax_rate_percent: 0,
+      uom: cat.unit || 'Kg',
+      unit: cat.unit || 'Kg',
       billing_type: 'WEIGHT',
       isScrap: true,
       scrap_category_id: cat.scrap_category_id,
-      quantity: 0,
+      quantity: existing ? (Number(existing.quantity) || 0) + 1 : 1,
     });
     setSearchQuery('');
     setScrapSearchResults([]);
-    pendingFocusProductIdRef.current = itemId;
+    pendingFocusProductIdRef.current = targetId;
     setTimeout(() => {
-      const input = qtyRefs.current[itemId];
+      const input = qtyRefs.current[targetId];
       if (input) {
         input.focus();
         input.select();
@@ -4436,6 +4442,11 @@ export function BillingPage() {
           setHardwareError('Please enter split payment breakdown amounts for Cash, Card, UPI, or Credit');
           return;
         }
+        if (displayGrandTotal > 0 && totalSplitEntered < displayGrandTotal && Math.abs(displayGrandTotal - totalSplitEntered) > 0.01) {
+          const shortfall = (displayGrandTotal - totalSplitEntered).toFixed(2);
+          setHardwareError(`Split payment total (₹${totalSplitEntered.toFixed(2)}) is less than Grand Total (₹${displayGrandTotal.toFixed(2)}). Remaining shortfall: ₹${shortfall}`);
+          return;
+        }
       }
 
       const isEditing = !!editingInvoiceId;
@@ -5725,44 +5736,29 @@ export function BillingPage() {
             </div>
             <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
               {isScrapMode ? (
-                scrapSearchResults.map((cat: any, i: number) => (
-                  <button
-                    key={cat.scrap_category_id}
-                    data-search-index={i}
-                    onClick={() => {
-                      addItem({
-                        product_id: `SCRAP-${cat.scrap_category_id}`,
-                        name: cat.name,
-                        base_price: cat.rate,
-                        purchase_price: 0,
-                        tax_rate_percent: 0,
-                        sku_barcode: '',
-                        item_code: '',
-                        current_stock: 9999,
-                        uom: 'Kg',
-                        billing_type: 'WEIGHT',
-                        isScrap: true,
-                        scrap_category_id: cat.scrap_category_id,
-                      });
-                      setSearchQuery('');
-                      setScrapSearchResults([]);
-                    }}
-                    className={clsx(
-                      "w-full text-left p-3 border-b border-border last:border-0 hover:bg-orange-500/5 transition-colors flex items-center justify-between cursor-pointer",
-                      selectedIndex === i && "bg-orange-500/10 font-bold"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-foreground">{cat.name}</span>
-                        <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 uppercase">Scrap Category</span>
+                scrapSearchResults.map((cat: any, i: number) => {
+                  const rate = Number(cat.purchase_price ?? cat.rate ?? cat.selling_price) || 0;
+                  return (
+                    <button
+                      key={cat.scrap_category_id}
+                      data-search-index={i}
+                      onClick={() => handleSelectScrapItem(cat)}
+                      className={clsx(
+                        "w-full text-left p-3 border-b border-border last:border-0 hover:bg-orange-500/5 transition-colors flex items-center justify-between cursor-pointer",
+                        selectedIndex === i && "bg-orange-500/10 font-bold"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground">{cat.name}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right font-mono font-black text-orange-600 text-sm">
-                      ₹{cat.rate}/kg
-                    </div>
-                  </button>
-                ))
+                      <div className="text-right font-mono font-black text-orange-600 text-sm">
+                        {formatCurrency(rate)}/{cat.unit || 'Kg'}
+                      </div>
+                    </button>
+                  );
+                })
               ) : isReturnMode ? (
                 returnSearchResults.map((inv: any, i: number) => (
                   <button
@@ -6851,7 +6847,6 @@ export function BillingPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
-                          <span className="text-[9px] font-bold text-orange-600 bg-orange-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Scrap</span>
                           {isLastAdded && (
                             <span className="text-[9px] font-black text-orange-600 bg-orange-500/20 border border-orange-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
                           )}
@@ -7507,8 +7502,15 @@ export function BillingPage() {
                             if (paymentMethod === 'SPLIT') {
                               updateActiveTab({ paymentMethod: 'CASH' });
                             } else {
-                              if (splitTotal === 0 && displayGrandTotal > 0) {
-                                updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: { cash: displayGrandTotal, card: 0, upi: 0, bank_transfer: 0 } });
+                              const prevMethod = paymentMethod;
+                              if (displayGrandTotal > 0) {
+                                let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, credit: 0, bank_transfer: 0 };
+                                if (prevMethod === 'UPI') initialSplit.upi = displayGrandTotal;
+                                else if (prevMethod === 'CARD') initialSplit.card = displayGrandTotal;
+                                else if (prevMethod === 'CREDIT') initialSplit.credit = displayGrandTotal;
+                                else initialSplit.cash = displayGrandTotal;
+
+                                updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: initialSplit, receivedAmount: (initialSplit.credit ? 0 : displayGrandTotal) });
                               } else {
                                 updateActiveTab({ paymentMethod: 'SPLIT' });
                               }
@@ -7558,8 +7560,10 @@ export function BillingPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
-                                      updateActiveTab({ splitDetails: { ...splitDetails, cash: rem } });
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                      const nextDetails = { ...splitDetails, cash: rem };
+                                      const nextRec = rem + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/15 px-1.5 py-0.5 rounded-md"
                                   >
@@ -7573,7 +7577,12 @@ export function BillingPage() {
                                     min="0"
                                     step="any"
                                     value={splitDetails.cash || ''}
-                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, cash: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      const nextDetails = { ...splitDetails, cash: val };
+                                      const nextRec = val + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                    }}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
                                   />
@@ -7593,8 +7602,10 @@ export function BillingPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
-                                      updateActiveTab({ splitDetails: { ...splitDetails, card: rem } });
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                      const nextDetails = { ...splitDetails, card: rem };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + rem + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-blue-500/15 px-1.5 py-0.5 rounded-md"
                                   >
@@ -7608,7 +7619,12 @@ export function BillingPage() {
                                     min="0"
                                     step="any"
                                     value={splitDetails.card || ''}
-                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, card: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      const nextDetails = { ...splitDetails, card: val };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + val + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                    }}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
                                   />
@@ -7641,8 +7657,10 @@ export function BillingPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
-                                      updateActiveTab({ splitDetails: { ...splitDetails, upi: rem } });
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                      const nextDetails = { ...splitDetails, upi: rem };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + rem + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     className="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer bg-violet-500/15 px-1.5 py-0.5 rounded-md shrink-0"
                                   >
@@ -7656,7 +7674,12 @@ export function BillingPage() {
                                     min="0"
                                     step="any"
                                     value={splitDetails.upi || ''}
-                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, upi: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      const nextDetails = { ...splitDetails, upi: val };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + val + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                    }}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
                                   />
@@ -7676,8 +7699,10 @@ export function BillingPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
-                                      updateActiveTab({ splitDetails: { ...splitDetails, credit: rem } });
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                      const nextDetails = { ...splitDetails, credit: rem };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer bg-amber-500/15 px-1.5 py-0.5 rounded-md"
                                   >
@@ -7691,7 +7716,12 @@ export function BillingPage() {
                                     min="0"
                                     step="any"
                                     value={splitDetails.credit || ''}
-                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, credit: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      const nextDetails = { ...splitDetails, credit: val };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                    }}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
                                   />

@@ -188,7 +188,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d);
+    return new Date(Date.UTC(y, m - 1, d));
   }
 
   // If string explicitly contains UTC 'Z' or offset like +04:00, let Date parse absolute instant
@@ -197,39 +197,19 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
     if (!isNaN(d.getTime())) return d;
   }
 
-  // For YYYY-MM-DD HH:mm:ss or YYYY-MM-DDTHH:mm:ss without timezone offset, parse relative to store timezone
-  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+  // Standard SQL / SQLite datetime stored in UTC (e.g. "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss")
+  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?/);
   if (match) {
-    const [_, y, m, d, hh, mm, ss] = match;
-    const storeTz = getStoreTimezone();
-    const targetY = Number(y), targetM = Number(m), targetD = Number(d);
-    const targetH = Number(hh), targetMin = Number(mm), targetSec = Number(ss || 0);
-
-    let date = new Date(Date.UTC(targetY, targetM - 1, targetD, targetH, targetMin, targetSec));
-
-    try {
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: storeTz,
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false
-      });
-      const parts = Object.fromEntries(formatter.formatToParts(date).map(p => [p.type, p.value]));
-      let h = parseInt(parts.hour, 10);
-      if (h === 24) h = 0;
-      const tzAsUtc = Date.UTC(
-        parseInt(parts.year, 10),
-        parseInt(parts.month, 10) - 1,
-        parseInt(parts.day, 10),
-        h,
-        parseInt(parts.minute, 10),
-        parseInt(parts.second, 10)
-      );
-      const offsetMs = tzAsUtc - date.getTime();
-      return new Date(date.getTime() - offsetMs);
-    } catch {
-      return new Date(targetY, targetM - 1, targetD, targetH, targetMin, targetSec);
-    }
+    const [_, y, m, d, hh, mm, ss, ms] = match;
+    return new Date(Date.UTC(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      Number(hh),
+      Number(mm),
+      Number(ss || 0),
+      Number((ms || '0').substring(0, 3))
+    ));
   }
 
   const d = new Date(dateStr);
@@ -292,6 +272,7 @@ export interface ReceiptData {
   oldBalance?: number;
   customerBalance?: number;
   paymentMethod?: string;
+  splitDetails?: any;
   isReprint?: boolean;
   invoiceType?: string;
   customerName?: string;
@@ -408,6 +389,26 @@ export function formatBalanceLines(
 
   const pm = (data.paymentMethod || '').toUpperCase();
   const isCredit = pm === 'CREDIT' || (data.oldBalance != null && data.oldBalance !== 0) || (data.customerBalance != null) || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
+
+  let rawSd: any = data.splitDetails || (data as any).split_details;
+  if (typeof rawSd === 'string') {
+    try { rawSd = JSON.parse(rawSd); } catch {}
+  }
+
+  if (pm === 'SPLIT' && rawSd && typeof rawSd === 'object') {
+    lines.push(padRight('--- PAY SPLIT ---', labelW + totalW + 2));
+    if (Number(rawSd.cash) > 0) lines.push(`${padRight('CASH', labelW)}  ${padLeft(Number(rawSd.cash).toFixed(2), totalW)}`);
+    if (Number(rawSd.upi) > 0) lines.push(`${padRight('UPI', labelW)}  ${padLeft(Number(rawSd.upi).toFixed(2), totalW)}`);
+    if (Number(rawSd.card) > 0) lines.push(`${padRight('CARD', labelW)}  ${padLeft(Number(rawSd.card).toFixed(2), totalW)}`);
+    if (Number(rawSd.credit) > 0) lines.push(`${padRight('CREDIT', labelW)}  ${padLeft(Number(rawSd.credit).toFixed(2), totalW)}`);
+    if (Number(rawSd.bank_transfer || rawSd.bank) > 0) lines.push(`${padRight('BANK', labelW)}  ${padLeft(Number(rawSd.bank_transfer || rawSd.bank).toFixed(2), totalW)}`);
+    const netBal = data.customerBalance ?? data.balanceAmount;
+    if (netBal != null && Number(rawSd.credit) > 0) {
+      if (netBal > 0) lines.push(`${padRight('BALANCE DUE', labelW)}  ${padLeft(netBal.toFixed(2), totalW)}`);
+      else if (netBal < 0) lines.push(`${padRight('ADVANCE BAL', labelW)}  ${padLeft(Math.abs(netBal).toFixed(2), totalW)}`);
+    }
+    return lines;
+  }
 
   if (isCredit) {
     if (data.oldBalance != null && data.oldBalance !== 0) {

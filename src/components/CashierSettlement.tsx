@@ -21,7 +21,7 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
 import { loadFeatureFlags, cashierPageTitle } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { getStoreTimezone } from '../utils/timezoneHelper';
+import { getStoreTimezone, getStoreBusinessDate } from '../utils/timezoneHelper';
 import { isAdminRole } from '../utils/permissions';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
@@ -49,7 +49,7 @@ function formatTime(d: string): string {
 }
 
 function todayStr(): string {
-  return new Date().toLocaleDateString('en-CA');
+  return getStoreBusinessDate();
 }
 
 function formatBusinessDate(d: string | null | undefined): string {

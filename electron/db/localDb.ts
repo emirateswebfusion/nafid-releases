@@ -5,36 +5,9 @@ import fs from 'fs';
 import crypto from 'node:crypto';
 
 // ── Local Time Helpers ────────────────────────────────────────────────────
-function localTimestamp(d: Date = new Date(), tenantId?: string): string {
-  try {
-    let tz = 'Asia/Kolkata';
-    if (db) {
-      const row = db.prepare(`SELECT value FROM settings WHERE key = 'store_timezone' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId || 'global') as any;
-      if (row?.value) {
-        const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-        if (typeof parsed === 'string' && parsed) tz = parsed;
-        else if (parsed?.timezone) tz = parsed.timezone;
-      }
-    }
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).formatToParts(d);
-
-    const getPart = (type: string) => parts.find(p => p.type === type)?.value || '00';
-    let h = getPart('hour');
-    if (h === '24') h = '00';
-    return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${h}:${getPart('minute')}:${getPart('second')}`;
-  } catch {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  }
+function localTimestamp(d: Date | string | number = new Date()): string {
+  const dateObj = d instanceof Date ? d : new Date(d);
+  return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
 }
 
 let db: Database.Database;
@@ -2000,7 +1973,7 @@ export function dbSaveStaff(params: {
     }
   }
 
-  const now = localTimestamp(new Date(), tenantId);
+  const now = localTimestamp(new Date());
 
   if (existing) {
     db.prepare(`
@@ -2099,7 +2072,7 @@ export function dbAddStaffTransaction(params: {
   const staff = db.prepare('SELECT staff_id, name FROM staff WHERE staff_id = ? AND tenant_id = ?').get(staff_id, tenant_id) as any;
   if (!staff) throw new Error('Staff member not found');
 
-  const now = localTimestamp(new Date(), tenant_id);
+  const now = localTimestamp(new Date());
   const txId = crypto.randomUUID();
   let cashTxId: string | null = null;
 
@@ -2239,7 +2212,7 @@ export function dbSaveStaffAttendance(params: {
   user_id?: string;
 }) {
   const { tenant_id, staff_id, date, status, check_in_time, check_out_time, notes, user_id } = params;
-  const now = localTimestamp(new Date(), tenant_id);
+  const now = localTimestamp(new Date());
   const existing: any = db.prepare(`SELECT attendance_id FROM staff_attendance WHERE tenant_id = ? AND staff_id = ? AND date = ?`).get(tenant_id, staff_id, date);
 
   if (existing) {

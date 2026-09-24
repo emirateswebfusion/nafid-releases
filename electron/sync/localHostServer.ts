@@ -2,9 +2,9 @@ import http from 'node:http';
 import { BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
 
-function localTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+function localTimestamp(d: Date | string | number = new Date()): string {
+  const dateObj = d instanceof Date ? d : new Date(d);
+  return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
 }
 
 function parseCleanDate(dStr: any): string {

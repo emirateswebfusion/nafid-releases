@@ -3,10 +3,9 @@ import path from 'path';
 import { app, BrowserWindow, safeStorage, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
 
-// ── Local Time Helpers ────────────────────────────────────────────────────
-function localTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+function localTimestamp(d: Date | string | number = new Date()): string {
+  const dateObj = d instanceof Date ? d : new Date(d);
+  return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
 }
 function localDate(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -347,23 +346,14 @@ function toSqliteDate(iso: string | number | Date | null | undefined): string {
   const str = String(iso).trim();
   if (!str) return localTimestamp();
 
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) {
-    return str;
-  }
-
-  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
-  if (match) {
-    return `${match[1]} ${match[2]}`;
-  }
-
   try {
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
-      return localTimestamp(d);
+      return d.toISOString();
     }
   } catch {}
 
-  return str.replace('T', ' ').replace('Z', '').split('.')[0];
+  return str;
 }
 
 export function getSyncIntervalMs(): number {
