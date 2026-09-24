@@ -650,6 +650,7 @@ export function BillingPage() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(0);
   const customerNameContainerRef = useRef<HTMLDivElement>(null);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
   const customerNameInputRef = useRef<HTMLInputElement>(null);
   const customerPhoneInputRef = useRef<HTMLInputElement>(null);
   const customerAddressInputRef = useRef<HTMLInputElement>(null);
@@ -1630,6 +1631,7 @@ export function BillingPage() {
 
         const rawProducts = Array.isArray(products) ? products : [];
         const q = searchQuery.trim().toLowerCase();
+        const qNoSpace = q.replace(/\s+/g, '');
 
         const sortedProds = sortProductsBySearchPriority(rawProducts, searchQuery);
         const filteredProds = sortedProds.filter(p => {
@@ -1639,13 +1641,29 @@ export function BillingPage() {
           const brand = String(p.brand_manufacturer || '').trim().toLowerCase();
           const cat = String(p.category || '').trim().toLowerCase();
           const hsn = String(p.hsn_sac_code || '').trim().toLowerCase();
+
+          const barcodeNoSpace = barcode.replace(/\s+/g, '');
+          const codeNoSpace = code.replace(/\s+/g, '');
+          const nameNoSpace = name.replace(/\s+/g, '');
+          const brandNoSpace = brand.replace(/\s+/g, '');
+          const catNoSpace = cat.replace(/\s+/g, '');
+          const hsnNoSpace = hsn.replace(/\s+/g, '');
+
           return (
             barcode.includes(q) ||
             code.includes(q) ||
             name.includes(q) ||
             brand.includes(q) ||
             cat.includes(q) ||
-            hsn.includes(q)
+            hsn.includes(q) ||
+            (qNoSpace.length > 0 && (
+              barcodeNoSpace.includes(qNoSpace) ||
+              codeNoSpace.includes(qNoSpace) ||
+              nameNoSpace.includes(qNoSpace) ||
+              brandNoSpace.includes(qNoSpace) ||
+              catNoSpace.includes(qNoSpace) ||
+              hsnNoSpace.includes(qNoSpace)
+            ))
           );
         });
 
@@ -5531,6 +5549,691 @@ export function BillingPage() {
     </svg>
   );
 
+  const renderSearchBarSection = () => (
+    <div className="p-3 pb-2.5 bg-card border-b border-border">
+      <div ref={searchContainerRef} className="relative">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className={clsx(
+              "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300",
+              isScrapActive ? "text-orange-500" :
+              isReturnMode ? "text-rose-500" :
+              isQuotationActive ? "text-blue-500" :
+              isPastBillMode ? "text-teal-500" :
+              "text-muted-foreground"
+            )} />
+            <input
+              ref={searchRef}
+              type="text"
+              autoFocus={uiConfig.entryFocusOrder !== 'customer-first'}
+              placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
+              value={searchQuery}
+              onChange={e => {
+                const val = e.target.value;
+                setSearchQuery(val);
+                if (!val.trim()) {
+                  setResults([]);
+                  setScrapSearchResults([]);
+                  setReturnSearchResults([]);
+                  setPastBillResults([]);
+                }
+              }}
+              onKeyDown={handleSearchKey}
+              className="search-dynamic w-full pl-10 pr-9 py-2.5 bg-background rounded-xl text-sm font-medium text-foreground transition-all duration-300 placeholder:text-muted-foreground/50 focus:outline-none"
+              style={{
+                borderWidth: '1px',
+                borderStyle: 'solid',
+                borderColor: isScrapActive
+                  ? 'rgb(249,115,22)'
+                  : isReturnMode
+                  ? 'rgb(244,63,94)'
+                  : isQuotationActive
+                  ? 'rgb(59,130,246)'
+                  : isPastBillMode
+                  ? 'rgb(20,184,166)'
+                  : 'hsl(var(--border))',
+                boxShadow: isScrapActive
+                  ? '0 0 0 3px rgba(249,115,22,0.15)'
+                  : isReturnMode
+                  ? '0 0 0 3px rgba(244,63,94,0.15)'
+                  : isQuotationActive
+                  ? '0 0 0 3px rgba(59,130,246,0.15)'
+                  : isPastBillMode
+                  ? '0 0 0 3px rgba(20,184,166,0.15)'
+                  : undefined,
+              } as React.CSSProperties}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setResults([]);
+                  setScrapSearchResults([]);
+                  setReturnSearchResults([]);
+                  setPastBillResults([]);
+                  searchRef.current?.focus();
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => { setShowProductCreateForm(true); setNewProductName(searchQuery); }}
+            className="flex items-center gap-1 px-3 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold transition-all shrink-0 active:scale-95 cursor-pointer shadow-2xs"
+            title="Create product (Press Space when search empty)"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add</span>
+          </button>
+
+          {/* Past Bill Mode Toggle */}
+          <button
+            type="button"
+            onClick={async () => {
+              const next = !isPastBillMode;
+              setIsPastBillMode(next);
+              if (next && isScrapMode) setIsScrapMode(false);
+              if (next && isReturnMode) setReturnMode(false);
+              if (next && isQuotationMode) setQuotationMode(false);
+              setPastBillResults([]);
+              if (next) setTimeout(() => searchRef.current?.focus(), 100);
+            }}
+            className={clsx(
+              "flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 active:scale-95 cursor-pointer border",
+              isPastBillMode
+                ? "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/40 shadow-xs"
+                : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted border-border/40"
+            )}
+            title="Past Bill Lookup Mode"
+          >
+            <Clock className={clsx("w-3.5 h-3.5", isPastBillMode ? "text-teal-500" : "text-muted-foreground")} />
+            <span>Past Bill</span>
+          </button>
+        </div>
+
+        {/* Floating Search Dropdown */}
+        {isPastBillMode && searchQuery.trim().length > 0 && pastBillResults.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="px-3 py-1.5 text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-wider border-b border-border bg-teal-500/5 flex items-center justify-between">
+              <span>Past Bills</span>
+              <span>Select to view details</span>
+            </div>
+            <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
+              {pastBillResults.map((inv: any, i: number) => (
+                <button
+                  key={inv.invoice_id || inv.invoice_number}
+                  data-search-index={i}
+                  onClick={async () => {
+                    if (window.electronAPI) {
+                      try {
+                        const fetched = await window.electronAPI.dbGetInvoices({ search: inv.invoice_number || inv.invoice_id, tenant_id: inv.tenant_id });
+                        if (Array.isArray(fetched) && fetched.length > 0) {
+                          const fullInv = fetched[0];
+                          const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: inv.tenant_id || 'global', product_ids: (fullInv.items || []).map((it: any) => it.product_id) });
+                          const prodMap = new Map((products || []).map((p: any) => [p.product_id, p]));
+                          const fullItems = (fullInv.items || []).map((it: any) => {
+                            const p = prodMap.get(it.product_id);
+                            return { ...it, ...p, name: it.product_name || p?.name || 'Item', base_price: it.unit_price || p?.base_price || 0, is_gst_applicable: p?.is_gst_applicable ?? it.is_gst_applicable };
+                          });
+                          setSelectedPastBill({ ...fullInv, items: fullItems });
+                        } else {
+                          setSelectedPastBill(inv);
+                        }
+                      } catch (e) {
+                        console.error("Failed to load full past bill details:", e);
+                        setSelectedPastBill(inv);
+                      }
+                    } else {
+                      setSelectedPastBill(inv);
+                    }
+                    setSearchQuery('');
+                    setPastBillResults([]);
+                  }}
+                  className={clsx(
+                    "w-full text-left p-3 border-b border-border last:border-0 hover:bg-teal-500/5 transition-colors flex items-center justify-between cursor-pointer",
+                    selectedIndex === i && "bg-teal-500/10"
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-foreground">{inv.invoice_number}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">{inv.payment_method}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{inv.customer_name || 'Walk-in Customer'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}</p>
+                  </div>
+                  <div className="text-right ml-4">
+                    <span className="text-sm font-black text-foreground block">{formatCurrency(inv.grand_total)}</span>
+                    <span className="text-[10px] text-muted-foreground">{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isPastBillMode && searchQuery.trim().length > 0 && (isScrapMode ? scrapSearchResults.length > 0 : isReturnMode ? returnSearchResults.length > 0 : results.length > 0) && (
+          <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/30 flex items-center justify-between">
+              <span>Search Results ({isScrapMode ? scrapSearchResults.length : isReturnMode ? returnSearchResults.length : results.length})</span>
+              {searchQuery && <span className="text-primary font-bold">Matching "{searchQuery}"</span>}
+            </div>
+            <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
+              {isScrapMode ? (
+                scrapSearchResults.map((cat: any, i: number) => (
+                  <button
+                    key={cat.scrap_category_id}
+                    data-search-index={i}
+                    onClick={() => {
+                      addItem({
+                        product_id: `SCRAP-${cat.scrap_category_id}`,
+                        name: cat.name,
+                        base_price: cat.rate,
+                        purchase_price: 0,
+                        sku_barcode: '',
+                        item_code: '',
+                        current_stock: 9999,
+                        uom: 'Kg',
+                        billing_type: 'WEIGHT',
+                        isScrap: true,
+                        scrap_category_id: cat.scrap_category_id,
+                      });
+                      setSearchQuery('');
+                      setScrapSearchResults([]);
+                    }}
+                    className={clsx(
+                      "w-full text-left p-3 border-b border-border last:border-0 hover:bg-orange-500/5 transition-colors flex items-center justify-between cursor-pointer",
+                      selectedIndex === i && "bg-orange-500/10 font-bold"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">{cat.name}</span>
+                        <span className="text-[10px] font-bold text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 uppercase">Scrap Category</span>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono font-black text-orange-600 text-sm">
+                      ₹{cat.rate}/kg
+                    </div>
+                  </button>
+                ))
+              ) : isReturnMode ? (
+                returnSearchResults.map((inv: any, i: number) => (
+                  <button
+                    key={inv.invoice_id}
+                    data-search-index={i}
+                    onClick={async () => {
+                      setReturnMode(false);
+                      setEditingInvoice(inv.invoice_number, inv.invoice_id, inv.invoice_type || (inv.invoice_number?.startsWith('GST') ? 'GST' : 'BILL_OF_SUPPLY'));
+                      const tid = tenantId || 'global';
+                      const fullInvoices = await window.electronAPI.dbGetInvoices({ tenant_id: tid, search: inv.invoice_number });
+                      const fullInv = Array.isArray(fullInvoices) && fullInvoices.length > 0 ? fullInvoices[0] : inv;
+                      const productIds = (fullInv.items || []).map((it: any) => it.product_id);
+                      let catalogProducts: any[] = [];
+                      if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+                        try {
+                          catalogProducts = await window.electronAPI.dbGetProductsByIds({ tenant_id: tid, product_ids: productIds }) || [];
+                        } catch (e) {}
+                      }
+                      const catMap = new Map((catalogProducts || []).map((cp: any) => [cp.product_id, cp]));
+
+                      const returnedItemMap: Record<string, number> = {};
+                      try {
+                        const prevReturns = await window.electronAPI.dbGetReturns({ tenant_id: tid, invoice_id: fullInv.invoice_id });
+                        if (Array.isArray(prevReturns)) {
+                          for (const ret of prevReturns) {
+                            const rItems = await window.electronAPI.dbGetReturnItems(ret.return_id);
+                            if (Array.isArray(rItems)) {
+                              for (const ri of rItems) {
+                                returnedItemMap[ri.product_id] = (returnedItemMap[ri.product_id] || 0) + Number(ri.quantity || 0);
+                              }
+                            }
+                          }
+                        }
+                      } catch (e) {}
+
+                      const loadedItems = (fullInv.items || []).map((it: any) => {
+                        const catProd = catMap.get(it.product_id);
+                        const invQty = Number(it.quantity) || 1;
+                        const prevRetQty = returnedItemMap[it.product_id] || 0;
+                        const availReturnQty = Math.max(0, invQty - prevRetQty);
+                        return {
+                          product_id: it.product_id,
+                          name: it.product_name || catProd?.name || 'Item',
+                          sku_barcode: catProd?.sku_barcode || it.sku_barcode || '',
+                          item_code: catProd?.item_code || it.item_code || '',
+                          base_price: it.unit_price || 0,
+                          purchase_price: catProd?.purchase_price || 0,
+                          current_stock: catProd?.current_stock ?? 0,
+                          uom: catProd?.uom || it.unit || 'Pcs',
+                          billing_type: catProd?.billing_type || 'PIECE',
+                          quantity: availReturnQty,
+                          maxReturnQty: availReturnQty,
+                          originalInvoiceQty: invQty,
+                          previouslyReturnedQty: prevRetQty,
+                          item_tax_rate: it.item_tax_rate || 0,
+                          cgst_amount: it.cgst_amount || 0,
+                          sgst_amount: it.sgst_amount || 0,
+                          igst_amount: it.igst_amount || 0,
+                          gst_amount: it.gst_amount || 0,
+                          taxable_amount: it.taxable_amount || 0,
+                          is_gst_applicable: catProd?.is_gst_applicable ?? (it.gst_amount > 0 ? 1 : 0),
+                          selected_pricing_tier_id: it.selected_pricing_tier_id || null,
+                          offer_price: it.offer_price ?? null,
+                          catalog_offer_price: it.offer_price ?? null,
+                          grade_id: catProd?.grade_id || null,
+                          is_scrap: false,
+                        };
+                      }).filter((it: any) => it.quantity > 0);
+
+                      loadEditingCart(loadedItems, {
+                        customerName: fullInv.customer_name || '',
+                        customerPhone: fullInv.customer_phone || '',
+                        customerGstin: fullInv.customer_gstin || '',
+                        customerAddress: fullInv.customer_address || '',
+                        paymentMethod: fullInv.payment_method || 'CASH',
+                      });
+                      setOriginalInvoiceGrandTotal(Number(fullInv.grand_total) || 0);
+                      setOriginalInvoiceType(fullInv.invoice_type || 'BILL_OF_SUPPLY');
+                      setSearchQuery('');
+                      setReturnSearchResults([]);
+                    }}
+                    className={clsx(
+                      "w-full text-left p-3 border-b border-border last:border-0 hover:bg-rose-500/5 transition-colors flex items-center justify-between cursor-pointer",
+                      selectedIndex === i && "bg-rose-500/10 font-bold"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">{inv.invoice_number}</span>
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 uppercase">Returnable</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{inv.customer_name || 'Walk-in'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}</p>
+                    </div>
+                    <div className="text-right font-mono font-black text-rose-600 text-sm">
+                      {formatCurrency(inv.grand_total)}
+                    </div>
+                  </button>
+                ))
+              ) : (
+                results.map((p, i) => (
+                  <button
+                    key={p.product_id}
+                    data-search-index={i}
+                    onClick={() => handleSelectProduct(p)}
+                    className={clsx(
+                      "w-full text-left p-3 border-b border-border last:border-0 hover:bg-primary/5 transition-colors flex items-center justify-between cursor-pointer group",
+                      selectedIndex === i && "bg-primary/10 font-bold"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{p.name}</span>
+                        {p.isCombo && (
+                          <span className="text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase">COMBO</span>
+                        )}
+                        {p.sku_barcode && (
+                          <span className="text-xs font-mono text-muted-foreground/60">[{p.sku_barcode}]</span>
+                        )}
+                        {p.item_code && p.item_code !== p.sku_barcode && (
+                          <span className="text-xs font-mono text-muted-foreground/60">({p.item_code})</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                        {p.brand_manufacturer && <span>Brand: {p.brand_manufacturer}</span>}
+                        {p.category && <span>Cat: {p.category}</span>}
+                        <span>Stock: <strong className={clsx(p.current_stock <= 5 ? "text-amber-500" : "text-foreground")}>{p.current_stock}</strong> {p.uom || 'Pcs'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono font-bold text-foreground text-sm pl-3">
+                      ₹{(selectedTierId && p.tier_prices?.[selectedTierId]) ? p.tier_prices[selectedTierId] : p.base_price}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {!isPastBillMode && !isScrapMode && !isReturnMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
+          <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
+            <button
+              type="button"
+              onClick={() => { setShowProductCreateForm(true); setNewProductName(searchQuery); }}
+              className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors cursor-pointer border-0 rounded-xl"
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
+              <div>
+                <p className="text-sm font-bold text-primary">Create "{searchQuery}"</p>
+                <p className="text-[11px] text-muted-foreground">Add as a new product</p>
+              </div>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderCustomerDetailsSection = () => (
+    <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="relative flex-1" ref={customerNameContainerRef}>
+          <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
+          <input
+            ref={customerNameInputRef}
+            autoFocus={uiConfig.entryFocusOrder === 'customer-first'}
+            placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
+            value={customerName}
+            onFocus={() => {
+              if (!skipCustomerDropdownOnFocusRef.current) {
+                setShowCustomerDropdown(true);
+              }
+            }}
+            onChange={e => {
+              const val = e.target.value;
+              updateActiveTab({ customerName: val });
+              applyPartyTier(val, customerPhone);
+              setShowCustomerDropdown(true);
+              setSelectedCustomerIndex(0);
+            }}
+            onKeyDown={handleCustomerNameKeyDown}
+            className={clsx(
+              'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
+              paymentMethod === 'CREDIT'
+                ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
+                : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
+                ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
+                : 'border-border focus:ring-primary/20 focus:border-primary'
+            )}
+          />
+          {showCustomerDropdown && (
+            <div ref={customerDropdownRef} className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+              {(() => {
+                const combinedList = [...(allCustomersList || []), ...(partiesForTier || []), ...(customerSearchResults || [])];
+                const seenKeys = new Set<string>();
+                const dedupedList: any[] = [];
+                for (const c of combinedList) {
+                  if (!c) continue;
+                  const key = (c.customer_id || c.party_id || c.phone || c.name || '').toString().toLowerCase();
+                  if (!key || seenKeys.has(key)) continue;
+                  seenKeys.add(key);
+                  dedupedList.push(c);
+                }
+                const filtered = dedupedList.filter(c => {
+                  if (!c) return false;
+                  const cNormName = (c.name || '').trim().toLowerCase();
+                  const cPhone = String(c.phone || '').trim();
+                  const qName = (customerName || '').trim().toLowerCase();
+                  const qPhone = (customerPhone || '').trim();
+                  if (!qName && !qPhone) return true;
+                  const matchesName = qName ? cNormName.includes(qName) : false;
+                  const matchesPhone = qPhone ? cPhone.includes(qPhone) : false;
+                  return matchesName || matchesPhone;
+                }).slice(0, 8);
+
+                if (filtered.length === 0) return null;
+
+                return (
+                  <div className="max-h-[220px] overflow-y-auto divide-y divide-border/60">
+                    {filtered.map((c, index) => (
+                      <button
+                        key={c.customer_id || c.party_id || c.phone || index}
+                        type="button"
+                        onClick={() => handleSelectCustomerFromDropdown(c)}
+                        className={clsx(
+                          "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border dark:border-slate-800 last:border-0 cursor-pointer transition-colors",
+                          index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold dark:bg-primary/25" : "hover:bg-muted/40 dark:hover:bg-slate-800/60"
+                        )}
+                      >
+                        <User className="w-4 h-4 text-muted-foreground dark:text-gray-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-foreground dark:text-gray-100 truncate">{c.name}</div>
+                          <div className="text-[10px] text-muted-foreground dark:text-gray-400">{c.phone || c.address || 'No phone/address'}</div>
+                        </div>
+                        {Number(c.current_points_balance) > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
+                        )}
+                        {c.balance != null && Number(c.balance) !== 0 && (
+                          <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
+                            Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+        <div className="relative flex-1 min-w-0">
+          <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
+          <input
+            ref={customerPhoneInputRef}
+            placeholder={invoiceType === 'GST' ? "Phone *" : "Phone Number"}
+            value={customerPhone}
+            onFocus={() => {
+              if (!skipCustomerDropdownOnFocusRef.current) {
+                setShowCustomerDropdown(true);
+              }
+            }}
+            onChange={e => {
+              const val = e.target.value;
+              updateActiveTab({ customerPhone: val });
+              applyPartyTier(customerName, val);
+              setShowCustomerDropdown(true);
+              setSelectedCustomerIndex(0);
+            }}
+            onKeyDown={handleCustomerPhoneKeyDown}
+            className={clsx(
+              'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
+              paymentMethod === 'CREDIT'
+                ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
+                : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
+                ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
+                : 'border-border focus:ring-primary/20 focus:border-primary'
+            )}
+          />
+        </div>
+        <CustomerOutstandingBadge partyObj={(() => {
+          const cleanName = (customerName || '').trim().toLowerCase();
+          const cleanPhone = (customerPhone || '').trim();
+          if (!cleanName && !cleanPhone) return null;
+          const combinedList = [...(allCustomersList || []), ...(partiesForTier || []), ...(customerSearchResults || [])];
+          return combinedList.find((c: any) => {
+            if (!c || c.balance == null || Number(c.balance) === 0) return false;
+            const cName = (c.name || '').trim().toLowerCase();
+            const cPhone = String(c.phone || '').trim();
+            const matchName = cleanName && cName && (
+              cName === cleanName ||
+              cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
+            );
+            const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
+            return Boolean(matchName || matchPhone);
+          }) || null;
+        })()} />
+      </div>
+
+      {/* Real-time Credit Limit Warning Banner */}
+      {(() => {
+        if (paymentMethod !== 'CREDIT' && !(paymentMethod === 'SPLIT' && Number(splitDetails.credit) > 0)) return null;
+        const cleanName = (customerName || '').trim();
+        const cleanPhone = (customerPhone || '').trim();
+        if (!cleanName && !cleanPhone) return null;
+        const party = partiesForTier.find((p: any) =>
+          (cleanName && p.name && p.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
+          (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone)
+        );
+        if (!party || !(Number(party.credit_limit) > 0)) return null;
+        const limit = Number(party.credit_limit);
+        const currentBal = Number(party.balance) || 0;
+        const billCredit = paymentMethod === 'CREDIT'
+          ? Math.max(0, displayGrandTotal)
+          : Math.max(0, Number(splitDetails.credit) || 0);
+        const projected = currentBal + billCredit;
+        const available = Math.max(0, limit - currentBal);
+        const exceeded = projected > limit;
+        const excess = exceeded ? projected - limit : 0;
+        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return (
+          <div className={`mb-2 rounded-xl px-3 py-2 border text-xs flex flex-col gap-1 transition-all duration-300 ${
+            exceeded
+              ? 'border-red-400 bg-red-500/10 text-red-700 dark:text-red-400'
+              : 'border-amber-400 bg-amber-500/8 text-amber-700 dark:text-amber-400'
+          }`}>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-bold flex items-center gap-1">
+                {exceeded ? '🚫' : '💳'} Credit Limit: ₹{fmtN(limit)}
+              </span>
+              <span className="font-semibold">Current Bal: ₹{fmtN(currentBal)}</span>
+              <span className="font-semibold">Bill Credit: ₹{fmtN(billCredit)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-current/20 pt-1 font-extrabold">
+              <span>Projected Total: ₹{fmtN(projected)}</span>
+              {exceeded ? (
+                <span className="text-red-600 dark:text-red-300 underline">EXCEEDS LIMIT BY ₹{fmtN(excess)}!</span>
+              ) : (
+                <span className="text-emerald-700 dark:text-emerald-400">Available: ₹{fmtN(available - billCredit)}</span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1">
+          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+          <input
+            ref={customerAddressInputRef}
+            placeholder={invoiceType === 'GST' ? "Customer Address *" : "Customer Address"}
+            value={customerAddress}
+            onChange={e => updateActiveTab({ customerAddress: e.target.value })}
+            onKeyDown={handleCustomerAddressKeyDown}
+            className={clsx(
+              'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
+              (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
+                ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
+                : 'border-border focus:ring-primary/20 focus:border-primary'
+            )}
+          />
+        </div>
+        {pricingTiers.length > 0 && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Select
+              size="sm"
+              triggerClassName="h-auto py-2"
+              className="w-40 sm:w-44"
+              value={selectedTierId}
+              onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
+              options={[
+                { value: '', label: 'MRP' },
+                ...pricingTiers.map(t => ({
+                  value: t.pricing_tier_id,
+                  label: (t.is_default === 1 || t.is_default === true || t.is_default === '1') ? `⭐ ${t.name}` : t.name
+                })),
+              ]}
+              disabled={!canOverrideTier}
+            />
+            {!canOverrideTier && (
+              <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap mt-2">
+        <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border">
+          <button
+            onClick={() => handleInvoiceTypeChange('BILL_OF_SUPPLY')}
+            className={clsx(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
+              invoiceType === 'BILL_OF_SUPPLY'
+                ? 'bg-card text-foreground shadow-sm border border-border/20'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Bill of Supply
+          </button>
+          <button
+            onClick={() => handleInvoiceTypeChange('GST')}
+            className={clsx(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
+              invoiceType === 'GST'
+                ? 'bg-card text-foreground shadow-sm border border-border/20'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            GST Invoice
+          </button>
+        </div>
+        {invoiceType === 'GST' && (
+          <div className="flex items-center gap-2 flex-1">
+              <div className="flex-1">
+                <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
+              </div>
+              <div className="relative flex-1">
+                <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <input
+                  ref={customerGstinInputRef}
+                  placeholder="GSTIN"
+                  value={customerGstin}
+                  onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
+                  onKeyDown={handleCustomerGstinKeyDown}
+                  maxLength={15}
+                  className="w-full pl-7 pr-2 py-1 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
+                />
+              </div>
+          </div>
+        )}
+        {/* Loyalty Points Display & Redemption */}
+        {loyaltyEnabled && !isScrapMode && !isQuotationMode && loyaltyCustomerData.customerId && (
+          <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+              <Star className="w-3 h-3 text-emerald-500" />
+              <span className="text-xs font-bold text-emerald-600">{loyaltyCustomerData.pointsBalance.toFixed(0)} pts</span>
+            </div>
+            {loyaltyCustomerData.pointsBalance > 0 && !showLoyaltyRedemption && (
+              <button onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
+                className="px-2 py-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer">
+                Redeem
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Points Redemption Input */}
+      {showLoyaltyRedemption && loyaltyCustomerData.customerId && (
+        <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+          <div className="flex items-center gap-2">
+            <Gift className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
+            <input type="number" min="0" max={loyaltyCustomerData.pointsBalance}
+              value={pointsToRedeem || ''}
+              onChange={e => setPointsToRedeem(e.target.value === '' ? 0 : Math.min(Number(e.target.value), loyaltyCustomerData.pointsBalance))}
+              className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              placeholder="0" />
+            <span className="text-xs text-muted-foreground">pts</span>
+            <span className="text-xs font-bold text-amber-600">
+              = -{formatCurrency(pointsToRedeem * loyaltyRedemptionRate)}
+            </span>
+            <button
+              onClick={() => { setShowLoyaltyRedemption(false); setPointsToRedeem(0); }}
+              className="ml-auto p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {pointsToRedeem > 0 && (
+            <p className="text-[10px] text-amber-600 mt-1 font-semibold">
+              Discount: {formatCurrency(pointsToRedeem * loyaltyRedemptionRate)} will be applied
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ─── FLOATING TOASTS ─── */}
@@ -5905,710 +6608,17 @@ export function BillingPage() {
           )}
         >
           
-          {/* Prominent Search bar */}
-          <div className="p-3 pb-2.5 bg-card border-b border-border">
-            <div ref={searchContainerRef} className="relative">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className={clsx(
-                    "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300",
-                    isScrapActive ? "text-orange-500" :
-                    isReturnMode ? "text-rose-500" :
-                    isQuotationActive ? "text-blue-500" :
-                    isPastBillMode ? "text-teal-500" :
-                    "text-muted-foreground"
-                  )} />
-                  <input
-                    ref={searchRef}
-                    type="text"
-                    autoFocus={uiConfig.entryFocusOrder !== 'customer-first'}
-                    placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
-                    value={searchQuery}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setSearchQuery(val);
-                      if (!val.trim()) {
-                        setResults([]);
-                        setScrapSearchResults([]);
-                        setReturnSearchResults([]);
-                        setPastBillResults([]);
-                      }
-                    }}
-                    onKeyDown={handleSearchKey}
-                    className="search-dynamic w-full pl-10 pr-9 py-2.5 bg-background rounded-xl text-sm font-medium text-foreground transition-all duration-300 placeholder:text-muted-foreground/50 focus:outline-none"
-                    style={{
-                      borderWidth: '1px',
-                      borderStyle: 'solid',
-                      borderColor: isScrapActive
-                        ? 'rgb(249,115,22)'
-                        : isReturnMode
-                        ? 'rgb(244,63,94)'
-                        : isQuotationActive
-                        ? 'rgb(59,130,246)'
-                        : isPastBillMode
-                        ? 'rgb(20,184,166)'
-                        : 'hsl(var(--border))',
-                      boxShadow: isScrapActive
-                        ? '0 0 0 3px rgba(249,115,22,0.15)'
-                        : isReturnMode
-                        ? '0 0 0 3px rgba(244,63,94,0.15)'
-                        : isQuotationActive
-                        ? '0 0 0 3px rgba(59,130,246,0.15)'
-                        : isPastBillMode
-                        ? '0 0 0 3px rgba(20,184,166,0.15)'
-                        : undefined,
-                      '--search-focus-color': isScrapActive
-                        ? 'rgb(249,115,22)'
-                        : isReturnMode
-                        ? 'rgb(244,63,94)'
-                        : isQuotationActive
-                        ? 'rgb(59,130,246)'
-                        : isPastBillMode
-                        ? 'rgb(20,184,166)'
-                        : undefined,
-                      '--search-focus-shadow': isScrapActive
-                        ? 'rgba(249,115,22,0.2)'
-                        : isReturnMode
-                        ? 'rgba(244,63,94,0.2)'
-                        : isQuotationActive
-                        ? 'rgba(59,130,246,0.2)'
-                        : isPastBillMode
-                        ? 'rgba(20,184,166,0.2)'
-                        : undefined,
-                    } as React.CSSProperties}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => {
-                        setSearchQuery('');
-                        setResults([]);
-                        setScrapSearchResults([]);
-                        setReturnSearchResults([]);
-                        setPastBillResults([]);
-                        searchRef.current?.focus();
-                      }}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors border border-destructive/30"
-                    >
-                      <X className="w-4 h-4 text-destructive" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0">
-                  {shopDomain === 'JEWELRY' && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
-                    <>
-                      <button
-                        onClick={() => scaleReading ? lockScaleWeight() : setScaleReading(true)}
-                        className={clsx(
-                          "flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 border-0",
-                          scaleReading ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
-                        )}
-                        title={scaleReading ? "Lock the current weight" : "Read weight from the connected weighing scale"}
-                      >
-                        <Scale className="w-4 h-4" />
-                        <span className="hidden sm:inline">{scaleReading ? 'Lock' : 'Read Scale'}</span>
-                        {scaleReading && (
-                          <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/25 text-white min-w-[52px] text-center">
-                            {scaleLiveWeight > 0 ? `${scaleLiveWeight.toFixed(2)}g` : '...'}
-                          </span>
-                        )}
-                      </button>
-                      <div className="w-px h-5 bg-border/60" />
-                    </>
-                  )}
-                  {!isScrapMode && !isReturnMode && !isPastBillMode && (
-                    <button
-                      onClick={() => { setShowProductCreateForm(true); setNewProductName(''); }}
-                      className="flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 bg-primary/10 text-primary hover:bg-primary/20 border-0"
-                      title="Add new product"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span className="hidden sm:inline">Add</span>
-                    </button>
-                  )}
-                  {!isScrapMode && !isReturnMode && !isPastBillMode && (
-                    <div className="w-px h-5 bg-border/60" />
-                  )}
-                  <button
-                    onClick={() => {
-                      const next = !isPastBillMode;
-                      setIsPastBillMode(next);
-                      if (next) {
-                        // Entering Past Bill mode — exit any other active mode
-                        if (isScrapMode) {
-                          setIsScrapMode(false);
-                          if (editingInvoiceNumber) {
-                            useCartStore.getState().setEditingInvoice(null, null, null);
-                            setDiscount(0, 'FIXED');
-                          }
-                          updateActiveTab({ scrapPaymentStatus: 'PENDING', reservedScrapInvoiceNumber: '' });
-                        }
-                        if (isReturnMode) {
-                          setReturnMode(false);
-                          setSelectedReturnInvoice(null);
-                        }
-                        if (isQuotationMode) setQuotationMode(false);
-                      }
-                      setSearchQuery('');
-                      setResults([]);
-                      setPastBillResults([]);
-                      if (next) setTimeout(() => searchRef.current?.focus(), 100);
-                    }}
-                    className={clsx(
-                      "flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 border-0",
-                      isPastBillMode
-                        ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    )}
-                    title="Search past bills by invoice number"
-                  >
-                    <Clock className={clsx("w-4 h-4", isPastBillMode && "text-teal-500")} />
-                    <span className="hidden sm:inline">{isPastBillMode ? 'Searching Bills' : 'Past Bill'}</span>
-                  </button>
-                </div>
-              </div>
-
-
-
-              {isPastBillMode && searchQuery.trim().length > 0 && pastBillResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div ref={pastBillListRef} className="max-h-[320px] overflow-y-auto">
-                    <div className="px-3 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border">
-                      Past Bills ({pastBillResults.length})
-                    </div>
-                      {pastBillResults.map((inv, i) => {
-                      const isSelected = i === selectedIndex;
-                      return (
-                        <div
-                          key={inv.invoice_id}
-                          data-search-index={i}
-                          className={clsx(
-                            'flex items-center gap-2 px-3 py-2 border-b border-border last:border-0 transition-colors',
-                            isSelected ? 'bg-teal-500/10 border-l-4 border-l-teal-500 pl-2' : 'hover:bg-teal-500/5'
-                          )}
-                        >
-                          <button
-                            onClick={() => handleSelectPastBill(inv)}
-                            onMouseEnter={() => setSelectedIndex(i)}
-                            className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
-                          >
-                            <div className={clsx(
-                              'p-2 rounded-xl shrink-0 transition-colors',
-                              isSelected ? 'bg-teal-500/15 text-teal-500' : 'bg-teal-500/10 text-teal-500'
-                            )}>
-                              <Receipt className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</div>
-                              <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                                <span>{inv.customer_name || 'Walk-in'}</span>
-                                <span>&middot;</span>
-                                <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short' })}</span>
-                              </div>
-                            </div>
-                          </button>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-xs font-black text-teal-600 dark:text-teal-400 mr-1">{formatCurrency(inv.grand_total)}</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleReturnFromPastBill(inv); }}
-                              className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                              title="Return this invoice"
-                            >
-                              <ArrowLeftRight className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {!isPastBillMode && searchQuery.trim().length > 0 && (isScrapMode ? scrapSearchResults.length > 0 : isReturnMode ? returnSearchResults.length > 0 : results.length > 0) && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-                  {!isScrapMode && !isReturnMode && (
-                    <div className="px-3 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border flex items-center justify-between">
-                      <span>Products found ({results.length})</span>
-                      {searchQuery && <span className="text-primary font-bold">Matching "{searchQuery}"</span>}
-                    </div>
-                  )}
-                  <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
-                    {!isScrapMode && !isReturnMode && results.map((p, i) => {
-                      const mrp = getTierPriceForProduct(p) ?? (p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price);
-                      const showOffer = p.offer_price && Number(p.offer_price) > 0;
-                      const displayPrice = showOffer ? Number(p.offer_price) : mrp;
-                      const isSelected = i === selectedIndex;
-                      return (
-                        <button
-                          key={p.product_id}
-                          data-search-index={i}
-                          onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(p); }}
-                          onMouseEnter={() => setSelectedIndex(i)}
-                          className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
-                            isSelected ? 'bg-primary/5 border-l-4 border-l-primary pl-2' : 'hover:bg-muted/40'
-                          )}
-                        >
-                          <div className={clsx(
-                            'p-2 rounded-xl shrink-0 transition-colors',
-                            isSelected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                          )}>
-                            <Package className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
-                              <span>{p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
-                              {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
-                                <span className={clsx(
-                                  "text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase align-middle select-none",
-                                  p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
-                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                )}>
-                                  {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
-                                </span>
-                              )}
-                              {Number(p.is_service_item) ? (
-                                <span className="ml-1.5 text-[9px] font-bold text-violet-600 bg-violet-500/15 px-1.5 py-0.5 rounded uppercase align-middle">Service</span>
-                              ) : null}
-                              {p.isCombo ? (
-                                <span className="ml-1.5 text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase align-middle">COMBO OFFER</span>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              {p.isCombo && p.combo_items ? (
-                                <span className="text-purple-600 dark:text-purple-400 font-medium text-[11px]">
-                                  Includes: {p.combo_items.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
-                                </span>
-                              ) : !Number(p.is_service_item) && (
-                                <>
-                              <span className="font-mono bg-muted/70 px-1 py-0.5 rounded text-[10px]">{p.sku_barcode || 'NO BARCODE'}</span>
-                              <span>&middot;</span>
-                              <span className={clsx(
-                                'font-semibold',
-                                p.current_stock <= 0 ? 'text-destructive' : p.current_stock < 10 ? 'text-amber-500' : 'text-emerald-500'
-                              )}>
-                                Stock: {(() => {
-                                  const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0); } catch { return 0; } })() : 0;
-                                  const unit = p.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs';
-                                  return ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${unit}`;
-                                })()}
-                              </span>
-                              </>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            {showOffer ? (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground/70 font-semibold">MRP:</span>
-                                <span className="text-xs font-semibold text-muted-foreground line-through">{formatCurrency(mrp)}</span>
-                                <span className="text-[10px] text-emerald-500 font-semibold ml-1">Offer:</span>
-                                <span className="font-black text-sm text-emerald-500">{formatCurrency(displayPrice)}</span>
-                              </div>
-                            ) : (
-                              <div className="font-black text-sm text-primary">{formatCurrency(displayPrice)}</div>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                    {isScrapMode && scrapSearchResults.map((s, i) => {
-                      const rate = Number(s.purchase_price) || 0;
-                      const stock = Number(s.current_stock) || 0;
-                      const isSelected = i === selectedIndex;
-                      return (
-                        <button
-                          key={s.scrap_category_id}
-                          data-search-index={i}
-                          onMouseDown={(e) => { e.preventDefault(); handleSelectScrapItem(s); }}
-                          onMouseEnter={() => setSelectedIndex(i)}
-                          className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
-                            isSelected ? 'bg-orange-500/10 border-l-4 border-l-orange-500 pl-2' : 'hover:bg-orange-500/5'
-                          )}
-                        >
-                          <div className={clsx(
-                            'p-2 rounded-xl shrink-0 transition-colors',
-                            isSelected ? 'bg-orange-500/15 text-orange-500' : 'bg-orange-500/10 text-orange-500'
-                          )}>
-                            <Recycle className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              <span className="font-semibold text-orange-600 dark:text-orange-400">Scrap</span>
-                              <span>&middot;</span>
-                              <span className={clsx(
-                                'font-semibold',
-                                stock <= 0 ? 'text-destructive' : 'text-emerald-500'
-                              )}>
-                                Stock: {stock.toFixed(1)} {s.unit || 'Kgs'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="font-black text-sm text-orange-500">{formatCurrency(rate)}/{s.unit || 'Kg'}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                    {isReturnMode && returnSearchResults.map((inv, i) => {
-                      const isSelected = i === selectedIndex;
-                      return (
-                        <button
-                          key={inv.invoice_id}
-                          data-search-index={i}
-                          onMouseDown={(e) => { e.preventDefault(); handleSelectReturnInvoice(inv); }}
-                          onMouseEnter={() => setSelectedIndex(i)}
-                          className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
-                            isSelected ? 'bg-rose-500/10 border-l-4 border-l-rose-500 pl-2' : 'hover:bg-rose-500/5'
-                          )}
-                        >
-                          <div className={clsx(
-                            'p-2 rounded-xl shrink-0 transition-colors',
-                            isSelected ? 'bg-rose-500/15 text-rose-500' : 'bg-rose-500/10 text-rose-500'
-                          )}>
-                            <ArrowLeftRight className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              <span className="font-semibold text-rose-600 dark:text-rose-400">Return</span>
-                              <span>&middot;</span>
-                              <span>{inv.customer_name || 'Walk-in'}</span>
-                              <span>&middot;</span>
-                              <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short' })}</span>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="font-black text-sm text-rose-600">{formatCurrency(inv.grand_total)}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {!isPastBillMode && !isScrapMode && !isReturnMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <button
-                    type="button"
-                    onClick={() => { setShowProductCreateForm(true); setNewProductName(searchQuery); }}
-                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors cursor-pointer border-0 rounded-xl"
-                  >
-                    <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
-                    <div>
-                      <p className="text-sm font-bold text-primary">Create "{searchQuery}"</p>
-                      <p className="text-[11px] text-muted-foreground">Add as a new product</p>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-
-
-          {/* Customer details — moved to top of cart */}
-          <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="relative flex-1" ref={customerNameContainerRef}>
-                <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
-                <input
-                  ref={customerNameInputRef}
-                  autoFocus={uiConfig.entryFocusOrder === 'customer-first'}
-                  placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
-                  value={customerName}
-                  onFocus={() => {
-                    if (!skipCustomerDropdownOnFocusRef.current) {
-                      setShowCustomerDropdown(true);
-                    }
-                  }}
-                  onChange={e => {
-                    const val = e.target.value;
-                    updateActiveTab({ customerName: val });
-                    applyPartyTier(val, customerPhone);
-                    setShowCustomerDropdown(true);
-                    setSelectedCustomerIndex(0);
-                  }}
-                  onKeyDown={handleCustomerNameKeyDown}
-                  className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
-                    paymentMethod === 'CREDIT'
-                      ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
-                      : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
-                      ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
-                      : 'border-border focus:ring-primary/20 focus:border-primary'
-                  )}
-                />
-                {(() => {
-                  const isExactSingleMatch = filteredCustomerSuggestions.length === 1 &&
-                    (filteredCustomerSuggestions[0].name || '').trim().toLowerCase() === customerName.trim().toLowerCase() &&
-                    (filteredCustomerSuggestions[0].phone || '').trim() === customerPhone.trim();
-                  
-                  if (!showCustomerDropdown || filteredCustomerSuggestions.length === 0 || isExactSingleMatch) return null;
-
-                  return (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-slate-900 border border-border dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-[220px] overflow-y-auto">
-                      {filteredCustomerSuggestions.map((c: any, index: number) => (
-                        <button
-                          key={c.customer_id || c.party_id || index}
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            selectCustomerSuggestion(c);
-                          }}
-                          className={clsx(
-                            "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border dark:border-slate-800 last:border-0 cursor-pointer transition-colors",
-                            index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold dark:bg-primary/25" : "hover:bg-muted/40 dark:hover:bg-slate-800/60"
-                          )}
-                        >
-                          <User className="w-4 h-4 text-muted-foreground dark:text-gray-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-foreground dark:text-gray-100 truncate">{c.name}</div>
-                            <div className="text-[10px] text-muted-foreground dark:text-gray-400">{c.phone || c.address || 'No phone/address'}</div>
-                          </div>
-                          {Number(c.current_points_balance) > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
-                          )}
-                          {c.balance != null && Number(c.balance) !== 0 && (
-                            <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
-                              Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div className="relative flex-1 min-w-0">
-                <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
-                <input
-                  ref={customerPhoneInputRef}
-                  placeholder={invoiceType === 'GST' ? "Phone *" : "Phone Number"}
-                  value={customerPhone}
-                  onFocus={() => {
-                    if (!skipCustomerDropdownOnFocusRef.current) {
-                      setShowCustomerDropdown(true);
-                    }
-                  }}
-                  onChange={e => {
-                    const val = e.target.value;
-                    updateActiveTab({ customerPhone: val });
-                    applyPartyTier(customerName, val);
-                    setShowCustomerDropdown(true);
-                    setSelectedCustomerIndex(0);
-                  }}
-                  onKeyDown={handleCustomerPhoneKeyDown}
-                  className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
-                    paymentMethod === 'CREDIT'
-                      ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
-                      : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
-                      ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
-                      : 'border-border focus:ring-primary/20 focus:border-primary'
-                  )}
-                />
-              </div>
-              <CustomerOutstandingBadge partyObj={(() => {
-                const cleanName = (customerName || '').trim().toLowerCase();
-                const cleanPhone = (customerPhone || '').trim();
-                if (!cleanName && !cleanPhone) return null;
-                const combinedList = [...(allCustomersList || []), ...(partiesForTier || []), ...(customerSearchResults || [])];
-                return combinedList.find((c: any) => {
-                  if (!c || c.balance == null || Number(c.balance) === 0) return false;
-                  const cName = (c.name || '').trim().toLowerCase();
-                  const cPhone = String(c.phone || '').trim();
-                  const matchName = cleanName && cName && (
-                    cName === cleanName ||
-                    cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
-                  );
-                  const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
-                  return Boolean(matchName || matchPhone);
-                }) || null;
-              })()} />
-            </div>
-
-            {/* ── Real-time Credit Limit Warning Banner ────────────────────────── */}
-            {(() => {
-              if (paymentMethod !== 'CREDIT' && !(paymentMethod === 'SPLIT' && Number(splitDetails.credit) > 0)) return null;
-              const cleanName = (customerName || '').trim();
-              const cleanPhone = (customerPhone || '').trim();
-              if (!cleanName && !cleanPhone) return null;
-              const party = partiesForTier.find((p: any) =>
-                (cleanName && p.name && p.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
-                (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone)
-              );
-              if (!party || !(Number(party.credit_limit) > 0)) return null;
-              const limit = Number(party.credit_limit);
-              const currentBal = Number(party.balance) || 0;
-              const billCredit = paymentMethod === 'CREDIT'
-                ? Math.max(0, displayGrandTotal)
-                : Math.max(0, Number(splitDetails.credit) || 0);
-              const projected = currentBal + billCredit;
-              const available = Math.max(0, limit - currentBal);
-              const exceeded = projected > limit;
-              const excess = exceeded ? projected - limit : 0;
-              const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              return (
-                <div className={`mb-2 rounded-xl px-3 py-2 border text-xs flex flex-col gap-1 transition-all duration-300 ${
-                  exceeded
-                    ? 'border-red-400 bg-red-500/10 text-red-700 dark:text-red-400'
-                    : 'border-amber-400 bg-amber-500/8 text-amber-700 dark:text-amber-400'
-                }`}>
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="font-bold flex items-center gap-1">
-                      {exceeded ? '🚫' : '💳'} Credit Limit
-                    </span>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span>Limit: <strong>₹{fmtN(limit)}</strong></span>
-                      <span>Due: <strong>₹{fmtN(currentBal)}</strong></span>
-                      <span className={exceeded ? 'text-red-600 dark:text-red-400 font-black' : 'text-emerald-600 dark:text-emerald-400 font-bold'}>
-                        Avail: ₹{fmtN(available)}
-                      </span>
-                    </div>
-                  </div>
-                  {exceeded && (
-                    <div className="font-bold text-red-600 dark:text-red-400">
-                      ⚠️ Exceeds limit by ₹{fmtN(excess)} — Bill cannot be completed on credit!
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            {/* ──────────────────────────────────────────────────────────────── */}
-
-            <div className="flex items-center gap-2 mb-2">
-              <div className="relative flex-1">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                <input
-                  ref={customerAddressInputRef}
-                  placeholder={invoiceType === 'GST' ? "Customer Address *" : "Customer Address"}
-                  value={customerAddress}
-                  onChange={e => updateActiveTab({ customerAddress: e.target.value })}
-                  onKeyDown={handleCustomerAddressKeyDown}
-                  className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
-                    (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
-                      ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
-                      : 'border-border focus:ring-primary/20 focus:border-primary'
-                  )}
-                />
-              </div>
-              {pricingTiers.length > 0 && (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Select
-                    size="sm"
-                    triggerClassName="h-auto py-2"
-                    className="w-40 sm:w-44"
-                    value={selectedTierId}
-                    onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
-                    options={[
-                      { value: '', label: 'MRP' },
-                      ...pricingTiers.map(t => ({
-                        value: t.pricing_tier_id,
-                        label: (t.is_default === 1 || t.is_default === true || t.is_default === '1') ? `⭐ ${t.name}` : t.name
-                      })),
-                    ]}
-                    disabled={!canOverrideTier}
-                  />
-                  {!canOverrideTier && (
-                    <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border">
-                <button
-                  onClick={() => handleInvoiceTypeChange('BILL_OF_SUPPLY')}
-                  className={clsx(
-                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
-                    invoiceType === 'BILL_OF_SUPPLY'
-                      ? 'bg-card text-foreground shadow-sm border border-border/20'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Bill of Supply
-                </button>
-                <button
-                  onClick={() => handleInvoiceTypeChange('GST')}
-                  className={clsx(
-                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
-                    invoiceType === 'GST'
-                      ? 'bg-card text-foreground shadow-sm border border-border/20'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  GST Invoice
-                </button>
-              </div>
-              {invoiceType === 'GST' && (
-                <div className="flex items-center gap-2 flex-1">
-                    <div className="flex-1">
-                      <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
-                    </div>
-                    <div className="relative flex-1">
-                      <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                      <input
-                        ref={customerGstinInputRef}
-                        placeholder="GSTIN"
-                        value={customerGstin}
-                        onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
-                        onKeyDown={handleCustomerGstinKeyDown}
-                        maxLength={15}
-                        className="w-full pl-7 pr-2 py-1 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
-                      />
-                    </div>
-                </div>
-              )}
-              {/* Loyalty Points Display & Redemption */}
-              {loyaltyEnabled && !isScrapMode && !isQuotationMode && loyaltyCustomerData.customerId && (
-                <div className="flex items-center gap-2 ml-auto">
-                  <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                    <Star className="w-3 h-3 text-emerald-500" />
-                    <span className="text-xs font-bold text-emerald-600">{loyaltyCustomerData.pointsBalance.toFixed(0)} pts</span>
-                  </div>
-                  {loyaltyCustomerData.pointsBalance > 0 && !showLoyaltyRedemption && (
-                    <button onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
-                      className="px-2 py-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer">
-                      Redeem
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            {/* Points Redemption Input */}
-            {showLoyaltyRedemption && loyaltyCustomerData.customerId && (
-              <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Gift className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
-                  <input type="number" min="0" max={loyaltyCustomerData.pointsBalance}
-                    value={pointsToRedeem || ''}
-                    onChange={e => setPointsToRedeem(e.target.value === '' ? 0 : Math.min(Number(e.target.value), loyaltyCustomerData.pointsBalance))}
-                    className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    placeholder="0" />
-                  <span className="text-xs text-muted-foreground">pts</span>
-                  <span className="text-xs font-bold text-amber-600">
-                    = -{formatCurrency(pointsToRedeem * loyaltyRedemptionRate)}
-                  </span>
-                  <button
-                    onClick={() => { setShowLoyaltyRedemption(false); setPointsToRedeem(0); }}
-                    className="ml-auto p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {pointsToRedeem > 0 && (
-                  <p className="text-[10px] text-amber-600 mt-1 font-semibold">
-                    Discount: {formatCurrency(pointsToRedeem * loyaltyRedemptionRate)} will be applied
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          {uiConfig.entryFocusOrder === 'customer-first' ? (
+            <>
+              {renderCustomerDetailsSection()}
+              {renderSearchBarSection()}
+            </>
+          ) : (
+            <>
+              {renderSearchBarSection()}
+              {renderCustomerDetailsSection()}
+            </>
+          )}
 
           {/* Cart List */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">

@@ -267,9 +267,26 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       // combined → no GST filter
       if (deferredSearch) {
         const q = deferredSearch.toLowerCase();
-        if (!p.name.toLowerCase().includes(q) &&
-            !p.sku_barcode.toLowerCase().includes(q) &&
-            !(p.item_code || '').toLowerCase().includes(q)) return false;
+        const qNoSpace = q.replace(/\s+/g, '');
+        const name = (p.name || '').toLowerCase();
+        const barcode = (p.sku_barcode || '').toLowerCase();
+        const code = (p.item_code || '').toLowerCase();
+
+        const nameNoSpace = name.replace(/\s+/g, '');
+        const barcodeNoSpace = barcode.replace(/\s+/g, '');
+        const codeNoSpace = code.replace(/\s+/g, '');
+
+        const matches =
+          name.includes(q) ||
+          barcode.includes(q) ||
+          code.includes(q) ||
+          (qNoSpace.length > 0 && (
+            nameNoSpace.includes(qNoSpace) ||
+            barcodeNoSpace.includes(qNoSpace) ||
+            codeNoSpace.includes(qNoSpace)
+          ));
+
+        if (!matches) return false;
       }
       if (deferredCategory && p.category !== deferredCategory) return false;
       if (deferredStock === 'in_stock' && Number(p.current_stock) <= 0) return false;

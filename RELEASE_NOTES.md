@@ -1,3 +1,10 @@
+# Vendora v1.5.76 Release Notes
+
+## What's Changed
+- Added `BillingUICustomizer`, `LedgerTerminologySettings`, product sorting optimizations, and updated cart store & print formats
+- Refactored `BillingPage`, `SettingsPricingTiers`, `StockReport`, and Electron main process IPC routines
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.75...v1.5.76
+
 # Vendora v1.5.75 Release Notes
 
 ## What's Changed

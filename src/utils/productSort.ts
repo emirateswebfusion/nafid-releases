@@ -1,14 +1,17 @@
 export function sortProductsBySearchPriority<T extends { sku_barcode?: string; item_code?: string; name?: string }>(products: T[], searchQuery: string): T[] {
   if (!searchQuery || !searchQuery.trim()) return products;
   const q = searchQuery.trim().toLowerCase();
+  const qNoSpace = q.replace(/\s+/g, '');
 
   const getBarcodeScore = (p: T) => {
     const barcode = String(p.sku_barcode || '').trim().toLowerCase();
     const code = String(p.item_code || '').trim().toLowerCase();
+    const barcodeNoSpace = barcode.replace(/\s+/g, '');
+    const codeNoSpace = code.replace(/\s+/g, '');
 
-    const isExact = barcode === q || code === q;
-    const isPrefix = barcode.startsWith(q) || code.startsWith(q);
-    const isIncludes = barcode.includes(q) || code.includes(q);
+    const isExact = barcode === q || code === q || (qNoSpace.length > 0 && (barcodeNoSpace === qNoSpace || codeNoSpace === qNoSpace));
+    const isPrefix = barcode.startsWith(q) || code.startsWith(q) || (qNoSpace.length > 0 && (barcodeNoSpace.startsWith(qNoSpace) || codeNoSpace.startsWith(qNoSpace)));
+    const isIncludes = barcode.includes(q) || code.includes(q) || (qNoSpace.length > 0 && (barcodeNoSpace.includes(qNoSpace) || codeNoSpace.includes(qNoSpace)));
 
     let tier = 99;
     if (isExact) tier = 1;
@@ -16,7 +19,7 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
     else if (isIncludes) tier = 3;
 
     if (tier < 99) {
-      const matchStr = barcode.includes(q) ? barcode : code;
+      const matchStr = barcode.includes(q) || (qNoSpace.length > 0 && barcodeNoSpace.includes(qNoSpace)) ? barcode : code;
       const numMatch = matchStr.match(/\d+/);
       const numVal = numMatch ? parseInt(numMatch[0], 10) : 999999999;
       return { isMatch: true, tier, numVal, matchStr };
@@ -40,8 +43,10 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
 
     const nameA = String(a.name || '').trim().toLowerCase();
     const nameB = String(b.name || '').trim().toLowerCase();
-    const nameAPrefix = nameA.startsWith(q);
-    const nameBPrefix = nameB.startsWith(q);
+    const nameANoSpace = nameA.replace(/\s+/g, '');
+    const nameBNoSpace = nameB.replace(/\s+/g, '');
+    const nameAPrefix = nameA.startsWith(q) || (qNoSpace.length > 0 && nameANoSpace.startsWith(qNoSpace));
+    const nameBPrefix = nameB.startsWith(q) || (qNoSpace.length > 0 && nameBNoSpace.startsWith(qNoSpace));
 
     if (nameAPrefix && !nameBPrefix) return -1;
     if (!nameAPrefix && nameBPrefix) return 1;

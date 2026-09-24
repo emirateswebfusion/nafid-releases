@@ -351,11 +351,22 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
   const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return products;
-    return products.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      (p.sku_barcode || '').toLowerCase().includes(q) ||
-      (p.category || '').toLowerCase().includes(q)
-    );
+    const qNoSpace = q.replace(/\s+/g, '');
+    return products.filter(p => {
+      const name = (p.name || '').toLowerCase();
+      const barcode = (p.sku_barcode || '').toLowerCase();
+      const cat = (p.category || '').toLowerCase();
+      return (
+        name.includes(q) ||
+        barcode.includes(q) ||
+        cat.includes(q) ||
+        (qNoSpace.length > 0 && (
+          name.replace(/\s+/g, '').includes(qNoSpace) ||
+          barcode.replace(/\s+/g, '').includes(qNoSpace) ||
+          cat.replace(/\s+/g, '').includes(qNoSpace)
+        ))
+      );
+    });
   }, [products, searchQuery]);
 
   // Reset pagination on search query change

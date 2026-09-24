@@ -904,14 +904,16 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
 
     if (barcode) {
        const cleanBarcode = String(barcode).trim();
-       query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?))';
-       params.push(cleanBarcode, cleanBarcode, cleanBarcode, cleanBarcode);
+       const cleanBarcodeNoSpace = cleanBarcode.replace(/\s+/g, '');
+       query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ?)';
+       params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
     } else if (search) {
        const cleanSearch = String(search).trim();
-       // Any character (letter, number, symbol) matches products across all fields:
+       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
+       // Any character (letter, number, symbol) matches products across all fields (with or without spaces):
        // name, barcode, item code, brand, category, HSN, and product id.
-       query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ? OR p.category LIKE ? OR p.hsn_sac_code LIKE ? OR p.product_id = ?)';
-       params.push(`%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, cleanSearch);
+       query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ? OR p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, \' \', \'\') LIKE ? OR p.category LIKE ? OR REPLACE(p.category, \' \', \'\') LIKE ? OR p.hsn_sac_code LIKE ? OR p.product_id = ?)';
+       params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, cleanSearch);
     }
 
     if (filterDate && String(filterDate).trim() !== '') {
@@ -930,12 +932,13 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
     else if (search) {
        const cleanSearch = String(search).trim();
+       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
        query += ` ORDER BY 
          CASE 
-           WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? THEN 1
-           WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? THEN 2
-           WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? THEN 3
-           WHEN p.name LIKE ? THEN 4
+           WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR REPLACE(p.sku_barcode, ' ', '') = ? OR REPLACE(p.item_code, ' ', '') = ? THEN 1
+           WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? THEN 2
+           WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? THEN 3
+           WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? THEN 4
            ELSE 5
          END ASC,
          CASE 
@@ -948,10 +951,10 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
          p.name COLLATE NOCASE ASC,
          p.product_id ASC`;
        params.push(
-         cleanSearch, cleanSearch,
-         `${cleanSearch}%`, `${cleanSearch}%`,
-         `%${cleanSearch}%`, `%${cleanSearch}%`,
-         `${cleanSearch}%`
+         cleanSearch, cleanSearch, cleanSearchNoSpace, cleanSearchNoSpace,
+         `${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`,
+         `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`,
+         `${cleanSearch}%`, `%${cleanSearchNoSpace}%`
        );
     }
     else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
@@ -994,9 +997,10 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     const params: any[] = [tenantId];
     
     if (arg?.search) {
-       // Mirror logic from db:getProducts — any character matches across all fields
-       query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ? OR brand_manufacturer LIKE ? OR category LIKE ? OR hsn_sac_code LIKE ? OR product_id = ?)';
-       params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, arg.search);
+       const cleanSearch = String(arg.search).trim();
+       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
+       query += ' AND (name LIKE ? OR REPLACE(name, \' \', \'\') LIKE ? OR sku_barcode LIKE ? OR REPLACE(sku_barcode, \' \', \'\') LIKE ? OR item_code LIKE ? OR REPLACE(item_code, \' \', \'\') LIKE ? OR brand_manufacturer LIKE ? OR REPLACE(brand_manufacturer, \' \', \'\') LIKE ? OR category LIKE ? OR REPLACE(category, \' \', \'\') LIKE ? OR hsn_sac_code LIKE ? OR product_id = ?)';
+       params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, cleanSearch);
     }
 
     if (arg?.filterDate && String(arg.filterDate).trim() !== '') {
@@ -5199,12 +5203,14 @@ ipcMain.handle('db:getScrapCategoriesBySearch', (event, { tenant_id, search }: {
   try {
     const db = getDb();
     if (!tenant_id || !search) return [];
+    const cleanSearch = String(search).trim();
+    const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
     return db.prepare(`
       SELECT * FROM scrap_categories 
-      WHERE tenant_id = ? AND is_deleted = 0 AND name LIKE ?
+      WHERE tenant_id = ? AND is_deleted = 0 AND (name LIKE ? OR REPLACE(name, ' ', '') LIKE ?)
       ORDER BY name COLLATE NOCASE ASC
       LIMIT 10
-    `).all(tenant_id, `%${search}%`);
+    `).all(tenant_id, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`);
   } catch (error: any) {
     console.error('[db:getScrapCategoriesBySearch]', error);
     return { error: 'Operation failed' };
@@ -6438,12 +6444,14 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
     const params: any[] = [tenant_id];
 
     if (search) {
-      if (/^\d+$/.test(search)) {
-        query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
-        params.push(`${search}%`, `${search}%`);
+      const cleanSearch = String(search).trim();
+      const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
+      if (/^\d+$/.test(cleanSearch)) {
+        query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ?)';
+        params.push(`${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`);
       } else {
-        query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
-        params.push(`%${search}%`, `${search}%`, `${search}%`);
+        query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ?)';
+        params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`);
       }
     }
 
