@@ -63,8 +63,9 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Walle
   { value: 'SPLIT', label: 'Split', icon: Split, color: 'text-purple-500' },
 ];
 
-function formatCurrency(amount: number): string {
-  return `\u20B9${amount.toFixed(2)}`;
+function formatCurrency(amount: any): string {
+  const num = Number(amount || 0);
+  return `\u20B9${(isNaN(num) ? 0 : num).toFixed(2)}`;
 }
 
 const scannerBurstTracker: Record<string, { count: number; lastTime: number; snapshot: number | string }> = {};
@@ -3760,9 +3761,9 @@ export function BillingPage() {
                     <tr>
                       <td class="border p-2 text-center">${idx + 1}</td>
                       <td class="border p-2">${item.name}</td>
-                      <td class="border p-2 text-center">${item.quantity}${item.weight > 0 ? ` (${item.weight.toFixed(3)} ${item.weight > 0 ? 'KG' : ''})` : ''}</td>
-                      <td class="border p-2 text-right">\u20B9${item.rate.toFixed(2)}</td>
-                      <td class="border p-2 text-right font-bold">\u20B9${item.amount.toFixed(2)}</td>
+                      <td class="border p-2 text-center">${item.quantity}${(Number(item.weight) || 0) > 0 ? ` (${(Number(item.weight) || 0).toFixed(3)} KG)` : ''}</td>
+                      <td class="border p-2 text-right">\u20B9${(Number(item.rate) || 0).toFixed(2)}</td>
+                      <td class="border p-2 text-right font-bold">\u20B9${(Number(item.amount) || 0).toFixed(2)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -6188,9 +6189,9 @@ export function BillingPage() {
           <div className="flex items-center gap-2 ml-auto">
             <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
               <Star className="w-3 h-3 text-emerald-500" />
-              <span className="text-xs font-bold text-emerald-600">{loyaltyCustomerData.pointsBalance.toFixed(0)} pts</span>
+              <span className="text-xs font-bold text-emerald-600">{(Number(loyaltyCustomerData?.pointsBalance) || 0).toFixed(0)} pts</span>
             </div>
-            {loyaltyCustomerData.pointsBalance > 0 && !showLoyaltyRedemption && (
+            {(Number(loyaltyCustomerData?.pointsBalance) || 0) > 0 && !showLoyaltyRedemption && (
               <button onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
                 className="px-2 py-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer">
                 Redeem
@@ -6205,9 +6206,9 @@ export function BillingPage() {
           <div className="flex items-center gap-2">
             <Gift className="w-4 h-4 text-amber-500 shrink-0" />
             <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
-            <input type="number" min="0" max={loyaltyCustomerData.pointsBalance}
+            <input type="number" min="0" max={Number(loyaltyCustomerData?.pointsBalance) || 0}
               value={pointsToRedeem || ''}
-              onChange={e => setPointsToRedeem(e.target.value === '' ? 0 : Math.min(Number(e.target.value), loyaltyCustomerData.pointsBalance))}
+              onChange={e => setPointsToRedeem(e.target.value === '' ? 0 : Math.min(Number(e.target.value), Number(loyaltyCustomerData?.pointsBalance) || 0))}
               className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
               placeholder="0" />
             <span className="text-xs text-muted-foreground">pts</span>
@@ -8722,7 +8723,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         paymentOptionRefs.current[paymentMethod]?.focus();
                       }
                     }}
-                    placeholder={grandTotal.toFixed(2)}
+                    placeholder={(Number(grandTotal) || 0).toFixed(2)}
                     inputMode="decimal"
                     className="w-full pl-5 pr-2 py-1.5 bg-background/80 border border-border focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />

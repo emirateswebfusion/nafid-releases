@@ -937,10 +937,10 @@ export function CustomersPage({
                                 tx.transaction_type === 'EARNED' ? 'text-emerald-600 dark:text-emerald-400' :
                                 tx.transaction_type === 'REDEEMED' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600'
                               )}>
-                                {tx.transaction_type === 'EARNED' ? '+' : '-'}{tx.points.toFixed(0)} pts
+                                {tx.transaction_type === 'EARNED' ? '+' : '-'}{(Number(tx.points) || 0).toFixed(0)} pts
                               </p>
                               <p className="text-[10px] text-muted-foreground font-bold mt-0.5">
-                                Balance: {tx.points_balance_after.toFixed(0)} pts
+                                Balance: {(Number(tx.points_balance_after) || 0).toFixed(0)} pts
                               </p>
                             </div>
                           </div>
@@ -1050,7 +1050,7 @@ export function CustomersPage({
               {loyaltyEnabled && viewingInvoice.points_earned > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Loyalty Points Earned:</span>
-                  <span>+{viewingInvoice.points_earned.toFixed(0)} pts</span>
+                  <span>+{(Number(viewingInvoice.points_earned) || 0).toFixed(0)} pts</span>
                 </div>
               )}
               {loyaltyEnabled && viewingInvoice.points_redeemed > 0 && (
