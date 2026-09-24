@@ -42,6 +42,10 @@ export interface CartItem {
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
   combo_price?: number;
   hsn_sac_code?: string | null;
+  pricing_tier_id?: string | null;
+  pricing_tier_name?: string | null;
+  is_tier_overridden?: boolean;
+  original_base_price?: number;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -83,6 +87,7 @@ interface CartState {
   updateItemDiscount: (productId: string, type: 'PERCENT' | 'FLAT', value: number) => void;
   removeItemDiscount: (productId: string) => void;
   updateItemOfferPrice: (productId: string, price: number | null) => void;
+  updateItemPricingTier: (productId: string, tierId: string | null, tierName: string | null, newPrice: number) => void;
   setDiscount: (value: number, type: 'FIXED' | 'PERCENTAGE') => void;
   setInvoiceType: (type: InvoiceType) => void;
   setCustomerState: (state: string) => void;
@@ -171,12 +176,14 @@ export const useCartStore = create<CartState>()(
           const catalogDiscPct = newItem.catalog_discount_percent !== undefined ? newItem.catalog_discount_percent : (newItem.discount_percent ?? null);
           const catalogDiscFlat = newItem.catalog_discount_flat !== undefined ? newItem.catalog_discount_flat : (newItem.discount_flat ?? null);
           const catalogOfferPrice = newItem.catalog_offer_price !== undefined ? newItem.catalog_offer_price : (newItem.offer_price ?? null);
+          const origPrice = newItem.original_base_price ?? newItem.base_price;
           return {
             lastAddedProductId: newItem.product_id,
             items: [
               ...state.items,
               {
                 ...newItem,
+                original_base_price: origPrice,
                 catalog_discount_percent: catalogDiscPct,
                 catalog_discount_flat: catalogDiscFlat,
                 catalog_offer_price: catalogOfferPrice,
@@ -237,6 +244,20 @@ export const useCartStore = create<CartState>()(
           items: state.items.map(i =>
             i.product_id === productId
               ? { ...i, offer_price: price, discount_percent: null, discount_flat: null }
+              : i
+          ),
+        })),
+      updateItemPricingTier: (productId, tierId, tierName, newPrice) =>
+        set((state) => ({
+          items: state.items.map(i =>
+            i.product_id === productId
+              ? {
+                  ...i,
+                  pricing_tier_id: tierId,
+                  pricing_tier_name: tierName,
+                  is_tier_overridden: true,
+                  base_price: newPrice,
+                }
               : i
           ),
         })),

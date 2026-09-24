@@ -8,6 +8,7 @@ export interface InvoiceItemDisplay {
   total: number;
   originalRate?: number;
   discountLabel?: string;
+  isPriceOverride?: boolean;
   brand?: string;
   billing_type?: string;
   pieces_override?: number;
@@ -84,9 +85,17 @@ export interface InvoiceData {
   returnDeduction?: number;
   returnInvoiceNumber?: string;
   showProductOffers?: boolean;
+  showPriceOverrideMrp?: boolean;
   billSettings?: BillSettings;
   isB2B?: boolean;
   a5Orientation?: 'horizontal' | 'vertical';
+}
+
+function shouldShowItemMrpHtml(data: InvoiceData, item: InvoiceItemDisplay): boolean {
+  if (item.isPriceOverride) {
+    return data.showPriceOverrideMrp !== false;
+  }
+  return data.showProductOffers !== false;
 }
 
 function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
@@ -569,7 +578,8 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:9.5px; color:#6b21a8; font-weight:800; letter-spacing:0.3px;">[COMBO OFFER]</b> <span style="font-size:9px; color:#4b5563; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
-    const offerHtml = data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px; color:#dc2626; font-weight:600;">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
+    const offerLabelText = item.discountLabel || (item.originalRate != null && item.originalRate !== item.unit_price ? 'Offer' : '');
+    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px; color:#dc2626; font-weight:600;">${offerLabelText}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
 
     const hsnCode = item.hsn || item.hsn_code || '-';
     const qtyNum = Number(item.quantity) || 1;
@@ -1041,10 +1051,12 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     const middleCols = isRateQty
       ? `<td class="text-right">₹${fmt.displayRate}</td><td class="text-center">${fmt.displayQty}</td>`
       : `<td class="text-center">${fmt.displayQty}</td><td class="text-right">₹${fmt.displayRate}</td>`;
+    const offerLabelText = item.discountLabel || (item.originalRate != null && item.originalRate !== item.unit_price ? 'Offer' : '');
+    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span class="discount-badge">${offerLabelText}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
     return `
     <tr>
       <td class="text-center">${idx + 1}</td>
-      <td>${displayName}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td>${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
       <td class="text-right">₹${fmt.displayTotal}</td>
     </tr>
@@ -1174,10 +1186,12 @@ function generateModernHtml(data: InvoiceData, title: string): string {
     const middleCols = isRateQty
       ? `<td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td><td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td>`
       : `<td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td>`;
+    const offerLabelText = item.discountLabel || (item.originalRate != null && item.originalRate !== item.unit_price ? 'Offer' : '');
+    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${offerLabelText}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
     return `
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">${idx + 1}</td>
-      <td style="padding:6px 4px;font-size:11px;color:#374151">${displayName}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td style="padding:6px 4px;font-size:11px;color:#374151">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹${fmt.displayTotal}</td>
     </tr>
@@ -1312,10 +1326,12 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
     const middleCols = isRateQty
       ? `<td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayRate}</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${fmt.displayQty}</td>`
       : `<td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${fmt.displayQty}</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayRate}</td>`;
+    const offerLabelText = item.discountLabel || (item.originalRate != null && item.originalRate !== item.unit_price ? 'Offer' : '');
+    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${offerLabelText}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
     return `
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${idx + 1}</td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${displayName}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayTotal}</td>
     </tr>

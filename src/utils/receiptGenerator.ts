@@ -7,6 +7,7 @@ export interface ReceiptItem {
   total: number;
   originalRate?: number;
   discountLabel?: string;
+  isPriceOverride?: boolean;
   brand?: string;
   billing_type?: string;
   pieces_sold?: number;
@@ -314,6 +315,7 @@ export interface ReceiptData {
   referenceInvoiceNumber?: string;
   refundMethod?: string;
   showProductOffers?: boolean;
+  showPriceOverrideMrp?: boolean;
   billSettings?: BillSettings;
   isB2B?: boolean;
   // Loyalty points fields
@@ -328,6 +330,13 @@ export interface ReceiptData {
   bankAccount?: string;
   bankIfsc?: string;
   bankBranch?: string;
+}
+
+export function shouldShowItemMrp(data: ReceiptData, item: ReceiptItem): boolean {
+  if (item.isPriceOverride) {
+    return data.showPriceOverrideMrp !== false;
+  }
+  return data.showProductOffers !== false;
 }
 
 /**
@@ -642,7 +651,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           text += `${comboInc.substring(0, charsPerLine)}\n`;
         }
       }
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         const mrpLine = `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         const clipped = mrpLine.length > charsPerLine ? mrpLine.substring(0, charsPerLine - 3) + '..' : mrpLine;
         text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
@@ -713,7 +722,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -804,13 +813,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += ` MRP ${item.originalRate.toFixed(2)}@${fmt.displayRate}`;
         if (item.discountLabel) text += ` (${item.discountLabel})`;
         text += ` ${qtyRateText}\n`;
       } else {
         text += ` ${qtyRateText}\n`;
-        if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
+        if (shouldShowItemMrp(data, item) && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
 
@@ -864,7 +873,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings: number = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -962,13 +971,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate} x ${fmt.displayQty}` : `${fmt.displayQty} x ${fmt.displayRate}`;
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         text += item.discountLabel ? ` (~ ${item.discountLabel})\n` : '\n';
         text += `  ${qtyRateText}\n`;
       } else {
         text += `  ${qtyRateText}\n`;
-        if (data.showProductOffers !== false && item.discountLabel) text += `  ~ ${item.discountLabel}\n`;
+        if (shouldShowItemMrp(data, item) && item.discountLabel) text += `  ~ ${item.discountLabel}\n`;
       }
     });
 
@@ -1028,7 +1037,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -1135,7 +1144,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           }
         });
         if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
-        if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+        if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
           text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
         }
       });
@@ -1160,7 +1169,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           }
         });
         if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
-        if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+        if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
           text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
         }
       });
@@ -1224,7 +1233,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -1336,13 +1345,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate} x ${fmt.displayQty}` : `${fmt.displayQty} x ${fmt.displayRate}`;
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `     MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         text += item.discountLabel ? `  [${item.discountLabel}]\n` : '\n';
         text += `     ${qtyRateText}\n`;
       } else {
         text += `     ${qtyRateText}\n`;
-        if (data.showProductOffers !== false && item.discountLabel) text += `     [${item.discountLabel}]\n`;
+        if (shouldShowItemMrp(data, item) && item.discountLabel) text += `     [${item.discountLabel}]\n`;
       }
     });
 
@@ -1402,7 +1411,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -1503,12 +1512,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
         text += `  ${qtyRateText}\n`;
       } else {
         text += `  ${qtyRateText}\n`;
-        if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
+        if (shouldShowItemMrp(data, item) && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
     text += DASH + '\n';
@@ -1568,7 +1577,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -1639,11 +1648,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += ` ${qtyRateText}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
       } else {
         text += ` ${qtyRateText}\n`;
-        if (data.showProductOffers !== false && item.discountLabel) text += ` ${item.discountLabel}\n`;
+        if (shouldShowItemMrp(data, item) && item.discountLabel) text += ` ${item.discountLabel}\n`;
       }
     });
 
@@ -1685,7 +1694,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved (skip for scrap) ──
     if (data.invoiceType !== 'SCRAP') {
       const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
         return sum;
       }, 0);
       const totalSaved = perProductSavings + data.discount;
@@ -1777,14 +1786,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate} \u00D7 ${fmt.displayQty}` : `${fmt.displayQty} \u00D7 ${fmt.displayRate}`;
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `     ${qtyRateText}`;
         text += `    MRP \u20B9${item.originalRate.toFixed(2)}`;
         text += item.discountLabel ? ` (${item.discountLabel})` : '';
         text += '\n';
       } else {
         text += `     ${qtyRateText}\n`;
-        if (data.showProductOffers !== false && item.discountLabel) text += `     ${item.discountLabel}\n`;
+        if (shouldShowItemMrp(data, item) && item.discountLabel) text += `     ${item.discountLabel}\n`;
       }
     });
     text += '\n';
@@ -1841,14 +1850,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += centerText(`You Saved \u20B9${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
-      text += THIN + '\n';
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (shouldShowItemMrp(data, item) && item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += centerText(`You Saved \u20B9${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
+        text += THIN + '\n';
+      }
     }
 
     // ── UPI ──
@@ -2069,7 +2080,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const qty = fmt.displayQty;
       const rate = fmt.displayRate;
       const amt = fmt.displayTotal;
-      const mrpStr = mrpW && item.originalRate ? item.originalRate.toFixed(2) : '';
+      const mrpStr = (shouldShowItemMrp(data, item) && mrpW && item.originalRate) ? item.originalRate.toFixed(2) : '';
       const isComboItem = Boolean(item.isCombo || (item.combo_items && item.combo_items.length > 0));
       const baseName = item.name || '';
       const rawName = isComboItem && !/\b(COMBO|Combo|combo)\b/i.test(baseName) ? `[COMBO] ${baseName}` : baseName;
@@ -2103,7 +2114,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
 
       // MRP offer note — aligned under the Product column with Sr. column divider intact
-      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+      if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         const offerWidths = [idxW, INNER - idxW - 1];
         // 1. Add a small gap row before the offer note (45% line-height) - no extra column dividers
         text += '[[LH:0.45]]' + B_ROW(['', ''], offerWidths);
@@ -2172,7 +2183,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── You Saved ─────────────────────────────────────────────────────────────
     if (data.invoiceType !== 'SCRAP') {
       const perSaved = data.items.reduce((s, item) =>
-        item.originalRate != null ? s + (item.originalRate - item.unit_price) * Number(item.quantity) : s, 0);
+        (shouldShowItemMrp(data, item) && item.originalRate != null) ? s + (item.originalRate - item.unit_price) * Number(item.quantity) : s, 0);
       const totalSaved = perSaved + data.discount;
       if (totalSaved > 0) {
         text += B_MID();

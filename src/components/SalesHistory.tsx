@@ -717,16 +717,30 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const soldPrice = Number(item.unit_price) || 0;
       let originalRate: number | undefined;
       let discountLabel: string | undefined;
+      let isPriceOverride = false;
       if (mrp > 0 && soldPrice < mrp) {
         const offerPrice = p?.offer_price ? Number(p.offer_price) : null;
+        const catalogDiscFlat = p?.discount_flat ? Number(p.discount_flat) : null;
+        const catalogDiscPct = p?.discount_percent ? Number(p.discount_percent) : null;
+        const catalogPrice = offerPrice !== null ? offerPrice
+          : catalogDiscFlat !== null ? mrp - catalogDiscFlat
+          : catalogDiscPct !== null ? mrp * (1 - catalogDiscPct / 100)
+          : mrp;
+
         if (offerPrice !== null && Math.abs(offerPrice - soldPrice) < 0.01) {
           originalRate = mrp;
           discountLabel = 'Offer';
+          isPriceOverride = false;
+        } else if (catalogPrice < mrp && Math.abs(catalogPrice - soldPrice) < 0.01) {
+          originalRate = mrp;
+          discountLabel = catalogDiscFlat ? `-₹${catalogDiscFlat.toFixed(0)}` : catalogDiscPct ? `${catalogDiscPct}% OFF` : 'Offer';
+          isPriceOverride = false;
         } else {
           const diff = mrp - soldPrice;
           if (diff >= 0.05) {
             originalRate = mrp;
             discountLabel = `-₹${diff.toFixed(0)}`;
+            isPriceOverride = true;
           }
         }
       }
@@ -741,6 +755,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         ...item,
         originalRate,
         discountLabel,
+        isPriceOverride,
         brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined,
         billing_type: p?.billing_type || item.billing_type || undefined,
         pieces_per_kg: pcsPerKg,
@@ -866,6 +881,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+        showPriceOverrideMrp: printFmt?.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
         invoiceNumber: selectedInvoice.invoice_number,
         date: formatBillDateTime(selectedInvoice.created_at),
         billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (selectedInvoice.biller_name || undefined) : undefined,

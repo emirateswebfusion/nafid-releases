@@ -3,10 +3,13 @@ import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb, Landmark,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
-  Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff,
+  Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode
 } from 'lucide-react';
+import { BillingUICustomizer } from './BillingUICustomizer';
+import { LedgerTerminologySettings } from './LedgerTerminologySettings';
+import { useBillingUIStore, type BillingUIConfig } from '../store/billingUIStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
@@ -105,6 +108,8 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     category: 'Application',
     icon: Settings,
     items: [
+      { id: 'terminology', label: 'Ledger Terminology', icon: BookOpen },
+      { id: 'billing_ui', label: 'Billing Page Customizer', icon: Palette },
       { id: 'system', label: 'App Preferences', icon: Settings },
     ],
   },
@@ -229,6 +234,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
   const [showProductOffers, setShowProductOffers] = useState(true);
+  const [showPriceOverrideMrp, setShowPriceOverrideMrp] = useState(true);
   const [openCashDrawerOnPending, setOpenCashDrawerOnPending] = useState(false);
   const [receiptFont, setReceiptFont] = useState('courier');
   const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
@@ -255,6 +261,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
   const [enablePartyGst, setEnablePartyGst] = useState(true);
   const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
+  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+  const [enableConvertToGst, setEnableConvertToGst] = useState(true);
+  const [billingUIConfig, setBillingUIConfig] = useState<BillingUIConfig>(() => useBillingUIStore.getState().config);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -493,6 +502,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     bankIfsc: overrides.bankIfsc !== undefined ? overrides.bankIfsc : bankIfsc,
     bankBranch: overrides.bankBranch !== undefined ? overrides.bankBranch : bankBranch,
     showProductOffers: overrides.showProductOffers !== undefined ? overrides.showProductOffers : showProductOffers,
+    showPriceOverrideMrp: overrides.showPriceOverrideMrp !== undefined ? overrides.showPriceOverrideMrp : showPriceOverrideMrp,
     openCashDrawerOnPending: overrides.openCashDrawerOnPending !== undefined ? overrides.openCashDrawerOnPending : openCashDrawerOnPending,
     receiptFont: overrides.receiptFont !== undefined ? overrides.receiptFont : receiptFont,
     printFormat: overrides.printFormat !== undefined ? overrides.printFormat : printFormat,
@@ -535,6 +545,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     syncFrequency: overrides.syncFrequency !== undefined ? overrides.syncFrequency : syncFrequency,
     enablePartyGst: overrides.enablePartyGst !== undefined ? overrides.enablePartyGst : enablePartyGst,
     enablePartyEstimate: overrides.enablePartyEstimate !== undefined ? overrides.enablePartyEstimate : enablePartyEstimate,
+    enableRealPaperStock: overrides.enableRealPaperStock !== undefined ? overrides.enableRealPaperStock : enableRealPaperStock,
+    enableConvertToGst: overrides.enableConvertToGst !== undefined ? overrides.enableConvertToGst : enableConvertToGst,
+    billingUIConfig: JSON.stringify(overrides.billingUIConfig !== undefined ? overrides.billingUIConfig : billingUIConfig),
     features: JSON.stringify(overrides.featureFlags !== undefined ? overrides.featureFlags : featureFlags)
   });
 
@@ -543,7 +556,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, enableConvertToGst, billingUIConfig, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -636,6 +649,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
           'enable_party_gst_balance', 'enable_party_estimate_balance',
+          'enable_real_paper_stock', 'enable_convert_to_gst',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -826,6 +840,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       let finalA4Style: any = 'standard';
       let finalA5Orientation: 'horizontal' | 'vertical' = 'horizontal';
       let finalShowOffers = true;
+      let finalShowPriceOverrideMrp = true;
       let finalOpenCashDrawer = false;
       let finalReceiptFont = 'courier';
       let finalBillSettings = { ...DEFAULT_BILL_SETTINGS };
@@ -851,6 +866,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         }
         finalReceipt.receiptWidthCm = finalPrintWidth / 10;
         if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);
+        if (printFmt.showPriceOverrideMrp !== undefined) finalShowPriceOverrideMrp = Boolean(printFmt.showPriceOverrideMrp);
         if (printFmt.openCashDrawerOnPending !== undefined) finalOpenCashDrawer = Boolean(printFmt.openCashDrawerOnPending);
         if (printFmt.receiptFont) finalReceiptFont = printFmt.receiptFont;
         if (printFmt.billSettings) finalBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings };
@@ -969,6 +985,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setA4Style(finalA4Style);
       setA5Orientation(finalA5Orientation);
       setShowProductOffers(finalShowOffers);
+      setShowPriceOverrideMrp(finalShowPriceOverrideMrp);
       setOpenCashDrawerOnPending(finalOpenCashDrawer);
       setReceiptFont(finalReceiptFont);
       setBillSettings(finalBillSettings);
@@ -1000,6 +1017,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setEnablePartyGst(finalPartyGst);
       setEnablePartyEstimate(finalPartyEst);
 
+      const realPaperVal = allSettings['enable_real_paper_stock'];
+      const finalRealPaper = realPaperVal !== null && realPaperVal !== undefined ? Boolean(realPaperVal) : true;
+      setEnableRealPaperStock(finalRealPaper);
+
+      const convertGstVal = allSettings['enable_convert_to_gst'];
+      const finalConvertGst = convertGstVal !== null && convertGstVal !== undefined ? Boolean(convertGstVal) : true;
+      setEnableConvertToGst(finalConvertGst);
+
       initialSnapshot.current = buildSettingsSnapshot({
         barcodePrinter: finalBarcode,
         receiptPrinter: finalReceipt,
@@ -1019,6 +1044,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         bankIfsc: finalBankIfsc,
         bankBranch: finalBankBranch,
         showProductOffers: finalShowOffers,
+        showPriceOverrideMrp: finalShowPriceOverrideMrp,
         openCashDrawerOnPending: finalOpenCashDrawer,
         receiptFont: finalReceiptFont,
         printFormat: finalPrintFmt,
@@ -1220,7 +1246,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
@@ -1234,7 +1260,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'store_timezone', value: storeTimezone }), name: 'store_timezone' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock', value: enableRealPaperStock }), name: 'enable_real_paper_stock' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst', value: enableConvertToGst }), name: 'enable_convert_to_gst' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
@@ -1278,6 +1308,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setReceiptPrinter(formattedReceiptPrinter);
       setAppTimeFormat(timeFormat);
       useCartStore.setState({ shopState });
+      useBillingUIStore.getState().updateConfig(billingUIConfig);
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
       setEnableScrap(Boolean(featureFlags.scrap));
       if (activeSection === 'network') {
@@ -1296,6 +1327,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           products: 'Products & inventory settings',
           printing: 'Print template settings',
           print_options: 'Bill & print options',
+          billing_ui: 'Billing Page Customizer settings',
           system: 'App preferences',
           features: 'Feature module settings',
         };
@@ -1496,6 +1528,18 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     ].filter(t => !t.ownerOnly || isAdminRole(role));
 
     switch (sectionId) {
+      case 'terminology':
+        return <LedgerTerminologySettings />;
+      case 'billing_ui':
+        return (
+          <BillingUICustomizer
+            config={billingUIConfig}
+            onChange={(newCfg) => {
+              setBillingUIConfig(newCfg);
+              useBillingUIStore.getState().updateConfig(newCfg);
+            }}
+          />
+        );
       case 'store':
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
@@ -2232,6 +2276,36 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
               </div>
             )}
+
+            {/* Card: Real & Paper Stock Tracking */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <Package className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Real &amp; Paper Stock Tracking</h3>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Control Real vs Paper stock separation across purchase bills and reports</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                <div className="flex-1 min-w-0">
+                  <label className="text-xs font-bold text-foreground block">Real &amp; Paper Stock Tracking</label>
+                  <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                    Show Real / Paper stock selection in Purchase Bills, Inventory, and Stock Reports. When disabled, all GST purchases default to real physical stock.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableRealPaperStock(!enableRealPaperStock)}
+                  className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableRealPaperStock ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                  title={enableRealPaperStock ? 'Enabled' : 'Disabled'}
+                >
+                  <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableRealPaperStock ? 'translate-x-5' : 'translate-x-0')} />
+                </button>
+              </div>
+            </div>
           </div>
         );
       case 'printing':
@@ -2550,11 +2624,41 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Bills</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Pre-Set Catalog Offers on Bills</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Controls whether original MRP is shown for pre-set product catalog offers &amp; discounts created in Product Master (e.g. MRP ₹100 → Offer Price ₹80).</p>
                   </div>
                   <button type="button" onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowPriceOverrideMrp(!showPriceOverrideMrp)}>Show Old MRP on Price Overrides (Billing Page)</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Controls whether original MRP is shown when unit price is manually overridden or discounted directly on the Billing checkout page (e.g. MRP ₹100 → Overridden ₹80).</p>
+                  </div>
+                  <button type="button" onClick={() => setShowPriceOverrideMrp(!showPriceOverrideMrp)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPriceOverrideMrp ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPriceOverrideMrp ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => {
+                      const newVal = !billingUIConfig.showPurchasePriceInPOS;
+                      const updated = { ...billingUIConfig, showPurchasePriceInPOS: newVal };
+                      setBillingUIConfig(updated);
+                      useBillingUIStore.getState().updateConfig(updated);
+                    }}>Show Product Purchase Cost in Price Override Menu (View-Only)</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the product's cost/purchase price is shown in the Price Override &amp; Tier dropdown on POS for reference (View Only, non-selectable).</p>
+                  </div>
+                  <button type="button" onClick={() => {
+                    const newVal = !billingUIConfig.showPurchasePriceInPOS;
+                    const updated = { ...billingUIConfig, showPurchasePriceInPOS: newVal };
+                    setBillingUIConfig(updated);
+                    useBillingUIStore.getState().updateConfig(updated);
+                  }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billingUIConfig.showPurchasePriceInPOS ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billingUIConfig.showPurchasePriceInPOS ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
 
@@ -3007,6 +3111,68 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <p className="text-xs text-blue-700 dark:text-blue-400 font-medium leading-relaxed">
                     The selected code type will be used as the default for generating, previewing, and printing product labels. Existing labels remain unaffected.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Billing Security & Actions */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <Shield className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Billing Security &amp; Actions</span>
+              </div>
+
+              <div className="space-y-3.5">
+                {/* Convert to GST Toggle */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block">Convert to GST in Sales History</label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                      Show "Convert to GST" button in Sales History to convert Bill of Supply invoices to GST invoices.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEnableConvertToGst(!enableConvertToGst)}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableConvertToGst ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                    title={enableConvertToGst ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableConvertToGst ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {/* Biller PIN Protection Toggle */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block">Biller PIN Protection</label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Require security PIN before switching biller or completing billing actions</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFeatureFlags({ ...featureFlags, biller_pin: !featureFlags.biller_pin })}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.biller_pin ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                    title={featureFlags.biller_pin ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.biller_pin ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {/* Sales Staff Tracking Toggle */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block">Sales Staff Tracking</label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Track sales staff per invoice for performance and commission reporting</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFeatureFlags({ ...featureFlags, sales_staff: !featureFlags.sales_staff })}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.sales_staff ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                    title={featureFlags.sales_staff ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.sales_staff ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -3784,34 +3950,36 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         </div>
 
-        {/* â”€â”€ Main Content Area â”€â”€ */}
+        {/* ─── Main Content Area ─── */}
         <main className="flex-1 overflow-y-auto bg-background" style={{ scrollbarGutter: 'stable' }}>
-          <div className="max-w-3xl mx-auto p-6 lg:p-8 animate-in fade-in duration-300">
+          <div className="w-full max-w-7xl 2xl:max-w-full mx-auto p-6 lg:p-8 animate-in fade-in duration-300">
 
             {/* Section Header */}
             {activeItem && (
-              <div className="mb-8 flex justify-center text-center">
-                <div className="flex items-center gap-3.5 mb-1 select-none max-w-xl text-left">
+              <div className="mb-8 flex flex-col items-center justify-center text-center pb-5 border-b border-border/40 select-none">
+                <div className="flex items-center justify-center gap-3">
                   <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
-                    <activeItem.icon className="w-4.5 h-4.5" />
+                    <activeItem.icon className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h2 className="text-lg font-black text-foreground uppercase tracking-widest">{activeItem.label}</h2>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {activeItem.id === 'store' && 'Manage your shop profile, GST registration, invoice counters, and features.'}
-                      {activeItem.id === 'hardware' && 'Configure receipt printers, barcode label printers, scales, and hardware connections.'}
-                      {activeItem.id === 'products' && 'Manage product categories, grade pricing, and price coding alphabets.'}
-                      {activeItem.id === 'printing' && 'Select paper formats for normal print (BOS/Estimate) and customize invoice & thermal template styles.'}
-                      {activeItem.id === 'print_options' && 'Configure bill content checklists, T&C instructions, BOS tax rate, receipt typography, and label codes.'}
-                      {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
-                      {activeItem.id === 'network' && 'Configure Cloud API sync, Local Wi-Fi direct connections, and hybrid store networks.'}
-                      {activeItem.id === 'features' && 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.'}
-                    </p>
-                  </div>
+                  <h2 className="text-xl font-black text-foreground uppercase tracking-widest">{activeItem.label}</h2>
                   {activeItem.ownerOnly && (
-                    <span className="ml-4 px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold rounded-full border border-amber-500/20 shrink-0 uppercase tracking-wider select-none">OWNER ONLY</span>
+                    <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold rounded-full border border-amber-500/20 shrink-0 uppercase tracking-wider select-none">
+                      OWNER ONLY
+                    </span>
                   )}
                 </div>
+                <p className="text-xs text-muted-foreground mt-2 max-w-2xl text-center leading-relaxed font-medium">
+                  {activeItem.id === 'store' && 'Manage your shop profile, GST registration, invoice counters, and features.'}
+                  {activeItem.id === 'terminology' && 'Customise how Receivable, Payable, Received, and Paid terms are displayed across ledgers and reports.'}
+                  {activeItem.id === 'hardware' && 'Configure receipt printers, barcode label printers, scales, and hardware connections.'}
+                  {activeItem.id === 'products' && 'Manage product categories, grade pricing, and price coding alphabets.'}
+                  {activeItem.id === 'printing' && 'Select paper formats for normal print (BOS/Estimate) and customize invoice & thermal template styles.'}
+                  {activeItem.id === 'print_options' && 'Configure bill content checklists, T&C instructions, BOS tax rate, receipt typography, and label codes.'}
+                  {activeItem.id === 'billing_ui' && 'Rearrange POS billing columns, customize theme colors, adjust touchscreen target density, and tailor layout for cashiers.'}
+                  {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
+                  {activeItem.id === 'network' && 'Configure Cloud API sync, Local Wi-Fi direct connections, and hybrid store networks.'}
+                  {activeItem.id === 'features' && 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.'}
+                </p>
               </div>
             )}
 

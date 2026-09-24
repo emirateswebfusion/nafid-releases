@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { useTerminologyStore } from '../store/terminologyStore';
 import { fetchApi } from '../lib/api';
 import {
   Search, Loader2, UserPlus, Handshake,
@@ -130,6 +131,7 @@ export function PartyManager({
   const { tenantId, userId, userName, role } = useAuthStore();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
+  const tLabels = useTerminologyStore(state => state.getLabels());
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
   const listScrollRef = useRef<HTMLDivElement>(null);
@@ -820,8 +822,8 @@ export function PartyManager({
                 </div>
                 <div>
                   <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
-                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Receivable</p>
-                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">Owed to you</p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">{tLabels.receivable}</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{tLabels.receivableSub}</p>
                 </div>
               </div>
 
@@ -832,8 +834,8 @@ export function PartyManager({
                 </div>
                 <div>
                   <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
-                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Payable</p>
-                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">You owe</p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">{tLabels.payable}</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{tLabels.payableSub}</p>
                 </div>
               </div>
 
@@ -1109,7 +1111,7 @@ export function PartyManager({
                           isPayable ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
                           'bg-muted border-border text-muted-foreground'
                         )}>
-                          {isReceivable ? 'To Receive' : isPayable ? 'To Pay' : 'Settled'}
+                          {isReceivable ? tLabels.receivable : isPayable ? tLabels.payable : 'Settled'}
                         </span>
                         {party.credit_limit != null && Number(party.credit_limit) > 0 && isReceivable && (
                           <div className="mt-0.5 text-[9px]">
@@ -1583,7 +1585,7 @@ export function PartyManager({
                   ₹{Math.abs(selectedParty.balance).toFixed(2)}
                 </p>
                 <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
-                  {selectedParty.balance > 0 ? 'To Receive' : selectedParty.balance < 0 ? 'To Pay' : 'Settled'}
+                  {selectedParty.balance > 0 ? tLabels.receivable : selectedParty.balance < 0 ? tLabels.payable : 'Settled'}
                 </p>
                 {enablePartyGst && enablePartyEstimate && (
                   <div className="mt-1.5 pt-1.5 border-t border-white/20 flex flex-col items-end gap-0.5">

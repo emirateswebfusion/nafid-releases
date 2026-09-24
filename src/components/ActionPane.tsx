@@ -182,25 +182,54 @@ export function ActionPane() {
           upiId: activeTab?.selectedUpiId || upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+          showPriceOverrideMrp: printFmt.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
           invoiceNumber: invoice_number,
           date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
           items: items.map(item => {
-            const effectiveRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
+            const rawRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
               ? Number(item.grade_rate)
               : Number(item.base_price || 0);
                
             const pieceCount = Number(item.quantity) || 0;
 
+            let effectiveRate = rawRate;
+            if (item.offer_price != null && Number(item.offer_price) > 0) {
+              effectiveRate = Number(item.offer_price);
+            } else if (item.discount_flat != null && Number(item.discount_flat) > 0) {
+              effectiveRate = Math.max(0, rawRate - Number(item.discount_flat));
+            } else if (item.discount_percent != null && Number(item.discount_percent) > 0) {
+              effectiveRate = Math.max(0, rawRate * (1 - Number(item.discount_percent) / 100));
+            }
+
             let itemTotal = effectiveRate * pieceCount;
 
             const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
             
+            let originalRate: number | undefined;
+            let discountLabel: string | undefined;
+            let isPriceOverride = false;
+            if (rawRate > ratePerPiece + 0.005) {
+              originalRate = rawRate;
+              isPriceOverride = true;
+              originalRate = rawRate;
+              if (item.discount_flat != null && Number(item.discount_flat) > 0) {
+                discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
+              } else if (item.discount_percent != null && Number(item.discount_percent) > 0) {
+                discountLabel = `${item.discount_percent}% OFF`;
+              } else {
+                discountLabel = 'Offer';
+              }
+            }
+
             return {
               name: item.name,
               quantity: pieceCount,
               unit_price: ratePerPiece,
               total: itemTotal,
+              originalRate,
+              discountLabel,
+              isPriceOverride,
               brand: item.brand_manufacturer || undefined,
               billing_type: item.billing_type,
               pieces_sold: item.pieces_override != null ? Number(item.pieces_override) : undefined,

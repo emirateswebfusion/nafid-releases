@@ -27,6 +27,7 @@ import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole, formatRoleName } from '../utils/permissions';
+import { useBillingUIStore } from '../store/billingUIStore';
 
 
 const INDIAN_STATES = [
@@ -98,11 +99,19 @@ interface ItemTotalInputProps {
   qty: number;
   hasDiscount: boolean;
   isScrap?: boolean;
+  purchasePrice?: number;
+  showPurchasePrice?: boolean;
+  tierPricesMap?: Record<string, number>;
+  pricingTiers?: any[];
+  basePrice?: number;
+  selectedTierId?: string | null;
+  onSelectTier?: (productId: string, tierId: string | null, tierName: string | null, newPrice: number) => void;
   onUpdateOfferPrice: (productId: string, unitPrice: number) => void;
   onRemoveDiscount: (productId: string) => void;
   onClearLocalDiscounts: (productId: string) => void;
   syncActiveSnapshot: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputRef?: (el: HTMLInputElement | null) => void;
 }
 
 function ItemTotalInput({
@@ -112,14 +121,39 @@ function ItemTotalInput({
   qty,
   hasDiscount,
   isScrap = false,
+  purchasePrice,
+  showPurchasePrice = false,
+  tierPricesMap,
+  pricingTiers,
+  basePrice,
+  selectedTierId,
+  onSelectTier,
   onUpdateOfferPrice,
   onRemoveDiscount,
   onClearLocalDiscounts,
   syncActiveSnapshot,
   onKeyDown,
+  inputRef,
 }: ItemTotalInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [localVal, setLocalVal] = useState<string>(() => (total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : ''));
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
+  const [isNavigatingMenu, setIsNavigatingMenu] = useState(false);
+
+  const options = useMemo(() => {
+    if (!pricingTiers || pricingTiers.length === 0) return [];
+    const bp = basePrice ?? rate;
+    const list: Array<{ tierId: string; name: string; unitPrice: number }> = [
+      { tierId: '', name: 'Base (MRP)', unitPrice: bp }
+    ];
+    pricingTiers.forEach((t: any) => {
+      const p = tierPricesMap?.[t.pricing_tier_id];
+      if (p != null && p > 0) {
+        list.push({ tierId: t.pricing_tier_id, name: t.name, unitPrice: p });
+      }
+    });
+    return list;
+  }, [pricingTiers, tierPricesMap, basePrice, rate]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -127,13 +161,26 @@ function ItemTotalInput({
     }
   }, [total, isFocused]);
 
+  const handleChooseOption = (opt: { tierId: string; name: string; unitPrice: number }) => {
+    const effectiveQty = qty > 0 ? qty : 1;
+    const newTotal = opt.unitPrice * effectiveQty;
+    setLocalVal(Number.isInteger(newTotal) ? String(newTotal) : newTotal.toFixed(2));
+    if (onSelectTier) {
+      onSelectTier(productId, opt.tierId || null, opt.tierId ? opt.name : null, opt.unitPrice);
+    } else {
+      onUpdateOfferPrice(productId, opt.unitPrice);
+    }
+    onClearLocalDiscounts(productId);
+    setIsFocused(false);
+    setIsNavigatingMenu(false);
+    syncActiveSnapshot();
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsNavigatingMenu(false);
     const raw = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
     setLocalVal(raw);
 
-    // If input is empty or mid-decimal (e.g. user backspaced all characters),
-    // allow the field to remain empty so they can type the new value.
-    // NEVER revert to default catalog rate while typing!
     if (raw === '' || isNaN(parseFloat(raw))) {
       return;
     }
@@ -155,11 +202,14 @@ function ItemTotalInput({
   };
 
   const handleBlur = () => {
-    setIsFocused(false);
+    setTimeout(() => {
+      setIsFocused(false);
+      setIsNavigatingMenu(false);
+    }, 150);
+
     const parsed = parseFloat(localVal);
 
     if (localVal === '' || isNaN(parsed) || parsed < 0) {
-      // User left it blank or invalid when clicking away: restore base rate * qty
       onRemoveDiscount(productId);
       onClearLocalDiscounts(productId);
       const effectiveQty = qty > 0 ? qty : 1;
@@ -182,32 +232,113 @@ function ItemTotalInput({
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(true);
+    setIsNavigatingMenu(false);
+    if (options.length > 0) {
+      const activeIdx = options.findIndex(o => o.tierId === (selectedTierId ?? ''));
+      setSelectedOptionIndex(activeIdx >= 0 ? activeIdx : 0);
+    }
     e.target.select();
   };
 
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (options.length > 0 && isFocused) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setIsNavigatingMenu(true);
+        setSelectedOptionIndex(prev => (prev + 1) % options.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsNavigatingMenu(true);
+        setSelectedOptionIndex(prev => (prev - 1 + options.length) % options.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        if (isNavigatingMenu && options[selectedOptionIndex]) {
+          e.preventDefault();
+          handleChooseOption(options[selectedOptionIndex]);
+          onKeyDown?.(e);
+          return;
+        }
+      }
+    }
+
     if (e.key === 'Enter') {
       handleBlur();
     }
     onKeyDown?.(e);
   };
 
+  const hasPurchaseCost = Boolean(showPurchasePrice && purchasePrice != null && purchasePrice > 0);
+  const shouldShowMenu = isFocused && (options.length > 0 || hasPurchaseCost);
+
   return (
-    <input
-      type="text"
-      inputMode="decimal"
-      className={clsx(
-        "w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-        isScrap
-          ? (hasDiscount ? "text-emerald-500" : "text-orange-600 dark:text-orange-400")
-          : (hasDiscount ? "text-emerald-500" : "text-foreground")
+    <div className="relative inline-block">
+      {shouldShowMenu && (
+        <div className="absolute right-0 top-full mt-1.5 min-w-[210px] bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 px-2 py-1 border-b border-slate-700/80 mb-1 flex items-center justify-between">
+            <span>Price Tier & Override</span>
+            {options.length > 0 && <span className="text-[8px] text-slate-400">↑↓ Select · Enter Confirm</span>}
+          </div>
+          {options.length > 0 && (
+            <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
+              {options.map((opt, idx) => {
+                const isHighlighted = idx === selectedOptionIndex;
+                const effectiveQty = qty > 0 ? qty : 1;
+                const optTotal = opt.unitPrice * effectiveQty;
+                return (
+                  <button
+                    key={opt.tierId || 'base'}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleChooseOption(opt);
+                    }}
+                    className={clsx(
+                      "w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer",
+                      isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-slate-800/80 text-slate-200"
+                    )}
+                  >
+                    <span className="truncate">{opt.name}</span>
+                    <span className="font-mono font-black shrink-0 ml-2">₹{optTotal % 1 === 0 ? optTotal : optTotal.toFixed(2)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {hasPurchaseCost && (
+            <div className="mt-1.5 pt-1.5 border-t border-slate-700/80 px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[8px] font-black uppercase rounded tracking-wider border border-amber-500/30">
+                  VIEW ONLY
+                </span>
+                <span>Purchase Cost:</span>
+              </div>
+              <span className="font-mono font-black text-amber-200">
+                ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
+              </span>
+            </div>
+          )}
+        </div>
       )}
-      value={localVal}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDownInternal}
-    />
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        className={clsx(
+          "w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          isScrap
+            ? (hasDiscount ? "text-emerald-500" : "text-orange-600 dark:text-orange-400")
+            : (hasDiscount ? "text-emerald-500" : "text-foreground")
+        )}
+        value={localVal}
+        onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDownInternal}
+      />
+    </div>
   );
 }
 
@@ -273,12 +404,17 @@ function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; pho
 }
 
 export function BillingPage() {
+  const { config: uiConfig } = useBillingUIStore();
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const kRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discFlatRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const tierRefs = useRef<Record<string, HTMLSelectElement | null>>({});
+  const totalInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const checkoutBtnRef = useRef<HTMLButtonElement | null>(null);
+  const upiSourceRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   // Scanner-burst protection for qty-like inputs: a barcode scanner types digits at
   // ~10-20ms intervals. If the qty field has focus when the trigger is pulled, those
   // digits land in the input instead of being added to the cart. We detect the burst
@@ -290,7 +426,7 @@ export function BillingPage() {
   const {
     items, lastAddedProductId, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
-    addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice, updatePiecesOverride,
+    addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice, updatePiecesOverride, updateItemPricingTier,
     customerState, setCustomerState,
     scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
     setScrapDeduction, clearScrapDeduction,
@@ -481,6 +617,7 @@ export function BillingPage() {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
   const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
+  const [mostSoldProducts, setMostSoldProducts] = useState<any[]>([]);
   const [newProductGrades, setNewProductGrades] = useState<any[]>([]);
   const [newProductGradeId, setNewProductGradeId] = useState('');
   const [newProductIsAddingGrade, setNewProductIsAddingGrade] = useState(false);
@@ -1043,8 +1180,12 @@ export function BillingPage() {
   // receivedAmount stays 0 until user enters a value — no auto-fill to grandTotal
 
   useEffect(() => {
-    searchRef.current?.focus();
-  }, [activeTabId]);
+    if (uiConfig.entryFocusOrder === 'customer-first') {
+      customerNameInputRef.current?.focus();
+    } else {
+      searchRef.current?.focus();
+    }
+  }, [activeTabId, uiConfig.entryFocusOrder]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -1554,6 +1695,38 @@ export function BillingPage() {
       loadCategoriesAndGrades();
     }
   }, [showProductCreateForm, loadCategoriesAndGrades]);
+
+  // Fetch most sold products for 3-column express layout
+  useEffect(() => {
+    if (!window.electronAPI || !tenantId) return;
+    let cancelled = false;
+
+    const fetchMostSold = async () => {
+      try {
+        if (window.electronAPI.dbGetProductSalesSummary) {
+          const summary = await window.electronAPI.dbGetProductSalesSummary({ tenant_id: tenantId || 'global' });
+          if (!cancelled && Array.isArray(summary) && summary.length > 0) {
+            const sorted = summary
+              .filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge')
+              .sort((a: any, b: any) => ((Number(b.gst_qty || 0) + Number(b.bos_qty || 0)) - (Number(a.gst_qty || 0) + Number(a.bos_qty || 0))));
+            if (sorted.length > 0) {
+              setMostSoldProducts(sorted.slice(0, 30));
+              return;
+            }
+          }
+        }
+        const prods = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 30 });
+        if (!cancelled && Array.isArray(prods)) {
+          setMostSoldProducts(prods.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
+        }
+      } catch (err) {
+        console.error('[BillingPage] Failed to fetch most sold products:', err);
+      }
+    };
+
+    fetchMostSold();
+    return () => { cancelled = true; };
+  }, [tenantId, uiConfig.orientation, uiConfig.showQuickCategoryBar]);
 
   // Scrap category search (when scrap mode active - categories ARE items)
   useEffect(() => {
@@ -2482,6 +2655,10 @@ export function BillingPage() {
       sku_barcode: product.sku_barcode || null,
       brand_manufacturer: product.brand_manufacturer || null,
       isServiceItem: Number(product.is_service_item) ? true : undefined,
+      pricing_tier_id: selectedTierId || null,
+      pricing_tier_name: pricingTiers.find(t => t.pricing_tier_id === selectedTierId)?.name || null,
+      original_base_price: product.base_price,
+      is_tier_overridden: false,
       quantity: initialQtyForProduct,
     });
     setSearchQuery('');
@@ -3733,10 +3910,18 @@ export function BillingPage() {
   const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // After confirming qty, return focus to the search field so the cashier
-      // can immediately scan or type the next product barcode.
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      if (discRefs.current[productId]) {
+        discRefs.current[productId]?.focus();
+        discRefs.current[productId]?.select();
+      } else if (tierRefs.current[productId]) {
+        tierRefs.current[productId]?.focus();
+      } else if (totalInputRefs.current[productId]) {
+        totalInputRefs.current[productId]?.focus();
+        totalInputRefs.current[productId]?.select();
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
     } else if (e.key === 'ArrowDown') {
       const idx = items.findIndex(i => i.product_id === productId);
       if (idx !== -1 && idx < items.length - 1) {
@@ -3806,7 +3991,18 @@ export function BillingPage() {
     if (e.key === 'Enter') {
       e.preventDefault();
       const flatInput = discFlatRefs.current[productId];
-      if (flatInput) { flatInput.focus(); flatInput.select(); }
+      if (flatInput) {
+        flatInput.focus();
+        flatInput.select();
+      } else if (tierRefs.current[productId]) {
+        tierRefs.current[productId]?.focus();
+      } else if (totalInputRefs.current[productId]) {
+        totalInputRefs.current[productId]?.focus();
+        totalInputRefs.current[productId]?.select();
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       qtyRefs.current[productId]?.focus();
@@ -3841,8 +4037,15 @@ export function BillingPage() {
   const handleDiscFlatKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      if (tierRefs.current[productId]) {
+        tierRefs.current[productId]?.focus();
+      } else if (totalInputRefs.current[productId]) {
+        totalInputRefs.current[productId]?.focus();
+        totalInputRefs.current[productId]?.select();
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       discRefs.current[productId]?.focus();
@@ -3862,6 +4065,41 @@ export function BillingPage() {
         const prevId = items[idx - 1].product_id;
         discFlatRefs.current[prevId]?.focus();
         discFlatRefs.current[prevId]?.select();
+      }
+    }
+  };
+
+  const handleTierKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (totalInputRefs.current[productId]) {
+        totalInputRefs.current[productId]?.focus();
+        totalInputRefs.current[productId]?.select();
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (discFlatRefs.current[productId]) {
+        discFlatRefs.current[productId]?.focus();
+        discFlatRefs.current[productId]?.select();
+      }
+    }
+  };
+
+  const handleTotalInputKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (tierRefs.current[productId]) {
+        tierRefs.current[productId]?.focus();
+      } else if (discFlatRefs.current[productId]) {
+        discFlatRefs.current[productId]?.focus();
+        discFlatRefs.current[productId]?.select();
       }
     }
   };
@@ -4060,6 +4298,7 @@ export function BillingPage() {
             upiId: undefined,
             showUpiQr: false,
             showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+            showPriceOverrideMrp: printFmt?.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
             invoiceNumber: scrapInvoiceNum || '',
             invoiceType: 'SCRAP',
             date: formatBillDateTime(new Date()),
@@ -4313,7 +4552,9 @@ export function BillingPage() {
         effectiveRate = Math.max(effectiveRate, 0);
         const total = effectiveRate * qty;
         const unitPrice = qty > 0 ? total / qty : effectiveRate;
-        const mrpRate = rate;
+        const mrpRate = (item.original_base_price != null && Number(item.original_base_price) > rate)
+          ? Number(item.original_base_price)
+          : rate;
         let originalRate: number | undefined;
         let discountLabel: string | undefined;
         if (isAdhocOfferRec) {
@@ -4328,7 +4569,11 @@ export function BillingPage() {
         } else if (catalogPriceRec < mrpRate) {
           originalRate = mrpRate;
           discountLabel = 'Offer';
+        } else if (mrpRate > effectiveRate + 0.005) {
+          originalRate = mrpRate;
+          discountLabel = 'Offer';
         }
+        const isPriceOverride = isAdhocOfferRec || isAdhocDiscFlatRec || isAdhocDiscPctRec || Boolean(item.is_tier_overridden) || (mrpRate > effectiveRate + 0.005 && catalogPriceRec >= mrpRate);
         const pcsVal = pcsSnapshot[item.product_id] ?? item.pieces_override;
         return {
           name: item.name,
@@ -4337,6 +4582,7 @@ export function BillingPage() {
           total,
           originalRate,
           discountLabel,
+          isPriceOverride,
           brand: item.brand_manufacturer || undefined,
           billing_type: item.billing_type,
           pieces_sold: pcsVal != null ? Number(pcsVal) : undefined,
@@ -4429,6 +4675,7 @@ export function BillingPage() {
         upiId: upiId || undefined,
         showUpiQr: showUpiQr,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+        showPriceOverrideMrp: printFmt?.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
         invoiceNumber: invoice_number, date: formatBillDateTime(new Date()),
         billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: receiptItems,
@@ -5606,10 +5853,57 @@ export function BillingPage() {
       </div>
 
       {/* ─── MAIN POS WORKSPACE ─── */}
-      <div className="flex flex-1 overflow-hidden bg-background">
+      <div 
+        className={clsx(
+          "flex flex-1 overflow-hidden bg-background transition-all duration-300",
+          uiConfig.orientation === 'horizontal-stack' ? "flex-col" :
+          uiConfig.layoutPosition === 'cart-right' ? "flex-row-reverse" : "flex-row"
+        )}
+      >
+        {/* ═══ EXPRESS MOST SOLD PRODUCTS (3-COLUMN LAYOUT) ═══ */}
+        {(uiConfig.orientation === 'three-column' || uiConfig.showQuickCategoryBar) && (
+          <div className="w-[22%] border-r border-border bg-muted/20 p-3 space-y-2 shrink-0 hidden md:block overflow-y-auto">
+            <div className="text-[10px] font-black uppercase text-muted-foreground tracking-wider mb-2 flex items-center justify-between">
+              <span>Products - Most Sold</span>
+              <TrendingUp className="w-3 h-3 text-amber-500" />
+            </div>
+            <div className="space-y-1.5">
+              {mostSoldProducts.length > 0 ? (
+                mostSoldProducts.map((prod) => (
+                  <button
+                    key={prod.product_id || prod.id || prod.name}
+                    onClick={() => handleSelectProduct(prod)}
+                    className="w-full text-left p-2.5 rounded-xl border border-border bg-card hover:bg-accent/10 hover:border-primary/40 text-foreground transition-all cursor-pointer shadow-xs active:scale-95 flex flex-col gap-0.5 group"
+                  >
+                    <div className="text-xs font-bold truncate group-hover:text-primary transition-colors">{prod.name}</div>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                      <span>₹{prod.base_price || 0}</span>
+                      {prod.current_stock !== undefined && (
+                        <span className={clsx(prod.current_stock <= 5 ? "text-amber-500 font-bold" : "")}>
+                          Stock: {prod.current_stock}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground italic text-center py-4">No products found</div>
+              )}
+            </div>
+          </div>
+        )}
         
-        {/* ═══ LEFT SIDE: Search + Cart (58%) ═══ */}
-        <div className="flex flex-col w-[58%] border-r border-border bg-muted/10">
+        {/* ═══ TOP / LEFT SIDE: Search + Cart (Dynamic Width & Layout) ═══ */}
+        <div 
+          className={clsx(
+            "flex flex-col transition-all duration-300",
+            uiConfig.orientation === 'horizontal-stack' ? "w-full flex-1 min-h-[200px] border-b-2 border-border overflow-hidden" :
+            (uiConfig.orientation === 'three-column' || uiConfig.showQuickCategoryBar) ? "w-[48%] border-r border-border" :
+            uiConfig.splitRatio === '50-50' ? "w-[50%] border-r border-border" :
+            uiConfig.splitRatio === '65-35' ? "w-[65%] border-r border-border" :
+            uiConfig.splitRatio === '70-30' ? "w-[70%] border-r border-border" : "w-[58%] border-r border-border"
+          )}
+        >
           
           {/* Prominent Search bar */}
           <div className="p-3 pb-2.5 bg-card border-b border-border">
@@ -5627,7 +5921,7 @@ export function BillingPage() {
                   <input
                     ref={searchRef}
                     type="text"
-                    autoFocus
+                    autoFocus={uiConfig.entryFocusOrder !== 'customer-first'}
                     placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
                     value={searchQuery}
                     onChange={e => {
@@ -6023,6 +6317,7 @@ export function BillingPage() {
                 <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
                 <input
                   ref={customerNameInputRef}
+                  autoFocus={uiConfig.entryFocusOrder === 'customer-first'}
                   placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
                   value={customerName}
                   onFocus={() => {
@@ -6673,6 +6968,8 @@ export function BillingPage() {
                           qty={qty}
                           hasDiscount={hasItemBonus}
                           isScrap={true}
+                          purchasePrice={item.purchase_price}
+                          showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
                           onUpdateOfferPrice={updateItemOfferPrice}
                           onRemoveDiscount={removeItemDiscount}
                           onClearLocalDiscounts={pid => {
@@ -6808,7 +7105,7 @@ export function BillingPage() {
                           Includes: {item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
                         </div>
                       )}
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 flex-wrap">
                         {item.brand_manufacturer && <span className="font-medium">{item.brand_manufacturer}</span>}
                         {!item.sku_barcode && !item.brand_manufacturer && <span className="italic">No barcode</span>}
                         <span className="text-muted-foreground/40">&middot;</span>
@@ -7026,6 +7323,17 @@ export function BillingPage() {
                         rate={rate}
                         qty={qty}
                         hasDiscount={hasItemDiscount}
+                        purchasePrice={item.purchase_price}
+                        showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
+                        tierPricesMap={productPricingMap[item.product_id]}
+                        pricingTiers={pricingTiers}
+                        basePrice={item.original_base_price ?? item.base_price}
+                        selectedTierId={item.pricing_tier_id}
+                        onSelectTier={(pid, tid, tname, price) => {
+                          updateItemPricingTier(pid, tid, tname, price);
+                          syncActiveSnapshot();
+                        }}
+                        inputRef={el => { totalInputRefs.current[item.product_id] = el; }}
                         onUpdateOfferPrice={updateItemOfferPrice}
                         onRemoveDiscount={removeItemDiscount}
                         onClearLocalDiscounts={pid => {
@@ -7033,7 +7341,7 @@ export function BillingPage() {
                           setLocalDiscFlats(p => ({ ...p, [pid]: 0 }));
                         }}
                         syncActiveSnapshot={syncActiveSnapshot}
-                        onKeyDown={e => handleDiscFlatKeyDown(e, item.product_id)}
+                        onKeyDown={e => handleTotalInputKeyDown(e, item.product_id)}
                       />
                       {(hasItemDiscount || rate * qty > total + 0.005) && rate * qty > total + 0.005 && (
                         <div className="text-[9px] text-muted-foreground/50 line-through font-semibold -mt-0.5 text-right">{formatCurrency(rate * qty)}</div>
@@ -7055,11 +7363,29 @@ export function BillingPage() {
           </div>
         </div>
 
-        {/* ═══ RIGHT SIDE: Transaction Console & Payment (42%) ═══ */}
-        <div className="flex flex-col w-[42%] bg-card dark:bg-card shadow-2xl z-25 border-l border-border">
+        {/* ═══ RIGHT / BOTTOM SIDE: Transaction Console & Payment (Dynamic Width & Layout) ═══ */}
+        <div 
+          className={clsx(
+            "bg-card dark:bg-card shadow-2xl z-25 transition-all duration-300",
+            uiConfig.orientation === 'horizontal-stack'
+              ? "w-full flex flex-row h-[320px] shrink-0 border-t-2 border-border overflow-hidden"
+              : "flex flex-col " + (
+                (uiConfig.orientation === 'three-column' || uiConfig.showQuickCategoryBar)
+                  ? "w-[30%] border-l border-border"
+                  : uiConfig.splitRatio === '50-50' ? "w-[50%] border-l border-border"
+                  : uiConfig.splitRatio === '65-35' ? "w-[35%] border-l border-border"
+                  : uiConfig.splitRatio === '70-30' ? "w-[30%] border-l border-border"
+                  : "w-[42%] border-l border-border"
+              )
+          )}
+        >
 
-          {/* ── Scrollable content area ── */}
-          <div className="flex-1 overflow-y-auto px-5 py-2">
+          {/* ── Scrollable content area (Left Side of Bottom Bar in Horizontal Stack Mode) ── */}
+          <div className={clsx(
+            uiConfig.orientation === 'horizontal-stack'
+              ? "w-1/2 border-r border-border h-full overflow-y-auto px-5 py-3 shrink-0"
+              : "flex-1 overflow-y-auto px-5 py-2"
+          )}>
             {/* Payment / Refund method grid — replaced by Quotation/Return Details in those modes */}
             <div className={clsx(
               'overflow-hidden transition-all duration-400 ease-in-out',
@@ -7471,10 +7797,358 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
               </div>
             </div>
 
+            {/* Scrap & Return Deduction section in Left Panel for Top/Bottom Stack layout */}
+            {uiConfig.orientation === 'horizontal-stack' && (
+              <div className="mt-3">
+                <div className={clsx(
+                  'transition-all duration-400 ease-in-out',
+                  !isScrapMode && !isQuotationMode && !isReturnMode && (storeScrapDeduction > 0 || storeReturnDeduction > 0 || enableScrap)
+                    ? 'max-h-[350px] opacity-100 scale-100'
+                    : 'max-h-0 opacity-0 scale-95'
+                )}>
+                  <div className={clsx(
+                    "px-0 py-0 mt-1 border rounded-2xl overflow-hidden transition-all duration-300 shadow-sm",
+                    storeScrapDeduction > 0 && storeReturnDeduction > 0
+                      ? "border-primary/20 bg-muted/5"
+                      : storeScrapDeduction > 0
+                        ? "border-orange-500/25 bg-orange-500/[0.01]"
+                        : storeReturnDeduction > 0
+                          ? "border-rose-500/25 bg-rose-500/[0.01]"
+                          : "border-orange-500/20 bg-orange-500/[0.01]"
+                  )}>
+                    {(storeScrapDeduction > 0 || storeReturnDeduction > 0) ? (
+                      <div className="p-2 space-y-1.5 bg-muted/40 border-b border-border/50">
+                        <div className="flex items-center justify-between px-1 mb-0.5">
+                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Applied Credits</p>
+                          {(storeScrapDeduction > 0 && storeReturnDeduction > 0) && (
+                            <span className="text-[9px] font-bold text-foreground bg-primary/10 px-2 py-0.5 rounded-full">
+                              Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0))}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-1.5 items-center">
+                          {/* Column 1: Scrap Card OR Scrap Input */}
+                          {storeScrapDeduction > 0 ? (
+                            <div className="flex items-center justify-between p-1.5 bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/10 rounded-xl transition-all duration-200 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <div className="p-1 bg-orange-500/10 text-orange-600 rounded-lg shrink-0">
+                                  <Recycle className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[8px] font-black text-orange-600 uppercase tracking-wider leading-none">Scrap Credit</p>
+                                  <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{storeScrapInvoiceNumber}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 ml-1">
+                                <span className="text-[11px] font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
+                                <button
+                                  onClick={() => clearScrapDeduction()}
+                                  title="Remove Scrap Credit"
+                                  className="p-0.5 text-orange-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <input
+                                ref={scrapDeductionInputRef}
+                                type="text"
+                                placeholder="Type scrap # & Enter..."
+                                value={scrapDeductionSearchQuery}
+                                onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                                onKeyDown={async e => {
+                                  if (e.key === 'Enter') {
+                                    const q = scrapDeductionSearchQuery.trim();
+                                    if (!q) return;
+                                    try {
+                                      const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                                      if (res && res.totalAmount) {
+                                        if (res.paymentStatus === 'SETTLED') {
+                                          setHardwareError(`Scrap credit ${q} has already been redeemed.`);
+                                          return;
+                                        }
+                                        setScrapDeduction(res.totalAmount, q);
+                                        setScrapDeductionSearchQuery('');
+                                        setScrapDeductionResults([]);
+                                        setScrapDeductionDropdownStyle(null);
+                                      } else {
+                                        const getNumPart = getNumericPart;
+                                        const numQ = getNumPart(q);
+                                        const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+                                        if (Array.isArray(list)) {
+                                          const match = list.find(inv =>
+                                            inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
+                                          );
+                                          if (match) {
+                                            const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
+                                            if (detailRes && detailRes.totalAmount) {
+                                              if (detailRes.paymentStatus === 'SETTLED') {
+                                                setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
+                                                return;
+                                              }
+                                              setScrapDeduction(detailRes.totalAmount, match.invoice_number);
+                                              setScrapDeductionSearchQuery('');
+                                              setScrapDeductionResults([]);
+                                              setScrapDeductionDropdownStyle(null);
+                                              return;
+                                            }
+                                          }
+                                        }
+                                        setHardwareError(`Scrap invoice "${q}" not found`);
+                                      }
+                                    } catch (e) {
+                                      setHardwareError('Failed to fetch scrap invoice');
+                                    }
+                                  }
+                                  if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
+                                }}
+                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
+                              />
+                            </div>
+                          )}
+
+                          {/* Column 2: Return Card OR Return Input */}
+                          {storeReturnDeduction > 0 ? (
+                            <div className="flex items-center justify-between p-1.5 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-xl transition-all duration-200 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <div className="p-1 bg-rose-500/10 text-rose-600 rounded-lg shrink-0">
+                                  <ArrowLeftRight className="w-3.5 h-3.5 text-rose-600" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[8px] font-black text-rose-600 uppercase tracking-wider leading-none">Return Credit</p>
+                                  <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{storeReturnInvoiceNumber}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 ml-1">
+                                <span className="text-[11px] font-black text-rose-600">-{formatCurrency(storeReturnDeduction)}</span>
+                                <button
+                                  onClick={() => {
+                                    clearReturnDeduction();
+                                  }}
+                                  title="Remove Return Credit"
+                                  className="p-0.5 text-rose-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <input
+                                ref={returnDeductionInputRef}
+                                type="text"
+                                placeholder="Type return # & Enter..."
+                                value={returnDeductionSearchQuery}
+                                onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                                onKeyDown={async e => {
+                                  if (e.key === 'Enter') {
+                                    const q = returnDeductionSearchQuery.trim();
+                                    if (!q) return;
+                                    try {
+                                      const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                                      if (res && res.grand_total) {
+                                        const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                        if (remaining > 0) {
+                                          setReturnDeduction(remaining, q);
+                                          setReturnDeductionSearchQuery('');
+                                          setReturnDeductionResults([]);
+                                          setReturnDeductionDropdownStyle(null);
+                                        } else {
+                                          setHardwareError('Return already fully adjusted');
+                                        }
+                                      } else {
+                                        const getNumPart = getNumericPart;
+                                        const numQ = getNumPart(q);
+                                        const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
+                                        if (Array.isArray(list)) {
+                                          const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
+                                          if (match) {
+                                            const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
+                                            if (detailRes && detailRes.grand_total) {
+                                              const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
+                                              if (remaining > 0) {
+                                                setReturnDeduction(remaining, match.return_number);
+                                                setReturnDeductionSearchQuery('');
+                                                setReturnDeductionResults([]);
+                                                setReturnDeductionDropdownStyle(null);
+                                                return;
+                                              }
+                                            }
+                                          }
+                                        }
+                                        setHardwareError(`Return "${q}" not found`);
+                                      }
+                                    } catch (e) {
+                                      setHardwareError('Failed to fetch return');
+                                    }
+                                  }
+                                  if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
+                                }}
+                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Neither is applied: show standard selector tabs and full-width input */
+                      <div>
+                        <div className="flex bg-muted/20 p-0.5 border-b border-border/40 gap-1">
+                          <button
+                            onClick={() => setReturnDeductionSearchMode(false)}
+                            className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                              !returnDeductionSearchMode
+                                ? 'bg-orange-500/10 text-orange-600 shadow-sm'
+                                : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                            )}
+                          >
+                            <span>Scrap Deduction</span>
+                            <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
+                          </button>
+                          <button
+                            onClick={() => setReturnDeductionSearchMode(true)}
+                            className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                              returnDeductionSearchMode
+                                ? 'bg-rose-500/10 text-rose-600 shadow-sm'
+                                : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                            )}
+                          >
+                            <span>Return Deduction</span>
+                            <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 px-2 py-1.5">
+                          <div className="flex-1 relative">
+                            {!returnDeductionSearchMode ? (
+                              <input
+                                ref={scrapDeductionInputRef}
+                                type="text"
+                                placeholder="Type scrap invoice number & Enter..."
+                                value={scrapDeductionSearchQuery}
+                                onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                                onKeyDown={async e => {
+                                  if (e.key === 'Enter') {
+                                    const q = scrapDeductionSearchQuery.trim();
+                                    if (!q) return;
+                                    try {
+                                      const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                                      if (res && res.totalAmount) {
+                                        if (res.paymentStatus === 'SETTLED') {
+                                          setHardwareError(`Scrap credit ${q} has already been redeemed.`);
+                                          return;
+                                        }
+                                        setScrapDeduction(res.totalAmount, q);
+                                        setScrapDeductionSearchQuery('');
+                                        setScrapDeductionResults([]);
+                                        setScrapDeductionDropdownStyle(null);
+                                      } else {
+                                        const getNumPart = getNumericPart;
+                                        const numQ = getNumPart(q);
+                                        const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+                                        if (Array.isArray(list)) {
+                                          const match = list.find(inv =>
+                                            inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
+                                          );
+                                          if (match) {
+                                            const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
+                                            if (detailRes && detailRes.totalAmount) {
+                                              if (detailRes.paymentStatus === 'SETTLED') {
+                                                setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
+                                                return;
+                                              }
+                                              setScrapDeduction(detailRes.totalAmount, match.invoice_number);
+                                              setScrapDeductionSearchQuery('');
+                                              setScrapDeductionResults([]);
+                                              setScrapDeductionDropdownStyle(null);
+                                              return;
+                                            }
+                                          }
+                                        }
+                                        setHardwareError(`Scrap invoice "${q}" not found`);
+                                      }
+                                    } catch (e) {
+                                      setHardwareError('Failed to fetch scrap invoice');
+                                    }
+                                  }
+                                  if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
+                                }}
+                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
+                              />
+                            ) : (
+                              <input
+                                ref={returnDeductionInputRef}
+                                type="text"
+                                placeholder="Type return number & Enter..."
+                                value={returnDeductionSearchQuery}
+                                onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                                onKeyDown={async e => {
+                                  if (e.key === 'Enter') {
+                                    const q = returnDeductionSearchQuery.trim();
+                                    if (!q) return;
+                                    try {
+                                      const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                                      if (res && res.grand_total) {
+                                        const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                        if (remaining > 0) {
+                                          setReturnDeduction(remaining, q);
+                                          setReturnDeductionSearchQuery('');
+                                          setReturnDeductionResults([]);
+                                          setReturnDeductionDropdownStyle(null);
+                                        } else {
+                                          setHardwareError('Return already fully adjusted');
+                                        }
+                                      } else {
+                                        const getNumPart = getNumericPart;
+                                        const numQ = getNumPart(q);
+                                        const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
+                                        if (Array.isArray(list)) {
+                                          const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
+                                          if (match) {
+                                            const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
+                                            if (detailRes && detailRes.grand_total) {
+                                              const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
+                                              if (remaining > 0) {
+                                                setReturnDeduction(remaining, match.return_number);
+                                                setReturnDeductionSearchQuery('');
+                                                setReturnDeductionResults([]);
+                                                setReturnDeductionDropdownStyle(null);
+                                                return;
+                                              }
+                                            }
+                                          }
+                                        }
+                                        setHardwareError(`Return "${q}" not found`);
+                                      }
+                                    } catch (e) {
+                                      setHardwareError('Failed to fetch return');
+                                    }
+                                  }
+                                  if (e.key === 'Escape') { setScrapDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
+                                }}
+                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
 
-          {/* ── STICKY FOOTER: Totals + Actions ── */}
-          <div className="shrink-0 border-t border-border bg-background">
+          {/* ── STICKY FOOTER / RIGHT SIDE OF BOTTOM BAR: Totals + Actions ── */}
+          <div className={clsx(
+            uiConfig.orientation === 'horizontal-stack'
+              ? "w-1/2 h-full overflow-y-auto flex flex-col justify-between bg-card px-5 py-3 shrink-0 border-l border-border"
+              : "shrink-0 border-t border-border bg-background"
+          )}>
 
             {/* Calculation breakdown */}
             <div className="px-5 pt-2.5 pb-0 space-y-1.5 text-xs border-b border-border">
@@ -7620,6 +8294,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
 
             {/* ── Adjustment Block (Normal Mode Only): combined scrap + return deduction ── */}
+            {uiConfig.orientation !== 'horizontal-stack' && (
             <div className={clsx(
               'transition-all duration-400 ease-in-out',
               !isScrapMode && !isQuotationMode && !isReturnMode && (storeScrapDeduction > 0 || storeReturnDeduction > 0 || enableScrap)
@@ -7958,6 +8633,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 )}
               </div>
             </div>
+            )}
 
             {/* Scrap items row — shown in scrap mode with scrap cart items */}
             <div className={clsx(
@@ -8188,6 +8864,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     <span>Save</span>
                   </button>
                   <button
+                    ref={checkoutBtnRef}
                     onClick={() => handleCheckout()}
                     disabled={isCheckingOut || items.length === 0}
                     className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
@@ -9280,29 +9957,58 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
               {/* Modal Content - UPI Account Options */}
               <div className="p-5 overflow-y-auto space-y-2.5 flex-1">
-                {upiSources.map((s: any) => {
+                {upiSources.map((s: any, idx: number) => {
                   const isSelected = currentSelectedUpi
                     ? (s.source_id === currentSelectedUpi.source_id || (s.upi_id && s.upi_id === currentSelectedUpi.upi_id))
                     : (s.is_default === 1 || upiSources[0]?.source_id === s.source_id);
+                  const keyId = s.source_id || s.upi_id || String(idx);
+
+                  const selectThisUpi = () => {
+                    updateActiveTab({
+                      selectedUpiId: s.upi_id || s.source_id || '',
+                      selectedUpiSourceId: s.source_id || '',
+                      selectedUpiName: s.name
+                    });
+                    try {
+                      localStorage.setItem('last_selected_upi_source_id', s.source_id || s.upi_id || '');
+                    } catch (e) {}
+                    setIsUpiSelectModalOpen(false);
+                    setUpiAccountToast(`${s.name}${s.upi_id ? ` (${s.upi_id})` : ''}`);
+                    setTimeout(() => setUpiAccountToast(null), 3500);
+                    setTimeout(() => {
+                      discountRef.current?.focus();
+                      discountRef.current?.select();
+                    }, 50);
+                  };
+
                   return (
                     <button
-                      key={s.source_id}
+                      key={keyId}
+                      ref={el => { upiSourceRefs.current[keyId] = el; }}
                       type="button"
-                      onClick={() => {
-                        updateActiveTab({
-                          selectedUpiId: s.upi_id || s.source_id || '',
-                          selectedUpiSourceId: s.source_id || '',
-                          selectedUpiName: s.name
-                        });
-                        try {
-                          localStorage.setItem('last_selected_upi_source_id', s.source_id || s.upi_id || '');
-                        } catch (e) {}
-                        setIsUpiSelectModalOpen(false);
-                        setUpiAccountToast(`${s.name}${s.upi_id ? ` (${s.upi_id})` : ''}`);
-                        setTimeout(() => setUpiAccountToast(null), 3500);
+                      onClick={selectThisUpi}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          const next = upiSources[(idx + 1) % upiSources.length];
+                          const nextKey = next?.source_id || next?.upi_id || String((idx + 1) % upiSources.length);
+                          upiSourceRefs.current[nextKey]?.focus();
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          const prev = upiSources[(idx - 1 + upiSources.length) % upiSources.length];
+                          const prevKey = prev?.source_id || prev?.upi_id || String((idx - 1 + upiSources.length) % upiSources.length);
+                          upiSourceRefs.current[prevKey]?.focus();
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          selectThisUpi();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setIsUpiSelectModalOpen(false);
+                          discountRef.current?.focus();
+                        }
                       }}
                       className={clsx(
-                        'w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.98]',
+                        'w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-violet-500',
                         isSelected
                           ? 'bg-violet-500/15 border-violet-500 text-violet-700 dark:text-violet-300 font-extrabold shadow-sm ring-1 ring-violet-500/50'
                           : 'bg-background hover:bg-muted/50 border-border/80 text-foreground'

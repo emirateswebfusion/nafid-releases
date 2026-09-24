@@ -6,6 +6,7 @@ export interface PrintFormatConfig {
   width?: number;
   style?: string;
   showProductOffers?: boolean;
+  showPriceOverrideMrp?: boolean;
   openCashDrawerOnPending?: boolean;
   receiptFont?: string;
   billSettings?: any;
