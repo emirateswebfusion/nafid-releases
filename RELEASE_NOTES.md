@@ -1,3 +1,9 @@
+# Vendora v1.5.79 Release Notes
+
+## What's Changed
+- Fixed auto-updater manifest (`latest.yml`) generation and release publishing flow
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.78...v1.5.79
+
 # Vendora v1.5.78 Release Notes
 
 ## What's Changed
