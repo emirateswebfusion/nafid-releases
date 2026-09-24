@@ -432,7 +432,7 @@ export function BillingPage() {
     setScrapDeduction, clearScrapDeduction,
     returnDeduction: storeReturnDeduction, returnInvoiceNumber: storeReturnInvoiceNumber,
     setReturnDeduction, clearReturnDeduction,
-    editingInvoiceId: editingActive, editingInvoiceNumber,
+    editingInvoiceId: editingActive, editingInvoiceNumber, setEditingInvoice,
   } = useCartStore();
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -625,6 +625,7 @@ export function BillingPage() {
   const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [isPastBillMode, setIsPastBillMode] = useState(false);
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
+  const [selectedPastBill, setSelectedPastBill] = useState<any | null>(null);
   const getNumericPart = (s: string) => (s.match(/\d+/g) || []).join('');
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
   const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
@@ -5733,6 +5734,7 @@ export function BillingPage() {
                         name: cat.name,
                         base_price: cat.rate,
                         purchase_price: 0,
+                        tax_rate_percent: 0,
                         sku_barcode: '',
                         item_code: '',
                         current_stock: 9999,
@@ -5766,8 +5768,7 @@ export function BillingPage() {
                     key={inv.invoice_id}
                     data-search-index={i}
                     onClick={async () => {
-                      setReturnMode(false);
-                      setEditingInvoice(inv.invoice_number, inv.invoice_id, inv.invoice_type || (inv.invoice_number?.startsWith('GST') ? 'GST' : 'BILL_OF_SUPPLY'));
+                      setSelectedReturnInvoice(inv);
                       const tid = tenantId || 'global';
                       const fullInvoices = await window.electronAPI.dbGetInvoices({ tenant_id: tid, search: inv.invoice_number });
                       const fullInv = Array.isArray(fullInvoices) && fullInvoices.length > 0 ? fullInvoices[0] : inv;
@@ -5795,49 +5796,44 @@ export function BillingPage() {
                         }
                       } catch (e) {}
 
-                      const loadedItems = (fullInv.items || []).map((it: any) => {
+                      clearCart();
+                      await reserveReturnNumberForTab();
+                      setReturnMode(true);
+
+                      (fullInv.items || []).forEach((it: any) => {
                         const catProd = catMap.get(it.product_id);
                         const invQty = Number(it.quantity) || 1;
                         const prevRetQty = returnedItemMap[it.product_id] || 0;
                         const availReturnQty = Math.max(0, invQty - prevRetQty);
-                        return {
-                          product_id: it.product_id,
-                          name: it.product_name || catProd?.name || 'Item',
-                          sku_barcode: catProd?.sku_barcode || it.sku_barcode || '',
-                          item_code: catProd?.item_code || it.item_code || '',
-                          base_price: it.unit_price || 0,
-                          purchase_price: catProd?.purchase_price || 0,
-                          current_stock: catProd?.current_stock ?? 0,
-                          uom: catProd?.uom || it.unit || 'Pcs',
-                          billing_type: catProd?.billing_type || 'PIECE',
-                          quantity: availReturnQty,
-                          maxReturnQty: availReturnQty,
-                          originalInvoiceQty: invQty,
-                          previouslyReturnedQty: prevRetQty,
-                          item_tax_rate: it.item_tax_rate || 0,
-                          cgst_amount: it.cgst_amount || 0,
-                          sgst_amount: it.sgst_amount || 0,
-                          igst_amount: it.igst_amount || 0,
-                          gst_amount: it.gst_amount || 0,
-                          taxable_amount: it.taxable_amount || 0,
-                          is_gst_applicable: catProd?.is_gst_applicable ?? (it.gst_amount > 0 ? 1 : 0),
-                          selected_pricing_tier_id: it.selected_pricing_tier_id || null,
-                          offer_price: it.offer_price ?? null,
-                          catalog_offer_price: it.offer_price ?? null,
-                          grade_id: catProd?.grade_id || null,
-                          is_scrap: false,
-                        };
-                      }).filter((it: any) => it.quantity > 0);
+                        if (availReturnQty > 0) {
+                          addItem({
+                            product_id: it.product_id,
+                            invoiceItemId: it.item_id,
+                            name: it.product_name || catProd?.name || 'Item',
+                            sku_barcode: catProd?.sku_barcode || it.sku_barcode || '',
+                            item_code: catProd?.item_code || it.item_code || '',
+                            base_price: it.unit_price || 0,
+                            purchase_price: catProd?.purchase_price || 0,
+                            tax_rate_percent: it.item_tax_rate || 0,
+                            billing_type: catProd?.billing_type || 'PIECE',
+                            isReturnItem: true,
+                            originalQuantity: invQty,
+                            availableToReturn: availReturnQty,
+                            alreadyReturned: prevRetQty,
+                            originalUnitPrice: it.unit_price || 0,
+                            returnSourceInvoiceId: fullInv.invoice_id,
+                            returnSourceInvoiceNumber: fullInv.invoice_number,
+                            quantity: availReturnQty,
+                          });
+                        }
+                      });
 
-                      loadEditingCart(loadedItems, {
+                      updateActiveTab({
                         customerName: fullInv.customer_name || '',
                         customerPhone: fullInv.customer_phone || '',
                         customerGstin: fullInv.customer_gstin || '',
                         customerAddress: fullInv.customer_address || '',
-                        paymentMethod: fullInv.payment_method || 'CASH',
                       });
-                      setOriginalInvoiceGrandTotal(Number(fullInv.grand_total) || 0);
-                      setOriginalInvoiceType(fullInv.invoice_type || 'BILL_OF_SUPPLY');
                       setSearchQuery('');
                       setReturnSearchResults([]);
                     }}
@@ -5982,7 +5978,7 @@ export function BillingPage() {
                       <button
                         key={c.customer_id || c.party_id || c.phone || index}
                         type="button"
-                        onClick={() => handleSelectCustomerFromDropdown(c)}
+                        onClick={() => selectCustomerSuggestion(c)}
                         className={clsx(
                           "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border dark:border-slate-800 last:border-0 cursor-pointer transition-colors",
                           index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold dark:bg-primary/25" : "hover:bg-muted/40 dark:hover:bg-slate-800/60"

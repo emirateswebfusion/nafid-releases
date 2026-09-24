@@ -22,7 +22,9 @@ export interface CartItem {
   catalog_discount_flat?: number | null;
   catalog_offer_price?: number | null;
   sku_barcode?: string | null;
+  item_code?: string | null;
   brand_manufacturer?: string | null;
+  current_stock?: number;
   isScrap?: boolean;
   scrap_category_id?: string;
   isServiceItem?: boolean;
