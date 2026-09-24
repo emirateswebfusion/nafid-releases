@@ -601,12 +601,23 @@ app.whenReady().then(async () => {
   });
 
   // Auto-Update Configuration
+  autoUpdater.logger = log;
   const updaterToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
   if (updaterToken) {
-    autoUpdater.requestHeaders = {
-      Authorization: `token ${updaterToken}`
-    };
-    console.log('[Updater] Configured GitHub authorization headers for private repo updates.');
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'emirateswebfusion',
+      repo: 'nafid-pos',
+      private: true,
+      token: updaterToken,
+    });
+    console.log('[Updater] Configured GitHub feed URL for private repo updates.');
+  } else {
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'emirateswebfusion',
+      repo: 'nafid-pos',
+    });
   }
 
   autoUpdater.autoDownload = true;
