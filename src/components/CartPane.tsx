@@ -194,37 +194,50 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
 
           {/* Search Results Dropdown */}
           {searchQuery.trim().length > 0 && results.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
-              <div className="p-2 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/50">
-                Found {results.length} matching products
+            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="px-4 py-2.5 bg-muted/80 border-b border-border flex items-center justify-between text-xs font-semibold select-none">
+                <span className="font-extrabold tracking-tight text-foreground uppercase text-[11px]">Matching Products</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                  {results.length} Found
+                </span>
               </div>
-              <div ref={searchResultListRef} className="max-h-80 overflow-y-auto">
+              <div ref={searchResultListRef} className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-border">
                 {results.map((p, i) => (
                   <button
                     key={p.product_id}
                     data-search-index={i}
                     onClick={() => handleSelectProduct(p)}
                     className={clsx(
-                      "w-full flex items-center justify-between p-3 transition-colors text-left border-b border-border/50 last:border-0",
-                      i === selectedIndex ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                      "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group select-none border-l-4",
+                      i === selectedIndex
+                        ? "bg-primary/10 border-l-primary shadow-xs font-semibold text-foreground"
+                        : "hover:bg-muted/60 border-l-transparent text-foreground"
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={clsx("p-2 rounded-lg", i === selectedIndex ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground")}>
+                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                      <div className={clsx(
+                        "p-2 rounded-xl shrink-0 transition-colors",
+                        i === selectedIndex ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:text-primary"
+                      )}>
                         <Package className="w-4 h-4" />
                       </div>
-                      <div>
-                        <div className="font-bold text-sm">{p.name}</div>
-                        <div className={clsx("text-[10px] font-mono", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                          {p.item_code ? <span className="font-bold">{p.item_code}</span> : ''} {p.sku_barcode || 'NO BARCODE'} • {p.category || 'General'}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">{p.name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {p.sku_barcode && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                              {p.sku_barcode}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-muted-foreground truncate">{p.category || 'General'}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-black">
+                    <div className="text-right shrink-0">
+                      <div className="font-mono font-black text-sm text-foreground">
                         ₹{(p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price).toFixed(2)}
                       </div>
-                      <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                      <div className="text-[10px] font-medium text-muted-foreground mt-0.5">
                         Stock: {(() => {
                           const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0); } catch { return 0; } })() : 0;
                           return Number(p.current_stock) > 0 && ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;

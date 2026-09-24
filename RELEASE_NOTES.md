@@ -1,3 +1,10 @@
+# Vendora v1.5.80 Release Notes
+
+## What's Changed
+- Dynamic release asset publishing script integration
+- Automated `latest.yml`, installer executable, and blockmap release asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.79...v1.5.80
+
 # Vendora v1.5.79 Release Notes
 
 ## What's Changed

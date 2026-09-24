@@ -5,8 +5,8 @@ require('dotenv').config({ path: path.join(__dirname, '../.env.production') });
 
 const token = process.env.GH_TOKEN;
 const owner = 'emirateswebfusion';
-const repo = 'nafid-pos';
-const tag = 'v1.5.79';
+const pkg = require('../package.json');
+const tag = `v${pkg.version}`;
 
 if (!token) {
   console.error('GH_TOKEN missing in .env.production');
@@ -81,8 +81,8 @@ async function run() {
   const releaseDir = path.join(__dirname, '../dist/release');
   const filesToUpload = [
     { name: 'latest.yml', contentType: 'text/yaml' },
-    { name: 'Nafid-Setup-1.5.79.exe', contentType: 'application/octet-stream' },
-    { name: 'Nafid-Setup-1.5.79.exe.blockmap', contentType: 'application/octet-stream' }
+    { name: `Nafid-Setup-${pkg.version}.exe`, contentType: 'application/octet-stream' },
+    { name: `Nafid-Setup-${pkg.version}.exe.blockmap`, contentType: 'application/octet-stream' }
   ];
 
   // Delete existing assets if they have the same name

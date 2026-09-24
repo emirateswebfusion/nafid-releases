@@ -3123,19 +3123,42 @@ export function BillingPage() {
         return;
       }
 
-      // Clear entire cart (both regular AND previously loaded return items) to
-      // avoid mixing items from a previously selected invoice into this return
-      items.forEach(i => removeItem(i.product_id));
+      // Pre-fill customer info from selected return invoice
+      updateActiveTab({
+        customerName: inv.customer_name || '',
+        customerPhone: inv.customer_phone || '',
+        customerGstin: inv.customer_gstin || '',
+        customerAddress: inv.customer_address || '',
+      });
+
+      // Clear cart first, reserve return number, and set return mode
+      clearCart();
+      await reserveReturnNumberForTab();
+      setReturnMode(true);
+
+      // Enrich with catalog product details if available
+      const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
+      const productMap: Record<string, any> = {};
+      if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+        try {
+          const prods = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+          if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
+        } catch (e) {}
+      }
+
       enriched.forEach((item: any) => {
+        const catProd = productMap[item.product_id];
         const productId = item.product_id || `return-${uuidv4()}`;
         addItem({
           product_id: productId,
           invoiceItemId: item.item_id,
-          name: item.name || 'Product',
+          name: item.name || item.product_name || catProd?.name || 'Product',
+          sku_barcode: catProd?.sku_barcode || item.sku_barcode || '',
+          item_code: catProd?.item_code || item.item_code || '',
           base_price: Number(item.unit_price) || 0,
-          purchase_price: Number(item.unit_price) || 0,
-          tax_rate_percent: Number(item.tax_rate_percent) || 0,
-          billing_type: item.billing_type,
+          purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
+          tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.gst_percent || 0),
+          billing_type: item.billing_type || catProd?.billing_type || 'PIECE',
           isReturnItem: true,
           originalQuantity: Number(item.quantity) || 0,
           availableToReturn: item.available_to_return,
@@ -5670,12 +5693,18 @@ export function BillingPage() {
 
         {/* Floating Search Dropdown */}
         {isPastBillMode && searchQuery.trim().length > 0 && pastBillResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
-            <div className="px-3 py-1.5 text-[9px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-wider border-b border-border bg-teal-500/5 flex items-center justify-between">
-              <span>Past Bills</span>
-              <span>Select to view details</span>
+          <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="px-4 py-2.5 bg-teal-500/10 border-b border-border flex items-center justify-between text-xs font-semibold select-none">
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+                <span className="font-extrabold tracking-tight text-teal-700 dark:text-teal-300 uppercase text-[11px]">Past Bills</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30">
+                  {pastBillResults.length} Found
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground font-medium">Select bill to load details</span>
             </div>
-            <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
+            <div ref={searchResultListRef} className="max-h-[400px] overflow-y-auto custom-scrollbar divide-y divide-border">
               {pastBillResults.map((inv: any, i: number) => (
                 <button
                   key={inv.invoice_id || inv.invoice_number}
@@ -5707,34 +5736,71 @@ export function BillingPage() {
                     setPastBillResults([]);
                   }}
                   className={clsx(
-                    "w-full text-left p-3 border-b border-border last:border-0 hover:bg-teal-500/5 transition-colors flex items-center justify-between cursor-pointer",
-                    selectedIndex === i && "bg-teal-500/10"
+                    "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group border-l-4",
+                    selectedIndex === i
+                      ? "bg-teal-500/10 border-l-teal-500 font-bold"
+                      : "hover:bg-muted/50 border-l-transparent text-foreground"
                   )}
                 >
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pr-3">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-foreground">{inv.invoice_number}</span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">{inv.payment_method}</span>
+                      <span className="font-bold text-sm text-foreground group-hover:text-teal-600 transition-colors">{inv.invoice_number}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border uppercase">{inv.payment_method}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{inv.customer_name || 'Walk-in Customer'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-1">
+                      {inv.customer_name || 'Walk-in Customer'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}
+                    </p>
                   </div>
-                  <div className="text-right ml-4">
-                    <span className="text-sm font-black text-foreground block">{formatCurrency(inv.grand_total)}</span>
-                    <span className="text-[10px] text-muted-foreground">{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</span>
+                  <div className="text-right shrink-0">
+                    <span className="text-sm font-mono font-black text-foreground block">{formatCurrency(inv.grand_total)}</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5 block">{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</span>
                   </div>
                 </button>
               ))}
+            </div>
+            <div className="px-4 py-2 bg-muted/60 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-medium select-none">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">↑</kbd>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">↓</kbd>
+                  <span>Navigate</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">↵ Enter</kbd>
+                  <span>View Bill</span>
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">Esc</kbd>
+                <span>Close</span>
+              </span>
             </div>
           </div>
         )}
 
         {!isPastBillMode && searchQuery.trim().length > 0 && (isScrapMode ? scrapSearchResults.length > 0 : isReturnMode ? returnSearchResults.length > 0 : results.length > 0) && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
-            <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/30 flex items-center justify-between">
-              <span>Search Results ({isScrapMode ? scrapSearchResults.length : isReturnMode ? returnSearchResults.length : results.length})</span>
-              {searchQuery && <span className="text-primary font-bold">Matching "{searchQuery}"</span>}
+          <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            {/* Header Bar */}
+            <div className="px-4 py-2.5 bg-muted/80 border-b border-border flex items-center justify-between text-xs font-semibold select-none">
+              <div className="flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="font-extrabold tracking-tight text-foreground uppercase text-[11px]">
+                  {isScrapMode ? 'Scrap Categories' : isReturnMode ? 'Returnable Invoices' : 'Search Results'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                  {isScrapMode ? scrapSearchResults.length : isReturnMode ? returnSearchResults.length : results.length} Found
+                </span>
+              </div>
+              {searchQuery && (
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
+                  <span>Matching:</span>
+                  <span className="px-2 py-0.5 rounded bg-background border border-border text-foreground font-mono font-bold text-xs">"{searchQuery}"</span>
+                </div>
+              )}
             </div>
-            <div ref={searchResultListRef} className="max-h-[350px] overflow-y-auto">
+
+            {/* Results List */}
+            <div ref={searchResultListRef} className="max-h-[420px] overflow-y-auto custom-scrollbar divide-y divide-border">
               {isScrapMode ? (
                 scrapSearchResults.map((cat: any, i: number) => {
                   const rate = Number(cat.purchase_price ?? cat.rate ?? cat.selling_price) || 0;
@@ -5744,17 +5810,22 @@ export function BillingPage() {
                       data-search-index={i}
                       onClick={() => handleSelectScrapItem(cat)}
                       className={clsx(
-                        "w-full text-left p-3 border-b border-border last:border-0 hover:bg-orange-500/5 transition-colors flex items-center justify-between cursor-pointer",
-                        selectedIndex === i && "bg-orange-500/10 font-bold"
+                        "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group border-l-4",
+                        selectedIndex === i
+                          ? "bg-orange-500/10 border-l-orange-500 font-bold"
+                          : "hover:bg-muted/50 border-l-transparent text-foreground"
                       )}
                     >
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 pr-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-foreground">{cat.name}</span>
+                          <span className="font-bold text-sm text-foreground group-hover:text-orange-600 transition-colors">{cat.name}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-500/10 text-orange-600 border border-orange-500/20 uppercase">Scrap</span>
                         </div>
                       </div>
-                      <div className="text-right font-mono font-black text-orange-600 text-sm">
-                        {formatCurrency(rate)}/{cat.unit || 'Kg'}
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-black text-orange-600 dark:text-orange-400 text-sm">
+                          {formatCurrency(rate)}/{cat.unit || 'Kg'}
+                        </span>
                       </div>
                     </button>
                   );
@@ -5764,145 +5835,154 @@ export function BillingPage() {
                   <button
                     key={inv.invoice_id}
                     data-search-index={i}
-                    onClick={async () => {
-                      setSelectedReturnInvoice(inv);
-                      const tid = tenantId || 'global';
-                      const fullInvoices = await window.electronAPI.dbGetInvoices({ tenant_id: tid, search: inv.invoice_number });
-                      const fullInv = Array.isArray(fullInvoices) && fullInvoices.length > 0 ? fullInvoices[0] : inv;
-                      const productIds = (fullInv.items || []).map((it: any) => it.product_id);
-                      let catalogProducts: any[] = [];
-                      if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
-                        try {
-                          catalogProducts = await window.electronAPI.dbGetProductsByIds({ tenant_id: tid, product_ids: productIds }) || [];
-                        } catch (e) {}
-                      }
-                      const catMap = new Map((catalogProducts || []).map((cp: any) => [cp.product_id, cp]));
-
-                      const returnedItemMap: Record<string, number> = {};
-                      try {
-                        const prevReturns = await window.electronAPI.dbGetReturns({ tenant_id: tid, invoice_id: fullInv.invoice_id });
-                        if (Array.isArray(prevReturns)) {
-                          for (const ret of prevReturns) {
-                            const rItems = await window.electronAPI.dbGetReturnItems(ret.return_id);
-                            if (Array.isArray(rItems)) {
-                              for (const ri of rItems) {
-                                returnedItemMap[ri.product_id] = (returnedItemMap[ri.product_id] || 0) + Number(ri.quantity || 0);
-                              }
-                            }
-                          }
-                        }
-                      } catch (e) {}
-
-                      clearCart();
-                      await reserveReturnNumberForTab();
-                      setReturnMode(true);
-
-                      (fullInv.items || []).forEach((it: any) => {
-                        const catProd = catMap.get(it.product_id);
-                        const invQty = Number(it.quantity) || 1;
-                        const prevRetQty = returnedItemMap[it.product_id] || 0;
-                        const availReturnQty = Math.max(0, invQty - prevRetQty);
-                        if (availReturnQty > 0) {
-                          addItem({
-                            product_id: it.product_id,
-                            invoiceItemId: it.item_id,
-                            name: it.product_name || catProd?.name || 'Item',
-                            sku_barcode: catProd?.sku_barcode || it.sku_barcode || '',
-                            item_code: catProd?.item_code || it.item_code || '',
-                            base_price: it.unit_price || 0,
-                            purchase_price: catProd?.purchase_price || 0,
-                            tax_rate_percent: it.item_tax_rate || 0,
-                            billing_type: catProd?.billing_type || 'PIECE',
-                            isReturnItem: true,
-                            originalQuantity: invQty,
-                            availableToReturn: availReturnQty,
-                            alreadyReturned: prevRetQty,
-                            originalUnitPrice: it.unit_price || 0,
-                            returnSourceInvoiceId: fullInv.invoice_id,
-                            returnSourceInvoiceNumber: fullInv.invoice_number,
-                            quantity: availReturnQty,
-                          });
-                        }
-                      });
-
-                      updateActiveTab({
-                        customerName: fullInv.customer_name || '',
-                        customerPhone: fullInv.customer_phone || '',
-                        customerGstin: fullInv.customer_gstin || '',
-                        customerAddress: fullInv.customer_address || '',
-                      });
-                      setSearchQuery('');
-                      setReturnSearchResults([]);
-                    }}
+                    onClick={() => handleSelectReturnInvoice(inv)}
                     className={clsx(
-                      "w-full text-left p-3 border-b border-border last:border-0 hover:bg-rose-500/5 transition-colors flex items-center justify-between cursor-pointer",
-                      selectedIndex === i && "bg-rose-500/10 font-bold"
+                      "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group border-l-4",
+                      selectedIndex === i
+                        ? "bg-rose-500/10 border-l-rose-500 font-bold"
+                        : "hover:bg-muted/50 border-l-transparent text-foreground"
                     )}
                   >
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-foreground">{inv.invoice_number}</span>
-                        <span className="text-[10px] font-bold text-rose-600 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 uppercase">Returnable</span>
+                        <span className="font-bold text-sm text-foreground group-hover:text-rose-600 transition-colors">{inv.invoice_number}</span>
+                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 uppercase">Returnable</span>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{inv.customer_name || 'Walk-in'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-1">
+                        {inv.customer_name || 'Walk-in Customer'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}
+                      </p>
                     </div>
-                    <div className="text-right font-mono font-black text-rose-600 text-sm">
-                      {formatCurrency(inv.grand_total)}
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-black text-rose-600 dark:text-rose-400 text-sm block">
+                        {formatCurrency(inv.grand_total)}
+                      </span>
                     </div>
                   </button>
                 ))
               ) : (
-                results.map((p, i) => (
-                  <button
-                    key={p.product_id}
-                    data-search-index={i}
-                    onClick={() => handleSelectProduct(p)}
-                    className={clsx(
-                      "w-full text-left p-3 border-b border-border last:border-0 hover:bg-primary/5 transition-colors flex items-center justify-between cursor-pointer group",
-                      selectedIndex === i && "bg-primary/10 font-bold"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{p.name}</span>
-                        {p.isCombo && (
-                          <span className="text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase">COMBO</span>
-                        )}
-                        {p.sku_barcode && (
-                          <span className="text-xs font-mono text-muted-foreground/60">[{p.sku_barcode}]</span>
-                        )}
-                        {p.item_code && p.item_code !== p.sku_barcode && (
-                          <span className="text-xs font-mono text-muted-foreground/60">({p.item_code})</span>
-                        )}
+                results.map((p, i) => {
+                  const price = (selectedTierId && p.tier_prices?.[selectedTierId]) ? p.tier_prices[selectedTierId] : p.base_price;
+                  return (
+                    <button
+                      key={p.product_id}
+                      data-search-index={i}
+                      onClick={() => handleSelectProduct(p)}
+                      className={clsx(
+                        "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group select-none border-l-4",
+                        selectedIndex === i
+                          ? "bg-primary/10 border-l-primary shadow-xs font-semibold text-foreground"
+                          : "hover:bg-muted/60 border-l-transparent text-foreground"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0 pr-3">
+                        <div className="flex items-center flex-wrap gap-2 mb-1">
+                          <span className={clsx(
+                            "font-bold text-sm text-foreground transition-colors truncate",
+                            selectedIndex === i ? "text-primary" : "group-hover:text-primary"
+                          )}>
+                            {p.name}
+                          </span>
+                          {p.isCombo && (
+                            <span className="text-[9px] font-black text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                              COMBO
+                            </span>
+                          )}
+                          {p.sku_barcode && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-sans">SKU</span>
+                              {p.sku_barcode}
+                            </span>
+                          )}
+                          {p.item_code && p.item_code !== p.sku_barcode && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                              <span className="text-[9px] uppercase tracking-wider text-primary/80 font-sans font-normal">CODE</span>
+                              {p.item_code}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          {p.brand_manufacturer && (
+                            <span className="flex items-center gap-1">
+                              <span className="font-semibold text-muted-foreground">Brand:</span>
+                              <span className="font-bold text-foreground">{p.brand_manufacturer}</span>
+                            </span>
+                          )}
+                          {p.category && (
+                            <span className="flex items-center gap-1">
+                              <span className="font-semibold text-muted-foreground">Cat:</span>
+                              <span className="text-foreground">{p.category}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                        {p.brand_manufacturer && <span>Brand: {p.brand_manufacturer}</span>}
-                        {p.category && <span>Cat: {p.category}</span>}
-                        <span>Stock: <strong className={clsx(p.current_stock <= 5 ? "text-amber-500" : "text-foreground")}>{p.current_stock}</strong> {p.uom || 'Pcs'}</span>
+                      <div className="text-right shrink-0 flex flex-col items-end justify-center pl-2">
+                        <div className="font-mono font-black text-base text-foreground tracking-tight group-hover:scale-105 transition-transform">
+                          {formatCurrency(price)}
+                        </div>
+                        <div className="mt-1">
+                          {p.current_stock <= 0 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                              Out of Stock
+                            </span>
+                          ) : p.current_stock <= 5 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              Stock: {p.current_stock} {p.uom || 'Pcs'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              Stock: {p.current_stock} {p.uom || 'Pcs'}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right font-mono font-bold text-foreground text-sm pl-3">
-                      ₹{(selectedTierId && p.tier_prices?.[selectedTierId]) ? p.tier_prices[selectedTierId] : p.base_price}
-                    </div>
-                  </button>
-                ))
+                    </button>
+                  );
+                })
               )}
+            </div>
+
+            {/* Footer Navigation Hints */}
+            <div className="px-4 py-2 bg-muted/60 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-medium select-none">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">↑</kbd>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">↓</kbd>
+                  <span>Navigate</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">↵ Enter</kbd>
+                  <span>Select Item</span>
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-background border border-border rounded text-foreground shadow-2xs">Esc</kbd>
+                <span>Close</span>
+              </span>
             </div>
           </div>
         )}
 
         {!isPastBillMode && !isScrapMode && !isReturnMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-50 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
             <button
               type="button"
               onClick={() => { setShowProductCreateForm(true); setNewProductName(searchQuery); }}
-              className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors cursor-pointer border-0 rounded-xl"
+              className="w-full text-left p-4 flex items-center justify-between hover:bg-primary/5 transition-all cursor-pointer group"
             >
-              <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-bold text-primary">Create "{searchQuery}"</p>
-                <p className="text-[11px] text-muted-foreground">Add as a new product</p>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                  <Plus className="w-5 h-5 shrink-0" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                    Create "<span className="text-primary font-extrabold">{searchQuery}</span>"
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Item not found. Click or press Enter to add to inventory</p>
+                </div>
               </div>
+              <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-sm">
+                + Add Product
+              </span>
             </button>
           </div>
         )}
