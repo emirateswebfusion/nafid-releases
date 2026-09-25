@@ -361,7 +361,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const visibleCards = cards.filter(c => {
         // 1. Feature Flag check
         if (featureFlags) {
-            if (c.id === 'cashier' && !(featureFlags.cash_settlement || featureFlags.cash_register)) return false;
+            if (c.id === 'cashier' && !featureFlags.cash_settlement) return false;
             const f = FEATURE_BY_CARD[c.id];
             if (f && !featureFlags[f]) return false;
         }

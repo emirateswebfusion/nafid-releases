@@ -27,7 +27,7 @@ import { isAdminRole } from '../utils/permissions';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, setFeatureFlag, type FeatureFlags } from '../featureFlags';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, setFeatureFlag, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey } from '../featureFlags';
 import { useTabStore } from '../store/tabStore';
 import { SUPPORTED_TIMEZONES, getStoreTimezone, setStoreTimezone } from '../utils/timezoneHelper';
 
@@ -298,6 +298,25 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [syncFrequency, setSyncFrequency] = useState<'NORMAL' | 'BALANCED' | 'HIGH'>('NORMAL');
   const [testingNetwork, setTestingNetwork] = useState(false);
   const [effectiveCloudState, setEffectiveCloudState] = useState<any>(null);
+
+  const handleToggleFeatureFlag = (key: FeatureKey, nextVal?: boolean) => {
+    const currentVal = featureFlags[key];
+    const targetVal = nextVal !== undefined ? nextVal : !currentVal;
+
+    let updatedFlags: FeatureFlags = { ...featureFlags, [key]: targetVal };
+    if (key === 'cash_settlement' && !targetVal) {
+      updatedFlags.cash_register = false;
+      setShowCashRegister(false);
+    } else if (key === 'cash_register' && targetVal) {
+      updatedFlags.cash_settlement = true;
+      setShowCashRegister(true);
+    } else if (key === 'cash_register' && !targetVal) {
+      setShowCashRegister(false);
+    }
+
+    updatedFlags = sanitizeFeatureFlags(updatedFlags);
+    setFeatureFlags(updatedFlags);
+  };
   const [drainingQueue, setDrainingQueue] = useState(false);
   const initialSnapshot = useRef<string>('');
 
@@ -760,22 +779,23 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const cashReg = allSettings['show_cash_register'];
       if (cashReg !== null && cashReg !== undefined) finalCashReg = Boolean(cashReg);
 
-      let finalFlags: FeatureFlags = { ...DEFAULT_FEATURE_FLAGS };
+      let finalFlags: FeatureFlags = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
       const storedFlags = allSettings['feature_flags'];
       if (storedFlags && typeof storedFlags === 'object' && !Array.isArray(storedFlags)) {
         for (const def of FEATURE_LIST) {
           const v = (storedFlags as any)[def.key];
           if (typeof v === 'boolean') (finalFlags as any)[def.key] = v;
         }
+        finalFlags = sanitizeFeatureFlags(finalFlags);
         finalScrap = finalFlags.scrap;
         finalCashReg = finalFlags.cash_register;
       } else {
         try {
           const flags = await loadFeatureFlags(currentTenant);
-          finalFlags = { ...flags };
+          finalFlags = sanitizeFeatureFlags({ ...flags });
           if (wereFeatureFlagsStored()) {
-            finalScrap = flags.scrap;
-            finalCashReg = flags.cash_register;
+            finalScrap = finalFlags.scrap;
+            finalCashReg = finalFlags.cash_register;
           }
         } catch {}
       }
@@ -1208,6 +1228,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         ? quotationPrefix.replace(/-$/, '')
         : `${cleanCode}-QTN`;
 
+      const sanitizedFlags = sanitizeFeatureFlags(featureFlags);
+
       const checks: { promise: Promise<any>; name: string }[] = [
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'party_estimate' },
@@ -1238,9 +1260,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_account_number', value: bankAccount }), name: 'bank_account_number' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_ifsc', value: bankIfsc }), name: 'bank_ifsc' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_branch', value: bankBranch }), name: 'bank_branch' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(featureFlags.scrap) }), name: 'enable_scrap' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: featureFlags.cash_register }), name: 'show_cash_register' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...featureFlags } }), name: 'feature_flags' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(sanitizedFlags.scrap) }), name: 'enable_scrap' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: sanitizedFlags.cash_register }), name: 'show_cash_register' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...sanitizedFlags } }), name: 'feature_flags' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
@@ -1918,10 +1940,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 {/* Cash Register Toggle */}
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => { const v = !featureFlags.cash_register; setFeatureFlags({ ...featureFlags, cash_register: v }); setShowCashRegister(v); }}>Show Cash Register on Billing Page</label>
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => handleToggleFeatureFlag('cash_register')}>Show Cash Register on Billing Page</label>
                     <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, a Cash Register button appears on the billing page for quick cash-in/cash-out entries.</p>
                   </div>
-                  <button type="button" onClick={() => { const v = !featureFlags.cash_register; setFeatureFlags({ ...featureFlags, cash_register: v }); setShowCashRegister(v); }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.cash_register ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                  <button type="button" onClick={() => handleToggleFeatureFlag('cash_register')} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.cash_register ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.cash_register ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
@@ -3418,7 +3440,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, true])) as FeatureFlags)}
+                    onClick={() => {
+                      setFeatureFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, true])) as FeatureFlags));
+                      setShowCashRegister(true);
+                    }}
                     className="px-3 py-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
                   >
                     Turn On All
@@ -3438,12 +3463,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       )}
                     >
                       <div className="flex-1 min-w-0">
-                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setFeatureFlags({ ...featureFlags, [def.key]: !enabled })}>{def.label}</label>
+                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => handleToggleFeatureFlag(def.key)}>{def.label}</label>
                         <p className="text-[10px] text-muted-foreground/75 mt-0.5 leading-relaxed">{def.desc}</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setFeatureFlags({ ...featureFlags, [def.key]: !enabled })}
+                        onClick={() => handleToggleFeatureFlag(def.key)}
                         className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
                         title={enabled ? 'Enabled' : 'Disabled'}
                       >
@@ -4207,7 +4232,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             <button
               type="button"
               onClick={() => {
-                setFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags);
+                setFeatureFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags));
+                setShowCashRegister(false);
                 setConfirmTurnOffAllModalOpen(false);
               }}
               className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"

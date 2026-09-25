@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @keyframes marquee-x {
   from { transform: translateX(0); }
   to { transform: translateX(var(--marquee-distance, -100%)); }

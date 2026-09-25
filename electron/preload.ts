@@ -198,15 +198,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpsertScrapCreditLedger: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string; party_name?: string | null; customer_phone?: string | null; customer_address?: string | null; user_id?: string; user_name?: string }) => ipcRenderer.invoke('db:upsertScrapCreditLedger', args),
 
   // Parties
-  dbGetParties: (tenant_id: string) => ipcRenderer.invoke('db:getParties', tenant_id),
+  dbGetParties: (tenant_id: string, includeDeleted?: boolean) => ipcRenderer.invoke('db:getParties', tenant_id, includeDeleted),
   dbAddParty: (party: any) => ipcRenderer.invoke('db:addParty', party),
   dbUpdateParty: (party: any) => ipcRenderer.invoke('db:updateParty', party),
   dbDeleteParty: (party_id: string) => ipcRenderer.invoke('db:deleteParty', party_id),
+  dbRestoreParty: (party_id: string) => ipcRenderer.invoke('db:restoreParty', party_id),
+  dbMergeParties: (payload: { tenant_id: string; primary_party_id: string; secondary_party_id: string }) => ipcRenderer.invoke('db:mergeParties', payload),
   dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => ipcRenderer.invoke('db:adjustPartyBalance', payload),
-  dbGetPartyLedger: (party_id: string) => ipcRenderer.invoke('db:getPartyLedger', party_id),
+  dbGetPartyLedger: (party_id: string, includeDeleted?: boolean) => ipcRenderer.invoke('db:getPartyLedger', party_id, includeDeleted),
   dbAddPartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:addPartyLedgerEntry', entry),
   dbUpdatePartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:updatePartyLedgerEntry', entry),
   dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => ipcRenderer.invoke('db:deletePartyLedgerEntry', { ledger_id, party_id }),
+  dbRestorePartyLedgerEntry: (ledger_id: string, party_id: string) => ipcRenderer.invoke('db:restorePartyLedgerEntry', { ledger_id, party_id }),
 
   // Cashier & Settlement
   dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => ipcRenderer.invoke('db:cashier:getDrawer', params),

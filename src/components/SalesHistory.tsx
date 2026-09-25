@@ -2035,46 +2035,88 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   return null;
                 })()}
                 {(() => {
-                  if (selectedInvoice.payment_method !== 'SPLIT') return null;
                   const sd = parseSplitDetails(selectedInvoice.split_details);
-                  if (!sd) return null;
-                  const splitItems = [
+                  const splitItems = sd ? [
                     { label: 'Cash', value: Number(sd.cash) || 0, color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
                     { label: 'Card', value: Number(sd.card) || 0, color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
                     { label: 'UPI', value: Number(sd.upi) || 0, color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
                     { label: 'Credit', value: Number(sd.credit) || 0, color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
                     { label: 'Bank', value: Number(sd.bank_transfer || sd.bank) || 0, color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' },
-                  ].filter(i => i.value > 0);
+                  ].filter(i => i.value > 0) : [];
 
-                  if (splitItems.length === 0) return null;
-
-                  return (
-                    <div className="pt-1.5 space-y-1">
-                      <div className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground">Split Breakdown</div>
-                      <div className="flex flex-wrap gap-1">
-                        {splitItems.map(item => (
-                          <span key={item.label} className={clsx('px-1.5 py-0.5 rounded border text-[10px] font-extrabold', item.color)}>
-                            {item.label}: {formatCurrency(item.value)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-                {(() => {
+                  const rawOldDue = sd?.old_due ?? sd?.old_balance ?? sd?.oldBalance ?? (selectedInvoice as any).old_balance ?? (selectedInvoice as any).old_due;
+                  const rawNewDue = sd?.new_due ?? sd?.new_balance ?? sd?.customerBalance ?? (selectedInvoice as any).customer_balance ?? (selectedInvoice as any).new_due;
                   const received = Number(selectedInvoice.received_amount) || 0;
                   const balance = Number(selectedInvoice.balance_amount) || 0;
                   const isCredit = selectedInvoice.payment_method === 'CREDIT';
                   const isPending = selectedInvoice.payment_method === 'PENDING';
-                  if (isPending) {
-                    return <div className="text-[10px] text-gray-500 font-semibold">Awaiting payment at counter</div>;
+
+                  let oldDueNum = rawOldDue != null ? Number(rawOldDue) : null;
+                  const newDueNum = rawNewDue != null ? Number(rawNewDue) : (isCredit ? Math.abs(balance) : null);
+
+                  if ((oldDueNum == null || oldDueNum === 0) && newDueNum != null && selectedInvoice) {
+                    const gTotal = Number(selectedInvoice.grand_total) || 0;
+                    const totalPaid = (splitItems.length > 0
+                      ? splitItems.filter(i => i.label !== 'Credit').reduce((sum, i) => sum + i.value, 0)
+                      : Number(selectedInvoice.received_amount) || 0);
+                    const netChange = gTotal - totalPaid;
+                    const calcOld = newDueNum - netChange;
+                    if (calcOld !== 0 && !isNaN(calcOld)) {
+                      oldDueNum = calcOld;
+                    }
                   }
-                  if (!isCredit && received <= 0) return null;
+
+                  if (isPending) {
+                    return <div className="text-[10px] text-gray-500 font-semibold pt-1">Awaiting payment at counter</div>;
+                  }
+
                   return (
-                    <div className="text-[10px] text-muted-foreground space-y-0.5">
-                      <div>Received: <span className="font-bold text-foreground">{formatCurrency(received)}</span></div>
-                      {isCredit && balance < 0 && <div className="text-amber-500 font-semibold">Due: {formatCurrency(Math.abs(balance))}</div>}
-                      {!isCredit && balance > 0 && <div className="text-emerald-500 font-semibold">Change: {formatCurrency(balance)}</div>}
+                    <div className="pt-2 space-y-1.5 border-t border-border/50 mt-1.5">
+                      {/* Old Due */}
+                      {oldDueNum != null && oldDueNum !== 0 && (
+                        <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1.5 rounded-lg">
+                          <span className="text-amber-700 dark:text-amber-300 font-extrabold uppercase tracking-wider text-[10px]">OLD DUE:</span>
+                          <span className="font-mono font-black text-amber-700 dark:text-amber-300 text-sm">{formatCurrency(oldDueNum)}</span>
+                        </div>
+                      )}
+
+                      {/* Split Breakdown */}
+                      {splitItems.length > 0 && (
+                        <div className="space-y-1 pt-0.5">
+                          <div className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground">Payment Breakdown</div>
+                          <div className="flex flex-wrap gap-1">
+                            {splitItems.map(item => (
+                              <span key={item.label} className={clsx('px-1.5 py-0.5 rounded border text-[10px] font-extrabold', item.color)}>
+                                {item.label}: {formatCurrency(item.value)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Received & Change */}
+                      <div className="text-[11px] text-muted-foreground space-y-0.5 font-medium">
+                        {received > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span>Received Amount:</span>
+                            <span className="font-bold text-foreground">{formatCurrency(received)}</span>
+                          </div>
+                        )}
+                        {!isCredit && balance > 0 && (
+                          <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold">
+                            <span>Change Returned:</span>
+                            <span>{formatCurrency(balance)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* New Due */}
+                      {newDueNum != null && (isCredit || selectedInvoice.payment_method === 'SPLIT' || (oldDueNum != null && oldDueNum !== 0)) && (
+                        <div className="flex items-center justify-between text-xs font-extrabold text-foreground pt-1.5 border-t border-border/50 bg-amber-500/10 dark:bg-amber-500/20 px-2 py-1 rounded-lg">
+                          <span className="text-amber-600 dark:text-amber-400 uppercase tracking-wider text-[10px]">New Due:</span>
+                          <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-sm">{formatCurrency(newDueNum)}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}

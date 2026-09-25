@@ -1862,16 +1862,19 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
 }));
 
 // ── Party (Credit Person) Handlers ──────────────────────────────────────────
-ipcMain.handle('db:getParties', (event, tenantId: string) => {
+ipcMain.handle('db:getParties', (event, tenantId: string, includeDeleted = false) => {
   try {
     const db = getDb();
     if (!tenantId) return [];
     backfillCreditInvoices(db);
-    const parties = db.prepare(`
-      SELECT p.*, 
-        (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id) AS last_transaction_date
-      FROM parties p WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC
-    `).all(tenantId);
+    const sql = includeDeleted
+      ? `SELECT p.*, 
+          (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id) AS last_transaction_date
+        FROM parties p WHERE p.tenant_id = ? ORDER BY p.is_deleted ASC, p.name COLLATE NOCASE ASC`
+      : `SELECT p.*, 
+          (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id) AS last_transaction_date
+        FROM parties p WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC`;
+    const parties = db.prepare(sql).all(tenantId);
     return parties;
   } catch (error: any) {
     console.error('[db:getParties]', error);
@@ -1972,6 +1975,18 @@ ipcMain.handle('db:deleteParty', (event, partyId: string) => {
   }
 });
 
+ipcMain.handle('db:restoreParty', (event, partyId: string) => {
+  try {
+    const db = getDb();
+    db.prepare("UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(partyId);
+    recalcPartyBalances(db, partyId);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:restoreParty]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id: string; amount: number }) => {
   try {
     const db = getDb();
@@ -1994,13 +2009,67 @@ function recalcPartyBalances(db: any, partyId: string) {
   const gst = parseFloat(rows.gst) || 0;
   const estimate = parseFloat(rows.estimate) || 0;
   const total = gst + estimate;
-  const latest = db.prepare(
-    `SELECT transaction_date FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date DESC LIMIT 1`
-  ).get(partyId) as any;
+  const latest = db.prepare(`SELECT transaction_date FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date DESC LIMIT 1`).get(partyId) as any;
   db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
   return total;
 }
+
+ipcMain.handle('db:mergeParties', safeHandler((event, payload: { tenant_id: string; primary_party_id: string; secondary_party_id: string }) => {
+  try {
+    const db = getDb();
+    const { tenant_id, primary_party_id, secondary_party_id } = payload;
+    if (!tenant_id || !primary_party_id || !secondary_party_id || primary_party_id === secondary_party_id) {
+      return { success: false, error: 'Invalid parameters for party merge' };
+    }
+
+    const primaryParty = db.prepare('SELECT * FROM parties WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(primary_party_id, tenant_id) as any;
+    const secondaryParty = db.prepare('SELECT * FROM parties WHERE party_id = ? AND tenant_id = ?').get(secondary_party_id, tenant_id) as any;
+
+    if (!primaryParty || !secondaryParty) {
+      return { success: false, error: 'One or both parties not found' };
+    }
+
+    const tx = db.transaction(() => {
+      // 1. Move all party_ledger entries from secondary to primary
+      db.prepare(`
+        UPDATE party_ledger 
+        SET party_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+        WHERE party_id = ? AND tenant_id = ?
+      `).run(primary_party_id, secondary_party_id, tenant_id);
+
+      // 2. Update primary party phone, address, and gstin if secondary has them
+      const secPhone = (secondaryParty.phone || '').trim();
+      const secAddr = (secondaryParty.address || '').trim();
+      const secGst = (secondaryParty.gstin || '').trim();
+      db.prepare(`
+        UPDATE parties 
+        SET phone = CASE WHEN (phone IS NULL OR phone = '') AND ? <> '' THEN ? ELSE phone END,
+            address = CASE WHEN (address IS NULL OR address = '') AND ? <> '' THEN ? ELSE address END,
+            gstin = CASE WHEN (gstin IS NULL OR gstin = '') AND ? <> '' THEN ? ELSE gstin END,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE party_id = ? AND tenant_id = ?
+      `).run(secPhone, secPhone, secAddr, secAddr, secGst, secGst, primary_party_id, tenant_id);
+
+      // 3. Mark secondary party as deleted
+      db.prepare(`
+        UPDATE parties 
+        SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+        WHERE party_id = ? AND tenant_id = ?
+      `).run(secondary_party_id, tenant_id);
+
+      // 4. Recalculate primary party balance
+      recalcPartyBalances(db, primary_party_id);
+    });
+
+    tx();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:mergeParties]', error);
+    return { success: false, error: 'Failed to merge parties' };
+  }
+}));
 
 export function syncInvoiceCreditLedger(
   db: any,
@@ -2126,15 +2195,18 @@ export function syncInvoiceCreditLedger(
 
     if (party) {
       // Keep party phone, address, and gstin updated if new details were provided
+      const newPhone = (custPhone || '').trim();
+      const newAddr = (custAddress || '').trim();
+      const newGst = (custGstin || '').trim();
       db.prepare(`
         UPDATE parties 
-        SET phone = COALESCE(?, phone),
-            address = COALESCE(?, address),
-            gstin = COALESCE(?, gstin),
+        SET phone = CASE WHEN ? <> '' THEN ? ELSE phone END,
+            address = CASE WHEN ? <> '' THEN ? ELSE address END,
+            gstin = CASE WHEN ? <> '' THEN ? ELSE gstin END,
             sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
             updated_at = CURRENT_TIMESTAMP
         WHERE party_id = ?
-      `).run(custPhone || null, custAddress, custGstin, party.party_id);
+      `).run(newPhone, newPhone, newAddr, newAddr, newGst, newGst, party.party_id);
     } else {
       const newPartyId = crypto.randomUUID();
       db.prepare(`
@@ -2313,7 +2385,7 @@ export function backfillCreditInvoices(db: any) {
 }
 
 // ── Party Ledger Handlers ────────────────────────────────────────────────
-ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
+ipcMain.handle('db:getPartyLedger', (event, partyId: string, includeDeleted = false) => {
   try {
     const db = getDb();
     backfillCreditInvoices(db);
@@ -2357,12 +2429,35 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
         recalcPartyBalances(db, partyId);
       }
     } catch {}
-    return db.prepare(`
-      SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC
-    `).all(partyId);
+    const sql = includeDeleted
+      ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC`
+      : `SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC`;
+    return db.prepare(sql).all(partyId);
   } catch (error: any) {
     console.error('[db:getPartyLedger]', error);
     return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:restorePartyLedgerEntry', (event, { ledger_id, party_id }: { ledger_id: string; party_id: string }) => {
+  try {
+    const db = getDb();
+    db.prepare("UPDATE party_ledger SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ? AND party_id = ?").run(ledger_id, party_id);
+    const entries = db.prepare(`
+      SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC
+    `).all(party_id) as any[];
+
+    let running = 0;
+    for (const row of entries) {
+      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+    }
+    recalcPartyBalances(db, party_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:restorePartyLedgerEntry]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 

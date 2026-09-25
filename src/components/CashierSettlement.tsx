@@ -819,7 +819,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   // ── Feature-based sections ────────────────────────────────────────────────
   const showSettlement = !featureFlags || featureFlags.cash_settlement;
-  const showRegister = !featureFlags || featureFlags.cash_register;
+  const showRegister = !featureFlags || (featureFlags.cash_settlement && featureFlags.cash_register);
   const pageTitle = cashierPageTitle(featureFlags);
 
   // ── Date grouping (mirrors InventoryManager pattern) ─────────────────────

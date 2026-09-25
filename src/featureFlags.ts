@@ -80,12 +80,20 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   loyalty: true,
 };
 
+export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {
+  const sanitized = { ...flags };
+  // If Cash Settlement is turned OFF, Express Cash Register is also turned OFF automatically
+  if (sanitized.cash_settlement === false) {
+    sanitized.cash_register = false;
+  }
+  return sanitized;
+}
 
 export function cashierPageTitle(flags: Partial<Record<string, boolean>> | null | undefined): string {
   if (!flags) return 'Cash Settlement';
   if (flags.cash_settlement && flags.cash_register) return 'Cashier Settlement';
   if (flags.cash_settlement) return 'Cash Settlement';
-  return 'Cash Register';
+  return 'Cash Settlement';
 }
 
 const SETTINGS_KEY = 'feature_flags';
@@ -101,31 +109,32 @@ export function resetFeatureFlagsCache() {
 export async function loadFeatureFlags(tenantId?: string): Promise<FeatureFlags> {
   if (cache) return cache;
   if (!window.electronAPI) {
-    cache = { ...DEFAULT_FEATURE_FLAGS };
+    cache = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
     return cache;
   }
   try {
     const stored = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: SETTINGS_KEY });
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-      cache = { ...DEFAULT_FEATURE_FLAGS };
+      const flags = { ...DEFAULT_FEATURE_FLAGS };
       for (const def of FEATURE_LIST) {
         const v = (stored as Record<string, unknown>)[def.key];
-        if (typeof v === 'boolean') cache[def.key] = v;
+        if (typeof v === 'boolean') flags[def.key] = v;
       }
+      cache = sanitizeFeatureFlags(flags);
       cacheStored = true;
     } else {
-      cache = { ...DEFAULT_FEATURE_FLAGS };
+      cache = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
       cacheStored = false;
     }
   } catch {
-    cache = { ...DEFAULT_FEATURE_FLAGS };
+    cache = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
     cacheStored = false;
   }
   return cache;
 }
 
 export function getFeatureFlags(): FeatureFlags {
-  return cache ? { ...cache } : { ...DEFAULT_FEATURE_FLAGS };
+  return cache ? sanitizeFeatureFlags({ ...cache }) : sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
 }
 
 export function wereFeatureFlagsStored(): boolean {
@@ -133,13 +142,20 @@ export function wereFeatureFlagsStored(): boolean {
 }
 
 export function setFeatureFlag(key: FeatureKey, value: boolean) {
-  if (!cache) cache = { ...DEFAULT_FEATURE_FLAGS };
+  if (!cache) cache = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
   cache[key] = value;
+  if (key === 'cash_settlement' && !value) {
+    cache.cash_register = false;
+  } else if (key === 'cash_register' && value) {
+    cache.cash_settlement = true;
+  }
+  cache = sanitizeFeatureFlags(cache);
 }
 
 export async function saveFeatureFlags(flags: FeatureFlags, tenantId?: string) {
-  cache = { ...flags };
+  const sanitized = sanitizeFeatureFlags(flags);
+  cache = { ...sanitized };
   cacheStored = true;
   if (!window.electronAPI) return;
-  await window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: SETTINGS_KEY, value: { ...flags } });
+  await window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: SETTINGS_KEY, value: { ...sanitized } });
 }

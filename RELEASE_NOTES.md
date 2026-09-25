@@ -1,3 +1,10 @@
+# Vendora v1.5.81 Release Notes
+
+## What's Changed
+- System stability and application build updates
+- Automated `latest.yml`, installer executable, and blockmap release asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.80...v1.5.81
+
 # Vendora v1.5.80 Release Notes
 
 ## What's Changed

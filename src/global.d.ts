@@ -110,15 +110,18 @@ export interface IElectronAPI {
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbFindCustomers: (params: { tenant_id: string; name?: string; phone?: string }) => Promise<any[]>;
-  dbGetParties: (tenant_id: string) => Promise<any[]>;
+  dbGetParties: (tenant_id: string, includeDeleted?: boolean) => Promise<any[]>;
   dbAddParty: (party: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateParty: (party: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbRestoreParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbMergeParties: (payload: { tenant_id: string; primary_party_id: string; secondary_party_id: string }) => Promise<{ success: boolean; error?: string; primary_party_id?: string; secondary_party_id?: string }>;
   dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
-  dbGetPartyLedger: (party_id: string) => Promise<any[]>;
+  dbGetPartyLedger: (party_id: string, includeDeleted?: boolean) => Promise<any[]>;
   dbAddPartyLedgerEntry: (entry: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePartyLedgerEntry: (entry: any) => Promise<{ success: boolean; error?: string }>;
   dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbRestorePartyLedgerEntry: (ledger_id: string, party_id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Scrap (categories ARE items with price/stock/unit)
   dbDeduplicateScrapCategories: () => Promise<{ removed: number }>;

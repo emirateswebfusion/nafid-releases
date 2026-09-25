@@ -175,6 +175,21 @@ function ItemTotalInput({
     setIsFocused(false);
     setIsNavigatingMenu(false);
     syncActiveSnapshot();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (!isFocused) {
+      setIsFocused(true);
+      setIsNavigatingMenu(false);
+      if (options.length > 0) {
+        const activeIdx = options.findIndex(o => o.tierId === (selectedTierId ?? ''));
+        setSelectedOptionIndex(activeIdx >= 0 ? activeIdx : 0);
+      }
+      e.currentTarget.select();
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -277,10 +292,10 @@ function ItemTotalInput({
   return (
     <div className="relative inline-block">
       {shouldShowMenu && (
-        <div className="absolute right-0 top-full mt-1.5 min-w-[210px] bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
-          <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 px-2 py-1 border-b border-slate-700/80 mb-1 flex items-center justify-between">
+        <div className="absolute right-0 top-full mt-1.5 min-w-[210px] bg-card text-foreground border border-border rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1 border-b border-border mb-1 flex items-center justify-between">
             <span>Price Tier</span>
-            {options.length > 0 && <span className="text-[8px] text-slate-400">↑↓ Select · Enter</span>}
+            {options.length > 0 && <span className="text-[8px] text-muted-foreground">↑↓ Select · Enter</span>}
           </div>
           {options.length > 0 && (
             <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
@@ -298,7 +313,7 @@ function ItemTotalInput({
                     }}
                     className={clsx(
                       "w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer",
-                      isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-slate-800/80 text-slate-200"
+                      isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-muted text-foreground"
                     )}
                   >
                     <span className="truncate">{opt.name}</span>
@@ -309,9 +324,9 @@ function ItemTotalInput({
             </div>
           )}
           {hasPurchaseCost && (
-            <div className="mt-1.5 pt-1.5 border-t border-slate-700/80 px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
+            <div className="mt-1.5 pt-1.5 border-t border-border px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-700 dark:text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
               <span>Purchase Cost:</span>
-              <span className="font-mono font-black text-amber-200">
+              <span className="font-mono font-black text-amber-800 dark:text-amber-200">
                 ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
               </span>
             </div>
@@ -332,6 +347,7 @@ function ItemTotalInput({
         onChange={handleChange}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onClick={handleClick}
         onKeyDown={handleKeyDownInternal}
       />
     </div>
@@ -2060,6 +2076,32 @@ export function BillingPage() {
   };
 
   const handleCustomerPhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showCustomerDropdown && filteredCustomerSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCustomerIndex(prev => (prev + 1) % filteredCustomerSuggestions.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCustomerIndex(prev => (prev - 1 + filteredCustomerSuggestions.length) % filteredCustomerSuggestions.length);
+        return;
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (filteredCustomerSuggestions[selectedCustomerIndex]) {
+          selectCustomerSuggestion(filteredCustomerSuggestions[selectedCustomerIndex]);
+        } else {
+          setShowCustomerDropdown(false);
+          customerAddressInputRef.current?.focus();
+          customerAddressInputRef.current?.select();
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCustomerDropdown(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
       e.preventDefault();
       setShowCustomerDropdown(false);
@@ -4901,11 +4943,14 @@ export function BillingPage() {
             : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : effectiveBalanceAmount,
-          split_details: paymentMethod === 'SPLIT'
-            ? { ...(splitDetails || {}), upi_id: currentSelectedUpi?.upi_id, upi_name: currentSelectedUpi?.name, upi_source_id: currentSelectedUpi?.source_id }
-            : (paymentMethod === 'UPI' && currentSelectedUpi
-                ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id }
-                : (splitDetails || undefined)),
+          split_details: {
+            ...(paymentMethod === 'SPLIT' ? (splitDetails || {}) : (splitDetails || {})),
+            ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
+            ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
+            ...(partyOldBalance !== 0 || paymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
+              ? { new_due: (paymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
+              : {})
+          },
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
@@ -4925,11 +4970,14 @@ export function BillingPage() {
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
-          split_details: paymentMethod === 'SPLIT'
-            ? { ...(splitDetails || {}), upi_id: currentSelectedUpi?.upi_id, upi_name: currentSelectedUpi?.name, upi_source_id: currentSelectedUpi?.source_id }
-            : (paymentMethod === 'UPI' && currentSelectedUpi
-                ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id }
-                : (splitDetails || undefined)),
+          split_details: {
+            ...(paymentMethod === 'SPLIT' ? (splitDetails || {}) : (splitDetails || {})),
+            ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
+            ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
+            ...(partyOldBalance !== 0 || paymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
+              ? { new_due: (paymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
+              : {})
+          },
           received_amount: effectiveReceivedAmount,
           balance_amount: paymentMethod === 'CREDIT'
             ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
@@ -5390,6 +5438,7 @@ export function BillingPage() {
           for (const item of target.items) {
             addItem(item);
             if (item.quantity) updateQuantity(item.product_id, item.quantity);
+            if (item.pieces_override) updatePiecesOverride(item.product_id, item.pieces_override);
           }
         }
         updateActiveTab({
@@ -5435,6 +5484,20 @@ export function BillingPage() {
       if (Array.isArray(result.items)) {
         for (const item of result.items) {
           const basePrice = Number(item.base_price || item.unit_price) || 0;
+          const heldUnitPrice = Number(item.unit_price) || 0;
+
+          // Preserve exact held unit rate if it differs from MRP, or if item had custom offer price
+          const restoredOfferPrice = (heldUnitPrice > 0 && Math.abs(heldUnitPrice - basePrice) > 0.001)
+            ? heldUnitPrice
+            : (item.offer_price ?? (heldUnitPrice > 0 ? heldUnitPrice : null));
+
+          let comboItems: any[] | undefined = undefined;
+          if (item.combo_details) {
+            try {
+              comboItems = JSON.parse(item.combo_details);
+            } catch {}
+          }
+
           addItem({
             product_id: item.product_id,
             name: item.name || 'Product',
@@ -5447,13 +5510,25 @@ export function BillingPage() {
             grade_rate: item.grade_rate || null,
             discount_percent: item.discount_percent ?? null,
             discount_flat: item.discount_flat ?? null,
-            offer_price: item.offer_price ?? null,
+            offer_price: restoredOfferPrice,
+            catalog_offer_price: item.offer_price ?? null,
             sku_barcode: item.sku_barcode || null,
             brand_manufacturer: item.brand_manufacturer || null,
+            isServiceItem: Boolean(item.is_service_item),
+            pieces_override: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
+            isCombo: Boolean(item.combo_id || comboItems),
+            combo_id: item.combo_id || undefined,
+            combo_items: comboItems,
+            hsn_sac_code: item.hsn || item.hsn_sac_code || null,
+            uom: item.uom || undefined,
           });
+
           const qty = Number(item.quantity) || 1;
           if (qty > 0) {
             updateQuantity(item.product_id, qty);
+          }
+          if (item.pieces_sold != null && Number(item.pieces_sold) > 0) {
+            updatePiecesOverride(item.product_id, Number(item.pieces_sold));
           }
         }
       }
@@ -6132,16 +6207,22 @@ export function BillingPage() {
             placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
             value={customerName}
             onFocus={() => {
-              if (!skipCustomerDropdownOnFocusRef.current) {
+              if (!skipCustomerDropdownOnFocusRef.current && (customerName.trim() || customerPhone.trim())) {
                 setShowCustomerDropdown(true);
               }
             }}
             onChange={e => {
               const val = e.target.value;
-              updateActiveTab({ customerName: val });
-              applyPartyTier(val, customerPhone);
-              setShowCustomerDropdown(true);
-              setSelectedCustomerIndex(0);
+              if (!val.trim() && !customerPhone.trim()) {
+                updateActiveTab({ customerName: '', customerAddress: '', customerGstin: '' });
+                setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
+                setShowCustomerDropdown(false);
+              } else {
+                updateActiveTab({ customerName: val });
+                applyPartyTier(val, customerPhone);
+                setShowCustomerDropdown(true);
+                setSelectedCustomerIndex(0);
+              }
             }}
             onKeyDown={handleCustomerNameKeyDown}
             className={clsx(
@@ -6153,63 +6234,38 @@ export function BillingPage() {
                 : 'border-border focus:ring-primary/20 focus:border-primary'
             )}
           />
-          {showCustomerDropdown && (
+          {showCustomerDropdown && (customerName.trim() || customerPhone.trim()) && filteredCustomerSuggestions.length > 0 && (
             <div ref={customerDropdownRef} className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-              {(() => {
-                const combinedList = [...(allCustomersList || []), ...(partiesForTier || []), ...(customerSearchResults || [])];
-                const seenKeys = new Set<string>();
-                const dedupedList: any[] = [];
-                for (const c of combinedList) {
-                  if (!c) continue;
-                  const key = (c.customer_id || c.party_id || c.phone || c.name || '').toString().toLowerCase();
-                  if (!key || seenKeys.has(key)) continue;
-                  seenKeys.add(key);
-                  dedupedList.push(c);
-                }
-                const filtered = dedupedList.filter(c => {
-                  if (!c) return false;
-                  const cNormName = (c.name || '').trim().toLowerCase();
-                  const cPhone = String(c.phone || '').trim();
-                  const qName = (customerName || '').trim().toLowerCase();
-                  const qPhone = (customerPhone || '').trim();
-                  if (!qName && !qPhone) return true;
-                  const matchesName = qName ? cNormName.includes(qName) : false;
-                  const matchesPhone = qPhone ? cPhone.includes(qPhone) : false;
-                  return matchesName || matchesPhone;
-                }).slice(0, 8);
-
-                if (filtered.length === 0) return null;
-
-                return (
-                  <div className="max-h-[220px] overflow-y-auto divide-y divide-border/60">
-                    {filtered.map((c, index) => (
-                      <button
-                        key={c.customer_id || c.party_id || c.phone || index}
-                        type="button"
-                        onClick={() => selectCustomerSuggestion(c)}
-                        className={clsx(
-                          "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border dark:border-slate-800 last:border-0 cursor-pointer transition-colors",
-                          index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold dark:bg-primary/25" : "hover:bg-muted/40 dark:hover:bg-slate-800/60"
-                        )}
-                      >
-                        <User className="w-4 h-4 text-muted-foreground dark:text-gray-400 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-bold text-foreground dark:text-gray-100 truncate">{c.name}</div>
-                          <div className="text-[10px] text-muted-foreground dark:text-gray-400">{c.phone || c.address || 'No phone/address'}</div>
-                        </div>
-                        {Number(c.current_points_balance) > 0 && (
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
-                        )}
-                        {c.balance != null && Number(c.balance) !== 0 && (
-                          <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
-                            Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              <div ref={customerListRef} className="max-h-[220px] overflow-y-auto divide-y divide-border/60 custom-scrollbar">
+                {filteredCustomerSuggestions.slice(0, 15).map((c, index) => (
+                  <button
+                    key={c.customer_id || c.party_id || c.phone || index}
+                    data-customer-index={index}
+                    type="button"
+                    onClick={() => selectCustomerSuggestion(c)}
+                    className={clsx(
+                      "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border dark:border-slate-800 last:border-0 cursor-pointer transition-colors",
+                      index === selectedCustomerIndex
+                        ? "bg-primary/15 text-primary font-bold dark:bg-primary/25"
+                        : "hover:bg-muted/60 dark:hover:bg-slate-800/60"
+                    )}
+                  >
+                    <User className={clsx("w-4 h-4 shrink-0 transition-colors", index === selectedCustomerIndex ? "text-primary dark:text-blue-300" : "text-muted-foreground dark:text-gray-400")} />
+                    <div className="flex-1 min-w-0">
+                      <div className={clsx("text-xs font-bold truncate transition-colors", index === selectedCustomerIndex ? "text-primary dark:text-blue-300" : "text-slate-900 dark:text-gray-100")}>{c.name}</div>
+                      <div className={clsx("text-[10px] transition-colors", index === selectedCustomerIndex ? "text-primary/80 dark:text-blue-300/80" : "text-muted-foreground dark:text-gray-400")}>{c.phone || c.address || 'No phone/address'}</div>
+                    </div>
+                    {Number(c.current_points_balance) > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
+                    )}
+                    {c.balance != null && Number(c.balance) !== 0 && (
+                      <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
+                        Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -6220,16 +6276,22 @@ export function BillingPage() {
             placeholder={invoiceType === 'GST' ? "Phone *" : "Phone Number"}
             value={customerPhone}
             onFocus={() => {
-              if (!skipCustomerDropdownOnFocusRef.current) {
+              if (!skipCustomerDropdownOnFocusRef.current && (customerName.trim() || customerPhone.trim())) {
                 setShowCustomerDropdown(true);
               }
             }}
             onChange={e => {
               const val = e.target.value;
-              updateActiveTab({ customerPhone: val });
-              applyPartyTier(customerName, val);
-              setShowCustomerDropdown(true);
-              setSelectedCustomerIndex(0);
+              if (!val.trim() && !customerName.trim()) {
+                updateActiveTab({ customerPhone: '', customerAddress: '', customerGstin: '' });
+                setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
+                setShowCustomerDropdown(false);
+              } else {
+                updateActiveTab({ customerPhone: val });
+                applyPartyTier(customerName, val);
+                setShowCustomerDropdown(true);
+                setSelectedCustomerIndex(0);
+              }
             }}
             onKeyDown={handleCustomerPhoneKeyDown}
             className={clsx(
@@ -8298,6 +8360,23 @@ export function BillingPage() {
                                 updateActiveTab({ paymentMethod: 'SPLIT' });
                               }
                             }
+                          } else if (opt.value === 'CREDIT') {
+                            if (paymentMethod === 'CREDIT') {
+                              updateActiveTab({ paymentMethod: 'CASH' });
+                            } else {
+                              const initialCreditSplit: SplitDetails = {
+                                cash: 0,
+                                card: 0,
+                                upi: 0,
+                                credit: displayGrandTotal,
+                                bank_transfer: 0,
+                              };
+                              updateActiveTab({
+                                paymentMethod: 'CREDIT',
+                                splitDetails: initialCreditSplit,
+                                receivedAmount: 0,
+                              });
+                            }
                           } else {
                             updateActiveTab({ paymentMethod: opt.value });
                           }
@@ -8330,8 +8409,8 @@ export function BillingPage() {
                           }
                         };
 
-                        // ── In SPLIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
-                        if (paymentMethod === 'SPLIT') {
+                        // ── In SPLIT or CREDIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
+                        if (paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') {
                           if (opt.value === 'CASH') {
                             return (
                               <div key="CASH" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]')}>
@@ -8514,6 +8593,7 @@ export function BillingPage() {
                           }
 
                           if (opt.value === 'SPLIT') {
+                            const isSplitActive = paymentMethod === 'SPLIT';
                             return (
                               <button
                                 key="SPLIT"
@@ -8521,13 +8601,32 @@ export function BillingPage() {
                                 type="button"
                                 onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
                                 onKeyDown={handlePaymentOptionKeyDown}
-                                className={clsx(span, 'flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px] focus:outline-none focus:ring-2 focus:ring-purple-500')}
-                                title="Click again to deactivate Split Mode"
+                                className={clsx(
+                                  span,
+                                  'flex flex-col justify-between p-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px] focus:outline-none focus:ring-2 shadow-sm',
+                                  isSplitActive
+                                    ? 'border-purple-600 bg-purple-600 text-white dark:bg-purple-600 dark:border-purple-500 focus:ring-purple-400'
+                                    : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500'
+                                )}
+                                title="Click to close multi-payment breakdown and reset to single Cash payment"
                               >
-                                <div className="p-1.5 rounded-xl bg-purple-500/15 transition-colors">
-                                  <Split className="w-4.5 h-4.5" />
+                                <div className="flex items-center justify-between w-full">
+                                  <div className="flex items-center gap-1 font-extrabold text-xs">
+                                    <Split className="w-4 h-4 shrink-0" />
+                                    <span>{isSplitActive ? 'Split ON' : 'Multi Pay'}</span>
+                                  </div>
                                 </div>
-                                <span className="text-xs font-extrabold">Split</span>
+                                <div className="w-full flex items-center justify-center gap-1 mt-1">
+                                  <span className={clsx(
+                                    'text-xs font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors',
+                                    isSplitActive
+                                      ? 'bg-white/20 text-white hover:bg-white/30'
+                                      : 'bg-amber-500/20 text-amber-800 dark:text-amber-200 hover:bg-amber-500/30'
+                                  )}>
+                                    <X className="w-3.5 h-3.5 shrink-0 stroke-[3]" />
+                                    <span>Close</span>
+                                  </span>
+                                </div>
                               </button>
                             );
                           }
@@ -9557,32 +9656,87 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   />
                 </div>
               </div>
-              {/* Change input — hidden in scrap/return/quotation/PENDING/CARD/UPI mode */}
-              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', isScrapMode || isReturnMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
-                  {paymentMethod === 'CREDIT' ? 'Balance' : 'Change'}
-                </p>
-                <div className="relative">
-                  <span className={clsx(
-                    'absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black',
-                    balanceAmount >= 0 ? 'text-emerald-500' : 'text-destructive'
-                  )}>₹</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={Math.abs(balanceAmount)}
-                    readOnly
-                    inputMode="decimal"
-                    className={clsx(
-                      'w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
-                      balanceAmount >= 0
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                        : 'bg-destructive/10 border-destructive/30 text-destructive'
-                    )}
-                  />
-                </div>
-              </div>
+              {/* Change / New Total Due input — hidden in scrap/return/quotation/PENDING/CARD/UPI mode */}
+              {(() => {
+                const effectivePaid = ((paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') && splitTotal > 0)
+                  ? splitTotal
+                  : (receivedAmount || 0);
+
+                const cleanCustName = (customerName || '').trim();
+                const cleanCustPhone = (customerPhone || '').trim();
+                const selectedPartyObj = (cleanCustName || cleanCustPhone)
+                  ? (partiesForTier || []).find((p: any) =>
+                      (cleanCustName && p.name && p.name.trim().toLowerCase() === cleanCustName.toLowerCase()) ||
+                      (cleanCustPhone && p.phone && String(p.phone).trim() === cleanCustPhone)
+                    )
+                  : null;
+                const partyOldBalance = selectedPartyObj ? (Number(selectedPartyObj.balance) || 0) : 0;
+                const isCreditCustomer = partyOldBalance !== 0 || paymentMethod === 'CREDIT';
+
+                if (isCreditCustomer) {
+                  const netNewDue = partyOldBalance + displayGrandTotal - effectivePaid;
+                  const isDue = netNewDue > 0;
+                  return (
+                    <div className={clsx('flex-1 min-w-0 max-w-[150px] transition-all duration-300', isScrapMode || isReturnMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+                      <p className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-amber-600 dark:text-amber-400">
+                        {isDue ? 'New Total Due' : 'Advance Balance'}
+                      </p>
+                      <div className="relative">
+                        <span className={clsx(
+                          'absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black',
+                          isDue ? 'text-amber-500' : 'text-emerald-500'
+                        )}>₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={Math.abs(netNewDue).toFixed(2)}
+                          readOnly
+                          inputMode="decimal"
+                          className={clsx(
+                            'w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+                            isDue
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                          )}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Regular Cash / Non-Credit Customer:
+                const isOverpaid = effectivePaid >= displayGrandTotal;
+                const changeVal = Math.abs(effectivePaid - displayGrandTotal);
+
+                return (
+                  <div className={clsx('flex-1 min-w-0 max-w-[140px] transition-all duration-300', isScrapMode || isReturnMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
+                      Change
+                    </p>
+                    <div className="relative">
+                      <span className={clsx(
+                        'absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black',
+                        isOverpaid ? 'text-emerald-500' : 'text-amber-500'
+                      )}>₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={changeVal.toFixed(2)}
+                        readOnly
+                        inputMode="decimal"
+                        className={clsx(
+                          'w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+                          isOverpaid
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                        )}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
 
