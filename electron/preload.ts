@@ -77,6 +77,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   authSaveToken: (payload: any) => ipcRenderer.invoke('auth:saveToken', payload),
   authGetToken: () => ipcRenderer.invoke('auth:getToken'),
   authClearToken: () => ipcRenderer.invoke('auth:clearToken'),
+  authSaveLocalUser: (payload: any) => ipcRenderer.invoke('auth:saveLocalUser', payload),
+  authLoginOffline: (payload: any) => ipcRenderer.invoke('auth:loginOffline', payload),
   onDeepLink: (callback: (token: string) => void) => {
     ipcRenderer.on('auth:deep-link', (_event, token) => callback(token));
   },

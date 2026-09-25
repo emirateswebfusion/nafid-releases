@@ -8,7 +8,7 @@ import dns from 'node:dns';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
-import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance } from './db/localDb';
+import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser } from './db/localDb';
 
 
 // Initialize and configure structured logging
@@ -722,10 +722,45 @@ ipcMain.handle('auth:saveToken', (event, payload) => {
     if (encrypted) {
       fs.writeFileSync(getEncryptedPath(), encrypted);
     }
+    // Also persist user credentials into local SQLite database for offline login capability
+    if (payload && payload.user_id && payload.tenant_id) {
+      localSaveUser({
+        user_id: payload.user_id,
+        tenant_id: payload.tenant_id,
+        name: payload.user_name || payload.email,
+        email: payload.email || payload.user_name,
+        password_hash: payload.password_hash,
+        role: payload.role,
+        restricted_page: payload.restricted_page
+      });
+    }
     setSyncActive(true);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: 'Failed to save token' };
+  }
+});
+
+ipcMain.removeHandler('auth:saveLocalUser');
+ipcMain.handle('auth:saveLocalUser', (event, payload) => {
+  try {
+    localSaveUser(payload);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.removeHandler('auth:loginOffline');
+ipcMain.handle('auth:loginOffline', (event, payload) => {
+  try {
+    const { email, password } = payload || {};
+    if (!email || !password) {
+      return { success: false, error: 'Email and password required' };
+    }
+    return localAuthenticateUser(email, password);
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Offline authentication failed' };
   }
 });
 

@@ -36,6 +36,7 @@ export interface CartItem {
   availableToReturn?: number;
   alreadyReturned?: number;
   originalUnitPrice?: number;
+  rawUnitPrice?: number;
   originalTaxAmount?: number;
   returnSourceInvoiceId?: string;
   returnSourceInvoiceNumber?: string;

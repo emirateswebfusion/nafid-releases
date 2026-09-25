@@ -368,9 +368,13 @@ export function getSyncIntervalMs(): number {
       if (parsed.syncFrequency === 'BALANCED') return 30000;
       if (parsed.syncFrequency === 'NORMAL') return 60000;
     }
+    const pendingCount = getTotalPendingRecords(db, tenantId);
+    if (pendingCount > 0) {
+      return 15000;
+    }
   } catch {}
-  const envMins = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1.0');
-  return Math.max(15000, Math.round(envMins * 60 * 1000));
+  const envMins = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '2.0');
+  return Math.max(30000, Math.round(envMins * 60 * 1000));
 }
 
 let currentActiveRoute: 'LAN' | 'CLOUD' | 'NONE' = 'NONE';
@@ -598,25 +602,77 @@ async function clearAuthAndNotify() {
     clearTimeout(syncCycleTimerId);
     syncCycleTimerId = null;
   }
-  const paths = [getConfigPath(), getEncryptedPath()];
-  for (const p of paths) {
-    if (fs.existsSync(p)) {
-      try { fs.unlinkSync(p); } catch {}
-    }
-  }
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
-    console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Cleared disk credentials and notifying UI to re-login.');
+    console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Pausing cloud sync loop and notifying UI (local POS remains active).');
     win.webContents.send('auth:token-expired');
   }
 }
 
 import { startLocalHostServer } from './localHostServer.js';
 
-const FAST_INVOICE_PULL_MS = 15000;
+const FAST_INVOICE_PULL_MS = 3000;
+let fastInvoicePullTimerId: NodeJS.Timeout | null = null;
 let fastInvoicePullInProgress = false;
-let syncCycleTimerId: NodeJS.Timeout | null = null;
+let consecutiveFastPullFailures = 0;
 let activePageContext: string | null = null;
+let syncCycleTimerId: NodeJS.Timeout | null = null;
+
+function getFastPullIntervalMs(): number {
+  if (consecutiveFastPullFailures <= 0) return FAST_INVOICE_PULL_MS;
+  if (consecutiveFastPullFailures === 1) return 6000;
+  if (consecutiveFastPullFailures === 2) return 12000;
+  if (consecutiveFastPullFailures === 3) return 30000;
+  return 60000;
+}
+
+async function triggerFastLightweightBillPull() {
+  if (!isSyncActive || activePageContext !== 'cash_settlement' || fastInvoicePullInProgress || syncInProgress) {
+    return;
+  }
+  const effective = calculateEffectiveCloudAccess();
+  if (!effective.isCloudAllowed) return;
+
+  const config = getAuthConfig();
+  if (config && !isJwtExpired(config.jwt_token)) {
+    fastInvoicePullInProgress = true;
+    try {
+      const res = await pullLightweightPendingBills(config.jwt_token, config.tenant_id);
+      if (res.success) {
+        consecutiveFastPullFailures = 0;
+        if (res.updated) {
+          notifyRenderer('fast-invoice-pull-changed');
+        }
+      } else {
+        consecutiveFastPullFailures++;
+      }
+    } catch {
+      consecutiveFastPullFailures++;
+    } finally {
+      fastInvoicePullInProgress = false;
+    }
+  }
+}
+
+function scheduleNextFastLightweightPull() {
+  if (fastInvoicePullTimerId) {
+    clearTimeout(fastInvoicePullTimerId);
+    fastInvoicePullTimerId = null;
+  }
+  if (activePageContext !== 'cash_settlement' || !isSyncActive) {
+    return;
+  }
+  const delay = getFastPullIntervalMs();
+  fastInvoicePullTimerId = setTimeout(async () => {
+    try {
+      await triggerFastLightweightBillPull();
+    } finally {
+      if (activePageContext === 'cash_settlement' && isSyncActive) {
+        scheduleNextFastLightweightPull();
+      }
+    }
+  }, delay);
+}
 
 export function setPageContext(page: string | null, active: boolean) {
   if (active) {
@@ -625,6 +681,22 @@ export function setPageContext(page: string | null, active: boolean) {
     activePageContext = null;
   }
   console.log(`[SyncWorker] Active page context changed to: ${activePageContext || 'none'}`);
+
+  if (activePageContext === 'cash_settlement') {
+    if (!fastInvoicePullTimerId) {
+      console.log('[SyncWorker] 🟢 Entering Cash Settlement screen — Starting lightweight bill poll timer (3s)');
+      consecutiveFastPullFailures = 0;
+      triggerFastLightweightBillPull().finally(() => {
+        scheduleNextFastLightweightPull();
+      });
+    }
+  } else {
+    if (fastInvoicePullTimerId) {
+      console.log('[SyncWorker] 🔴 Leaving Cash Settlement screen — Destroying lightweight bill poll timer');
+      clearTimeout(fastInvoicePullTimerId);
+      fastInvoicePullTimerId = null;
+    }
+  }
 }
 
 function scheduleNextSyncCycle() {
@@ -698,28 +770,7 @@ export function initSyncWorker() {
 
   // 1. Dynamic background sync cycle (configured heartbeat rate)
   scheduleNextSyncCycle();
-
-  // 2. High-speed priority invoice pull — ONLY when Cash Settlement or Checkout page is active
-  setInterval(async () => {
-    const isRelevantPageActive = activePageContext === 'cash_settlement' || activePageContext === 'checkout';
-    const effective = calculateEffectiveCloudAccess();
-    if (isSyncActive && isRelevantPageActive && !fastInvoicePullInProgress && !syncInProgress && effective.isCloudAllowed) {
-      const config = getAuthConfig();
-      if (config && !isJwtExpired(config.jwt_token)) {
-        fastInvoicePullInProgress = true;
-        try {
-          const updated = await pullInvoices(config.jwt_token, config.tenant_id);
-          if (updated) {
-            notifyRenderer('fast-invoice-pull-changed');
-          }
-        } catch {
-          // ignore transient fast pull errors
-        } finally {
-          fastInvoicePullInProgress = false;
-        }
-      }
-    }
-  }, FAST_INVOICE_PULL_MS);
+}
 
 function isCashSettlementFeatureEnabled(): boolean {
   try {
@@ -733,55 +784,6 @@ function isCashSettlementFeatureEnabled(): boolean {
     }
   } catch {}
   return true;
-}
-
-  // 3. Fast cash pull — ONLY when Cash Settlement / Cash Drawer page is active AND feature is enabled
-  setInterval(async () => {
-    const isCashPageActive = (activePageContext === 'cash_settlement' || activePageContext === 'cash_drawer') && isCashSettlementFeatureEnabled();
-    const effective = calculateEffectiveCloudAccess();
-    if (isSyncActive && isCashPageActive && !fastCashPullInProgress && !syncInProgress) {
-      const config = getAuthConfig();
-      if (config && !isJwtExpired(config.jwt_token)) {
-        fastCashPullInProgress = true;
-        try {
-          const d1 = await pullCashDrawer(config.jwt_token, config.tenant_id);
-          const d2 = await pullCashTransactions(config.jwt_token, config.tenant_id);
-          const d3 = await pullPaymentSourceTransactions(config.jwt_token, config.tenant_id);
-          if (d1 || d2 || d3) {
-            notifyRenderer();
-            console.log('[SyncWorker] Fast cash pull: renderer notified.');
-          }
-        } catch {
-          // ignore transient fast pull errors
-        } finally {
-          fastCashPullInProgress = false;
-        }
-      }
-    }
-  }, FAST_CASH_PULL_MS);
-
-  // 4. Fast quotation pull — ONLY when Quotations / Sales page is active
-  setInterval(async () => {
-    const isQuotationsPageActive = activePageContext === 'quotations';
-    const effective = calculateEffectiveCloudAccess();
-    if (isSyncActive && isQuotationsPageActive && !fastQuotationPullInProgress && !syncInProgress && effective.isCloudAllowed) {
-      const config = getAuthConfig();
-      if (config && !isJwtExpired(config.jwt_token)) {
-        fastQuotationPullInProgress = true;
-        try {
-          const updated = await pullQuotations(config.jwt_token, config.tenant_id);
-          if (updated) {
-            notifyRenderer();
-            console.log('[SyncWorker] Fast quotation pull: renderer notified.');
-          }
-        } catch {
-          // ignore transient fast pull errors
-        } finally {
-          fastQuotationPullInProgress = false;
-        }
-      }
-    }
-  }, FAST_QUOTATION_PULL_MS);
 }
 
 export async function drainPendingCloudQueue(sender?: WebContents): Promise<{ success: boolean; drainedCount: number; message: string }> {
@@ -873,7 +875,7 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
 }
 
 let fastCashPullInProgress = false;
-const FAST_CASH_PULL_MS = 5000;
+const FAST_CASH_PULL_MS = 15000;
 
 let urgentCashSyncInProgress = false;
 let lastUrgentCashSyncTime = 0;
@@ -942,6 +944,101 @@ export async function forceResyncInvoices(sender?: WebContents) {
     );
   }
   return runInitialSync(sender);
+}
+
+async function checkCloudStatus(token: string, tenantId: string, sinceTimestamp: string | null): Promise<{ success: boolean; hasChanges: boolean; maxUpdatedAt?: string | null }> {
+  try {
+    const urlPath = sinceTimestamp ? `/api/sync/check-status?since=${encodeURIComponent(sinceTimestamp)}` : '/api/sync/check-status';
+    const { response } = await fetchWithFallback(urlPath, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return { success: false, hasChanges: true };
+    const res = await response.json();
+    if (!res.success) return { success: false, hasChanges: true };
+    return { success: true, hasChanges: res.hasChanges !== false, maxUpdatedAt: res.maxUpdatedAt };
+  } catch {
+    return { success: false, hasChanges: true };
+  }
+}
+
+async function pullLightweightPendingBills(token: string, tenantId: string): Promise<{ success: boolean; updated: boolean }> {
+  const db = getDb();
+  const cursorTs = getMeta(cursorKey(tenantId, 'pending_bills_lightweight_ts')) || null;
+  const cursorId = getMeta(cursorKey(tenantId, 'pending_bills_lightweight_id')) || null;
+  
+  let urlPath = '/api/sync/pending-bills-lightweight';
+  if (cursorTs) {
+    urlPath += `?since=${encodeURIComponent(cursorTs)}`;
+    if (cursorId) {
+      urlPath += `&last_id=${encodeURIComponent(cursorId)}`;
+    }
+  }
+
+  try {
+    const { response } = await fetchWithFallback(urlPath, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(4000),
+    });
+
+    if (!response.ok) return { success: false, updated: false };
+    const res = await response.json();
+    if (!res.success || !Array.isArray(res.bills)) return { success: false, updated: false };
+    if (res.bills.length === 0) return { success: true, updated: false };
+
+    let hasInsertedNew = false;
+    let lastTs = cursorTs;
+    let lastId = cursorId;
+
+    const upsertLightweightInv = db.prepare(`
+      INSERT INTO invoices (
+        invoice_id, tenant_id, invoice_number, customer_name, grand_total, payment_method, user_id, sync_status, created_at, updated_at
+      ) VALUES (
+        @invoice_id, @tenant_id, @invoice_number, @customer_name, @grand_total, @payment_method, @user_id, 'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(invoice_id) DO UPDATE SET
+        customer_name = EXCLUDED.customer_name,
+        grand_total = EXCLUDED.grand_total,
+        payment_method = EXCLUDED.payment_method,
+        updated_at = EXCLUDED.updated_at
+      WHERE invoices.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((bills: any[]) => {
+      for (const b of bills) {
+        if (!b.invoice_id) continue;
+        upsertLightweightInv.run({
+          invoice_id: b.invoice_id,
+          tenant_id: tenantId,
+          invoice_number: b.invoice_number,
+          customer_name: b.customer_name || null,
+          grand_total: Number(b.grand_total) || 0,
+          payment_method: b.payment_method || 'PENDING',
+          user_id: b.user_id || null,
+          created_at: toSqliteDate(b.created_at),
+          updated_at: toSqliteDate(b.updated_at || b.created_at),
+        });
+        hasInsertedNew = true;
+        if (b.created_at) {
+          lastTs = new Date(b.created_at).toISOString();
+          lastId = b.invoice_id;
+        }
+      }
+    });
+
+    tx(res.bills);
+    if (lastTs && lastId) {
+      setMeta(cursorKey(tenantId, 'pending_bills_lightweight_ts'), lastTs);
+      setMeta(cursorKey(tenantId, 'pending_bills_lightweight_id'), lastId);
+    }
+    return { success: true, updated: hasInsertedNew };
+  } catch {
+    return { success: false, updated: false };
+  }
 }
 
 async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ success: boolean; dataUpdated: boolean }> {
@@ -1041,6 +1138,11 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       let healthOk = false;
       let activeRoute: 'LAN' | 'CLOUD' = endpoints.primaryRoute;
 
+      if (endpoints.primaryRoute === 'CLOUD') {
+        // In Cloud Mode (Vercel), skip recurring /health pings to eliminate serverless function wakeups
+        healthOk = true;
+        activeRoute = 'CLOUD';
+      } else {
         try {
           const res = await fetch(endpoints.primaryUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
           if (res.ok) {
@@ -1063,13 +1165,14 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
             // Fallback Cloud API also unreachable
           }
         }
+      }
 
-        if (!healthOk) {
-          notifyOnlineStatus(false);
-          return;
-        }
+      if (!healthOk) {
+        notifyOnlineStatus(false);
+        return;
+      }
 
-        notifyOnlineStatus(true, activeRoute);
+      notifyOnlineStatus(true, activeRoute);
 
         if (endpoints.primaryRoute === 'LAN' && endpoints.primaryUrl.includes('127.0.0.1')) {
           console.log('[SyncWorker] Primary Master in LAN mode active. Local SQLite database is master for LAN terminals.');
@@ -1129,7 +1232,32 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
         notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
-        notifyProgress(12.5, sender, undefined, totalRecords); await syncQuotations(jwt_token, tenant_id);
+        // Pre-check if cloud has any new changes before running pull requests
+        const syncCheckTables = [
+          'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
+          'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
+          'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
+          'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
+          'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
+        ];
+        let latestPulledTs: string | null = null;
+        for (const t of syncCheckTables) {
+          const ts = getMeta(cursorKey(tenant_id, t));
+          if (ts) {
+            if (!latestPulledTs || new Date(ts).getTime() > new Date(latestPulledTs).getTime()) {
+              latestPulledTs = ts;
+            }
+          }
+        }
+        if (latestPulledTs) {
+          const statusCheck = await checkCloudStatus(jwt_token, tenant_id, latestPulledTs);
+          if (statusCheck.success && !statusCheck.hasChanges) {
+            console.log(`[SyncWorker] ⚡ Cloud check-status: 0 changes detected since ${latestPulledTs}. Skipping pull phase.`);
+            notifyPercent(100, 'Sync completed', sender);
+            notifyCycleComplete(sender);
+            return;
+          }
+        }
 
         // Try unified delta pull first (1 request for all datasets)
         const deltaRes = await unifiedDeltaPull(jwt_token, tenant_id);

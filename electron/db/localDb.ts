@@ -3,6 +3,7 @@ import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
 import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 
 // ── Local Time Helpers ────────────────────────────────────────────────────
 function localTimestamp(d: Date | string | number = new Date()): string {
@@ -31,6 +32,7 @@ export function initDb() {
         tenant_id TEXT NOT NULL,
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
+        password_hash TEXT,
         role TEXT DEFAULT 'STAFF',
         restricted_page TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1390,15 +1392,19 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add columns to party_ledger:', e.message);
   }
 
-  // Migration: Add restricted_page column to users
+  // Migration: Add restricted_page and password_hash columns to users
   try {
     const uCols = db.prepare(`PRAGMA table_info(users)`).all().map((c: any) => c.name);
     if (!uCols.includes('restricted_page')) {
       console.log('[DB Migration] Adding restricted_page to users...');
       db.exec("ALTER TABLE users ADD COLUMN restricted_page TEXT");
     }
+    if (!uCols.includes('password_hash')) {
+      console.log('[DB Migration] Adding password_hash to users...');
+      db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+    }
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add restricted_page to users:', e.message);
+    console.warn('[DB Migration] Failed to add columns to users:', e.message);
   }
 
   // Migration: Backfill settled_at for historical non-pending invoices where settled_at IS NULL
@@ -2234,5 +2240,91 @@ export function dbSaveStaffAttendance(params: {
     return { success: true, attendance_id: id };
   }
 }
+
+// ── Local User Authentication Caching ──────────────────────────────────────
+export function localSaveUser(user: {
+  user_id: string;
+  tenant_id: string;
+  name: string;
+  email: string;
+  password_hash?: string;
+  role?: string;
+  restricted_page?: string;
+}) {
+  if (!db || !user.email) return;
+  const existing: any = db.prepare(`SELECT user_id, password_hash FROM users WHERE email = ?`).get(user.email);
+  const now = localTimestamp();
+
+  if (existing) {
+    db.prepare(`
+      UPDATE users SET
+        tenant_id = ?, name = ?, role = COALESCE(?, role),
+        password_hash = COALESCE(?, password_hash),
+        restricted_page = COALESCE(?, restricted_page)
+      WHERE email = ?
+    `).run(
+      user.tenant_id,
+      user.name || user.email,
+      user.role || 'STAFF',
+      user.password_hash || null,
+      user.restricted_page || null,
+      user.email
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO users (user_id, tenant_id, name, email, password_hash, role, restricted_page, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.user_id || crypto.randomUUID(),
+      user.tenant_id,
+      user.name || user.email,
+      user.email,
+      user.password_hash || null,
+      user.role || 'STAFF',
+      user.restricted_page || null,
+      now
+    );
+  }
+}
+
+export function localAuthenticateUser(email: string, password: string): {
+  success: boolean;
+  error?: string;
+  user?: {
+    user_id: string;
+    tenant_id: string;
+    name: string;
+    email: string;
+    role: string;
+    restricted_page?: string;
+  };
+} {
+  if (!db) return { success: false, error: 'Local database unavailable' };
+  const user: any = db.prepare(`SELECT user_id, tenant_id, name, email, role, password_hash, restricted_page FROM users WHERE LOWER(email) = LOWER(?)`).get(email);
+  if (!user) {
+    return { success: false, error: 'User not found in local database cache. Please login online once.' };
+  }
+  if (!user.password_hash) {
+    return { success: false, error: 'Local password hash missing. Please login online once to sync credentials.' };
+  }
+
+  const isValid = bcrypt.compareSync(password, user.password_hash);
+  if (!isValid) {
+    return { success: false, error: 'Invalid credentials' };
+  }
+
+  return {
+    success: true,
+    user: {
+      user_id: user.user_id,
+      tenant_id: user.tenant_id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      restricted_page: user.restricted_page,
+    }
+  };
+}
+
 
 

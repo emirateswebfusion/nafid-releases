@@ -14,10 +14,13 @@ export interface AuthState {
   isLoading: boolean;
   lastSyncTime: number | null;
   restrictedPage: string | null;
+  isCloudSyncPaused: boolean;
+  cloudSyncReason: string | null;
 
   // Actions
   login: (email: string, password: string, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
   setLastSyncTime: (time: number) => void;
+  setCloudSyncPaused: (paused: boolean, reason?: string | null) => void;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateDomain: (domain: string) => Promise<{ success: boolean; error?: string }>;
@@ -87,7 +90,7 @@ function formatError(err: any, fallback: string): string {
   return String(err);
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   isAuthenticated: false,
   token: null,
   tenantId: null,
@@ -99,8 +102,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
   isLoading: true,
   lastSyncTime: null,
   restrictedPage: null,
+  isCloudSyncPaused: false,
+  cloudSyncReason: null,
 
   setLastSyncTime: (time) => set({ lastSyncTime: time }),
+  setCloudSyncPaused: (paused, reason = null) => set({ isCloudSyncPaused: paused, cloudSyncReason: reason }),
 
   // ── On app startup: read config.json via IPC ──────────────────────────────
   checkAuth: async () => {
@@ -111,11 +117,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         // Reset local store confirmation state before loading new ones
         useCartStore.getState().resetDomainConfirmation();
         if (stored?.jwt_token) {
-          if (isTokenExpired(stored.jwt_token)) {
-            if (window.electronAPI) await window.electronAPI.authClearToken();
-            set({ isAuthenticated: false, permissions: [] });
-            return;
-          }
+          const expired = isTokenExpired(stored.jwt_token);
           const perms = parsePermissionsFromToken(stored.jwt_token);
           let rawRole = (stored.role || '') as any;
           if (rawRole === 'SUPER_ADMIN') {
@@ -146,6 +148,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
             userName: stored.user_name || null,
             shopName: resolvedShopName,
             restrictedPage: stored.restricted_page || null,
+            isCloudSyncPaused: expired,
+            cloudSyncReason: expired ? 'Token expired — Cloud Sync paused. Re-login to resume cloud sync.' : null
           });
           useCartStore.getState().setRole(rawRole);
           if (stored.domain_type) {
@@ -202,7 +206,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       }
       if (!resolvedShopName) resolvedShopName = email;
 
-      // Persist to disk via IPC
+      // Persist to disk and local SQLite database via IPC
       if (window.electronAPI) {
         await window.electronAPI.authSaveToken({
           jwt_token: data.token,
@@ -213,6 +217,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
           shop_name: resolvedShopName,
           domain_type: data.domain_type,
           restricted_page: data.restricted_page,
+          password_hash: data.password_hash,
+          email: email
         });
       }
       
@@ -226,6 +232,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
         userName: data.user_name || null,
         shopName: resolvedShopName,
         restrictedPage: data.restricted_page || null,
+        isCloudSyncPaused: false,
+        cloudSyncReason: null
       });
       useCartStore.getState().setRole(roleVal);
       if (data.domain_type) {
@@ -242,8 +250,44 @@ export const useAuthStore = create<AuthState>()((set) => ({
           });
         }
       }
+
+      // If background sync worker is running, trigger an immediate cycle
+      if (window.electronAPI?.runInitialSync) {
+        window.electronAPI.runInitialSync().catch(() => {});
+      }
+
       return { success: true };
     } catch (err: any) {
+      // Offline fallback: Attempt local authentication using cached user credentials in SQLite
+      if (window.electronAPI?.authLoginOffline) {
+        const offlineAuth = await window.electronAPI.authLoginOffline({ email, password });
+        if (offlineAuth.success && offlineAuth.user) {
+          const user = offlineAuth.user;
+          let roleVal = (user.role || '') as any;
+          if (['BILLER', 'CASHIER'].includes(roleVal)) roleVal = 'STAFF';
+
+          let resolvedShopName = email;
+          try {
+            const local = await window.electronAPI.settingsGet({ tenant_id: user.tenant_id || 'global', key: 'shop_name' });
+            if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
+          } catch {}
+
+          set({
+            isAuthenticated: true,
+            tenantId: user.tenant_id,
+            userId: user.user_id,
+            role: roleVal,
+            permissions: roleVal === 'ADMIN' ? ['*'] : convertLegacyRestrictedPageToPermissions(user.restricted_page),
+            userName: user.name || email,
+            shopName: resolvedShopName,
+            restrictedPage: user.restricted_page || null,
+            isCloudSyncPaused: true,
+            cloudSyncReason: 'Offline Mode — Cloud Sync paused. Check network connection.'
+          });
+          useCartStore.getState().setRole(roleVal);
+          return { success: true };
+        }
+      }
       return { success: false, error: formatError(err, 'Cannot reach server. Check your network connection.') };
     }
   },

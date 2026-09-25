@@ -64,9 +64,11 @@ export interface IElectronAPI {
   forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
   testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
-  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string }) => Promise<{ success: boolean; error?: string }>;
-  authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string } | null>;
+  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string }) => Promise<{ success: boolean; error?: string }>;
+  authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
+  authSaveLocalUser: (payload: any) => Promise<{ success: boolean; error?: string }>;
+  authLoginOffline: (payload: { email: string; password: string }) => Promise<{ success: boolean; error?: string; user?: any }>;
   appGetLocalIp?: () => Promise<string>;
   appGetNetworkDetails?: () => Promise<{ ip: string; subnetPrefix: string; netmask: string; gateway: string; dns: string }>;
   getCloudAccessState?: () => Promise<any>;

@@ -114,24 +114,46 @@ function loadStoredCustomLabels(): TerminologyCustomLabels {
   return DEFAULT_CUSTOM_LABELS;
 }
 
+export function computeLabels(preset: TerminologyPreset, customLabels: TerminologyCustomLabels): TerminologyLabels {
+  if (preset === 'CUSTOM') {
+    return {
+      receivable: customLabels.receivable || DEFAULT_CUSTOM_LABELS.receivable,
+      payable: customLabels.payable || DEFAULT_CUSTOM_LABELS.payable,
+      received: customLabels.received || DEFAULT_CUSTOM_LABELS.received,
+      paid: customLabels.paid || DEFAULT_CUSTOM_LABELS.paid,
+      credit: customLabels.credit || DEFAULT_CUSTOM_LABELS.credit,
+      debit: customLabels.debit || DEFAULT_CUSTOM_LABELS.debit,
+      receivableSub: 'Customer Balance Owed',
+      payableSub: 'Supplier Balance Owed',
+    };
+  }
+  return TERMINOLOGY_PRESETS[preset]?.labels || TERMINOLOGY_PRESETS.SIMPLE.labels;
+}
+
 interface TerminologyState {
   preset: TerminologyPreset;
   customLabels: TerminologyCustomLabels;
+  labels: TerminologyLabels;
   setPreset: (preset: TerminologyPreset) => void;
   setCustomLabels: (labels: Partial<TerminologyCustomLabels>) => void;
   getLabels: () => TerminologyLabels;
   t: (key: keyof TerminologyCustomLabels, short?: boolean) => string;
 }
 
+const initialPreset = loadStoredPreset();
+const initialCustomLabels = loadStoredCustomLabels();
+
 export const useTerminologyStore = create<TerminologyState>((set, get) => ({
-  preset: loadStoredPreset(),
-  customLabels: loadStoredCustomLabels(),
+  preset: initialPreset,
+  customLabels: initialCustomLabels,
+  labels: computeLabels(initialPreset, initialCustomLabels),
 
   setPreset: (preset) => {
     try {
       localStorage.setItem(STORAGE_KEY_PRESET, preset);
     } catch {}
-    set({ preset });
+    const labels = computeLabels(preset, get().customLabels);
+    set({ preset, labels });
   },
 
   setCustomLabels: (newLabels) => {
@@ -139,28 +161,16 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_KEY_CUSTOM, JSON.stringify(updated));
     } catch {}
-    set({ customLabels: updated });
+    const labels = computeLabels(get().preset, updated);
+    set({ customLabels: updated, labels });
   },
 
   getLabels: () => {
-    const { preset, customLabels } = get();
-    if (preset === 'CUSTOM') {
-      return {
-        receivable: customLabels.receivable || DEFAULT_CUSTOM_LABELS.receivable,
-        payable: customLabels.payable || DEFAULT_CUSTOM_LABELS.payable,
-        received: customLabels.received || DEFAULT_CUSTOM_LABELS.received,
-        paid: customLabels.paid || DEFAULT_CUSTOM_LABELS.paid,
-        credit: customLabels.credit || DEFAULT_CUSTOM_LABELS.credit,
-        debit: customLabels.debit || DEFAULT_CUSTOM_LABELS.debit,
-        receivableSub: 'Customer Balance Owed',
-        payableSub: 'Supplier Balance Owed',
-      };
-    }
-    return TERMINOLOGY_PRESETS[preset].labels;
+    return get().labels;
   },
 
   t: (key, short = false) => {
-    const labels = get().getLabels();
+    const labels = get().labels;
     let val = labels[key] || key;
     if (short && typeof val === 'string' && val.includes('(')) {
       val = val.split('(')[0].trim();

@@ -161,6 +161,7 @@ export function CustomersPage({
   const listScrollRef = useRef<HTMLDivElement>(null);
   const lastInteractedCustomerId = useRef<string | null>(null);
   const savedScrollTop = useRef<number>(0);
+  const processedInitialCustomer = useRef<string | null>(null);
   const [highlightedCustomerId, setHighlightedCustomerId] = useState<string | null>(null);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -359,6 +360,9 @@ export function CustomersPage({
 
   useEffect(() => {
     if (!initialCustomerIdOrQuery || customers.length === 0) return;
+    if (processedInitialCustomer.current === initialCustomerIdOrQuery) return;
+
+    processedInitialCustomer.current = initialCustomerIdOrQuery;
     const q = initialCustomerIdOrQuery.trim().toLowerCase();
     const found = customers.find(c =>
       c.customer_id === initialCustomerIdOrQuery ||

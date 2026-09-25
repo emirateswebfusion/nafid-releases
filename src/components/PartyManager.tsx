@@ -131,12 +131,13 @@ export function PartyManager({
   const { tenantId, userId, userName, role } = useAuthStore();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
-  const tLabels = useTerminologyStore(state => state.getLabels());
+  const tLabels = useTerminologyStore(state => state.labels);
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
   const listScrollRef = useRef<HTMLDivElement>(null);
   const lastInteractedPartyId = useRef<string | null>(null);
   const savedScrollTop = useRef<number>(0);
+  const processedInitialTarget = useRef<string | null>(null);
   const [highlightedPartyId, setHighlightedPartyId] = useState<string | null>(null);
 
   const [parties, setParties] = useState<Party[]>([]);
@@ -427,6 +428,9 @@ export function PartyManager({
 
   useEffect(() => {
     if (!initialPartyIdOrQuery || parties.length === 0) return;
+    if (processedInitialTarget.current === initialPartyIdOrQuery) return;
+
+    processedInitialTarget.current = initialPartyIdOrQuery;
     const q = initialPartyIdOrQuery.trim().toLowerCase();
     const found = parties.find(p =>
       p.party_id === initialPartyIdOrQuery ||

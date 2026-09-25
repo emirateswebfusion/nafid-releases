@@ -3,7 +3,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
-  Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
+  Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
@@ -279,8 +279,8 @@ function ItemTotalInput({
       {shouldShowMenu && (
         <div className="absolute right-0 top-full mt-1.5 min-w-[210px] bg-slate-900 text-white dark:bg-slate-800 border border-slate-700 rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
           <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 px-2 py-1 border-b border-slate-700/80 mb-1 flex items-center justify-between">
-            <span>Price Tier & Override</span>
-            {options.length > 0 && <span className="text-[8px] text-slate-400">↑↓ Select · Enter Confirm</span>}
+            <span>Price Tier</span>
+            {options.length > 0 && <span className="text-[8px] text-slate-400">↑↓ Select · Enter</span>}
           </div>
           {options.length > 0 && (
             <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
@@ -310,12 +310,7 @@ function ItemTotalInput({
           )}
           {hasPurchaseCost && (
             <div className="mt-1.5 pt-1.5 border-t border-slate-700/80 px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
-              <div className="flex items-center gap-1.5">
-                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[8px] font-black uppercase rounded tracking-wider border border-amber-500/30">
-                  VIEW ONLY
-                </span>
-                <span>Purchase Cost:</span>
-              </div>
+              <span>Purchase Cost:</span>
               <span className="font-mono font-black text-amber-200">
                 ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
               </span>
@@ -646,6 +641,14 @@ export function BillingPage() {
   }>({ customerId: null, pointsBalance: 0 });
   const [showLoyaltyRedemption, setShowLoyaltyRedemption] = useState(false);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
+
+  // Modern ERP B2C Grid States (Acro / Tally Desktop ERP Model)
+  const [erpVoucherNo, setErpVoucherNo] = useState('');
+  const [erpNarration, setErpNarration] = useState('');
+  const [erpSalesRep, setErpSalesRep] = useState('');
+  const [erpCooly, setErpCooly] = useState<number | string>('');
+  const [erpFreight, setErpFreight] = useState<number | string>('');
+  const [focusedRowProductId, setFocusedRowProductId] = useState<string | null>(null);
 
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [allCustomersList, setAllCustomersList] = useState<any[]>([]);
@@ -1112,6 +1115,10 @@ export function BillingPage() {
   const returnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
     return sum + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
   }, 0);
+  const originalReturnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
+    return sum + (Number(item.rawUnitPrice) || Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
+  }, 0);
+  const returnDiscountTotal = Math.max(0, originalReturnTotal - returnTotal);
   const displayGrandTotal = isScrapMode
     ? scrapTotal + extraBonus
     : isReturnMode
@@ -2509,6 +2516,7 @@ export function BillingPage() {
             return {
               ...item,
               unit_price: effPrice,
+              rawUnitPrice: origPrice,
               tax_amount: effTax,
               already_returned: returnedMap[item.item_id] || 0,
               available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
@@ -2526,22 +2534,55 @@ export function BillingPage() {
         await reserveReturnNumberForTab();
         setReturnMode(true);
 
+        // Enrich with catalog product details if available
+        const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
+        const productMap: Record<string, any> = {};
+        if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+          try {
+            const prods = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+            if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
+          } catch (e) {}
+        }
+
         // Load returnable items into cart
         enriched.forEach((item: any) => {
+          const catProd = productMap[item.product_id];
           const productId = item.product_id || `return-${uuidv4()}`;
+
+          let piecesPerKg = item.pieces_per_kg || catProd?.pieces_per_kg;
+          if (!piecesPerKg && catProd?.domain_attributes) {
+            try {
+              const da = typeof catProd.domain_attributes === 'string' ? JSON.parse(catProd.domain_attributes) : catProd.domain_attributes;
+              const storedPpk = Number(da.pcs_per_kg) || 0;
+              const totalPcs = Number(da.pcs) || 0;
+              const stockKg = Number(catProd.current_stock) || 0;
+              piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
+            } catch {
+              piecesPerKg = 1;
+            }
+          }
+
+          const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+          const effectiveUom = item.uom || catProd?.uom || 'PCS';
+          const isWeightType = item.billing_type === 'WEIGHT' || catProd?.billing_type === 'WEIGHT' || weightUoms.includes(effectiveUom.toLowerCase());
+
           addItem({
             product_id: productId,
             invoiceItemId: item.item_id,
-            name: item.name || 'Product',
+            name: item.name || catProd?.name || 'Product',
             base_price: Number(item.unit_price) || 0,
-            purchase_price: Number(item.unit_price) || 0,
-            tax_rate_percent: Number(item.tax_rate_percent) || 0,
-            billing_type: item.billing_type,
+            purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
+            tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.gst_percent || 0),
+            billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
+            uom: effectiveUom,
+            pieces_per_kg: piecesPerKg || 1,
+            pieces_override: Number(item.pieces_override ?? item.pieces ?? 1),
             isReturnItem: true,
             originalQuantity: Number(item.quantity) || 0,
             availableToReturn: item.available_to_return,
             alreadyReturned: item.already_returned,
             originalUnitPrice: Number(item.unit_price) || 0,
+            rawUnitPrice: Number(item.rawUnitPrice ?? item.unit_price) || 0,
             originalTaxAmount: Number(item.tax_amount) || 0,
             returnSourceInvoiceId: invoice.invoice_id,
             returnSourceInvoiceNumber: invoice.invoice_number,
@@ -3111,6 +3152,7 @@ export function BillingPage() {
         return {
           ...item,
           unit_price: effPrice,
+          rawUnitPrice: origPrice,
           tax_amount: effTax,
           already_returned: returnedMap[item.item_id] || 0,
           available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
@@ -3149,6 +3191,24 @@ export function BillingPage() {
       enriched.forEach((item: any) => {
         const catProd = productMap[item.product_id];
         const productId = item.product_id || `return-${uuidv4()}`;
+
+        let piecesPerKg = item.pieces_per_kg || catProd?.pieces_per_kg;
+        if (!piecesPerKg && catProd?.domain_attributes) {
+          try {
+            const da = typeof catProd.domain_attributes === 'string' ? JSON.parse(catProd.domain_attributes) : catProd.domain_attributes;
+            const storedPpk = Number(da.pcs_per_kg) || 0;
+            const totalPcs = Number(da.pcs) || 0;
+            const stockKg = Number(catProd.current_stock) || 0;
+            piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
+          } catch {
+            piecesPerKg = 1;
+          }
+        }
+
+        const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+        const effectiveUom = item.uom || catProd?.uom || 'PCS';
+        const isWeightType = item.billing_type === 'WEIGHT' || catProd?.billing_type === 'WEIGHT' || weightUoms.includes(effectiveUom.toLowerCase());
+
         addItem({
           product_id: productId,
           invoiceItemId: item.item_id,
@@ -3158,12 +3218,16 @@ export function BillingPage() {
           base_price: Number(item.unit_price) || 0,
           purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
           tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.gst_percent || 0),
-          billing_type: item.billing_type || catProd?.billing_type || 'PIECE',
+          billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
+          uom: effectiveUom,
+          pieces_per_kg: piecesPerKg || 1,
+          pieces_override: Number(item.pieces_override ?? item.pieces ?? 1),
           isReturnItem: true,
           originalQuantity: Number(item.quantity) || 0,
           availableToReturn: item.available_to_return,
           alreadyReturned: item.already_returned,
           originalUnitPrice: Number(item.unit_price) || 0,
+          rawUnitPrice: Number(item.rawUnitPrice ?? item.unit_price) || 0,
           originalTaxAmount: Number(item.tax_amount) || 0,
           returnSourceInvoiceId: inv.invoice_id,
           returnSourceInvoiceNumber: inv.invoice_number,
@@ -3528,6 +3592,7 @@ export function BillingPage() {
         return {
           ...item,
           unit_price: effPrice,
+          rawUnitPrice: origPrice,
           tax_amount: effTax,
           already_returned: returnedMap[item.item_id] || 0,
           available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
@@ -3554,13 +3619,31 @@ export function BillingPage() {
       setReturnMode(true);
       const cartItems = enriched.map((item: any) => {
         const p = productMap[item.product_id];
+        let piecesPerKg = item.pieces_per_kg || p?.pieces_per_kg;
+        if (!piecesPerKg && p?.domain_attributes) {
+          try {
+            const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+            const storedPpk = Number(da.pcs_per_kg) || 0;
+            const totalPcs = Number(da.pcs) || 0;
+            const stockKg = Number(p.current_stock) || 0;
+            piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
+          } catch {
+            piecesPerKg = 1;
+          }
+        }
+
+        const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+        const effectiveUom = item.uom || p?.uom || 'PCS';
+        const isWeightType = item.billing_type === 'WEIGHT' || p?.billing_type === 'WEIGHT' || weightUoms.includes(effectiveUom.toLowerCase());
+
         return {
           product_id: item.product_id,
           name: item.name,
           quantity: item.available_to_return,
           base_price: Number(item.unit_price) || 0,
-          purchase_price: Number(item.unit_price) || 0,
+          purchase_price: Number(p?.purchase_price ?? item.unit_price) || 0,
           tax_rate_percent: Number(p?.gst_percent || item.gst_percent) || 0,
+          billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || p?.billing_type || 'PIECE'),
           pricing_mode: 'FIXED',
           isReturnItem: true,
           invoiceItemId: item.item_id,
@@ -3568,10 +3651,13 @@ export function BillingPage() {
           availableToReturn: item.available_to_return,
           alreadyReturned: item.already_returned,
           originalUnitPrice: Number(item.unit_price) || 0,
+          rawUnitPrice: Number(item.rawUnitPrice ?? item.unit_price) || 0,
           originalTaxAmount: Number(item.tax_amount) || 0,
           returnSourceInvoiceId: invoice.invoice_id,
           returnSourceInvoiceNumber: invoice.invoice_number,
-          uom: p?.uom || 'PCS',
+          uom: effectiveUom,
+          pieces_per_kg: piecesPerKg || 1,
+          pieces_override: Number(item.pieces_override ?? item.pieces ?? 1),
           hsn: p?.hsn || '',
           brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || null,
         };
@@ -5846,7 +5932,6 @@ export function BillingPage() {
                     <div className="flex-1 min-w-0 pr-3">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground group-hover:text-rose-600 transition-colors">{inv.invoice_number}</span>
-                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 uppercase">Returnable</span>
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-1">
                         {inv.customer_name || 'Walk-in Customer'} {inv.customer_phone ? `(${inv.customer_phone})` : ''}
@@ -5861,7 +5946,20 @@ export function BillingPage() {
                 ))
               ) : (
                 results.map((p, i) => {
-                  const price = (selectedTierId && p.tier_prices?.[selectedTierId]) ? p.tier_prices[selectedTierId] : p.base_price;
+                  const basePrice = (selectedTierId && p.tier_prices?.[selectedTierId]) ? Number(p.tier_prices[selectedTierId]) : Number(p.base_price || 0);
+
+                  let finalPrice: number | null = null;
+                  if (p.offer_price != null && Number(p.offer_price) > 0) {
+                    finalPrice = Number(p.offer_price);
+                  } else if (p.discount_flat != null && Number(p.discount_flat) > 0) {
+                    finalPrice = Math.max(0, basePrice - Number(p.discount_flat));
+                  } else if (p.discount_percent != null && Number(p.discount_percent) > 0) {
+                    finalPrice = Math.max(0, basePrice * (1 - Number(p.discount_percent) / 100));
+                  }
+
+                  const hasDiscount = finalPrice !== null && finalPrice < basePrice;
+                  const displayPrice = hasDiscount ? finalPrice! : basePrice;
+
                   return (
                     <button
                       key={p.product_id}
@@ -5916,24 +6014,57 @@ export function BillingPage() {
                         </div>
                       </div>
                       <div className="text-right shrink-0 flex flex-col items-end justify-center pl-2">
-                        <div className="font-mono font-black text-base text-foreground tracking-tight group-hover:scale-105 transition-transform">
-                          {formatCurrency(price)}
-                        </div>
-                        <div className="mt-1">
-                          {p.current_stock <= 0 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
-                              Out of Stock
-                            </span>
-                          ) : p.current_stock <= 5 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              Stock: {p.current_stock} {p.uom || 'Pcs'}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                              Stock: {p.current_stock} {p.uom || 'Pcs'}
-                            </span>
-                          )}
-                        </div>
+                        {hasDiscount ? (
+                          <div className="flex flex-col items-end">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs font-semibold text-muted-foreground/70 line-through">
+                                {formatCurrency(basePrice)}
+                              </span>
+                              <span className="font-mono font-black text-base text-emerald-600 dark:text-emerald-400 tracking-tight group-hover:scale-105 transition-transform">
+                                {formatCurrency(displayPrice)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded uppercase">
+                                {p.offer_price ? 'OFFER' : p.discount_percent ? `${p.discount_percent}% OFF` : 'DISCOUNT'}
+                              </span>
+                              {p.current_stock <= 0 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                                  Out of Stock
+                                </span>
+                              ) : p.current_stock <= 5 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                  Stock: {p.current_stock} {p.uom || 'Pcs'}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  Stock: {p.current_stock} {p.uom || 'Pcs'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-mono font-black text-base text-foreground tracking-tight group-hover:scale-105 transition-transform">
+                              {formatCurrency(displayPrice)}
+                            </div>
+                            <div className="mt-1">
+                              {p.current_stock <= 0 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                                  Out of Stock
+                                </span>
+                              ) : p.current_stock <= 5 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                  Stock: {p.current_stock} {p.uom || 'Pcs'}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  Stock: {p.current_stock} {p.uom || 'Pcs'}
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </button>
                   );
@@ -6307,6 +6438,495 @@ export function BillingPage() {
     </div>
   );
 
+  const renderErpGridB2CWorkspace = () => {
+    const selectedParty = partiesForTier.find((p: any) =>
+      (customerName && p.name && p.name.trim().toLowerCase() === customerName.trim().toLowerCase()) ||
+      (customerPhone && p.phone && String(p.phone).trim() === customerPhone.trim())
+    );
+    const partyBalance = selectedParty ? Number(selectedParty.balance || 0) : 0;
+    
+    // Focused row item for live stock row indicator
+    const activeRowItem = items.find(i => i.product_id === focusedRowProductId) || items[items.length - 1];
+    const activeStockDisplay = activeRowItem ? (activeRowItem.current_stock != null ? String(activeRowItem.current_stock) : '—') : '0.00';
+
+    // Sum calculations for footer row
+    let totQty = 0;
+    let totExcl = 0;
+    let totDisc = 0;
+    let totSgst = 0;
+    let totCgst = 0;
+    let totIgst = 0;
+    let totNet = 0;
+
+    const coolyVal = Number(erpCooly) || 0;
+    const freightVal = Number(erpFreight) || 0;
+    const netPayableWithAddons = grandTotal + coolyVal + freightVal;
+    const changeDue = Math.max(0, Number(receivedAmount || 0) - netPayableWithAddons);
+    const balDue = Math.max(0, netPayableWithAddons - Number(receivedAmount || 0));
+
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden bg-background">
+        
+        {/* ─── ERP TOP HEADER FORM METADATA PANEL ─── */}
+        <div className="bg-card border-b border-border px-5 py-3 shrink-0 shadow-xs">
+          {/* Form Fields Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+            {/* Invoice No */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Invoice No</label>
+              <input
+                type="text"
+                readOnly
+                value={editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || '6019'}`}
+                className="w-full px-2.5 py-1.5 bg-muted/50 border border-border rounded-lg font-mono font-bold text-primary text-xs"
+              />
+            </div>
+
+            {/* Date */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Date</label>
+              <input
+                type="text"
+                readOnly
+                value={new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                className="w-full px-2.5 py-1.5 bg-muted/50 border border-border rounded-lg font-mono font-bold text-foreground text-xs"
+              />
+            </div>
+
+            {/* Party / Bill To */}
+            <div className="space-y-1 col-span-1 sm:col-span-2 relative">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Party / Bill To</label>
+              <div className="relative">
+                <input
+                  ref={customerNameInputRef}
+                  placeholder="Select Party / Customer Name [F4]"
+                  value={customerName}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    updateActiveTab({ customerName: val });
+                    applyPartyTier(val, customerPhone);
+                    setShowCustomerDropdown(true);
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* GST No */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">GST No</label>
+              <input
+                ref={customerGstinInputRef}
+                placeholder="GSTIN Number"
+                value={customerGstin}
+                onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
+                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg font-mono uppercase text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            {/* Price Tier */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Price Mode</label>
+              <Select
+                size="sm"
+                triggerClassName="h-8 py-1"
+                className="w-full"
+                value={selectedTierId}
+                onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
+                options={[
+                  { value: '', label: 'MRP' },
+                  ...pricingTiers.map(t => ({
+                    value: t.pricing_tier_id,
+                    label: t.name
+                  })),
+                ]}
+              />
+            </div>
+
+            {/* Rep / Salesperson */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Rep / Salesperson</label>
+              <input
+                type="text"
+                value={erpSalesRep}
+                onChange={e => setErpSalesRep(e.target.value)}
+                placeholder="Sales Rep Name"
+                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg font-medium text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            {/* Narration */}
+            <div className="space-y-1 col-span-1 sm:col-span-2">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Narration / Notes</label>
+              <input
+                type="text"
+                value={erpNarration}
+                onChange={e => setErpNarration(e.target.value)}
+                placeholder="Remarks or invoice terms..."
+                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg font-medium text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ─── SEARCH & BARCODE INPUT HEADER ─── */}
+        <div className="px-5 py-2.5 bg-card/60 border-b border-border shrink-0 relative z-30">
+          {renderSearchBarSection()}
+        </div>
+
+        {/* ─── FULL WIDTH SPREADSHEET ERP ITEM TABLE ─── */}
+        <div className="flex-1 overflow-auto bg-background p-3">
+          <div className="border border-border rounded-xl overflow-hidden shadow-xs">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-emerald-700 text-white font-extrabold uppercase text-[10px] tracking-wider select-none border-b border-emerald-800">
+                  <th className="py-2.5 px-2 text-center w-10">Sl.No.</th>
+                  <th className="py-2.5 px-2.5 w-24">Barcode</th>
+                  <th className="py-2.5 px-2.5 w-24">Item Code</th>
+                  <th className="py-2.5 px-3">Description</th>
+                  <th className="py-2.5 px-2.5 text-center w-16">Qty</th>
+                  <th className="py-2.5 px-2.5 text-right w-20">Rate</th>
+                  <th className="py-2.5 px-2.5 text-right w-20">Rate (Incl)</th>
+                  <th className="py-2.5 px-2.5 text-right w-24">Total</th>
+                  <th className="py-2.5 px-2.5 text-right w-16">Disc</th>
+                  <th className="py-2.5 px-2.5 text-right w-16">SGST</th>
+                  <th className="py-2.5 px-2.5 text-right w-16">CGST</th>
+                  <th className="py-2.5 px-2.5 text-right w-16">IGST</th>
+                  <th className="py-2.5 px-3 text-right w-28">Net Amount</th>
+                  <th className="py-2.5 px-2 text-center w-10">Del</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60 font-semibold text-foreground">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={14} className="py-12 text-center text-muted-foreground italic">
+                      No line items added yet. Search products or scan barcode above to populate ERP invoice table.
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item, idx) => {
+                    const isFocusedRow = item.product_id === (focusedRowProductId || lastAddedProductId);
+                    const qty = Number(item.quantity) || 0;
+                    const baseRate = Number(item.offer_price ?? item.base_price) || 0;
+                    const taxRatePct = Number(item.tax_rate_percent ?? (invoiceType === 'GST' ? 18 : 0));
+                    const isInterState = Boolean(customerState && shopDomain && customerState !== shopDomain);
+                    
+                    const exclTotal = baseRate * qty;
+                    const taxAmountTotal = exclTotal * (taxRatePct / 100);
+                    const inclTotal = exclTotal + taxAmountTotal;
+                    const rateIncl = baseRate * (1 + taxRatePct / 100);
+
+                    const sgstVal = invoiceType === 'GST' && !isInterState ? taxAmountTotal / 2 : 0;
+                    const cgstVal = invoiceType === 'GST' && !isInterState ? taxAmountTotal / 2 : 0;
+                    const igstVal = invoiceType === 'GST' && isInterState ? taxAmountTotal : 0;
+                    const discVal = Number(item.discount_flat || 0);
+
+                    totQty += qty;
+                    totExcl += exclTotal;
+                    totDisc += discVal;
+                    totSgst += sgstVal;
+                    totCgst += cgstVal;
+                    totIgst += igstVal;
+                    totNet += inclTotal - discVal;
+
+                    return (
+                      <tr
+                        key={item.product_id}
+                        onClick={() => setFocusedRowProductId(item.product_id)}
+                        className={clsx(
+                          "transition-colors cursor-pointer text-xs",
+                          idx % 2 === 0 ? "bg-emerald-500/5 dark:bg-emerald-950/20" : "bg-card",
+                          isFocusedRow ? "bg-emerald-500/20 font-bold ring-1 ring-emerald-500/50" : "hover:bg-emerald-500/10"
+                        )}
+                      >
+                        <td className="py-2 px-2 text-center font-mono text-muted-foreground">{idx + 1}</td>
+                        <td className="py-2 px-2.5 font-mono text-xs">{item.sku_barcode || '—'}</td>
+                        <td className="py-2 px-2.5 font-mono text-xs text-muted-foreground">{item.item_code || '—'}</td>
+                        <td className="py-2 px-3 font-bold text-foreground">
+                          {item.name}
+                          {item.isServiceItem && <span className="ml-2 text-[9px] px-1 py-0.2 bg-violet-500/20 text-violet-600 rounded">SRV</span>}
+                        </td>
+                        <td className="py-2 px-2.5 text-center">
+                          <input
+                            ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                            type="number"
+                            step="any"
+                            min="1"
+                            value={qty}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => handleQtyKeyDown(e, item.product_id)}
+                            onChange={(e) => updateQuantity(item.product_id, Number(e.target.value) || 1)}
+                            className="w-14 text-center bg-background border border-border rounded px-1 py-0.5 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </td>
+                        <td className="py-2 px-2.5 text-right font-mono">₹{baseRate.toFixed(2)}</td>
+                        <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">₹{rateIncl.toFixed(2)}</td>
+                        <td className="py-2 px-2.5 text-right font-mono">₹{exclTotal.toFixed(2)}</td>
+                        <td className="py-2 px-2.5 text-right font-mono text-emerald-600">₹{discVal.toFixed(2)}</td>
+                        <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">₹{sgstVal.toFixed(2)}</td>
+                        <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">₹{cgstVal.toFixed(2)}</td>
+                        <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">₹{igstVal.toFixed(2)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-black text-emerald-700 dark:text-emerald-400">
+                          ₹{(inclTotal - discVal).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removeItem(item.product_id); }}
+                            className="text-muted-foreground hover:text-destructive p-1 rounded hover:bg-destructive/10 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            {/* Table Footer Status & Column Totals */}
+            <div className="bg-emerald-950 text-emerald-100 font-mono text-xs px-4 py-2 border-t border-emerald-800 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-4">
+                <span className="font-extrabold text-amber-400 uppercase tracking-wider text-[11px]">
+                  Stock: <strong className="text-white font-mono">{activeStockDisplay}</strong>
+                </span>
+                <span className="text-emerald-400/80">|</span>
+                <span className="font-bold text-[11px]">Total Items: {items.length}</span>
+              </div>
+
+              <div className="flex items-center gap-5 text-right font-extrabold">
+                <span>Total Qty: <strong className="text-white">{totQty}</strong></span>
+                <span>Excl: <strong className="text-white">₹{totExcl.toFixed(2)}</strong></span>
+                <span>SGST: <strong className="text-white">₹{totSgst.toFixed(2)}</strong></span>
+                <span>CGST: <strong className="text-white">₹{totCgst.toFixed(2)}</strong></span>
+                <span>IGST: <strong className="text-white">₹{totIgst.toFixed(2)}</strong></span>
+                <span className="text-amber-300 text-sm">Net Amount: <strong className="text-amber-400">₹{totNet.toFixed(2)}</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── BOTTOM ERP SETTLEMENT CONSOLE ─── */}
+        <div className="bg-card border-t-2 border-border px-5 py-3 shrink-0 shadow-lg space-y-2.5">
+          
+          {/* Top Row: Payment Method Selector + Deductions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 px-3 py-2 rounded-xl border border-border/60 text-xs font-bold">
+            
+            {/* Payment Method Options */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mr-1">Payment Method:</span>
+              {[
+                { value: 'CASH', label: 'Cash', icon: Banknote },
+                { value: 'UPI', label: 'UPI / QR', icon: QrCode },
+                { value: 'CARD', label: 'Card', icon: CreditCard },
+                { value: 'CREDIT', label: 'Credit', icon: BookOpen },
+                { value: 'PENDING', label: 'Pending', icon: Clock },
+              ].map((opt) => {
+                const isActive = paymentMethod === opt.value;
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateActiveTab({ paymentMethod: opt.value as PaymentMethod })}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border",
+                      isActive
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                        : "bg-background text-foreground border-border hover:bg-muted/60"
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Deduction Section (Scrap & Return Credits) */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mr-1">Deduction:</span>
+              {storeScrapDeduction > 0 ? (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-lg text-xs font-bold">
+                  <Recycle className="w-3.5 h-3.5" />
+                  <span>Scrap: -{formatCurrency(storeScrapDeduction)}</span>
+                  <button type="button" onClick={() => clearScrapDeduction()} className="hover:text-destructive p-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    ref={scrapDeductionInputRef}
+                    type="text"
+                    placeholder="Scrap # & Enter"
+                    value={scrapDeductionSearchQuery}
+                    onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                    onKeyDown={async e => {
+                      if (e.key === 'Enter') {
+                        const q = scrapDeductionSearchQuery.trim();
+                        if (!q) return;
+                        try {
+                          const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                          if (res && res.totalAmount) {
+                            if (res.paymentStatus === 'SETTLED') {
+                              setHardwareError(`Scrap credit ${q} already redeemed.`);
+                              return;
+                            }
+                            setScrapDeduction(res.totalAmount, q);
+                            setScrapDeductionSearchQuery('');
+                          } else {
+                            setHardwareError(`Scrap invoice "${q}" not found`);
+                          }
+                        } catch {
+                          setHardwareError('Failed to fetch scrap invoice');
+                        }
+                      }
+                    }}
+                    className="w-32 px-2.5 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                  />
+                </div>
+              )}
+
+              {storeReturnDeduction > 0 ? (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold">
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  <span>Return: -{formatCurrency(storeReturnDeduction)}</span>
+                  <button type="button" onClick={() => clearReturnDeduction()} className="hover:text-destructive p-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    ref={returnDeductionInputRef}
+                    type="text"
+                    placeholder="Return # & Enter"
+                    value={returnDeductionSearchQuery}
+                    onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                    onKeyDown={async e => {
+                      if (e.key === 'Enter') {
+                        const q = returnDeductionSearchQuery.trim();
+                        if (!q) return;
+                        try {
+                          const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                          if (res && res.grand_total) {
+                            const remaining = res.grand_total - (res.adjusted_amount || 0);
+                            if (remaining > 0) {
+                              setReturnDeduction(remaining, q);
+                              setReturnDeductionSearchQuery('');
+                            } else {
+                              setHardwareError('Return already fully adjusted');
+                            }
+                          } else {
+                            setHardwareError(`Return "${q}" not found`);
+                          }
+                        } catch {
+                          setHardwareError('Failed to fetch return');
+                        }
+                      }
+                    }}
+                    className="w-32 px-2.5 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                  />
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Bottom Row: Totals, Old Balance, Settlement & Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-muted/20 px-3 py-2.5 rounded-xl border border-border">
+            
+            <div className="flex items-center gap-5 text-xs font-bold flex-wrap">
+              {/* Old Balance */}
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Old Balance</div>
+                <div className={clsx("font-mono font-black text-xs mt-0.5", partyBalance > 0 ? "text-rose-600" : "text-muted-foreground/80")}>
+                  {partyBalance > 0 ? `₹${partyBalance.toFixed(2)}` : '-'}
+                </div>
+              </div>
+
+              <div className="h-7 w-px bg-border/80" />
+
+              {/* Discount % */}
+              <div className="space-y-0.5">
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Discount %</div>
+                <input
+                  ref={discountRef}
+                  type="number"
+                  step="any"
+                  value={discountValue || ''}
+                  onChange={e => setDiscount(Number(e.target.value) || 0, 'PERCENTAGE')}
+                  placeholder="0.00 %"
+                  className="w-20 px-2 py-1 bg-background border border-border rounded font-mono font-bold text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="h-7 w-px bg-border/80" />
+
+              {/* Cash Received */}
+              <div className="space-y-0.5">
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Cash Recd</div>
+                <input
+                  ref={receivedInputRef}
+                  type="number"
+                  step="any"
+                  value={receivedAmount || ''}
+                  onChange={e => updateActiveTab({ receivedAmount: Number(e.target.value) || 0 })}
+                  placeholder="0.00"
+                  className="w-24 px-2 py-1 bg-background border border-border rounded font-mono font-bold text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="h-7 w-px bg-border/80" />
+
+              {/* Net Payable */}
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Net Payable</div>
+                <div className="font-mono text-base font-black text-primary">₹{displayGrandTotal.toFixed(2)}</div>
+              </div>
+
+              {/* Balance / Change */}
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Balance / Change</div>
+                <div className={clsx("font-mono font-bold text-xs mt-0.5", balanceAmount >= 0 ? "text-emerald-600" : "text-amber-600")}>
+                  ₹{Math.abs(balanceAmount).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleCheckout(true)}
+                disabled={isCheckingOut || items.length === 0}
+                className="px-4 py-2.5 rounded-xl border-2 border-emerald-600/60 text-emerald-700 dark:text-emerald-400 font-black text-xs hover:bg-emerald-500/10 transition-all cursor-pointer shadow-xs uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCheckout()}
+                disabled={isCheckingOut || items.length === 0}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition-all cursor-pointer shadow-md uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>COMPLETE &amp; PRINT (F12)</span>
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ─── FLOATING TOASTS ─── */}
@@ -6629,9 +7249,12 @@ export function BillingPage() {
       </div>
 
       {/* ─── MAIN POS WORKSPACE ─── */}
+      {uiConfig.layoutModel === 'erp-grid-b2c' && renderErpGridB2CWorkspace()}
+
       <div 
         className={clsx(
           "flex flex-1 overflow-hidden bg-background transition-all duration-300",
+          uiConfig.layoutModel === 'erp-grid-b2c' && "hidden",
           uiConfig.orientation === 'horizontal-stack' ? "flex-col" :
           uiConfig.layoutPosition === 'cart-right' ? "flex-row-reverse" : "flex-row"
         )}
@@ -6749,9 +7372,6 @@ export function BillingPage() {
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                           <span className="text-[9px] font-bold text-violet-600 bg-violet-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Service</span>
-                          {isLastAdded && (
-                            <span className="text-[9px] font-black text-violet-600 bg-violet-500/20 border border-violet-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
-                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                           <span className="text-violet-600 font-semibold">Enter amount</span>
@@ -6794,9 +7414,17 @@ export function BillingPage() {
 
                 if (item.isReturnItem) {
                   const rate = Number(item.originalUnitPrice) || 0;
+                  const rawRate = Number(item.rawUnitPrice) || rate;
                   const qtyText = Number(item.quantity) || 0;
                   const total = rate * qtyText;
+                  const rawTotal = rawRate * qtyText;
                   const avail = item.availableToReturn ?? 0;
+
+                  const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+                  const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
+                  const ppk = item.pieces_per_kg || 1;
+                  const pieces = item.pieces_override ?? 1;
+
                   return (
                     <div
                       key={item.product_id}
@@ -6812,60 +7440,141 @@ export function BillingPage() {
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                           <span className="text-[9px] font-bold text-rose-600 bg-rose-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Return</span>
-                          {isLastAdded && (
-                            <span className="text-[9px] font-black text-rose-600 bg-rose-500/20 border border-rose-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
-                          )}
                         </div>
-                        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-                          <span className="font-semibold">{formatCurrency(rate)}/unit</span>
-                          <span className="mx-1">&middot;</span>
-                          <span>Avail: {avail}</span>
+                        <div className="text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 flex-wrap">
+                          <span className="font-semibold">
+                            {isPiecesWeight ? (
+                              ppk > 0 ? (
+                                `${formatCurrency(rate)}/Kg (${formatCurrency(rate / ppk)}/Pc)`
+                              ) : (
+                                `${formatCurrency(rate)}/Kg`
+                              )
+                            ) : (
+                              `${formatCurrency(rate)}/unit`
+                            )}
+                          </span>
+                          {rawRate > rate + 0.005 && (
+                            <span className="text-[9px] text-muted-foreground/50 line-through font-mono">
+                              {formatCurrency(rawRate)}
+                            </span>
+                          )}
+                          <span className="mx-0.5">&middot;</span>
+                          <span>Avail: {avail} {isPiecesWeight ? 'Kg' : ''}</span>
                           {(item.alreadyReturned ?? 0) > 0 && (
-                            <><span className="mx-1">&middot;</span><span>Ret: {item.alreadyReturned}</span></>
+                            <><span className="mx-0.5">&middot;</span><span>Ret: {item.alreadyReturned} {isPiecesWeight ? 'Kg' : ''}</span></>
                           )}
                           {item.returnSourceInvoiceNumber && (
-                            <><span className="mx-1">&middot;</span><span className="text-[9px]">Inv: {item.returnSourceInvoiceNumber}</span></>
+                            <><span className="mx-0.5">&middot;</span><span className="text-[9px]">Inv: {item.returnSourceInvoiceNumber}</span></>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-0.5 bg-rose-500/10 border border-rose-500/30 rounded-lg py-0.5 shrink-0">
-                        <button onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); }}
-                          className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
-                        ><Minus className="w-3 h-3" /></button>
-                        <input type="text" inputMode="numeric"
-                          ref={(el) => {
-                            qtyRefs.current[item.product_id] = el;
-                            if (el && pendingFocusProductIdRef.current === item.product_id) {
-                              el.focus();
-                              el.select();
-                              pendingFocusProductIdRef.current = null;
-                            }
-                          }}
-                          className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={item.quantity === '' ? '' : (item.quantity ?? qtyText)}
-                          onFocus={e => e.target.select()}
-                          onBlur={e => {
-                            const num = Number(e.target.value);
-                            const validVal = (!e.target.value || isNaN(num) || num <= 0) ? 1 : Math.min(avail, num);
-                            updateQuantity(item.product_id, validVal);
-                          }}
-                          onChange={e => {
-                            const raw = e.target.value.replace(/[^\d]/g, '');
-                            if (raw === '') {
-                              updateQuantity(item.product_id, '');
-                            } else {
-                              const num = parseInt(raw, 10);
-                              updateQuantity(item.product_id, isNaN(num) ? '' : Math.min(avail, Math.max(0, num)));
-                            }
-                          }}
-                          onKeyDown={e => { guardScannerInput(e, item.product_id, qtyText, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
-                        />
-                        <button onClick={() => { const q = Number(item.quantity); if (q < avail) updateQuantity(item.product_id, q + 1); }}
-                          className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
-                        ><Plus className="w-3 h-3" /></button>
-                      </div>
-                      <div className="text-right shrink-0 min-w-[70px]">
-                        <div className="font-black text-sm text-rose-600 dark:text-rose-400">{formatCurrency(total)}</div>
+
+                      {isPiecesWeight ? (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-0.5 bg-rose-500/10 border border-rose-500/30 rounded-lg px-1.5 py-0.5">
+                            <span className="text-[8px] text-rose-600 dark:text-rose-400 font-bold uppercase">Pcs</span>
+                            <input
+                              type="text" inputMode="numeric"
+                              className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={localPcsStr[item.product_id] ?? String(pieces)}
+                              onFocus={e => e.target.select()}
+                              onChange={e => {
+                                const raw = e.target.value.replace(/[^\d]/g, '');
+                                setLocalPcsStr(p => ({ ...p, [item.product_id]: raw }));
+                                const pcsVal = parseInt(raw, 10);
+                                if (!isNaN(pcsVal) && pcsVal >= 0) {
+                                  updatePiecesOverride(item.product_id, pcsVal);
+                                }
+                              }}
+                              onBlur={e => {
+                                if (!localPcsStr[item.product_id] || parseInt(localPcsStr[item.product_id], 10) <= 0) {
+                                  updatePiecesOverride(item.product_id, 1);
+                                  setLocalPcsStr(p => ({ ...p, [item.product_id]: '1' }));
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-0.5 bg-rose-500/10 border border-rose-500/30 rounded-lg px-1.5 py-0.5">
+                            <span className="text-[8px] text-rose-600 dark:text-rose-400 font-bold uppercase">Kgs</span>
+                            <input
+                              type="text" inputMode="decimal"
+                              ref={(el) => {
+                                qtyRefs.current[item.product_id] = el;
+                                if (el && pendingFocusProductIdRef.current === item.product_id) {
+                                  el.focus();
+                                  el.select();
+                                  pendingFocusProductIdRef.current = null;
+                                }
+                              }}
+                              className="w-14 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={localKgStr[item.product_id] ?? String(item.quantity ?? '')}
+                              onFocus={e => e.target.select()}
+                              onChange={e => {
+                                const raw = sanitizeQtyText(e.target.value);
+                                setLocalKgStr(p => ({ ...p, [item.product_id]: raw }));
+                                const num = parseFloat(raw);
+                                if (!isNaN(num) && num > 0) {
+                                  updateQuantity(item.product_id, Math.min(avail, +num.toFixed(3)));
+                                }
+                              }}
+                              onBlur={e => {
+                                const val = Number(item.quantity);
+                                const validVal = (!val || isNaN(val) || val <= 0) ? 0.1 : Math.min(avail, val);
+                                updateQuantity(item.product_id, validVal);
+                                setLocalKgStr(p => ({ ...p, [item.product_id]: String(validVal) }));
+                              }}
+                              onKeyDown={e => {
+                                guardScannerInput(e, item.product_id, qtyText, v => updateQuantity(item.product_id, Math.min(avail, Number(v))));
+                                handleQtyKeyDown(e, item.product_id);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-0.5 bg-rose-500/10 border border-rose-500/30 rounded-lg py-0.5 shrink-0">
+                          <button onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); }}
+                            className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                          ><Minus className="w-3 h-3" /></button>
+                          <input type="text" inputMode="numeric"
+                            ref={(el) => {
+                              qtyRefs.current[item.product_id] = el;
+                              if (el && pendingFocusProductIdRef.current === item.product_id) {
+                                el.focus();
+                                el.select();
+                                pendingFocusProductIdRef.current = null;
+                              }
+                            }}
+                            className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={item.quantity === '' ? '' : (item.quantity ?? qtyText)}
+                            onFocus={e => e.target.select()}
+                            onBlur={e => {
+                              const num = Number(e.target.value);
+                              const validVal = (!e.target.value || isNaN(num) || num <= 0) ? 1 : Math.min(avail, num);
+                              updateQuantity(item.product_id, validVal);
+                            }}
+                            onChange={e => {
+                              const raw = e.target.value.replace(/[^\d]/g, '');
+                              if (raw === '') {
+                                updateQuantity(item.product_id, '');
+                              } else {
+                                const num = parseInt(raw, 10);
+                                updateQuantity(item.product_id, isNaN(num) ? '' : Math.min(avail, Math.max(0, num)));
+                              }
+                            }}
+                            onKeyDown={e => { guardScannerInput(e, item.product_id, qtyText, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
+                          />
+                          <button onClick={() => { const q = Number(item.quantity); if (q < avail) updateQuantity(item.product_id, q + 1); }}
+                            className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                          ><Plus className="w-3 h-3" /></button>
+                        </div>
+                      )}
+                      <div className="text-right shrink-0 min-w-[80px]">
+                        {rawTotal > total + 0.005 && (
+                          <div className="text-[10px] text-muted-foreground/50 line-through font-semibold font-mono">
+                            {formatCurrency(rawTotal)}
+                          </div>
+                        )}
+                        <div className="font-black text-sm text-rose-600 dark:text-rose-400 font-mono">{formatCurrency(total)}</div>
                         {item.originalQuantity && (
                           <div className="text-[9px] text-muted-foreground/50">Sold: {item.originalQuantity}</div>
                         )}
@@ -6927,9 +7636,6 @@ export function BillingPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
-                          {isLastAdded && (
-                            <span className="text-[9px] font-black text-orange-600 bg-orange-500/20 border border-orange-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
-                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                           <span className="text-orange-600 font-semibold">{formatCurrency(rate)}/{(item as any).unit || 'Kg'}</span>
@@ -7174,9 +7880,6 @@ export function BillingPage() {
                           <span className="text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">
                             COMBO OFFER
                           </span>
-                        )}
-                        {isLastAdded && (
-                          <span className="text-[9px] font-black text-primary bg-primary/20 border border-primary/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
                         )}
                         {item.sku_barcode && (
                           <span className="text-[10px] font-mono text-muted-foreground/50 truncate hidden sm:inline">{item.sku_barcode}</span>
@@ -8284,11 +8987,26 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 </span>
               </div>
 
-              {(!isScrapMode ? subtotal > 0 : scrapTotal > 0) && (
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
-                <span className="font-bold text-foreground text-sm">{formatCurrency(isScrapMode ? scrapTotal : subtotal)}</span>
-              </div>
+              {isReturnMode && returnDiscountTotal > 0.005 ? (
+                <>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground font-semibold">Original Items Total</span>
+                    <span className="font-semibold text-muted-foreground line-through font-mono">{formatCurrency(originalReturnTotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-rose-600 dark:text-rose-400 font-semibold">Invoice Discount Deducted</span>
+                    <span className="font-semibold text-rose-600 dark:text-rose-400 font-mono">-{formatCurrency(returnDiscountTotal)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground font-semibold text-sm">Net Return Subtotal</span>
+                    <span className="font-bold text-foreground text-sm font-mono">{formatCurrency(returnTotal)}</span>
+                  </div>
+                </>
+              ) : (!isScrapMode ? subtotal > 0 : scrapTotal > 0) && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
+                  <span className="font-bold text-foreground text-sm">{formatCurrency(isScrapMode ? scrapTotal : subtotal)}</span>
+                </div>
               )}
 
               {invoiceType === 'GST' && totalTax > 0 && (

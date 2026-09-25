@@ -40,7 +40,7 @@ interface OwnerDashboardProps {
 }
 
 export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffledQuotes, quoteIndex, QUOTES }: OwnerDashboardProps) {
-    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId, role, permissions } = useAuthStore();
+    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId, role, permissions, isCloudSyncPaused } = useAuthStore();
     const { setRole } = useCartStore();
     const { theme, toggleTheme } = useThemeStore();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -404,10 +404,34 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                                 <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{invoiceCount} {invoiceCount === 1 ? 'Invoice' : 'Invoices'}</span>
                             </div>
-                            <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full border", (!isOnline || activeRoute === 'NONE') ? "bg-destructive/10 border-destructive/20" : "bg-primary/10 border-primary/20")}>
-                                <span className={clsx("w-1.5 h-1.5 rounded-full", (!isOnline || activeRoute === 'NONE') ? "bg-destructive" : "bg-primary animate-pulse")} />
-                                <span className={clsx("text-[10px] font-bold tracking-wider", (!isOnline || activeRoute === 'NONE') ? "text-destructive" : "text-primary")}>
-                                    {!isOnline || activeRoute === 'NONE' ? 'Sync Inactive' : (activeRoute === 'LAN' ? 'Wifi Sync Active' : (activeRoute === 'CLOUD' ? 'Cloud Sync Active' : (syncMode === 'LAN' ? 'Wifi Sync Active' : 'Cloud Sync Active')))}
+                            <div className={clsx(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors",
+                                isCloudSyncPaused
+                                    ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                                    : (!isOnline || activeRoute === 'NONE')
+                                    ? "bg-destructive/10 border-destructive/20 text-destructive"
+                                    : isSyncing
+                                    ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
+                                    : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                            )}>
+                                <span className={clsx(
+                                    "w-1.5 h-1.5 rounded-full",
+                                    isCloudSyncPaused
+                                        ? "bg-amber-500"
+                                        : (!isOnline || activeRoute === 'NONE')
+                                        ? "bg-destructive"
+                                        : isSyncing
+                                        ? "bg-blue-500 animate-spin"
+                                        : "bg-emerald-500 animate-pulse"
+                                )} />
+                                <span className="text-[10px] font-bold tracking-wider">
+                                    {isCloudSyncPaused
+                                        ? 'Login Required / Cloud Sync Paused'
+                                        : (!isOnline || activeRoute === 'NONE')
+                                        ? 'Offline'
+                                        : isSyncing
+                                        ? 'Sync Pending'
+                                        : (activeRoute === 'LAN' ? 'Wi-Fi Synced' : 'Cloud Synced')}
                                 </span>
                             </div>
                             <span className="w-px h-5 bg-border/40" />

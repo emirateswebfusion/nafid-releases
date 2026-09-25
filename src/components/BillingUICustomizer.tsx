@@ -202,6 +202,20 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
                         </div>
                       </div>
                     )}
+                    {modelId === 'erp-grid-b2c' && (
+                      <div className="flex flex-col h-full gap-1">
+                        <div className="h-[25%] bg-blue-500/20 rounded-md border border-blue-500/40 flex items-center justify-between px-2 text-[8px] font-bold text-blue-600 dark:text-blue-400">
+                          <span>ERP Header Metadata (Inv, Party, Date, Rep)</span>
+                        </div>
+                        <div className="h-[50%] bg-emerald-500/20 rounded-md border border-emerald-500/40 flex items-center justify-center text-[9px] font-bold text-emerald-600 dark:text-emerald-400 text-center">
+                          Full-Width Item Table Grid (Barcode, SKU, Tax, Net)
+                        </div>
+                        <div className="h-[25%] bg-amber-500/20 rounded-md border border-amber-500/40 flex items-center justify-between px-2 text-[8px] font-bold text-amber-600 dark:text-amber-400">
+                          <span>Stock: XX | Totals</span>
+                          <span>Bottom Settlement (Cooly, Disc, Pay)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">

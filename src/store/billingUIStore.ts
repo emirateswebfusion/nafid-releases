@@ -5,7 +5,8 @@ export type POSLayoutModel =
   | 'reverse-split'       // Reversed 2-Column: Payment Left (42%), Cart Right (58%)
   | 'horizontal-stack'    // Top/Bottom: Cart Top (65%), Payment Console Bottom (35%)
   | 'supermarket-3col'    // 3-Column Express: Quick Grid (22%), Cart (48%), Payment (30%)
-  | 'focus-wide-cart';    // Wide Cart (70%), Slim Payment Sidebar (30%)
+  | 'focus-wide-cart'     // Wide Cart (70%), Slim Payment Sidebar (30%)
+  | 'erp-grid-b2c';       // Modern ERP Full-Table B2C Grid (Acro / Tally Desktop Model)
 
 export interface BillingUIConfig {
   // Primary Layout Model Presets
@@ -118,6 +119,19 @@ export const POS_LAYOUT_MODELS_DATA: Record<POSLayoutModel, {
       layoutPosition: 'cart-left',
       splitRatio: '70-30',
       orientation: 'vertical-split',
+      showQuickCategoryBar: false,
+    }
+  },
+  'erp-grid-b2c': {
+    id: 'erp-grid-b2c',
+    name: 'Modern ERP B2C Grid',
+    subtitle: 'Full-Width Grid &bull; ERP Metadata &bull; Live Stock & Footer Totals',
+    description: 'Classic enterprise desktop ERP billing interface (Acro / Tally B2C) elevated to modern UI. Full-width item grid with Barcode, SKU, Tax (SGST/CGST/IGST), live item stock indicator, and bottom settlement bar.',
+    config: {
+      layoutModel: 'erp-grid-b2c',
+      layoutPosition: 'cart-left',
+      splitRatio: '70-30',
+      orientation: 'horizontal-stack',
       showQuickCategoryBar: false,
     }
   }

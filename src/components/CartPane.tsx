@@ -202,50 +202,80 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                 </span>
               </div>
               <div ref={searchResultListRef} className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-border">
-                {results.map((p, i) => (
-                  <button
-                    key={p.product_id}
-                    data-search-index={i}
-                    onClick={() => handleSelectProduct(p)}
-                    className={clsx(
-                      "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group select-none border-l-4",
-                      i === selectedIndex
-                        ? "bg-primary/10 border-l-primary shadow-xs font-semibold text-foreground"
-                        : "hover:bg-muted/60 border-l-transparent text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                      <div className={clsx(
-                        "p-2 rounded-xl shrink-0 transition-colors",
-                        i === selectedIndex ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:text-primary"
-                      )}>
-                        <Package className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">{p.name}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {p.sku_barcode && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
-                              {p.sku_barcode}
-                            </span>
-                          )}
-                          <span className="text-[11px] text-muted-foreground truncate">{p.category || 'General'}</span>
+                {results.map((p, i) => {
+                  const basePrice = Number(p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price) || 0;
+                  let finalPrice: number | null = null;
+                  if (p.offer_price != null && Number(p.offer_price) > 0) {
+                    finalPrice = Number(p.offer_price);
+                  } else if (p.discount_flat != null && Number(p.discount_flat) > 0) {
+                    finalPrice = Math.max(0, basePrice - Number(p.discount_flat));
+                  } else if (p.discount_percent != null && Number(p.discount_percent) > 0) {
+                    finalPrice = Math.max(0, basePrice * (1 - Number(p.discount_percent) / 100));
+                  }
+                  const hasDiscount = finalPrice !== null && finalPrice < basePrice;
+                  const displayPrice = hasDiscount ? finalPrice! : basePrice;
+
+                  return (
+                    <button
+                      key={p.product_id}
+                      data-search-index={i}
+                      onClick={() => handleSelectProduct(p)}
+                      className={clsx(
+                        "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group select-none border-l-4",
+                        i === selectedIndex
+                          ? "bg-primary/10 border-l-primary shadow-xs font-semibold text-foreground"
+                          : "hover:bg-muted/60 border-l-transparent text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        <div className={clsx(
+                          "p-2 rounded-xl shrink-0 transition-colors",
+                          i === selectedIndex ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:text-primary"
+                        )}>
+                          <Package className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">{p.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {p.sku_barcode && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                                {p.sku_barcode}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-muted-foreground truncate">{p.category || 'General'}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-black text-sm text-foreground">
-                        ₹{(p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price).toFixed(2)}
+                      <div className="text-right shrink-0">
+                        {hasDiscount ? (
+                          <div className="flex flex-col items-end">
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <span className="text-xs text-muted-foreground/70 line-through">
+                                ₹{basePrice.toFixed(2)}
+                              </span>
+                              <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+                                ₹{displayPrice.toFixed(2)}
+                              </span>
+                            </div>
+                            <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded uppercase">
+                              {p.offer_price ? 'OFFER' : 'OFF'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="font-mono font-black text-sm text-foreground">
+                            ₹{displayPrice.toFixed(2)}
+                          </div>
+                        )}
+                        <div className="text-[10px] font-medium text-muted-foreground mt-0.5">
+                          Stock: {(() => {
+                            const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0); } catch { return 0; } })() : 0;
+                            return Number(p.current_stock) > 0 && ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;
+                          })()}
+                        </div>
                       </div>
-                      <div className="text-[10px] font-medium text-muted-foreground mt-0.5">
-                        Stock: {(() => {
-                          const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0); } catch { return 0; } })() : 0;
-                          return Number(p.current_stock) > 0 && ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;
-                        })()}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -328,9 +358,6 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                   <div className="col-span-5">
                     <div className="flex items-center gap-2">
                       <h3 className="text-foreground font-medium">{item.name}</h3>
-                      {isLastAdded && (
-                        <span className="text-[9px] font-black text-primary bg-primary/20 border border-primary/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
-                      )}
                     </div>
                     <div className="flex gap-3 text-xs mt-1">
                       <span className="text-muted-foreground">Tax: {item.tax_rate_percent}%</span>
