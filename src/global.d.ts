@@ -169,7 +169,7 @@ export interface IElectronAPI {
   dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => Promise<any>;
   dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierGetPendingInvoices: (params: { tenant_id: string; search?: string }) => Promise<any[]>;
-  dbCashierSettlePayment: (params: { tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  dbCashierSettlePayment: (params: { tenant_id: string; invoice_id: string; received_amount: number; discount_amount?: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierAddTransaction: (params: { tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string; business_date?: string }) => Promise<{ success: boolean; error?: string; expected_closing?: number; actual_cash?: number; cash_short?: number; cash_excess?: number }>;
   dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<any[]>;

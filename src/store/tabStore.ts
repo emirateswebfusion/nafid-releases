@@ -4,7 +4,7 @@ import type { CartItem, InvoiceType } from './cartStore';
 import { useCartStore } from './cartStore';
 import { getFeatureFlags } from '../featureFlags';
 
-export type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'SPLIT';
+export type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT' | 'SPLIT';
 
 export interface SplitDetails {
   cash: number;

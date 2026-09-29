@@ -9,6 +9,7 @@ import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
 import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser } from './db/localDb';
+import { calculateCashierSettlement } from './utils/cashierSettlement';
 
 
 // Initialize and configure structured logging
@@ -3576,7 +3577,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
 
     if (payment_method) {
       const pmUpper = payment_method.toUpperCase();
-      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'].includes(pmUpper)) {
+      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
         const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
         query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) = 'SPLIT' AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
         params.push(pmUpper);
@@ -3651,7 +3652,7 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     const activeTenantId = tenant_id || 'global';
 
     // Determine the split_details JSON key for the active payment method filter
-    const splitJsonKey = payment_method && ['CASH','UPI','CARD','BANK_TRANSFER','CREDIT'].includes(payment_method.toUpperCase())
+    const splitJsonKey = payment_method && ['CASH','UPI','CARD','BANK_TRANSFER','CHEQUE','CREDIT'].includes(payment_method.toUpperCase())
       ? (payment_method.toUpperCase() === 'BANK_TRANSFER' ? 'bank_transfer' : payment_method.toLowerCase())
       : null;
 
@@ -3688,7 +3689,7 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
 
     if (payment_method) {
       const pmUpper = payment_method.toUpperCase();
-      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'].includes(pmUpper)) {
+      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
         const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
         query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) = 'SPLIT' AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
         params.push(pmUpper);
@@ -3792,6 +3793,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   grand_total: number;
   payment_method?: string;
   received_amount?: number;
+  actual_refund_paid?: number;
   balance_amount?: number;
   customer_name?: string;
   customer_phone?: string;
@@ -3820,10 +3822,11 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   }
   const { items, ...invoice } = payload;
   const db = getDb();
-  const existingInv = db.prepare(`SELECT invoice_number, invoice_type, tenant_id, payment_method, received_amount, balance_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
+  const existingInv = db.prepare(`SELECT invoice_number, invoice_type, tenant_id, payment_method, received_amount, actual_refund_paid, balance_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
   const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
 
   const finalReceivedAmount = payload.received_amount !== undefined ? payload.received_amount : (existingInv?.received_amount ?? null);
+  const finalActualRefundPaid = payload.actual_refund_paid !== undefined ? payload.actual_refund_paid : (existingInv?.actual_refund_paid ?? 0);
   const finalBalanceAmount = payload.balance_amount !== undefined ? payload.balance_amount : (existingInv?.balance_amount ?? null);
 
   const transaction = db.transaction(() => {
@@ -3843,7 +3846,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       UPDATE invoices SET
         subtotal = ?, tax_total = ?, discount_total = ?, discount_type = ?,
         discount_value = ?, grand_total = ?, payment_method = ?,
-        received_amount = ?, balance_amount = ?, split_details = ?,
+        received_amount = ?, actual_refund_paid = ?, balance_amount = ?, split_details = ?,
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
         customer_id = ?, cgst_total = ?, sgst_total = ?, igst_total = ?, supply_type = ?,
@@ -3853,7 +3856,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
       invoice.grand_total, invoice.payment_method || 'PENDING',
-      finalReceivedAmount, finalBalanceAmount,
+      finalReceivedAmount, finalActualRefundPaid, finalBalanceAmount,
       (invoice as any).split_details && typeof (invoice as any).split_details === 'object' ? JSON.stringify((invoice as any).split_details) : ((invoice as any).split_details && (invoice as any).split_details !== 'null' ? (invoice as any).split_details : null),
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
@@ -7119,11 +7122,11 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
   }
 });
 
-ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, payment_method, payment_source_id, split_details, user_id, user_name }: {
-  tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string
+ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, discount_amount, payment_method, payment_source_id, split_details, user_id, user_name }: {
+  tenant_id: string; invoice_id: string; received_amount: number; discount_amount?: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string
 }) => {
   const db = getDb();
-  const validMethods = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'SPLIT'];
+  const validMethods = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'SPLIT'];
   if (!validMethods.includes(payment_method)) {
     return { success: false, error: 'Invalid payment method' };
   }
@@ -7134,24 +7137,18 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       if (!invoice) throw new Error('Invoice not found');
       
       const targetTenantId = invoice.tenant_id || tenant_id || 'global';
-      const subtotal = Number(invoice.subtotal) || 0;
-      const taxTotal = Number(invoice.tax_total) || 0;
-      const prevDiscount = Number(invoice.discount_total) || 0;
-      const scrapD = Math.max(0, Number(invoice.scrap_deduction) || 0);
-      const returnD = Math.max(0, Number(invoice.return_deduction) || 0);
-      // Use != null so that a legitimate grand_total of 0 (fully covered by scrap/return
-      // deductions) is NOT treated as falsy and does NOT trigger the fallback formula.
-      // The fallback also accounts for any existing deductions so we never over-discount.
-      const oldGrandTotal = invoice.grand_total != null
-        ? Number(invoice.grand_total)
-        : Math.max(0, subtotal + taxTotal - prevDiscount - scrapD - returnD);
-      const received = Number(received_amount);
-
-      const additionalDiscount = Math.max(0, oldGrandTotal - received);
-      const newDiscountTotal = prevDiscount + additionalDiscount;
-      const newGrandTotal = Math.max(0, subtotal + taxTotal - newDiscountTotal);
-      const discountValue = newDiscountTotal;
-      const discountType = 'FIXED';
+      const received = Number(received_amount) || 0;
+      const settlement = calculateCashierSettlement(invoice, received, discount_amount);
+      const {
+        discountTotal: newDiscountTotal,
+        discountValue,
+        discountType,
+        grandTotal: newGrandTotal,
+        receivedAmount: storedReceivedAmount,
+        actualRefundPaid,
+        expectedRefundAmount: calculatedRefund,
+        settlementDiscount,
+      } = settlement;
 
       const splitStr = split_details && typeof split_details === 'object'
         ? JSON.stringify(split_details)
@@ -7162,6 +7159,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           payment_method = ?, 
           split_details = ?, 
           received_amount = ?, 
+          actual_refund_paid = ?,
           discount_total = ?, 
           discount_value = ?, 
           discount_type = ?, 
@@ -7170,7 +7168,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           sync_status = 'PENDING', 
           updated_at = CURRENT_TIMESTAMP
         WHERE invoice_id = ?
-      `).run(payment_method, splitStr, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);
+      `).run(payment_method, splitStr, storedReceivedAmount, actualRefundPaid, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);
       
       const date = localDate();
       const drawer = getOpenCashDrawer(db, targetTenantId, date);
@@ -7185,23 +7183,12 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
 
       if (payment_method === 'CASH' || (payment_method === 'SPLIT' && splitCashAmt > 0)) {
         if (drawer) {
-          const scrapD = Number(invoice.scrap_deduction) || 0;
-          const returnD = Number(invoice.return_deduction) || 0;
-          const totalDeductions = scrapD + returnD;
-          const sub = Number(invoice.subtotal) || 0;
-          const tax = Number(invoice.tax_total) || 0;
-          const disc = Number(invoice.discount_total) || 0;
-          const ptsDisc = Number(invoice.points_redeemed_discount) || 0;
-          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
-          const calculatedRefund = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
-          const actualRefund = received < 0 ? Math.abs(received) : (calculatedRefund > 0 ? calculatedRefund : 0);
-
-          if (actualRefund > 0) {
+          if (actualRefundPaid > 0) {
             const transaction_id = crypto.randomUUID();
             db.prepare(`
               INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-            `).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', actualRefund, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
+            `).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', actualRefundPaid, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
           }
         }
       } else if (payment_source_id) {
@@ -7231,7 +7218,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
         crypto.randomUUID(), tenant_id, drawer ? drawer.drawer_id : null, 'PAYMENT_COMPLETED',
-        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount: newDiscountTotal, payment_method, split_details: split_details || null, grand_total: newGrandTotal }),
+        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: storedReceivedAmount, requested_net_amount: received, refund_amount: actualRefundPaid, expected_refund_amount: calculatedRefund, settlement_discount: settlementDiscount, discount: newDiscountTotal, payment_method, split_details: split_details || null, grand_total: newGrandTotal }),
         user_id, user_name || null
       );
     });

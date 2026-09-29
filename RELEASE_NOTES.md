@@ -1,3 +1,11 @@
+# Vendora v1.5.83 Release Notes
+
+## What's Changed
+- Improved cashier settlement and billing workflows, including transaction handling and tab state
+- Updated sales history amounts and financial reporting behavior
+- Automated Windows installer and updater asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.82...v1.5.83
+
 # Vendora v1.5.82 Release Notes
 
 ## What's Changed

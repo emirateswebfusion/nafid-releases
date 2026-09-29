@@ -28,6 +28,7 @@ import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole, formatRoleName } from '../utils/permissions';
 import { useBillingUIStore } from '../store/billingUIStore';
+import Barcode from 'react-barcode';
 
 
 const INDIAN_STATES = [
@@ -52,13 +53,14 @@ const INDIAN_STATES = [
   { code: 'GA', name: 'Goa' },
 ];
 
-type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'SPLIT';
+type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT' | 'SPLIT';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Wallet; color: string }[] = [
   { value: 'PENDING', label: 'Pending', icon: Clock, color: 'text-gray-500' },
   { value: 'CARD', label: 'Card', icon: Wallet, color: 'text-blue-500' },
   { value: 'CREDIT', label: 'Credit', icon: BookOpen, color: 'text-amber-500' },
   { value: 'UPI', label: 'UPI', icon: Smartphone, color: 'text-violet-500' },
+  { value: 'CHEQUE', label: 'Cheque', icon: FileText, color: 'text-indigo-500' },
   { value: 'CASH', label: 'Cash', icon: Banknote, color: 'text-emerald-500' },
   { value: 'SPLIT', label: 'Split', icon: Split, color: 'text-purple-500' },
 ];
@@ -607,6 +609,8 @@ export function BillingPage() {
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
   const [newProductBarcode, setNewProductBarcode] = useState('');
+  const [editingProductSnapshot, setEditingProductSnapshot] = useState<any | null>(null);
+  const [productPriceCoding, setProductPriceCoding] = useState<Record<string, string> | null>(null);
   const [newProductBrand, setNewProductBrand] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
   const [newProductUom, setNewProductUom] = useState('Pcs');
@@ -1740,6 +1744,16 @@ export function BillingPage() {
     }
   }, [showProductCreateForm, loadCategoriesAndGrades]);
 
+  useEffect(() => {
+    if (!window.electronAPI || !tenantId) {
+      setProductPriceCoding(null);
+      return;
+    }
+    window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'price_coding' })
+      .then((value: any) => setProductPriceCoding(value && typeof value === 'object' ? value : null))
+      .catch(() => setProductPriceCoding(null));
+  }, [tenantId]);
+
   // Fetch most sold products for 3-column express layout
   useEffect(() => {
     if (!window.electronAPI || !tenantId) return;
@@ -2209,13 +2223,18 @@ export function BillingPage() {
   }, []);
 
   useEffect(() => {
-    if (showProductCreateForm) {
-      setTimeout(() => firstInputRef.current?.focus(), 50);
+    if (!showProductCreateForm) return;
+
+    const focusTimer = window.setTimeout(() => firstInputRef.current?.focus(), 50);
+    let cancelled = false;
+
+    // Editing must preserve the barcode belonging to the selected cart product.
+    // Barcode generation here is only a convenience for a new product.
+    if (!editingProductId && window.electronAPI && tenantId) {
       (async () => {
-        if (!window.electronAPI || !tenantId) return;
         try {
           const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId });
-          if (gen?.success && gen?.barcode) {
+          if (!cancelled && gen?.success && gen?.barcode) {
             setNewProductBarcode(gen.barcode);
           }
         } catch (err) {
@@ -2223,7 +2242,12 @@ export function BillingPage() {
         }
       })();
     }
-  }, [showProductCreateForm]);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(focusTimer);
+    };
+  }, [showProductCreateForm, editingProductId, tenantId]);
 
   const [isLoadingEditBill, setIsLoadingEditBill] = useState(false);
 
@@ -2452,7 +2476,7 @@ export function BillingPage() {
 
         const grandTotalVal = Number(invoice.grand_total) || 0;
         const rawPm = invoice.payment_method ? String(invoice.payment_method).toUpperCase() : 'PENDING';
-        const pmUpper = (['PENDING', 'CASH', 'CARD', 'UPI', 'CREDIT', 'SPLIT'].includes(rawPm) ? rawPm : 'PENDING') as PaymentMethod;
+        const pmUpper = (['PENDING', 'CASH', 'CARD', 'UPI', 'CHEQUE', 'CREDIT', 'SPLIT'].includes(rawPm) ? rawPm : 'PENDING') as PaymentMethod;
 
         let finalSplitDetails: SplitDetails = { cash: 0, card: 0, upi: 0, credit: 0, bank_transfer: 0 };
 
@@ -2485,6 +2509,7 @@ export function BillingPage() {
           customerAddress: invoice.customer_address || '',
           paymentMethod: pmUpper,
           receivedAmount: Number(invoice.received_amount) || 0,
+          actualRefundPaid: Number(invoice.actual_refund_paid) || 0,
           splitDetails: finalSplitDetails,
           selectedUpiId: parsedSplitDetails?.upi_id,
           selectedUpiSourceId: parsedSplitDetails?.upi_source_id,
@@ -2663,17 +2688,74 @@ export function BillingPage() {
   const getTierPriceForProduct = (product: any): number | undefined => {
     if (!selectedTierId || !product) return undefined;
     if (!pricingTiers.some(t => t.pricing_tier_id === selectedTierId)) return undefined;
-    const m = productPricingMap[product.product_id];
-    if (!m) return undefined;
-    const v = m[selectedTierId];
-    return v != null && v > 0 ? v : undefined;
+    const v = productPricingMap[product.product_id]?.[selectedTierId]
+      ?? product.tier_prices?.[selectedTierId];
+    const price = Number(v);
+    return Number.isFinite(price) && price > 0 ? price : undefined;
   };
+
+  const applyPricingTierToCart = useCallback((tierId: string) => {
+    const tier = pricingTiers.find(t => t.pricing_tier_id === tierId);
+    let itemsChanged = false;
+    const nextItems = useCartStore.getState().items.map(item => {
+      if (item.isScrap || item.isReturnItem || item.isCombo || item.isServiceItem || item.is_tier_overridden) {
+        return item;
+      }
+
+      const tierPrice = Number(productPricingMap[item.product_id]?.[tierId]);
+      const hasTierPrice = Boolean(tierId) && Number.isFinite(tierPrice) && tierPrice > 0;
+      const originalPricingMode = item.original_pricing_mode ?? item.pricing_mode;
+      const basePrice = hasTierPrice ? tierPrice : (item.original_base_price ?? item.base_price);
+      const pricingMode = hasTierPrice ? 'FIXED_PRICE' : originalPricingMode;
+      const tierName = tierId ? (tier?.name || null) : null;
+      const originalGradeId = item.original_grade_id ?? item.grade_id ?? null;
+      const originalGradeRate = item.original_grade_rate ?? item.grade_rate ?? null;
+
+      if (
+        item.base_price === basePrice &&
+        item.pricing_mode === pricingMode &&
+        item.pricing_tier_id === (tierId || null) &&
+        item.pricing_tier_name === tierName &&
+        item.original_pricing_mode === originalPricingMode &&
+        item.original_grade_id === originalGradeId &&
+        item.original_grade_rate === originalGradeRate
+      ) {
+        return item;
+      }
+
+      itemsChanged = true;
+
+      return {
+        ...item,
+        base_price: basePrice,
+        pricing_mode: pricingMode,
+        original_pricing_mode: originalPricingMode,
+        original_grade_id: originalGradeId,
+        original_grade_rate: originalGradeRate,
+        pricing_tier_id: tierId || null,
+        pricing_tier_name: tierName,
+      };
+    });
+    if (itemsChanged) {
+      useCartStore.setState({ items: nextItems });
+      syncActiveSnapshot();
+    }
+  }, [pricingTiers, productPricingMap, syncActiveSnapshot]);
+
+  const handlePricingTierChange = useCallback((tierId: string) => {
+    setSelectedTierId(tierId);
+    applyPricingTierToCart(tierId);
+  }, [applyPricingTierToCart]);
+
+  useEffect(() => {
+    applyPricingTierToCart(selectedTierId);
+  }, [applyPricingTierToCart, selectedTierId]);
 
   const applyPartyTier = (name: string, phone: string) => {
     const defaultTier = pricingTiers.find(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');
     const defaultTierId = defaultTier ? defaultTier.pricing_tier_id : '';
     if (!name && !phone) {
-      setSelectedTierId(defaultTierId);
+      handlePricingTierChange(defaultTierId);
       return;
     }
     const match = partiesForTier.find(p =>
@@ -2681,9 +2763,9 @@ export function BillingPage() {
       (phone && p.phone && String(p.phone) === phone)
     );
     if (match?.pricing_tier_id && pricingTiers.some(t => t.pricing_tier_id === match.pricing_tier_id)) {
-      setSelectedTierId(match.pricing_tier_id);
+      handlePricingTierChange(match.pricing_tier_id);
     } else {
-      setSelectedTierId(defaultTierId);
+      handlePricingTierChange(defaultTierId);
     }
   };
 
@@ -2747,9 +2829,12 @@ export function BillingPage() {
       uom: product.uom,
       billing_type: effectiveBillingType,
       pieces_per_kg: piecesPerKg,
-      grade_id: tierPrice != null ? null : product.grade_id,
+      grade_id: product.grade_id ?? null,
       pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode,
-      grade_rate: tierPrice != null ? null : (product.grade_rate ?? null),
+      grade_rate: product.grade_rate ?? null,
+      original_pricing_mode: product.pricing_mode,
+      original_grade_id: product.grade_id ?? null,
+      original_grade_rate: product.grade_rate ?? null,
       discount_percent: product.discount_percent ?? null,
       discount_flat: product.discount_flat ?? null,
       offer_price: product.offer_price ?? null,
@@ -2781,6 +2866,7 @@ export function BillingPage() {
   const resetProductForm = () => {
     setShowProductCreateForm(false);
     setEditingProductId(null);
+    setEditingProductSnapshot(null);
     setNewProductName('');
     setNewProductItemCode('');
     setNewProductBarcode('');
@@ -2803,6 +2889,64 @@ export function BillingPage() {
     setNewProductIsGstApplicable(false);
     setNewProductIsDummy(false);
     setNewProductIsCustomCategory(false);
+    setProductFormTierPrices({});
+  };
+
+  const encodeProductPurchasePrice = (price: string | number | null | undefined) => {
+    if (!productPriceCoding || price === '' || price === null || price === undefined) return '';
+    const numeric = Number(price);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '';
+    return String(numeric).split('').map(char => char === '.' ? '.' : (productPriceCoding[char] || '')).join('');
+  };
+
+  const stripProductPurchasePriceCode = (barcode: string, price: string | number | null | undefined) => {
+    const code = encodeProductPurchasePrice(price);
+    for (const candidate of [code, code.replace(/\./g, '')]) {
+      if (candidate && barcode.endsWith(candidate)) return barcode.slice(0, -candidate.length);
+    }
+    return barcode;
+  };
+
+  const handleProductPurchasePriceChange = (value: string) => {
+    const barcodeWithoutOldPriceCode = stripProductPurchasePriceCode(newProductBarcode, newProductPurchasePrice);
+    const barcode = barcodeWithoutOldPriceCode ? `${barcodeWithoutOldPriceCode}${encodeProductPurchasePrice(value)}` : '';
+    setNewProductPurchasePrice(value);
+    if (barcode !== newProductBarcode) setNewProductBarcode(barcode);
+  };
+
+  const handleProductBasePriceChange = (value: string) => {
+    setNewProductBasePrice(value);
+    if (newProductDiscountPercent !== '') {
+      const mrp = Number(value) || 0;
+      const pct = Number(newProductDiscountPercent);
+      setNewProductDiscountFlat(mrp > 0 && Number.isFinite(pct) ? ((mrp * pct) / 100).toFixed(2) : '');
+    }
+  };
+
+  const handleProductGradeChange = (gradeId: string) => {
+    setNewProductGradeId(gradeId);
+    if (!gradeId) return;
+    const grade = newProductGrades.find(g => g.grade_id === gradeId);
+    if (!grade) return;
+    setNewProductBasePrice(String(Number(grade.rate) || 0));
+    handleProductPurchasePriceChange(String(Number(grade.purchase_price) || 0));
+    if (newProductDiscountPercent !== '') {
+      const mrp = Number(grade.rate) || 0;
+      const pct = Number(newProductDiscountPercent);
+      setNewProductDiscountFlat(mrp > 0 && Number.isFinite(pct) ? ((mrp * pct) / 100).toFixed(2) : '');
+    }
+  };
+
+  const generateProductBarcode = async () => {
+    if (!window.electronAPI || !tenantId) return;
+    try {
+      const result = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+      if (result.success && result.barcode) {
+        setNewProductBarcode(`${result.barcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`);
+      }
+    } catch (error: any) {
+      setHardwareError('Failed to generate barcode: ' + (error?.message || ''));
+    }
   };
 
   const handleCreateNewGrade = async () => {
@@ -2822,7 +2966,14 @@ export function BillingPage() {
       const fresh = await window.electronAPI.dbGetGrades(tenantId);
       if (Array.isArray(fresh)) setNewProductGrades(fresh);
       setNewProductGradeId(gradeId);
-      if (!newProductBasePrice && newProductGradeForm.rate) setNewProductBasePrice(newProductGradeForm.rate);
+      setNewProductBasePrice(String(Number(newProductGradeForm.rate) || 0));
+      handleProductPurchasePriceChange(String(Number(newProductGradeForm.purchase_price) || 0));
+      setNewProductOfferPrice(newProductGradeForm.offer_price || '');
+      if (newProductDiscountPercent !== '') {
+        const mrp = Number(newProductGradeForm.rate) || 0;
+        const pct = Number(newProductDiscountPercent);
+        setNewProductDiscountFlat(mrp > 0 && Number.isFinite(pct) ? ((mrp * pct) / 100).toFixed(2) : '');
+      }
       setNewProductIsAddingGrade(false);
       setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
     } else {
@@ -2853,29 +3004,42 @@ export function BillingPage() {
   const handleEditProduct = async (item: CartItem) => {
     setEditingProductId(item.product_id);
     let prodDetails: any = null;
+    let productPricingRows: any[] = [];
     if (window.electronAPI && tenantId) {
-      try {
-        const res = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] });
-        if (Array.isArray(res) && res.length > 0) {
-          prodDetails = res[0];
-        }
-      } catch (e) {
-        console.error("Failed to fetch product for editing", e);
+      const [productResult, pricingResult] = await Promise.allSettled([
+        window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] }),
+        window.electronAPI.dbGetProductPricing(tenantId),
+      ]);
+      if (productResult.status === 'fulfilled' && Array.isArray(productResult.value) && productResult.value.length > 0) {
+        prodDetails = productResult.value[0];
+      } else if (productResult.status === 'rejected') {
+        console.error('Failed to fetch product for editing', productResult.reason);
+      }
+      if (pricingResult.status === 'fulfilled' && Array.isArray(pricingResult.value)) {
+        productPricingRows = pricingResult.value;
+      } else if (pricingResult.status === 'rejected') {
+        console.error('Failed to fetch product tier prices for editing', pricingResult.reason);
       }
     }
 
+    const hasProductRecord = Boolean(prodDetails);
     const p = prodDetails || item;
+    setEditingProductSnapshot(p);
     setNewProductName(p.name || item.name || '');
-    setNewProductItemCode(p.item_code || '');
-    setNewProductBarcode(p.sku_barcode || item.sku_barcode || '');
-    setNewProductBrand(p.brand_manufacturer || item.brand_manufacturer || '');
+    setNewProductItemCode(p.item_code ?? (hasProductRecord ? '' : item.item_code || ''));
+    // Keep the barcode attached to this cart item; use the product lookup only when the cart has none.
+    const selectedCartBarcode = String(item.sku_barcode ?? '').trim();
+    const selectedProductBarcode = selectedCartBarcode || String(p.sku_barcode ?? '').trim();
+    setNewProductBarcode(selectedProductBarcode);
+    setNewProductBrand(p.brand_manufacturer ?? (hasProductRecord ? '' : item.brand_manufacturer || ''));
     setNewProductCategory(p.category || '');
     setNewProductUom(p.uom || item.uom || 'Pcs');
 
     if (p.domain_attributes) {
       try {
         const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-        setNewProductPcs(da.pcs ? String(da.pcs) : da.pcs_stock ? String(da.pcs_stock) : '');
+        const pcs = da.pcs ?? da.pcs_stock;
+        setNewProductPcs(pcs != null && pcs !== 0 ? String(pcs) : '');
       } catch {
         setNewProductPcs('');
       }
@@ -2883,18 +3047,28 @@ export function BillingPage() {
       setNewProductPcs('');
     }
 
-    setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : (item.purchase_price != null ? String(item.purchase_price) : ''));
-    setNewProductBasePrice(p.base_price != null ? String(p.base_price) : (item.base_price != null ? String(item.base_price) : ''));
-    setNewProductStock(p.current_stock != null ? String(p.current_stock) : (item.quantity != null ? String(item.quantity) : ''));
+    setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : (!hasProductRecord && item.purchase_price != null ? String(item.purchase_price) : ''));
+    const effectiveBasePrice = p.pricing_mode === 'GRADE_RATE' && p.grade_rate != null
+      ? p.grade_rate
+      : (p.base_price ?? (!hasProductRecord ? item.base_price : undefined));
+    setNewProductBasePrice(effectiveBasePrice != null ? String(effectiveBasePrice) : '');
+    setNewProductStock(p.current_stock != null ? String(p.current_stock) : (!hasProductRecord && item.quantity != null ? String(item.quantity) : ''));
     setNewProductReorderLevel(p.reorder_level != null ? String(p.reorder_level) : '');
     setNewProductHsn(p.hsn_sac_code || '');
-    setNewProductTaxRate(p.tax_rate_percent != null ? Number(p.tax_rate_percent) : (item.tax_rate_percent != null ? Number(item.tax_rate_percent) : 0));
-    setNewProductDiscountPercent(p.discount_percent != null ? String(p.discount_percent) : (item.discount_percent != null ? String(item.discount_percent) : ''));
-    setNewProductDiscountFlat(p.discount_flat != null ? String(p.discount_flat) : (item.discount_flat != null ? String(item.discount_flat) : ''));
-    setNewProductOfferPrice(p.offer_price != null ? String(p.offer_price) : (item.offer_price != null ? String(item.offer_price) : ''));
-    setNewProductIsGstApplicable(Boolean(p.is_gst_applicable));
-    setNewProductGradeId(p.grade_id || item.grade_id || '');
+    setNewProductTaxRate(p.tax_rate_percent != null ? Number(p.tax_rate_percent) : (!hasProductRecord && item.tax_rate_percent != null ? Number(item.tax_rate_percent) : 0));
+    setNewProductDiscountPercent(p.discount_percent != null ? String(p.discount_percent) : (!hasProductRecord && item.discount_percent != null ? String(item.discount_percent) : ''));
+    setNewProductDiscountFlat(p.discount_flat != null ? String(p.discount_flat) : (!hasProductRecord && item.discount_flat != null ? String(item.discount_flat) : ''));
+    setNewProductOfferPrice(p.offer_price != null ? String(p.offer_price) : (!hasProductRecord && item.offer_price != null ? String(item.offer_price) : ''));
+    setNewProductIsGstApplicable(Boolean(p.is_gst_applicable ?? (!hasProductRecord ? (item as any).is_gst_applicable : false)));
+    setNewProductGradeId(p.grade_id ?? (!hasProductRecord ? item.grade_id : '') ?? '');
     setNewProductIsCustomCategory(!configuredCategories.includes(p.category || '') && Boolean(p.category));
+    const tierPrices: Record<string, string> = {};
+    for (const row of productPricingRows) {
+      if (row.product_id === item.product_id && row.price != null && row.price !== '') {
+        tierPrices[row.pricing_tier_id] = String(row.price);
+      }
+    }
+    setProductFormTierPrices(tierPrices);
 
     setShowProductCreateForm(true);
   };
@@ -2902,7 +3076,7 @@ export function BillingPage() {
   const handleCreateAndAddProduct = async (retries = 3, isAutoGenerated = false, asTemp = false) => {
     if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
     const purchasePrice = Number(newProductPurchasePrice) || 0;
-    const basePrice = Number(newProductBasePrice) || purchasePrice;
+    const basePrice = newProductBasePrice.trim() === '' ? 0 : Number(newProductBasePrice);
     const qty = Number(newProductStock) || 0;
     const isGstProduct = (invoiceType === 'GST') || newProductIsGstApplicable;
 
@@ -2912,20 +3086,59 @@ export function BillingPage() {
 
     if (editingProductId) {
       const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
+      const selectedGradeRate = selectedGrade?.rate ?? (
+        editingProductSnapshot?.grade_id === newProductGradeId ? editingProductSnapshot?.grade_rate : null
+      );
+      const savedBillingType = isWeightBilling || (
+        editingProductSnapshot?.uom === newProductUom && editingProductSnapshot?.billing_type === 'WEIGHT'
+      ) ? 'WEIGHT' : 'PIECE';
       const rawPcs = Number(newProductPcs) || 0;
-      const domainAttrsObj: Record<string, any> = {};
-      if (isWeightBilling && rawPcs > 0) {
+      let domainAttrsObj: Record<string, any> = {};
+      try {
+        const existingDomainAttributes = editingProductSnapshot?.domain_attributes;
+        const parsedAttributes = typeof existingDomainAttributes === 'string'
+          ? JSON.parse(existingDomainAttributes || '{}')
+          : existingDomainAttributes;
+        domainAttrsObj = parsedAttributes && typeof parsedAttributes === 'object' && !Array.isArray(parsedAttributes)
+          ? { ...parsedAttributes }
+          : {};
+      } catch {
+        domainAttrsObj = {};
+      }
+      if (savedBillingType === 'WEIGHT' && rawPcs > 0) {
         domainAttrsObj.pcs_per_kg = qty > 0 ? rawPcs / qty : rawPcs;
         domainAttrsObj.pcs_stock = rawPcs;
         domainAttrsObj.pcs = rawPcs;
+      } else {
+        delete domainAttrsObj.pcs_per_kg;
+        domainAttrsObj.pcs_stock = 0;
+        domainAttrsObj.pcs = 0;
       }
+
+      let finalBarcode = newProductBarcode.trim();
+      if (!finalBarcode) {
+        try {
+          const generated = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+          if (!generated.success || !generated.barcode) throw new Error(generated.error || 'Barcode could not be generated');
+          finalBarcode = `${generated.barcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`;
+        } catch (error: any) {
+          setHardwareError('Failed to generate barcode: ' + (error?.message || ''));
+          return;
+        }
+      }
+
+      const tierRows = Object.entries(productFormTierPrices).map(([pricing_tier_id, price]) => ({
+        pricing_tier_id,
+        price: price.trim() === '' ? null : Number(price),
+      }));
 
       if (window.electronAPI) {
         const res = await window.electronAPI.dbUpdateProduct({
+          ...(editingProductSnapshot || {}),
           product_id: editingProductId,
           tenant_id: tenantId,
           name: newProductName.trim(),
-          sku_barcode: newProductBarcode || null,
+          sku_barcode: finalBarcode,
           item_code: newProductItemCode ? newProductItemCode.toUpperCase() : null,
           category: newProductCategory,
           brand_manufacturer: newProductBrand,
@@ -2934,22 +3147,42 @@ export function BillingPage() {
           base_price: basePrice,
           current_stock: qty,
           reorder_level: Number(newProductReorderLevel) || 0,
-          is_gst_applicable: isGstProduct ? 1 : (newProductIsGstApplicable ? 1 : 0),
-          tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
-          hsn_sac_code: isGstProduct ? newProductHsn : (newProductIsGstApplicable ? newProductHsn : null),
+          is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
+          tax_rate_percent: newProductTaxRate,
+          hsn_sac_code: newProductHsn,
           discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
           discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
           offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
-          billing_type: billingType,
-          domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
-          grade_id: selectedGrade?.grade_id || null,
-          pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
-          is_deleted: 0,
+          billing_type: savedBillingType,
+          domain_attributes: JSON.stringify(domainAttrsObj),
+          grade_id: newProductGradeId || null,
+          pricing_mode: newProductGradeId ? 'GRADE_RATE' : 'FIXED_PRICE',
+          is_deleted: editingProductSnapshot?.is_deleted ?? 0,
           sync_status: 'PENDING',
         });
         if (!res.success) {
           setHardwareError('Failed to update product: ' + (res.error || ''));
           return;
+        }
+
+        if (tierRows.length > 0) {
+          const pricingResult = await window.electronAPI.dbSetProductPricing({
+            tenant_id: tenantId,
+            product_id: editingProductId,
+            pricing: tierRows,
+          });
+          if (!pricingResult.success) {
+            setHardwareError('Product updated, but tier prices could not be saved: ' + (pricingResult.error || ''));
+            return;
+          }
+          setProductPricingMap(prev => {
+            const nextPrices = { ...(prev[editingProductId] || {}) };
+            for (const row of tierRows) {
+              if (row.price == null) delete nextPrices[row.pricing_tier_id];
+              else nextPrices[row.pricing_tier_id] = row.price;
+            }
+            return { ...prev, [editingProductId]: nextPrices };
+          });
         }
       }
 
@@ -2960,22 +3193,29 @@ export function BillingPage() {
               ...i,
               name: newProductName.trim(),
               base_price: basePrice,
+              // Tier synchronization falls back to original_base_price when no tier price is set.
+              original_base_price: basePrice,
               purchase_price: purchasePrice,
-              tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
+              tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
+              hsn_sac_code: newProductHsn,
               uom: newProductUom,
-              billing_type: billingType,
-              pieces_per_kg: isWeightBilling && rawPcs > 0 ? (qty > 0 ? rawPcs / qty : rawPcs) : i.pieces_per_kg,
-              sku_barcode: newProductBarcode || undefined,
-              brand_manufacturer: newProductBrand || undefined,
+              billing_type: savedBillingType,
+              pieces_per_kg: savedBillingType === 'WEIGHT' && rawPcs > 0 ? (qty > 0 ? rawPcs / qty : rawPcs) : undefined,
+              sku_barcode: finalBarcode,
+              item_code: newProductItemCode.toUpperCase(),
+              brand_manufacturer: newProductBrand,
               discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
               discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
               offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
               catalog_discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
               catalog_discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
               catalog_offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
-              grade_id: selectedGrade?.grade_id || null,
-              pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
-              grade_rate: selectedGrade ? Number(selectedGrade.rate) : i.grade_rate,
+              grade_id: newProductGradeId || undefined,
+              pricing_mode: newProductGradeId ? 'GRADE_RATE' : 'FIXED_PRICE',
+              grade_rate: selectedGradeRate != null ? Number(selectedGradeRate) : undefined,
+              original_pricing_mode: newProductGradeId ? 'GRADE_RATE' : 'FIXED_PRICE',
+              original_grade_id: newProductGradeId || null,
+              original_grade_rate: selectedGradeRate != null ? Number(selectedGradeRate) : null,
             };
           }
           return i;
@@ -3017,12 +3257,13 @@ export function BillingPage() {
       return;
     }
 
-    const wasAutoGenerated = isAutoGenerated || !newProductBarcode;
+    const wasAutoGenerated = isAutoGenerated || !newProductBarcode.trim();
     const productId = uuidv4();
-    let finalBarcode = newProductBarcode;
+    let finalBarcode = newProductBarcode.trim();
     if (!finalBarcode) {
       const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
-      finalBarcode = (gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`;
+      const generatedBarcode = (gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`;
+      finalBarcode = `${generatedBarcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`;
     }
     const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
     const initialStock = (isGstProduct && qty > 0) ? 0 : qty;
@@ -3062,6 +3303,27 @@ export function BillingPage() {
       sync_status: 'PENDING',
     });
     if (res.success) {
+      const tierRows = Object.entries(productFormTierPrices).map(([pricing_tier_id, price]) => ({
+        pricing_tier_id,
+        price: price.trim() === '' ? null : Number(price),
+      }));
+      if (tierRows.length > 0) {
+        const pricingResult = await window.electronAPI.dbSetProductPricing({
+          tenant_id: tenantId,
+          product_id: productId,
+          pricing: tierRows,
+        });
+        if (pricingResult.success) {
+          setProductPricingMap(prev => {
+            const nextPrices: Record<string, number> = {};
+            for (const row of tierRows) if (row.price != null) nextPrices[row.pricing_tier_id] = row.price;
+            return { ...prev, [productId]: nextPrices };
+          });
+        } else {
+          setHardwareError('Product created, but tier prices could not be saved: ' + (pricingResult.error || ''));
+        }
+      }
+
       // Create a purchase bill if it's a GST product and quantity > 0
       if (isGstProduct && qty > 0) {
         const purchaseBillId = uuidv4();
@@ -3102,6 +3364,7 @@ export function BillingPage() {
         product_id: productId,
         name: newProductName.trim(),
         base_price: basePrice,
+        tier_prices: Object.fromEntries(tierRows.filter(row => row.price != null).map(row => [row.pricing_tier_id, row.price])),
         purchase_price: purchasePrice,
         tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
         uom: newProductUom,
@@ -4958,6 +5221,9 @@ export function BillingPage() {
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
+          actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
+            ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount)
+            : 0,
           // GST totals for edited invoice
           cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
           items: checkoutItems,
@@ -4991,7 +5257,9 @@ export function BillingPage() {
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
-          actual_refund_paid: refundAmount > 0 ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount) : 0,
+          actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
+            ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount)
+            : 0,
           // GST invoice-level totals (Indian GST Act compliance)
           cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
           items: checkoutItems,
@@ -5692,7 +5960,7 @@ export function BillingPage() {
     },
     'F11': () => {
       // Cycle payment method
-      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CREDIT', 'SPLIT'];
+      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'CREDIT', 'SPLIT'];
       if (isCashSettlementEnabled) order.push('PENDING');
       const currentIdx = order.indexOf(paymentMethod as PaymentMethod);
       const nextIdx = (currentIdx + 1) % order.length;
@@ -5702,7 +5970,7 @@ export function BillingPage() {
       setTimeout(() => setInfoToast(null), 2500);
     },
     'Alt+p': () => {
-      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CREDIT', 'SPLIT'];
+      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'CREDIT', 'SPLIT'];
       if (isCashSettlementEnabled) order.push('PENDING');
       const currentIdx = order.indexOf(paymentMethod as PaymentMethod);
       const nextIdx = (currentIdx + 1) % order.length;
@@ -5712,7 +5980,7 @@ export function BillingPage() {
       setTimeout(() => setInfoToast(null), 2500);
     },
     'Alt+P': () => {
-      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CREDIT', 'SPLIT'];
+      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'CREDIT', 'SPLIT'];
       if (isCashSettlementEnabled) order.push('PENDING');
       const currentIdx = order.indexOf(paymentMethod as PaymentMethod);
       const nextIdx = (currentIdx + 1) % order.length;
@@ -6023,7 +6291,7 @@ export function BillingPage() {
                 ))
               ) : (
                 results.map((p, i) => {
-                  const basePrice = (selectedTierId && p.tier_prices?.[selectedTierId]) ? Number(p.tier_prices[selectedTierId]) : Number(p.base_price || 0);
+                  const basePrice = getTierPriceForProduct(p) ?? Number(p.base_price || 0);
 
                   let finalPrice: number | null = null;
                   if (p.offer_price != null && Number(p.offer_price) > 0) {
@@ -6395,7 +6663,7 @@ export function BillingPage() {
               triggerClassName="h-auto py-2"
               className="w-40 sm:w-44"
               value={selectedTierId}
-              onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
+              onChange={v => { if (canOverrideTier) handlePricingTierChange(v); }}
               options={[
                 { value: '', label: 'MRP' },
                 ...pricingTiers.map(t => ({
@@ -6597,7 +6865,7 @@ export function BillingPage() {
                 triggerClassName="h-8 py-1"
                 className="w-full"
                 value={selectedTierId}
-                onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
+                onChange={v => { if (canOverrideTier) handlePricingTierChange(v); }}
                 options={[
                   { value: '', label: 'MRP' },
                   ...pricingTiers.map(t => ({
@@ -8324,11 +8592,11 @@ export function BillingPage() {
                       Arrows: Select &middot; Enter: Confirm / Print
                     </span>
                   </div>
-                  <div className="grid grid-cols-6 gap-2">
-                      {paymentOptions.map((opt, idx) => {
+                  <div className="grid grid-cols-8 gap-2">
+                      {paymentOptions.map((opt) => {
                         const isActive = paymentMethod === opt.value;
-                        const span = !isCashSettlementEnabled
-                          ? (idx < 3 ? 'col-span-2' : 'col-span-3')
+                        const span = opt.value === 'SPLIT'
+                          ? 'col-span-2 col-start-7 row-start-1 row-span-2'
                           : 'col-span-2';
 
                         const shortcutBadge = opt.value === 'CASH' ? 'Alt+1'
@@ -8605,7 +8873,7 @@ export function BillingPage() {
                                 onKeyDown={handlePaymentOptionKeyDown}
                                 className={clsx(
                                   span,
-                                  'flex flex-col justify-between p-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px] focus:outline-none focus:ring-2 shadow-sm',
+                                  'flex flex-col justify-between p-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[152px] focus:outline-none focus:ring-2 shadow-sm',
                                   isSplitActive
                                     ? 'border-purple-600 bg-purple-600 text-white dark:bg-purple-600 dark:border-purple-500 focus:ring-purple-400'
                                     : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500'
@@ -8644,6 +8912,7 @@ export function BillingPage() {
                         if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; activeFocusRing = 'focus:ring-emerald-500 focus:border-emerald-500'; }
                         if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; activeFocusRing = 'focus:ring-blue-500 focus:border-blue-500'; }
                         if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; activeFocusRing = 'focus:ring-violet-500 focus:border-violet-500'; }
+                        if (opt.value === 'CHEQUE'){ activeBg = 'bg-indigo-500/10'; activeText = 'text-indigo-600 dark:text-indigo-400'; activeBorder = 'border-indigo-500'; activeIconBg = 'bg-indigo-500/15'; activeFocusRing = 'focus:ring-indigo-500 focus:border-indigo-500'; }
                         if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; activeFocusRing = 'focus:ring-amber-500 focus:border-amber-500'; }
                         if (opt.value === 'SPLIT')  { activeBg = 'bg-purple-500/10';  activeText = 'text-purple-600 dark:text-purple-400';  activeBorder = 'border-purple-500';  activeIconBg = 'bg-purple-500/15'; activeFocusRing = 'focus:ring-purple-500 focus:border-purple-500'; }
 
@@ -8655,7 +8924,8 @@ export function BillingPage() {
                             onClick={handlePaymentSelect}
                             onKeyDown={handlePaymentOptionKeyDown}
                             className={clsx(
-                              'flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px] focus:outline-none focus:ring-2',
+                              'flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer focus:outline-none focus:ring-2',
+                              opt.value === 'SPLIT' ? 'h-[152px]' : 'h-[72px]',
                               activeFocusRing,
                               span,
                               isActive
@@ -9607,24 +9877,31 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
             {/* Grand Total + Received + Change */}
             <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">
               {/* Total amount */}
-              <div className="shrink-0">
-                <p className="text-[9px] font-black text-primary uppercase tracking-wider">
-                  {isReturnMode ? 'Return Total' : isScrapMode ? 'Scrap Total' : (storeScrapDeduction > 0 || storeReturnDeduction > 0) ? 'After Adj.' : 'Total'}
-                </p>
-                {isLoadingEditBill ? (
-                  <Skeleton className="h-6 w-28 my-1 rounded-md" />
-                ) : (
-                  <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
-                )}
-                {refundAmount > 0 && !isLoadingEditBill && (
-                  <div className="mt-1 space-y-0.5">
-                    <p className="text-[10px] font-black text-orange-600">
+              <div className={clsx(
+                'flex min-w-0 items-start justify-between gap-2',
+                refundAmount > 0 && !isLoadingEditBill && paymentMethod !== 'CASH' && paymentMethod !== 'CREDIT' ? 'flex-[1.5]' : 'flex-1'
+              )}>
+                <div className="min-w-0 shrink-0">
+                  <p className="text-[9px] font-black text-primary uppercase tracking-wider">
+                    {isReturnMode ? 'Return Total' : isScrapMode ? 'Scrap Total' : (storeScrapDeduction > 0 || storeReturnDeduction > 0) ? 'After Adj.' : 'Total'}
+                  </p>
+                  {isLoadingEditBill ? (
+                    <Skeleton className="h-6 w-28 my-1 rounded-md" />
+                  ) : (
+                    <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
+                  )}
+                  {refundAmount > 0 && !isLoadingEditBill && (
+                    <p className="mt-1.5 text-[10px] font-black text-orange-600">
                       Refund: {formatCurrency(refundAmount)}
                     </p>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap">Paid:</span>
-                      <div className="relative flex-1">
-                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/60">₹</span>
+                  )}
+                </div>
+                {refundAmount > 0 && !isLoadingEditBill && paymentMethod !== 'CASH' && paymentMethod !== 'CREDIT' && (
+                  <div className="mt-1 ml-auto flex shrink-0 flex-col items-end gap-1">
+                    <div className="inline-flex w-[190px] max-w-full items-center justify-between gap-2 rounded-xl border border-orange-400/40 bg-orange-500/10 px-2.5 py-1.5 shadow-sm">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-orange-700 dark:text-orange-300">Paid</span>
+                      <div className="relative w-28 shrink-0">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-orange-600/70">₹</span>
                         <input
                           type="number"
                           min="0"
@@ -9633,7 +9910,8 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                           placeholder={String(refundAmount)}
                           onChange={e => updateActiveTab({ actualRefundPaid: e.target.value === '' ? 0 : Number(e.target.value) })}
                           onFocus={e => e.target.select()}
-                          className="w-full pl-4 pr-1 py-0.5 text-[11px] font-black rounded-md bg-orange-500/10 border border-orange-400/30 text-orange-700 dark:text-orange-300 focus:outline-none focus:ring-1 focus:ring-orange-400/50"
+                          aria-label="Amount paid as refund"
+                          className="no-spinners h-8 w-full rounded-lg border border-orange-300/50 bg-background/90 pl-6 pr-2 text-right text-sm font-black tabular-nums text-orange-700 shadow-inner transition-colors placeholder:text-orange-400/60 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:text-orange-300"
                         />
                       </div>
                     </div>
@@ -10239,17 +10517,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       <div className="flex-1 min-w-[120px]">
                         <div className="flex justify-between items-center mb-1">
                           <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
-                          <button type="button" onClick={async () => {
-                            if (!window.electronAPI || !tenantId) return;
-                            const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
-                            if (gen.success && gen.barcode) setNewProductBarcode(gen.barcode);
-                          }}
+                          <button type="button" onClick={generateProductBarcode}
                             className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full cursor-pointer">
                             <RefreshCw className="w-2.5 h-2.5 inline-block" /> Auto
                           </button>
                         </div>
                         <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
                           className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 font-mono tracking-widest text-sm" />
+                        {newProductBarcode && <div className="mt-2 flex justify-center overflow-hidden rounded bg-white py-1"><Barcode value={newProductBarcode} width={1} height={32} displayValue={false} margin={0} /></div>}
                       </div>
                     </div>
                   ) : (
@@ -10308,17 +10583,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         <div>
                           <div className="flex justify-between items-center mb-1.5">
                             <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
-                            <button type="button" onClick={async () => {
-                              if (!window.electronAPI || !tenantId) return;
-                              const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
-                              if (gen.success && gen.barcode) setNewProductBarcode(gen.barcode);
-                            }}
+                            <button type="button" onClick={generateProductBarcode}
                               className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full transition-all cursor-pointer">
                               <RefreshCw className="w-3 h-3" /> Auto Generate
                             </button>
                           </div>
                           <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
                             className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
+                          {newProductBarcode && <div className="mt-3 flex justify-center overflow-hidden rounded-xl border border-border bg-white py-2"><Barcode value={newProductBarcode} height={48} displayValue={true} background="#ffffff" /></div>}
                         </div>
                       </div>
                     </div>
@@ -10342,7 +10614,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       {newProductGrades.filter(g => g.category === newProductCategory).length > 0 && !newProductIsAddingGrade && (
                         <Select
                           value={newProductGradeId}
-                          onChange={v => setNewProductGradeId(v)}
+                          onChange={handleProductGradeChange}
                           placeholder="No grade (manual pricing)"
                           searchable
                           options={newProductGrades.filter(g => g.category === newProductCategory).map(g => ({
@@ -10372,7 +10644,12 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       { label: 'Low Stock Alert', field: 'reorderLevel' },
                     ].map(({ label, field, prefix }) => (
                       <div key={field} className="flex-1 min-w-0">
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</label>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          {label}
+                          {(field === 'basePrice' || field === 'purchasePrice') && newProductGradeId && (
+                            <span className="ml-1.5 font-normal normal-case text-indigo-500">(from grade)</span>
+                          )}
+                        </label>
                         <div className="relative">
                           {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
                           <input
@@ -10381,8 +10658,8 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                             value={field === 'purchasePrice' ? newProductPurchasePrice : field === 'basePrice' ? newProductBasePrice : field === 'stock' ? newProductStock : newProductReorderLevel}
                             onChange={e => {
                               const val = e.target.value;
-                              if (field === 'purchasePrice') setNewProductPurchasePrice(val);
-                              else if (field === 'basePrice') setNewProductBasePrice(val);
+                              if (field === 'purchasePrice') handleProductPurchasePriceChange(val);
+                              else if (field === 'basePrice') handleProductBasePriceChange(val);
                               else if (field === 'stock') setNewProductStock(val);
                               else setNewProductReorderLevel(val);
                             }}
@@ -10404,7 +10681,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         triggerClassName="rounded-xl h-[46px]"
                       />
                     </div>
-                    <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', (['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((newProductUom || '').toLowerCase())) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
+                    <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', (['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((newProductUom || '').toLowerCase()) || (editingProductSnapshot?.uom === newProductUom && editingProductSnapshot?.billing_type === 'WEIGHT')) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
                       <div className="flex items-center gap-1 mb-1.5">
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Pcs</label>
                         <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">(optional)</span>
@@ -10419,6 +10696,37 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       />
                     </div>
                   </div>
+                  {pricingTiers.length > 0 && (
+                    <div className="mt-5 pt-4 border-t border-border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
+                          <Layers className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-black text-violet-500 uppercase tracking-wider">Tier Prices</span>
+                        <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
+                      </div>
+                      <div className="flex gap-4 flex-wrap">
+                        {pricingTiers.map((tier: any) => (
+                          <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
+                              {tier.name}
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                              <input
+                                type="number" step="0.01"
+                                onWheel={e => (e.target as HTMLInputElement).blur()}
+                                value={productFormTierPrices[tier.pricing_tier_id] ?? ''}
+                                onChange={e => setProductFormTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
+                                placeholder={newProductBasePrice ? `= ${newProductBasePrice}` : 'MRP'}
+                                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-8"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 {/* 3. Discount & Offers */}
@@ -10781,38 +11089,6 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   )}
                 </section>
 
-                {/* 5. Customer Price Tiers */}
-                {pricingTiers.length > 0 && (
-                  <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
-                      <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
-                        <Layers className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-black text-violet-500 uppercase tracking-wider">5. Customer Price Tiers</span>
-                      <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
-                    </div>
-                    <div className="flex gap-4 flex-wrap">
-                      {pricingTiers.map((tier: any) => (
-                        <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
-                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
-                            {tier.name}
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                            <input
-                              type="number" step="0.01"
-                              onWheel={e => (e.target as HTMLInputElement).blur()}
-                              value={productFormTierPrices[tier.pricing_tier_id] ?? ''}
-                              onChange={e => setProductFormTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
-                              placeholder={newProductBasePrice ? `= ${newProductBasePrice}` : 'MRP'}
-                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-8"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
               </div>
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-background">
                 <button type="button" data-enter-submit onClick={async () => { await handleCreateAndAddProduct(); }} disabled={!newProductName.trim()}

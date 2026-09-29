@@ -24,13 +24,14 @@ import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '.
 import { getStoreTimezone, getStoreBusinessDate } from '../utils/timezoneHelper';
 import { isAdminRole } from '../utils/permissions';
 
-type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
+type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'SPLIT';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Banknote }[] = [
   { value: 'CASH',          label: 'Cash',  icon: Banknote             },
   { value: 'CARD',          label: 'Card',  icon: CreditCard           },
   { value: 'UPI',           label: 'UPI',   icon: Smartphone           },
   { value: 'BANK_TRANSFER', label: 'Bank',  icon: Wallet               },
+  { value: 'CHEQUE',        label: 'Cheque', icon: FileText             },
   { value: 'SPLIT',         label: 'Split', icon: SplitSquareHorizontal},
 ];
 
@@ -76,6 +77,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Cash',
   CARD: 'Card',
   UPI: 'UPI',
+  CHEQUE: 'Cheque',
   CREDIT: 'Credit',
 };
 
@@ -84,6 +86,7 @@ const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> 
   CASH:   { bg: 'bg-emerald-500/10', text: 'text-emerald-500', dot: '#10b981' },
   CARD:   { bg: 'bg-blue-500/10',   text: 'text-blue-500',    dot: '#3b82f6' },
   UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
+  CHEQUE: { bg: 'bg-indigo-500/10', text: 'text-indigo-500',  dot: '#6366f1' },
   CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
 };
 
@@ -1899,7 +1902,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                           setPayingRow(inv.invoice_id);
                           const r = await window.electronAPI!.dbCashierSettlePayment({
                             tenant_id: tenantId!, invoice_id: inv.invoice_id,
-                            received_amount: net, payment_method: rm,
+                            received_amount: net,
+                            discount_amount: rawNet < 0 ? 0 : (Number(rowDiscs[inv.invoice_id]) || 0),
+                            payment_method: rm,
                             user_id: userId!, user_name: userName || undefined,
                           });
                           setPayingRow(null);
@@ -2963,6 +2968,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
 
               const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+              const actualRefundPaid = Number(selectedInvoice.actual_refund_paid) || 0;
               const netPayable = Math.max(0, preDeductionTotal - totalDeductions);
 
               return (
@@ -3019,6 +3025,24 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Refund Amount</span>
                         <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(refundAmount)}</span>
                       </div>
+                      {actualRefundPaid > 0 && (
+                        <>
+                          <div className="flex items-center justify-between px-4 py-2 bg-orange-500/10 border-t border-orange-400/20">
+                            <span className="text-xs font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Actual Refund Paid</span>
+                            <span className="text-base font-black text-orange-600 dark:text-orange-400">{formatCurrency(actualRefundPaid)}</span>
+                          </div>
+                          {Math.abs(actualRefundPaid - refundAmount) > 0.005 && (
+                            <div className="flex items-center justify-between px-4 py-1.5 bg-orange-500/5 border-t border-orange-400/10">
+                              <span className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">
+                                {actualRefundPaid > refundAmount ? 'Over-refunded' : 'Under-refunded'}
+                              </span>
+                              <span className="text-xs font-black text-orange-600 dark:text-orange-400">
+                                {formatCurrency(Math.abs(actualRefundPaid - refundAmount))}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </>
                   ) : totalDeductions > 0 ? (
                     <>
@@ -3259,6 +3283,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       tenant_id: tenantId!,
                       invoice_id: splitModalInvoice.invoice_id,
                       received_amount: net,
+                      discount_amount: getRawNet(splitModalInvoice) < 0 ? 0 : (Number(rowDiscs[splitModalInvoice.invoice_id]) || 0),
                       payment_method: 'SPLIT',
                       split_details: splitDetails,
                       user_id: userId!,

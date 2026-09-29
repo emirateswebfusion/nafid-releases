@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
+import { getSalesHistoryAmount } from '../utils/salesHistoryAmount';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { Input } from './ui/Input';
@@ -30,6 +31,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Cash',
   CARD: 'Card',
   UPI: 'UPI',
+  CHEQUE: 'Cheque',
   CREDIT: 'Credit',
   SPLIT: 'Split',
 };
@@ -39,6 +41,7 @@ const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> 
   CASH:   { bg: 'bg-emerald-500/10', text: 'text-emerald-500', dot: '#10b981' },
   CARD:   { bg: 'bg-blue-500/10',   text: 'text-blue-500',    dot: '#3b82f6' },
   UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
+  CHEQUE: { bg: 'bg-indigo-500/10', text: 'text-indigo-500',  dot: '#6366f1' },
   CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
   SPLIT:  { bg: 'bg-purple-500/10', text: 'text-purple-500',  dot: '#a855f7' },
 };
@@ -95,7 +98,7 @@ function getInvoiceNetTotal(inv: any): number {
 function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): number {
   if (!inv) return 0;
   const pmFilter = paymentFilter?.toUpperCase();
-  const singleMethods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'];
+  const singleMethods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'];
   if (pmFilter && singleMethods.includes(pmFilter) && inv.payment_method?.toUpperCase() === 'SPLIT' && inv.split_details) {
     try {
       const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
@@ -348,39 +351,37 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       {/* Amount */}
       <td className="px-4 py-3.5 text-right whitespace-nowrap">
         {(() => {
-          const scrapD = Number(inv.scrap_deduction) || 0;
-          const returnD = Number(inv.return_deduction) || 0;
-          const totalDeductions = scrapD + returnD;
-          const sub = Number(inv.subtotal) || 0;
-          const tax = Number(inv.tax_total) || 0;
-          const disc = Number(inv.discount_total) || 0;
-          const ptsDisc = Number(inv.points_redeemed_discount) || 0;
-          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
-          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+          const summary = getSalesHistoryAmount(inv);
 
-          if (inv.invoice_type !== 'SCRAP' && refundAmount > 0) {
+          if (summary.refund) {
             return (
               <>
                 <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                  -{formatCurrency(refundAmount)}
+                  {formatCurrency(summary.amount)}
                 </div>
                 <div className="text-[10px] text-emerald-500 font-semibold mt-0.5">
                   Refund
                 </div>
+                {Math.abs(summary.refundDifference) > 0.005 && (
+                  <div
+                    className={clsx('text-[10px] font-semibold mt-0.5', summary.refundDifference > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-sky-600 dark:text-sky-400')}
+                    title={summary.refundDifference > 0 ? 'Amount paid above the calculated refund' : 'Amount paid below the calculated refund'}
+                  >
+                    {summary.refundDifference > 0 ? '+' : '-'}{formatCurrency(Math.abs(summary.refundDifference))}
+                  </div>
+                )}
               </>
             );
           }
 
-          const netAmount = getInvoiceNetTotal(inv);
-
           return (
             <>
               <div className={clsx('text-sm font-black', isSelected ? 'text-primary' : 'text-foreground')}>
-                {formatCurrency(netAmount)}
+                {formatCurrency(summary.amount)}
               </div>
-              {Number(inv.discount_total) > 0 && (
+              {summary.discount > 0 && (
                 <div className="text-[10px] text-red-500 font-semibold mt-0.5">
-                  -{formatCurrency(Number(inv.discount_total))} off
+                  -{formatCurrency(summary.discount)} off
                 </div>
               )}
             </>
@@ -422,7 +423,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [reprintSuccess, setReprintSuccess] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
-  const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CREDIT'>('CASH');
+  const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT'>('CASH');
   const [collectReceivedAmount, setCollectReceivedAmount] = useState(0);
   const [collectPaymentSaving, setCollectPaymentSaving] = useState(false);
   const [collectPaymentSuccess, setCollectPaymentSuccess] = useState(false);
@@ -496,6 +497,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500', iconBg: 'bg-emerald-500/15' },
     { value: 'CARD' as const, label: 'Card', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500', iconBg: 'bg-blue-500/15' },
     { value: 'UPI' as const, label: 'UPI', icon: Smartphone, color: 'text-violet-500', bg: 'bg-violet-500/10', border: 'border-violet-500', iconBg: 'bg-violet-500/15' },
+    { value: 'CHEQUE' as const, label: 'Cheque', icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-500/10', border: 'border-indigo-500', iconBg: 'bg-indigo-500/15' },
     { value: 'CREDIT' as const, label: 'Credit', icon: BookOpen, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500', iconBg: 'bg-amber-500/15' },
   ];
 
@@ -1574,6 +1576,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   { value: 'CASH', label: 'Cash' },
                   { value: 'CARD', label: 'Card' },
                   { value: 'UPI', label: 'UPI' },
+                  { value: 'CHEQUE', label: 'Cheque' },
                   { value: 'CREDIT', label: 'Credit' },
                   { value: 'SPLIT', label: 'Split' },
                 ].map(opt => {
@@ -2409,7 +2412,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         key={opt.value}
                         onClick={() => {
                           setCollectPaymentMethod(opt.value);
-                          if (opt.value === 'CARD' || opt.value === 'UPI') {
+                          if (opt.value === 'CARD' || opt.value === 'UPI' || opt.value === 'CHEQUE') {
                             setCollectReceivedAmount(Number(selectedInvoice.grand_total) || 0);
                           }
                         }}
@@ -2465,7 +2468,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               )}
 
               {/* Exact payment notice for CARD/UPI */}
-              {(collectPaymentMethod === 'CARD' || collectPaymentMethod === 'UPI') && (
+              {(collectPaymentMethod === 'CARD' || collectPaymentMethod === 'UPI' || collectPaymentMethod === 'CHEQUE') && (
                 <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   Payment will be recorded as exact amount of {formatCurrency(Number(selectedInvoice.grand_total) || 0)}

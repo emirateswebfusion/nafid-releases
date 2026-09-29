@@ -35,6 +35,7 @@ interface FinancialData {
     card: number;
     upi: number;
     bank: number;
+    cheque: number;
     credit: number;
   };
   dailyTrend: Array<{
@@ -72,7 +73,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
     purchaseExpenses: 0,
     cashOutExpenses: 0,
     netProfit: 0,
-    paymentMethods: { cash: 0, card: 0, upi: 0, bank: 0, credit: 0 },
+    paymentMethods: { cash: 0, card: 0, upi: 0, bank: 0, cheque: 0, credit: 0 },
     dailyTrend: [],
   });
 
@@ -126,7 +127,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       let totalTax = 0;
       let netSales = 0;
       let totalInvoices = 0;
-      const pm = { cash: 0, card: 0, upi: 0, bank: 0, credit: 0 };
+      const pm = { cash: 0, card: 0, upi: 0, bank: 0, cheque: 0, credit: 0 };
       const trendMap: Record<string, { sales: number; profit: number; tax: number }> = {};
 
       if (Array.isArray(invoices)) {
@@ -147,6 +148,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
           else if (method.includes('CARD')) pm.card += grandTotal;
           else if (method.includes('UPI')) pm.upi += grandTotal;
           else if (method.includes('BANK')) pm.bank += grandTotal;
+          else if (method.includes('CHEQUE')) pm.cheque += grandTotal;
           else pm.credit += grandTotal;
 
           // Daily Trend
@@ -250,6 +252,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['UPI / Digital', finData.paymentMethods.upi.toFixed(2)],
       ['Card', finData.paymentMethods.card.toFixed(2)],
       ['Bank Transfer', finData.paymentMethods.bank.toFixed(2)],
+      ['Cheque', finData.paymentMethods.cheque.toFixed(2)],
       ['Credit / Ledger', finData.paymentMethods.credit.toFixed(2)],
     ];
 
@@ -501,6 +504,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                     { name: 'UPI & QR Digital', amount: finData.paymentMethods.upi, color: 'bg-cyan-500' },
                     { name: 'Credit & Debit Cards', amount: finData.paymentMethods.card, color: 'bg-blue-500' },
                     { name: 'Bank Transfers', amount: finData.paymentMethods.bank, color: 'bg-purple-500' },
+                    { name: 'Cheque', amount: finData.paymentMethods.cheque, color: 'bg-indigo-500' },
                     { name: 'Credit / Khata Balance', amount: finData.paymentMethods.credit, color: 'bg-amber-500' },
                   ].map(item => {
                     const pct = finData.netSales > 0 ? (item.amount / finData.netSales) * 100 : 0;

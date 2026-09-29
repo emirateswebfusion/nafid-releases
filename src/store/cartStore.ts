@@ -49,6 +49,9 @@ export interface CartItem {
   pricing_tier_name?: string | null;
   is_tier_overridden?: boolean;
   original_base_price?: number;
+  original_pricing_mode?: string;
+  original_grade_id?: string | null;
+  original_grade_rate?: number | null;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -260,6 +263,10 @@ export const useCartStore = create<CartState>()(
                   pricing_tier_name: tierName,
                   is_tier_overridden: true,
                   base_price: newPrice,
+                  original_pricing_mode: i.original_pricing_mode ?? i.pricing_mode,
+                  original_grade_id: i.original_grade_id ?? i.grade_id ?? null,
+                  original_grade_rate: i.original_grade_rate ?? i.grade_rate ?? null,
+                  pricing_mode: tierId ? 'FIXED_PRICE' : (i.original_pricing_mode ?? i.pricing_mode),
                 }
               : i
           ),
