@@ -1239,6 +1239,7 @@ export function initDb() {
       converted_to_invoice_id: 'TEXT',
       converted_to_invoice_number: 'TEXT',
       is_deleted: 'INTEGER DEFAULT 0',
+      actual_refund_paid: 'REAL DEFAULT 0',
     };
 
     for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
@@ -1681,6 +1682,7 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       sgst_total: 'REAL DEFAULT 0',
       igst_total: 'REAL DEFAULT 0',
       supply_type: "TEXT DEFAULT 'INTRA'",
+      actual_refund_paid: 'REAL DEFAULT 0',
     };
 
     for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {

@@ -651,7 +651,13 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       });
     }
     setTxnSubmitting(false);
-    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load(); }
+    if (r.success) {
+      setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load();
+    } else {
+      // Show the error returned by the IPC handler so the user knows what went wrong
+      const errMsg = r.error || 'Failed to record entry. Please ensure the cash register is open.';
+      setTxnError(errMsg);
+    }
   };
 
   const handleDayClose = async () => {

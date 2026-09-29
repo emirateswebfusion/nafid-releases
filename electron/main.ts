@@ -2698,9 +2698,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
-        cgst_total, sgst_total, igst_total, supply_type, settled_at, created_at, updated_at
+        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, settled_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -2733,6 +2733,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.sgst_total ?? 0,
       invoice.igst_total ?? 0,
       invoice.supply_type || 'INTRA',
+      invoice.actual_refund_paid ?? 0,
       (invoice.payment_method && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') ? nowTimestamp : null,
       nowTimestamp,
       nowTimestamp
@@ -3510,7 +3511,7 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
       return { success: false, error: 'Admin access required to apply discounts' };
     }
     
-    const invoice = db.prepare('SELECT subtotal, tax_total FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
+    const invoice = db.prepare('SELECT subtotal, tax_total, scrap_deduction, return_deduction FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
     if (!invoice) return { success: false, error: 'Invoice not found' };
 
     let discount_total = 0;
@@ -3520,7 +3521,9 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
       discount_total = discount_value;
     }
 
-    const grand_total = invoice.subtotal + invoice.tax_total - discount_total;
+    const scrapD = Math.max(0, Number(invoice.scrap_deduction) || 0);
+    const returnD = Math.max(0, Number(invoice.return_deduction) || 0);
+    const grand_total = Math.max(0, invoice.subtotal + invoice.tax_total - discount_total - scrapD - returnD);
 
     db.prepare(`
       UPDATE invoices 
@@ -7132,7 +7135,14 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       const subtotal = Number(invoice.subtotal) || 0;
       const taxTotal = Number(invoice.tax_total) || 0;
       const prevDiscount = Number(invoice.discount_total) || 0;
-      const oldGrandTotal = Number(invoice.grand_total) || Math.max(0, subtotal + taxTotal - prevDiscount);
+      const scrapD = Math.max(0, Number(invoice.scrap_deduction) || 0);
+      const returnD = Math.max(0, Number(invoice.return_deduction) || 0);
+      // Use != null so that a legitimate grand_total of 0 (fully covered by scrap/return
+      // deductions) is NOT treated as falsy and does NOT trigger the fallback formula.
+      // The fallback also accounts for any existing deductions so we never over-discount.
+      const oldGrandTotal = invoice.grand_total != null
+        ? Number(invoice.grand_total)
+        : Math.max(0, subtotal + taxTotal - prevDiscount - scrapD - returnD);
       const received = Number(received_amount);
 
       const additionalDiscount = Math.max(0, oldGrandTotal - received);
@@ -7250,6 +7260,7 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
       const date = localDate();
       const drawer = getOpenCashDrawer(db, tenant_id, date);
       if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
+      if (drawer.status !== 'OPEN') throw new Error('Cash register is closed for today. Entries are locked.');
       
       const transaction_id = crypto.randomUUID();
       const txDateIso = new Date().toISOString();
@@ -7279,7 +7290,7 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
     return { success: true };
   } catch (error: any) {
     console.error('[db:cashier:addTransaction]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error?.message || 'Operation failed' };
   }
 }));
 

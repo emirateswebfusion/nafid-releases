@@ -56,6 +56,8 @@ export interface Tab {
   paymentMethod: PaymentMethod;
   splitDetails?: SplitDetails;
   receivedAmount: number;
+  /** Actual physical cash refunded to customer — may differ from computed refundAmount */
+  actualRefundPaid: number;
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;
   reservedQuotationNumber: string;
@@ -191,6 +193,7 @@ function createDefaultTab(): Tab {
     paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
     splitDetails: { cash: 0, card: 0, upi: 0, bank_transfer: 0 },
     receivedAmount: 0,
+    actualRefundPaid: 0,
     reservedInvoiceNumber: '',
     reservedScrapInvoiceNumber: '',
     reservedQuotationNumber: '',

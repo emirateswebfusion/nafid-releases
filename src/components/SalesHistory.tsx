@@ -2314,6 +2314,29 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Refund Amount</span>
                         <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(refundAmount)}</span>
                       </div>
+                      {(() => {
+                        const actualPaid = Number(selectedInvoice.actual_refund_paid) || 0;
+                        if (actualPaid <= 0) return null;
+                        const diff = actualPaid - refundAmount;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between px-4 py-2 bg-orange-500/10 border-t border-orange-400/20">
+                              <span className="text-xs font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest">Actual Refund Paid</span>
+                              <span className="text-base font-black text-orange-600 dark:text-orange-400">{formatCurrency(actualPaid)}</span>
+                            </div>
+                            {Math.abs(diff) > 0.005 && (
+                              <div className={`flex items-center justify-between px-4 py-1.5 border-t ${diff > 0 ? 'bg-rose-500/10 border-rose-400/20' : 'bg-sky-500/10 border-sky-400/20'}`}>
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${diff > 0 ? 'text-rose-500' : 'text-sky-500'}`}>
+                                  {diff > 0 ? 'Over-refunded' : 'Under-refunded'}
+                                </span>
+                                <span className={`text-sm font-black ${diff > 0 ? 'text-rose-500' : 'text-sky-500'}`}>
+                                  {diff > 0 ? '+' : ''}{formatCurrency(diff)}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </>
                   ) : totalDeductions > 0 ? (
                     <>

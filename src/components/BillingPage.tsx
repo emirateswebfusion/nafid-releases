@@ -968,6 +968,7 @@ export function BillingPage() {
     : (rawSplitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 });
   const splitTotal = paymentMethod === 'SPLIT' ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
   const receivedAmount = activeTab?.receivedAmount ?? 0;
+  const actualRefundPaid = activeTab?.actualRefundPaid ?? 0;
   const customerName = activeTab?.customerName || '';
   const customerPhone = activeTab?.customerPhone || '';
   const customerGstin = activeTab?.customerGstin || '';
@@ -4990,6 +4991,7 @@ export function BillingPage() {
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
+          actual_refund_paid: refundAmount > 0 ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount) : 0,
           // GST invoice-level totals (Indian GST Act compliance)
           cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
           items: checkoutItems,
@@ -5137,7 +5139,7 @@ export function BillingPage() {
           clearCart();
           clearScrapDeduction();
           clearReturnDeduction();
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, actualRefundPaid: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
           syncActiveSnapshot();
           await reserveInvoiceNumberForTab();
           const tab = getActiveTab();
@@ -9615,9 +9617,32 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
                 )}
                 {refundAmount > 0 && !isLoadingEditBill && (
-                  <p className="text-[10px] font-black text-orange-600 mt-1">
-                    Refund Amount: {formatCurrency(refundAmount)}
-                  </p>
+                  <div className="mt-1 space-y-0.5">
+                    <p className="text-[10px] font-black text-orange-600">
+                      Refund: {formatCurrency(refundAmount)}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap">Paid:</span>
+                      <div className="relative flex-1">
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/60">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={actualRefundPaid || ''}
+                          placeholder={String(refundAmount)}
+                          onChange={e => updateActiveTab({ actualRefundPaid: e.target.value === '' ? 0 : Number(e.target.value) })}
+                          onFocus={e => e.target.select()}
+                          className="w-full pl-4 pr-1 py-0.5 text-[11px] font-black rounded-md bg-orange-500/10 border border-orange-400/30 text-orange-700 dark:text-orange-300 focus:outline-none focus:ring-1 focus:ring-orange-400/50"
+                        />
+                      </div>
+                    </div>
+                    {actualRefundPaid > refundAmount && (
+                      <p className="text-[9px] font-bold text-rose-500">
+                        Over by {formatCurrency(actualRefundPaid - refundAmount)}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
               {/* Divider — hidden in scrap/return/quotation/PENDING/CARD/UPI mode */}
