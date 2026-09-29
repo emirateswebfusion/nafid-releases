@@ -94,19 +94,31 @@ function getInvoiceNetTotal(inv: any): number {
   return computedNet;
 }
 
-// For SPLIT invoices filtered by a specific payment method, return only that payment's portion
+// For SPLIT invoices filtered by a specific payment method, return only that payment's portion.
+// For non-SPLIT invoices, return the net total only if payment method matches the filter.
 function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): number {
   if (!inv) return 0;
   const pmFilter = paymentFilter?.toUpperCase();
+  const invPm = inv.payment_method?.toUpperCase() || 'PENDING';
   const singleMethods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'];
-  if (pmFilter && singleMethods.includes(pmFilter) && inv.payment_method?.toUpperCase() === 'SPLIT' && inv.split_details) {
+
+  // If no filter, return net total for all invoices
+  if (!pmFilter) return getInvoiceNetTotal(inv);
+
+  // If invoice is SPLIT and we're filtering by a single method, return that method's portion
+  if (invPm === 'SPLIT' && inv.split_details && singleMethods.includes(pmFilter)) {
     try {
       const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
       const jsonKey = pmFilter === 'BANK_TRANSFER' ? 'bank_transfer' : pmFilter.toLowerCase();
       return Number(sd[jsonKey]) || 0;
-    } catch { /* fall through */ }
+    } catch { return 0; }
   }
-  return getInvoiceNetTotal(inv);
+
+  // If invoice payment method matches the filter exactly, return net total
+  if (invPm === pmFilter) return getInvoiceNetTotal(inv);
+
+  // Otherwise, this invoice doesn't match the filter - return 0
+  return 0;
 }
 
 

@@ -192,6 +192,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [txnError, setTxnError] = useState('');
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
 
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+
   // Split payment modal states
   const [splitModalInvoice, setSplitModalInvoice] = useState<any | null>(null);
   const [splitModalNet, setSplitModalNet] = useState<number>(0);
@@ -555,6 +557,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     }
     if (Array.isArray(invs)) processInvoicesUpdate(invs);
     if (Array.isArray(txs)) setTransactions(txs);
+    setLastSyncTime(Date.now());
   }, [tenantId, searchQuery, processInvoicesUpdate]);
 
   useEffect(() => {
@@ -924,19 +927,27 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           <div className="flex items-center gap-1.5 shrink-0">
             {showSettlement && (
               <>
-                <button
-                  onClick={async () => {
-                    if (window.electronAPI?.runInitialSync) {
-                      try { await window.electronAPI.runInitialSync(); } catch {}
-                    }
-                    await load();
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
-                  title="Instant Refresh & Sync Pending Queue"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-emerald-500 animate-spin" style={{ animationDuration: '3s' }} />
-                  <span className="hidden sm:inline">Syncing</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={async () => {
+                      if (window.electronAPI?.runInitialSync) {
+                        try { await window.electronAPI.runInitialSync(); } catch {}
+                      }
+                      await load();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
+                    title="Instant Refresh & Sync Pending Queue"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-500 animate-spin" style={{ animationDuration: '3s' }} />
+                    <span className="hidden sm:inline">Sync</span>
+                  </button>
+                  {lastSyncTime && (
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium text-muted-foreground/70 bg-muted/50 border border-border/50">
+                      <Clock className="w-2.5 h-2.5" />
+                      {new Date(lastSyncTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={openHistory}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
@@ -1173,7 +1184,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 <div className="p-1.5 rounded-[1.5rem] bg-card/60 border border-border/60 shadow-sm backdrop-blur-md">
                   <div className="p-3.5 rounded-[calc(1.5rem-0.375rem)] bg-background/80 border border-border/30 flex items-center justify-between">
                     <div>
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Direct Cash Sales</span>
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Cash Sales (CASH + Split Cash)</span>
                       <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums mt-0.5 block">{formatCurrency(totalSales)}</span>
                       <span className="text-[10px] font-bold text-emerald-600/80 dark:text-emerald-400/80 flex items-center gap-0.5 mt-0.5">
                         <TrendingUp className="w-3 h-3" /> Drawer register cash
@@ -1281,9 +1292,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     </span>
                     <span>Cashier</span>
                     <span className="text-right">Opening</span>
-                    <span className="text-right">Sales</span>
-                    <span className="text-right">In</span>
-                    <span className="text-right">Out</span>
+                    <span className="text-right" title="Cash Sales = CASH payments + Cash portion of SPLIT payments">Cash Sales</span>
+                    <span className="text-right">Cash In</span>
+                    <span className="text-right">Cash Out</span>
                     <span className="text-right">Expected</span>
                     <span className="text-right">Actual</span>
                     <span className="text-center">Variance</span>
@@ -1345,7 +1356,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             <span className="text-xs text-right tabular-nums text-muted-foreground font-semibold">{formatCurrency(d.opening_balance)}</span>
 
                             {/* Sales */}
-                            <span className="text-xs text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-extrabold">{formatCurrency(d.cash_sales)}</span>
+                            <span className="text-xs text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-extrabold" title="Cash Sales = CASH payments + Cash portion of SPLIT payments">{formatCurrency(d.cash_sales)}</span>
 
                             {/* Cash In */}
                             <span className="text-xs text-right tabular-nums text-blue-500 font-bold">{formatCurrency(d.cash_in || 0)}</span>
@@ -1672,12 +1683,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             </div>
             {/* Sales badge */}
             {drawer && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 shrink-0">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 shrink-0" title="Cash Sales = CASH payments + Cash portion of SPLIT payments">
                 <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
                   {formatCurrency(drawerClosed ? 0 : (drawer.cash_sales || 0))}
                 </span>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-tight">
-                  Sales
+                  Cash Sales
                 </span>
               </div>
             )}
