@@ -1,3 +1,11 @@
+# Vendora v1.5.82 Release Notes
+
+## What's Changed
+- Improved staff permissions and login management
+- Enhanced billing, cashier settlement, sales history, tab handling, and Electron synchronization
+- Automated Windows installer and updater asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.81...v1.5.82
+
 # Vendora v1.5.81 Release Notes
 
 ## What's Changed
