@@ -2050,6 +2050,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   const balance = Number(selectedInvoice.balance_amount) || 0;
                   const isCredit = selectedInvoice.payment_method === 'CREDIT';
                   const isPending = selectedInvoice.payment_method === 'PENDING';
+                  const customerName = String(selectedInvoice.customer_name || '').trim();
+                  const hasNamedCustomer = customerName !== '' && !/^walk[- ]in customer$/i.test(customerName);
+                  const isWalkInCustomer = !(
+                    hasNamedCustomer ||
+                    String(selectedInvoice.customer_phone || '').trim() ||
+                    String(selectedInvoice.customer_address || '').trim() ||
+                    String(selectedInvoice.customer_gstin || '').trim() ||
+                    selectedInvoice.customer_id ||
+                    selectedInvoice.party_id
+                  );
 
                   let oldDueNum = rawOldDue != null ? Number(rawOldDue) : null;
                   const newDueNum = rawNewDue != null ? Number(rawNewDue) : (isCredit ? Math.abs(balance) : null);
@@ -2073,7 +2083,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   return (
                     <div className="pt-2 space-y-1.5 border-t border-border/50 mt-1.5">
                       {/* Old Due */}
-                      {oldDueNum != null && oldDueNum !== 0 && (
+                      {!isWalkInCustomer && oldDueNum != null && oldDueNum !== 0 && (
                         <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1.5 rounded-lg">
                           <span className="text-amber-700 dark:text-amber-300 font-extrabold uppercase tracking-wider text-[10px]">OLD DUE:</span>
                           <span className="font-mono font-black text-amber-700 dark:text-amber-300 text-sm">{formatCurrency(oldDueNum)}</span>
@@ -2111,7 +2121,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       </div>
 
                       {/* New Due */}
-                      {newDueNum != null && (isCredit || selectedInvoice.payment_method === 'SPLIT' || (oldDueNum != null && oldDueNum !== 0)) && (
+                      {!isWalkInCustomer && newDueNum != null && (isCredit || selectedInvoice.payment_method === 'SPLIT' || (oldDueNum != null && oldDueNum !== 0)) && (
                         <div className="flex items-center justify-between text-xs font-extrabold text-foreground pt-1.5 border-t border-border/50 bg-amber-500/10 dark:bg-amber-500/20 px-2 py-1 rounded-lg">
                           <span className="text-amber-600 dark:text-amber-400 uppercase tracking-wider text-[10px]">New Due:</span>
                           <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-sm">{formatCurrency(newDueNum)}</span>

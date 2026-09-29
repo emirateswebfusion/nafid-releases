@@ -218,7 +218,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           domain_type: data.domain_type,
           restricted_page: data.restricted_page,
           password_hash: data.password_hash,
-          email: email
+          email: email,
+          permissions: data.permissions,
+          login_enabled: data.login_enabled !== false,
         });
       }
       
@@ -277,7 +279,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             tenantId: user.tenant_id,
             userId: user.user_id,
             role: roleVal,
-            permissions: roleVal === 'ADMIN' ? ['*'] : convertLegacyRestrictedPageToPermissions(user.restricted_page),
+            permissions: roleVal === 'ADMIN' ? ['*'] : (Array.isArray(user.permissions) ? user.permissions : convertLegacyRestrictedPageToPermissions(user.restricted_page)),
             userName: user.name || email,
             shopName: resolvedShopName,
             restrictedPage: user.restricted_page || null,

@@ -28,12 +28,21 @@ interface StaffMember {
   user_id?: string | null;
   user_email?: string;
   user_role?: string;
+  permissions?: string[];
+  user_login_enabled?: boolean | number;
   joining_date?: string;
   monthly_salary: number;
   current_balance: number;
   status: 'ACTIVE' | 'INACTIVE';
   has_pin: boolean;
   created_at: string;
+}
+
+interface SavedSystemAccount {
+  user_id: string;
+  role: 'ADMIN' | 'STAFF';
+  permissions: string[];
+  login_enabled: boolean;
 }
 
 // Cloud API URL — set VITE_CLOUD_API in .env
@@ -75,6 +84,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const [modalTab, setModalTab] = useState<'basic' | 'compensation' | 'access'>('basic');
   const [formData, setFormData] = useState({
     staff_id: '',
+    user_id: '',
     name: '',
     phone: '',
     email: '',
@@ -82,6 +92,9 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     role_designation: '',
     user_role: 'STAFF' as 'ADMIN' | 'STAFF',
     permissions: [] as string[],
+    roleTouched: false,
+    permissionsTouched: false,
+    accessToggleTouched: false,
     joining_date: new Date().toISOString().split('T')[0],
     monthly_salary: 0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
@@ -197,15 +210,176 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   }, [loadStaffDetails]);
 
   // Handle Save Staff Member (Add / Edit)
+  const fetchSystemAccounts = async () => {
+    if (!token) return null;
+    try {
+      const response = await fetch(`${CLOUD_API}/auth/staff`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return null;
+      const users = await response.json();
+      return Array.isArray(users) ? users : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveSystemAccount = async (): Promise<SavedSystemAccount | undefined> => {
+    if (!formData.showSystemAccountSection) {
+      if (!formData.user_id) return undefined;
+      const response = await fetch(`${CLOUD_API}/auth/staff/${encodeURIComponent(formData.user_id)}/login`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ login_enabled: false }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || 'Could not disable the login account');
+      return {
+        user_id: formData.user_id,
+        role: formData.user_role,
+        permissions: formData.permissions,
+        login_enabled: false,
+      };
+    }
+
+    const email = formData.email.trim().toLowerCase();
+    if (!email) throw new Error('Email is required for a system login account');
+    let userId = formData.user_id;
+    let matchingAccount: any = null;
+    const accounts = await fetchSystemAccounts();
+    if (accounts) {
+      matchingAccount = userId
+        ? accounts.find((account: any) => account.user_id === userId) || null
+        : null;
+      if (userId && !matchingAccount) userId = '';
+      if (!userId) {
+        matchingAccount = accounts.find((account: any) => String(account.email || '').trim().toLowerCase() === email) || null;
+      }
+      if (matchingAccount) {
+        const linkedStaff = staffList.find(staff => staff.user_id === matchingAccount.user_id && staff.staff_id !== formData.staff_id);
+        if (linkedStaff) {
+          throw new Error(`This login account is already linked to ${linkedStaff.name}`);
+        }
+        userId = matchingAccount.user_id;
+      }
+    }
+    if (!userId && formData.password.length < 8) {
+      throw new Error('New login passwords must be at least 8 characters');
+    }
+    if (formData.password && formData.password.length < 8) {
+      throw new Error('Passwords must be at least 8 characters');
+    }
+
+    const isExistingAccount = Boolean(userId);
+    const role = matchingAccount && !formData.roleTouched
+      ? (matchingAccount.role === 'ADMIN' ? 'ADMIN' : 'STAFF')
+      : formData.user_role;
+    const permissions = matchingAccount && !formData.permissionsTouched
+      ? (Array.isArray(matchingAccount.permissions) ? matchingAccount.permissions : [])
+      : formData.permissions;
+    const response = await fetch(
+      `${CLOUD_API}/auth/staff${isExistingAccount ? `/${encodeURIComponent(userId)}` : ''}`,
+      {
+        method: isExistingAccount ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email,
+          password: formData.password || undefined,
+          role,
+          permissions,
+          login_enabled: true,
+        }),
+      }
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 409 && result?.error === 'Email already registered') {
+        throw new Error('This email is already registered. Check for an existing login in this shop, or use a different email.');
+      }
+      throw new Error(result?.error || 'Could not save the login account');
+    }
+    const savedUserId = result.user_id || userId;
+    return savedUserId ? {
+      user_id: savedUserId,
+      role: result.role === 'ADMIN' ? 'ADMIN' : role,
+      permissions: Array.isArray(result.permissions) ? result.permissions : permissions,
+      login_enabled: true,
+    } : undefined;
+  };
+
+  const openEditStaff = (staff: StaffMember) => {
+    setFormData({
+      staff_id: staff.staff_id,
+      user_id: staff.user_id || '',
+      name: staff.name,
+      phone: staff.phone || '',
+      email: staff.user_email || staff.email || '',
+      password: '',
+      role_designation: staff.role_designation || '',
+      user_role: (staff.user_role as any) || 'STAFF',
+      permissions: staff.permissions || [],
+      roleTouched: false,
+      permissionsTouched: false,
+      accessToggleTouched: false,
+      joining_date: staff.joining_date || new Date().toISOString().split('T')[0],
+      monthly_salary: staff.monthly_salary || 0,
+      status: staff.status,
+      biller_pin: '',
+      showSystemAccountSection: Boolean(staff.user_email || staff.user_id) && staff.user_login_enabled !== false && staff.user_login_enabled !== 0,
+      showPassword: false,
+    });
+    setModalTab('basic');
+    setShowAddModal(true);
+
+    // Permissions live with the login account. Load them from the account API when
+    // opening an existing profile so the editor reflects what was actually saved.
+    if (token) {
+      fetchSystemAccounts().then(users => {
+        if (!users) return;
+        const email = String(staff.user_email || staff.email || '').trim().toLowerCase();
+        const account = staff.user_id
+          ? users.find((user: any) => user.user_id === staff.user_id)
+          : users.find((user: any) => String(user.email || '').trim().toLowerCase() === email);
+        if (!account) return;
+        const linkedStaff = staffList.find(candidate => candidate.user_id === account.user_id && candidate.staff_id !== staff.staff_id);
+        if (linkedStaff) return;
+        setFormData(current => current.staff_id === staff.staff_id ? {
+          ...current,
+          user_id: account.user_id,
+          email: account.email || current.email,
+          user_role: account.role === 'ADMIN' ? 'ADMIN' : 'STAFF',
+          permissions: Array.isArray(account.permissions) ? account.permissions : [],
+          showSystemAccountSection: current.accessToggleTouched ? current.showSystemAccountSection : account.login_enabled !== false,
+        } : current);
+      });
+    }
+  };
+
   const handleSaveStaff = async () => {
     if (!tenantId || !formData.name.trim()) {
       setStatusMessage({ text: 'Staff Name is mandatory', type: 'error' });
       return;
     }
+    if (formData.showSystemAccountSection) {
+      const email = formData.email.trim();
+      if (!email) {
+        setStatusMessage({ text: 'Email is required for a system login account', type: 'error' });
+        return;
+      }
+      if (formData.password && formData.password.length < 8) {
+        setStatusMessage({ text: 'Login passwords must be at least 8 characters', type: 'error' });
+        return;
+      }
+    }
+
     setSaving(true);
+    let profileSaved = false;
+    let savedStaff: any;
     try {
       if (window.electronAPI?.dbSaveStaff) {
-        const updated = await window.electronAPI.dbSaveStaff({
+        savedStaff = await window.electronAPI.dbSaveStaff({
           staff_id: formData.staff_id || undefined,
           tenant_id: tenantId,
           name: formData.name.trim(),
@@ -215,29 +389,102 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           joining_date: formData.joining_date || undefined,
           monthly_salary: Number(formData.monthly_salary) || 0,
           status: formData.status,
+          user_id: formData.user_id || undefined,
           biller_pin: formData.biller_pin.trim() || undefined,
         });
-        setStatusMessage({ text: `Staff record "${formData.name}" saved successfully`, type: 'success' });
-        setShowAddModal(false);
-        await fetchStaff();
-        if (updated) setSelectedStaffId(updated.staff_id);
+        profileSaved = true;
       } else {
         const res = await fetch(`${CLOUD_API}/api/staff`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ ...formData, tenant_id: tenantId })
+          body: JSON.stringify({
+            staff_id: formData.staff_id || undefined,
+            tenant_id: tenantId,
+            name: formData.name.trim(),
+            phone: formData.phone.trim() || undefined,
+            email: formData.email.trim() || undefined,
+            role_designation: formData.role_designation.trim() || undefined,
+            joining_date: formData.joining_date || undefined,
+            monthly_salary: Number(formData.monthly_salary) || 0,
+            status: formData.status,
+            user_id: formData.user_id || undefined,
+            biller_pin: formData.biller_pin.trim() || undefined,
+          })
         });
         if (res.ok) {
-          setStatusMessage({ text: `Staff record saved successfully`, type: 'success' });
-          setShowAddModal(false);
-          await fetchStaff();
+          savedStaff = await res.json();
+          profileSaved = true;
         } else {
           const err = await res.json();
-          setStatusMessage({ text: err.error || 'Failed to save staff record', type: 'error' });
+          throw new Error(err.error || 'Failed to save staff record');
         }
       }
+
+      if (formData.showSystemAccountSection || formData.user_id) {
+        const accountSettings = await saveSystemAccount();
+        const accountUserId = accountSettings?.user_id;
+        if (accountUserId) {
+          setFormData(current => current.staff_id === formData.staff_id ? { ...current, user_id: accountUserId } : current);
+        }
+        if (accountUserId && accountUserId !== savedStaff?.user_id) {
+          const linkedStaff = {
+            staff_id: savedStaff?.staff_id || formData.staff_id || undefined,
+            tenant_id: tenantId,
+            name: formData.name.trim(),
+            phone: formData.phone.trim() || undefined,
+            email: formData.email.trim() || undefined,
+            role_designation: formData.role_designation.trim() || undefined,
+            joining_date: formData.joining_date || undefined,
+            monthly_salary: Number(formData.monthly_salary) || 0,
+            status: formData.status,
+            user_id: accountUserId,
+            biller_pin: formData.biller_pin.trim() || undefined,
+          };
+          if (window.electronAPI?.dbSaveStaff) {
+            await window.electronAPI.dbSaveStaff(linkedStaff);
+          } else {
+            const linkResponse = await fetch(`${CLOUD_API}/api/staff`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify(linkedStaff),
+            });
+            const linkResult = await linkResponse.json().catch(() => ({}));
+            if (!linkResponse.ok) throw new Error(linkResult?.error || 'Login was saved but could not be linked to the staff profile');
+          }
+        }
+
+        if (window.electronAPI?.authSaveLocalUser && accountUserId) {
+          await window.electronAPI.authSaveLocalUser({
+            user_id: accountUserId,
+            tenant_id: tenantId,
+            name: formData.name.trim(),
+            email: formData.email.trim().toLowerCase(),
+            role: accountSettings?.role || formData.user_role,
+            permissions: accountSettings?.permissions || formData.permissions,
+            login_enabled: accountSettings?.login_enabled ?? formData.showSystemAccountSection,
+            clear_password_hash: Boolean(formData.password),
+          });
+        }
+      }
+
+      setStatusMessage({ text: `Staff record "${formData.name}" saved successfully`, type: 'success' });
+      setShowAddModal(false);
+      await fetchStaff();
+      if (savedStaff?.staff_id || formData.staff_id) setSelectedStaffId(savedStaff?.staff_id || formData.staff_id);
     } catch (err: any) {
-      setStatusMessage({ text: err.message || 'Error saving staff record', type: 'error' });
+      const message = err.message || 'Error saving staff record';
+      setStatusMessage({
+        text: profileSaved ? `Staff profile saved, but login setup failed: ${message}` : message,
+        type: 'error',
+      });
+      if (profileSaved) {
+        const savedStaffId = savedStaff?.staff_id || formData.staff_id;
+        if (savedStaffId) {
+          setFormData(current => ({ ...current, staff_id: savedStaffId }));
+          setSelectedStaffId(savedStaffId);
+        }
+        await fetchStaff();
+      }
     } finally {
       setSaving(false);
     }
@@ -259,6 +506,42 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       }
     } catch (err: any) {
       setStatusMessage({ text: err.message || 'Failed to update status', type: 'error' });
+    }
+  };
+
+  const handleUpdateMonthlySalary = async () => {
+    if (!selectedStaff || !tenantId) return;
+    setSaving(true);
+    const payload = {
+      staff_id: selectedStaff.staff_id,
+      tenant_id: tenantId,
+      name: selectedStaff.name,
+      phone: selectedStaff.phone,
+      email: selectedStaff.email,
+      role_designation: selectedStaff.role_designation,
+      user_id: selectedStaff.user_id || undefined,
+      joining_date: selectedStaff.joining_date,
+      monthly_salary: Number(selectedStaff.monthly_salary) || 0,
+      status: selectedStaff.status,
+    };
+    try {
+      if (window.electronAPI?.dbSaveStaff) {
+        await window.electronAPI.dbSaveStaff(payload);
+      } else {
+        const response = await fetch(`${CLOUD_API}/api/staff`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result?.error || 'Failed to update monthly salary');
+      }
+      setStatusMessage({ text: `Monthly salary updated for ${selectedStaff.name}`, type: 'success' });
+      await fetchStaff();
+    } catch (err: any) {
+      setStatusMessage({ text: err.message || 'Failed to update monthly salary', type: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -338,6 +621,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
               onClick={() => {
                 setFormData({
                   staff_id: '',
+                  user_id: '',
                   name: '',
                   phone: '',
                   email: '',
@@ -345,6 +629,9 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   role_designation: '',
                   user_role: 'STAFF',
                   permissions: [],
+                  roleTouched: false,
+                  permissionsTouched: false,
+                  accessToggleTouched: false,
                   joining_date: new Date().toISOString().split('T')[0],
                   monthly_salary: 0,
                   status: 'ACTIVE',
@@ -499,26 +786,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                       {selectedStaff.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
                     </button>
                     <button
-                      onClick={() => {
-                        setFormData({
-                          staff_id: selectedStaff.staff_id,
-                          name: selectedStaff.name,
-                          phone: selectedStaff.phone || '',
-                          email: selectedStaff.email || selectedStaff.user_email || '',
-                          password: '',
-                          role_designation: selectedStaff.role_designation || '',
-                          user_role: (selectedStaff.user_role as any) || 'STAFF',
-                          permissions: (selectedStaff as any).permissions || [],
-                          joining_date: selectedStaff.joining_date || new Date().toISOString().split('T')[0],
-                          monthly_salary: selectedStaff.monthly_salary || 0,
-                          status: selectedStaff.status,
-                          biller_pin: '',
-                          showSystemAccountSection: Boolean(selectedStaff.user_email || selectedStaff.user_id),
-                          showPassword: false,
-                        });
-                        setModalTab('basic');
-                        setShowAddModal(true);
-                      }}
+                      onClick={() => openEditStaff(selectedStaff)}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer flex items-center gap-1.5"
                     >
                       <Edit className="w-3.5 h-3.5" /> Edit Profile
@@ -659,25 +927,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                           />
                         </div>
                         <button
-                          onClick={() => {
-                            setFormData({
-                              staff_id: selectedStaff.staff_id,
-                              name: selectedStaff.name,
-                              phone: selectedStaff.phone || '',
-                              email: selectedStaff.email || selectedStaff.user_email || '',
-                              password: '',
-                              role_designation: selectedStaff.role_designation || '',
-                              user_role: (selectedStaff.user_role as any) || 'STAFF',
-                              permissions: (selectedStaff as any).permissions || [],
-                              joining_date: selectedStaff.joining_date || '',
-                              monthly_salary: selectedStaff.monthly_salary,
-                              status: selectedStaff.status,
-                              biller_pin: '',
-                              showSystemAccountSection: Boolean(selectedStaff.user_email || selectedStaff.user_id),
-                              showPassword: false,
-                            });
-                            handleSaveStaff();
-                          }}
+                          onClick={handleUpdateMonthlySalary}
                           className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 transition-all cursor-pointer"
                         >
                           Update Monthly Salary
@@ -1259,7 +1509,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                         <input
                           type="checkbox"
                           checked={formData.showSystemAccountSection}
-                          onChange={e => setFormData({ ...formData, showSystemAccountSection: e.target.checked })}
+                          onChange={e => setFormData({ ...formData, showSystemAccountSection: e.target.checked, accessToggleTouched: true })}
                           className="sr-only peer"
                         />
                         <div className="w-10 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[18px] after:w-[18px] after:transition-all peer-checked:bg-primary"></div>
@@ -1280,7 +1530,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                               return (
                                 <div
                                   key={r.role}
-                                  onClick={() => setFormData({ ...formData, user_role: r.role as any })}
+                                  onClick={() => setFormData(current => ({
+                                    ...current,
+                                    user_role: r.role as any,
+                                    roleTouched: true,
+                                    permissions: r.role === 'ADMIN' ? ['*'] : current.permissions.filter(permission => permission !== '*'),
+                                    permissionsTouched: true,
+                                  }))}
                                   className={clsx(
                                     'p-3 rounded-xl border transition-all cursor-pointer',
                                     isSelected
@@ -1304,13 +1560,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
                         <div>
                           <label className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1.5">
-                            Password {formData.staff_id && <span className="font-medium normal-case tracking-normal">(blank = keep current)</span>}
+                            Password {formData.user_id && <span className="font-medium normal-case tracking-normal">(blank = keep current)</span>}
                           </label>
                           <div className="relative">
                             <Lock className="w-3.5 h-3.5 text-muted-foreground/50 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                               type={formData.showPassword ? 'text' : 'password'}
-                              placeholder="Minimum 6 characters"
+                              placeholder={formData.user_id ? 'Leave blank to keep current' : 'Minimum 8 characters'}
                               value={formData.password}
                               onChange={e => setFormData({ ...formData, password: e.target.value })}
                               className="w-full pl-9 pr-10 py-2.5 text-xs bg-background border border-border rounded-xl outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-foreground font-medium"
@@ -1329,10 +1585,16 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                           <label className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-2">
                             Permissions
                           </label>
-                          <PermissionSelector
-                            selectedPermissions={formData.permissions}
-                            onChange={(perms) => setFormData({ ...formData, permissions: perms })}
-                          />
+                          {formData.user_role === 'ADMIN' ? (
+                            <p className="text-xs text-muted-foreground rounded-xl border border-border/60 bg-card px-3 py-2.5">
+                              Admin accounts automatically have full access. Permission selections apply to Staff accounts.
+                            </p>
+                          ) : (
+                            <PermissionSelector
+                              selectedPermissions={formData.permissions}
+                              onChange={(perms) => setFormData(current => ({ ...current, permissions: perms, permissionsTouched: true }))}
+                            />
+                          )}
                         </div>
                       </div>
                     )}

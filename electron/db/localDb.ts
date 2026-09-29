@@ -11,6 +11,17 @@ function localTimestamp(d: Date | string | number = new Date()): string {
   return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
 }
 
+function parsePermissionList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((permission): permission is string => typeof permission === 'string' && permission !== '*');
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((permission): permission is string => typeof permission === 'string' && permission !== '*') : [];
+  } catch {
+    return [];
+  }
+}
+
 let db: Database.Database;
 
 export function initDb() {
@@ -35,6 +46,8 @@ export function initDb() {
         password_hash TEXT,
         role TEXT DEFAULT 'STAFF',
         restricted_page TEXT,
+        permissions TEXT DEFAULT '[]',
+        login_enabled INTEGER NOT NULL DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -1404,6 +1417,14 @@ export function initDb() {
       console.log('[DB Migration] Adding password_hash to users...');
       db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
     }
+    if (!uCols.includes('permissions')) {
+      console.log('[DB Migration] Adding permissions to users...');
+      db.exec("ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '[]'");
+    }
+    if (!uCols.includes('login_enabled')) {
+      console.log('[DB Migration] Adding login_enabled to users...');
+      db.exec('ALTER TABLE users ADD COLUMN login_enabled INTEGER NOT NULL DEFAULT 1');
+    }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add columns to users:', e.message);
   }
@@ -1883,7 +1904,8 @@ function hashStaffPin(pin: string, tenantId: string): string {
 export function dbGetStaff(params: { tenant_id: string; search?: string; status?: string }) {
   const tenantId = params.tenant_id;
   let sql = `
-    SELECT s.*, u.email as user_email, u.role as user_role,
+    SELECT s.*, u.email as user_email, u.role as user_role, u.permissions as user_permissions,
+      u.login_enabled as user_login_enabled,
       (
         SELECT COALESCE(running_balance, 0)
         FROM staff_ledger sl
@@ -1911,6 +1933,7 @@ export function dbGetStaff(params: { tenant_id: string; search?: string; status?
   const rows = db.prepare(sql).all(...sqlParams);
   return rows.map((r: any) => ({
     ...r,
+    permissions: parsePermissionList(r.user_permissions),
     has_pin: Boolean(r.biller_pin_hash),
     biller_pin_hash: undefined,
   }));
@@ -1918,7 +1941,8 @@ export function dbGetStaff(params: { tenant_id: string; search?: string; status?
 
 export function dbGetStaffById(params: { tenant_id: string; staff_id: string }) {
   const row: any = db.prepare(`
-    SELECT s.*, u.email as user_email, u.role as user_role
+    SELECT s.*, u.email as user_email, u.role as user_role, u.permissions as user_permissions,
+      u.login_enabled as user_login_enabled
     FROM staff s
     LEFT JOIN users u ON s.user_id = u.user_id
     WHERE s.staff_id = ? AND s.tenant_id = ? AND s.is_deleted = 0
@@ -1936,6 +1960,7 @@ export function dbGetStaffById(params: { tenant_id: string; staff_id: string }) 
 
   return {
     ...row,
+    permissions: parsePermissionList(row.user_permissions),
     current_balance: current_balance?.balance || 0,
     has_pin: Boolean(row.biller_pin_hash),
     biller_pin_hash: undefined,
@@ -2250,32 +2275,42 @@ export function localSaveUser(user: {
   name: string;
   email: string;
   password_hash?: string;
+  clear_password_hash?: boolean;
   role?: string;
   restricted_page?: string;
+  permissions?: string[];
+  login_enabled?: boolean;
 }) {
   if (!db || !user.email) return;
-  const existing: any = db.prepare(`SELECT user_id, password_hash FROM users WHERE email = ?`).get(user.email);
+  const existing: any = db.prepare(`SELECT user_id, password_hash FROM users WHERE user_id = ? OR LOWER(email) = LOWER(?)`).get(user.user_id, user.email);
   const now = localTimestamp();
 
   if (existing) {
     db.prepare(`
       UPDATE users SET
-        tenant_id = ?, name = ?, role = COALESCE(?, role),
-        password_hash = COALESCE(?, password_hash),
-        restricted_page = COALESCE(?, restricted_page)
-      WHERE email = ?
+        user_id = ?, tenant_id = ?, name = ?, email = ?, role = COALESCE(?, role),
+        password_hash = CASE WHEN ? = 1 THEN NULL ELSE COALESCE(?, password_hash) END,
+        restricted_page = COALESCE(?, restricted_page),
+        permissions = COALESCE(?, permissions),
+        login_enabled = COALESCE(?, login_enabled)
+      WHERE user_id = ?
     `).run(
+      user.user_id,
       user.tenant_id,
       user.name || user.email,
+      user.email,
       user.role || 'STAFF',
+      user.clear_password_hash ? 1 : 0,
       user.password_hash || null,
       user.restricted_page || null,
-      user.email
+      user.permissions === undefined ? null : JSON.stringify(user.permissions),
+      user.login_enabled === undefined ? null : (user.login_enabled ? 1 : 0),
+      existing.user_id
     );
   } else {
     db.prepare(`
-      INSERT INTO users (user_id, tenant_id, name, email, password_hash, role, restricted_page, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (user_id, tenant_id, name, email, password_hash, role, restricted_page, permissions, login_enabled, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       user.user_id || crypto.randomUUID(),
       user.tenant_id,
@@ -2284,6 +2319,8 @@ export function localSaveUser(user: {
       user.password_hash || null,
       user.role || 'STAFF',
       user.restricted_page || null,
+      JSON.stringify(user.permissions || []),
+      user.login_enabled === false ? 0 : 1,
       now
     );
   }
@@ -2299,15 +2336,20 @@ export function localAuthenticateUser(email: string, password: string): {
     email: string;
     role: string;
     restricted_page?: string;
+    permissions: string[];
+    login_enabled: boolean;
   };
 } {
   if (!db) return { success: false, error: 'Local database unavailable' };
-  const user: any = db.prepare(`SELECT user_id, tenant_id, name, email, role, password_hash, restricted_page FROM users WHERE LOWER(email) = LOWER(?)`).get(email);
+  const user: any = db.prepare(`SELECT user_id, tenant_id, name, email, role, password_hash, restricted_page, permissions, login_enabled FROM users WHERE LOWER(email) = LOWER(?)`).get(email);
   if (!user) {
     return { success: false, error: 'User not found in local database cache. Please login online once.' };
   }
   if (!user.password_hash) {
     return { success: false, error: 'Local password hash missing. Please login online once to sync credentials.' };
+  }
+  if (user.login_enabled === 0) {
+    return { success: false, error: 'System login is disabled for this account' };
   }
 
   const isValid = bcrypt.compareSync(password, user.password_hash);
@@ -2323,6 +2365,8 @@ export function localAuthenticateUser(email: string, password: string): {
       name: user.name,
       email: user.email,
       role: user.role,
+      permissions: parsePermissionList(user.permissions),
+      login_enabled: user.login_enabled !== 0,
       restricted_page: user.restricted_page,
     }
   };

@@ -731,7 +731,9 @@ ipcMain.handle('auth:saveToken', (event, payload) => {
         email: payload.email || payload.user_name,
         password_hash: payload.password_hash,
         role: payload.role,
-        restricted_page: payload.restricted_page
+        restricted_page: payload.restricted_page,
+        permissions: payload.permissions,
+        login_enabled: payload.login_enabled
       });
     }
     setSyncActive(true);

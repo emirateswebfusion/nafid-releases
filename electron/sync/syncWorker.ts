@@ -2511,17 +2511,26 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
     const cloudUsers: any[] = Array.isArray(rawUsers) ? rawUsers : (rawUsers.users || rawUsers.data || []);
     if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return false;
 
-    const currentHash = JSON.stringify(cloudUsers.map(u => ({ id: u.user_id, name: u.name, role: u.role, page: u.restricted_page })));
+    const currentHash = JSON.stringify(cloudUsers.map(u => ({
+      id: u.user_id,
+      name: u.name,
+      role: u.role,
+      page: u.restricted_page,
+      permissions: u.permissions,
+      login_enabled: u.login_enabled,
+    })));
     const hasChanged = currentHash !== lastUsersHash;
 
     const upsert = db.prepare(`
-      INSERT INTO users (user_id, tenant_id, name, email, role, restricted_page, created_at)
-      VALUES (@user_id, @tenant_id, @name, @email, @role, @restricted_page, @created_at)
+      INSERT INTO users (user_id, tenant_id, name, email, role, restricted_page, permissions, login_enabled, created_at)
+      VALUES (@user_id, @tenant_id, @name, @email, @role, @restricted_page, @permissions, @login_enabled, @created_at)
       ON CONFLICT(user_id) DO UPDATE SET
         name = excluded.name,
         email = excluded.email,
         role = excluded.role,
-        restricted_page = excluded.restricted_page
+        restricted_page = excluded.restricted_page,
+        permissions = excluded.permissions,
+        login_enabled = excluded.login_enabled
     `);
 
     const tx = db.transaction((users: any[]) => {
@@ -2533,6 +2542,8 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
           email: u.email,
           role: u.role,
           restricted_page: u.restricted_page || null,
+          permissions: JSON.stringify(Array.isArray(u.permissions) ? u.permissions : []),
+          login_enabled: u.login_enabled === false ? 0 : 1,
           created_at: toSqliteDate(u.created_at),
         });
       }

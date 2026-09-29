@@ -205,21 +205,21 @@ export function PermissionSelector({ selectedPermissions = [], onChange }: Permi
                   {group.permissions.map(perm => {
                     const isChecked = safeSelected.includes(perm.key);
                     return (
-                      <label
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isChecked}
+                        aria-label={perm.label}
+                        aria-describedby={`permission-description-${perm.key}`}
+                        onClick={() => handleToggleSingle(perm.key)}
                         key={perm.key}
                         className={clsx(
-                          'flex items-start gap-2.5 p-2 rounded-lg border text-left cursor-pointer transition-all',
+                          'w-full flex items-start gap-2.5 p-2 rounded-lg border text-left cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                           isChecked
                             ? 'bg-primary/5 border-primary/40 text-foreground'
                             : 'bg-card border-border/40 hover:border-border text-muted-foreground hover:text-foreground'
                         )}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleSingle(perm.key)}
-                          className="sr-only"
-                        />
                         <div
                           className={clsx(
                             'mt-0.5 w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors',
@@ -232,9 +232,9 @@ export function PermissionSelector({ selectedPermissions = [], onChange }: Permi
                           <p className={clsx('text-[11px] font-bold leading-tight mb-0.5', isChecked ? 'text-primary' : 'text-foreground')}>
                             {perm.label}
                           </p>
-                          <p className="text-[10px] text-muted-foreground line-clamp-1">{perm.description}</p>
+                          <p id={`permission-description-${perm.key}`} className="text-[10px] text-muted-foreground line-clamp-1">{perm.description}</p>
                         </div>
-                      </label>
+                      </button>
                     );
                   })}
                 </div>
