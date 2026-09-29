@@ -8593,7 +8593,7 @@ export function BillingPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-8 gap-2">
-                      {paymentOptions.map((opt) => {
+                      {paymentOptions.map((opt, idx) => {
                         const isActive = paymentMethod === opt.value;
                         const span = opt.value === 'SPLIT'
                           ? 'col-span-2 col-start-7 row-start-1 row-span-2'
