@@ -1,3 +1,10 @@
+# Vendora v1.6.2 Release Notes
+
+## What's Changed
+- Cashier settlement and POS transaction stability updates
+- Automated release build and installer asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.1...v1.6.2
+
 # Vendora v1.5.83 Release Notes
 
 ## What's Changed
