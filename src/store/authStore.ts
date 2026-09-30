@@ -188,7 +188,47 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
       const data = await res.json();
 
-      if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Login failed') };
+      if (!res.ok) {
+        if (res.status === 403 || res.status === 401) {
+          const errMsg = data?.error || 'Authentication failed';
+          if (errMsg.toLowerCase().includes('disabled') || errMsg.toLowerCase().includes('terminated') || errMsg.toLowerCase().includes('restricted')) {
+            return { success: false, error: errMsg };
+          }
+        }
+        if (window.electronAPI?.authLoginOffline) {
+          console.warn(`[AuthStore] Cloud login returned HTTP ${res.status} (${data?.error || 'Server Error'}), attempting local DB auth...`);
+          const offlineAuth = await window.electronAPI.authLoginOffline({ email, password });
+          if (offlineAuth.success && offlineAuth.user) {
+            const user = offlineAuth.user;
+            let roleVal = (user.role || '') as any;
+            if (['BILLER', 'CASHIER'].includes(roleVal)) roleVal = 'STAFF';
+
+            let resolvedShopName = email;
+            try {
+              const local = await window.electronAPI.settingsGet({ tenant_id: user.tenant_id || 'global', key: 'shop_name' });
+              if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
+            } catch {}
+
+            set({
+              isAuthenticated: true,
+              tenantId: user.tenant_id,
+              userId: user.user_id,
+              role: roleVal,
+              permissions: roleVal === 'ADMIN' ? ['*'] : (Array.isArray(user.permissions) ? user.permissions : convertLegacyRestrictedPageToPermissions(user.restricted_page)),
+              userName: user.name || email,
+              shopName: resolvedShopName,
+              restrictedPage: user.restricted_page || null,
+              isCloudSyncPaused: true,
+              cloudSyncReason: 'Operating in Local Mode (Central DB unavailable). POS active.'
+            });
+            useCartStore.getState().setRole(roleVal);
+            return { success: true };
+          } else if (offlineAuth.error && !offlineAuth.error.includes('User not found')) {
+            return { success: false, error: offlineAuth.error };
+          }
+        }
+        return { success: false, error: formatError(data?.error || data, 'Login failed') };
+      }
 
       let roleVal = (data.role || '') as any;
       if (roleVal === 'SUPER_ADMIN') {

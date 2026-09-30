@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, safeStorage, nativeImage } from 'electron';
+﻿import { app, BrowserWindow, ipcMain, session, safeStorage, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
@@ -35,7 +35,7 @@ if (fs.existsSync(envPath)) {
   dotenv.config(); // Fallback to root .env
 }
 
-// ── IPC Handlers ─────────────────────────────────────────────────────────────
+// â”€â”€ IPC Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 ipcMain.handle('app:getLocalIp', () => {
   try {
@@ -167,7 +167,7 @@ ipcMain.handle('app:getNetworkDetails', () => {
   }
 });
 
-// ── IPC Input Validation ────────────────────────────────────────────────────────
+// â”€â”€ IPC Input Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function validateString(value: unknown, name: string): string {
   if (typeof value !== 'string' || !value) throw new Error(`Invalid ${name}: expected non-empty string`);
   return value;
@@ -206,7 +206,7 @@ function safeHandler<T, A extends unknown[]>(handler: IpcHandler<T, A>): IpcHand
 
 // GH_TOKEN for electron-updater; prefer GITHUB_TOKEN (CI-safe) over bundled file
 // WARNING: .env.production is bundled with the app (see electron-builder.config.js extraResources).
-// DO NOT put real secrets there — they'd be extractable from the installed app.
+// DO NOT put real secrets there â€” they'd be extractable from the installed app.
 if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)) {
   const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
   if (parsed.GH_TOKEN) {
@@ -214,7 +214,7 @@ if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)
     console.log('[Main] GH_TOKEN loaded manually from env file');
   }
 }
-// ── Local Time Helpers ────────────────────────────────────────────────────
+// â”€â”€ Local Time Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function getStoreTimezoneSetting(db: any, tenantId?: string): string {
   try {
     if (!db || !tenantId) return 'Asia/Kolkata';
@@ -395,7 +395,7 @@ function handleDeepLink(url: string) {
 
 function setupCSP() {
   const isDev = !app.isPackaged;
-  // Cloud API URL — set VENDORA_CLOUD_API in .env
+  // Cloud API URL â€” set VENDORA_CLOUD_API in .env
   const apiUrl = process.env.NAFID_CLOUD_API || process.env.VENDORA_CLOUD_API;
   const apiOrigin = (() => {
     try {
@@ -499,7 +499,7 @@ function createWindow() {
   }
 
   if (!app.isPackaged) {
-    // Development: Load from Vite dev server — requires ELECTRON_DEV_SERVER_URL in .env
+    // Development: Load from Vite dev server â€” requires ELECTRON_DEV_SERVER_URL in .env
     const devUrl = process.env.ELECTRON_DEV_SERVER_URL;
     if (!devUrl) {
       throw new Error('[Electron] ELECTRON_DEV_SERVER_URL environment variable is required in development mode.');
@@ -673,15 +673,15 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// ── IPC Handlers ─────────────────────────────────────────────────────────────
+// â”€â”€ IPC Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ── Auth Token Persistence ───────────────────────────────────────────────────
+// â”€â”€ Auth Token Persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
 
 const encrypt = (text: string): Buffer | null => {
   if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('[Auth] safeStorage unavailable — token will be stored in plaintext on disk');
+    console.warn('[Auth] safeStorage unavailable â€” token will be stored in plaintext on disk');
     return Buffer.from(text);
   }
   return safeStorage.encryptString(text);
@@ -820,16 +820,16 @@ ipcMain.handle('app:checkForUpdates', async () => {
     if (result && result.isUpdateAvailable && result.updateInfo) {
       return { success: true, updateInfo: result.updateInfo };
     }
-    // No update available — already on latest version
+    // No update available â€” already on latest version
     return { success: true, updateInfo: null };
   } catch (error: any) {
     console.error('[Updater] Manual check error:', error);
     const msg = error.message || '';
-    // 404 means no release found on the current channel — likely already up-to-date
+    // 404 means no release found on the current channel â€” likely already up-to-date
     if (msg.includes('404') || msg.includes('Cannot find') || msg.includes('no published version')) {
       return { success: true, updateInfo: null };
     }
-    // Network errors — show a clean message
+    // Network errors â€” show a clean message
     if (
       msg.includes('net::ERR_') ||
       msg.includes('ENOTFOUND') ||
@@ -844,7 +844,7 @@ ipcMain.handle('app:checkForUpdates', async () => {
   }
 });
 
-// ── DEBUG: Sync State Diagnostic (remove after fixing) ─────────────────────
+// â”€â”€ DEBUG: Sync State Diagnostic (remove after fixing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:debugSyncState', (event, tenant_id: string) => {
   try {
     const db = getDb();
@@ -872,11 +872,11 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     const db = getDb();
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) {
-      console.warn('[db:getProducts] Called with no tenant_id — returning []');
+      console.warn('[db:getProducts] Called with no tenant_id â€” returning []');
       return [];
     }
 
-    console.log(`[db:getProducts] Called — tenantId=${tenantId} arg=${JSON.stringify(arg)}`);
+    console.log(`[db:getProducts] Called â€” tenantId=${tenantId} arg=${JSON.stringify(arg)}`);
 
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField && (!arg.stockStatus || arg.stockStatus === 'all'))) {
       const rows = db.prepare(`
@@ -899,7 +899,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
         WHERE p.tenant_id = ? AND p.is_deleted = 0 
         ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC
       `).all(tenantId, tenantId, tenantId);
-      console.log(`[db:getProducts] Full list query → ${rows.length} rows returned for tenant ${tenantId}`);
+      console.log(`[db:getProducts] Full list query â†’ ${rows.length} rows returned for tenant ${tenantId}`);
       return rows;
     }
 
@@ -1169,7 +1169,7 @@ ipcMain.handle('db:ensureServiceItem', safeHandler((event, { tenant_id }: { tena
     const canonicalBarcode = String(canonical.sku_barcode || '').trim();
     const canAdopt99 = !canonicalBarcode || (deletedHadBarcode99 && canonicalBarcode !== '99');
     if (canAdopt99) {
-      // The soft-deleted duplicate still occupies the UNIQUE '99' — clear it first, then hand it over.
+      // The soft-deleted duplicate still occupies the UNIQUE '99' â€” clear it first, then hand it over.
       db.prepare(`
         UPDATE products SET sku_barcode = NULL, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = ? AND sku_barcode = '99' AND is_deleted = 1
@@ -1246,7 +1246,7 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
   }
 }));
 
-// Lightweight GST/Estimate toggle — flips only is_gst_applicable without touching
+// Lightweight GST/Estimate toggle â€” flips only is_gst_applicable without touching
 // any other product field.
 ipcMain.handle('db:updateProductGstFlag', safeHandler((event, { tenant_id, product_id, is_gst_applicable }: { tenant_id: string; product_id: string; is_gst_applicable: number }) => {
   const db = getDb();
@@ -1500,7 +1500,7 @@ ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
   }
 });
 
-// ── Pricing Tier Handlers ───────────────────────────────────────────────────
+// â”€â”€ Pricing Tier Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getPricingTiers', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -1621,7 +1621,7 @@ ipcMain.handle('db:getProductPricing', (event, tenantId: string) => {
   }
 });
 
-// ── Combo Offers Handlers ──────────────────────────────────────────────────
+// â”€â”€ Combo Offers Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getComboOffers', (event, { tenant_id, search, only_active }: { tenant_id: string; search?: string; only_active?: boolean }) => {
   try {
     const db = getDb();
@@ -1864,7 +1864,7 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
   }
 }));
 
-// ── Party (Credit Person) Handlers ──────────────────────────────────────────
+// â”€â”€ Party (Credit Person) Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getParties', (event, tenantId: string, includeDeleted = false) => {
   try {
     const db = getDb();
@@ -1888,6 +1888,32 @@ ipcMain.handle('db:getParties', (event, tenantId: string, includeDeleted = false
 ipcMain.handle('db:addParty', safeHandler((event, p) => {
   try {
     const db = getDb();
+    const phoneClean = (p.phone || '').replace(/\D/g, '');
+    const nameClean = (p.name || '').trim().toLowerCase();
+
+    // Deduplication check: re-use existing party if same phone or name exists
+    let existing: any = null;
+    if (phoneClean.length >= 7) {
+      const allParties = db.prepare('SELECT * FROM parties WHERE tenant_id = ?').all(p.tenant_id) as any[];
+      existing = allParties.find((party: any) => {
+        const pDigits = (party.phone || '').replace(/\D/g, '');
+        return pDigits.length >= 7 && (pDigits === phoneClean || (phoneClean.length >= 10 && pDigits.slice(-10) === phoneClean.slice(-10)));
+      });
+    }
+    if (!existing && nameClean) {
+      existing = db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ?').get(p.tenant_id, nameClean);
+    }
+
+    if (existing) {
+      db.prepare(`
+        UPDATE parties 
+        SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address), gstin = COALESCE(?, gstin),
+            is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE party_id = ?
+      `).run(p.name, p.phone || null, p.address || null, p.gstin || null, existing.party_id);
+      return { success: true, party_id: existing.party_id, reused: true };
+    }
+
     const bt = p.balance_type || 'RECEIVABLE';
     const initialBalance = bt === 'RECEIVABLE'
       ? Math.abs(p.balance || 0)
@@ -2003,6 +2029,83 @@ ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id
 
 // Recompute a party's GST / Estimate / total balances from its ledger entries
 function recalcPartyBalances(db: any, partyId: string) {
+  try {
+    // 1. Deduplicate by non-empty reference_number (e.g. 7Z4D-043, 7Z4D-043-PAY)
+    const refDups = db.prepare(`
+      SELECT reference_number, COUNT(*) as cnt 
+      FROM party_ledger 
+      WHERE party_id = ? 
+        AND reference_number IS NOT NULL 
+        AND TRIM(reference_number) <> '' 
+        AND (is_deleted IS NULL OR is_deleted = 0)
+      GROUP BY reference_number 
+      HAVING cnt > 1
+    `).all(partyId) as any[];
+
+    for (const d of refDups) {
+      const rows = db.prepare(`
+        SELECT ledger_id FROM party_ledger
+        WHERE party_id = ? 
+          AND reference_number = ? 
+          AND (is_deleted IS NULL OR is_deleted = 0)
+        ORDER BY created_at ASC, rowid ASC
+      `).all(partyId, d.reference_number) as any[];
+
+      for (let i = 1; i < rows.length; i++) {
+        db.prepare(`
+          UPDATE party_ledger 
+          SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+          WHERE ledger_id = ?
+        `).run(rows[i].ledger_id);
+      }
+    }
+
+    // 2. Deduplicate exact match entries (same description, credit_amount, debit_amount, transaction_date)
+    const exactDups = db.prepare(`
+      SELECT description, credit_amount, debit_amount, transaction_date, COUNT(*) as cnt
+      FROM party_ledger
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      GROUP BY description, credit_amount, debit_amount, transaction_date
+      HAVING cnt > 1
+    `).all(partyId) as any[];
+
+    for (const d of exactDups) {
+      const rows = db.prepare(`
+        SELECT ledger_id FROM party_ledger
+        WHERE party_id = ? 
+          AND description = ? 
+          AND credit_amount = ? 
+          AND debit_amount = ? 
+          AND transaction_date = ? 
+          AND (is_deleted IS NULL OR is_deleted = 0)
+        ORDER BY created_at ASC, rowid ASC
+      `).all(partyId, d.description, d.credit_amount, d.debit_amount, d.transaction_date) as any[];
+
+      for (let i = 1; i < rows.length; i++) {
+        db.prepare(`
+          UPDATE party_ledger 
+          SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+          WHERE ledger_id = ?
+        `).run(rows[i].ledger_id);
+      }
+    }
+
+    // 3. Re-sequence running_balance for all remaining active entries
+    const activeEntries = db.prepare(`
+      SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      ORDER BY transaction_date ASC, created_at ASC
+    `).all(partyId) as any[];
+
+    let running = 0;
+    for (const row of activeEntries) {
+      running += (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0);
+      db.prepare(`UPDATE party_ledger SET running_balance = ? WHERE ledger_id = ?`).run(running, row.ledger_id);
+    }
+  } catch (err) {
+    console.error('[recalcPartyBalances] Deduplication error:', err);
+  }
+
   const rows = db.prepare(
     `SELECT COALESCE(SUM(CASE WHEN balance_type = 'GST' THEN credit_amount - debit_amount ELSE 0 END), 0) AS gst,
             COALESCE(SUM(CASE WHEN balance_type = 'ESTIMATE' THEN credit_amount - debit_amount ELSE 0 END), 0) AS estimate,
@@ -2387,7 +2490,7 @@ export function backfillCreditInvoices(db: any) {
   }
 }
 
-// ── Party Ledger Handlers ────────────────────────────────────────────────
+// â”€â”€ Party Ledger Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getPartyLedger', (event, partyId: string, includeDeleted = false) => {
   try {
     const db = getDb();
@@ -2432,6 +2535,7 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string, includeDeleted = fa
         recalcPartyBalances(db, partyId);
       }
     } catch {}
+    try { recalcPartyBalances(db, partyId); } catch (e) {}
     const sql = includeDeleted
       ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC`
       : `SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC`;
@@ -2680,7 +2784,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         const projected = curBal + billCredit;
         if (projected > creditLimit) {
           const excess = projected - creditLimit;
-          throw new Error(`Credit limit of ₹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ₹${curBal.toLocaleString('en-IN')}, Bill credit: ₹${billCredit.toLocaleString('en-IN')}. Exceeds limit by ₹${excess.toLocaleString('en-IN')}.`);
+          throw new Error(`Credit limit of â‚¹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: â‚¹${curBal.toLocaleString('en-IN')}, Bill credit: â‚¹${billCredit.toLocaleString('en-IN')}. Exceeds limit by â‚¹${excess.toLocaleString('en-IN')}.`);
         }
       }
     }
@@ -2829,7 +2933,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       `).run(invoice.tenant_id, invoice.scrap_invoice_number);
     }
 
-    // 4. Handle scrap items — create scrap transactions and update scrap stock
+    // 4. Handle scrap items â€” create scrap transactions and update scrap stock
     if (scrap_items && scrap_items.length > 0) {
       const scrapTxStmt = db.prepare(`
         INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
@@ -2935,7 +3039,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
   }
 }));
 
-// ── Hold Bill IPC Handlers ────────────────────────────────────────────────
+// â”€â”€ Hold Bill IPC Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Save current cart as a HOLD invoice: deducts stock, sets held_until = now + 24h
 ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
   const { items, ...invoice } = payload;
@@ -3127,7 +3231,7 @@ ipcMain.handle('db:recallHeldBill', (event, { invoice_id }: { invoice_id: string
   }
 });
 
-// Manually release a held bill — revert stock and mark as expired
+// Manually release a held bill â€” revert stock and mark as expired
 ipcMain.handle('db:releaseHeldBill', (event, { invoice_id }: { invoice_id: string }) => {
   try {
     const db = getDb();
@@ -3187,7 +3291,7 @@ ipcMain.handle('db:releaseHeldBill', (event, { invoice_id }: { invoice_id: strin
   }
 });
 
-// Auto-expire stale held bills — called on startup
+// Auto-expire stale held bills â€” called on startup
 ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
@@ -3259,7 +3363,7 @@ ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: st
   }
 });
 
-// ── Payment Methods (BANK / CARD / UPI sources) ──────────────────────────────
+// â”€â”€ Payment Methods (BANK / CARD / UPI sources) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:payments:getSources', (event, tenant_id: string) => {
   try {
     const db = getDb();
@@ -3456,7 +3560,7 @@ ipcMain.handle('db:payments:addTransaction', safeHandler((event, t: any) => {
   }
 }));
 
-// ── Diagnostic: Clear stuck PENDING sync records ─────────────────────────────
+// â”€â”€ Diagnostic: Clear stuck PENDING sync records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('sync:clearPending', async (event, { tenant_id, type, records }: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => {
   try {
     const db = getDb();
@@ -3484,7 +3588,7 @@ ipcMain.handle('sync:clearPending', async (event, { tenant_id, type, records }: 
   }
 });
 
-// ── Diagnostic: Get stuck PENDING sync records ────────────────────────────────
+// â”€â”€ Diagnostic: Get stuck PENDING sync records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('sync:getPending', async (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
@@ -4045,7 +4149,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
   }
 });
 
-// ── Return Handlers ─────────────────────────────────────────────────────
+// â”€â”€ Return Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   return_id: string;
   invoice_id: string;
@@ -4155,7 +4259,7 @@ ipcMain.handle('db:getAlreadyReturnedQuantities', safeHandler((event, invoice_id
   `).all(invoice_id);
 }));
 
-// Return-mode invoice search — only returns bills that still have at least one
+// Return-mode invoice search â€” only returns bills that still have at least one
 // item with remaining returnable quantity (fully returned bills are excluded).
 ipcMain.handle('db:getReturnableInvoices', safeHandler((event, { tenant_id, search, limit = 10, role, user_id }: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => {
   const db = getDb();
@@ -4343,7 +4447,7 @@ ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_i
         prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
       } catch {
-        // Invalid JSON — use defaults
+        // Invalid JSON â€” use defaults
       }
     }
     const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
@@ -4380,7 +4484,7 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
       prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
       counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
     } catch {
-      // Invalid JSON — use defaults
+      // Invalid JSON â€” use defaults
     }
   }
   const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
@@ -4402,7 +4506,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
     console.log('[convertBosToGst] Starting conversion for', payload.invoice_ids.length, 'invoices');
     const db = getDb();
 
-    // Some settings are stored raw (server-synced) and some JSON-encoded — parse both.
+    // Some settings are stored raw (server-synced) and some JSON-encoded â€” parse both.
     const parseSetting = (row: any): any => {
       if (!row) return null;
       try { return JSON.parse(row.value); } catch { return row.value; }
@@ -4567,7 +4671,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const convSgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
           const convIgstTotal = isInterStateConv ? adjustedTax : 0;
 
-          // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
+          // 1. Create the GST invoice as a NEW row (copy) â€” the BoS stays intact.
           //    No stock movement: stock was already deducted when the BoS was sold.
           db.prepare(`
             INSERT INTO invoices (
@@ -4607,7 +4711,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             convSupplyType
           );
 
-          // 2. Copy the priced items — they remember their original BoS values so
+          // 2. Copy the priced items â€” they remember their original BoS values so
           //    returns refund what the customer actually paid.
           const insertItemStmt = db.prepare(`
             INSERT INTO invoice_items (
@@ -4646,7 +4750,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             );
           }
 
-          // 3. Mark the BoS as superseded — linked to its GST copy (original Estimate remains untouched)
+          // 3. Mark the BoS as superseded â€” linked to its GST copy (original Estimate remains untouched)
           db.prepare(`
             UPDATE invoices SET
               converted_to_invoice_id = ?,
@@ -4670,7 +4774,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           success: true,
           ...(invoice.skipped ? { skipped_items: invoice.skipped } : {})
         });
-        console.log('[convertBosToGst] Converted', invoice_id, '→', invoice.new_number);
+        console.log('[convertBosToGst] Converted', invoice_id, 'â†’', invoice.new_number);
       } catch (err: any) {
         console.error('[convertBosToGst] Failed', invoice_id, err.message);
         results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: 'Conversion failed' });
@@ -4907,7 +5011,7 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
       return {
         ok: true,
         route: 'LAN',
-        message: `Wifi Sync Active — This PC is Primary Master Server (Port ${port})`
+        message: `Wifi Sync Active â€” This PC is Primary Master Server (Port ${port})`
       };
     }
 
@@ -4921,7 +5025,7 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
         return {
           ok: true,
           route: 'LAN',
-          message: `Wifi Sync Active — Connected to Primary Master Server (${host}:${port})`
+          message: `Wifi Sync Active â€” Connected to Primary Master Server (${host}:${port})`
         };
       } else if (syncMode === 'HYBRID') {
         try {
@@ -4934,18 +5038,18 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
               ok: true,
               route: 'CLOUD',
               fallback: true,
-              message: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
+              message: `Cloud Sync Active (Hybrid Fallback) â€” LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
             };
           }
         } catch {}
         return {
           ok: false,
-          error: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
+          error: `Sync Inactive â€” Master Server (${host}) returned status ${res.status}`
         };
       } else {
         return {
           ok: false,
-          error: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
+          error: `Sync Inactive â€” Master Server (${host}) returned status ${res.status}`
         };
       }
     } catch {
@@ -4960,14 +5064,14 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
               ok: true,
               route: 'CLOUD',
               fallback: true,
-              message: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
+              message: `Cloud Sync Active (Hybrid Fallback) â€” LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
             };
           }
         } catch {}
       }
       return {
         ok: false,
-        error: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
+        error: `Sync Inactive â€” Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
       };
     }
   } else {
@@ -4980,13 +5084,13 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
         return {
           ok: true,
           route: 'CLOUD',
-          message: `Cloud Sync Active — Connected to Cloud API server`
+          message: `Cloud Sync Active â€” Connected to Cloud API server`
         };
       }
     } catch {}
     return {
       ok: false,
-      error: `Sync Inactive — Cloud API server (${defaultCloud}) is unreachable.`
+      error: `Sync Inactive â€” Cloud API server (${defaultCloud}) is unreachable.`
     };
   }
 });
@@ -5043,7 +5147,7 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
 
     const { getSyncEndpoints } = await import('./sync/syncWorker.js');
     const endpoints = getSyncEndpoints();
-    // Cloud API URL — set VENDORA_CLOUD_API in .env
+    // Cloud API URL â€” set VENDORA_CLOUD_API in .env
     const apiUrl = (endpoints.primaryUrl || process.env.VENDORA_CLOUD_API || '').replace(/\/$/, '');
     const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
     const response = await fetch(url, {
@@ -5194,8 +5298,8 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
   }
 });
 
-// ── Scrap Categories IPC ───────────────────────────────────────
-// ── Scrap Categories IPC (categories ARE items, with price/stock/unit) ──
+// â”€â”€ Scrap Categories IPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€ Scrap Categories IPC (categories ARE items, with price/stock/unit) â”€â”€
 ipcMain.handle('db:getScrapCategories', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -5420,7 +5524,7 @@ ipcMain.handle('db:peekNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_
         const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
       } catch {
-        // Invalid JSON in stored value — fall through to default
+        // Invalid JSON in stored value â€” fall through to default
       }
     }
     return { success: true, invoiceNumber: `${terminalCode}-SCR-001` };
@@ -5674,7 +5778,7 @@ ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_numbe
   }
 });
 
-// ── Scrap CREDIT → Party/Ledger ──────────────────────────────────────────
+// â”€â”€ Scrap CREDIT â†’ Party/Ledger â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Creates/updates a party ledger entry for a CREDIT scrap invoice (idempotent
 // per invoice via reference_number). Non-CREDIT status removes the entry.
 ipcMain.handle('db:upsertScrapCreditLedger', safeHandler((event, { tenant_id, scrap_invoice_number, payment_status, party_name, customer_phone, customer_address, user_id, user_name }: {
@@ -5740,14 +5844,14 @@ ipcMain.handle('db:upsertScrapCreditLedger', safeHandler((event, { tenant_id, sc
       const currentBalance = parseFloat(partyBal?.balance) || 0;
       const newBalance = currentBalance - total;
 
-      // Party changed → move the entry to the new party
+      // Party changed â†’ move the entry to the new party
       if (existingEntry && existingEntry.party_id !== party.party_id) {
         removeEntry(existingEntry);
         existingEntry = null;
       }
 
       if (existingEntry) {
-        // Same party → update in place (keeps ledger_id stable for sync)
+        // Same party â†’ update in place (keeps ledger_id stable for sync)
         db.prepare(`
           UPDATE party_ledger SET
             debit_amount = ?, credit_amount = 0, description = ?, transaction_date = CURRENT_TIMESTAMP,
@@ -5872,7 +5976,7 @@ ipcMain.handle('db:getProductSuppliers', (event, tenantId: string) => {
   }
 });
 
-// ── Product Sales Summary (GST qty vs BoS qty sold per product) ─────────────
+// â”€â”€ Product Sales Summary (GST qty vs BoS qty sold per product) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
@@ -5895,7 +5999,7 @@ ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id }: { tenant_id: 
   }
 });
 
-// ── BoS convertible check: which BoS invoices have ≥1 item with a GST purchase record ──
+// â”€â”€ BoS convertible check: which BoS invoices have â‰¥1 item with a GST purchase record â”€â”€
 ipcMain.handle('db:getBosConvertibleInvoices', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -5926,7 +6030,7 @@ ipcMain.handle('db:getBosConvertibleInvoices', (event, tenantId: string) => {
   }
 });
 
-// ── Quotations IPC ─────────────────────────────────────────────
+// â”€â”€ Quotations IPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
@@ -5992,7 +6096,7 @@ ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id:
         const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         return { success: true, quotationNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
       } catch {
-        // Invalid JSON in stored value — fall through to default
+        // Invalid JSON in stored value â€” fall through to default
       }
     }
     return { success: true, quotationNumber: `${terminalCode}-QTN-001` };
@@ -6134,7 +6238,7 @@ ipcMain.handle('db:updateQuotationStatus', (event, { quotation_id, status, conve
   }
 });
 
-// ── Warranties IPC ─────────────────────────────────────────────
+// â”€â”€ Warranties IPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:saveWarranty', safeHandler((event, w) => {
   try {
     const db = getDb();
@@ -6178,7 +6282,7 @@ ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
   }
 });
 
-// ── Purchase Bill IPC ─────────────────────────────────────────────
+// â”€â”€ Purchase Bill IPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getNextPurchaseBillNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
@@ -6423,7 +6527,7 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
       `).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
 
       // Revert stock of previous items before deleting them.
-      // Only ESTIMATE bills update inventory stock — check stored bill_type before reverting.
+      // Only ESTIMATE bills update inventory stock â€” check stored bill_type before reverting.
       const oldBill = db.prepare('SELECT bill_number, bill_type FROM purchase_bills WHERE purchase_bill_id = ?').get(bill.purchase_bill_id) as any;
       const oldBillType = oldBill?.bill_type || 'GST';
       const oldBillNum = oldBill?.bill_number;
@@ -6657,7 +6761,7 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffi
   }
 });
 
-// ── Cash Drawer Helpers ───────────────────────────────────────────────────────
+// â”€â”€ Cash Drawer Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?: string): any {
   if (!db) return null;
@@ -6997,7 +7101,7 @@ function adjustPaymentSourcesForInvoice(
   }
 }
 
-// ── Cashier & Settlement IPC Handlers ─────────────────────────────────────────
+// â”€â”€ Cashier & Settlement IPC Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { tenant_id: string; business_date?: string }) => {
   try {
@@ -7472,7 +7576,7 @@ ipcMain.handle('db:cashier:getAuditLog', (event, { tenant_id, limit = 50, offset
   }
 });
 
-// ── Cash Categories IPC Handlers ─────────────────────────────────────────────
+// â”€â”€ Cash Categories IPC Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 ipcMain.handle('db:cashier:getCategories', (event, { tenant_id, type }: { tenant_id: string; type?: 'CASH_IN' | 'CASH_OUT' }) => {
   try {
@@ -7520,7 +7624,7 @@ ipcMain.handle('db:cashier:deleteCategory', safeHandler((event, { category_id, t
   }
 }));
 
-// ── Customer / Loyalty Points IPC Handlers ──
+// â”€â”€ Customer / Loyalty Points IPC Handlers â”€â”€
 
 ipcMain.handle('db:getCustomers', (event, { tenant_id }: { tenant_id: string }) => {
   try {
@@ -7623,7 +7727,7 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
     db.transaction(() => {
       const inv = db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
 
-      // A conversion copy never moved stock — do NOT restore it (would double stock).
+      // A conversion copy never moved stock â€” do NOT restore it (would double stock).
       // The superseded BoS owns the deduction.
       const isConversionCopy = !!(inv && inv.converted_from_invoice_id);
 
@@ -7700,7 +7804,7 @@ ipcMain.handle('db:getCustomerLoyaltyTransactions', (event, { customer_id, tenan
   }
 });
 
-// ── Staff Management Handlers ──────────────────────────────────────────────
+// â”€â”€ Staff Management Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getStaff', safeHandler((event, params: any) => {
   return dbGetStaff(params);
 }));

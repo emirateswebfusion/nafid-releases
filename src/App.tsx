@@ -572,10 +572,14 @@ function App() {
       });
     }
 
+    const handleOpenSessionExpiredModal = () => setShowSessionExpiredModal(true);
+    window.addEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
+
     return () => {
       if (unsubscribeScale) {
         unsubscribeScale();
       }
+      window.removeEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
       window.removeEventListener('open-billing-page', handleOpenBilling);
       window.removeEventListener('open-dashboard', handleOpenDashboard);
       window.removeEventListener('open-inventory-manager', handleOpenInv);
@@ -768,6 +772,11 @@ function App() {
         onConfirm={() => {
           setShowSessionExpiredModal(false);
           useAuthStore.getState().logout();
+        }}
+        onClose={() => {
+          // User chose to continue working offline — just dismiss the modal.
+          // Cloud sync remains paused; status pill in header will show "Re-Login Needed".
+          setShowSessionExpiredModal(false);
         }}
       />
     </div>

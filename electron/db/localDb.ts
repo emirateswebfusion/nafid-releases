@@ -1785,8 +1785,13 @@ export function upsertCustomerRecord(
 
   try {
     let existing: any = null;
-    if (phone) {
-      existing = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND phone = ?').get(tenantId, phone);
+    const phoneClean = (phone || '').replace(/\D/g, '');
+    if (phoneClean.length >= 7) {
+      const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ?').all(tenantId) as any[];
+      existing = allCust.find((c: any) => {
+        const cPhoneDigits = (c.phone || '').replace(/\D/g, '');
+        return cPhoneDigits.length >= 7 && (cPhoneDigits === phoneClean || (phoneClean.length >= 10 && cPhoneDigits.slice(-10) === phoneClean.slice(-10)));
+      });
     }
     if (!existing && name) {
       const candidates = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND name = ? COLLATE NOCASE').all(tenantId, name);
@@ -2351,6 +2356,13 @@ export function localAuthenticateUser(email: string, password: string): {
   if (user.login_enabled === 0) {
     return { success: false, error: 'System login is disabled for this account' };
   }
+
+  try {
+    const tenantStatusRow: any = db.prepare(`SELECT value FROM settings WHERE key = 'tenant_status' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(user.tenant_id);
+    if (tenantStatusRow?.value === 'TERMINATED' || tenantStatusRow?.value === 'SUSPENDED') {
+      return { success: false, error: 'This store subscription has been terminated or suspended by administration.' };
+    }
+  } catch {}
 
   const isValid = bcrypt.compareSync(password, user.password_hash);
   if (!isValid) {

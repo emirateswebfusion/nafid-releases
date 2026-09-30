@@ -404,20 +404,24 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                                 <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{invoiceCount} {invoiceCount === 1 ? 'Invoice' : 'Invoices'}</span>
                             </div>
-                            <div className={clsx(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors",
-                                isCloudSyncPaused
-                                    ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                                    : (!isOnline || activeRoute === 'NONE')
-                                    ? "bg-destructive/10 border-destructive/20 text-destructive"
-                                    : isSyncing
-                                    ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
-                                    : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                            )}>
+                            <div
+                                className={clsx(
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors",
+                                    isCloudSyncPaused
+                                        ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 cursor-pointer hover:bg-amber-500/20 active:scale-[0.97]"
+                                        : (!isOnline || activeRoute === 'NONE')
+                                        ? "bg-destructive/10 border-destructive/20 text-destructive"
+                                        : isSyncing
+                                        ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
+                                        : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                )}
+                                onClick={isCloudSyncPaused ? () => window.dispatchEvent(new Event('open-session-expired-modal')) : undefined}
+                                title={isCloudSyncPaused ? "Click to login and resume cloud sync" : undefined}
+                            >
                                 <span className={clsx(
                                     "w-1.5 h-1.5 rounded-full",
                                     isCloudSyncPaused
-                                        ? "bg-amber-500"
+                                        ? "bg-amber-500 animate-pulse"
                                         : (!isOnline || activeRoute === 'NONE')
                                         ? "bg-destructive"
                                         : isSyncing
@@ -426,7 +430,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                 )} />
                                 <span className="text-[10px] font-bold tracking-wider">
                                     {isCloudSyncPaused
-                                        ? 'Login Required / Cloud Sync Paused'
+                                        ? 'Re-Login Needed'
                                         : (!isOnline || activeRoute === 'NONE')
                                         ? 'Offline'
                                         : isSyncing
