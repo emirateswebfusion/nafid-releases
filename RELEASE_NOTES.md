@@ -1,3 +1,10 @@
+# Vendora v1.6.3 Release Notes
+
+## What's Changed
+- System stability updates and performance enhancements
+- Automated Windows installer and updater asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.2...v1.6.3
+
 # Vendora v1.6.2 Release Notes
 
 ## What's Changed
