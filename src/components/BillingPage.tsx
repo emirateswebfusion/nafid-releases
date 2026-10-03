@@ -1633,8 +1633,8 @@ export function BillingPage() {
       const { tenantId } = useAuthStore.getState();
       // GST invoices: only show GST-applicable products (quotations stay unfiltered)
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
-      // Fetch up to 100 results so numeric or text searches capture all matching items
-      const fetchLimit = 100;
+      // Fetch up to 500 results so numeric or text searches capture all matching items
+      const fetchLimit = 500;
       
       try {
         const [products, combos] = await Promise.all([
@@ -1662,6 +1662,8 @@ export function BillingPage() {
         const rawProducts = Array.isArray(products) ? products : [];
         const q = searchQuery.trim().toLowerCase();
         const qNoSpace = q.replace(/\s+/g, '');
+        const cleanText = (s: string) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        const qClean = cleanText(searchQuery);
 
         const sortedProds = sortProductsBySearchPriority(rawProducts, searchQuery);
         const filteredProds = sortedProds.filter(p => {
@@ -1679,6 +1681,13 @@ export function BillingPage() {
           const catNoSpace = cat.replace(/\s+/g, '');
           const hsnNoSpace = hsn.replace(/\s+/g, '');
 
+          const barcodeClean = cleanText(p.sku_barcode);
+          const codeClean = cleanText(p.item_code);
+          const nameClean = cleanText(p.name);
+          const brandClean = cleanText(p.brand_manufacturer);
+          const catClean = cleanText(p.category);
+          const hsnClean = cleanText(p.hsn_sac_code);
+
           return (
             barcode.includes(q) ||
             code.includes(q) ||
@@ -1693,6 +1702,14 @@ export function BillingPage() {
               brandNoSpace.includes(qNoSpace) ||
               catNoSpace.includes(qNoSpace) ||
               hsnNoSpace.includes(qNoSpace)
+            )) ||
+            (qClean.length > 0 && (
+              barcodeClean.includes(qClean) ||
+              codeClean.includes(qClean) ||
+              nameClean.includes(qClean) ||
+              brandClean.includes(qClean) ||
+              catClean.includes(qClean) ||
+              hsnClean.includes(qClean)
             ))
           );
         });
@@ -8619,10 +8636,11 @@ export function BillingPage() {
                             } else {
                               const prevMethod = paymentMethod;
                               if (displayGrandTotal > 0) {
-                                let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, credit: 0, bank_transfer: 0 };
+                                let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, cheque: 0, credit: 0, bank_transfer: 0 };
                                 if (prevMethod === 'UPI') initialSplit.upi = displayGrandTotal;
                                 else if (prevMethod === 'CARD') initialSplit.card = displayGrandTotal;
                                 else if (prevMethod === 'CREDIT') initialSplit.credit = displayGrandTotal;
+                                else if (prevMethod === 'CHEQUE') initialSplit.cheque = displayGrandTotal;
                                 else initialSplit.cash = displayGrandTotal;
 
                                 updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: initialSplit, receivedAmount: (initialSplit.credit ? 0 : displayGrandTotal) });
@@ -8638,6 +8656,7 @@ export function BillingPage() {
                                 cash: 0,
                                 card: 0,
                                 upi: 0,
+                                cheque: 0,
                                 credit: displayGrandTotal,
                                 bank_transfer: 0,
                               };
@@ -8679,29 +8698,27 @@ export function BillingPage() {
                           }
                         };
 
-                        // ── In SPLIT or CREDIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
+                        // ── In SPLIT or CREDIT mode: Morph Cash, Card, UPI, Cheque, and Credit buttons into interactive input tiles ──
                         if (paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') {
                           if (opt.value === 'CASH') {
                             return (
-                              <div key="CASH" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]')}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
-                                    <Banknote className="w-4 h-4" />
-                                    <span>Cash</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                      const nextDetails = { ...splitDetails, cash: rem };
-                                      const nextRec = rem + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                    }}
-                                    className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/15 px-1.5 py-0.5 rounded-md"
-                                  >
-                                    Fill Rest
-                                  </button>
+                              <div key="CASH" className={clsx(span, 'flex flex-col justify-between p-1.5 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[82px]')}>
+                                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs min-w-0">
+                                  <Banknote className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Cash</span>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                    const nextDetails = { ...splitDetails, cash: rem };
+                                    const nextRec = rem + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                  }}
+                                  className="w-full text-[9.5px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 active:scale-95 cursor-pointer bg-emerald-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
+                                >
+                                  Fill Rest
+                                </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">₹</span>
                                   <input
@@ -8712,11 +8729,11 @@ export function BillingPage() {
                                     onChange={(e) => {
                                       const val = e.target.value === '' ? 0 : Number(e.target.value);
                                       const nextDetails = { ...splitDetails, cash: val };
-                                      const nextRec = val + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      const nextRec = val + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     placeholder="0"
-                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                    className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
                                 </div>
                               </div>
@@ -8725,25 +8742,23 @@ export function BillingPage() {
 
                           if (opt.value === 'CARD') {
                             return (
-                              <div key="CARD" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[72px]')}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-extrabold text-xs">
-                                    <Wallet className="w-4 h-4" />
-                                    <span>Card</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                      const nextDetails = { ...splitDetails, card: rem };
-                                      const nextRec = (Number(nextDetails.cash) || 0) + rem + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                    }}
-                                    className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-blue-500/15 px-1.5 py-0.5 rounded-md"
-                                  >
-                                    Fill Rest
-                                  </button>
+                              <div key="CARD" className={clsx(span, 'flex flex-col justify-between p-1.5 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[82px]')}>
+                                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-extrabold text-xs min-w-0">
+                                  <Wallet className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Card</span>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                    const nextDetails = { ...splitDetails, card: rem };
+                                    const nextRec = (Number(nextDetails.cash) || 0) + rem + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                  }}
+                                  className="w-full text-[9.5px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 active:scale-95 cursor-pointer bg-blue-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
+                                >
+                                  Fill Rest
+                                </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">₹</span>
                                   <input
@@ -8754,11 +8769,11 @@ export function BillingPage() {
                                     onChange={(e) => {
                                       const val = e.target.value === '' ? 0 : Number(e.target.value);
                                       const nextDetails = { ...splitDetails, card: val };
-                                      const nextRec = (Number(nextDetails.cash) || 0) + val + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      const nextRec = (Number(nextDetails.cash) || 0) + val + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     placeholder="0"
-                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                    className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
                                 </div>
                               </div>
@@ -8767,38 +8782,36 @@ export function BillingPage() {
 
                           if (opt.value === 'UPI') {
                             return (
-                              <div key="UPI" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[72px]')}>
-                                <div className="flex items-center justify-between">
-                                  <div
-                                    className="flex items-center gap-1 text-violet-600 dark:text-violet-400 font-extrabold text-xs cursor-pointer hover:underline min-w-0"
-                                    onClick={() => {
-                                      if (upiPageConfig.billing && upiSources.length > 0) {
-                                        setIsUpiSelectModalOpen(true);
-                                      }
-                                    }}
-                                    title={currentSelectedUpi ? `Click to change UPI account: ${currentSelectedUpi.name} (${currentSelectedUpi.upi_id || ''})` : undefined}
-                                  >
-                                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
-                                    <span className="shrink-0">UPI</span>
-                                    {currentSelectedUpi && (
-                                      <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 truncate max-w-[65px]">
-                                        ({currentSelectedUpi.name})
-                                      </span>
-                                    )}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                      const nextDetails = { ...splitDetails, upi: rem };
-                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + rem + (Number(nextDetails.bank_transfer) || 0);
-                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                    }}
-                                    className="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer bg-violet-500/15 px-1.5 py-0.5 rounded-md shrink-0"
-                                  >
-                                    Fill Rest
-                                  </button>
+                              <div key="UPI" className={clsx(span, 'flex flex-col justify-between p-1.5 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[82px]')}>
+                                <div
+                                  className="flex items-center gap-1 text-violet-600 dark:text-violet-400 font-extrabold text-xs cursor-pointer hover:underline min-w-0"
+                                  onClick={() => {
+                                    if (upiPageConfig.billing && upiSources.length > 0) {
+                                      setIsUpiSelectModalOpen(true);
+                                    }
+                                  }}
+                                  title={currentSelectedUpi ? `Click to change UPI account: ${currentSelectedUpi.name} (${currentSelectedUpi.upi_id || ''})` : undefined}
+                                >
+                                  <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="shrink-0">UPI</span>
+                                  {currentSelectedUpi && (
+                                    <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 truncate">
+                                      ({currentSelectedUpi.name})
+                                    </span>
+                                  )}
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                    const nextDetails = { ...splitDetails, upi: rem };
+                                    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + rem + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                  }}
+                                  className="w-full text-[9.5px] font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 hover:bg-violet-500/25 active:scale-95 cursor-pointer bg-violet-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
+                                >
+                                  Fill Rest
+                                </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">₹</span>
                                   <input
@@ -8809,11 +8822,51 @@ export function BillingPage() {
                                     onChange={(e) => {
                                       const val = e.target.value === '' ? 0 : Number(e.target.value);
                                       const nextDetails = { ...splitDetails, upi: val };
-                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + val + (Number(nextDetails.bank_transfer) || 0);
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + val + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     placeholder="0"
-                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                    className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (opt.value === 'CHEQUE') {
+                            return (
+                              <div key="CHEQUE" className={clsx(span, 'flex flex-col justify-between p-1.5 rounded-2xl border-2 border-indigo-500 bg-indigo-500/10 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all shadow-xs h-[82px]')}>
+                                <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs min-w-0">
+                                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Cheque</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                    const nextDetails = { ...splitDetails, cheque: rem };
+                                    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + rem + (Number(nextDetails.bank_transfer) || 0);
+                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                  }}
+                                  className="w-full text-[9.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/25 active:scale-95 cursor-pointer bg-indigo-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
+                                >
+                                  Fill Rest
+                                </button>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-500/80">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={splitDetails.cheque || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      const nextDetails = { ...splitDetails, cheque: val };
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + val + (Number(nextDetails.bank_transfer) || 0);
+                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                    }}
+                                    placeholder="0"
+                                    className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-indigo-500/30 focus:border-indigo-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
                                 </div>
                               </div>
@@ -8822,25 +8875,23 @@ export function BillingPage() {
 
                           if (opt.value === 'CREDIT') {
                             return (
-                              <div key="CREDIT" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[72px]')}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
-                                    <BookOpen className="w-4 h-4" />
-                                    <span>Credit</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                      const nextDetails = { ...splitDetails, credit: rem };
-                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                      updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                    }}
-                                    className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer bg-amber-500/15 px-1.5 py-0.5 rounded-md"
-                                  >
-                                    Fill Rest
-                                  </button>
+                              <div key="CREDIT" className={clsx(span, 'flex flex-col justify-between p-1.5 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[82px]')}>
+                                <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs min-w-0">
+                                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Credit</span>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
+                                    const nextDetails = { ...splitDetails, credit: rem };
+                                    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+                                  }}
+                                  className="w-full text-[9.5px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 active:scale-95 cursor-pointer bg-amber-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
+                                >
+                                  Fill Rest
+                                </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">₹</span>
                                   <input
@@ -8851,11 +8902,11 @@ export function BillingPage() {
                                     onChange={(e) => {
                                       const val = e.target.value === '' ? 0 : Number(e.target.value);
                                       const nextDetails = { ...splitDetails, credit: val };
-                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.bank_transfer) || 0);
+                                      const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
                                     placeholder="0"
-                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                    className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
                                 </div>
                               </div>
@@ -8873,7 +8924,7 @@ export function BillingPage() {
                                 onKeyDown={handlePaymentOptionKeyDown}
                                 className={clsx(
                                   span,
-                                  'flex flex-col justify-between p-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[152px] focus:outline-none focus:ring-2 shadow-sm',
+                                  'flex flex-col justify-between p-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[172px] focus:outline-none focus:ring-2 shadow-sm',
                                   isSplitActive
                                     ? 'border-purple-600 bg-purple-600 text-white dark:bg-purple-600 dark:border-purple-500 focus:ring-purple-400'
                                     : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500'
@@ -8925,7 +8976,7 @@ export function BillingPage() {
                             onKeyDown={handlePaymentOptionKeyDown}
                             className={clsx(
                               'flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer focus:outline-none focus:ring-2',
-                              opt.value === 'SPLIT' ? 'h-[152px]' : 'h-[72px]',
+                              opt.value === 'SPLIT' ? 'h-[172px]' : 'h-[82px]',
                               activeFocusRing,
                               span,
                               isActive

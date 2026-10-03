@@ -36,6 +36,16 @@ export function initDb() {
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
 
+  // Register string cleaner function for special-character insensitive searches
+  try {
+    db.function('CLEAN_STR', (str: unknown) => {
+      if (typeof str !== 'string' && typeof str !== 'number') return '';
+      return String(str).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    });
+  } catch (e) {
+    console.warn('[DB] Failed to register CLEAN_STR UDF:', e);
+  }
+
   // Create tables with full schema matching cloud sync expectations
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

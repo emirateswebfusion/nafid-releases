@@ -219,6 +219,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierAddTransaction: (params: { tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:addTransaction', params),
   dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:dayClosing', params),
   dbCashierGetTransactions: (params: { tenant_id: string }) => ipcRenderer.invoke('db:cashier:getTransactions', params),
+  dbCashierReopenDrawer: (params: { tenant_id: string; drawer_id: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:reopenDrawer', params),
+  dbCashierDeleteTransaction: (params: { tenant_id: string; transaction_id: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:deleteTransaction', params),
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getHistory', params),
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDaySettlements', params),
   dbCashierGetDayTransactions: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDayTransactions', params),

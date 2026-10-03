@@ -352,6 +352,9 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return products;
     const qNoSpace = q.replace(/\s+/g, '');
+    const cleanText = (s: string) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const qClean = cleanText(q);
+
     return products.filter(p => {
       const name = (p.name || '').toLowerCase();
       const barcode = (p.sku_barcode || '').toLowerCase();
@@ -364,6 +367,11 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
           name.replace(/\s+/g, '').includes(qNoSpace) ||
           barcode.replace(/\s+/g, '').includes(qNoSpace) ||
           cat.replace(/\s+/g, '').includes(qNoSpace)
+        )) ||
+        (qClean.length > 0 && (
+          cleanText(name).includes(qClean) ||
+          cleanText(barcode).includes(qClean) ||
+          cleanText(cat).includes(qClean)
         ))
       );
     });

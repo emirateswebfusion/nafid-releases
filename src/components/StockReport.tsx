@@ -268,6 +268,9 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       if (deferredSearch) {
         const q = deferredSearch.toLowerCase();
         const qNoSpace = q.replace(/\s+/g, '');
+        const cleanText = (s: string) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        const qClean = cleanText(deferredSearch);
+
         const name = (p.name || '').toLowerCase();
         const barcode = (p.sku_barcode || '').toLowerCase();
         const code = (p.item_code || '').toLowerCase();
@@ -275,6 +278,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         const nameNoSpace = name.replace(/\s+/g, '');
         const barcodeNoSpace = barcode.replace(/\s+/g, '');
         const codeNoSpace = code.replace(/\s+/g, '');
+
+        const nameClean = cleanText(name);
+        const barcodeClean = cleanText(barcode);
+        const codeClean = cleanText(code);
 
         const matches =
           name.includes(q) ||
@@ -284,6 +291,11 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
             nameNoSpace.includes(qNoSpace) ||
             barcodeNoSpace.includes(qNoSpace) ||
             codeNoSpace.includes(qNoSpace)
+          )) ||
+          (qClean.length > 0 && (
+            nameClean.includes(qClean) ||
+            barcodeClean.includes(qClean) ||
+            codeClean.includes(qClean)
           ));
 
         if (!matches) return false;

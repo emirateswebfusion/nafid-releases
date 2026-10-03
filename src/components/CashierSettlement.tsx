@@ -4,7 +4,7 @@ import {
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
   TrendingUp, TrendingDown, Clock, AlertTriangle, Boxes, Edit3,
   ChevronRight, ChevronDown, Printer, Package, Building, User, FileText,
-  CheckCheck, Calendar, BookOpen, RefreshCw, Bell, Zap
+  CheckCheck, Calendar, BookOpen, RefreshCw, Bell, Zap, RotateCcw, Trash2
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
@@ -137,7 +137,8 @@ interface CashierSettlementProps {
 
 export function CashierSettlement({ onClose, isRestricted }: CashierSettlementProps) {
   useCloseOnEscape(onClose);
-  const { tenantId, userId, userName } = useAuthStore();
+  const { tenantId, userId, userName, role } = useAuthStore();
+  const isOwner = role?.toUpperCase() === 'OWNER' || role?.toUpperCase() === 'SUPER_ADMIN' || isAdminRole(role);
   const [drawer, setDrawer] = useState<any>(null);
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -559,6 +560,88 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (Array.isArray(txs)) setTransactions(txs);
     setLastSyncTime(Date.now());
   }, [tenantId, searchQuery, processInvoicesUpdate]);
+
+  // Delete / Reopen Confirmation Dialog States
+  const [deleteConfirmTx, setDeleteConfirmTx] = useState<any | null>(null);
+  const [isDeletingTx, setIsDeletingTx] = useState(false);
+  const [reopenConfirmDrawer, setReopenConfirmDrawer] = useState<any | null>(null);
+  const [isReopeningDrawer, setIsReopeningDrawer] = useState(false);
+
+  const initiateReopenDrawer = (targetDrawer: any) => {
+    if (!isOwner) {
+      alert('Access Denied: Only Store Owner can reopen a closed register.');
+      return;
+    }
+    setReopenConfirmDrawer(typeof targetDrawer === 'string' ? { drawer_id: targetDrawer } : targetDrawer);
+  };
+
+  const confirmReopenDrawer = async () => {
+    if (!reopenConfirmDrawer || !isOwner) return;
+    const targetId = reopenConfirmDrawer.drawer_id || reopenConfirmDrawer;
+    setIsReopeningDrawer(true);
+    try {
+      const res = await window.electronAPI!.dbCashierReopenDrawer({
+        tenant_id: tenantId!,
+        drawer_id: targetId,
+        user_id: userId!,
+        user_name: userName,
+      });
+      if (res.success) {
+        setReopenConfirmDrawer(null);
+        await load();
+        if (window.electronAPI?.dbCashierGetHistory) {
+          const hist = await window.electronAPI.dbCashierGetHistory({ tenant_id: tenantId! });
+          if (Array.isArray(hist)) setHistory(hist);
+        }
+      } else {
+        alert(res.error || 'Failed to reopen cash drawer');
+      }
+    } catch (err: any) {
+      console.error('Reopen drawer error:', err);
+      alert('Failed to reopen cash drawer: ' + (err.message || err));
+    } finally {
+      setIsReopeningDrawer(false);
+    }
+  };
+
+  const initiateDeleteTransaction = (tx: any) => {
+    if (!isOwner) {
+      alert('Access Denied: Only Store Owner can delete register transactions.');
+      return;
+    }
+    setDeleteConfirmTx(tx);
+  };
+
+  const confirmDeleteTransaction = async () => {
+    if (!deleteConfirmTx || !isOwner) return;
+    setIsDeletingTx(true);
+    try {
+      const res = await window.electronAPI!.dbCashierDeleteTransaction({
+        tenant_id: tenantId!,
+        transaction_id: deleteConfirmTx.transaction_id,
+        user_id: userId!,
+        user_name: userName,
+      });
+      if (res.success) {
+        setDeleteConfirmTx(null);
+        await load();
+        if (window.electronAPI?.dbCashierGetHistory) {
+          const hist = await window.electronAPI.dbCashierGetHistory({ tenant_id: tenantId! });
+          if (Array.isArray(hist)) setHistory(hist);
+        }
+        if (expandedDay) {
+          loadDaySettlements(expandedDay);
+        }
+      } else {
+        alert(res.error || 'Failed to delete transaction');
+      }
+    } catch (err: any) {
+      console.error('Delete transaction error:', err);
+      alert('Failed to delete transaction: ' + (err.message || err));
+    } finally {
+      setIsDeletingTx(false);
+    }
+  };
 
   useEffect(() => {
     loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
@@ -1454,7 +1537,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                                       </button>
                                     </div>
                                     <div className="text-[10px] text-muted-foreground font-semibold">
-                                      Session Date: <span className="font-extrabold text-foreground">{formattedDate}</span>
+                                      Session Date: <span className="font-extrabold text-foreground">{formattedDate}</span>{isOwner && isClosed && (<button onClick={(e) => { e.stopPropagation(); initiateReopenDrawer(d); }} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shadow-xs transition-all cursor-pointer active:scale-95 ml-2" title="Reopen this closed shift session"><RotateCcw className="w-3 h-3" /> Reopen Register</button>)}
                                     </div>
                                   </div>
 
@@ -1600,7 +1683,21 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                                                   )}>
                                                     {isIn ? '+' : '−'}{formatCurrency(tx.amount)}
                                                   </span>
-                                                  <span className="text-[10px] text-muted-foreground text-right truncate font-medium">{tx.entered_by_name || '—'}</span>
+                                                  <div className="flex items-center justify-end gap-2">
+                                                    <span className="text-[10px] text-muted-foreground text-right truncate font-medium">{tx.entered_by_name || '—'}</span>
+                                                    {isOwner && (
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          initiateDeleteTransaction(tx);
+                                                        }}
+                                                        className="p-1 text-muted-foreground/60 hover:text-rose-500 rounded-md hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                                        title="Delete Transaction (Owner Only)"
+                                                      >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                      </button>
+                                                    )}
+                                                  </div>
                                                 </div>
                                               );
                                             })}
@@ -2006,6 +2103,15 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border-b border-rose-500/20 text-rose-600 dark:text-rose-400 shrink-0 text-xs font-bold">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
               <span>Cash Register is closed for this date. Entries are locked.</span>
+              {isOwner && (
+                <button
+                  onClick={() => initiateReopenDrawer(drawer)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95 ml-auto"
+                  title="Reopen closed cash register"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Reopen Register
+                </button>
+              )}
             </div>
           )}
 
@@ -2095,13 +2201,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   return (
                     <div key={tx.transaction_id} className="border-b border-border/30 last:border-0">
                       <div
-                        onClick={() => setExpandedTxId(isExpanded ? null : tx.transaction_id)}
+                        onClick={() => hasNotes && setExpandedTxId(isExpanded ? null : tx.transaction_id)}
                         className={clsx(
-                          'grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/30 transition-colors items-center border-l-2 cursor-pointer select-none',
+                          'grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/30 transition-colors items-center border-l-2 select-none',
+                          hasNotes ? 'cursor-pointer' : 'cursor-default',
                           isIn ? 'border-l-emerald-500/50' : 'border-l-rose-500/50',
                           isExpanded && 'bg-muted/20'
                         )}
-                        title="Click to view full notes & details"
+                        title={hasNotes ? "Click to view full notes & details" : undefined}
                       >
                         <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
                           <Clock className="w-2.5 h-2.5 shrink-0" /> {formatTime(tx.transaction_date)}
@@ -2132,11 +2239,25 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
                         <div className="flex items-center justify-end gap-1 text-muted-foreground">
                           <span className="text-[10px] truncate max-w-[65px]">{tx.entered_by_name || '—'}</span>
-                          {hasNotes && (
+                          {hasNotes ? (
                             <span className={clsx('p-0.5 rounded transition-transform', isExpanded && 'rotate-180')}>
                               <ChevronDown className="w-3 h-3 text-muted-foreground/70" />
                             </span>
-                          )}
+
+                          ) : isOwner ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                initiateDeleteTransaction(tx);
+                              }}
+                              className="p-1 text-muted-foreground/60 hover:text-rose-500 rounded-md hover:bg-rose-500/10 transition-colors cursor-pointer"
+                              title="Delete Transaction (Owner Only)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+
+
+                          ) : null}
                         </div>
                       </div>
 
@@ -2147,7 +2268,18 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             <span className="flex items-center gap-1">
                               <FileText className="w-3 h-3 text-primary" /> Transaction Details
                             </span>
-                            {tx.entered_by_name && <span>Entered by: {tx.entered_by_name}</span>}
+                            <div className="flex items-center gap-2">
+                              {tx.entered_by_name && <span>Entered by: {tx.entered_by_name}</span>}
+                              {isOwner && (
+                                <button
+                                  onClick={() => initiateDeleteTransaction(tx)}
+                                  className="flex items-center gap-1 px-2 py-0.5 text-rose-500 hover:text-white bg-rose-500/10 hover:bg-rose-600 rounded-md text-[10px] font-bold transition-colors cursor-pointer"
+                                  title="Delete Transaction (Owner Only)"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Delete
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           {hasNotes ? (
@@ -3366,6 +3498,198 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
         </div>
       )}
+
+      {/* ── Custom Delete Transaction Confirmation Modal ── */}
+      <Modal
+        isOpen={!!deleteConfirmTx}
+        onClose={() => !isDeletingTx && setDeleteConfirmTx(null)}
+        title={null}
+        className="max-w-md p-0 overflow-hidden rounded-3xl border border-rose-500/20 shadow-2xl"
+      >
+        <div className="p-6 space-y-5 bg-card">
+          {/* Icon Header */}
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-foreground tracking-tight">Delete Register Transaction</h3>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                Owner action • Reconciles drawer cash balance
+              </p>
+            </div>
+          </div>
+
+          {/* Transaction Summary Card */}
+          {deleteConfirmTx && (
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-semibold">Type & Category</span>
+                <span className="font-extrabold text-foreground flex items-center gap-1.5">
+                  <span className={clsx(
+                    'text-[9px] font-black px-1.5 py-0.5 rounded uppercase',
+                    deleteConfirmTx.type === 'CASH_IN' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  )}>
+                    {deleteConfirmTx.type === 'CASH_IN' ? 'CASH IN' : 'EXPENSE'}
+                  </span>
+                  {deleteConfirmTx.category || 'Other'}
+                </span>
+              </div>
+
+              {deleteConfirmTx.notes && deleteConfirmTx.notes.trim() !== '' && (
+                <div className="flex flex-col gap-1 text-xs">
+                  <span className="text-muted-foreground font-semibold text-[10px] uppercase tracking-wider">Notes</span>
+                  <span className="font-medium text-foreground bg-card/80 p-2.5 rounded-xl border border-border/60 whitespace-pre-wrap leading-relaxed shadow-inner">
+                    {deleteConfirmTx.notes}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/40">
+                <span className="text-muted-foreground font-semibold">Amount</span>
+                <span className={clsx(
+                  'text-sm font-black tabular-nums',
+                  deleteConfirmTx.type === 'CASH_IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'
+                )}>
+                  {deleteConfirmTx.type === 'CASH_IN' ? '+' : '−'}{formatCurrency(deleteConfirmTx.amount)}
+                </span>
+              </div>
+
+              {deleteConfirmTx.entered_by_name && (
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                  <span>Recorded By</span>
+                  <span className="font-bold text-foreground">{deleteConfirmTx.entered_by_name}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Warning Banner */}
+          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold leading-relaxed">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+            <span>Are you sure you want to delete this cash transaction? Current drawer totals will be recalculated immediately. This action cannot be undone.</span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/40">
+            <button
+              type="button"
+              disabled={isDeletingTx}
+              onClick={() => setDeleteConfirmTx(null)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isDeletingTx}
+              onClick={confirmDeleteTransaction}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              {isDeletingTx ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Transaction</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Custom Reopen Register Confirmation Modal ── */}
+      <Modal
+        isOpen={!!reopenConfirmDrawer}
+        onClose={() => !isReopeningDrawer && setReopenConfirmDrawer(null)}
+        title={null}
+        className="max-w-md p-0 overflow-hidden rounded-3xl border border-rose-500/20 shadow-2xl"
+      >
+        <div className="p-6 space-y-5 bg-card">
+          {/* Icon Header */}
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-foreground tracking-tight">Reopen Closed Cash Register</h3>
+              <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                Owner action • Unlocks shift for new entries
+              </p>
+            </div>
+          </div>
+
+          {/* Session Details Summary Card */}
+          {reopenConfirmDrawer && (
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 space-y-2 text-xs">
+              {reopenConfirmDrawer.business_date && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Business Date</span>
+                  <span className="font-extrabold text-foreground">{formatBusinessDate(reopenConfirmDrawer.business_date)}</span>
+                </div>
+              )}
+              {reopenConfirmDrawer.opening_balance != null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Opening Balance</span>
+                  <span className="font-extrabold text-foreground tabular-nums">{formatCurrency(reopenConfirmDrawer.opening_balance)}</span>
+                </div>
+              )}
+              {reopenConfirmDrawer.cash_sales != null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Cash Sales</span>
+                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(reopenConfirmDrawer.cash_sales)}</span>
+                </div>
+              )}
+              {(reopenConfirmDrawer.opened_by_name || reopenConfirmDrawer.closed_by_name) && (
+                <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                  <span className="text-muted-foreground font-semibold">Cashier</span>
+                  <span className="font-bold text-foreground">{reopenConfirmDrawer.opened_by_name || reopenConfirmDrawer.closed_by_name}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Warning Banner */}
+          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold leading-relaxed">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+            <span>Are you sure you want to REOPEN this closed cash register? The register status will return to OPEN to allow adding new cash transactions.</span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/40">
+            <button
+              type="button"
+              disabled={isReopeningDrawer}
+              onClick={() => setReopenConfirmDrawer(null)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isReopeningDrawer}
+              onClick={confirmReopenDrawer}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              {isReopeningDrawer ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Reopening...</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reopen Register</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <FloatToast message={reprintSuccess ? 'Invoice reprinted successfully!' : null} onClose={() => setReprintSuccess(false)} />
     </div>

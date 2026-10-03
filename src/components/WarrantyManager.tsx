@@ -193,12 +193,22 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const isExpired = (expiry: string) => new Date(expiry) < new Date();
   const daysRemaining = (expiry: string) => Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
-  const filtered = warranties.filter(w =>
-    !search ||
-    w.customer_name.toLowerCase().includes(search.toLowerCase()) ||
-    w.customer_phone.toLowerCase().includes(search.toLowerCase()) ||
-    w.product_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = warranties.filter(w => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const cleanText = (s: string) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const qClean = cleanText(search);
+    return (
+      w.customer_name.toLowerCase().includes(q) ||
+      w.customer_phone.toLowerCase().includes(q) ||
+      w.product_name.toLowerCase().includes(q) ||
+      (qClean.length > 0 && (
+        cleanText(w.customer_name).includes(qClean) ||
+        cleanText(w.customer_phone).includes(qClean) ||
+        cleanText(w.product_name).includes(qClean)
+      ))
+    );
+  });
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">

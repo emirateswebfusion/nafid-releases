@@ -11,6 +11,7 @@ export interface SplitDetails {
   card: number;
   upi: number;
   credit?: number;
+  cheque?: number;
   bank_transfer?: number;
 }
 
@@ -191,7 +192,7 @@ function createDefaultTab(): Tab {
     customerGstin: '',
     customerAddress: '',
     paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
-    splitDetails: { cash: 0, card: 0, upi: 0, bank_transfer: 0 },
+    splitDetails: { cash: 0, card: 0, upi: 0, cheque: 0, bank_transfer: 0 },
     receivedAmount: 0,
     actualRefundPaid: 0,
     reservedInvoiceNumber: '',

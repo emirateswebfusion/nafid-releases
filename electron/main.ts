@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, ipcMain, session, safeStorage, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, session, safeStorage, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
@@ -944,57 +944,60 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        const cleanBarcode = String(barcode).trim();
        const cleanBarcodeNoSpace = cleanBarcode.replace(/\s+/g, '');
        query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ?)';
-       params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
-    } else if (search) {
-       const cleanSearch = String(search).trim();
-       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-       // Any character (letter, number, symbol) matches products across all fields (with or without spaces):
-       // name, barcode, item code, brand, category, HSN, and product id.
-       query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ? OR p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, \' \', \'\') LIKE ? OR p.category LIKE ? OR REPLACE(p.category, \' \', \'\') LIKE ? OR p.hsn_sac_code LIKE ? OR p.product_id = ?)';
-       params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, cleanSearch);
-    }
+        params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
+     } else if (search) {
+        const cleanSearch = String(search).trim();
+        const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
+        const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR CLEAN_STR(p.name) LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ? OR CLEAN_STR(p.item_code) LIKE ? OR p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, \' \', \'\') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? OR p.category LIKE ? OR REPLACE(p.category, \' \', \'\') LIKE ? OR CLEAN_STR(p.category) LIKE ? OR p.hsn_sac_code LIKE ? OR CLEAN_STR(p.hsn_sac_code) LIKE ? OR p.product_id = ?)';
+        params.push(
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchClean}%`,
+          cleanSearch
+        );
+     }
 
-    if (filterDate && String(filterDate).trim() !== '') {
-       const dateCol = dateField === 'updated_at' ? 'COALESCE(p.updated_at, p.created_at)' : 'p.created_at';
-       if (arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '') {
-         query += ` AND (substr(${dateCol}, 1, 10) BETWEEN ? AND ? OR date(${dateCol}, 'localtime') BETWEEN ? AND ?)`;
-         params.push(filterDate, arg.filterDateEnd, filterDate, arg.filterDateEnd);
-       } else {
-         query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
-         params.push(filterDate, filterDate);
-       }
-    }
+     if (filterDate && String(filterDate).trim() !== '') {
+        const dateCol = dateField === 'updated_at' ? 'COALESCE(p.updated_at, p.created_at)' : 'p.created_at';
+        if (arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '') {
+          query += ` AND (substr(${dateCol}, 1, 10) BETWEEN ? AND ? OR date(${dateCol}, 'localtime') BETWEEN ? AND ?)`;
+          params.push(filterDate, arg.filterDateEnd, filterDate, arg.filterDateEnd);
+        } else {
+          query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
+          params.push(filterDate, filterDate);
+        }
+     }
 
-    if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
-    else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
-    else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
-    else if (search) {
-       const cleanSearch = String(search).trim();
-       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-       query += ` ORDER BY 
-         CASE 
-           WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR REPLACE(p.sku_barcode, ' ', '') = ? OR REPLACE(p.item_code, ' ', '') = ? THEN 1
-           WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? THEN 2
-           WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? THEN 3
-           WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? THEN 4
-           ELSE 5
-         END ASC,
-         CASE 
-           WHEN p.sku_barcode GLOB '[0-9]*' THEN CAST(p.sku_barcode AS INTEGER)
-           WHEN p.item_code GLOB '[0-9]*' THEN CAST(p.item_code AS INTEGER)
-           ELSE 99999999
-         END ASC,
-         LENGTH(COALESCE(p.sku_barcode, p.item_code, '')) ASC,
-         COALESCE(p.sku_barcode, p.item_code, '') ASC,
-         p.name COLLATE NOCASE ASC,
-         p.product_id ASC`;
-       params.push(
-         cleanSearch, cleanSearch, cleanSearchNoSpace, cleanSearchNoSpace,
-         `${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`,
-         `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`,
-         `${cleanSearch}%`, `%${cleanSearchNoSpace}%`
-       );
-    }
+     if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
+     else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
+     else if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
+     else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
+     else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
+     else if (search) {
+        const cleanSearch = String(search).trim();
+        const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
+        const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        query += ` ORDER BY ` +
+          `CASE ` +
+            `WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR REPLACE(p.sku_barcode, ' ', '') = ? OR REPLACE(p.item_code, ' ', '') = ? OR CLEAN_STR(p.sku_barcode) = ? OR CLEAN_STR(p.item_code) = ? THEN 1 ` +
+            `WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 2 ` +
+            `WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 3 ` +
+            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? OR p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 4 ` +
+            `ELSE 5 ` +
+          `END ASC, ` +
+          `p.name COLLATE NOCASE ASC, ` +
+          `p.product_id ASC`;
+        params.push(
+          cleanSearch, cleanSearch, cleanSearchNoSpace, cleanSearchNoSpace, cleanSearchClean, cleanSearchClean,
+          `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`
+        );
+     }
     else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
 
     if (limit) {
@@ -1037,8 +1040,17 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     if (arg?.search) {
        const cleanSearch = String(arg.search).trim();
        const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-       query += ' AND (name LIKE ? OR REPLACE(name, \' \', \'\') LIKE ? OR sku_barcode LIKE ? OR REPLACE(sku_barcode, \' \', \'\') LIKE ? OR item_code LIKE ? OR REPLACE(item_code, \' \', \'\') LIKE ? OR brand_manufacturer LIKE ? OR REPLACE(brand_manufacturer, \' \', \'\') LIKE ? OR category LIKE ? OR REPLACE(category, \' \', \'\') LIKE ? OR hsn_sac_code LIKE ? OR product_id = ?)';
-       params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch}%`, cleanSearch);
+       const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+       query += ' AND (name LIKE ? OR REPLACE(name, \' \', \'\') LIKE ? OR CLEAN_STR(name) LIKE ? OR sku_barcode LIKE ? OR REPLACE(sku_barcode, \' \', \'\') LIKE ? OR CLEAN_STR(sku_barcode) LIKE ? OR item_code LIKE ? OR REPLACE(item_code, \' \', \'\') LIKE ? OR CLEAN_STR(item_code) LIKE ? OR brand_manufacturer LIKE ? OR REPLACE(brand_manufacturer, \' \', \'\') LIKE ? OR CLEAN_STR(brand_manufacturer) LIKE ? OR category LIKE ? OR REPLACE(category, \' \', \'\') LIKE ? OR CLEAN_STR(category) LIKE ? OR hsn_sac_code LIKE ? OR CLEAN_STR(hsn_sac_code) LIKE ? OR product_id = ?)';
+       params.push(
+         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+         `%${cleanSearch}%`, `%${cleanSearchClean}%`,
+         cleanSearch
+       );
     }
 
     if (arg?.filterDate && String(arg.filterDate).trim() !== '') {
@@ -1654,9 +1666,11 @@ ipcMain.handle('db:getComboOffers', (event, { tenant_id, search, only_active }: 
     }
 
     if (search) {
-      const s = `%${String(search).trim()}%`;
-      query += ` AND (co.name LIKE ? OR co.sku_barcode LIKE ? OR co.description LIKE ?)`;
-      params.push(s, s, s);
+      const cleanS = String(search).trim();
+      const s = `%${cleanS}%`;
+      const sClean = `%${cleanS.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')}%`;
+      query += ` AND (co.name LIKE ? OR co.sku_barcode LIKE ? OR co.description LIKE ? OR CLEAN_STR(co.name) LIKE ? OR CLEAN_STR(co.sku_barcode) LIKE ? OR CLEAN_STR(co.description) LIKE ?)`;
+      params.push(s, s, s, `%${sClean}%`, `%${sClean}%`, `%${sClean}%`);
     }
 
     query += ` ORDER BY co.name COLLATE NOCASE ASC`;
@@ -5449,10 +5463,10 @@ ipcMain.handle('db:getScrapCategoriesBySearch', (event, { tenant_id, search }: {
     const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
     return db.prepare(`
       SELECT * FROM scrap_categories 
-      WHERE tenant_id = ? AND is_deleted = 0 AND (name LIKE ? OR REPLACE(name, ' ', '') LIKE ?)
+      WHERE tenant_id = ? AND is_deleted = 0 AND (name LIKE ? OR REPLACE(name, ' ', '') LIKE ? OR CLEAN_STR(name) LIKE ?)
       ORDER BY name COLLATE NOCASE ASC
       LIMIT 10
-    `).all(tenant_id, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`);
+    `).all(tenant_id, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')}%`);
   } catch (error: any) {
     console.error('[db:getScrapCategoriesBySearch]', error);
     return { error: 'Operation failed' };
@@ -6692,8 +6706,9 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
         query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ?)';
         params.push(`${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`);
       } else {
-        query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ?)';
-        params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`);
+        const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR CLEAN_STR(p.name) LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ? OR CLEAN_STR(p.item_code) LIKE ?)';
+        params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`);
       }
     }
 
@@ -6776,7 +6791,7 @@ function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?: string
     SELECT * FROM cash_drawer 
     WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
       AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?)
-    ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, current_cash DESC, created_at DESC
+    ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, (CASE WHEN opening_balance > 0 THEN 1 ELSE 0 END) DESC, current_cash DESC, created_at DESC
   `).all(activeTenantId, cleanDate, altDate, cleanDate, dateLike, cleanDate, altDate) as any[];
 
   let primary: any = null;
@@ -6868,10 +6883,10 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
           CASE 
             WHEN UPPER(payment_method) = 'CASH' THEN (
               CASE 
-                WHEN (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0)) <= 0 THEN 0
-                WHEN received_amount > 0 AND received_amount < (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                WHEN COALESCE(grand_total, 0) <= 0 THEN 0
+                WHEN received_amount > 0 AND received_amount < COALESCE(grand_total, 0)
                   THEN received_amount 
-                ELSE MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                ELSE MAX(0, COALESCE(grand_total, 0))
               END
             )
             WHEN UPPER(payment_method) = 'SPLIT' AND split_details IS NOT NULL THEN (
@@ -6879,7 +6894,7 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
                 WHEN json_extract(split_details, '$.cash') IS NOT NULL 
                 THEN MIN(
                   CAST(json_extract(split_details, '$.cash') AS REAL),
-                  MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                  MAX(0, COALESCE(grand_total, 0))
                 )
                 ELSE 0 
               END
@@ -7468,6 +7483,94 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     return { success: true, expected_closing: expected, actual_cash: actual, cash_short, cash_excess };
   } catch (error: any) {
     console.error('[db:cashier:dayClosing]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:cashier:reopenDrawer', safeHandler((event, { tenant_id, drawer_id, user_id, user_name }: { tenant_id: string; drawer_id: string; user_id: string; user_name?: string }) => {
+  const db = getDb();
+  try {
+    const tx = db.transaction(() => {
+      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE drawer_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).get(drawer_id, tenant_id) as any;
+      if (!drawer) throw new Error('Cash drawer not found');
+
+      db.prepare(`
+        UPDATE cash_drawer SET 
+          status = 'OPEN',
+          actual_cash = NULL,
+          cash_short = 0,
+          cash_excess = 0,
+          closing_remarks = NULL,
+          closed_by = NULL,
+          closed_at = NULL,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE drawer_id = ?
+      `).run(drawer_id);
+
+      reconcileCashDrawer(db, tenant_id, drawer);
+
+      db.prepare(`
+        INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
+        VALUES (?, ?, ?, 'DAY_REOPENED', ?, ?, ?, 'PENDING')
+      `).run(
+        crypto.randomUUID(), tenant_id, drawer_id,
+        JSON.stringify({ business_date: drawer.business_date, reopened_at: localTimestamp() }),
+        user_id, user_name || null
+      );
+    });
+
+    tx();
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('sync:data-updated');
+    import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on reopen:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:cashier:reopenDrawer]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:cashier:deleteTransaction', safeHandler((event, { tenant_id, transaction_id, user_id, user_name }: { tenant_id: string; transaction_id: string; user_id: string; user_name?: string }) => {
+  const db = getDb();
+  try {
+    let targetDrawerId: string | null = null;
+    const tx = db.transaction(() => {
+      const transaction = db.prepare(`SELECT * FROM cash_transactions WHERE transaction_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).get(transaction_id, tenant_id) as any;
+      if (!transaction) throw new Error('Transaction not found');
+
+      targetDrawerId = transaction.drawer_id;
+
+      db.prepare(`DELETE FROM cash_transactions WHERE transaction_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).run(transaction_id, tenant_id);
+
+      if (targetDrawerId) {
+        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE drawer_id = ?`).get(targetDrawerId) as any;
+        if (drawer) {
+          reconcileCashDrawer(db, tenant_id, drawer);
+        }
+      }
+
+      db.prepare(`
+        INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
+        VALUES (?, ?, ?, 'TRANSACTION_DELETED', ?, ?, ?, 'PENDING')
+      `).run(
+        crypto.randomUUID(), tenant_id, targetDrawerId || null,
+        JSON.stringify({ transaction_id, type: transaction.type, amount: transaction.amount, category: transaction.category }),
+        user_id, user_name || null
+      );
+    });
+
+    tx();
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('sync:data-updated');
+    import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on delete transaction:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:cashier:deleteTransaction]', error);
     return { success: false, error: error.message || 'Operation failed' };
   }
 }));

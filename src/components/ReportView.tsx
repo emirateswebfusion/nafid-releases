@@ -51,9 +51,22 @@ export function ReportView({ products, grades }: ReportViewProps) {
     products.filter(p => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        if (!p.name.toLowerCase().includes(q) &&
-            !p.sku_barcode.toLowerCase().includes(q) &&
-            !(p.item_code || '').toLowerCase().includes(q)) return false;
+        const cleanText = (s: string) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        const qClean = cleanText(searchQuery);
+        const name = (p.name || '').toLowerCase();
+        const barcode = (p.sku_barcode || '').toLowerCase();
+        const code = (p.item_code || '').toLowerCase();
+
+        const matches =
+          name.includes(q) ||
+          barcode.includes(q) ||
+          code.includes(q) ||
+          (qClean.length > 0 && (
+            cleanText(name).includes(qClean) ||
+            cleanText(barcode).includes(qClean) ||
+            cleanText(code).includes(qClean)
+          ));
+        if (!matches) return false;
       }
       if (categoryFilter && p.category !== categoryFilter) return false;
       if (stockFilter === 'in_stock' && Number(p.current_stock) <= 0) return false;

@@ -926,6 +926,12 @@ export async function triggerUrgentCashSync(): Promise<void> {
 export async function runInitialSync(sender?: WebContents) {
   console.log('[SyncWorker] Running explicit initial sync...');
   isSyncActive = true;
+  const config = getAuthConfig();
+  if (config?.tenant_id) {
+    try {
+      getDb().prepare(`DELETE FROM sync_meta WHERE key = ?`).run(cursorKey(config.tenant_id, 'cash_drawer'));
+    } catch {}
+  }
   triggerUrgentInvoiceSync().catch(() => {});
   triggerUrgentCashSync().catch(() => {});
   triggerUrgentQuotationSync().catch(() => {});
@@ -3396,10 +3402,10 @@ function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) {
           CASE 
             WHEN UPPER(payment_method) = 'CASH' THEN (
               CASE 
-                WHEN (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0)) <= 0 THEN 0
-                WHEN received_amount > 0 AND received_amount < (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                WHEN COALESCE(grand_total, 0) <= 0 THEN 0
+                WHEN received_amount > 0 AND received_amount < COALESCE(grand_total, 0)
                   THEN received_amount 
-                ELSE MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                ELSE MAX(0, COALESCE(grand_total, 0))
               END
             )
             WHEN UPPER(payment_method) = 'SPLIT' AND split_details IS NOT NULL THEN (
@@ -3407,7 +3413,7 @@ function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) {
                 WHEN json_extract(split_details, '$.cash') IS NOT NULL 
                 THEN MIN(
                   CAST(json_extract(split_details, '$.cash') AS REAL),
-                  MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                  MAX(0, COALESCE(grand_total, 0))
                 )
                 ELSE 0 
               END
@@ -3563,8 +3569,14 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
               const cloudCurrent = Number(drawerData.current_cash) || 0;
               
               if (existing.status === 'OPEN' || existing.sync_status === 'PENDING' || localSales > cloudSales || localCurrent > cloudCurrent) {
+                const localOpening = Number(existing.opening_balance) || 0;
+                const cloudOpening = Number(drawerData.opening_balance) || 0;
+                drawerData.opening_balance = Math.max(cloudOpening, localOpening);
+                if (drawerData.opening_balance > 0 && (existing.status !== 'CLOSED' || drawerData.status === 'OPEN')) {
+                  drawerData.status = 'OPEN';
+                }
                 drawerData.cash_sales = Math.max(cloudSales, localSales);
-                drawerData.current_cash = Math.max(cloudCurrent, localCurrent);
+                drawerData.current_cash = Math.max(cloudCurrent, drawerData.opening_balance + drawerData.cash_sales + drawerData.cash_in - drawerData.cash_out);
                 drawerData.expected_closing = Math.max(Number(drawerData.expected_closing) || 0, drawerData.current_cash);
               }
 
