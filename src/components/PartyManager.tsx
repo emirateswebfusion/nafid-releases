@@ -13,7 +13,7 @@ import {
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
   Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
-  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload,
+  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -271,6 +271,11 @@ export function PartyManager({
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [dateSortOrder, setDateSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  const displayLedger = useMemo(() => {
+    return dateSortOrder === 'desc' ? [...ledger].reverse() : [...ledger];
+  }, [ledger, dateSortOrder]);
 
   const totalCreditSum = useMemo(() => {
     return ledger.reduce((sum, entry) => sum + (Number(entry.credit_amount) || 0), 0);
@@ -2015,33 +2020,46 @@ export function PartyManager({
 
               {/* Right: FIRST Icons (View Switcher), THEN Total Amount Box */}
               <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                {/* 1. View Switcher for Ledger (Icons First) */}
-                <div className="flex items-center p-1 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs select-none">
+                {/* 1. View Switcher & Date Sort for Ledger */}
+                <div className="flex items-center gap-2 flex-wrap select-none">
+                  <div className="flex items-center p-1 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setLedgerLayoutMode('table')}
+                      className={clsx(
+                        "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
+                        ledgerLayoutMode === 'table'
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      title="Statement Table View"
+                    >
+                      <Table className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLedgerLayoutMode('cards')}
+                      className={clsx(
+                        "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
+                        ledgerLayoutMode === 'cards'
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      title="Cards View"
+                    >
+                      <LayoutList className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Date Sort Toggle Button */}
                   <button
                     type="button"
-                    onClick={() => setLedgerLayoutMode('table')}
-                    className={clsx(
-                      "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
-                      ledgerLayoutMode === 'table'
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    title="Statement Table View"
+                    onClick={() => setDateSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs hover:bg-muted text-xs font-bold transition-all cursor-pointer text-foreground"
+                    title={dateSortOrder === 'desc' ? "Current: Newest First (Click to sort Oldest First)" : "Current: Oldest First (Click to sort Newest First)"}
                   >
-                    <Table className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLedgerLayoutMode('cards')}
-                    className={clsx(
-                      "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
-                      ledgerLayoutMode === 'cards'
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    title="Cards View"
-                  >
-                    <LayoutList className="w-4 h-4" />
+                    <ArrowUpDown className="w-3.5 h-3.5 text-primary" />
+                    <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
                   </button>
                 </div>
 
@@ -2100,7 +2118,20 @@ export function PartyManager({
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-muted/70 text-muted-foreground font-bold border-b border-border uppercase tracking-wider text-[11px] select-none sticky top-0 backdrop-blur-md">
-                      <th className="py-3 px-4">Date & Time</th>
+                      <th
+                        className="py-3 px-4 cursor-pointer hover:bg-muted/90 transition-colors"
+                        onClick={() => setDateSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                        title="Click to toggle Date Sort (Ascending / Descending)"
+                      >
+                        <div className="flex items-center gap-1.5 text-foreground">
+                          <span>Date & Time</span>
+                          {dateSortOrder === 'desc' ? (
+                            <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                          ) : (
+                            <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                          )}
+                        </div>
+                      </th>
                       <th className="py-3 px-4">Voucher / Ref #</th>
                       <th className="py-3 px-4">Particulars / Description</th>
                       <th className="py-3 px-4">Mode</th>
@@ -2115,7 +2146,7 @@ export function PartyManager({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {[...ledger].reverse().map((entry) => {
+                    {displayLedger.map((entry) => {
                       return (
                         <tr
                           key={entry.ledger_id}
@@ -2257,7 +2288,7 @@ export function PartyManager({
             ) : (
               /* ── Cards View Stream (Polished Modern Cards) ── */
               <div className="space-y-2.5">
-                {[...ledger].reverse().map((entry) => {
+                {displayLedger.map((entry) => {
                   const isCreditSale = entry.credit_amount > 0;
                   const amount = isCreditSale ? entry.credit_amount : entry.debit_amount;
                   return (
