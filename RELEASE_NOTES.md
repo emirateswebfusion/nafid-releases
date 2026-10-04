@@ -1,3 +1,9 @@
+# Vendora v1.6.8 Release Notes
+
+## What's Changed
+- **Fix Auto-Update Process Lock**: Added immediate window destruction and clean process exit during auto-update to ensure NSIS installer seamlessly updates the executable without file locking.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.7...v1.6.8
+
 # Vendora v1.6.7 Release Notes
 
 ## What's Changed

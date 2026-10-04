@@ -799,7 +799,20 @@ ipcMain.removeHandler('app:getVersion');
 ipcMain.handle('app:getVersion', () => app.getVersion());
 
 ipcMain.handle('app:installUpdate', () => {
-  autoUpdater.quitAndInstall();
+  console.log('[Updater] Triggering quitAndInstall...');
+  setImmediate(() => {
+    try {
+      autoUpdater.quitAndInstall(false, true);
+    } catch (e) {
+      console.error('[Updater] quitAndInstall error:', e);
+    }
+    setTimeout(() => {
+      BrowserWindow.getAllWindows().forEach(w => {
+        try { w.destroy(); } catch (err) {}
+      });
+      app.exit(0);
+    }, 800);
+  });
 });
 
 ipcMain.handle('app:downloadUpdate', async () => {
