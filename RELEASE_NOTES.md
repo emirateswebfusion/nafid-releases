@@ -1,3 +1,10 @@
+# Vendora v1.6.7 Release Notes
+
+## What's Changed
+- **Fix Application Startup Crash**: Rebuilt `better-sqlite3` native bindings explicitly for Electron 42.4.1 (module ABI 146).
+- **Fix Missing App Logo / Icon**: Re-enabled Windows executable resource icon embedding (`rcedit`) during packaging.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.6...v1.6.7
+
 # Vendora v1.6.6 Release Notes
 
 ## What's Changed

@@ -4,18 +4,18 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "version": "1.6.6",
+  "version": "1.6.7",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently --kill-others \"vite\" \"npm run build:electron && wait-on tcp:5173 && electron .\"",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "tsc -b && vite build && npm run build:electron",
     "test": "node --test electron/tests/cashierSettlement.test.cjs",
-    "package": "npm run build && electron-builder build --config electron-builder.config.js --win --publish always",
-    "package:win": "npm run build && electron-builder build --config electron-builder.config.js --win",
+    "rebuild": "node scripts/fix-sqlite.js",
+    "package": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --publish always",
+    "package:win": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win",
     "package:mac": "npm run build && electron-builder build --config electron-builder.config.js --mac",
-    "package:all": "npm run build && electron-builder build --config electron-builder.config.js --win --mac",
-    "rebuild": "cd node_modules/.pnpm/better-sqlite3@12.11.1/node_modules/better-sqlite3 && npx prebuild-install --runtime=electron --target=42.4.1",
+    "package:all": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --mac",
     "lint": "eslint .",
     "preview": "vite preview"
   },

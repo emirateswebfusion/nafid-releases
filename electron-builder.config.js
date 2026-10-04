@@ -6,6 +6,18 @@ process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
 process.env.CSC_LINK = "";
 process.env.WIN_CSC_LINK = "";
 
+// Point rcedit to the already-extracted winCodeSign cache so electron-builder
+// never tries to re-download/re-extract the 7z (which fails on Windows without
+// Developer Mode due to macOS symlinks inside the archive).
+const os = require('os');
+const path = require('path');
+const rceditCache = path.join(os.homedir(), 'AppData', 'Local', 'electron-builder', 'Cache', 'winCodeSign', '913682375');
+const fs = require('fs');
+if (fs.existsSync(rceditCache)) {
+  process.env.ELECTRON_BUILDER_RCEDIT_PATH = rceditCache;
+}
+
+
 const repoUrl = process.env.GITHUB_REPO_URL || '';
 let repository = {};
 
@@ -57,7 +69,6 @@ module.exports = {
   },
   win: {
     icon: 'build/icon.ico',
-    signAndEditExecutable: false,
     target: [
       {
         target: 'nsis',
@@ -71,7 +82,7 @@ module.exports = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    shortcutName: 'Nafid POS',
+    shortcutName: 'Nafid',
     installerIcon: 'build/icon.ico',
     uninstallerIcon: 'build/icon.ico',
     installerHeaderIcon: 'build/icon.ico',
