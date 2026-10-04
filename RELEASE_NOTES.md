@@ -1,3 +1,10 @@
+# Vendora v1.6.4 Release Notes
+
+## What's Changed
+- General system updates and installer artifact packaging
+- Automated release build and installer asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.3...v1.6.4
+
 # Vendora v1.6.3 Release Notes
 
 ## What's Changed
