@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -95,6 +95,230 @@ function detectScannerBurst(
   return false;
 }
 
+interface ItemRateInputProps {
+  productId: string;
+  rate: number;
+  qty: number;
+  unitLabel: string;
+  placeholder: string;
+  title: string;
+  containerClassName?: string;
+  inputClassName?: string;
+  unitClassName?: string;
+  tierPricesMap?: Record<string, number>;
+  pricingTiers?: any[];
+  basePrice?: number;
+  selectedTierId?: string | null;
+  onSelectTier?: (productId: string, tierId: string | null, tierName: string | null, newPrice: number) => void;
+  onUpdateOfferPrice: (productId: string, unitPrice: number) => void;
+  syncActiveSnapshot: () => void;
+  inputRef?: (el: HTMLInputElement | null) => void;
+  onKeyDownNext?: () => void;
+  customPpk?: number;
+  setLocalPcStr?: (val: string) => void;
+  setLocalKgStr?: (val: string) => void;
+}
+
+function ItemRateInput({
+  productId,
+  rate,
+  qty,
+  unitLabel,
+  placeholder,
+  title,
+  containerClassName,
+  inputClassName,
+  unitClassName,
+  tierPricesMap,
+  pricingTiers,
+  basePrice,
+  selectedTierId,
+  onSelectTier,
+  onUpdateOfferPrice,
+  syncActiveSnapshot,
+  inputRef,
+  onKeyDownNext,
+  customPpk,
+  setLocalPcStr,
+  setLocalKgStr,
+}: ItemRateInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const [localVal, setLocalVal] = useState<string>(() =>
+    Number.isInteger(rate) ? String(rate) : rate.toFixed(2)
+  );
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
+  const [isNavigatingMenu, setIsNavigatingMenu] = useState(false);
+
+  const options = useMemo(() => {
+    if (!pricingTiers || pricingTiers.length === 0) return [];
+    const bp = basePrice ?? rate;
+    const list: Array<{ tierId: string; name: string; unitPrice: number }> = [
+      { tierId: '', name: 'Base (MRP)', unitPrice: bp }
+    ];
+    pricingTiers.forEach((t: any) => {
+      const p = tierPricesMap?.[t.pricing_tier_id];
+      if (p != null && p > 0) {
+        list.push({ tierId: t.pricing_tier_id, name: t.name, unitPrice: p });
+      }
+    });
+    return list;
+  }, [pricingTiers, tierPricesMap, basePrice, rate]);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
+    }
+  }, [rate, isFocused]);
+
+  const handleChooseOption = (opt: { tierId: string; name: string; unitPrice: number }) => {
+    let effectiveUnitPrice = opt.unitPrice;
+    if (customPpk && customPpk > 0) {
+      const kgPrice = +(opt.unitPrice * customPpk).toFixed(2);
+      effectiveUnitPrice = kgPrice;
+      if (setLocalPcStr) setLocalPcStr(String(opt.unitPrice));
+      if (setLocalKgStr) setLocalKgStr(String(kgPrice));
+    } else {
+      setLocalVal(Number.isInteger(opt.unitPrice) ? String(opt.unitPrice) : opt.unitPrice.toFixed(2));
+    }
+
+    if (onSelectTier) {
+      onSelectTier(productId, opt.tierId || null, opt.tierId ? opt.name : null, effectiveUnitPrice);
+    } else {
+      onUpdateOfferPrice(productId, effectiveUnitPrice);
+    }
+    setIsFocused(false);
+    setIsNavigatingMenu(false);
+    syncActiveSnapshot();
+    if (onKeyDownNext) {
+      onKeyDownNext();
+    }
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(true);
+    setIsNavigatingMenu(false);
+    if (options.length > 0) {
+      const activeIdx = options.findIndex(o => o.tierId === (selectedTierId ?? ''));
+      setSelectedOptionIndex(activeIdx >= 0 ? activeIdx : 0);
+    }
+    e.target.select();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsNavigatingMenu(false);
+    const raw = e.target.value;
+    setLocalVal(raw);
+    const num = parseFloat(raw);
+    if (!isNaN(num) && num >= 0) {
+      if (customPpk && customPpk > 0) {
+        const kgRate = +(num * customPpk).toFixed(2);
+        onUpdateOfferPrice(productId, kgRate);
+        if (setLocalKgStr) setLocalKgStr(String(kgRate));
+      } else {
+        onUpdateOfferPrice(productId, num);
+      }
+      syncActiveSnapshot();
+    }
+  };
+
+  const handleBlur = () => {
+    setTimeout(() => {
+      setIsFocused(false);
+      setIsNavigatingMenu(false);
+    }, 150);
+    if (!localVal || isNaN(parseFloat(localVal))) {
+      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
+    }
+  };
+
+  const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (options.length > 0 && isFocused) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setIsNavigatingMenu(true);
+        setSelectedOptionIndex(prev => (prev + 1) % options.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsNavigatingMenu(true);
+        setSelectedOptionIndex(prev => (prev - 1 + options.length) % options.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        if (isNavigatingMenu && options[selectedOptionIndex]) {
+          e.preventDefault();
+          handleChooseOption(options[selectedOptionIndex]);
+          return;
+        }
+      }
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setIsFocused(false);
+      setIsNavigatingMenu(false);
+      if (onKeyDownNext) {
+        onKeyDownNext();
+      }
+    }
+  };
+
+  const shouldShowMenu = isFocused && options.length > 0;
+
+  return (
+    <div className="relative inline-block">
+      {shouldShowMenu && (
+        <div className="absolute left-0 top-full mt-1.5 min-w-[210px] bg-card text-foreground border border-border rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1 border-b border-border mb-1 flex items-center justify-between">
+            <span>Price Tier</span>
+            <span className="text-[8px] text-muted-foreground">↑↓ Select · Enter</span>
+          </div>
+          <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
+            {options.map((opt, idx) => {
+              const isHighlighted = idx === selectedOptionIndex;
+              return (
+                <button
+                  key={opt.tierId || 'base'}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleChooseOption(opt);
+                  }}
+                  className={clsx(
+                    "w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer",
+                    isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-muted text-foreground"
+                  )}
+                >
+                  <span className="truncate pr-2">{opt.name}</span>
+                  <span className="font-mono text-[11px] font-black shrink-0">₹{opt.unitPrice.toFixed(2)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className={containerClassName || "flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors"}>
+        <span className={unitClassName || "text-[9px] font-extrabold text-primary"}>₹</span>
+        <input
+          type="number" step="any" min="0"
+          ref={inputRef}
+          className={inputClassName || "w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"}
+          value={localVal}
+          onFocus={handleFocus}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDownInternal}
+          placeholder={placeholder}
+          title={title}
+        />
+        <span className={unitClassName || "text-[9px] font-extrabold text-primary/70"}>{unitLabel}</span>
+      </div>
+    </div>
+  );
+}
+
 interface ItemTotalInputProps {
   productId: string;
   total: number;
@@ -140,23 +364,6 @@ function ItemTotalInput({
 }: ItemTotalInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [localVal, setLocalVal] = useState<string>(() => (total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : ''));
-  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
-  const [isNavigatingMenu, setIsNavigatingMenu] = useState(false);
-
-  const options = useMemo(() => {
-    if (!pricingTiers || pricingTiers.length === 0) return [];
-    const bp = basePrice ?? rate;
-    const list: Array<{ tierId: string; name: string; unitPrice: number }> = [
-      { tierId: '', name: 'Base (MRP)', unitPrice: bp }
-    ];
-    pricingTiers.forEach((t: any) => {
-      const p = tierPricesMap?.[t.pricing_tier_id];
-      if (p != null && p > 0) {
-        list.push({ tierId: t.pricing_tier_id, name: t.name, unitPrice: p });
-      }
-    });
-    return list;
-  }, [pricingTiers, tierPricesMap, basePrice, rate]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -164,38 +371,7 @@ function ItemTotalInput({
     }
   }, [total, isFocused]);
 
-  const handleChooseOption = (opt: { tierId: string; name: string; unitPrice: number }) => {
-    const effectiveQty = qty > 0 ? qty : 1;
-    const newTotal = opt.unitPrice * effectiveQty;
-    setLocalVal(Number.isInteger(newTotal) ? String(newTotal) : newTotal.toFixed(2));
-    if (onSelectTier) {
-      onSelectTier(productId, opt.tierId || null, opt.tierId ? opt.name : null, opt.unitPrice);
-    } else {
-      onUpdateOfferPrice(productId, opt.unitPrice);
-    }
-    onClearLocalDiscounts(productId);
-    setIsFocused(false);
-    setIsNavigatingMenu(false);
-    syncActiveSnapshot();
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-  };
-
-  const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
-    if (!isFocused) {
-      setIsFocused(true);
-      setIsNavigatingMenu(false);
-      if (options.length > 0) {
-        const activeIdx = options.findIndex(o => o.tierId === (selectedTierId ?? ''));
-        setSelectedOptionIndex(activeIdx >= 0 ? activeIdx : 0);
-      }
-      e.currentTarget.select();
-    }
-  };
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setIsNavigatingMenu(false);
     const raw = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
     setLocalVal(raw);
 
@@ -220,11 +396,7 @@ function ItemTotalInput({
   };
 
   const handleBlur = () => {
-    setTimeout(() => {
-      setIsFocused(false);
-      setIsNavigatingMenu(false);
-    }, 150);
-
+    setIsFocused(false);
     const parsed = parseFloat(localVal);
 
     if (localVal === '' || isNaN(parsed) || parsed < 0) {
@@ -250,38 +422,10 @@ function ItemTotalInput({
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(true);
-    setIsNavigatingMenu(false);
-    if (options.length > 0) {
-      const activeIdx = options.findIndex(o => o.tierId === (selectedTierId ?? ''));
-      setSelectedOptionIndex(activeIdx >= 0 ? activeIdx : 0);
-    }
     e.target.select();
   };
 
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (options.length > 0 && isFocused) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setIsNavigatingMenu(true);
-        setSelectedOptionIndex(prev => (prev + 1) % options.length);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setIsNavigatingMenu(true);
-        setSelectedOptionIndex(prev => (prev - 1 + options.length) % options.length);
-        return;
-      }
-      if (e.key === 'Enter') {
-        if (isNavigatingMenu && options[selectedOptionIndex]) {
-          e.preventDefault();
-          handleChooseOption(options[selectedOptionIndex]);
-          onKeyDown?.(e);
-          return;
-        }
-      }
-    }
-
     if (e.key === 'Enter') {
       handleBlur();
     }
@@ -289,50 +433,17 @@ function ItemTotalInput({
   };
 
   const hasPurchaseCost = Boolean(showPurchasePrice && purchasePrice != null && purchasePrice > 0);
-  const shouldShowMenu = isFocused && (options.length > 0 || hasPurchaseCost);
 
   return (
     <div className="relative inline-block">
-      {shouldShowMenu && (
+      {isFocused && hasPurchaseCost && (
         <div className="absolute right-0 top-full mt-1.5 min-w-[210px] bg-card text-foreground border border-border rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
-          <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1 border-b border-border mb-1 flex items-center justify-between">
-            <span>Price Tier</span>
-            {options.length > 0 && <span className="text-[8px] text-muted-foreground">↑↓ Select · Enter</span>}
+          <div className="px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-700 dark:text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
+            <span>Purchase Cost:</span>
+            <span className="font-mono font-black text-amber-800 dark:text-amber-200">
+              ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
+            </span>
           </div>
-          {options.length > 0 && (
-            <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
-              {options.map((opt, idx) => {
-                const isHighlighted = idx === selectedOptionIndex;
-                const effectiveQty = qty > 0 ? qty : 1;
-                const optTotal = opt.unitPrice * effectiveQty;
-                return (
-                  <button
-                    key={opt.tierId || 'base'}
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleChooseOption(opt);
-                    }}
-                    className={clsx(
-                      "w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer",
-                      isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-muted text-foreground"
-                    )}
-                  >
-                    <span className="truncate">{opt.name}</span>
-                    <span className="font-mono font-black shrink-0 ml-2">₹{optTotal % 1 === 0 ? optTotal : optTotal.toFixed(2)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {hasPurchaseCost && (
-            <div className="mt-1.5 pt-1.5 border-t border-border px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-700 dark:text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
-              <span>Purchase Cost:</span>
-              <span className="font-mono font-black text-amber-800 dark:text-amber-200">
-                ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
-              </span>
-            </div>
-          )}
         </div>
       )}
       <input
@@ -349,7 +460,6 @@ function ItemTotalInput({
         onChange={handleChange}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        onClick={handleClick}
         onKeyDown={handleKeyDownInternal}
       />
     </div>
@@ -417,7 +527,15 @@ function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; pho
   );
 }
 
-const BillDescriptionCard = React.memo(({ activeTabId }: { activeTabId: string }) => {
+const BillDescriptionCard = React.memo(({
+  activeTabId,
+  inputRef,
+  onKeyDown,
+}: {
+  activeTabId: string;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+}) => {
   const tabDescription = useTabStore(s => s.tabs.find(t => t.id === activeTabId)?.description || '');
   const updateActiveTab = useTabStore(s => s.updateActiveTab);
   const [localText, setLocalText] = useState(tabDescription);
@@ -435,11 +553,17 @@ const BillDescriptionCard = React.memo(({ activeTabId }: { activeTabId: string }
   return (
     <div className="mt-2.5">
       <input
+        ref={inputRef}
         type="text"
         placeholder="Bill Description / Remarks"
         value={localText}
         onChange={handleChange}
-        onKeyDown={e => e.stopPropagation()}
+        onKeyDown={e => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            onKeyDown?.(e);
+          }
+        }}
         onKeyUp={e => e.stopPropagation()}
         className="w-full px-3 py-2 bg-background border border-border/70 rounded-xl text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-xs"
       />
@@ -451,7 +575,12 @@ export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
+  const discountPercentRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const pcsRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const ratePcRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const rateKgRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const kRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discFlatRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -459,6 +588,11 @@ export function BillingPage() {
   const totalInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const checkoutBtnRef = useRef<HTMLButtonElement | null>(null);
   const upiSourceRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const splitCashInputRef = useRef<HTMLInputElement>(null);
+  const splitCardInputRef = useRef<HTMLInputElement>(null);
+  const splitUpiInputRef = useRef<HTMLInputElement>(null);
+  const splitChequeInputRef = useRef<HTMLInputElement>(null);
+  const splitCreditInputRef = useRef<HTMLInputElement>(null);
   // Scanner-burst protection for qty-like inputs: a barcode scanner types digits at
   // ~10-20ms intervals. If the qty field has focus when the trigger is pulled, those
   // digits land in the input instead of being added to the cart. We detect the burst
@@ -538,6 +672,21 @@ export function BillingPage() {
   const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
   const canOverrideTier = isAdminRole(authRole) || allowBillerOverride;
+
+  // Auto-focus selected or first UPI account option when UPI modal opens
+  useEffect(() => {
+    if (isUpiSelectModalOpen && upiSources.length > 0) {
+      const active = currentSelectedUpi
+        ? upiSources.find((s: any) => s.source_id === currentSelectedUpi.source_id || (s.upi_id && s.upi_id === currentSelectedUpi.upi_id))
+        : (upiSources.find((s: any) => s.is_default === 1) || upiSources[0]);
+
+      const keyId = active?.source_id || active?.upi_id || upiSources[0]?.source_id || upiSources[0]?.upi_id || '0';
+
+      setTimeout(() => {
+        upiSourceRefs.current[keyId]?.focus();
+      }, 50);
+    }
+  }, [isUpiSelectModalOpen, upiSources]);
 
   // Sync local discount + pcs/kg state when items are added/removed
   useEffect(() => {
@@ -791,6 +940,27 @@ export function BillingPage() {
   const [returnSuccessToast, setReturnSuccessToast] = useState<string | null>(null);
   const [infoToast, setInfoToast] = useState<string | null>(null);
   const [showDescriptionState, setShowDescriptionState] = useState(true);
+  const [activeDiscField, setActiveDiscField] = useState<'PCT' | 'FLAT' | null>(null);
+  const [localDiscText, setLocalDiscText] = useState<string>('');
+
+  useEffect(() => {
+    if (discountValue === 0) {
+      setActiveDiscField(null);
+      setLocalDiscText('');
+    }
+  }, [discountValue, activeTabId]);
+
+  const focusDescriptionOrDiscount = useCallback(() => {
+    setTimeout(() => {
+      if (showDescriptionState && descriptionInputRef.current) {
+        descriptionInputRef.current.focus();
+        descriptionInputRef.current.select();
+      } else if (discountRef.current) {
+        discountRef.current.focus();
+        discountRef.current.select();
+      }
+    }, 30);
+  }, [showDescriptionState]);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -2972,7 +3142,8 @@ export function BillingPage() {
     setResults([]);
     pendingFocusProductIdRef.current = product.product_id;
     setTimeout(() => {
-      const input = qtyRefs.current[product.product_id];
+      const pid = product.product_id;
+      const input = ratePcRefs.current[pid] || rateKgRefs.current[pid] || pcsRefs.current[pid] || qtyRefs.current[pid];
       if (input) {
         input.focus();
         input.select();
@@ -4516,6 +4687,12 @@ export function BillingPage() {
         discRefs.current[productId]?.focus();
         discRefs.current[productId]?.select();
       }
+    } else if (e.key === 'ArrowLeft') {
+      if (pcsRefs.current[productId]) {
+        e.preventDefault();
+        pcsRefs.current[productId]?.focus();
+        pcsRefs.current[productId]?.select();
+      }
     } else if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
       e.preventDefault();
       const idx = items.findIndex(i => i.product_id === productId);
@@ -4524,13 +4701,181 @@ export function BillingPage() {
         const remaining = useCartStore.getState().items;
         if (remaining.length > 0) {
           const targetItem = remaining[Math.min(idx, remaining.length - 1)];
-          qtyRefs.current[targetItem.product_id]?.focus();
-          qtyRefs.current[targetItem.product_id]?.select();
+          if (pcsRefs.current[targetItem.product_id]) {
+            pcsRefs.current[targetItem.product_id]?.focus();
+            pcsRefs.current[targetItem.product_id]?.select();
+          } else {
+            qtyRefs.current[targetItem.product_id]?.focus();
+            qtyRefs.current[targetItem.product_id]?.select();
+          }
         } else {
           searchRef.current?.focus();
           searchRef.current?.select();
         }
       }, 50);
+    }
+  };
+
+  const focusCartItemQuantityOrPcs = () => {
+    if (items.length === 0) return;
+    const targetId = lastAddedProductId || items[items.length - 1].product_id;
+    if (pcsRefs.current[targetId]) {
+      pcsRefs.current[targetId]?.focus();
+      pcsRefs.current[targetId]?.select();
+    } else if (qtyRefs.current[targetId]) {
+      qtyRefs.current[targetId]?.focus();
+      qtyRefs.current[targetId]?.select();
+    }
+  };
+
+  const handlePcsKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (qtyRefs.current[productId]) {
+        qtyRefs.current[productId]?.focus();
+        qtyRefs.current[productId]?.select();
+      } else if (discRefs.current[productId]) {
+        discRefs.current[productId]?.focus();
+        discRefs.current[productId]?.select();
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (qtyRefs.current[productId]) {
+        e.preventDefault();
+        qtyRefs.current[productId]?.focus();
+        qtyRefs.current[productId]?.select();
+      } else if (discRefs.current[productId]) {
+        e.preventDefault();
+        discRefs.current[productId]?.focus();
+        discRefs.current[productId]?.select();
+      }
+    } else if (e.key === 'ArrowDown') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx !== -1 && idx < items.length - 1) {
+        e.preventDefault();
+        const nextId = items[idx + 1].product_id;
+        if (pcsRefs.current[nextId]) {
+          pcsRefs.current[nextId]?.focus();
+          pcsRefs.current[nextId]?.select();
+        } else {
+          qtyRefs.current[nextId]?.focus();
+          qtyRefs.current[nextId]?.select();
+        }
+      } else {
+        e.preventDefault();
+        if (discountRef.current) {
+          discountRef.current.focus();
+          discountRef.current.select();
+        }
+      }
+    } else if (e.key === 'ArrowUp') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx > 0) {
+        e.preventDefault();
+        const prevId = items[idx - 1].product_id;
+        if (pcsRefs.current[prevId]) {
+          pcsRefs.current[prevId]?.focus();
+          pcsRefs.current[prevId]?.select();
+        } else {
+          qtyRefs.current[prevId]?.focus();
+          qtyRefs.current[prevId]?.select();
+        }
+      } else {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    } else if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      const idx = items.findIndex(i => i.product_id === productId);
+      removeItem(productId);
+      setTimeout(() => {
+        const remaining = useCartStore.getState().items;
+        if (remaining.length > 0) {
+          const targetItem = remaining[Math.min(idx, remaining.length - 1)];
+          if (pcsRefs.current[targetItem.product_id]) {
+            pcsRefs.current[targetItem.product_id]?.focus();
+            pcsRefs.current[targetItem.product_id]?.select();
+          } else {
+            qtyRefs.current[targetItem.product_id]?.focus();
+            qtyRefs.current[targetItem.product_id]?.select();
+          }
+        } else {
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }
+      }, 50);
+    }
+  };
+
+  const fillRestForField = (field: 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT') => {
+    const cash = field === 'CASH' ? 0 : (Number(splitDetails.cash) || 0);
+    const card = field === 'CARD' ? 0 : (Number(splitDetails.card) || 0);
+    const upi = field === 'UPI' ? 0 : (Number(splitDetails.upi) || 0);
+    const cheque = field === 'CHEQUE' ? 0 : (Number(splitDetails.cheque) || 0);
+    const credit = field === 'CREDIT' ? 0 : (Number(splitDetails.credit) || 0);
+    const bankTransfer = Number(splitDetails.bank_transfer) || 0;
+
+    const otherSum = cash + card + upi + cheque + credit + bankTransfer;
+    const rem = Math.max(0, Number((displayGrandTotal - otherSum).toFixed(2)));
+
+    const nextDetails: SplitDetails = {
+      ...splitDetails,
+      [field.toLowerCase()]: rem,
+    };
+
+    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
+
+    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
+    setInfoToast(`Filled Rest: ₹${rem} into ${field}`);
+    setTimeout(() => setInfoToast(null), 1500);
+  };
+
+  const handleSplitInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentField: 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT'
+  ) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      updateActiveTab({ paymentMethod: 'CASH' });
+      setInfoToast('Split Payment Closed (Switched to Cash)');
+      setTimeout(() => setInfoToast(null), 2000);
+      setTimeout(() => paymentOptionRefs.current['CASH']?.focus(), 50);
+    } else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      fillRestForField(currentField);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const currentSplitTotal = (Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.cheque) || 0) + (Number(splitDetails.credit) || 0);
+      if (currentField === 'CREDIT' || (Math.abs(currentSplitTotal - displayGrandTotal) < 0.01 && displayGrandTotal > 0)) {
+        focusDescriptionOrDiscount();
+      } else {
+        if (currentField === 'CASH') splitCardInputRef.current?.focus();
+        else if (currentField === 'CARD') splitUpiInputRef.current?.focus();
+        else if (currentField === 'UPI') splitChequeInputRef.current?.focus();
+        else if (currentField === 'CHEQUE') splitCreditInputRef.current?.focus();
+        else focusDescriptionOrDiscount();
+      }
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (currentField === 'CASH') splitCardInputRef.current?.focus();
+      else if (currentField === 'CARD') splitUpiInputRef.current?.focus();
+      else if (currentField === 'UPI') splitChequeInputRef.current?.focus();
+      else if (currentField === 'CHEQUE') splitCreditInputRef.current?.focus();
+      else splitCashInputRef.current?.focus();
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (currentField === 'CREDIT') splitChequeInputRef.current?.focus();
+      else if (currentField === 'CHEQUE') splitUpiInputRef.current?.focus();
+      else if (currentField === 'UPI') splitCardInputRef.current?.focus();
+      else if (currentField === 'CARD') splitCashInputRef.current?.focus();
+      else splitCreditInputRef.current?.focus();
     }
   };
 
@@ -5993,15 +6338,23 @@ export function BillingPage() {
 
   useKeyboardShortcuts({
     'Escape': () => {
-      // Close active tab first if there are multiple tabs
-      const { tabs, activeTabId, closeTab } = useTabStore.getState();
-      if (tabs.length > 1 && activeTabId) {
-        closeTab(activeTabId);
+      // If UPI selection modal is open, close it first and return focus to UPI button
+      if (isUpiSelectModalOpen) {
+        setIsUpiSelectModalOpen(false);
+        setTimeout(() => paymentOptionRefs.current['UPI']?.focus(), 50);
         return;
       }
-      // Otherwise close/logout the page
-      if (isAdminRole(authRole)) setRole('ADMIN');
-      else logout();
+      // If Split mode or Credit mode is open, close it first and return focus to payment section
+      if (paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') {
+        updateActiveTab({ paymentMethod: 'CASH' });
+        setInfoToast('Split Payment Closed (Switched to Cash)');
+        setTimeout(() => setInfoToast(null), 2000);
+        setTimeout(() => paymentOptionRefs.current['CASH']?.focus(), 50);
+        return;
+      }
+      // In normal mode, return focus to Product Search without closing tab or logging out
+      searchRef.current?.focus();
+      searchRef.current?.select();
     },
     'F1': () => {
       // Normal Billing Mode
@@ -6060,8 +6413,13 @@ export function BillingPage() {
       setTimeout(() => searchRef.current?.focus(), 100);
     },
     'F4': () => {
-      customerNameInputRef.current?.focus();
-      customerNameInputRef.current?.select();
+      focusCartItemQuantityOrPcs();
+    },
+    'Alt+q': () => {
+      focusCartItemQuantityOrPcs();
+    },
+    'Alt+Q': () => {
+      focusCartItemQuantityOrPcs();
     },
     'Alt+c': () => {
       customerNameInputRef.current?.focus();
@@ -6116,8 +6474,43 @@ export function BillingPage() {
     'Alt+1': () => { updateActiveTab({ paymentMethod: 'CASH' }); setInfoToast('Payment Mode: CASH'); setTimeout(() => setInfoToast(null), 2000); },
     'Alt+2': () => { updateActiveTab({ paymentMethod: 'UPI' }); setInfoToast('Payment Mode: UPI'); setTimeout(() => setInfoToast(null), 2000); },
     'Alt+3': () => { updateActiveTab({ paymentMethod: 'CARD' }); setInfoToast('Payment Mode: CARD'); setTimeout(() => setInfoToast(null), 2000); },
-    'Alt+4': () => { updateActiveTab({ paymentMethod: 'CREDIT' }); setInfoToast('Payment Mode: CREDIT'); setTimeout(() => setInfoToast(null), 2000); },
-    'Alt+5': () => { updateActiveTab({ paymentMethod: 'SPLIT' }); setInfoToast('Payment Mode: SPLIT'); setTimeout(() => setInfoToast(null), 2000); },
+    'Alt+4': () => {
+      const initialCreditSplit: SplitDetails = {
+        cash: 0,
+        card: 0,
+        upi: 0,
+        cheque: 0,
+        credit: displayGrandTotal,
+        bank_transfer: 0,
+      };
+      updateActiveTab({
+        paymentMethod: 'CREDIT',
+        splitDetails: initialCreditSplit,
+        receivedAmount: 0,
+      });
+      setInfoToast('Payment Mode: CREDIT (Press Esc to close)');
+      setTimeout(() => setInfoToast(null), 2000);
+      setTimeout(() => splitCreditInputRef.current?.focus(), 60);
+    },
+    'Alt+5': () => {
+      const prevMethod = paymentMethod;
+      let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, cheque: 0, credit: 0, bank_transfer: 0 };
+      if (displayGrandTotal > 0) {
+        if (prevMethod === 'UPI') initialSplit.upi = displayGrandTotal;
+        else if (prevMethod === 'CARD') initialSplit.card = displayGrandTotal;
+        else if (prevMethod === 'CREDIT') initialSplit.credit = displayGrandTotal;
+        else if (prevMethod === 'CHEQUE') initialSplit.cheque = displayGrandTotal;
+        else initialSplit.cash = displayGrandTotal;
+      }
+      updateActiveTab({
+        paymentMethod: 'SPLIT',
+        splitDetails: initialSplit,
+        receivedAmount: (initialSplit.credit ? 0 : displayGrandTotal)
+      });
+      setInfoToast('Payment Mode: SPLIT (Press Esc to close)');
+      setTimeout(() => setInfoToast(null), 2500);
+      setTimeout(() => splitCashInputRef.current?.focus(), 60);
+    },
     'Alt+6': () => { if (isCashSettlementEnabled) { updateActiveTab({ paymentMethod: 'PENDING' }); setInfoToast('Payment Mode: PENDING'); setTimeout(() => setInfoToast(null), 2000); } },
     'F12': () => {
       if (isScrapMode) {
@@ -7385,7 +7778,7 @@ export function BillingPage() {
                 className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition-all cursor-pointer shadow-md uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>COMPLETE &amp; PRINT (F12)</span>
+                <span>PRINT (F12)</span>
               </button>
             </div>
 
@@ -8437,127 +8830,153 @@ export function BillingPage() {
                       {item.billing_type === 'WEIGHT' ? (
                         isPiecesWeight && _ppk > 0 ? (
                           <>
-                            <div className="flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors">
-                              <span className="text-[9px] font-extrabold text-primary">₹</span>
-                              <input
-                                type="number" step="any" min="0"
-                                className="w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                value={localKgRateStr[item.product_id] !== undefined
-                                  ? localKgRateStr[item.product_id]
-                                  : (Number.isInteger(effectivePrice) ? String(effectivePrice) : effectivePrice.toFixed(2))
-                                }
-                                onFocus={e => e.target.select()}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setLocalKgRateStr(p => ({ ...p, [item.product_id]: val }));
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && num >= 0) {
-                                    updateItemOfferPrice(item.product_id, num);
-                                    const perPc = _ppk > 0 ? +(num / _ppk).toFixed(2) : num;
-                                    setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(perPc) }));
-                                  }
-                                }}
-                                onBlur={e => {
-                                  if (!e.target.value || isNaN(parseFloat(e.target.value))) {
-                                    setLocalKgRateStr(p => ({ ...p, [item.product_id]: String(effectivePrice) }));
-                                  }
-                                }}
-                                placeholder="Rate/Kg"
-                                title="Edit rate per Kg"
-                              />
-                              <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
-                            </div>
-                            <div className="flex items-center gap-0.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-lg px-1.5 py-0.5 transition-colors">
-                              <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">₹</span>
-                              <input
-                                type="number" step="any" min="0"
-                                className="w-12 text-center h-6 bg-transparent border-0 text-[11px] font-black text-emerald-700 dark:text-emerald-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                value={localPcPriceStr[item.product_id] !== undefined
-                                  ? localPcPriceStr[item.product_id]
-                                  : (Number.isInteger(effectivePrice / _ppk) ? String(effectivePrice / _ppk) : (effectivePrice / _ppk).toFixed(2))
-                                }
-                                onFocus={e => e.target.select()}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  setLocalPcPriceStr(p => ({ ...p, [item.product_id]: val }));
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && num >= 0) {
-                                    const kgRate = +(_ppk > 0 ? num * _ppk : num).toFixed(2);
-                                    updateItemOfferPrice(item.product_id, kgRate);
-                                    setLocalKgRateStr(p => ({ ...p, [item.product_id]: String(kgRate) }));
-                                  }
-                                }}
-                                onBlur={e => {
-                                  if (!e.target.value || isNaN(parseFloat(e.target.value))) {
-                                    const perPc = +(effectivePrice / _ppk).toFixed(2);
-                                    setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(perPc) }));
-                                  }
-                                }}
-                                placeholder="Rate/Pc"
-                                title="Edit rate per Piece"
-                              />
-                              <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">/Pc</span>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors">
-                            <span className="text-[9px] font-extrabold text-primary">₹</span>
-                            <input
-                              type="number" step="any" min="0"
-                              className="w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={localKgRateStr[item.product_id] !== undefined
-                                ? localKgRateStr[item.product_id]
-                                : (Number.isInteger(effectivePrice) ? String(effectivePrice) : effectivePrice.toFixed(2))
-                              }
-                              onFocus={e => e.target.select()}
-                              onChange={e => {
-                                const val = e.target.value;
-                                setLocalKgRateStr(p => ({ ...p, [item.product_id]: val }));
-                                const num = parseFloat(val);
-                                if (!isNaN(num) && num >= 0) {
-                                  updateItemOfferPrice(item.product_id, num);
+                            {/* 1. Rate per Piece (First) */}
+                            <ItemRateInput
+                              productId={item.product_id}
+                              rate={effectivePrice / _ppk}
+                              qty={qty}
+                              unitLabel="/Pc"
+                              placeholder="Rate/Pc"
+                              title="Edit rate per Piece"
+                              containerClassName="flex items-center gap-0.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-lg px-1.5 py-0.5 transition-colors"
+                              inputClassName="w-12 text-center h-6 bg-transparent border-0 text-[11px] font-black text-emerald-700 dark:text-emerald-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              unitClassName="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300"
+                              tierPricesMap={productPricingMap[item.product_id]}
+                              pricingTiers={pricingTiers}
+                              basePrice={item.original_base_price ?? item.base_price}
+                              selectedTierId={item.pricing_tier_id}
+                              customPpk={_ppk}
+                              setLocalPcStr={(val) => setLocalPcPriceStr(p => ({ ...p, [item.product_id]: val }))}
+                              setLocalKgStr={(val) => setLocalKgRateStr(p => ({ ...p, [item.product_id]: val }))}
+                              onSelectTier={(pid, tid, tname, price) => {
+                                updateItemPricingTier(pid, tid, tname, price);
+                                syncActiveSnapshot();
+                              }}
+                              onUpdateOfferPrice={(pid, price) => {
+                                updateItemOfferPrice(pid, price);
+                              }}
+                              syncActiveSnapshot={syncActiveSnapshot}
+                              inputRef={(el) => {
+                                ratePcRefs.current[item.product_id] = el;
+                                if (el && pendingFocusProductIdRef.current === item.product_id) {
+                                  el.focus();
+                                  el.select();
+                                  pendingFocusProductIdRef.current = null;
                                 }
                               }}
-                              onBlur={e => {
-                                if (!e.target.value || isNaN(parseFloat(e.target.value))) {
-                                  setLocalKgRateStr(p => ({ ...p, [item.product_id]: String(effectivePrice) }));
-                                }
+                              onKeyDownNext={() => {
+                                const pid = item.product_id;
+                                const next = rateKgRefs.current[pid] || pcsRefs.current[pid] || qtyRefs.current[pid];
+                                if (next) { next.focus(); next.select(); }
                               }}
+                            />
+
+                            {/* 2. Rate per Kg (Second) */}
+                            <ItemRateInput
+                              productId={item.product_id}
+                              rate={effectivePrice}
+                              qty={qty}
+                              unitLabel="/Kg"
                               placeholder="Rate/Kg"
                               title="Edit rate per Kg"
+                              tierPricesMap={productPricingMap[item.product_id]}
+                              pricingTiers={pricingTiers}
+                              basePrice={item.original_base_price ?? item.base_price}
+                              selectedTierId={item.pricing_tier_id}
+                              onSelectTier={(pid, tid, tname, price) => {
+                                updateItemPricingTier(pid, tid, tname, price);
+                                syncActiveSnapshot();
+                              }}
+                              onUpdateOfferPrice={(pid, price) => {
+                                updateItemOfferPrice(pid, price);
+                                const perPc = _ppk > 0 ? +(price / _ppk).toFixed(2) : price;
+                                setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(perPc) }));
+                              }}
+                              syncActiveSnapshot={syncActiveSnapshot}
+                              inputRef={(el) => {
+                                rateKgRefs.current[item.product_id] = el;
+                                if (el && !ratePcRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
+                                  el.focus();
+                                  el.select();
+                                  pendingFocusProductIdRef.current = null;
+                                }
+                              }}
+                              onKeyDownNext={() => {
+                                const pid = item.product_id;
+                                const next = pcsRefs.current[pid] || qtyRefs.current[pid];
+                                if (next) { next.focus(); next.select(); }
+                              }}
                             />
-                            <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
-                          </div>
+                          </>
+                        ) : (
+                          <ItemRateInput
+                            productId={item.product_id}
+                            rate={effectivePrice}
+                            qty={qty}
+                            unitLabel="/Kg"
+                            placeholder="Rate/Kg"
+                            title="Edit rate per Kg"
+                            tierPricesMap={productPricingMap[item.product_id]}
+                            pricingTiers={pricingTiers}
+                            basePrice={item.original_base_price ?? item.base_price}
+                            selectedTierId={item.pricing_tier_id}
+                            onSelectTier={(pid, tid, tname, price) => {
+                              updateItemPricingTier(pid, tid, tname, price);
+                              syncActiveSnapshot();
+                            }}
+                            onUpdateOfferPrice={(pid, price) => {
+                              updateItemOfferPrice(pid, price);
+                            }}
+                            syncActiveSnapshot={syncActiveSnapshot}
+                            inputRef={(el) => {
+                              rateKgRefs.current[item.product_id] = el;
+                              if (el && pendingFocusProductIdRef.current === item.product_id) {
+                                el.focus();
+                                el.select();
+                                pendingFocusProductIdRef.current = null;
+                              }
+                            }}
+                            onKeyDownNext={() => {
+                              const pid = item.product_id;
+                              const next = pcsRefs.current[pid] || qtyRefs.current[pid];
+                              if (next) { next.focus(); next.select(); }
+                            }}
+                          />
                         )
                       ) : (
-                        <div className="flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors">
-                          <span className="text-[9px] font-extrabold text-primary">₹</span>
-                          <input
-                            type="number" step="any" min="0"
-                            className="w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={localPcPriceStr[item.product_id] !== undefined
-                              ? localPcPriceStr[item.product_id]
-                              : (Number.isInteger(effectivePrice) ? String(effectivePrice) : effectivePrice.toFixed(2))
+                        <ItemRateInput
+                          productId={item.product_id}
+                          rate={effectivePrice}
+                          qty={qty}
+                          unitLabel="/Pc"
+                          placeholder="Rate/Pc"
+                          title="Edit rate per Piece"
+                          tierPricesMap={productPricingMap[item.product_id]}
+                          pricingTiers={pricingTiers}
+                          basePrice={item.original_base_price ?? item.base_price}
+                          selectedTierId={item.pricing_tier_id}
+                          onSelectTier={(pid, tid, tname, price) => {
+                            updateItemPricingTier(pid, tid, tname, price);
+                            syncActiveSnapshot();
+                          }}
+                          onUpdateOfferPrice={(pid, price) => {
+                            updateItemOfferPrice(pid, price);
+                          }}
+                          syncActiveSnapshot={syncActiveSnapshot}
+                          inputRef={(el) => {
+                            ratePcRefs.current[item.product_id] = el;
+                            if (el && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
                             }
-                            onFocus={e => e.target.select()}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setLocalPcPriceStr(p => ({ ...p, [item.product_id]: val }));
-                              const num = parseFloat(val);
-                              if (!isNaN(num) && num >= 0) {
-                                updateItemOfferPrice(item.product_id, num);
-                              }
-                            }}
-                            onBlur={e => {
-                              if (!e.target.value || isNaN(parseFloat(e.target.value))) {
-                                setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(effectivePrice) }));
-                              }
-                            }}
-                            placeholder="Rate/Pc"
-                            title="Edit rate per Piece"
-                          />
-                          <span className="text-[9px] font-extrabold text-primary/70">/Pc</span>
-                        </div>
+                          }}
+                          onKeyDownNext={() => {
+                            const pid = item.product_id;
+                            const next = pcsRefs.current[pid] || qtyRefs.current[pid];
+                            if (next) { next.focus(); next.select(); }
+                          }}
+                        />
                       )}
                     </div>
 
@@ -8568,8 +8987,8 @@ export function BillingPage() {
                           <input
                             type="text" inputMode="numeric"
                             ref={(el) => {
-                              qtyRefs.current[item.product_id] = el;
-                              if (el && pendingFocusProductIdRef.current === item.product_id) {
+                              pcsRefs.current[item.product_id] = el;
+                              if (el && !ratePcRefs.current[item.product_id] && !rateKgRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
                                 el.focus();
                                 el.select();
                                 pendingFocusProductIdRef.current = null;
@@ -8594,7 +9013,7 @@ export function BillingPage() {
                                 commitPcs(e.currentTarget.value, true);
                                 const pid = item.product_id;
                                 setTimeout(() => {
-                                  const kInput = kRefs.current[pid];
+                                  const kInput = qtyRefs.current[pid] || kRefs.current[pid];
                                   if (kInput) { kInput.focus(); kInput.select(); }
                                 }, 0);
                                 e.preventDefault();
@@ -8605,7 +9024,15 @@ export function BillingPage() {
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
                           <span className="text-[8px] text-muted-foreground font-bold uppercase">Kgs</span>
                           <input type="text" inputMode="decimal"
-                            ref={(el) => { kRefs.current[item.product_id] = el; }}
+                            ref={(el) => {
+                              qtyRefs.current[item.product_id] = el;
+                              kRefs.current[item.product_id] = el;
+                              if (el && !ratePcRefs.current[item.product_id] && !rateKgRefs.current[item.product_id] && !pcsRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
+                                el.focus();
+                                el.select();
+                                pendingFocusProductIdRef.current = null;
+                              }
+                            }}
                             className="w-16 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={localKgStr[item.product_id] ?? String(item.quantity ?? '')}
                             onFocus={e => e.target.select()}
@@ -8935,12 +9362,10 @@ export function BillingPage() {
                               setIsUpiSelectModalOpen(true);
                             }
                           } else if (opt.value === 'SPLIT') {
-                            if (paymentMethod === 'SPLIT') {
-                              updateActiveTab({ paymentMethod: 'CASH' });
-                            } else {
+                            if (paymentMethod !== 'SPLIT') {
                               const prevMethod = paymentMethod;
+                              let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, cheque: 0, credit: 0, bank_transfer: 0 };
                               if (displayGrandTotal > 0) {
-                                let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, cheque: 0, credit: 0, bank_transfer: 0 };
                                 if (prevMethod === 'UPI') initialSplit.upi = displayGrandTotal;
                                 else if (prevMethod === 'CARD') initialSplit.card = displayGrandTotal;
                                 else if (prevMethod === 'CREDIT') initialSplit.credit = displayGrandTotal;
@@ -8952,10 +9377,12 @@ export function BillingPage() {
                                 updateActiveTab({ paymentMethod: 'SPLIT' });
                               }
                             }
+                            setTimeout(() => {
+                              splitCashInputRef.current?.focus();
+                              splitCashInputRef.current?.select();
+                            }, 40);
                           } else if (opt.value === 'CREDIT') {
-                            if (paymentMethod === 'CREDIT') {
-                              updateActiveTab({ paymentMethod: 'CASH' });
-                            } else {
+                            if (paymentMethod !== 'CREDIT') {
                               const initialCreditSplit: SplitDetails = {
                                 cash: 0,
                                 card: 0,
@@ -8970,6 +9397,10 @@ export function BillingPage() {
                                 receivedAmount: 0,
                               });
                             }
+                            setTimeout(() => {
+                              splitCreditInputRef.current?.focus();
+                              splitCreditInputRef.current?.select();
+                            }, 40);
                           } else {
                             updateActiveTab({ paymentMethod: opt.value });
                           }
@@ -8980,24 +9411,34 @@ export function BillingPage() {
                             e.preventDefault();
                             const prevIdx = (idx - 1 + paymentOptions.length) % paymentOptions.length;
                             const prevOpt = paymentOptions[prevIdx];
-                            updateActiveTab({ paymentMethod: prevOpt.value });
+                            if (prevOpt.value !== 'CREDIT' && prevOpt.value !== 'SPLIT') {
+                              updateActiveTab({ paymentMethod: prevOpt.value });
+                            }
                             setTimeout(() => paymentOptionRefs.current[prevOpt.value]?.focus(), 15);
                           } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
                             e.preventDefault();
                             const nextIdx = (idx + 1) % paymentOptions.length;
                             const nextOpt = paymentOptions[nextIdx];
-                            updateActiveTab({ paymentMethod: nextOpt.value });
+                            if (nextOpt.value !== 'CREDIT' && nextOpt.value !== 'SPLIT') {
+                              updateActiveTab({ paymentMethod: nextOpt.value });
+                            }
                             setTimeout(() => paymentOptionRefs.current[nextOpt.value]?.focus(), 15);
                           } else if (e.key === 'Enter') {
                             e.preventDefault();
                             handlePaymentSelect();
-                            if (opt.value === 'CASH' || opt.value === 'CREDIT') {
+                            if (opt.value === 'CASH') {
                               setTimeout(() => {
                                 receivedInputRef.current?.focus();
                                 receivedInputRef.current?.select();
                               }, 30);
+                            } else if (opt.value === 'SPLIT' || opt.value === 'CREDIT') {
+                              // Focus automatically shifts to split/credit input inside handlePaymentSelect
+                            } else if (opt.value === 'UPI') {
+                              if (!upiPageConfig.billing || upiSources.length === 0) {
+                                focusDescriptionOrDiscount();
+                              }
                             } else {
-                              handleCheckout();
+                              focusDescriptionOrDiscount();
                             }
                           }
                         };
@@ -9013,19 +9454,16 @@ export function BillingPage() {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                    const nextDetails = { ...splitDetails, cash: rem };
-                                    const nextRec = rem + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                  }}
+                                  onClick={() => fillRestForField('CASH')}
+                                  title="Fill remaining balance (Shortcut: F)"
                                   className="w-full text-[9.5px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 active:scale-95 cursor-pointer bg-emerald-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
                                 >
-                                  Fill Rest
+                                  Fill Rest [F]
                                 </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">₹</span>
                                   <input
+                                    ref={splitCashInputRef}
                                     type="number"
                                     min="0"
                                     step="any"
@@ -9036,6 +9474,7 @@ export function BillingPage() {
                                       const nextRec = val + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
+                                    onKeyDown={(e) => handleSplitInputKeyDown(e, 'CASH')}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
@@ -9053,19 +9492,16 @@ export function BillingPage() {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                    const nextDetails = { ...splitDetails, card: rem };
-                                    const nextRec = (Number(nextDetails.cash) || 0) + rem + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                  }}
+                                  onClick={() => fillRestForField('CARD')}
+                                  title="Fill remaining balance (Shortcut: F)"
                                   className="w-full text-[9.5px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 active:scale-95 cursor-pointer bg-blue-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
                                 >
-                                  Fill Rest
+                                  Fill Rest [F]
                                 </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">₹</span>
                                   <input
+                                    ref={splitCardInputRef}
                                     type="number"
                                     min="0"
                                     step="any"
@@ -9076,6 +9512,7 @@ export function BillingPage() {
                                       const nextRec = (Number(nextDetails.cash) || 0) + val + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
+                                    onKeyDown={(e) => handleSplitInputKeyDown(e, 'CARD')}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
@@ -9106,19 +9543,16 @@ export function BillingPage() {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                    const nextDetails = { ...splitDetails, upi: rem };
-                                    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + rem + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                  }}
+                                  onClick={() => fillRestForField('UPI')}
+                                  title="Fill remaining balance (Shortcut: F)"
                                   className="w-full text-[9.5px] font-black uppercase tracking-wider text-violet-600 dark:text-violet-400 hover:bg-violet-500/25 active:scale-95 cursor-pointer bg-violet-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
                                 >
-                                  Fill Rest
+                                  Fill Rest [F]
                                 </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">₹</span>
                                   <input
+                                    ref={splitUpiInputRef}
                                     type="number"
                                     min="0"
                                     step="any"
@@ -9129,6 +9563,7 @@ export function BillingPage() {
                                       const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + val + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
+                                    onKeyDown={(e) => handleSplitInputKeyDown(e, 'UPI')}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
@@ -9146,19 +9581,16 @@ export function BillingPage() {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                    const nextDetails = { ...splitDetails, cheque: rem };
-                                    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + rem + (Number(nextDetails.bank_transfer) || 0);
-                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                  }}
+                                  onClick={() => fillRestForField('CHEQUE')}
+                                  title="Fill remaining balance (Shortcut: F)"
                                   className="w-full text-[9.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/25 active:scale-95 cursor-pointer bg-indigo-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
                                 >
-                                  Fill Rest
+                                  Fill Rest [F]
                                 </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-500/80">₹</span>
                                   <input
+                                    ref={splitChequeInputRef}
                                     type="number"
                                     min="0"
                                     step="any"
@@ -9169,6 +9601,7 @@ export function BillingPage() {
                                       const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + val + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
+                                    onKeyDown={(e) => handleSplitInputKeyDown(e, 'CHEQUE')}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-indigo-500/30 focus:border-indigo-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
@@ -9186,19 +9619,16 @@ export function BillingPage() {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.cheque) || 0) - (Number(splitDetails.bank_transfer) || 0)).toFixed(2)));
-                                    const nextDetails = { ...splitDetails, credit: rem };
-                                    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
-                                    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-                                  }}
+                                  onClick={() => fillRestForField('CREDIT')}
+                                  title="Fill remaining balance (Shortcut: F)"
                                   className="w-full text-[9.5px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 active:scale-95 cursor-pointer bg-amber-500/15 py-0.5 rounded-md transition-all text-center leading-tight"
                                 >
-                                  Fill Rest
+                                  Fill Rest [F]
                                 </button>
                                 <div className="relative">
                                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">₹</span>
                                   <input
+                                    ref={splitCreditInputRef}
                                     type="number"
                                     min="0"
                                     step="any"
@@ -9209,6 +9639,7 @@ export function BillingPage() {
                                       const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
                                       updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
                                     }}
+                                    onKeyDown={(e) => handleSplitInputKeyDown(e, 'CREDIT')}
                                     placeholder="0"
                                     className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                                   />
@@ -9224,7 +9655,12 @@ export function BillingPage() {
                                 key="SPLIT"
                                 ref={el => { paymentOptionRefs.current['SPLIT'] = el; }}
                                 type="button"
-                                onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
+                                onClick={() => {
+                                  updateActiveTab({ paymentMethod: 'CASH' });
+                                  setInfoToast('Split Payment Closed (Switched to Cash)');
+                                  setTimeout(() => setInfoToast(null), 2000);
+                                  setTimeout(() => paymentOptionRefs.current['CASH']?.focus(), 50);
+                                }}
                                 onKeyDown={handlePaymentOptionKeyDown}
                                 className={clsx(
                                   span,
@@ -9233,7 +9669,7 @@ export function BillingPage() {
                                     ? 'border-purple-600 bg-purple-600 text-white dark:bg-purple-600 dark:border-purple-500 focus:ring-purple-400'
                                     : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500'
                                 )}
-                                title="Click to close multi-payment breakdown and reset to single Cash payment"
+                                title="Click or press Esc to close multi-payment breakdown and reset to single Cash payment"
                               >
                                 <div className="flex items-center justify-between w-full">
                                   <div className="flex items-center gap-1 font-extrabold text-xs">
@@ -9241,7 +9677,7 @@ export function BillingPage() {
                                     <span>{isSplitActive ? 'Split ON' : 'Multi Pay'}</span>
                                   </div>
                                 </div>
-                                <div className="w-full flex items-center justify-center gap-1 mt-1">
+                                <div className="w-full flex flex-col items-center justify-center gap-1 mt-1">
                                   <span className={clsx(
                                     'text-xs font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-xs transition-colors',
                                     isSplitActive
@@ -9250,6 +9686,9 @@ export function BillingPage() {
                                   )}>
                                     <X className="w-3.5 h-3.5 shrink-0 stroke-[3]" />
                                     <span>Close</span>
+                                  </span>
+                                  <span className="text-[9px] opacity-80 font-mono font-bold tracking-tight">
+                                    [Esc]
                                   </span>
                                 </div>
                               </button>
@@ -9689,7 +10128,16 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
             {/* ── Bill Description Card (Directly Below Payment Methods in Scrollable Area) ── */}
             {showDescriptionState && (
-              <BillDescriptionCard activeTabId={activeTabId} />
+              <BillDescriptionCard
+                activeTabId={activeTabId}
+                inputRef={descriptionInputRef}
+                onKeyDown={() => {
+                  if (discountRef.current) {
+                    discountRef.current.focus();
+                    discountRef.current.select();
+                  }
+                }}
+              />
             )}
 
           </div>
@@ -9787,73 +10235,172 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     </>
                   )}
                 </div>
-                {/* Inline discount/extra input */}
-                <div className={clsx("flex items-center border rounded-xl p-0.5 shadow-sm", isScrapMode ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/50 border-border")}>
-                  <div className="flex bg-card rounded-lg mr-1 border border-border/30">
-                    <button
-                      onClick={() => setDiscount(discountValue || 0, 'FIXED')}
-                      className={clsx(
-                        'px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer',
-                        discountType === 'FIXED' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >₹</button>
-                    <button
-                      onClick={() => setDiscount(discountValue || 0, 'PERCENTAGE')}
-                      className={clsx(
-                        'px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer',
-                        discountType === 'PERCENTAGE' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >%</button>
-                  </div>
-                  <input
-                    ref={discountRef}
-                    type="number"
-                    min="0"
-                    max={discountType === 'PERCENTAGE' ? '100' : undefined}
-                    value={discountValue > 0 ? discountValue : ''}
-                    onChange={e => {
-                      const raw = e.target.value;
-                      if (raw === '' || raw === null) {
+                {/* Merged 2-Column Discount Input (Percentage % | Flat Amount ₹) */}
+                {(() => {
+                  const discBase = isScrapMode ? scrapTotal : subtotal;
+
+                  let pctVal = '';
+                  let flatVal = '';
+
+                  if (activeDiscField === 'PCT') {
+                    pctVal = localDiscText;
+                    const p = parseFloat(localDiscText);
+                    if (discBase > 0 && !isNaN(p) && p > 0) {
+                      flatVal = String(+((discBase * p) / 100).toFixed(2));
+                    }
+                  } else if (activeDiscField === 'FLAT') {
+                    flatVal = localDiscText;
+                    const f = parseFloat(localDiscText);
+                    if (discBase > 0 && !isNaN(f) && f > 0) {
+                      pctVal = String(+((f / discBase) * 100).toFixed(2));
+                    }
+                  } else {
+                    if (discountType === 'PERCENTAGE') {
+                      pctVal = discountValue > 0 ? String(discountValue) : '';
+                      flatVal = discBase > 0 && discountValue > 0 ? String(+((discBase * discountValue) / 100).toFixed(2)) : '';
+                    } else {
+                      flatVal = discountValue > 0 ? String(discountValue) : '';
+                      pctVal = discBase > 0 && discountValue > 0 ? String(+((discountValue / discBase) * 100).toFixed(2)) : '';
+                    }
+                  }
+
+                  if (pctVal === '0' || pctVal === '0.00' || pctVal === '0.0') pctVal = '';
+                  if (flatVal === '0' || flatVal === '0.00' || flatVal === '0.0') flatVal = '';
+
+                  const commonKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, isPct: boolean) => {
+                    if (e.key === 'Delete' || e.key === 'Backspace') {
+                      const input = e.target as HTMLInputElement;
+                      if (input.selectionStart === 0 && input.selectionEnd === input.value.length) {
                         setDiscount(0, discountType);
+                        setActiveDiscField(null);
+                        setLocalDiscText('');
+                      }
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleCheckout();
+                    } else if (e.key === 'ArrowRight' && isPct) {
+                      e.preventDefault();
+                      discountRef.current?.focus();
+                      discountRef.current?.select();
+                    } else if (e.key === 'ArrowLeft' && !isPct) {
+                      e.preventDefault();
+                      discountPercentRef.current?.focus();
+                      discountPercentRef.current?.select();
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      if (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') {
+                        receivedInputRef.current?.focus();
+                        receivedInputRef.current?.select();
                       } else {
-                        const parsed = Number(raw);
-                        if (!isNaN(parsed) && parsed >= 0) {
-                          setDiscount(parsed, discountType);
-                        }
+                        paymentOptionRefs.current[paymentMethod]?.focus();
                       }
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Delete' || e.key === 'Backspace') {
-                        const input = e.target as HTMLInputElement;
-                        // If selection covers all, clear on next tick
-                        if (input.selectionStart === 0 && input.selectionEnd === input.value.length) {
-                          setDiscount(0, discountType);
-                        }
-                      } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        if (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') {
-                          receivedInputRef.current?.focus();
-                          receivedInputRef.current?.select();
-                        } else {
-                          paymentOptionRefs.current[paymentMethod]?.focus();
-                        }
-                      } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        if (items.length > 0) {
-                          const lastItem = items[items.length - 1];
-                          qtyRefs.current[lastItem.product_id]?.focus();
-                          qtyRefs.current[lastItem.product_id]?.select();
-                        } else {
-                          searchRef.current?.focus();
-                          searchRef.current?.select();
-                        }
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      if (showDescriptionState && descriptionInputRef.current) {
+                        descriptionInputRef.current.focus();
+                        descriptionInputRef.current.select();
+                      } else if (items.length > 0) {
+                        const lastItem = items[items.length - 1];
+                        qtyRefs.current[lastItem.product_id]?.focus();
+                        qtyRefs.current[lastItem.product_id]?.select();
+                      } else {
+                        searchRef.current?.focus();
+                        searchRef.current?.select();
                       }
-                    }}
-                    placeholder="0"
-                    inputMode="decimal"
-                    className="w-24 h-9 bg-transparent border-0 text-base text-right pr-3 font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+                    }
+                  };
+
+                  return (
+                    <div className={clsx(
+                      "flex items-center border rounded-xl overflow-hidden shadow-xs transition-all",
+                      isScrapMode
+                        ? "bg-emerald-500/10 border-emerald-500/30 focus-within:border-emerald-500/60"
+                        : "bg-muted/30 border-border/70 focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15"
+                    )}>
+                      {/* Percentage Input Column */}
+                      <div className="flex items-center px-2 py-0.5 gap-1">
+                        <Percent className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 pointer-events-none" />
+                        <input
+                          ref={discountPercentRef}
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="any"
+                          inputMode="decimal"
+                          value={pctVal}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            setActiveDiscField('PCT');
+                            setLocalDiscText(raw);
+                            if (raw === '' || raw === null || parseFloat(raw) === 0) {
+                              setDiscount(0, 'PERCENTAGE');
+                            } else {
+                              const parsed = Number(raw);
+                              if (!isNaN(parsed) && parsed >= 0) {
+                                setDiscount(parsed, 'PERCENTAGE');
+                              }
+                            }
+                          }}
+                          onFocus={e => {
+                            setActiveDiscField('PCT');
+                            if (discountType === 'PERCENTAGE' && discountValue > 0) {
+                              setLocalDiscText(String(discountValue));
+                            }
+                            e.target.select();
+                          }}
+                          onBlur={() => {
+                            setActiveDiscField(null);
+                          }}
+                          onKeyDown={e => commonKeyDown(e, true)}
+                          placeholder=""
+                          className="w-11 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+
+                      {/* Vertical Separator */}
+                      <span className="w-px h-4 bg-border/50 shrink-0" />
+
+                      {/* Flat Amount Input Column */}
+                      <div className="flex items-center px-2 py-0.5 gap-1">
+                        <span className="text-xs font-black text-muted-foreground/60 shrink-0 pointer-events-none select-none">₹</span>
+                        <input
+                          ref={discountRef}
+                          type="number"
+                          min="0"
+                          step="any"
+                          inputMode="decimal"
+                          value={flatVal}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            setActiveDiscField('FLAT');
+                            setLocalDiscText(raw);
+                            if (raw === '' || raw === null || parseFloat(raw) === 0) {
+                              setDiscount(0, 'FIXED');
+                            } else {
+                              const parsed = Number(raw);
+                              if (!isNaN(parsed) && parsed >= 0) {
+                                setDiscount(parsed, 'FIXED');
+                              }
+                            }
+                          }}
+                          onFocus={e => {
+                            setActiveDiscField('FLAT');
+                            if (discountType === 'FIXED' && discountValue > 0) {
+                              setLocalDiscText(String(discountValue));
+                            }
+                            e.target.select();
+                          }}
+                          onBlur={() => {
+                            setActiveDiscField(null);
+                          }}
+                          onKeyDown={e => commonKeyDown(e, false)}
+                          placeholder=""
+                          className="w-14 h-7 text-right pr-0.5 bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               </div>
 
@@ -10303,11 +10850,10 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        handleCheckout();
+                        focusDescriptionOrDiscount();
                       } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
-                        discountRef.current?.focus();
-                        discountRef.current?.select();
+                        focusDescriptionOrDiscount();
                       } else if (e.key === 'ArrowLeft' && e.currentTarget.selectionStart === 0) {
                         e.preventDefault();
                         paymentOptionRefs.current[paymentMethod]?.focus();
@@ -10404,33 +10950,33 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
 
 
-            {/* Action buttons */}
-            <div className="flex gap-2.5 px-4 py-3">
+            {/* Action buttons (Dynamic responsive scaling based on desktop screen size) */}
+            <div className="flex gap-1.5 sm:gap-2 md:gap-2.5 px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 transition-all">
               {isQuotationActive ? (
                 /* ── Quotation Mode (Create or Edit) ── */
                 <>
                   <button
                     onClick={() => handleSaveQuotation(false)}
                     disabled={quotationSaving || items.length === 0}
-                    className="w-[25%] py-3 rounded-xl border-2 border-blue-400/60 text-blue-600 dark:text-blue-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-blue-500/10 hover:border-blue-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[20%] sm:w-[22%] md:w-[25%] py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-blue-400/60 text-blue-600 dark:text-blue-400 font-black text-xs sm:text-xs md:text-sm lg:text-base flex items-center justify-center gap-1 sm:gap-1.5 hover:bg-blue-500/10 hover:border-blue-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer shrink-0"
                   >
-                    <Save className="w-3.5 h-3.5 shrink-0" />
+                    <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span>Save</span>
                   </button>
                   <button
                     onClick={() => handleSaveQuotation(true)}
                     disabled={quotationSaving || items.length === 0}
-                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-blue-500 text-white font-black text-sm shadow-md hover:bg-blue-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                    className="flex-1 min-w-0 py-2 sm:py-2.5 md:py-3 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-xs md:text-sm lg:text-base shadow-md hover:bg-blue-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
                     {quotationSaving ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>SAVING...</span>
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                        <span className="truncate">SAVING...</span>
                       </>
                     ) : (
                       <>
-                        <FileText className="w-4.5 h-4.5" />
-                        <span>{editingQuotationId ? 'UPDATE & PRINT (F12)' : 'SAVE & PRINT (F12)'}</span>
+                        <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0" />
+                        <span className="truncate">{editingQuotationId ? 'UPDATE & PRINT (F12)' : 'SAVE & PRINT (F12)'}</span>
                       </>
                     )}
                   </button>
@@ -10441,27 +10987,27 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   <button
                     onClick={() => handleProcessReturnFromCart(true)}
                     disabled={returnProcessing || items.length === 0}
-                    className="w-[20%] py-3 rounded-xl border-2 border-rose-400/60 text-rose-600 dark:text-rose-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-rose-500/10 hover:border-rose-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[18%] sm:w-[20%] md:w-[22%] py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-rose-400/60 text-rose-600 dark:text-rose-400 font-black text-xs sm:text-xs md:text-sm lg:text-base flex items-center justify-center gap-1 sm:gap-1.5 hover:bg-rose-500/10 hover:border-rose-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer shrink-0"
                   >
-                    <Save className="w-3.5 h-3.5 shrink-0" />
+                    <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span>Save</span>
                   </button>
                   <button
                     onClick={() => handleProcessReturnFromCart()}
                     disabled={returnProcessing || items.length === 0}
-                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-rose-500 text-white font-black text-sm shadow-md hover:bg-rose-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                    className="flex-1 min-w-0 py-2 sm:py-2.5 md:py-3 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-rose-500 text-white font-black text-xs sm:text-xs md:text-sm lg:text-base shadow-md hover:bg-rose-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
                     {returnProcessed ? (
-                      <><CheckCircle2 className="w-4.5 h-4.5" /><span>RETURN PROCESSED!</span></>
+                      <><CheckCircle2 className="w-4 h-4 shrink-0" /><span className="truncate">RETURN PROCESSED!</span></>
                     ) : returnProcessing ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>PROCESSING...</span>
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                        <span className="truncate">PROCESSING...</span>
                       </>
                     ) : (
                       <>
-                        <ArrowLeftRight className="w-4.5 h-4.5" />
-                        <span>PROCESS &amp; PRINT (F12)</span>
+                        <ArrowLeftRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0" />
+                        <span className="truncate">PROCESS &amp; PRINT (F12)</span>
                       </>
                     )}
                   </button>
@@ -10472,25 +11018,25 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   <button
                     onClick={() => handleCheckout(true)}
                     disabled={isCheckingOut || items.length === 0}
-                    className="w-[20%] py-3 rounded-xl border-2 border-orange-400/60 text-orange-600 dark:text-orange-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-orange-500/10 hover:border-orange-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[18%] sm:w-[20%] md:w-[22%] py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-orange-400/60 text-orange-600 dark:text-orange-400 font-black text-xs sm:text-xs md:text-sm lg:text-base flex items-center justify-center gap-1 sm:gap-1.5 hover:bg-orange-500/10 hover:border-orange-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer shrink-0"
                   >
-                    <Save className="w-3.5 h-3.5 shrink-0" />
+                    <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span>Save</span>
                   </button>
                   <button
                     onClick={() => handleCheckout()}
                     disabled={isCheckingOut || items.length === 0}
-                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-orange-500 text-white font-black text-sm shadow-md hover:bg-orange-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                    className="flex-1 min-w-0 py-2 sm:py-2.5 md:py-3 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-orange-500 text-white font-black text-xs sm:text-xs md:text-sm lg:text-base shadow-md hover:bg-orange-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
                     {isCheckingOut ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>SAVING...</span>
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                        <span className="truncate">SAVING...</span>
                       </>
                     ) : (
                       <>
-                        <Recycle className="w-4.5 h-4.5" />
-                        <span>SAVE &amp; PRINT (F12)</span>
+                        <Recycle className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0" />
+                        <span className="truncate">SAVE &amp; PRINT (F12)</span>
                       </>
                     )}
                   </button>
@@ -10501,40 +11047,40 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   <button
                     onClick={handleHoldBill}
                     disabled={items.length === 0}
-                    className="relative w-[22%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                    className="relative w-[18%] sm:w-[20%] md:w-[22%] py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-xs sm:text-xs md:text-sm lg:text-base hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer flex items-center justify-center gap-1 shrink-0"
                     title="Hold Bill (F3)"
                   >
                     <span>Hold</span>
-                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F3</span>
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[18px] sm:min-w-[20px] h-4 sm:h-4.5 px-1 sm:px-1.5 text-[8px] sm:text-[9px] font-black rounded-full leading-none shadow-xs border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F3</span>
                   </button>
                   <button
                     onClick={() => handleCheckout(true)}
                     disabled={isCheckingOut || items.length === 0}
-                    className="w-[20%] py-3 rounded-xl border-2 border-amber-400/60 text-amber-600 dark:text-amber-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-amber-500/10 hover:border-amber-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[18%] sm:w-[20%] md:w-[22%] py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-amber-400/60 text-amber-600 dark:text-amber-400 font-black text-xs sm:text-xs md:text-sm lg:text-base flex items-center justify-center gap-1 sm:gap-1.5 hover:bg-amber-500/10 hover:border-amber-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer shrink-0"
                   >
-                    <Save className="w-3.5 h-3.5 shrink-0" />
+                    <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span>Save</span>
                   </button>
                   <button
                     ref={checkoutBtnRef}
                     onClick={() => handleCheckout()}
                     disabled={isCheckingOut || items.length === 0}
-                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                    className="flex-1 min-w-0 py-2 sm:py-2.5 md:py-3 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-primary text-primary-foreground font-black text-xs sm:text-xs md:text-sm lg:text-base shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
                     {isCheckingOut ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        <span>FINALIZING...</span>
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin shrink-0" />
+                        <span className="truncate">FINALIZING...</span>
                       </>
                     ) : editingActive ? (
                       <>
-                        <CreditCard className="w-4.5 h-4.5" />
-                        <span>UPDATE &amp; PRINT (F12)</span>
+                        <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0" />
+                        <span className="truncate">UPDATE &amp; PRINT (F12)</span>
                       </>
                     ) : (
                       <>
-                        <CreditCard className="w-4.5 h-4.5" />
-                        <span>PRINT &amp; CHECKOUT (F12)</span>
+                        <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0" />
+                        <span className="truncate">PRINT (F12)</span>
                       </>
                     )}
                   </button>
@@ -11615,6 +12161,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
                   const selectThisUpi = () => {
                     updateActiveTab({
+                      paymentMethod: 'UPI',
                       selectedUpiId: s.upi_id || s.source_id || '',
                       selectedUpiSourceId: s.source_id || '',
                       selectedUpiName: s.name
@@ -11625,10 +12172,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     setIsUpiSelectModalOpen(false);
                     setUpiAccountToast(`${s.name}${s.upi_id ? ` (${s.upi_id})` : ''}`);
                     setTimeout(() => setUpiAccountToast(null), 3500);
-                    setTimeout(() => {
-                      discountRef.current?.focus();
-                      discountRef.current?.select();
-                    }, 50);
+                    focusDescriptionOrDiscount();
                   };
 
                   return (
@@ -11640,13 +12184,15 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          const next = upiSources[(idx + 1) % upiSources.length];
-                          const nextKey = next?.source_id || next?.upi_id || String((idx + 1) % upiSources.length);
+                          const nextIdx = (idx + 1) % upiSources.length;
+                          const next = upiSources[nextIdx];
+                          const nextKey = next?.source_id || next?.upi_id || String(nextIdx);
                           upiSourceRefs.current[nextKey]?.focus();
                         } else if (e.key === 'ArrowUp') {
                           e.preventDefault();
-                          const prev = upiSources[(idx - 1 + upiSources.length) % upiSources.length];
-                          const prevKey = prev?.source_id || prev?.upi_id || String((idx - 1 + upiSources.length) % upiSources.length);
+                          const prevIdx = (idx - 1 + upiSources.length) % upiSources.length;
+                          const prev = upiSources[prevIdx];
+                          const prevKey = prev?.source_id || prev?.upi_id || String(prevIdx);
                           upiSourceRefs.current[prevKey]?.focus();
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
@@ -11654,7 +12200,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         } else if (e.key === 'Escape') {
                           e.preventDefault();
                           setIsUpiSelectModalOpen(false);
-                          discountRef.current?.focus();
+                          setTimeout(() => paymentOptionRefs.current['UPI']?.focus(), 50);
                         }
                       }}
                       className={clsx(

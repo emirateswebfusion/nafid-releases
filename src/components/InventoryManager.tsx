@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3, Loader2, Layers } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3, Loader2, Layers, Upload } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
+import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
@@ -102,6 +103,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
 
   useEffect(() => {
@@ -1606,6 +1608,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             <button onClick={downloadCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0" title="Download CSV">
               <Save className="w-4 h-4" />
             </button>
+            <button onClick={() => setShowUploadModal(true)} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm font-bold hover:bg-indigo-100 transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer shrink-0 text-xs sm:text-sm">
+              <Upload className="w-4 h-4" /> Upload (CSV/Excel)
+            </button>
             {selectedProductIds.size > 0 && (
               <button
                 onClick={() => setShowBulkDeleteConfirm(true)}
@@ -3054,6 +3059,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           </div>
         )}
       </div>
+
+      <DataUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        defaultEntity="products"
+        allowedEntities={['products']}
+        hideEntityTabs={true}
+        onImportSuccess={() => {
+          loadProducts();
+          setStatusMessage({ text: 'Products imported successfully!', type: 'success' });
+        }}
+      />
     </div>
   );
 }

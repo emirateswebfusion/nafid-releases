@@ -5,11 +5,12 @@ import {
   Search, SlidersHorizontal, User, CheckCircle2, Check,
   AlertCircle, Edit, KeyRound, Landmark, Lock, Eye, EyeOff, DollarSign,
   FileText, RefreshCw, Calendar, BookOpen, Banknote, Clock, ArrowUpRight,
-  ArrowDownLeft, History, Plus, Phone, Award, UserCheck, UserX, CreditCard, ChevronRight
+  ArrowDownLeft, History, Plus, Phone, Award, UserCheck, UserX, CreditCard, ChevronRight, Upload
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
@@ -66,6 +67,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [attendanceEnabled, setAttendanceEnabled] = useState(false);
   const [billerPinEnabled, setBillerPinEnabled] = useState(false);
 
@@ -615,6 +617,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUploadModal(true)}
+              className="gap-2 cursor-pointer font-bold border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            >
+              <Upload className="w-4 h-4" /> Upload (CSV/Excel)
+            </Button>
             <Button
               variant="default"
               size="sm"
@@ -1714,6 +1724,18 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           onClose={() => setStatusMessage(null)}
         />
       )}
+
+      <DataUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        defaultEntity="staff"
+        allowedEntities={['staff']}
+        hideEntityTabs={true}
+        onImportSuccess={() => {
+          loadStaffList();
+          setStatusMessage({ text: 'Staff members imported successfully!', type: 'success' });
+        }}
+      />
     </div>
   );
 }

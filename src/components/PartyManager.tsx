@@ -13,7 +13,7 @@ import {
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
   Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
-  Eye, Printer, Receipt, Edit3, LayoutList, Table,
+  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -21,6 +21,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
+import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
 import { getAppTimeFormat, parseUTCDate, formatBillDateTime, generateReceiptText } from '../utils/receiptGenerator';
@@ -154,6 +155,7 @@ export function PartyManager({
   const [ledgerLayoutMode, setLedgerLayoutMode] = useState<'table' | 'cards'>('table');
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [activeTab, setActiveTab] = useState<'ALL' | 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM'>('ALL');
@@ -957,6 +959,12 @@ export function PartyManager({
           <div className="flex items-center gap-2 shrink-0">
             {view === 'list' && isOwner && (
               <>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload (CSV/Excel)
+                </button>
                 <button
                   onClick={() => setShowConnectModal(true)}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -2950,6 +2958,18 @@ export function PartyManager({
       )}
 
       <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} />
+
+      <DataUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        defaultEntity={activeTab === 'SUPPLIER' ? 'suppliers' : activeTab === 'CUSTOMER' ? 'customers' : activeTab === 'STAFF' ? 'staff' : 'customers'}
+        allowedEntities={['customers', 'suppliers', 'staff']}
+        hideEntityTabs={false}
+        onImportSuccess={(count, entity) => {
+          loadParties();
+          setStatusMessage({ text: `Successfully imported ${count} ${entity}!`, type: 'success' });
+        }}
+      />
     </div>
 
   );

@@ -57,6 +57,7 @@ module.exports = {
   },
   win: {
     icon: 'build/icon.ico',
+    signAndEditExecutable: false,
     target: [
       {
         target: 'nsis',

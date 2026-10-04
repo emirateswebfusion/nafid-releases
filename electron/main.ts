@@ -1971,6 +1971,119 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
   }
 }));
 
+ipcMain.handle('db:bulkImportParties', safeHandler((event, parties: any[]) => {
+  try {
+    const db = getDb();
+    const transaction = db.transaction((partyList) => {
+      const selectPhoneStmt = db.prepare('SELECT party_id, phone, name FROM parties WHERE tenant_id = ? AND is_deleted = 0');
+      const insertStmt = db.prepare(`
+        INSERT INTO parties (
+          party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance,
+          pricing_tier_id, credit_limit, party_type, custom_category, notes, balance_type,
+          is_deleted, sync_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
+      `);
+      const updateStmt = db.prepare(`
+        UPDATE parties 
+        SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address), gstin = COALESCE(?, gstin),
+            pricing_tier_id = COALESCE(?, pricing_tier_id), credit_limit = COALESCE(?, credit_limit),
+            party_type = COALESCE(?, party_type), custom_category = COALESCE(?, custom_category), notes = COALESCE(?, notes),
+            is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE party_id = ?
+      `);
+      const insertLedgerStmt = db.prepare(`
+        INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, created_by, created_by_name, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'GST', ?, ?, 'PENDING', ?, ?)
+      `);
+
+      const now = new Date();
+      for (const p of partyList) {
+        now.setMilliseconds(now.getMilliseconds() + 1);
+        const timestamp = localTimestamp(now);
+
+        const phoneClean = (p.phone || '').replace(/\D/g, '');
+        const nameClean = (p.name || '').trim().toLowerCase();
+
+        let existing: any = null;
+        if (p.tenant_id) {
+          const tenantParties = selectPhoneStmt.all(p.tenant_id) as any[];
+          if (phoneClean.length >= 7) {
+            existing = tenantParties.find((party: any) => {
+              const pDigits = (party.phone || '').replace(/\D/g, '');
+              return pDigits.length >= 7 && (pDigits === phoneClean || (phoneClean.length >= 10 && pDigits.slice(-10) === phoneClean.slice(-10)));
+            });
+          }
+          if (!existing && nameClean) {
+            existing = tenantParties.find((party: any) => (party.name || '').trim().toLowerCase() === nameClean);
+          }
+        }
+
+        if (existing) {
+          updateStmt.run(
+            p.name,
+            p.phone || null,
+            p.address || null,
+            p.gstin || null,
+            p.pricing_tier_id || null,
+            p.credit_limit || 0,
+            p.party_type || 'SUPPLIER',
+            p.custom_category || null,
+            p.notes || null,
+            existing.party_id
+          );
+        } else {
+          const bt = p.balance_type || (p.party_type === 'SUPPLIER' ? 'PAYABLE' : 'RECEIVABLE');
+          const initialBalance = bt === 'RECEIVABLE'
+            ? Math.abs(p.balance || 0)
+            : -Math.abs(p.balance || 0);
+          const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
+          const partyType = p.party_type || 'SUPPLIER';
+
+          insertStmt.run(
+            p.party_id,
+            p.tenant_id,
+            p.name,
+            p.phone || null,
+            p.address || null,
+            p.gstin || null,
+            initialBalance,
+            initialBalance,
+            p.pricing_tier_id || null,
+            creditLimit,
+            partyType,
+            p.custom_category || null,
+            p.notes || null,
+            bt,
+            timestamp,
+            timestamp
+          );
+
+          if (p.balance && parseFloat(p.balance) !== 0) {
+            const amount = Math.abs(parseFloat(p.balance));
+            const ledgerId = p.party_id + '-OPENING';
+            insertLedgerStmt.run(
+              ledgerId, p.party_id, p.tenant_id, timestamp,
+              `Opening Balance (${bt === 'RECEIVABLE' ? 'Receivable' : 'Payable'})`,
+              bt === 'RECEIVABLE' ? amount : 0,
+              bt === 'PAYABLE' ? amount : 0,
+              initialBalance,
+              p.created_by || null,
+              p.created_by_name || null,
+              timestamp,
+              timestamp
+            );
+          }
+        }
+      }
+    });
+    transaction(parties);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:bulkImportParties]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+}));
+
 ipcMain.handle('db:updateParty', safeHandler((event, p) => {
   try {
     const db = getDb();

@@ -3,6 +3,14 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @keyframes marquee-x {
   from { transform: translateX(0); }
   to { transform: translateX(var(--marquee-distance, -100%)); }
@@ -247,7 +255,12 @@
 
   /* Navigation Tabs */
   .premium-tabs-list {
-    @apply flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none;
+    @apply flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto w-full max-w-fit shadow-inner select-none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .premium-tabs-list::-webkit-scrollbar {
+    display: none;
   }
   .premium-tab-trigger {
     @apply flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0;

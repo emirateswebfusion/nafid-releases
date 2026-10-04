@@ -112,6 +112,7 @@ export interface IElectronAPI {
   dbFindCustomers: (params: { tenant_id: string; name?: string; phone?: string }) => Promise<any[]>;
   dbGetParties: (tenant_id: string, includeDeleted?: boolean) => Promise<any[]>;
   dbAddParty: (party: any) => Promise<{ success: boolean; error?: string }>;
+  dbBulkImportParties: (parties: any[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdateParty: (party: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbRestoreParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
