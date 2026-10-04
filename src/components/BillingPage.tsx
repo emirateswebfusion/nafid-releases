@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -416,6 +416,36 @@ function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; pho
     </div>
   );
 }
+
+const BillDescriptionCard = React.memo(({ activeTabId }: { activeTabId: string }) => {
+  const tabDescription = useTabStore(s => s.tabs.find(t => t.id === activeTabId)?.description || '');
+  const updateActiveTab = useTabStore(s => s.updateActiveTab);
+  const [localText, setLocalText] = useState(tabDescription);
+
+  useEffect(() => {
+    setLocalText(tabDescription);
+  }, [activeTabId, tabDescription]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLocalText(val);
+    updateActiveTab({ description: val });
+  };
+
+  return (
+    <div className="mt-2.5">
+      <input
+        type="text"
+        placeholder="Bill Description / Remarks"
+        value={localText}
+        onChange={handleChange}
+        onKeyDown={e => e.stopPropagation()}
+        onKeyUp={e => e.stopPropagation()}
+        className="w-full px-3 py-2 bg-background border border-border/70 rounded-xl text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-xs"
+      />
+    </div>
+  );
+});
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
@@ -6978,6 +7008,8 @@ export function BillingPage() {
                 placeholder="Bill Description / Remarks"
                 value={activeTab?.description || ''}
                 onChange={e => updateActiveTab({ description: e.target.value })}
+                onKeyDown={e => e.stopPropagation()}
+                onKeyUp={e => e.stopPropagation()}
                 className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg font-medium text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
@@ -9657,21 +9689,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
             {/* ── Bill Description Card (Directly Below Payment Methods in Scrollable Area) ── */}
             {showDescriptionState && (
-              <div className="mt-3 p-3 bg-card border border-border/80 rounded-2xl shadow-xs transition-all duration-200 hover:border-primary/30">
-                <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
-                  <FileText className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                    Bill Description / Remarks
-                  </span>
-                </div>
-                <textarea
-                  rows={2}
-                  placeholder="Enter bill description, remarks, or notes (e.g. PO No, Special Order, Warranty details)..."
-                  value={activeTab?.description || ''}
-                  onChange={e => updateActiveTab({ description: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-border/70 rounded-xl text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-xs resize-none min-h-[64px]"
-                />
-              </div>
+              <BillDescriptionCard activeTabId={activeTabId} />
             )}
 
           </div>

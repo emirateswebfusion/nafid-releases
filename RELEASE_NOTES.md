@@ -1,3 +1,10 @@
+# Vendora v1.6.5 Release Notes
+
+## What's Changed
+- POS stability and application build updates
+- Automated release build and installer asset deployment
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.4...v1.6.5
+
 # Vendora v1.6.4 Release Notes
 
 ## What's Changed

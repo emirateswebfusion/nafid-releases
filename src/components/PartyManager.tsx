@@ -13,7 +13,7 @@ import {
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
   Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
-  Eye, Printer, Receipt, Edit3,
+  Eye, Printer, Receipt, Edit3, LayoutList, Table,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -150,6 +150,8 @@ export function PartyManager({
 
   const [view, setView] = useState<View>('list');
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
+  const [listLayoutMode, setListLayoutMode] = useState<'table' | 'cards'>('table');
+  const [ledgerLayoutMode, setLedgerLayoutMode] = useState<'table' | 'cards'>('table');
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -267,6 +269,14 @@ export function PartyManager({
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+
+  const totalCreditSum = useMemo(() => {
+    return ledger.reduce((sum, entry) => sum + (Number(entry.credit_amount) || 0), 0);
+  }, [ledger]);
+
+  const totalDebitSum = useMemo(() => {
+    return ledger.reduce((sum, entry) => sum + (Number(entry.debit_amount) || 0), 0);
+  }, [ledger]);
 
   const [editingTx, setEditingTx] = useState<LedgerEntry | null>(null);
   const [isSavingTx, setIsSavingTx] = useState(false);
@@ -1063,9 +1073,9 @@ export function PartyManager({
             </div>
           </div>
 
-          {/* Search */}
-          <div className="shrink-0 px-5 py-3 border-b border-border bg-background">
-            <div className="relative">
+          {/* Search & Layout toggle */}
+          <div className="shrink-0 px-5 py-3 border-b border-border bg-background flex items-center justify-between gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
@@ -1082,6 +1092,36 @@ export function PartyManager({
                   <X className="w-3.5 h-3.5 text-destructive" />
                 </button>
               )}
+            </div>
+
+            {/* Layout View Switcher (Icon-only) */}
+            <div className="flex items-center p-1 rounded-xl bg-muted/70 border border-border shrink-0 select-none">
+              <button
+                type="button"
+                onClick={() => setListLayoutMode('table')}
+                className={clsx(
+                  "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
+                  listLayoutMode === 'table'
+                    ? "bg-card text-primary shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Table View"
+              >
+                <Table className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setListLayoutMode('cards')}
+                className={clsx(
+                  "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
+                  listLayoutMode === 'cards'
+                    ? "bg-card text-primary shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Cards View"
+              >
+                <LayoutList className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
@@ -1209,6 +1249,189 @@ export function PartyManager({
                     <UserPlus className="w-4 h-4" /> Add First Party
                   </button>
                 )}
+              </div>
+            ) : listLayoutMode === 'table' ? (
+              /* ── Standard Party Directory Table View ── */
+              <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-muted/70 text-muted-foreground font-bold border-b border-border uppercase tracking-wider text-[11px] select-none sticky top-0 backdrop-blur-md">
+                      <th className="py-3 px-4">Party Name</th>
+                      <th className="py-3 px-4">Category / Type</th>
+                      <th className="py-3 px-4">Contact</th>
+                      <th className="py-3 px-4 text-right">Balance</th>
+                      <th className="py-3 px-4 text-right">Credit Limit</th>
+                      <th className="py-3 px-4">Last Activity</th>
+                      <th className="py-3 px-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredParties.map(party => {
+                      const isReceivable = party.balance > 0;
+                      const isPayable = party.balance < 0;
+                      const hue = nameToHue(party.name);
+                      return (
+                        <tr
+                          key={party.party_id}
+                          onClick={() => {
+                            lastInteractedPartyId.current = party.party_id;
+                            if (listScrollRef.current) {
+                              savedScrollTop.current = listScrollRef.current.scrollTop;
+                            }
+                            setSelectedParty(party);
+                            setView('ledger');
+                            loadLedger(party.party_id);
+                          }}
+                          className={clsx(
+                            "hover:bg-muted/40 transition-colors cursor-pointer group",
+                            highlightedPartyId === party.party_id && "bg-primary/10"
+                          )}
+                        >
+                          {/* Party Name */}
+                          <td className="py-3 px-4 font-bold text-foreground">
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white font-black text-xs shadow-xs"
+                                style={{ background: `hsl(${hue}, 65%, 52%)` }}
+                              >
+                                {getInitials(party.name)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">{party.name}</p>
+                                {party.gstin && <p className="text-[10px] text-muted-foreground font-mono">GST: {party.gstin}</p>}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Type / Category */}
+                          <td className="py-3 px-4">
+                            {party.party_type === 'SUPPLIER' && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
+                                📦 Supplier
+                              </span>
+                            )}
+                            {party.party_type === 'STAFF' && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                                👥 Staff
+                              </span>
+                            )}
+                            {party.party_type === 'CUSTOM' && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                                🏦 {party.custom_category || 'Custom'}
+                              </span>
+                            )}
+                            {(!party.party_type || party.party_type === 'CUSTOMER') && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-md">
+                                🛒 Customer
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Contact */}
+                          <td className="py-3 px-4 font-medium text-muted-foreground">
+                            {party.phone ? (
+                              <div className="flex items-center gap-1">
+                                <Phone className="w-3 h-3 text-muted-foreground/70" />
+                                <span>{party.phone}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/30">—</span>
+                            )}
+                          </td>
+
+                          {/* Balance */}
+                          <td className="py-3 px-4 text-right">
+                            <span className={clsx(
+                              "font-mono font-black text-sm block",
+                              isReceivable ? "text-rose-600 dark:text-rose-400" :
+                              isPayable ? "text-emerald-600 dark:text-emerald-400" :
+                              "text-muted-foreground"
+                            )}>
+                              ₹{Math.abs(party.balance).toFixed(2)}
+                            </span>
+                            <span className={clsx(
+                              "inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border mt-0.5",
+                              isReceivable ? "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400" :
+                              isPayable ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" :
+                              "bg-muted border-border text-muted-foreground"
+                            )}>
+                              {isReceivable ? tLabels.receivable : isPayable ? tLabels.payable : 'Settled'}
+                            </span>
+                          </td>
+
+                          {/* Credit Limit */}
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-muted-foreground">
+                            {party.credit_limit != null && Number(party.credit_limit) > 0 ? (
+                              <span className={clsx(
+                                "px-2 py-0.5 rounded border text-[11px] font-bold",
+                                isReceivable && party.balance >= party.credit_limit
+                                  ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                                  : "bg-muted border-border text-foreground"
+                              )}>
+                                ₹{Number(party.credit_limit).toLocaleString('en-IN')}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/30">—</span>
+                            )}
+                          </td>
+
+                          {/* Last Activity */}
+                          <td className="py-3 px-4 font-medium text-muted-foreground text-[11px]">
+                            {party.last_transaction_date ? formatDate(party.last_transaction_date) : '—'}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setSelectedParty(party);
+                                  setView('ledger');
+                                  loadLedger(party.party_id);
+                                }}
+                                className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                title="Open Ledger"
+                              >
+                                <BookOpen className="w-4 h-4" />
+                              </button>
+                              {isOwner && (
+                                <button
+                                  onClick={() => {
+                                    setEditingParty(party);
+                                    setPartyForm({
+                                      name: party.name, phone: party.phone || '', address: party.address || '',
+                                      gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type,
+                                      party_type: (party.party_type as any) || 'CUSTOMER',
+                                      custom_category: party.custom_category || '',
+                                      notes: party.notes || '',
+                                      pricing_tier_id: party.pricing_tier_id || '',
+                                      credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
+                                      connect_code: (party as any).connect_code || '',
+                                    });
+                                    setView('party_form');
+                                  }}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                  title="Edit"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                              )}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleDeleteParty(party)}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="space-y-2">
@@ -1715,121 +1938,124 @@ export function PartyManager({
       {view === 'ledger' && selectedParty && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
 
-          {/* ── Party Banner ── */}
+          {/* ── Party Banner & Controls Header ── */}
           <div
-            className="shrink-0 px-5 py-4 border-b border-border"
+            className="shrink-0 px-5 py-4 border-b border-border space-y-3"
             style={{
               background: isDark
                 ? `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)}, 25%, 13%) 0%, hsl(${nameToHue(selectedParty.name)}, 15%, 17%) 100%)`
                 : `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)}, 60%, 96%) 0%, hsl(${nameToHue(selectedParty.name)}, 40%, 98%) 100%)`
             }}
           >
-            <div className="flex items-center gap-4">
-              {/* Avatar */}
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-md shrink-0 select-none"
-                style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},65%,50%), hsl(${nameToHue(selectedParty.name)},65%,40%))` }}
-              >
-                {getInitials(selectedParty.name)}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {selectedParty.phone && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg">
-                      <Phone className="w-3 h-3" /> {selectedParty.phone}
-                    </span>
-                  )}
-                  {selectedParty.gstin && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded-lg">
-                      <FileText className="w-3 h-3" /> {selectedParty.gstin}
-                    </span>
-                  )}
-                  {selectedParty.address && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
-                      <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
-                    </span>
-                  )}
-                  {selectedParty.pricing_tier_id && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 dark:bg-violet-500/20 border border-violet-500/20 px-2 py-0.5 rounded-lg">
-                      <Tag className="w-3 h-3 shrink-0" /> {pricingTiers.find(t => t.pricing_tier_id === selectedParty.pricing_tier_id)?.name || 'Pricing Tier'}
-                    </span>
-                  )}
-                  {selectedParty.connection_status === 'CONNECTED' ? (
-                    <span className="flex items-center gap-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg shadow-sm">
-                      🟢 Connected Ledger
-                    </span>
-                  ) : selectedParty.connection_status === 'PENDING' ? (
-                    <span className="flex items-center gap-1 text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-lg">
-                      🟡 Connection Pending
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setConnectCodeInput(selectedParty.connect_code || '');
-                        setSearchResult(null);
-                        setShowConnectModal(true);
-                      }}
-                      className="flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 px-2.5 py-0.5 rounded-lg transition-all cursor-pointer"
-                    >
-                      <Link className="w-3 h-3" /> Connect Ledger
-                    </button>
-                  )}
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              {/* Left: Avatar & Info */}
+              <div className="flex items-center gap-4 min-w-0">
+                <div
+                  className="w-13 h-13 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-md shrink-0 select-none"
+                  style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},65%,50%), hsl(${nameToHue(selectedParty.name)},65%,40%))` }}
+                >
+                  {getInitials(selectedParty.name)}
                 </div>
-                <p className="text-[11px] text-muted-foreground font-medium mt-1.5">
-                  {ledger.length} {ledger.length === 1 ? 'entry' : 'entries'} · Last updated {selectedParty.last_transaction_date ? formatDate(selectedParty.last_transaction_date) : '—'}
-                </p>
-              </div>
 
-              {/* Balance pill */}
-              <div className={clsx(
-                'shrink-0 text-right px-4 py-3 rounded-2xl shadow-sm',
-                selectedParty.balance > 0
-                  ? 'bg-red-500 text-white'
-                  : selectedParty.balance < 0
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-muted text-muted-foreground border border-border'
-              )}>
-                <p className="text-xl font-black leading-none">
-                  ₹{Math.abs(selectedParty.balance).toFixed(2)}
-                </p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
-                  {selectedParty.balance > 0 ? tLabels.receivable : selectedParty.balance < 0 ? tLabels.payable : 'Settled'}
-                </p>
-                {enablePartyGst && enablePartyEstimate && (
-                  <div className="mt-1.5 pt-1.5 border-t border-white/20 flex flex-col items-end gap-0.5">
-                    <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
-                      GST: ₹{Math.abs(selectedParty.gst_balance ?? selectedParty.balance).toFixed(2)}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
-                      Est: ₹{Math.abs(selectedParty.estimate_balance ?? 0).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Credit Limit Card if configured */}
-              {selectedParty.credit_limit != null && Number(selectedParty.credit_limit) > 0 && (
-                <div className="shrink-0 text-right px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-end gap-1">
-                    <CreditCard className="w-3 h-3" />
-                    Credit Limit
-                  </p>
-                  <p className="text-lg font-black leading-tight text-foreground mt-0.5">
-                    ₹{Number(selectedParty.credit_limit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </p>
-                  <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 text-[10px] font-bold">
-                    {selectedParty.balance >= selectedParty.credit_limit ? (
-                      <span className="text-red-500 font-extrabold">Limit Reached</span>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Available: <span className="text-emerald-600 dark:text-emerald-400 font-black">₹{Math.max(0, Number(selectedParty.credit_limit) - Math.max(0, Number(selectedParty.balance))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base font-black text-foreground truncate">{selectedParty.name}</h2>
+                    {selectedParty.phone && (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg">
+                        <Phone className="w-3 h-3" /> {selectedParty.phone}
                       </span>
                     )}
+                    {selectedParty.gstin && (
+                      <span className="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded-lg">
+                        <FileText className="w-3 h-3" /> {selectedParty.gstin}
+                      </span>
+                    )}
+                    {selectedParty.address && (
+                      <span className="hidden md:flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
+                        <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
+                      </span>
+                    )}
+                    {selectedParty.connection_status === 'CONNECTED' ? (
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg shadow-xs">
+                        🟢 Connected Ledger
+                      </span>
+                    ) : selectedParty.connection_status === 'PENDING' ? (
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-lg">
+                        🟡 Connection Pending
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setConnectCodeInput(selectedParty.connect_code || '');
+                          setSearchResult(null);
+                          setShowConnectModal(true);
+                        }}
+                        className="flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 px-2.5 py-0.5 rounded-lg transition-all cursor-pointer"
+                      >
+                        <Link className="w-3 h-3" /> Connect Ledger
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-1">
+                    {ledger.length} {ledger.length === 1 ? 'entry' : 'entries'} · Last updated {selectedParty.last_transaction_date ? formatDate(selectedParty.last_transaction_date) : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right: FIRST Icons (View Switcher), THEN Total Amount Box */}
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                {/* 1. View Switcher for Ledger (Icons First) */}
+                <div className="flex items-center p-1 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs select-none">
+                  <button
+                    type="button"
+                    onClick={() => setLedgerLayoutMode('table')}
+                    className={clsx(
+                      "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
+                      ledgerLayoutMode === 'table'
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title="Statement Table View"
+                  >
+                    <Table className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerLayoutMode('cards')}
+                    className={clsx(
+                      "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
+                      ledgerLayoutMode === 'cards'
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title="Cards View"
+                  >
+                    <LayoutList className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 2. Total Amount Box (Then Amount Box) */}
+                <div className={clsx(
+                  'flex items-center gap-2.5 px-3.5 py-2 rounded-2xl shadow-xs border',
+                  selectedParty.balance > 0
+                    ? 'bg-rose-500 text-white border-rose-600'
+                    : selectedParty.balance < 0
+                    ? 'bg-emerald-600 text-white border-emerald-700'
+                    : 'bg-muted text-muted-foreground border-border'
+                )}>
+                  <div className="p-1.5 rounded-xl bg-black/10 dark:bg-white/20 shrink-0">
+                    <Wallet className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-black leading-none font-mono">
+                      ₹{Math.abs(selectedParty.balance).toFixed(2)}
+                    </p>
+                    <p className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-90">
+                      {selectedParty.balance > 0 ? tLabels.receivable : selectedParty.balance < 0 ? tLabels.payable : 'Settled'}
+                    </p>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -1837,12 +2063,12 @@ export function PartyManager({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {ledgerLoading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}
               </div>
             ) : ledger.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-                  <Activity className="w-8 h-8 text-muted-foreground/50" />
+                  <BookOpen className="w-8 h-8 text-muted-foreground/50" />
                 </div>
                 <div>
                   <p className="text-base font-bold text-foreground">No transactions yet</p>
@@ -1857,7 +2083,169 @@ export function PartyManager({
                   </button>
                 )}
               </div>
+            ) : ledgerLayoutMode === 'table' ? (
+              /* ── Standard Accounting Statement Table ── */
+              <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-muted/70 text-muted-foreground font-bold border-b border-border uppercase tracking-wider text-[11px] select-none sticky top-0 backdrop-blur-md">
+                      <th className="py-3 px-4">Date & Time</th>
+                      <th className="py-3 px-4">Voucher / Ref #</th>
+                      <th className="py-3 px-4">Particulars / Description</th>
+                      <th className="py-3 px-4">Mode</th>
+                      <th className="py-3 px-4 text-right text-rose-600 dark:text-rose-400 font-extrabold bg-rose-500/5 border-l border-r border-border/40">
+                        {tLabels.debit || 'Debit'} (Dr / {tLabels.paid || 'Giving'} ₹)
+                      </th>
+                      <th className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-500/5 border-r border-border/40">
+                        {tLabels.credit || 'Credit'} (Cr / {tLabels.received || 'Receiving'} ₹)
+                      </th>
+                      <th className="py-3 px-4 text-right font-extrabold">Running Bal (₹)</th>
+                      <th className="py-3 px-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {[...ledger].reverse().map((entry) => {
+                      const isCredit = entry.credit_amount > 0;
+                      return (
+                        <tr
+                          key={entry.ledger_id}
+                          onClick={() => handleOpenBillForLedgerEntry(entry)}
+                          className="hover:bg-muted/40 transition-colors cursor-pointer group"
+                        >
+                          {/* Date & Time */}
+                          <td className="py-3 px-4 font-medium text-muted-foreground text-[11px] whitespace-nowrap">
+                            {formatDateTime(entry.transaction_date)}
+                          </td>
+
+                          {/* Ref # */}
+                          <td className="py-3 px-4 font-mono font-bold text-foreground whitespace-nowrap">
+                            {entry.reference_number ? (
+                              <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded text-[11px] border border-border">
+                                <Hash className="w-3 h-3 text-muted-foreground" />
+                                {entry.reference_number}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/30">—</span>
+                            )}
+                          </td>
+
+                          {/* Particulars */}
+                          <td className="py-3 px-4">
+                            <p className="font-bold text-foreground text-xs leading-snug group-hover:text-primary transition-colors">
+                              {entry.description}
+                            </p>
+                          </td>
+
+                          {/* Payment Method */}
+                          <td className="py-3 px-4 font-medium text-muted-foreground text-[11px] whitespace-nowrap">
+                            {entry.payment_method ? (
+                              <span className="inline-flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded text-[11px] border border-border/40">
+                                <PaymentMethodIcon method={entry.payment_method} />
+                                {entry.payment_method === 'CASH' ? 'Cash' : entry.payment_method === 'BANK_TRANSFER' ? 'Bank' : entry.payment_method === 'UPI' ? 'UPI' : entry.payment_method === 'CARD' ? 'Card' : 'Other'}
+                              </span>
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </td>
+
+                          {/* Debit (Dr) */}
+                          <td className="py-3 px-4 text-right font-mono font-black text-sm text-rose-600 dark:text-rose-400 bg-rose-500/5 border-l border-r border-border/40">
+                            {entry.debit_amount > 0 ? `₹${entry.debit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
+                          </td>
+
+                          {/* Credit (Cr) */}
+                          <td className="py-3 px-4 text-right font-mono font-black text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border-r border-border/40">
+                            {entry.credit_amount > 0 ? `₹${entry.credit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
+                          </td>
+
+                          {/* Running Balance */}
+                          <td className="py-3 px-4 text-right">
+                            <span className={clsx(
+                              "font-mono font-black text-sm block",
+                              entry.running_balance > 0 ? "text-rose-600 dark:text-rose-400" :
+                              entry.running_balance < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                              "text-muted-foreground"
+                            )}>
+                              ₹{Math.abs(entry.running_balance).toFixed(2)}
+                            </span>
+                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                              {entry.running_balance > 0 ? tLabels.receivable : entry.running_balance < 0 ? tLabels.payable : 'Settled'}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenBillForLedgerEntry(entry)}
+                                className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                title="View Voucher / Bill"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingTx(entry);
+                                    const amt = entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount;
+                                    setTxForm({
+                                      amount: String(amt),
+                                      transaction_type: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
+                                      description: entry.description,
+                                      transaction_date: toLocalInputValue(entry.transaction_date),
+                                      reference_number: entry.reference_number || '',
+                                      balance_type: entry.balance_type || 'GST',
+                                      payment_method: (entry.payment_method as any) || 'CASH',
+                                    });
+                                    setView('tx_form');
+                                  }}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                  title="Edit Entry"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTx(entry)}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                                  title="Delete Entry"
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                  {/* Standard Ledger Summary Footer */}
+                  <tfoot>
+                    <tr className="bg-muted/90 text-foreground font-black border-t-2 border-border text-xs select-none">
+                      <td colSpan={4} className="py-3.5 px-4 font-extrabold uppercase tracking-wider text-right">
+                        Statement Totals ({ledger.length} {ledger.length === 1 ? 'entry' : 'entries'}):
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border-l border-r border-border/40">
+                        ₹{totalDebitSum.toFixed(2)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-r border-border/40">
+                        ₹{totalCreditSum.toFixed(2)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-sm">
+                        ₹{Math.abs(selectedParty.balance).toFixed(2)}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             ) : (
+              /* ── Cards View Stream (Polished Modern Cards) ── */
               <div className="space-y-2.5">
                 {[...ledger].reverse().map((entry) => {
                   const isCredit = entry.credit_amount > 0;
@@ -1867,136 +2255,32 @@ export function PartyManager({
                       key={entry.ledger_id}
                       onClick={() => handleOpenBillForLedgerEntry(entry)}
                       className={clsx(
-                        'rounded-2xl border bg-card dark:bg-card shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-primary/40 cursor-pointer group',
-                        isCredit ? 'border-emerald-500/20 dark:border-emerald-900/30' : 'border-rose-500/20 dark:border-rose-900/30'
+                        'rounded-2xl border bg-card dark:bg-card p-4 shadow-xs hover:shadow-md hover:border-primary/40 transition-all cursor-pointer group flex items-center justify-between gap-4',
+                        isCredit ? 'border-l-4 border-l-emerald-500 border-border' : 'border-l-4 border-l-rose-500 border-border'
                       )}
                     >
-                      {/* Colored top bar */}
-                      <div className={clsx('h-1 w-full', isCredit ? 'bg-emerald-500' : 'bg-red-500')} />
-
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-
-                          {/* Left: badge + description + meta */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-2">
-                              {/* Type badge */}
-                              <span className={clsx(
-                                'inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
-                                isCredit
-                                  ? 'bg-emerald-500 text-white'
-                                  : 'bg-red-500 text-white'
-                              )}>
-                                {isCredit ? <PlusCircle className="w-3 h-3" /> : <MinusCircle className="w-3 h-3" />}
-                                {isCredit ? 'Paid' : 'Received'}
-                              </span>
-                              {/* Balance type badge */}
-                              {enablePartyGst && enablePartyEstimate && (
-                                <span className={clsx(
-                                  'inline-flex items-center text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
-                                  (entry.balance_type || 'GST') === 'ESTIMATE'
-                                    ? 'bg-violet-500 text-white'
-                                    : 'bg-sky-500 text-white'
-                                )}>
-                                  {entry.balance_type || 'GST'}
-                                </span>
-                              )}
-                              {/* Reference badge */}
-                              {entry.reference_number && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border px-2 py-1 rounded-lg">
-                                  <Hash className="w-3 h-3" />{entry.reference_number}
-                                </span>
-                              )}
-                            </div>
-
-                            <p className="font-bold text-sm text-foreground leading-snug group-hover:text-primary transition-colors">{entry.description}</p>
-
-                            <div className="flex items-center gap-3 mt-2 flex-wrap">
-                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-                                <Calendar className="w-3 h-3" />{formatDateTime(entry.transaction_date)}
-                              </span>
-                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-                                <User className="w-3 h-3" />{entry.created_by_name || 'Unknown'}
-                              </span>
-                              {entry.payment_method && (
-                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-                                  <Wallet className="w-3 h-3" />
-                                  {entry.payment_method === 'CASH' ? 'Cash' : entry.payment_method === 'BANK_TRANSFER' ? 'Bank' : entry.payment_method === 'UPI' ? 'UPI' : entry.payment_method === 'CARD' ? 'Card' : 'Other'}
-                                </span>
-                              )}
-                            </div>
+                      <div className="flex-1 min-w-0">
+                        {entry.reference_number && (
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="text-[10px] font-mono font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                              #{entry.reference_number}
+                            </span>
                           </div>
-
-                          {/* Right: amount + balance + actions */}
-                          <div className="shrink-0 flex flex-col items-end gap-1.5">
-                            <p className={clsx(
-                              'text-xl font-black leading-none',
-                              isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
-                            )}>
-                              {isCredit ? '+' : '−'}₹{amount.toFixed(2)}
-                            </p>
-                            <div className={clsx(
-                              'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border',
-                              entry.running_balance > 0
-                                ? 'bg-red-500/10 dark:bg-red-500/20 border-red-500/20 text-red-500 dark:text-red-400'
-                                : entry.running_balance < 0
-                                ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                                : 'bg-muted border-border text-muted-foreground'
-                            )}>
-                              Bal: ₹{Math.abs(entry.running_balance).toFixed(2)}
-                            </div>
-
-                            {/* Actions — under balance */}
-                            <div className="flex items-center gap-1 mt-1">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenBillForLedgerEntry(entry);
-                                }}
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all active:scale-95 cursor-pointer"
-                                title="Open Bill / Voucher"
-                              >
-                                <Eye className="w-3 h-3" /> View Bill
-                              </button>
-                              {isOwner && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingTx(entry);
-                                      const amt = entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount;
-                                      setTxForm({
-                                        amount: String(amt),
-                                        transaction_type: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
-                                        description: entry.description,
-                                        transaction_date: toLocalInputValue(entry.transaction_date),
-                                        reference_number: entry.reference_number || '',
-                                        balance_type: entry.balance_type || 'GST',
-                                        payment_method: (entry.payment_method as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER') || 'CASH',
-                                      });
-                                      setView('tx_form');
-                                    }}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-transparent hover:border-blue-200 dark:hover:border-blue-800/40 transition-all active:scale-95 cursor-pointer"
-                                  >
-                                    <Pencil className="w-3 h-3" /> Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteTx(entry);
-                                    }}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent hover:border-red-200 dark:hover:border-red-800/40 transition-all active:scale-95 cursor-pointer"
-                                  >
-                                    <Trash className="w-3 h-3" /> Delete
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
+                        )}
+                        <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{entry.description}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground font-medium">
+                          <span>{formatDateTime(entry.transaction_date)}</span>
+                          {entry.payment_method && <span>· {entry.payment_method}</span>}
                         </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className={clsx('text-lg font-black font-mono', isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+                          {isCredit ? '+' : '−'}₹{amount.toFixed(2)}
+                        </p>
+                        <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                          Bal: ₹{Math.abs(entry.running_balance).toFixed(2)}
+                        </p>
                       </div>
                     </div>
                   );
@@ -2016,13 +2300,13 @@ export function PartyManager({
                   onClick={() => openTxForm('CREDIT')}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
-                  <PlusCircle className="w-4 h-4" /> + Paid (Credit)
+                  <PlusCircle className="w-4 h-4" /> + {tLabels.paid || 'Paid'} (Credit)
                 </button>
                 <button
                   onClick={() => openTxForm('DEBIT')}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
-                  <MinusCircle className="w-4 h-4" /> − Received (Debit)
+                  <MinusCircle className="w-4 h-4" /> − {tLabels.received || 'Received'} (Debit)
                 </button>
               </div>
             </div>

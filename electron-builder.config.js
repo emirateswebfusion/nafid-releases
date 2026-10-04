@@ -3,6 +3,8 @@ if (!process.env.GH_TOKEN) {
   require('dotenv').config({ path: '.env.production' });
 }
 process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
+process.env.CSC_LINK = "";
+process.env.WIN_CSC_LINK = "";
 
 const repoUrl = process.env.GITHUB_REPO_URL || '';
 let repository = {};
