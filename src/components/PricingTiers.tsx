@@ -61,7 +61,7 @@ const MatrixRow = React.memo(({
   return (
     <div
       className={clsx(
-        'flex items-center gap-4 px-6 py-2.5 border-b border-border/50 hover:bg-muted/30',
+        'flex items-center gap-4 px-6 py-2.5 border-b border-border/50 hover:bg-muted/30 transition-colors',
         isModified && 'bg-amber-500/5'
       )}
     >
@@ -70,17 +70,36 @@ const MatrixRow = React.memo(({
         {index + 1}
       </div>
 
-      {/* Product Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-foreground truncate">{product.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          {product.sku_barcode && <span className="text-[10px] font-mono text-muted-foreground">{product.sku_barcode}</span>}
-          {product.category && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">{product.category}</span>}
+      {/* Product Info - Full View with Text Wrap */}
+      <div className="flex-1 min-w-[240px] sm:min-w-[280px]">
+        <p
+          className="text-sm font-bold text-foreground leading-snug whitespace-normal break-words cursor-text select-text"
+          title={product.name}
+        >
+          {product.name}
+        </p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {product.sku_barcode && (
+            <span
+              className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/40 shrink-0"
+              title={`Barcode: ${product.sku_barcode}`}
+            >
+              {product.sku_barcode}
+            </span>
+          )}
+          {product.category && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0"
+              title={`Category: ${product.category}`}
+            >
+              {product.category}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Base MRP */}
-      <div className="w-28 text-right text-xs font-black text-muted-foreground shrink-0">
+      <div className="w-28 text-center text-xs font-black text-muted-foreground shrink-0">
         ₹{Number(product.base_price || 0).toFixed(2)}
       </div>
 
@@ -150,7 +169,7 @@ const MatrixRow = React.memo(({
 });
 
 // ── MAIN COMPONENT ───────────────────────────────────────────────────
-export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
+export function PricingTiers({ onClose }: { onClose?: () => void }) {
   useCloseOnEscape(onClose);
   const { tenantId, role } = useAuthStore();
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role.toUpperCase());
@@ -229,7 +248,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
       setInitialPricingMap(map);
       setAllowBillerOverride(overrideRes === null || overrideRes === undefined ? true : !!overrideRes);
     } catch (e) {
-      console.error('[SettingsPricingTiers] load failed', e);
+      console.error('[PricingTiers] load failed', e);
       setError('Failed to load pricing data.');
     } finally {
       setLoading(false);
@@ -852,9 +871,9 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
 
           {/* Toolbar */}
           <div className="w-full px-4 sm:px-6 pt-4 shrink-0">
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
+            <div className="flex flex-col lg:flex-row gap-3 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
               {/* Search */}
-              <div className="relative w-full sm:max-w-xs flex-1">
+              <div className="relative w-full lg:max-w-xs flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
@@ -873,34 +892,24 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                 )}
               </div>
 
-              {/* Tier Filter Pills */}
-              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none max-w-fit shadow-inner select-none shrink-0 items-center">
-                <Filter className="w-3 h-3 text-muted-foreground/60 ml-1 shrink-0" />
-                <button
-                  onClick={() => setTierFilter('all')}
-                  className={clsx(
-                    'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0',
-                    tierFilter === 'all'
-                      ? 'bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  )}
-                >
-                  All ({activeTiers.length})
-                </button>
-                {activeTiers.map(t => (
-                  <button
-                    key={t.pricing_tier_id}
-                    onClick={() => setTierFilter(t.pricing_tier_id)}
-                    className={clsx(
-                      'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0',
-                      tierFilter === t.pricing_tier_id
-                        ? 'bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                    )}
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                {/* Tier Filter Dropdown */}
+                <div className="relative shrink-0">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 pointer-events-none z-10" />
+                  <select
+                    value={tierFilter}
+                    onChange={e => setTierFilter(e.target.value)}
+                    className="pl-8 pr-8 py-2 text-xs font-bold bg-background border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all text-foreground cursor-pointer appearance-none shadow-sm"
                   >
-                    {t.name}
-                  </button>
-                ))}
+                    <option value="all">All Tiers ({activeTiers.length})</option>
+                    {activeTiers.map(t => (
+                      <option key={t.pricing_tier_id} value={t.pricing_tier_id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 pointer-events-none" />
+                </div>
               </div>
             </div>
           </div>
@@ -909,75 +918,79 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
           <div className="w-full px-4 sm:px-6 pb-6 pt-3 flex flex-col flex-1 min-h-0">
             <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
 
-              {/* Column Header */}
-              <div className="hidden sm:flex items-center px-6 py-3.5 bg-muted/20 dark:bg-muted/10 border-b border-border select-none shrink-0 gap-4">
-                <div className="w-12 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">Sl. No.</div>
-                <div className="flex-1 min-w-0 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Product</div>
-                <div className="w-28 text-right text-[10px] font-black text-muted-foreground uppercase tracking-widest">Base MRP</div>
-                {matrixTiers.map(t => (
-                  <div key={t.pricing_tier_id} className="w-36 text-right text-[10px] font-black text-primary uppercase tracking-widest">
-                    {t.name}
-                  </div>
-                ))}
-                <div className="w-14 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Save</div>
-              </div>
-
-              {/* Scrollable Rows Container with Progressive Chunking */}
+              {/* Synchronized Scrollable Container (Horizontal & Vertical) */}
               <div
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto divide-y divide-border relative"
+                className="flex-1 overflow-auto relative"
               >
-                {loading ? (
-                  [1, 2, 3, 4, 5].map(i => (
-                    <div key={i} className="flex items-center gap-4 px-6 py-3 border-b border-border/50">
-                      <Skeleton className="w-12 h-4 rounded" />
-                      <div className="flex-1 space-y-1">
-                        <Skeleton className="h-4 w-40 rounded" />
-                        <Skeleton className="h-3 w-20 rounded" />
+                <div className="min-w-max w-full divide-y divide-border">
+
+                  {/* Sticky Column Header (Scrolls horizontally with rows, stays pinned on vertical scroll) */}
+                  <div className="sticky top-0 z-20 flex items-center px-6 py-3.5 bg-card/95 backdrop-blur border-b border-border select-none gap-4 shadow-sm">
+                    <div className="w-12 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">Sl. No.</div>
+                    <div className="flex-1 min-w-[240px] sm:min-w-[280px] text-[10px] font-black text-muted-foreground uppercase tracking-widest">Product</div>
+                    <div className="w-28 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">Base MRP</div>
+                    {matrixTiers.map(t => (
+                      <div key={t.pricing_tier_id} className="w-36 text-center text-[10px] font-black text-primary uppercase tracking-widest shrink-0 truncate px-1" title={t.name}>
+                        {t.name}
                       </div>
-                      <Skeleton className="w-28 h-4 rounded ml-auto" />
-                      <Skeleton className="w-36 h-8 rounded-xl" />
-                      <Skeleton className="w-14 h-8 rounded-lg" />
-                    </div>
-                  ))
-                ) : matrixTiers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
-                    <Tags className="w-10 h-10 mb-3 opacity-30" />
-                    <p className="text-sm font-bold text-foreground">No active tiers to display</p>
-                    <p className="text-xs mt-1">
-                      Enable tiers from the{' '}
-                      <button onClick={() => setView('list')} className="text-primary underline cursor-pointer">Tiers</button>
-                      {' '}tab
-                    </p>
-                  </div>
-                ) : filteredProducts.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
-                    <p className="text-sm font-bold text-foreground">No products found</p>
-                    <p className="text-xs mt-1">Try a different search term</p>
-                  </div>
-                ) : (
-                  <>
-                    {displayedProducts.map((p, idx) => (
-                      <MatrixRow
-                        key={p.product_id}
-                        index={idx}
-                        product={p}
-                        matrixTiers={matrixTiers}
-                        rowPrices={pricingMap[p.product_id] || {}}
-                        initPrices={initialPricingMap[p.product_id] || {}}
-                        operating={operating}
-                        onPriceChange={handlePriceChange}
-                        onSaveRow={saveProductRow}
-                      />
                     ))}
-                    {visibleCount < filteredProducts.length && (
-                      <div className="py-4 text-center text-xs font-bold text-muted-foreground/60 bg-muted/10">
-                        Scroll down to load more products ({displayedProducts.length} of {filteredProducts.length} loaded)…
+                    <div className="w-14 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">Save</div>
+                  </div>
+
+                  {/* Rows */}
+                  {loading ? (
+                    [1, 2, 3, 4, 5].map(i => (
+                      <div key={i} className="flex items-center gap-4 px-6 py-3 border-b border-border/50">
+                        <Skeleton className="w-12 h-4 rounded" />
+                        <div className="flex-1 space-y-1">
+                          <Skeleton className="h-4 w-40 rounded" />
+                          <Skeleton className="h-3 w-20 rounded" />
+                        </div>
+                        <Skeleton className="w-28 h-4 rounded ml-auto" />
+                        <Skeleton className="w-36 h-8 rounded-xl" />
+                        <Skeleton className="w-14 h-8 rounded-lg" />
                       </div>
-                    )}
-                  </>
-                )}
+                    ))
+                  ) : matrixTiers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+                      <Tags className="w-10 h-10 mb-3 opacity-30" />
+                      <p className="text-sm font-bold text-foreground">No active tiers to display</p>
+                      <p className="text-xs mt-1">
+                        Enable tiers from the{' '}
+                        <button onClick={() => setView('list')} className="text-primary underline cursor-pointer">Tiers</button>
+                        {' '}tab
+                      </p>
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+                      <p className="text-sm font-bold text-foreground">No products found</p>
+                      <p className="text-xs mt-1">Try a different search term</p>
+                    </div>
+                  ) : (
+                    <>
+                      {displayedProducts.map((p, idx) => (
+                        <MatrixRow
+                          key={p.product_id}
+                          index={idx}
+                          product={p}
+                          matrixTiers={matrixTiers}
+                          rowPrices={pricingMap[p.product_id] || {}}
+                          initPrices={initialPricingMap[p.product_id] || {}}
+                          operating={operating}
+                          onPriceChange={handlePriceChange}
+                          onSaveRow={saveProductRow}
+                        />
+                      ))}
+                      {visibleCount < filteredProducts.length && (
+                        <div className="py-4 text-center text-xs font-bold text-muted-foreground/60 bg-muted/10">
+                          Scroll down to load more products ({displayedProducts.length} of {filteredProducts.length} loaded)…
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Footer */}

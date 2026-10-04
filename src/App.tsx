@@ -35,7 +35,7 @@ import { SalesHistory } from './components/SalesHistory';
 import { StaffManager } from './components/StaffManager';
 import { SettingsManager } from './components/SettingsManager';
 import { SettingsGrades } from './components/SettingsGrades';
-import { SettingsPricingTiers } from './components/SettingsPricingTiers';
+import { PricingTiers } from './components/PricingTiers';
 import { LoginScreen } from './components/LoginScreen';
 import { OwnerDashboard } from './components/OwnerDashboard';
 import SuperDashboard from './components/SuperDashboard';
@@ -735,7 +735,7 @@ function App() {
         </PermissionGuard>
       ) : showSettingsPricingTiers ? (
         <PermissionGuard permission="combos.view" onBack={() => setShowSettingsPricingTiers(false)}>
-          <SettingsPricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
+          <PricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
         </PermissionGuard>
       ) : showSalesHistory ? (
         <PermissionGuard permission="sales.view" onBack={() => setShowSalesHistory(false)}>

@@ -427,12 +427,17 @@ export function PartyManager({
             date: formatBillDateTime(viewingInvoice.created_at),
             items: (viewingInvoiceItems || []).map(i => ({
               name: i.name,
+              quantity: Number(i.quantity) || 1,
+              unit_price: Number(i.unit_price) || 0,
+              total: Number(i.total) || (Number(i.quantity) * Number(i.unit_price)) || 0,
               qty: Number(i.quantity) || 1,
               unitPrice: Number(i.unit_price) || 0,
               totalPrice: Number(i.total) || (Number(i.quantity) * Number(i.unit_price)) || 0,
             })),
             grandTotal: Number(viewingInvoice.grand_total) || 0,
             subtotal: Number(viewingInvoice.subtotal) || 0,
+            tax: Number(viewingInvoice.tax_amount || viewingInvoice.tax || 0),
+            discount: Number(viewingInvoice.discount_amount || viewingInvoice.discount || 0),
             paymentMethod: viewingInvoice.payment_method || 'CASH',
           });
           await window.electronAPI.printReceipt(tId, receiptText);
