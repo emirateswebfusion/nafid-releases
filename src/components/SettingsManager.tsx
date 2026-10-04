@@ -1222,31 +1222,29 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8
       };
 
-      const liveInvCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
-      const liveReturnCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'return_counter' });
-      const liveScrapCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'scrap_invoice_counter' });
-      const liveQuotationCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'quotation_counter' });
-      const liveB2bCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config' });
-      const liveB2cCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config' });
-
-      const finalInvCounter = Math.max((liveInvCfg && typeof liveInvCfg.counter === 'number') ? liveInvCfg.counter : 1, Number(invoiceStartNumber) || 1);
-      const finalReturnCounter = Math.max((liveReturnCfg && typeof liveReturnCfg.counter === 'number') ? liveReturnCfg.counter : 1, Number(returnStartNumber) || 1);
-      const finalScrapCounter = Math.max((liveScrapCfg && typeof liveScrapCfg.counter === 'number') ? liveScrapCfg.counter : 1, Number(scrapStartNumber) || 1);
-      const finalQuotationCounter = Math.max((liveQuotationCfg && typeof liveQuotationCfg.counter === 'number') ? liveQuotationCfg.counter : 1, Number(quotationStartNumber) || 1);
-      const finalB2bCounter = Math.max((liveB2bCfg && typeof liveB2bCfg.counter === 'number') ? liveB2bCfg.counter : 1, Number(b2bStartNumber) || 1);
-      const finalB2cCounter = Math.max((liveB2cCfg && typeof liveB2cCfg.counter === 'number') ? liveB2cCfg.counter : 1, Number(b2cStartNumber) || 1);
+      // User-entered starting numbers take priority — do NOT use Math.max() here,
+      // as that would prevent users from lowering counters (the reported bug).
+      // We use the user's input directly; only fall back to 1 if nothing was entered.
+      const finalInvCounter = Number(invoiceStartNumber) || 1;
+      const finalReturnCounter = Number(returnStartNumber) || 1;
+      const finalScrapCounter = Number(scrapStartNumber) || 1;
+      const finalQuotationCounter = Number(quotationStartNumber) || 1;
+      const finalB2bCounter = Number(b2bStartNumber) || 1;
+      const finalB2cCounter = Number(b2cStartNumber) || 1;
 
       const cleanCode = String(terminalCode || 'POS1').trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase() || 'POS1';
 
-      // Always re-derive prefixes from cleanCode if they match standard patterns or contain old code
-      const computedReturnPrefix = (returnPrefix && /[A-Z0-9]/i.test(returnPrefix) && !returnPrefix.includes('RTN'))
-        ? returnPrefix.replace(/-$/, '')
+      // Use user-provided prefix if it has content; fall back to auto-generated default.
+      // Previously, prefixes containing keywords like 'RTN', 'SCR', 'QTN' were incorrectly
+      // overridden with auto-generated values — that was the bug preventing prefix changes.
+      const computedReturnPrefix = (returnPrefix && returnPrefix.trim())
+        ? returnPrefix.trim().replace(/-$/, '')
         : `${cleanCode}-RTN`;
-      const computedScrapPrefix = (scrapPrefix && /[A-Z0-9]/i.test(scrapPrefix) && !scrapPrefix.includes('SCR'))
-        ? scrapPrefix.replace(/-$/, '')
+      const computedScrapPrefix = (scrapPrefix && scrapPrefix.trim())
+        ? scrapPrefix.trim().replace(/-$/, '')
         : `${cleanCode}-SCR`;
-      const computedQuotationPrefix = (quotationPrefix && /[A-Z0-9]/i.test(quotationPrefix) && !quotationPrefix.includes('QTN'))
-        ? quotationPrefix.replace(/-$/, '')
+      const computedQuotationPrefix = (quotationPrefix && quotationPrefix.trim())
+        ? quotationPrefix.trim().replace(/-$/, '')
         : `${cleanCode}-QTN`;
 
       const sanitizedFlags = sanitizeFeatureFlags(featureFlags);
@@ -1881,7 +1879,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
-                        <Input type="text" value={scrapPrefix || `${terminalCode}-SCR`} onChange={(e) => setScrapPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-orange-500/10 rounded-xl" maxLength={10} placeholder="Auto-generated" />
+                        <Input type="text" value={scrapPrefix || `${terminalCode}-SCR`} onChange={(e) => setScrapPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-orange-500/10 rounded-xl" maxLength={12} placeholder="Auto-generated" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
@@ -1910,7 +1908,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
-                        <Input type="text" value={quotationPrefix || `${terminalCode}-QTN`} onChange={(e) => setQuotationPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-blue-500/10 rounded-xl" maxLength={10} placeholder="Auto-generated" />
+                        <Input type="text" value={quotationPrefix || `${terminalCode}-QTN`} onChange={(e) => setQuotationPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-blue-500/10 rounded-xl" maxLength={12} placeholder="Auto-generated" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
@@ -1939,7 +1937,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
-                        <Input type="text" value={returnPrefix || `${terminalCode}-RTN`} onChange={(e) => setReturnPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-rose-500/10 rounded-xl" maxLength={10} placeholder="Auto-generated" />
+                        <Input type="text" value={returnPrefix || `${terminalCode}-RTN`} onChange={(e) => setReturnPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-rose-500/10 rounded-xl" maxLength={12} placeholder="Auto-generated" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>

@@ -4591,7 +4591,7 @@ ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_i
         const cfg = JSON.parse(confRow.value);
         let rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
         if (rawPrefix.includes('-RTN-')) {
-          rawPrefix = `${terminalCode}-RTN-`;
+          // Respect user-set prefix -- no forced override
         }
         prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
@@ -4628,7 +4628,7 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
       const cfg = JSON.parse(confRow.value);
       let rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
       if (rawPrefix.includes('-RTN-')) {
-        rawPrefix = `${terminalCode}-RTN-`;
+          // Respect user-set prefix -- no forced override
       }
       prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
       counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
@@ -5617,26 +5617,38 @@ ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_i
     const result = db.transaction(() => {
       const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
       let counter = 1;
-      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-SCR-`, counter: 1 };
+      // Use the stored prefix as-is — do NOT override prefixes that happen to contain '-SCR-'.
+      // The stored prefix is whatever the user configured in Settings.
+      const defaultPrefix = `${terminalCode}-SCR-`;
+      let prefix = defaultPrefix;
 
       if (row) {
         try {
           const parsed = JSON.parse(row.value);
-          counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
-          let rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-SCR-`;
-          if (rawPrefix.includes('-SCR-')) {
-            rawPrefix = `${terminalCode}-SCR-`;
+          counter = (typeof parsed.counter === 'number' && parsed.counter > 0) ? parsed.counter : 1;
+          // Respect user-set prefix directly — no keyword-based override.
+          if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+            prefix = parsed.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
           }
-          config = { prefix: rawPrefix, counter };
         } catch {
           counter = 1;
         }
       }
 
-      const prefix = config.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-SCR-`;
-      const invoiceNumber = `${prefix}${String(counter).padStart(3, '0')}`;
+      // ── Duplicate-safety check (mirrors normal invoice behaviour) ──────────
+      // Check existing scrap_transactions for this invoice number so we never
+      // reuse a number that was already printed/saved on a previous bill.
+      const checkStmt = db.prepare(
+        'SELECT 1 FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ? AND (is_deleted IS NULL OR is_deleted = 0) LIMIT 1'
+      );
+      let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+      while (checkStmt.get(tenant_id || 'global', candidate)) {
+        counter++;
+        candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+      }
 
-      config.counter = counter + 1;
+      // Persist the next counter value so subsequent calls start from counter+1.
+      const nextConfig = { prefix, counter: counter + 1 };
       db.prepare(`
         INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
         VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
@@ -5644,9 +5656,9 @@ ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_i
           value = EXCLUDED.value,
           sync_status = 'LOCAL',
           updated_at = CURRENT_TIMESTAMP
-      `).run(configKey, JSON.stringify(config));
+      `).run(configKey, JSON.stringify(nextConfig));
 
-      return { success: true, invoiceNumber, counter };
+      return { success: true, invoiceNumber: candidate, counter };
     })();
 
     return result;
@@ -5663,26 +5675,38 @@ ipcMain.handle('db:peekNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_
     const defaultPrefix = `${terminalCode}-SCR-`;
 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'scrap_invoice_counter');
+    let counter = 1;
+    let prefix = defaultPrefix;
+
     if (row) {
       try {
         const config = JSON.parse(row.value);
-        let rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
-        if (rawPrefix.includes('-SCR-')) {
-          rawPrefix = `${terminalCode}-SCR-`;
+        counter = (typeof config.counter === 'number' && config.counter > 0) ? config.counter : 1;
+        // Respect user-set prefix directly -- no keyword-based override.
+        if (config.prefix && /[A-Z0-9]/i.test(config.prefix)) {
+          prefix = config.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         }
-        const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
-        return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
       } catch {
-        // Invalid JSON in stored value â€” fall through to default
+        // Invalid JSON in stored value -- fall through to defaults
       }
     }
-    return { success: true, invoiceNumber: `${terminalCode}-SCR-001` };
+
+    // Duplicate-safety check (peek -- read-only, no counter increment)
+    const checkStmt = db.prepare(
+      'SELECT 1 FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ? AND (is_deleted IS NULL OR is_deleted = 0) LIMIT 1'
+    );
+    let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+    while (checkStmt.get(tenant_id || 'global', candidate)) {
+      counter++;
+      candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+    }
+
+    return { success: true, invoiceNumber: candidate };
   } catch (error: any) {
     console.error('[db:peekNextScrapInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
 });
-
 ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_number }: { tenant_id: string; scrap_invoice_number: string }) => {
   try {
     const db = getDb();
@@ -6197,7 +6221,7 @@ ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: 
           counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
           let rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-QTN-`;
           if (rawPrefix.includes('-QTN-')) {
-            rawPrefix = `${terminalCode}-QTN-`;
+          // Respect user-set prefix -- no forced override
           }
           config = { prefix: rawPrefix, counter };
         } catch {
@@ -6240,7 +6264,7 @@ ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id:
         const config = JSON.parse(row.value);
         let rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
         if (rawPrefix.includes('-QTN-')) {
-          rawPrefix = `${terminalCode}-QTN-`;
+          // Respect user-set prefix -- no forced override
         }
         const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         return { success: true, quotationNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };

@@ -463,7 +463,7 @@ export function PartyManager({
         try {
           const tId = tenantId || 'global';
           const amt = viewingLedgerVoucher.credit_amount > 0 ? viewingLedgerVoucher.credit_amount : viewingLedgerVoucher.debit_amount;
-          const receiptText = `================================\n        PAYMENT VOUCHER         \n================================\nRef #: ${viewingLedgerVoucher.reference_number || viewingLedgerVoucher.ledger_id.slice(0, 8)}\nDate: ${formatDateTime(viewingLedgerVoucher.transaction_date)}\nParty: ${selectedParty?.name || ''}\nPhone: ${selectedParty?.phone || ''}\nType: ${viewingLedgerVoucher.credit_amount > 0 ? 'CREDIT (PAID)' : 'DEBIT (RECEIVED)'}\nPayment Mode: ${viewingLedgerVoucher.payment_method || 'CASH'}\n--------------------------------\nAmount: RS. ${amt.toFixed(2)}\nRunning Bal: RS. ${Math.abs(viewingLedgerVoucher.running_balance).toFixed(2)}\nNote: ${viewingLedgerVoucher.description || ''}\n================================\n`;
+          const receiptText = `================================\n        PAYMENT VOUCHER         \n================================\nRef #: ${viewingLedgerVoucher.reference_number || viewingLedgerVoucher.ledger_id.slice(0, 8)}\nDate: ${formatDateTime(viewingLedgerVoucher.transaction_date)}\nParty: ${selectedParty?.name || ''}\nPhone: ${selectedParty?.phone || ''}\nType: ${viewingLedgerVoucher.credit_amount > 0 ? 'CREDIT SALE (GIVEN)' : 'PAYMENT (RECEIVED)'}\nPayment Mode: ${viewingLedgerVoucher.payment_method || 'CASH'}\n--------------------------------\nAmount: RS. ${amt.toFixed(2)}\nRunning Bal: RS. ${Math.abs(viewingLedgerVoucher.running_balance).toFixed(2)}\nNote: ${viewingLedgerVoucher.description || ''}\n================================\n`;
           await window.electronAPI.printReceipt(tId, receiptText);
           showStatus('Voucher sent to printer', 'success');
         } catch {
@@ -635,7 +635,10 @@ export function PartyManager({
       if (data && !Array.isArray(data) && (data as any).error) {
         showStatus('Ledger: ' + (data as any).error, 'error');
       } else {
-        setLedger(Array.isArray(data) ? data : []);
+        const entries = Array.isArray(data) ? data : [];
+        setLedger(entries);
+        const latestBal = entries.length > 0 ? Number(entries[entries.length - 1].running_balance) || 0 : 0;
+        setSelectedParty(prev => prev ? { ...prev, balance: latestBal } : prev);
       }
     } catch {
       showStatus('Failed to load ledger', 'error');
@@ -2102,10 +2105,10 @@ export function PartyManager({
                       <th className="py-3 px-4">Particulars / Description</th>
                       <th className="py-3 px-4">Mode</th>
                       <th className="py-3 px-4 text-right text-rose-600 dark:text-rose-400 font-extrabold bg-rose-500/5 border-l border-r border-border/40">
-                        {tLabels.debit || 'Debit'} (Dr / {tLabels.paid || 'Giving'} ₹)
+                        {tLabels.paid || 'Gave Cash'} (Gave / Sale ₹)
                       </th>
                       <th className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-500/5 border-r border-border/40">
-                        {tLabels.credit || 'Credit'} (Cr / {tLabels.received || 'Receiving'} ₹)
+                        {tLabels.received || 'Got Cash'} (Got / Payment ₹)
                       </th>
                       <th className="py-3 px-4 text-right font-extrabold">Running Bal (₹)</th>
                       <th className="py-3 px-4 text-center">Actions</th>
@@ -2113,7 +2116,6 @@ export function PartyManager({
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {[...ledger].reverse().map((entry) => {
-                      const isCredit = entry.credit_amount > 0;
                       return (
                         <tr
                           key={entry.ledger_id}
@@ -2156,14 +2158,14 @@ export function PartyManager({
                             )}
                           </td>
 
-                          {/* Debit (Dr) */}
+                          {/* Gave / Sale Amount (Red) */}
                           <td className="py-3 px-4 text-right font-mono font-black text-sm text-rose-600 dark:text-rose-400 bg-rose-500/5 border-l border-r border-border/40">
-                            {entry.debit_amount > 0 ? `₹${entry.debit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
+                            {entry.credit_amount > 0 ? `₹${entry.credit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
                           </td>
 
-                          {/* Credit (Cr) */}
+                          {/* Got / Payment Amount (Green) */}
                           <td className="py-3 px-4 text-right font-mono font-black text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border-r border-border/40">
-                            {entry.credit_amount > 0 ? `₹${entry.credit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
+                            {entry.debit_amount > 0 ? `₹${entry.debit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
                           </td>
 
                           {/* Running Balance */}
@@ -2239,13 +2241,13 @@ export function PartyManager({
                         Statement Totals ({ledger.length} {ledger.length === 1 ? 'entry' : 'entries'}):
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border-l border-r border-border/40">
-                        ₹{totalDebitSum.toFixed(2)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-r border-border/40">
                         ₹{totalCreditSum.toFixed(2)}
                       </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-r border-border/40">
+                        ₹{totalDebitSum.toFixed(2)}
+                      </td>
                       <td className="py-3.5 px-4 text-right font-mono text-sm">
-                        ₹{Math.abs(selectedParty.balance).toFixed(2)}
+                        ₹{Math.abs(totalCreditSum - totalDebitSum).toFixed(2)}
                       </td>
                       <td></td>
                     </tr>
@@ -2256,15 +2258,15 @@ export function PartyManager({
               /* ── Cards View Stream (Polished Modern Cards) ── */
               <div className="space-y-2.5">
                 {[...ledger].reverse().map((entry) => {
-                  const isCredit = entry.credit_amount > 0;
-                  const amount = isCredit ? entry.credit_amount : entry.debit_amount;
+                  const isCreditSale = entry.credit_amount > 0;
+                  const amount = isCreditSale ? entry.credit_amount : entry.debit_amount;
                   return (
                     <div
                       key={entry.ledger_id}
                       onClick={() => handleOpenBillForLedgerEntry(entry)}
                       className={clsx(
                         'rounded-2xl border bg-card dark:bg-card p-4 shadow-xs hover:shadow-md hover:border-primary/40 transition-all cursor-pointer group flex items-center justify-between gap-4',
-                        isCredit ? 'border-l-4 border-l-emerald-500 border-border' : 'border-l-4 border-l-rose-500 border-border'
+                        isCreditSale ? 'border-l-4 border-l-rose-500 border-border' : 'border-l-4 border-l-emerald-500 border-border'
                       )}
                     >
                       <div className="flex-1 min-w-0">
@@ -2283,8 +2285,8 @@ export function PartyManager({
                       </div>
 
                       <div className="text-right shrink-0">
-                        <p className={clsx('text-lg font-black font-mono', isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
-                          {isCredit ? '+' : '−'}₹{amount.toFixed(2)}
+                        <p className={clsx('text-lg font-black font-mono', isCreditSale ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
+                          {isCreditSale ? '+' : '−'}₹{amount.toFixed(2)}
                         </p>
                         <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
                           Bal: ₹{Math.abs(entry.running_balance).toFixed(2)}
@@ -2876,9 +2878,9 @@ export function PartyManager({
                     <div className="flex items-center gap-2">
                       <span className={clsx(
                         "px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider text-white",
-                        viewingLedgerVoucher.credit_amount > 0 ? "bg-emerald-500" : "bg-red-500"
+                        viewingLedgerVoucher.credit_amount > 0 ? "bg-rose-500" : "bg-emerald-600"
                       )}>
-                        {viewingLedgerVoucher.credit_amount > 0 ? "PAID TO PARTY (CREDIT)" : "RECEIVED FROM PARTY (DEBIT)"}
+                        {viewingLedgerVoucher.credit_amount > 0 ? "CREDIT SALE / GAVE TO PARTY" : "PAYMENT RECEIVED FROM PARTY"}
                       </span>
                       <span className="px-2 py-1 rounded-lg text-xs font-bold bg-muted text-muted-foreground border border-border font-mono">
                         {viewingLedgerVoucher.balance_type || 'GST'}
@@ -2893,7 +2895,7 @@ export function PartyManager({
                       <p className="text-[10px] font-bold uppercase text-muted-foreground">Transaction Amount</p>
                       <p className={clsx(
                         "text-2xl font-black font-mono",
-                        viewingLedgerVoucher.credit_amount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                        viewingLedgerVoucher.credit_amount > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                       )}>
                         ₹{(viewingLedgerVoucher.credit_amount > 0 ? viewingLedgerVoucher.credit_amount : viewingLedgerVoucher.debit_amount).toFixed(2)}
                       </p>

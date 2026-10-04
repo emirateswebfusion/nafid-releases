@@ -196,7 +196,7 @@ const PARTY_HEADER_MAP: Record<string, string> = {
 const SAMPLE_PRODUCTS = [
   {
     'Product Name': 'Basmati Rice 5kg',
-    'Selling Price / MRP': 450,
+    'MRP': 450,
     'Barcode': '8901234567890',
     'Item Code': 'RICE-01',
     'Category': 'Groceries',
@@ -210,7 +210,7 @@ const SAMPLE_PRODUCTS = [
   },
   {
     'Product Name': 'Sunflower Oil 1L',
-    'Selling Price / MRP': 140,
+    'MRP': 140,
     'Barcode': '8901234567891',
     'Item Code': 'OIL-01',
     'Category': 'Groceries',
@@ -429,7 +429,7 @@ export function DataUploadModal({
         const taxRate = parseFloat(mappedData.tax_rate_percent ?? rawRow['Tax Rate %'] ?? rawRow['GST %'] ?? 0);
 
         if (isNaN(basePrice) || basePrice <= 0) {
-          errors.push('Selling price / MRP must be greater than 0');
+          errors.push('MRP must be greater than 0');
         }
 
         mappedData.base_price = basePrice || 0;
@@ -969,7 +969,7 @@ export function DataUploadModal({
                     {entityType === 'products' ? (
                       <>
                         <th className="py-2.5 px-3">Product Name</th>
-                        <th className="py-2.5 px-3">MRP / Selling</th>
+                        <th className="py-2.5 px-3">MRP</th>
                         <th className="py-2.5 px-3">Barcode</th>
                         <th className="py-2.5 px-3">Category</th>
                         <th className="py-2.5 px-3">Cost Price</th>

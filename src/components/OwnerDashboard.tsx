@@ -434,7 +434,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                         : (!isOnline || activeRoute === 'NONE')
                                         ? 'Offline'
                                         : isSyncing
-                                        ? 'Sync Pending'
+                                        ? 'Syncing...'
                                         : (activeRoute === 'LAN' ? 'Wi-Fi Synced' : 'Cloud Synced')}
                                 </span>
                             </div>

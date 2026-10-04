@@ -1732,7 +1732,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         allowedEntities={['staff']}
         hideEntityTabs={true}
         onImportSuccess={() => {
-          loadStaffList();
+          fetchStaff();
           setStatusMessage({ text: 'Staff members imported successfully!', type: 'success' });
         }}
       />
