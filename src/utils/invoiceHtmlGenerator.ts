@@ -77,6 +77,8 @@ export interface InvoiceData {
   customerStateCode?: string;
   customerLandline?: string;
   customerAddress?: string;
+  description?: string;
+  notes?: string;
   shippingName?: string;
   shippingAddress?: string;
   shippingGstin?: string;
@@ -487,6 +489,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           </table>
           ` : ''}
 
+          ${bs?.showDescription !== false && (data.description || data.notes) ? `<div style="margin-top: 6px; font-size: 11.5px; color: #1a1a1a; line-height: 1.4;"><strong style="font-weight: bold; color: #000; font-size: 12px;">Description / Notes:</strong> ${(data.description || data.notes)!.replace(/\n/g, '<br>')}</div>` : ''}
           ${data.billSettings?.instructions ? `<div style="margin-top: 6px; font-size: 11.5px; color: #1a1a1a; line-height: 1.4;"><strong style="font-weight: bold; color: #000; font-size: 12px;">Terms:</strong> ${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
         </div>
 
@@ -1745,7 +1748,7 @@ export function generatePurchaseBillHtml(
   <div class="totals-container">
     <div class="notes-box">
       <div style="font-weight: 700; color: #111827; margin-bottom: 4px; text-transform: uppercase; font-size: 11px;">Notes / Remarks</div>
-      <div style="color: #1a1a1a; white-space: pre-line;">${bill.notes || 'No extra notes recorded.'}</div>
+      <div style="color: #1a1a1a; white-space: pre-line;">${(data as any).description || (data as any).notes || 'No extra notes recorded.'}</div>
     </div>
     <div class="totals-box">
       <div class="totals-row">

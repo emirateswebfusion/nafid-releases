@@ -10,7 +10,7 @@ import { isAdminRole } from '../utils/permissions';
 
 
 export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => void } = {}) {
-  const { items, lastAddedProductId, updateQuantity, updatePiecesOverride, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
+  const { items, lastAddedProductId, updateQuantity, updatePiecesOverride, updateItemOfferPrice, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const qtyInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -20,7 +20,7 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
     if (lastAddedProductId && itemRefs.current[lastAddedProductId]) {
       itemRefs.current[lastAddedProductId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [lastAddedProductId, items]);
+  }, [lastAddedProductId]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -298,7 +298,10 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
 
       {/* Table Header */}
       <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/10">
-        <div className="col-span-5">Item</div>
+        <div className="col-span-5 flex items-center gap-2">
+          <span className="text-[11px] font-bold text-muted-foreground w-6 shrink-0">Sl.</span>
+          <span>Item</span>
+        </div>
         <div className="col-span-2 text-right">Price</div>
         <div className="col-span-2 text-center">Qty</div>
         <div className="col-span-2 text-right">Total</div>
@@ -315,7 +318,7 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const rawRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
                 ? Number(item.grade_rate)
                 : Number(item.base_price || 0);
@@ -340,6 +343,18 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
 
               const handlePcsChange = (pcsVal: number) => {
                 updatePiecesOverride(item.product_id, pcsVal);
+                if (item.pieces_per_kg && item.pieces_per_kg > 0 && pcsVal > 0) {
+                  const newKg = +(pcsVal / item.pieces_per_kg).toFixed(3);
+                  updateQuantity(item.product_id, newKg);
+                }
+              };
+
+              const handleKgChange = (kgVal: number) => {
+                updateQuantity(item.product_id, kgVal);
+                if (item.pieces_per_kg && item.pieces_per_kg > 0 && kgVal > 0) {
+                  const newPcs = Math.max(1, Math.round(kgVal * item.pieces_per_kg));
+                  updatePiecesOverride(item.product_id, newPcs);
+                }
               };
 
               const isLastAdded = item.product_id === lastAddedProductId;
@@ -357,9 +372,21 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                 >
                   <div className="col-span-5">
                     <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-muted-foreground/70 w-5 shrink-0 select-none">#{index + 1}</span>
                       <h3 className="text-foreground font-medium">{item.name}</h3>
                     </div>
-                    <div className="flex gap-3 text-xs mt-1">
+                    <div className="flex items-center gap-2 text-xs mt-1 flex-wrap">
+                      {item.sku_barcode ? (
+                        <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                          {item.sku_barcode}
+                        </span>
+                      ) : item.item_code ? (
+                        <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                          Code: {item.item_code}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/60 italic">No barcode</span>
+                      )}
                       <span className="text-muted-foreground">Tax: {item.tax_rate_percent}%</span>
                       {item.pricing_mode === 'GRADE_RATE' && (
                         <span className="text-indigo-500 font-medium">Grade Rate: ₹{item.grade_rate}</span>
@@ -371,18 +398,82 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                       )}
                     </div>
                   </div>
-                  <div className="col-span-2 text-right text-foreground flex flex-col justify-center items-end">
-                    <span className="font-medium">
-                      ₹{effectiveRate.toFixed(2)}
-                      <span className="text-[10px] text-muted-foreground ml-0.5">
-                        {item.billing_type === 'WEIGHT' ? '/Kg' : '/Pc'}
-                      </span>
-                    </span>
-                    {isPiecesWeight && item.pieces_per_kg && item.pieces_per_kg > 0 ? (
-                      <span className="text-[10px] text-muted-foreground">
-                        (₹{(effectiveRate / item.pieces_per_kg).toFixed(2)}/Pc)
-                      </span>
-                    ) : null}
+                  <div className="col-span-2 text-right text-foreground flex flex-col justify-center items-end gap-1">
+                    {item.billing_type === 'WEIGHT' ? (
+                      isPiecesWeight && item.pieces_per_kg && item.pieces_per_kg > 0 ? (
+                        <>
+                          <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
+                            <span className="text-[9px] font-extrabold text-primary">₹</span>
+                            <input
+                              type="number" step="any" min="0"
+                              className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={effectiveRate}
+                              onFocus={e => e.target.select()}
+                              onChange={e => {
+                                const num = parseFloat(e.target.value);
+                                if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
+                              }}
+                              placeholder="Rate/Kg"
+                              title="Edit rate per Kg"
+                            />
+                            <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
+                          </div>
+                          <div className="flex items-center gap-0.5 bg-emerald-500/15 border border-emerald-500/40 rounded px-1.5 py-0.5">
+                            <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">₹</span>
+                            <input
+                              type="number" step="any" min="0"
+                              className="w-12 text-center h-5 bg-transparent border-0 text-[11px] font-black text-emerald-700 dark:text-emerald-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={+(effectiveRate / item.pieces_per_kg).toFixed(2)}
+                              onFocus={e => e.target.select()}
+                              onChange={e => {
+                                const num = parseFloat(e.target.value);
+                                if (!isNaN(num) && num >= 0) {
+                                  const kgRate = +(num * item.pieces_per_kg!).toFixed(2);
+                                  updateItemOfferPrice(item.product_id, kgRate);
+                                }
+                              }}
+                              placeholder="Rate/Pc"
+                              title="Edit rate per Piece"
+                            />
+                            <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">/Pc</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
+                          <span className="text-[9px] font-extrabold text-primary">₹</span>
+                          <input
+                            type="number" step="any" min="0"
+                            className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={effectiveRate}
+                            onFocus={e => e.target.select()}
+                            onChange={e => {
+                              const num = parseFloat(e.target.value);
+                              if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
+                            }}
+                            placeholder="Rate/Kg"
+                            title="Edit rate per Kg"
+                          />
+                          <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
+                        <span className="text-[9px] font-extrabold text-primary">₹</span>
+                        <input
+                          type="number" step="any" min="0"
+                          className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={effectiveRate}
+                          onFocus={e => e.target.select()}
+                          onChange={e => {
+                            const num = parseFloat(e.target.value);
+                            if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
+                          }}
+                          placeholder="Rate/Pc"
+                          title="Edit rate per Piece"
+                        />
+                        <span className="text-[9px] font-extrabold text-primary/70">/Pc</span>
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-2 flex justify-center flex-col items-center gap-1">
                     {isPiecesWeight ? (
@@ -404,7 +495,7 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                             type="number" min="0" step="0.001"
                             className="w-14 text-center h-7 px-1 text-xs"
                             value={weightKg}
-                            onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                            onChange={e => handleKgChange(e.target.value === '' ? 0 : Number(e.target.value))}
                           />
                         </div>
                       </>

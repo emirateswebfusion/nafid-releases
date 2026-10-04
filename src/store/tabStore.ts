@@ -45,6 +45,7 @@ export interface Tab {
   customerPhone: string;
   customerGstin: string;
   customerAddress: string;
+  description?: string;
   transporterName?: string;
   vehicleNumber?: string;
   transporterDocNo?: string;
@@ -191,6 +192,7 @@ function createDefaultTab(): Tab {
     customerPhone: '',
     customerGstin: '',
     customerAddress: '',
+    description: '',
     paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
     splitDetails: { cash: 0, card: 0, upi: 0, cheque: 0, bank_transfer: 0 },
     receivedAmount: 0,
@@ -206,9 +208,46 @@ function createDefaultTab(): Tab {
   };
 }
 
+const TAB_STORAGE_KEY = 'vendora-pos-tabs-state';
+
+function loadStoredTabs(): { tabs: Tab[]; activeTabId: string } | null {
+  try {
+    const raw = localStorage.getItem(TAB_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0 && typeof parsed.activeTabId === 'string') {
+        return { tabs: parsed.tabs, activeTabId: parsed.activeTabId };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load tabs from localStorage', e);
+  }
+  return null;
+}
+
+export function saveStoredTabs(tabs: Tab[], activeTabId: string) {
+  try {
+    const uiConfigRaw = localStorage.getItem('vendora-billing-ui-config');
+    const uiConfig = uiConfigRaw ? JSON.parse(uiConfigRaw) : null;
+    const preserveHeader = uiConfig?.preserveCartOnHeaderNavigation !== false;
+    const preserveExit = uiConfig?.preserveCartOnPageExit !== false;
+    const preserveLegacy = uiConfig?.preserveCartOnNavigation !== false;
+    const preserve = preserveHeader || preserveExit || preserveLegacy;
+    if (preserve) {
+      localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify({ tabs, activeTabId }));
+    } else {
+      localStorage.removeItem(TAB_STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error('Failed to save tabs to localStorage', e);
+  }
+}
+
+const initialStoredData = loadStoredTabs();
+
 export const useTabStore = create<TabState>((set, get) => ({
-  tabs: [],
-  activeTabId: '',
+  tabs: initialStoredData?.tabs || [],
+  activeTabId: initialStoredData?.activeTabId || '',
 
   addTab: (initialSnapshot?, title?) => {
     const state = get();
@@ -232,7 +271,9 @@ export const useTabStore = create<TabState>((set, get) => ({
       resetCartStore(true);
     }
 
-    set({ tabs: [...currentTabs, tab], activeTabId: tab.id });
+    const newTabs = [...currentTabs, tab];
+    set({ tabs: newTabs, activeTabId: tab.id });
+    saveStoredTabs(newTabs, tab.id);
     return tab.id;
   },
 
@@ -249,6 +290,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       const tab = createDefaultTab();
       resetCartStore();
       set({ tabs: [tab], activeTabId: tab.id });
+      saveStoredTabs([tab], tab.id);
       return;
     }
     let newActive = activeTabId;
@@ -261,13 +303,14 @@ export const useTabStore = create<TabState>((set, get) => ({
       }
     }
     set({ tabs: newTabs, activeTabId: newActive });
+    saveStoredTabs(newTabs, newActive);
   },
 
   renameTab: (id, title) => {
-    const { tabs } = get();
-    set({
-      tabs: tabs.map(t => t.id === id ? { ...t, title } : t),
-    });
+    const { tabs, activeTabId } = get();
+    const updatedTabs = tabs.map(t => t.id === id ? { ...t, title } : t);
+    set({ tabs: updatedTabs });
+    saveStoredTabs(updatedTabs, activeTabId);
   },
 
   switchTab: (targetId) => {
@@ -291,6 +334,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     }
 
     set({ tabs: updatedTabs, activeTabId: targetId });
+    saveStoredTabs(updatedTabs, targetId);
   },
 
   updateActiveTab: (updates) => {
@@ -304,15 +348,15 @@ export const useTabStore = create<TabState>((set, get) => ({
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
     );
-    set({
-      tabs: tabs.map(t =>
-        t.id === activeTabId ? { ...t, ...filtered } as Tab : t
-      ),
-    });
+    const updatedTabs = tabs.map(t =>
+      t.id === activeTabId ? { ...t, ...filtered } as Tab : t
+    );
+    set({ tabs: updatedTabs });
+    saveStoredTabs(updatedTabs, activeTabId);
   },
 
   updateTabById: (id, updates) => {
-    const { tabs } = get();
+    const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
       'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
@@ -322,27 +366,27 @@ export const useTabStore = create<TabState>((set, get) => ({
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
     );
-    set({
-      tabs: tabs.map(t =>
-        t.id === id ? { ...t, ...filtered } as Tab : t
-      ),
-    });
+    const updatedTabs = tabs.map(t =>
+      t.id === id ? { ...t, ...filtered } as Tab : t
+    );
+    set({ tabs: updatedTabs });
+    saveStoredTabs(updatedTabs, activeTabId);
   },
 
   syncActiveSnapshot: () => {
     const { tabs, activeTabId } = get();
     const cartState = useCartStore.getState();
-    set({
-      tabs: tabs.map(t => {
-        if (t.id === activeTabId) {
-          return {
-            ...t,
-            snapshot: getSnapshotFromCartStore(cartState),
-          };
-        }
-        return t;
-      }),
+    const updatedTabs = tabs.map(t => {
+      if (t.id === activeTabId) {
+        return {
+          ...t,
+          snapshot: getSnapshotFromCartStore(cartState),
+        };
+      }
+      return t;
     });
+    set({ tabs: updatedTabs });
+    saveStoredTabs(updatedTabs, activeTabId);
   },
 
   getActiveTab: () => {

@@ -5,6 +5,9 @@ export interface ReceiptItem {
   quantity: number | string;
   unit_price: number;
   total: number;
+  qty?: number | string;
+  unitPrice?: number;
+  totalPrice?: number;
   originalRate?: number;
   discountLabel?: string;
   isPriceOverride?: boolean;
@@ -50,6 +53,7 @@ export interface BillSettings {
   showBarcodeOnReceipt?: boolean;
   showAuthorisedSignatory?: boolean;
   showForShopName?: boolean;
+  showDescription?: boolean;
   reverseCharge?: boolean;
   itemColumnOrder?: 'qty_rate' | 'rate_qty';
 }
@@ -86,6 +90,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showBarcodeOnReceipt: true,
   showAuthorisedSignatory: true,
   showForShopName: true,
+  showDescription: true,
   reverseCharge: false,
   itemColumnOrder: 'qty_rate',
 };
@@ -280,6 +285,8 @@ export interface ReceiptData {
   customerGstin?: string;
   customerState?: string;
   customerAddress?: string;
+  description?: string;
+  notes?: string;
   transporterName?: string;
   vehicleNumber?: string;
   transporterDocNo?: string;
@@ -610,6 +617,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.transporterName || data.vehicleNumber || data.ewayBillNo) {
       text += `  Transport: ${[data.transporterName, data.vehicleNumber ? `Veh:${data.vehicleNumber}` : ''].filter(Boolean).join(' ')}\n`;
       if (data.ewayBillNo) text += `  E-Way Bill: ${data.ewayBillNo}\n`;
+    }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `  Note: ${billDesc.trim()}\n`;
+      }
     }
 
     text += LIGHT + '\n';

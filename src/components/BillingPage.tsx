@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -27,7 +27,7 @@ import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole, formatRoleName } from '../utils/permissions';
-import { useBillingUIStore } from '../store/billingUIStore';
+import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST, INTERNAL_HEADER_BUTTON_CAPACITY } from '../store/billingUIStore';
 import Barcode from 'react-barcode';
 
 
@@ -456,7 +456,7 @@ export function BillingPage() {
     if (lastAddedProductId && itemRefs.current[lastAddedProductId]) {
       itemRefs.current[lastAddedProductId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [lastAddedProductId, items]);
+  }, [lastAddedProductId]);
 
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
@@ -492,6 +492,8 @@ export function BillingPage() {
   // without every keystroke triggering a cross-field recalculation.
   const [localPcsStr, setLocalPcsStr] = useState<Record<string, string>>({});
   const [localKgStr, setLocalKgStr] = useState<Record<string, string>>({});
+  const [localPcPriceStr, setLocalPcPriceStr] = useState<Record<string, string>>({});
+  const [localKgRateStr, setLocalKgRateStr] = useState<Record<string, string>>({});
 
   // Pricing tier state
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
@@ -758,6 +760,7 @@ export function BillingPage() {
   const [upiAccountToast, setUpiAccountToast] = useState<string | null>(null);
   const [returnSuccessToast, setReturnSuccessToast] = useState<string | null>(null);
   const [infoToast, setInfoToast] = useState<string | null>(null);
+  const [showDescriptionState, setShowDescriptionState] = useState(true);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -1167,6 +1170,16 @@ export function BillingPage() {
     if (initialized.current) return;
     initialized.current = true;
 
+    const currentUiConfig = useBillingUIStore.getState().config;
+    const navSource = sessionStorage.getItem('last_pos_nav_source') || 'page_exit';
+    
+    // Evaluate exact toggle based on navigation source
+    const preserveCart = navSource === 'header_button'
+      ? (currentUiConfig.preserveCartOnHeaderNavigation !== false)
+      : (currentUiConfig.preserveCartOnPageExit !== false);
+
+    sessionStorage.removeItem('last_pos_nav_source');
+
     const isPendingNewQuotation = localStorage.getItem('pendingNewQuotation') === 'true';
     if (isPendingNewQuotation) {
       localStorage.removeItem('pendingNewQuotation');
@@ -1174,38 +1187,88 @@ export function BillingPage() {
     const editQ = localStorage.getItem('editQuotationData');
     const isQActive = isPendingNewQuotation || isQuotationMode || Boolean(editQ);
 
-    useTabStore.setState({ tabs: [], activeTabId: '' });
+    const existingTabs = useTabStore.getState().tabs;
+    const currentActiveTabId = useTabStore.getState().activeTabId;
 
-    tabCounter.current++;
-    if (isQActive) {
-      useCartStore.getState().setQuotationMode(true);
-      const snapshot: TabSnapshot = {
-        items: [],
-        invoiceType: 'BILL_OF_SUPPLY',
-        discountType: 'FIXED',
-        discountValue: 0,
-        customerState: 'KL',
-        scrapDeduction: 0,
-        scrapInvoiceNumber: '',
-        returnDeduction: 0,
-        returnInvoiceNumber: '',
-        isQuotationMode: true,
-        isReturnMode: false,
-        isScrapMode: false,
-        returnRefundMethod: 'ADJUST_BILL',
-        editingQuotationId: null,
-        editingQuotationNumber: null,
-        editingInvoiceId: null,
-        editingInvoiceNumber: null,
-        editingInvoiceRole: null,
-        pendingScrapInvoiceToEdit: null,
-      };
-      addTab(snapshot, `New Quote`);
-      reserveQuotationNumberForTab(true);
+    if (preserveCart && existingTabs.length > 0 && !isQActive) {
+      // PRESERVE CART & TABS
+      let activeTab = existingTabs.find(t => t.id === currentActiveTabId);
+      if (!activeTab) {
+        activeTab = existingTabs[0];
+        useTabStore.setState({ activeTabId: activeTab.id });
+      }
+      if (activeTab.snapshot) {
+        useCartStore.setState({
+          items: activeTab.snapshot.items || [],
+          invoiceType: activeTab.snapshot.invoiceType || 'BILL_OF_SUPPLY',
+          discountType: activeTab.snapshot.discountType || 'FIXED',
+          discountValue: activeTab.snapshot.discountValue || 0,
+          customerState: activeTab.snapshot.customerState || 'KL',
+          scrapDeduction: activeTab.snapshot.scrapDeduction || 0,
+          scrapInvoiceNumber: activeTab.snapshot.scrapInvoiceNumber || '',
+          returnDeduction: activeTab.snapshot.returnDeduction || 0,
+          returnInvoiceNumber: activeTab.snapshot.returnInvoiceNumber || '',
+          isQuotationMode: activeTab.snapshot.isQuotationMode || false,
+          isReturnMode: activeTab.snapshot.isReturnMode || false,
+          isScrapMode: activeTab.snapshot.isScrapMode || false,
+          returnRefundMethod: activeTab.snapshot.returnRefundMethod || 'ADJUST_BILL',
+          editingQuotationId: activeTab.snapshot.editingQuotationId || null,
+          editingQuotationNumber: activeTab.snapshot.editingQuotationNumber || null,
+          editingInvoiceId: activeTab.snapshot.editingInvoiceId || null,
+          editingInvoiceNumber: activeTab.snapshot.editingInvoiceNumber || null,
+          editingInvoiceRole: activeTab.snapshot.editingInvoiceRole || null,
+          pendingScrapInvoiceToEdit: activeTab.snapshot.pendingScrapInvoiceToEdit || null,
+        });
+      }
+      tabCounter.current = Math.max(1, existingTabs.length);
     } else {
-      addTab(undefined, `Bill ${tabCounter.current}`);
+      // LEGACY RESET or NEW EXPLICIT QUOTATION
+      useTabStore.setState({ tabs: [], activeTabId: '' });
+
+      tabCounter.current++;
+      if (isQActive) {
+        useCartStore.getState().setQuotationMode(true);
+        const snapshot: TabSnapshot = {
+          items: [],
+          invoiceType: 'BILL_OF_SUPPLY',
+          discountType: 'FIXED',
+          discountValue: 0,
+          customerState: 'KL',
+          scrapDeduction: 0,
+          scrapInvoiceNumber: '',
+          returnDeduction: 0,
+          returnInvoiceNumber: '',
+          isQuotationMode: true,
+          isReturnMode: false,
+          isScrapMode: false,
+          returnRefundMethod: 'ADJUST_BILL',
+          editingQuotationId: null,
+          editingQuotationNumber: null,
+          editingInvoiceId: null,
+          editingInvoiceNumber: null,
+          editingInvoiceRole: null,
+          pendingScrapInvoiceToEdit: null,
+        };
+        addTab(snapshot, `New Quote`);
+        reserveQuotationNumberForTab(true);
+      } else {
+        addTab(undefined, `Bill ${tabCounter.current}`);
+      }
+      useCartStore.getState().setEditingInvoice(null, null, null);
     }
-    useCartStore.getState().setEditingInvoice(null, null, null);
+
+    return () => {
+      // Unmount cleanup: sync active cart snapshot to tabStore when navigating away from BillingPage
+      const cfg = useBillingUIStore.getState().config;
+      const src = sessionStorage.getItem('last_pos_nav_source') || 'page_exit';
+      const shouldSync = src === 'header_button'
+        ? (cfg.preserveCartOnHeaderNavigation !== false)
+        : (cfg.preserveCartOnPageExit !== false);
+
+      if (shouldSync) {
+        useTabStore.getState().syncActiveSnapshot();
+      }
+    };
   }, []);
 
   // receivedAmount stays 0 until user enters a value — no auto-fill to grandTotal
@@ -1302,6 +1365,9 @@ export function BillingPage() {
       if (v?.billSettings?.bosTaxInclusive != null) {
         setBosTaxInclusive(Boolean(v.billSettings.bosTaxInclusive));
       }
+      if (v?.billSettings?.showDescription !== undefined) {
+        setShowDescriptionState(v.billSettings.showDescription !== false);
+      }
     });
     window.electronAPI.dbGetPricingTiers(tenantId || 'global')
       .then((res: any) => {
@@ -1384,6 +1450,11 @@ export function BillingPage() {
         });
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
           if (typeof v === 'string') setBankBranchState(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
+          if (v?.billSettings?.showDescription !== undefined) {
+            setShowDescriptionState(v.billSettings.showDescription !== false);
+          }
         });
       }
       loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
@@ -5205,6 +5276,8 @@ export function BillingPage() {
         shippingAddress: activeTab?.shippingAddress || undefined,
         shippingGstin: activeTab?.shippingGstin || undefined,
         customerState: customerState || undefined,
+        description: activeTab?.description || undefined,
+        notes: activeTab?.description || undefined,
         billSettings,
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
@@ -5236,6 +5309,8 @@ export function BillingPage() {
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
+          description: activeTab?.description || null,
+          notes: activeTab?.description || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
           actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
@@ -5272,6 +5347,8 @@ export function BillingPage() {
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
+          description: activeTab?.description || null,
+          notes: activeTab?.description || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
           actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
@@ -6893,6 +6970,18 @@ export function BillingPage() {
               />
             </div>
 
+            {/* Description / Bill Notes */}
+            <div className="space-y-1 col-span-1 sm:col-span-2">
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Description / Notes</label>
+              <input
+                type="text"
+                placeholder="Bill Description / Remarks"
+                value={activeTab?.description || ''}
+                onChange={e => updateActiveTab({ description: e.target.value })}
+                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg font-medium text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
             {/* Rep / Salesperson */}
             <div className="space-y-1">
               <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Rep / Salesperson</label>
@@ -7388,7 +7477,7 @@ export function BillingPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {(items.length > 0 || Boolean((customerName || '').trim() || (customerPhone || '').trim() || (customerGstin || '').trim() || (customerAddress || '').trim() || (activeTab?.shippingName || '').trim())) && (
+          {isHeaderButtonVisible(uiConfig, 'showClearCart') && (items.length > 0 || Boolean((customerName || '').trim() || (customerPhone || '').trim() || (customerGstin || '').trim() || (customerAddress || '').trim() || (activeTab?.shippingName || '').trim())) && (
             <button
               onClick={async () => {
                 const tab = getActiveTab();
@@ -7425,7 +7514,7 @@ export function BillingPage() {
               <span>Clear Cart</span>
             </button>
           )}
-          {(!featureFlags || featureFlags.sales_history || isScrapMode) && (
+          {isHeaderButtonVisible(uiConfig, 'showHistory') && (!featureFlags || featureFlags.sales_history || isScrapMode) && (
           <button
             onClick={() => {
               if (isScrapMode) {
@@ -7441,6 +7530,7 @@ export function BillingPage() {
             <span>History</span>
           </button>
           )}
+          {isHeaderButtonVisible(uiConfig, 'showHeldBills') && (
           <button
             onClick={() => {
               loadHeldBills();
@@ -7462,6 +7552,8 @@ export function BillingPage() {
               </span>
             )}
           </button>
+          )}
+          {isHeaderButtonVisible(uiConfig, 'showTransport') && (
           <button
             onClick={() => setShowTransportModal(true)}
             className={clsx(
@@ -7478,7 +7570,8 @@ export function BillingPage() {
               <span className="inline-flex items-center justify-center min-w-[8px] h-2 w-2 rounded-full bg-emerald-500" />
             )}
           </button>
-          {enableScrap && (!featureFlags || featureFlags.scrap) && (
+          )}
+          {isHeaderButtonVisible(uiConfig, 'showScrap') && enableScrap && (!featureFlags || featureFlags.scrap) && (
             <button
               onClick={() => {
                 const next = !isScrapMode;
@@ -7510,7 +7603,7 @@ export function BillingPage() {
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F5</span>
             </button>
           )}
-          {(!featureFlags || featureFlags.quotations) && (
+          {isHeaderButtonVisible(uiConfig, 'showQuotation') && (!featureFlags || featureFlags.quotations) && (
           <button
               onClick={() => {
                 const next = !isQuotationMode;
@@ -7535,7 +7628,7 @@ export function BillingPage() {
             <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F6</span>
           </button>
           )}
-          {(!featureFlags || featureFlags.returns) && (
+          {isHeaderButtonVisible(uiConfig, 'showReturn') && (!featureFlags || featureFlags.returns) && (
           <button
             onClick={async () => {
               const next = !isReturnMode;
@@ -7560,7 +7653,7 @@ export function BillingPage() {
             <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F7</span>
           </button>
           )}
-          {showCashRegister && (!featureFlags || featureFlags.cash_register) && (
+          {isHeaderButtonVisible(uiConfig, 'showRegister') && showCashRegister && (
             <button
               onClick={() => setCashRegisterOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
@@ -7570,8 +7663,40 @@ export function BillingPage() {
               <span>Register</span>
             </button>
           )}
+          {/* ─── QUICK PAGE SHORTCUTS (EASY ENTER TO LEDGER, CUSTOMERS, ETC.) ─── */}
+          {uiConfig.showQuickActions !== false && (uiConfig.quickPageShortcuts || ['ledger']).map((pageKey) => {
+            const pageDef = QUICK_PAGES_LIST.find(p => p.key === pageKey);
+            if (!pageDef) return null;
+            if (pageDef.featureKey && featureFlags && (featureFlags as any)[pageDef.featureKey] === false) return null;
+
+            return (
+              <button
+                key={pageKey}
+                onClick={() => {
+                  sessionStorage.setItem('last_pos_nav_source', 'header_button');
+                  window.dispatchEvent(new CustomEvent(pageDef.eventName));
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/60 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+                title={`Quick Enter: ${pageDef.label}`}
+              >
+                {pageKey === 'ledger' && <BookOpen className="w-4 h-4 text-emerald-500" />}
+                {pageKey === 'customers' && <Users className="w-4 h-4 text-blue-500" />}
+                {pageKey === 'inventory' && <Package className="w-4 h-4 text-amber-500" />}
+                {pageKey === 'purchase_bills' && <FileText className="w-4 h-4 text-purple-500" />}
+                {pageKey === 'financial_report' && <TrendingUp className="w-4 h-4 text-cyan-500" />}
+                {pageKey === 'stock_report' && <Package className="w-4 h-4 text-teal-500" />}
+                {pageKey === 'staff' && <User className="w-4 h-4 text-indigo-500" />}
+                {pageKey === 'combo_offers' && <Layers className="w-4 h-4 text-rose-500" />}
+                {pageKey === 'warranties' && <Shield className="w-4 h-4 text-green-500" />}
+                <span>{pageDef.label.split(' ')[0]}</span>
+              </button>
+            );
+          })}
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
+            onClick={() => {
+              sessionStorage.setItem('last_pos_nav_source', 'header_button');
+              window.dispatchEvent(new CustomEvent('open-settings-manager'));
+            }}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Settings"
           >
@@ -7580,6 +7705,7 @@ export function BillingPage() {
           <span className="w-px h-5 bg-border/40" />
           <button
             onClick={() => {
+              sessionStorage.setItem('last_pos_nav_source', 'page_exit');
               if (isAdminRole(authRole)) setRole('ADMIN');
               window.dispatchEvent(new CustomEvent('open-dashboard'));
             }}
@@ -7701,7 +7827,7 @@ export function BillingPage() {
                 </div>
               </div>
             ) : (
-              items.map(item => {
+              items.map((item, idx) => {
                 const isLastAdded = item.product_id === lastAddedProductId;
 
                 if (item.isServiceItem) {
@@ -8173,26 +8299,41 @@ export function BillingPage() {
                   (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
                 );
 
-                // Commit Pcs value to store independently without altering Kg
+                // Commit Pcs value to store and sync Kg if pieces_per_kg exists
                 const commitPcs = (pcsStr: string, isFinal = false) => {
                   const pcsVal = parseInt(pcsStr, 10);
                   if (!isNaN(pcsVal) && pcsVal >= 0) {
                     updatePiecesOverride(item.product_id, pcsVal);
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: String(pcsVal) }));
+                    if (_ppk > 0 && pcsVal > 0) {
+                      const calcKg = +(pcsVal / _ppk).toFixed(3);
+                      updateQuantity(item.product_id, calcKg);
+                      setLocalKgStr(p => ({ ...p, [item.product_id]: String(calcKg) }));
+                    }
                   } else if (pcsStr === '' && isFinal) {
                     updatePiecesOverride(item.product_id, 1);
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: '1' }));
+                    if (_ppk > 0) {
+                      const calcKg = +(1 / _ppk).toFixed(3);
+                      updateQuantity(item.product_id, calcKg);
+                      setLocalKgStr(p => ({ ...p, [item.product_id]: String(calcKg) }));
+                    }
                   } else if (isFinal) {
                     const fallback = item.pieces_override ?? 1;
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: String(fallback) }));
                   }
                 };
-                // Commit Kg value to store independently
+                // Commit Kg value to store and sync Pcs if pieces_per_kg exists
                 const commitKg = (kgStr: string, isFinal = false) => {
                   const cleaned = sanitizeQtyText(kgStr);
                   const kgVal = parseFloat(cleaned);
                   if (!isNaN(kgVal) && kgVal > 0) {
                     updateQuantity(item.product_id, +kgVal.toFixed(3));
+                    if (_ppk > 0) {
+                      const calcPcs = Math.max(1, Math.round(kgVal * _ppk));
+                      updatePiecesOverride(item.product_id, calcPcs);
+                      setLocalPcsStr(p => ({ ...p, [item.product_id]: String(calcPcs) }));
+                    }
                   } else if (isFinal) {
                     // Restore display on blur/final if empty or invalid
                     setLocalKgStr(p => ({ ...p, [item.product_id]: String(item.quantity ?? '') }));
@@ -8204,12 +8345,17 @@ export function BillingPage() {
                     key={item.product_id}
                     ref={el => { itemRefs.current[item.product_id] = el; }}
                     className={clsx(
-                      "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 hover:shadow-sm group",
+                      "flex items-center gap-3 px-3.5 py-2.5 my-0.5 rounded-xl transition-all duration-200 hover:shadow-md group min-h-[52px]",
                       isLastAdded
-                        ? "ring-2 ring-primary bg-primary/10 border-primary shadow-md scale-[1.01]"
+                        ? "ring-2 ring-primary bg-primary/10 border-primary shadow-md scale-[1.005]"
                         : "bg-card border border-border/80 hover:border-primary/40"
                     )}
                   >
+                    {/* Serial Number Badge */}
+                    <span className="text-xs font-black text-primary/80 dark:text-primary-foreground/90 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 flex items-center justify-center shrink-0 min-w-[2.25rem] h-8 select-none shadow-2xs">
+                      #{idx + 1}
+                    </span>
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
@@ -8230,9 +8376,6 @@ export function BillingPage() {
                             COMBO OFFER
                           </span>
                         )}
-                        {item.sku_barcode && (
-                          <span className="text-[10px] font-mono text-muted-foreground/50 truncate hidden sm:inline">{item.sku_barcode}</span>
-                        )}
                       </div>
                       {item.isCombo && item.combo_items && (
                         <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
@@ -8240,21 +8383,150 @@ export function BillingPage() {
                         </div>
                       )}
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 flex-wrap">
-                        {item.brand_manufacturer && <span className="font-medium">{item.brand_manufacturer}</span>}
-                        {!item.sku_barcode && !item.brand_manufacturer && <span className="italic">No barcode</span>}
-                        <span className="text-muted-foreground/40">&middot;</span>
-                        <span className="font-bold text-primary">
-                          {item.billing_type === 'WEIGHT' ? (
-                            isPiecesWeight && _ppk > 0 ? (
-                              `${formatCurrency(effectivePrice)}/Kg (${formatCurrency(effectivePrice / _ppk)}/Pc)`
-                            ) : (
-                              `${formatCurrency(effectivePrice)}/Kg`
-                            )
-                          ) : (
-                            `${formatCurrency(effectivePrice)}/Pc`
-                          )}
-                        </span>
+                        {item.sku_barcode ? (
+                          <span className="font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                            {item.sku_barcode}
+                          </span>
+                        ) : item.item_code ? (
+                          <span className="font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                            Code: {item.item_code}
+                          </span>
+                        ) : (
+                          <span className="italic">No barcode</span>
+                        )}
+                        {item.brand_manufacturer && (
+                          <span className="font-medium">&middot; {item.brand_manufacturer}</span>
+                        )}
                       </div>
+                    </div>
+
+                    {/* Rate Edit Inputs Column (Near Qty) */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.billing_type === 'WEIGHT' ? (
+                        isPiecesWeight && _ppk > 0 ? (
+                          <>
+                            <div className="flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors">
+                              <span className="text-[9px] font-extrabold text-primary">₹</span>
+                              <input
+                                type="number" step="any" min="0"
+                                className="w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                value={localKgRateStr[item.product_id] !== undefined
+                                  ? localKgRateStr[item.product_id]
+                                  : (Number.isInteger(effectivePrice) ? String(effectivePrice) : effectivePrice.toFixed(2))
+                                }
+                                onFocus={e => e.target.select()}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setLocalKgRateStr(p => ({ ...p, [item.product_id]: val }));
+                                  const num = parseFloat(val);
+                                  if (!isNaN(num) && num >= 0) {
+                                    updateItemOfferPrice(item.product_id, num);
+                                    const perPc = _ppk > 0 ? +(num / _ppk).toFixed(2) : num;
+                                    setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(perPc) }));
+                                  }
+                                }}
+                                onBlur={e => {
+                                  if (!e.target.value || isNaN(parseFloat(e.target.value))) {
+                                    setLocalKgRateStr(p => ({ ...p, [item.product_id]: String(effectivePrice) }));
+                                  }
+                                }}
+                                placeholder="Rate/Kg"
+                                title="Edit rate per Kg"
+                              />
+                              <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
+                            </div>
+                            <div className="flex items-center gap-0.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-lg px-1.5 py-0.5 transition-colors">
+                              <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">₹</span>
+                              <input
+                                type="number" step="any" min="0"
+                                className="w-12 text-center h-6 bg-transparent border-0 text-[11px] font-black text-emerald-700 dark:text-emerald-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                value={localPcPriceStr[item.product_id] !== undefined
+                                  ? localPcPriceStr[item.product_id]
+                                  : (Number.isInteger(effectivePrice / _ppk) ? String(effectivePrice / _ppk) : (effectivePrice / _ppk).toFixed(2))
+                                }
+                                onFocus={e => e.target.select()}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setLocalPcPriceStr(p => ({ ...p, [item.product_id]: val }));
+                                  const num = parseFloat(val);
+                                  if (!isNaN(num) && num >= 0) {
+                                    const kgRate = +(_ppk > 0 ? num * _ppk : num).toFixed(2);
+                                    updateItemOfferPrice(item.product_id, kgRate);
+                                    setLocalKgRateStr(p => ({ ...p, [item.product_id]: String(kgRate) }));
+                                  }
+                                }}
+                                onBlur={e => {
+                                  if (!e.target.value || isNaN(parseFloat(e.target.value))) {
+                                    const perPc = +(effectivePrice / _ppk).toFixed(2);
+                                    setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(perPc) }));
+                                  }
+                                }}
+                                placeholder="Rate/Pc"
+                                title="Edit rate per Piece"
+                              />
+                              <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">/Pc</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors">
+                            <span className="text-[9px] font-extrabold text-primary">₹</span>
+                            <input
+                              type="number" step="any" min="0"
+                              className="w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={localKgRateStr[item.product_id] !== undefined
+                                ? localKgRateStr[item.product_id]
+                                : (Number.isInteger(effectivePrice) ? String(effectivePrice) : effectivePrice.toFixed(2))
+                              }
+                              onFocus={e => e.target.select()}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setLocalKgRateStr(p => ({ ...p, [item.product_id]: val }));
+                                const num = parseFloat(val);
+                                if (!isNaN(num) && num >= 0) {
+                                  updateItemOfferPrice(item.product_id, num);
+                                }
+                              }}
+                              onBlur={e => {
+                                if (!e.target.value || isNaN(parseFloat(e.target.value))) {
+                                  setLocalKgRateStr(p => ({ ...p, [item.product_id]: String(effectivePrice) }));
+                                }
+                              }}
+                              placeholder="Rate/Kg"
+                              title="Edit rate per Kg"
+                            />
+                            <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
+                          </div>
+                        )
+                      ) : (
+                        <div className="flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors">
+                          <span className="text-[9px] font-extrabold text-primary">₹</span>
+                          <input
+                            type="number" step="any" min="0"
+                            className="w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={localPcPriceStr[item.product_id] !== undefined
+                              ? localPcPriceStr[item.product_id]
+                              : (Number.isInteger(effectivePrice) ? String(effectivePrice) : effectivePrice.toFixed(2))
+                            }
+                            onFocus={e => e.target.select()}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setLocalPcPriceStr(p => ({ ...p, [item.product_id]: val }));
+                              const num = parseFloat(val);
+                              if (!isNaN(num) && num >= 0) {
+                                updateItemOfferPrice(item.product_id, num);
+                              }
+                            }}
+                            onBlur={e => {
+                              if (!e.target.value || isNaN(parseFloat(e.target.value))) {
+                                setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(effectivePrice) }));
+                              }
+                            }}
+                            placeholder="Rate/Pc"
+                            title="Edit rate per Piece"
+                          />
+                          <span className="text-[9px] font-extrabold text-primary/70">/Pc</span>
+                        </div>
+                      )}
                     </div>
 
                     {isPiecesWeight ? (
@@ -8525,7 +8797,7 @@ export function BillingPage() {
               'overflow-hidden transition-all duration-400 ease-in-out',
               isQuotationMode || editingQuotationId
                 ? 'max-h-0 opacity-0 scale-95 py-0'
-                : 'max-h-[280px] opacity-100 scale-100'
+                : 'max-h-[500px] opacity-100 scale-100'
             )}>
               {isScrapMode ? (
               <div className="grid grid-cols-2 gap-1.5">
@@ -9380,6 +9652,25 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Bill Description Card (Directly Below Payment Methods in Scrollable Area) ── */}
+            {showDescriptionState && (
+              <div className="mt-3 p-3 bg-card border border-border/80 rounded-2xl shadow-xs transition-all duration-200 hover:border-primary/30">
+                <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                    Bill Description / Remarks
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="Enter bill description, remarks, or notes (e.g. PO No, Special Order, Warranty details)..."
+                  value={activeTab?.description || ''}
+                  onChange={e => updateActiveTab({ description: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-border/70 rounded-xl text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-xs resize-none min-h-[64px]"
+                />
               </div>
             )}
 

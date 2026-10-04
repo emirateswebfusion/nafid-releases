@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
-import { useBillingUIStore, type BillingUIConfig } from '../store/billingUIStore';
+import { useBillingUIStore, DEFAULT_BILLING_UI_CONFIG, DEFAULT_HEADER_BUTTON_CONFIG, type BillingUIConfig } from '../store/billingUIStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
@@ -236,6 +236,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showProductOffers, setShowProductOffers] = useState(true);
   const [showPriceOverrideMrp, setShowPriceOverrideMrp] = useState(true);
   const [openCashDrawerOnPending, setOpenCashDrawerOnPending] = useState(false);
+  const [autoOpenCashDrawer, setAutoOpenCashDrawer] = useState(false);
+  const [defaultOpeningBalance, setDefaultOpeningBalance] = useState<number | string>(0);
   const [receiptFont, setReceiptFont] = useState('courier');
   const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
   const [scrapBillSettings, setScrapBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
@@ -523,6 +525,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     showProductOffers: overrides.showProductOffers !== undefined ? overrides.showProductOffers : showProductOffers,
     showPriceOverrideMrp: overrides.showPriceOverrideMrp !== undefined ? overrides.showPriceOverrideMrp : showPriceOverrideMrp,
     openCashDrawerOnPending: overrides.openCashDrawerOnPending !== undefined ? overrides.openCashDrawerOnPending : openCashDrawerOnPending,
+    autoOpenCashDrawer: overrides.autoOpenCashDrawer !== undefined ? overrides.autoOpenCashDrawer : autoOpenCashDrawer,
+    defaultOpeningBalance: overrides.defaultOpeningBalance !== undefined ? overrides.defaultOpeningBalance : defaultOpeningBalance,
     receiptFont: overrides.receiptFont !== undefined ? overrides.receiptFont : receiptFont,
     printFormat: overrides.printFormat !== undefined ? overrides.printFormat : printFormat,
     a5Orientation: overrides.a5Orientation !== undefined ? overrides.a5Orientation : a5Orientation,
@@ -575,7 +579,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, enableConvertToGst, billingUIConfig, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, enableConvertToGst, billingUIConfig, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -668,7 +672,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
           'enable_party_gst_balance', 'enable_party_estimate_balance',
-          'enable_real_paper_stock', 'enable_convert_to_gst',
+          'enable_real_paper_stock', 'enable_convert_to_gst', 'billing_ui_config',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -990,6 +994,19 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setEnableScrap(finalScrap);
       setShowCashRegister(finalCashReg);
       setFeatureFlags(finalFlags);
+      const storedBillingUI = allSettings['billing_ui_config'];
+      if (storedBillingUI && typeof storedBillingUI === 'object') {
+        const mergedCfg = {
+          ...DEFAULT_BILLING_UI_CONFIG,
+          ...storedBillingUI,
+          headerButtons: {
+            ...DEFAULT_HEADER_BUTTON_CONFIG,
+            ...(storedBillingUI.headerButtons || {}),
+          },
+        };
+        setBillingUIConfig(mergedCfg);
+        useBillingUIStore.getState().updateConfig(mergedCfg);
+      }
       setAutoPrintBarcode(finalAutoBarcode);
       setLoyaltyEnabled(finalLoyaltyEnabled);
       setLoyaltyEarningRate(finalLoyaltyEarningRate);
@@ -1007,6 +1024,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setShowProductOffers(finalShowOffers);
       setShowPriceOverrideMrp(finalShowPriceOverrideMrp);
       setOpenCashDrawerOnPending(finalOpenCashDrawer);
+      const autoOpenVal = allSettings['auto_open_cash_drawer'];
+      const defaultBalVal = allSettings['default_opening_balance'];
+      setAutoOpenCashDrawer(Boolean(autoOpenVal));
+      setDefaultOpeningBalance(defaultBalVal !== undefined && defaultBalVal !== null ? defaultBalVal : 0);
       setReceiptFont(finalReceiptFont);
       setBillSettings(finalBillSettings);
       setScrapBillSettings(finalScrapBillSettings);
@@ -1268,6 +1289,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_open_cash_drawer', value: autoOpenCashDrawer }), name: 'auto_open_cash_drawer' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'default_opening_balance', value: defaultOpeningBalance === '' ? 0 : (Number(defaultOpeningBalance) || 0) }), name: 'default_opening_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
@@ -1937,17 +1960,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <span className="text-xs font-black text-purple-600 uppercase tracking-widest">Store Features</span>
               </div>
               <div className="space-y-5">
-                {/* Cash Register Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => handleToggleFeatureFlag('cash_register')}>Show Cash Register on Billing Page</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, a Cash Register button appears on the billing page for quick cash-in/cash-out entries.</p>
-                  </div>
-                  <button type="button" onClick={() => handleToggleFeatureFlag('cash_register')} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.cash_register ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.cash_register ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
                 {/* Loyalty Toggle & Configs */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
@@ -2696,6 +2708,45 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoOpenCashDrawer(!autoOpenCashDrawer)}>Auto Open Cash Drawer</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Automatically open the cash register drawer session with a default balance on session start.</p>
+                  </div>
+                  <button type="button" onClick={() => setAutoOpenCashDrawer(!autoOpenCashDrawer)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoOpenCashDrawer ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoOpenCashDrawer ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {autoOpenCashDrawer && (
+                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <label className="text-xs font-bold text-foreground mb-1 block">Default Opening Amount (₹)</label>
+                    <p className="text-[10px] text-muted-foreground/75 mb-2.5">Set a default cash amount to start the drawer with. If empty or cleared, opening balance will be 0 (starts from 0).</p>
+                    <div className="relative max-w-xs">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="0"
+                        value={defaultOpeningBalance}
+                        onChange={(e) => setDefaultOpeningBalance(e.target.value)}
+                        className="w-full pl-7 pr-3 py-2 bg-background border border-border rounded-xl text-xs font-bold text-foreground focus:outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, showDescription: s.showDescription === false ? true : false }))}>Show Bill Description / Remarks</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the Bill Description / Remarks box will appear on the billing page and printed receipts.</p>
+                  </div>
+                  <button type="button" onClick={() => setBillSettings(s => ({ ...s, showDescription: s.showDescription === false ? true : false }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.showDescription !== false ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.showDescription !== false ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
                     <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))}>Show Transporter &amp; E-Way Bill Details Section</label>
                     <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the Transporter &amp; E-Way Bill Details section will appear on printed invoices and preview.</p>
                   </div>
@@ -2788,6 +2839,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       { key: 'showCustomerAddress', label: 'Customer Address' },
                       { key: 'showCustomerGstin', label: 'Customer GSTIN' },
                       { key: 'showCustomerState', label: 'Customer State' },
+                      { key: 'showDescription', label: 'Bill Description / Remarks' },
                       { key: 'showTransporterDetails', label: 'Transporter & E-Way Bill Details' },
                       { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
                       { key: 'printFullName', label: 'Full Product Name' },

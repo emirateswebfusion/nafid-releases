@@ -94,7 +94,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at' | 'stock'>('created_at');
-  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'no_barcode'>('all');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -714,6 +714,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         if (Number(p.current_stock) > 0) return false;
       } else if (stockFilter === 'in_stock') {
         if (Number(p.current_stock) <= 0) return false;
+      } else if (stockFilter === 'no_barcode') {
+        if (p.sku_barcode && String(p.sku_barcode).trim() !== '') return false;
       }
 
       return true;
@@ -1574,6 +1576,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                 { value: 'low_stock', label: 'Low Stock' },
                 { value: 'out_of_stock', label: 'Out of Stock' },
                 { value: 'in_stock', label: 'In Stock' },
+                { value: 'no_barcode', label: 'No Barcode' },
               ]}
               className="min-w-[145px]"
               triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
@@ -1582,6 +1585,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   {option.value === 'low_stock' && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                   {option.value === 'out_of_stock' && <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />}
                   {option.value === 'in_stock' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                  {option.value === 'no_barcode' && <Tag className="w-3.5 h-3.5 text-orange-500 shrink-0" />}
                   {option.value === 'all' && <Layers className="w-3.5 h-3.5 text-primary shrink-0" />}
                   <span className={clsx(isSelected && "font-bold")}>{option.label}</span>
                 </div>
@@ -1680,7 +1684,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                 <PackagePlus className="w-12 h-12 mb-3" />
                 <p className="font-medium text-foreground">No products found</p>
                 <p className="text-sm mt-1">
-                  {stockFilter !== 'all' ? `No products match "${stockFilter === 'low_stock' ? 'Low Stock' : stockFilter === 'out_of_stock' ? 'Out of Stock' : 'In Stock'}" filter` : 'Click "Add Product" to seed your inventory'}
+                  {stockFilter !== 'all' ? `No products match "${stockFilter === 'low_stock' ? 'Low Stock' : stockFilter === 'out_of_stock' ? 'Out of Stock' : stockFilter === 'no_barcode' ? 'No Barcode' : 'In Stock'}" filter` : 'Click "Add Product" to seed your inventory'}
                 </p>
               </div>
             ) : Object.entries(groupedByDate).map(([date, items]) => (

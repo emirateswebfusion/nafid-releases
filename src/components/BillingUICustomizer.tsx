@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   POS_LAYOUT_MODELS_DATA, 
   DEFAULT_BILLING_UI_CONFIG,
+  DEFAULT_HEADER_BUTTON_CONFIG,
+  QUICK_PAGES_LIST,
+  INTERNAL_HEADER_BUTTON_CAPACITY,
+  isHeaderButtonVisible,
+  getTotalSelectedHeaderButtonsCount,
   useBillingUIStore,
   type BillingUIConfig, 
-  type POSLayoutModel 
+  type POSLayoutModel,
+  type HeaderButtonConfig,
+  type QuickPageKey
 } from '../store/billingUIStore';
 import { 
   LayoutGrid, Columns, Sliders, RotateCcw, Check, Sparkles, 
   Eye, Monitor, Touchpad, Layers, Save, Undo2, X, AlertCircle,
   ShoppingCart, DollarSign, User, Search, Plus, Scale, Clock,
-  FileText, ArrowLeftRight, Recycle, Banknote, Store, TrendingUp, PauseCircle, Truck, Settings
+  FileText, ArrowLeftRight, Recycle, Banknote, Store, TrendingUp, PauseCircle, Truck, Settings, BookOpen, Users, Package, Shield, UserCheck, CreditCard
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -21,6 +28,13 @@ interface BillingUICustomizerProps {
 
 export function BillingUICustomizer({ config, onChange }: BillingUICustomizerProps) {
   const [activeTab, setActiveTab] = useState<'models' | 'preview' | 'controls'>('models');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
 
   const handleUpdate = (partial: Partial<BillingUIConfig>) => {
     onChange({ ...config, ...partial });
@@ -280,21 +294,55 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
               {/* Quick Action Header Buttons */}
               {config.showQuickActions && (
                 <div className="flex items-center gap-2 text-xs font-bold">
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted text-muted-foreground border border-transparent">
-                    <TrendingUp className="w-3.5 h-3.5 text-primary" /> History
-                  </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                    <PauseCircle className="w-3.5 h-3.5 text-amber-500" /> Held Bills
-                  </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/10 text-orange-600 border border-orange-500/20">
-                    <Recycle className="w-3.5 h-3.5 text-orange-500" /> Scrap (F5)
-                  </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 text-blue-600 border border-blue-500/20">
-                    <FileText className="w-3.5 h-3.5 text-blue-500" /> Quotation (F6)
-                  </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-600 border border-rose-500/20">
-                    <ArrowLeftRight className="w-3.5 h-3.5 text-rose-500" /> Return (F7)
-                  </span>
+                  {isHeaderButtonVisible(config, 'showClearCart') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-[11px]">
+                      <RotateCcw className="w-3 h-3" /> Clear Cart
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showHistory') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-muted text-muted-foreground border border-transparent text-[11px]">
+                      <TrendingUp className="w-3.5 h-3.5 text-primary" /> History
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showHeldBills') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[11px]">
+                      <PauseCircle className="w-3.5 h-3.5 text-amber-500" /> Held Bills
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showTransport') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-500/10 text-cyan-600 border border-cyan-500/20 text-[11px]">
+                      <Truck className="w-3.5 h-3.5 text-cyan-500" /> Transport
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showScrap') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-600 border border-orange-500/20 text-[11px]">
+                      <Recycle className="w-3.5 h-3.5 text-orange-500" /> Scrap (F5)
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showQuotation') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[11px]">
+                      <FileText className="w-3.5 h-3.5 text-blue-500" /> Quotation (F6)
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showReturn') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-600 border border-rose-500/20 text-[11px]">
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-rose-500" /> Return (F7)
+                    </span>
+                  )}
+                  {isHeaderButtonVisible(config, 'showRegister') && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[11px]">
+                      <Banknote className="w-3.5 h-3.5 text-purple-500" /> Register
+                    </span>
+                  )}
+                  {(config.quickPageShortcuts || ['ledger']).map((pageKey) => {
+                    const pageDef = QUICK_PAGES_LIST.find(p => p.key === pageKey);
+                    if (!pageDef) return null;
+                    return (
+                      <span key={pageKey} className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[11px]">
+                        <BookOpen className="w-3.5 h-3.5 text-emerald-500" /> {pageDef.label.split(' ')[0]}
+                      </span>
+                    );
+                  })}
                   <span className="p-1.5 rounded-xl text-muted-foreground hover:bg-muted">
                     <Settings className="w-4 h-4" />
                   </span>
@@ -646,23 +694,238 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
               </div>
             </div>
 
-            {/* Component Visibility Toggles */}
-            <div className="space-y-3">
+            {/* ─── HEADER BUTTONS & QUICK PAGES (COMBINED SELECTION) ─── */}
+            {(() => {
+              const totalSelected = getTotalSelectedHeaderButtonsCount(config);
+              const maxLimit = INTERNAL_HEADER_BUTTON_CAPACITY;
+              const isOverallLimitReached = totalSelected >= maxLimit;
+
+              return (
+                <div className="space-y-6 col-span-1 md:col-span-3 bg-muted/20 border border-border p-5 rounded-2xl">
+                  {/* Top Bar Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+                          <Sliders className="w-4 h-4 text-primary" />
+                          Header Action Buttons & Quick Pages (Selection)
+                        </h4>
+                        <span className={clsx(
+                          "px-2.5 py-0.5 text-[10px] font-black rounded-full border uppercase tracking-wider",
+                          isOverallLimitReached
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                        )}>
+                          {totalSelected} / {maxLimit} Active Selected
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                        Select any combination of Header Mode buttons and Quick Page shortcuts (e.g. <strong>Ledger</strong>). The system capacity allows up to {maxLimit} active header buttons.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto">
+                      <label className="flex items-center gap-2 px-3 py-1.5 bg-background border border-border rounded-xl cursor-pointer text-xs font-bold shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={config.showQuickActions}
+                          onChange={(e) => handleUpdate({ showQuickActions: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                        />
+                        <span>Master Header Toggle</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {config.showQuickActions ? (
+                    <div className="space-y-6">
+                      {/* Section 1: Header Mode Action Buttons */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Banknote className="w-3.5 h-3.5 text-primary" /> Header Action Mode Buttons
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                          {[
+                            { key: 'showRegister' as const, label: 'Register', icon: Banknote, desc: 'Cash Register drawer panel button', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+                            { key: 'showScrap' as const, label: 'Scrap (F5)', icon: Recycle, desc: 'Scrap billing mode toggle', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+                            { key: 'showQuotation' as const, label: 'Quotation (F6)', icon: FileText, desc: 'Quotation mode toggle', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+                            { key: 'showReturn' as const, label: 'Return (F7)', icon: ArrowLeftRight, desc: 'Sales return mode toggle', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+                            { key: 'showHistory' as const, label: 'History', icon: TrendingUp, desc: 'Sales & Scrap history logs', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                            { key: 'showHeldBills' as const, label: 'Held Bills', icon: PauseCircle, desc: 'Draft & held invoices panel', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                            { key: 'showTransport' as const, label: 'Transport', icon: Truck, desc: 'Transporter & E-Way details', color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+                            { key: 'showClearCart' as const, label: 'Clear Cart', icon: RotateCcw, desc: 'Reset active cart items button', color: 'text-destructive', bg: 'bg-destructive/10' },
+                          ].map((btn) => {
+                            const Icon = btn.icon;
+                            const isChecked = isHeaderButtonVisible(config, btn.key);
+                            const isDisabled = !isChecked && isOverallLimitReached;
+
+                            return (
+                              <label
+                                key={btn.key}
+                                onClick={(e) => {
+                                  if (isDisabled) {
+                                    e.preventDefault();
+                                    setToastMessage(`Maximum capacity reached (${totalSelected}/${maxLimit}). Uncheck an active button first.`);
+                                  }
+                                }}
+                                className={clsx(
+                                  "flex items-start gap-3 p-3 rounded-xl border transition-all select-none relative",
+                                  isChecked
+                                    ? "bg-card border-primary/50 ring-1 ring-primary/20 shadow-xs cursor-pointer"
+                                    : isDisabled
+                                      ? "bg-muted/20 border-border opacity-50 cursor-not-allowed"
+                                      : "bg-muted/40 border-border hover:bg-card hover:border-primary/40 cursor-pointer"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isDisabled}
+                                  onChange={(e) => {
+                                    const currentHb = config.headerButtons || DEFAULT_HEADER_BUTTON_CONFIG;
+                                    handleUpdate({
+                                      headerButtons: {
+                                        ...currentHb,
+                                        [btn.key]: e.target.checked,
+                                      },
+                                    });
+                                  }}
+                                  className="w-4 h-4 mt-0.5 rounded text-primary focus:ring-primary cursor-pointer shrink-0 disabled:cursor-not-allowed"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={clsx("p-1 rounded-md shrink-0", btn.bg)}>
+                                      <Icon className={clsx("w-3.5 h-3.5", btn.color)} />
+                                    </span>
+                                    <span className="text-xs font-extrabold text-foreground truncate">{btn.label}</span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1 leading-tight">{btn.desc}</p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Section 2: Quick Page Entry Shortcuts */}
+                      <div className="space-y-2.5 pt-3 border-t border-border/60">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                            <BookOpen className="w-3.5 h-3.5 text-emerald-500" /> Quick Page Shortcuts (Easy Enter)
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {QUICK_PAGES_LIST.map((page) => {
+                            const activeList = config.quickPageShortcuts || ['ledger'];
+                            const isChecked = activeList.includes(page.key);
+                            const isDisabled = !isChecked && isOverallLimitReached;
+
+                            return (
+                              <label
+                                key={page.key}
+                                onClick={(e) => {
+                                  if (isDisabled) {
+                                    e.preventDefault();
+                                    setToastMessage(`Maximum capacity reached (${totalSelected}/${maxLimit}). Uncheck an active button first.`);
+                                  }
+                                }}
+                                className={clsx(
+                                  "flex items-start gap-3 p-3 rounded-xl border transition-all select-none relative",
+                                  isChecked
+                                    ? "bg-card border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-xs cursor-pointer"
+                                    : isDisabled
+                                      ? "bg-muted/20 border-border opacity-50 cursor-not-allowed"
+                                      : "bg-muted/40 border-border hover:bg-card hover:border-primary/40 cursor-pointer"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isDisabled}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      if (!isOverallLimitReached) {
+                                        handleUpdate({ quickPageShortcuts: [...activeList, page.key] });
+                                      }
+                                    } else {
+                                      handleUpdate({ quickPageShortcuts: activeList.filter(k => k !== page.key) });
+                                    }
+                                  }}
+                                  className="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 disabled:cursor-not-allowed"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-xs font-extrabold text-foreground truncate">{page.label}</span>
+                                    {page.key === 'ledger' && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                        Ledger
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1 leading-tight">{page.desc}</p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                      Header buttons are currently disabled by the Master Toggle. Check "Master Header Toggle" above to turn on and configure individual buttons.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Other Component Visibility & Cart Navigation Toggles */}
+            <div className="space-y-3 col-span-1 md:col-span-3">
               <label className="text-xs font-bold text-foreground uppercase tracking-wider block">
-                Header Component Visibility
+                Additional Workspace & Cart Navigation Controls
               </label>
-              <div className="space-y-2.5">
-                <label className="flex items-center gap-3 p-3 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 1. Header Button Navigation Cart Preservation */}
+                <label className="flex items-start gap-3 p-3.5 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
                   <input
                     type="checkbox"
-                    checked={config.showQuickActions}
-                    onChange={(e) => handleUpdate({ showQuickActions: e.target.checked })}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                    checked={config.preserveCartOnHeaderNavigation ?? true}
+                    onChange={(e) => handleUpdate({ preserveCartOnHeaderNavigation: e.target.checked })}
+                    className="w-4 h-4 mt-0.5 rounded text-primary focus:ring-primary cursor-pointer shrink-0"
                   />
-                  <span className="text-xs font-bold text-foreground">Header Mode Buttons (History, Scrap, Return, etc.)</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <span>Preserve Cart on Header Button Navigation</span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                      When enabled (ON), opening pages via header buttons (Ledger, Customers, Inventory, etc.) will keep your active cart items and open tabs intact without clearing them.
+                    </span>
+                  </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-3 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+                {/* 2. Exit Billing Page Cart Preservation */}
+                <label className="flex items-start gap-3 p-3.5 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={config.preserveCartOnPageExit ?? true}
+                    onChange={(e) => handleUpdate({ preserveCartOnPageExit: e.target.checked })}
+                    className="w-4 h-4 mt-0.5 rounded text-primary focus:ring-primary cursor-pointer shrink-0"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <span>Preserve Cart on Exiting Billing Page</span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                      When enabled (ON), exiting the Billing page to Dashboard or switching sidebar views will keep your active cart items and open tabs intact without clearing them.
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 p-3.5 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
                   <input
                     type="checkbox"
                     checked={config.showScaleButton}
@@ -672,7 +935,7 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
                   <span className="text-xs font-bold text-foreground">Weighing Scale Read Button</span>
                 </label>
 
-                <label className="flex items-start gap-3 p-3 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+                <label className="flex items-start gap-3 p-3.5 bg-background border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
                   <input
                     type="checkbox"
                     checked={config.showPurchasePriceInPOS ?? false}
@@ -687,6 +950,18 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* ─── FLOATING TOAST NOTIFICATION ─── */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+            <AlertCircle className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-bold text-white">{toastMessage}</span>
+          <button onClick={() => setToastMessage(null)} className="p-1 hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white shrink-0">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

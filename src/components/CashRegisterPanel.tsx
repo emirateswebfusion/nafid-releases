@@ -179,9 +179,26 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
     setPendingInvoiceSelection(null);
   };
 
+  const handleOpenOpeningBalModal = async (currentBal?: number) => {
+    let def = currentBal || 0;
+    if (!def && window.electronAPI?.settingsGet) {
+      const val = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'default_opening_balance' });
+      if (val !== null && val !== undefined && val !== '') {
+        def = Number(val) || 0;
+      }
+    }
+    setOpeningBalInput(def);
+    setOpeningBalError('');
+    setShowOpeningBal(true);
+  };
+
   useEffect(() => {
     if (!drawer) {
-      const timer = setTimeout(() => { if (!drawer) setShowOpeningBal(true); }, 500);
+      const timer = setTimeout(() => {
+        if (!drawer) {
+          handleOpenOpeningBalModal();
+        }
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [drawer]);
@@ -326,7 +343,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-1.5 shrink-0">
             {!drawerOpen && (
               <button
-                onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setOpeningBalError(''); setShowOpeningBal(true); }}
+                onClick={() => handleOpenOpeningBalModal(drawer?.opening_balance)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
               >
                 <DollarSign className="w-3.5 h-3.5" /> Opening

@@ -937,6 +937,8 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
         query += ' AND p.current_stock <= 0';
       } else if (stockStatus === 'in_stock' || stockStatus === 'in') {
         query += ' AND p.current_stock > 0';
+      } else if (stockStatus === 'no_barcode' || stockStatus === 'no_code') {
+        query += " AND (p.sku_barcode IS NULL OR TRIM(p.sku_barcode) = '')";
       }
     }
 
@@ -1071,6 +1073,8 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
         query += ' AND current_stock <= 0';
       } else if (arg.stockStatus === 'in_stock' || arg.stockStatus === 'in') {
         query += ' AND current_stock > 0';
+      } else if (arg.stockStatus === 'no_barcode' || arg.stockStatus === 'no_code') {
+        query += " AND (sku_barcode IS NULL OR TRIM(sku_barcode) = '')";
       }
     }
 
@@ -2819,9 +2823,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
-        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, settled_at, created_at, updated_at
+        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, notes, description, settled_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -2855,6 +2859,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.igst_total ?? 0,
       invoice.supply_type || 'INTRA',
       invoice.actual_refund_paid ?? 0,
+      invoice.notes || invoice.description || null,
+      invoice.description || invoice.notes || null,
       (invoice.payment_method && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') ? nowTimestamp : null,
       nowTimestamp,
       nowTimestamp
@@ -3968,6 +3974,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
         customer_id = ?, cgst_total = ?, sgst_total = ?, igst_total = ?, supply_type = ?,
+        notes = ?, description = ?,
         sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `).run(
@@ -3984,6 +3991,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       customerId || null,
       (invoice as any).cgst_total ?? 0, (invoice as any).sgst_total ?? 0,
       (invoice as any).igst_total ?? 0, (invoice as any).supply_type || 'INTRA',
+      (invoice as any).notes || (invoice as any).description || null,
+      (invoice as any).description || (invoice as any).notes || null,
       payload.invoice_id
     );
 
@@ -7028,11 +7037,25 @@ function adjustCashDrawerForInvoice(
 
   if (!drawer && tenantId) {
     try {
+      let defaultBal = 0;
+      let autoOpenSetting = false;
+      const autoOpenRow = db.prepare("SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'auto_open_cash_drawer' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 0 END) DESC LIMIT 1").get(tenantId, tenantId) as any;
+      if (autoOpenRow && autoOpenRow.value !== undefined && autoOpenRow.value !== null) {
+        try { autoOpenSetting = Boolean(JSON.parse(autoOpenRow.value)); } catch { autoOpenSetting = String(autoOpenRow.value).trim() === 'true'; }
+      }
+      if (autoOpenSetting) {
+        const balRow = db.prepare("SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'default_opening_balance' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 0 END) DESC LIMIT 1").get(tenantId, tenantId) as any;
+        if (balRow && balRow.value !== undefined && balRow.value !== null) {
+          try { defaultBal = Number(JSON.parse(balRow.value)) || 0; } catch { defaultBal = Number(balRow.value) || 0; }
+        }
+        if (isNaN(defaultBal) || defaultBal < 0) defaultBal = 0;
+      }
+
       const drawerId = crypto.randomUUID();
       db.prepare(`
         INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, cash_sales, cash_in, cash_out, current_cash, expected_closing, status, opened_at, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 'OPEN', CURRENT_TIMESTAMP, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(drawerId, tenantId, businessDate);
+        VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, 'OPEN', CURRENT_TIMESTAMP, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(drawerId, tenantId, businessDate, defaultBal, defaultBal, defaultBal);
       drawer = db.prepare(`SELECT * FROM cash_drawer WHERE drawer_id = ?`).get(drawerId) as any;
     } catch (e: any) {
       console.error('[Cashier] Auto-create drawer error:', e.message);
@@ -7122,7 +7145,46 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
   try {
     const db = getDb();
     autoClosePastOpenDrawers(db, tenant_id);
-    return deduplicateAndGetOpenDrawer(db, tenant_id, business_date);
+    let drawer = deduplicateAndGetOpenDrawer(db, tenant_id, business_date);
+
+    if (!drawer || drawer.status !== 'OPEN') {
+      const activeTenantId = tenant_id || 'global';
+      let autoOpenSetting = false;
+      const autoOpenRow = db.prepare("SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'auto_open_cash_drawer' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 0 END) DESC LIMIT 1").get(activeTenantId, activeTenantId) as any;
+      if (autoOpenRow && autoOpenRow.value !== undefined && autoOpenRow.value !== null) {
+        try { autoOpenSetting = Boolean(JSON.parse(autoOpenRow.value)); } catch { autoOpenSetting = String(autoOpenRow.value).trim() === 'true'; }
+      }
+
+      if (autoOpenSetting) {
+        let defaultBal = 0;
+        const balRow = db.prepare("SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'default_opening_balance' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 0 END) DESC LIMIT 1").get(activeTenantId, activeTenantId) as any;
+        if (balRow && balRow.value !== undefined && balRow.value !== null) {
+          try { defaultBal = Number(JSON.parse(balRow.value)) || 0; } catch { defaultBal = Number(balRow.value) || 0; }
+        }
+        if (isNaN(defaultBal) || defaultBal < 0) defaultBal = 0;
+
+        const storeTz = getStoreTimezoneSetting(db, activeTenantId);
+        const cleanDate = business_date ? parseCleanDate(business_date, storeTz) : localDate();
+
+        const existing = db.prepare(`
+          SELECT * FROM cash_drawer 
+          WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+            AND (business_date = ? OR date(business_date) = ?)
+          ORDER BY created_at DESC LIMIT 1
+        `).get(activeTenantId, cleanDate, cleanDate) as any;
+
+        if (!existing) {
+          const drawer_id = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, opened_by, sync_status)
+            VALUES (?, ?, ?, ?, ?, ?, 'OPEN', 'system_auto', 'PENDING')
+          `).run(drawer_id, activeTenantId, cleanDate, defaultBal, defaultBal, defaultBal);
+          drawer = deduplicateAndGetOpenDrawer(db, tenant_id, business_date);
+        }
+      }
+    }
+
+    return drawer;
   } catch (error: any) {
     console.error(`[Cashier] getDrawer error:`, error.message);
     return { error: 'Operation failed' };

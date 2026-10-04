@@ -1,10 +1,12 @@
 // eslint-disable-next-line @typescript-eslint/parser
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
+import { isAdminRole } from '../utils/permissions';
 import {
   Search, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
-  Trash2, AlertTriangle, Loader2
+  Trash2, AlertTriangle, Loader2, Edit3,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
@@ -388,6 +390,33 @@ export function CustomersPage({
       showStatus('Failed to load invoice items', 'error');
     } finally {
       setItemsLoading(false);
+    }
+  };
+
+  const handleEditBillFromCustomerModal = async () => {
+    if (!viewingInvoice) return;
+    try {
+      let itemsToEdit = invoiceItems;
+      if (!itemsToEdit || itemsToEdit.length === 0) {
+        if (window.electronAPI?.dbGetInvoiceItems) {
+          const data = await window.electronAPI.dbGetInvoiceItems(viewingInvoice.invoice_id);
+          itemsToEdit = Array.isArray(data) ? data : [];
+        }
+      }
+      localStorage.setItem('editBillData', JSON.stringify({
+        invoice: viewingInvoice,
+        items: itemsToEdit,
+        originalRole: useAuthStore.getState().role || 'OWNER',
+      }));
+      setViewingInvoice(null);
+      onClose?.();
+      if (isAdminRole(useAuthStore.getState().role)) {
+        useCartStore.getState().setRole('BILLER');
+      }
+      setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 50);
+    } catch (e) {
+      console.error('Error starting bill edit from customer modal:', e);
+      showStatus('Failed to open bill editor', 'error');
     }
   };
 
@@ -961,8 +990,8 @@ export function CustomersPage({
 
       {/* Invoice Detail Modal */}
       {viewingInvoice && (
-        <Modal isOpen={!!viewingInvoice} onClose={() => setViewingInvoice(null)} title={`Invoice Detail #${viewingInvoice.invoice_number}`}>
-          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1 select-none">
+        <Modal isOpen={!!viewingInvoice} className="max-w-6xl w-full" onClose={() => setViewingInvoice(null)} title={`Invoice Detail #${viewingInvoice.invoice_number}`}>
+          <div className="space-y-4 select-none w-full">
             <div className="flex items-center justify-between bg-muted/40 p-3.5 rounded-xl border border-border">
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground">Invoice Number</p>
@@ -1096,6 +1125,19 @@ export function CustomersPage({
                       </span>
                     </div>
                   ) : null}
+                </div>
+              )}
+
+              {/* Owner Edit Bill Action */}
+              {isAdminRole(role) && (
+                <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={handleEditBillFromCustomerModal}
+                    className="px-4 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" /> Edit Bill
+                  </button>
                 </div>
               )}
             </div>

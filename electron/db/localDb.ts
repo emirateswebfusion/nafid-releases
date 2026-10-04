@@ -1263,6 +1263,8 @@ export function initDb() {
       converted_to_invoice_number: 'TEXT',
       is_deleted: 'INTEGER DEFAULT 0',
       actual_refund_paid: 'REAL DEFAULT 0',
+      notes: 'TEXT',
+      description: 'TEXT',
     };
 
     for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
