@@ -151,7 +151,7 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
 
   useKeyboardShortcuts({
     'F2': () => searchInputRef.current?.focus(),
-    'F4': () => {
+    'F3': () => {
       if (items.length > 0) {
         const lastItemId = items[items.length - 1].product_id;
         const input = qtyInputsRef.current[lastItemId];
@@ -302,8 +302,8 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
           <span className="text-[11px] font-bold text-muted-foreground w-6 shrink-0">Sl.</span>
           <span>Item</span>
         </div>
-        <div className="col-span-2 text-right">Price</div>
         <div className="col-span-2 text-center">Qty</div>
+        <div className="col-span-2 text-right">Price</div>
         <div className="col-span-2 text-right">Total</div>
         <div className="col-span-1 text-center"></div>
       </div>
@@ -398,83 +398,6 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                       )}
                     </div>
                   </div>
-                  <div className="col-span-2 text-right text-foreground flex flex-col justify-center items-end gap-1">
-                    {item.billing_type === 'WEIGHT' ? (
-                      isPiecesWeight && item.pieces_per_kg && item.pieces_per_kg > 0 ? (
-                        <>
-                          <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
-                            <span className="text-[9px] font-extrabold text-primary">₹</span>
-                            <input
-                              type="number" step="any" min="0"
-                              className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={effectiveRate}
-                              onFocus={e => e.target.select()}
-                              onChange={e => {
-                                const num = parseFloat(e.target.value);
-                                if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
-                              }}
-                              placeholder="Rate/Kg"
-                              title="Edit rate per Kg"
-                            />
-                            <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
-                          </div>
-                          <div className="flex items-center gap-0.5 bg-emerald-500/15 border border-emerald-500/40 rounded px-1.5 py-0.5">
-                            <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">₹</span>
-                            <input
-                              type="number" step="any" min="0"
-                              className="w-12 text-center h-5 bg-transparent border-0 text-[11px] font-black text-emerald-700 dark:text-emerald-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={+(effectiveRate / item.pieces_per_kg).toFixed(2)}
-                              onFocus={e => e.target.select()}
-                              onChange={e => {
-                                const num = parseFloat(e.target.value);
-                                if (!isNaN(num) && num >= 0) {
-                                  const kgRate = +(num * item.pieces_per_kg!).toFixed(2);
-                                  updateItemOfferPrice(item.product_id, kgRate);
-                                }
-                              }}
-                              placeholder="Rate/Pc"
-                              title="Edit rate per Piece"
-                            />
-                            <span className="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300">/Pc</span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
-                          <span className="text-[9px] font-extrabold text-primary">₹</span>
-                          <input
-                            type="number" step="any" min="0"
-                            className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={effectiveRate}
-                            onFocus={e => e.target.select()}
-                            onChange={e => {
-                              const num = parseFloat(e.target.value);
-                              if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
-                            }}
-                            placeholder="Rate/Kg"
-                            title="Edit rate per Kg"
-                          />
-                          <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
-                        </div>
-                      )
-                    ) : (
-                      <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
-                        <span className="text-[9px] font-extrabold text-primary">₹</span>
-                        <input
-                          type="number" step="any" min="0"
-                          className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={effectiveRate}
-                          onFocus={e => e.target.select()}
-                          onChange={e => {
-                            const num = parseFloat(e.target.value);
-                            if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
-                          }}
-                          placeholder="Rate/Pc"
-                          title="Edit rate per Piece"
-                        />
-                        <span className="text-[9px] font-extrabold text-primary/70">/Pc</span>
-                      </div>
-                    )}
-                  </div>
                   <div className="col-span-2 flex justify-center flex-col items-center gap-1">
                     {isPiecesWeight ? (
                       <>
@@ -513,6 +436,43 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
                           value={item.quantity}
                           onChange={(e) => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
                         />
+                      </div>
+                    )}
+                  </div>
+                  <div className="col-span-2 text-right text-foreground flex flex-col justify-center items-end gap-1">
+                    {item.billing_type === 'WEIGHT' ? (
+                      <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
+                        <span className="text-[9px] font-extrabold text-primary">₹</span>
+                        <input
+                          type="number" step="any" min="0"
+                          className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={effectiveRate}
+                          onFocus={e => e.target.select()}
+                          onChange={e => {
+                            const num = parseFloat(e.target.value);
+                            if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
+                          }}
+                          placeholder="Rate/Kg"
+                          title="Edit rate per Kg"
+                        />
+                        <span className="text-[9px] font-extrabold text-primary/70">/Kg</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-0.5 bg-primary/10 border border-primary/30 rounded px-1.5 py-0.5">
+                        <span className="text-[9px] font-extrabold text-primary">₹</span>
+                        <input
+                          type="number" step="any" min="0"
+                          className="w-14 text-center h-5 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={effectiveRate}
+                          onFocus={e => e.target.select()}
+                          onChange={e => {
+                            const num = parseFloat(e.target.value);
+                            if (!isNaN(num) && num >= 0) updateItemOfferPrice(item.product_id, num);
+                          }}
+                          placeholder="Rate/Pc"
+                          title="Edit rate per Piece"
+                        />
+                        <span className="text-[9px] font-extrabold text-primary/70">/Pc</span>
                       </div>
                     )}
                   </div>

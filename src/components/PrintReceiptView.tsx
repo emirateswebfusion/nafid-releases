@@ -358,12 +358,13 @@ export function PrintReceiptView({ text }: { text: string }) {
 
           const qrSrc = qrImages[row.payload];
           return qrSrc ? (
-            <div key={`qr-${index}`} style={{ width: '100%', padding: '4px 0 6px', textAlign: 'left', display: 'flex', justifyContent: 'flex-start', paddingLeft: '8px' }}>
+            <div key={`qr-${index}`} style={{ width: '100%', padding: '6px 0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <img
                 src={qrSrc}
-                alt="UPI QR"
-                style={{ width: '92%', maxWidth: '220px', height: 'auto', imageRendering: 'pixelated', display: 'block' }}
+                alt="UPI QR Code"
+                style={{ width: '140px', height: '140px', imageRendering: 'pixelated', display: 'block', margin: '0 auto' }}
               />
+              <div style={{ fontSize: '10px', fontWeight: 800, marginTop: '2px', textAlign: 'center' }}>Scan & Pay via UPI</div>
             </div>
           ) : (
             <pre key={`qr-fallback-${index}`} style={{

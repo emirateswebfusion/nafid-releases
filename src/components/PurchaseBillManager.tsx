@@ -17,6 +17,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { cleanSearchText, sortProductsBySearchPriority } from '../utils/productSort';
 
 interface PurchaseBill {
   purchase_bill_id: string;
@@ -71,6 +72,7 @@ interface Product {
   category?: string;
   uom?: string;
   reorder_level?: number;
+  is_service_item?: number;
 }
 
 const formatDate = (d: string) => {
@@ -1712,6 +1714,18 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [manualRoundOff, setManualRoundOff] = useState<string>('');
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
+  const productItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    if (highlightedProductIndex >= 0 && productItemRefs.current[highlightedProductIndex]) {
+      productItemRefs.current[highlightedProductIndex]?.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }
+  }, [highlightedProductIndex]);
   const [billItems, setBillItems] = useState<Array<{
     product_id: string;
     name: string;
@@ -1988,16 +2002,75 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   const searchProducts = async (q: string) => {
     setProductSearch(q);
+    setHighlightedProductIndex(0);
+    setProducts([]);
+    setIsSearchingProducts(q.trim().length > 0);
     setShowProductCreateForm(false);
-    if (!window.electronAPI || !tenantId || q.length < 2) {
-      if (q.length < 2) setProducts([]);
+  };
+
+  useEffect(() => {
+    const query = productSearch.trim();
+    if (!window.electronAPI || !tenantId || !query) {
+      setProducts([]);
+      setHighlightedProductIndex(0);
+      setIsSearchingProducts(false);
       return;
     }
-    const result = await window.electronAPI.dbGetPurchaseBillProducts({ tenant_id: tenantId, search: q });
-    if (Array.isArray(result)) {
-      setProducts(result);
-    }
-  };
+
+    let isCurrentSearch = true;
+    setIsSearchingProducts(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await window.electronAPI!.dbGetPurchaseBillProducts({
+          tenant_id: tenantId,
+          search: query,
+          limit: 500,
+        });
+        if (!isCurrentSearch) return;
+
+        const rawProducts = Array.isArray(result) ? result : [];
+        const q = query.toLowerCase();
+        const qNoSpace = q.replace(/\s+/g, '');
+        const qClean = cleanSearchText(q);
+        const sortedProducts = sortProductsBySearchPriority(rawProducts, query);
+        const matchedProducts = sortedProducts.filter(p => {
+          const fields = [p.sku_barcode, p.item_code, p.name, p.brand_manufacturer, p.category, p.hsn_sac_code]
+            .map(value => String(value || '').trim().toLowerCase());
+          return fields.some(value => {
+            const noSpace = value.replace(/\s+/g, '');
+            const clean = cleanSearchText(value);
+            return value.includes(q) || noSpace.includes(qNoSpace) || (qClean.length > 0 && clean.includes(qClean));
+          });
+        });
+
+        const deduped: Product[] = [];
+        let serviceChargeFound = false;
+        for (const product of matchedProducts) {
+          const isServiceCharge = Number(product.is_service_item) === 1 || String(product.name || '').trim().toLowerCase() === 'service charge';
+          if (isServiceCharge) {
+            if (serviceChargeFound) continue;
+            serviceChargeFound = true;
+          }
+          deduped.push(product);
+        }
+
+        setProducts(deduped);
+        setHighlightedProductIndex(0);
+        setIsSearchingProducts(false);
+      } catch (error) {
+        if (isCurrentSearch) {
+          console.error('[PurchaseBillManager] Product search error:', error);
+          setProducts([]);
+          setIsSearchingProducts(false);
+        }
+      }
+    }, 150);
+
+    return () => {
+      isCurrentSearch = false;
+      window.clearTimeout(timer);
+    };
+  }, [productSearch, tenantId]);
 
   const addProductToBill = async (product: Product) => {
     const isGstBill = type === 'GST';
@@ -2794,7 +2867,36 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 placeholder="Search products..."
                 value={productSearch}
                 onChange={e => searchProducts(e.target.value)}
-                onKeyDown={e => { if (e.key === ' ' && productSearch.trim() === '') { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); } }}
+                onKeyDown={e => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (products.length > 0) {
+                      setHighlightedProductIndex(prev => (prev + 1) % products.length);
+                    }
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (products.length > 0) {
+                      setHighlightedProductIndex(prev => (prev - 1 + products.length) % products.length);
+                    }
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (products.length > 0 && products[highlightedProductIndex]) {
+                      addProductToBill(products[highlightedProductIndex]);
+                      setProducts([]);
+                      setProductSearch('');
+                    } else if (!isSearchingProducts && productSearch.length >= 2) {
+                      setShowProductCreateForm(true);
+                      setNewProductName(productSearch);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setProducts([]);
+                    setProductSearch('');
+                  } else if (e.key === ' ' && productSearch.trim() === '') {
+                    e.preventDefault();
+                    setShowProductCreateForm(true);
+                    setNewProductName('');
+                  }
+                }}
                 className="w-full bg-background/50 border border-border rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all"
               />
             </div>
@@ -2809,39 +2911,47 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             </button>
           </div>
           {searchDropdownPos && products.length > 0 && !showProductCreateForm && (
-            <div style={{ position: 'fixed', top: searchDropdownPos.top, left: searchDropdownPos.left, width: searchDropdownPos.width, zIndex: 50 }} className="bg-card border border-border/80 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-              {products.map(p => (
-                <button
-                  key={p.product_id} type="button"
-                  onMouseDown={() => addProductToBill(p)}
-                  className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 border-b border-border/40 last:border-0 hover:bg-muted transition-colors cursor-pointer"
-                >
-                  <Package className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold truncate flex items-center gap-1.5">
-                      <span>{p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
-                      {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
-                        <span className={clsx(
-                          "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
-                          p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                        )}>
-                          {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground font-mono">{p.sku_barcode}</p>
-                  </div>
-                  <div className="text-right text-[11px] shrink-0">
-                    <div className="font-semibold text-foreground">Stock: {Number(p.current_stock).toFixed(0)}</div>
-                    <div className="text-muted-foreground">₹{Number(p.base_price).toFixed(2)}</div>
-                  </div>
-                </button>
-              ))}
+            <div style={{ position: 'fixed', top: searchDropdownPos.top, left: searchDropdownPos.left, width: searchDropdownPos.width, zIndex: 50 }} className="bg-card border border-border/80 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+              {products.map((p, idx) => {
+                const isSelected = idx === highlightedProductIndex;
+                return (
+                  <button
+                    key={p.product_id} type="button"
+                    ref={el => { productItemRefs.current[idx] = el; }}
+                    onMouseDown={() => addProductToBill(p)}
+                    onMouseEnter={() => setHighlightedProductIndex(idx)}
+                    className={clsx(
+                      "w-full text-left px-3 py-2.5 flex items-center gap-2.5 border-b border-border/40 last:border-0 transition-colors cursor-pointer",
+                      isSelected ? "bg-primary/15 border-primary/30 text-primary font-bold shadow-xs" : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <Package className={clsx("w-3.5 h-3.5 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                        <span>{p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+                        {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
+                          <span className={clsx(
+                            "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
+                            p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          )}>
+                            {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground font-mono">{p.sku_barcode}</p>
+                    </div>
+                    <div className="text-right text-[11px] shrink-0">
+                      <div className="font-semibold text-foreground">Stock: {Number(p.current_stock).toFixed(0)}</div>
+                      <div className="text-muted-foreground">₹{Number(p.base_price).toFixed(2)}</div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
-          {searchDropdownPos && productSearch.length >= 2 && products.length === 0 && !showProductCreateForm && (
+          {searchDropdownPos && productSearch.length >= 2 && products.length === 0 && !isSearchingProducts && !showProductCreateForm && (
             <div style={{ position: 'fixed', top: searchDropdownPos.top, left: searchDropdownPos.left, width: searchDropdownPos.width, zIndex: 50 }} className="bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden">
               <button
                 type="button"

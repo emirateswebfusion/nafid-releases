@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3, Loader2, Layers, Upload } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, Loader2, Layers, Upload } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -1476,13 +1476,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     } catch { return 0; }
   })();
 
-  return (
+return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ═══════════════════════════════════════════════════
-          HEADER
+          HEADER with Integrated Filters
       ═══════════════════════════════════════════════════ */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
+        {/* Row 1: Title & Actions (Export, Import, Close) */}
+        <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 select-none">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
               {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
@@ -1500,132 +1501,179 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   {isAdminRole(useAuthStore.getState().role) ? formatRoleName(useAuthStore.getState().role) : (useAuthStore.getState().userName || 'Staff')}
                 </span>
               )}
-
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {view === 'list' && (
+              <>
+                <button
+                  onClick={downloadCsv}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+                  title="Export CSV"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="p-2 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+                  title="Import CSV/Excel"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+              </>
+            )}
             <RedCrossButton
               onClick={view !== 'list' ? () => setView('list') : onClose}
               title="Close"
             />
           </div>
         </div>
-      </header>
-      
-      {/* Action Header inside page */}
-      {view === 'list' && (
-        <div className="w-full px-4 sm:px-6 pt-4 select-none shrink-0">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
-          <div className="relative w-full sm:max-w-xs flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search by name, barcode, brand, or category..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              autoFocus
-              className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5 text-destructive" />
-              </button>
-            )}
-          </div>
-          <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none shrink-0">
-            {([
-              { mode: 'estimate' as const, label: 'Estimate', icon: Receipt, color: 'text-amber-500' },
-              { mode: 'gst' as const,      label: 'GST',      icon: FileText, color: 'text-sky-500' },
-              { mode: 'combined' as const, label: 'All',      icon: BarChart3, color: 'text-primary' },
-            ]).map(({ mode, label, icon: Icon, color }) => (
-              <button
-                key={mode}
-                onClick={() => {
-                  setViewMode(mode);
-                  window.electronAPI?.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: mode }).catch(console.error);
-                }}
-                className={clsx(
-                  "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
-                  viewMode === mode
-                    ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+
+        {/* Row 2: Search & Filters (only in list view) */}
+        {view === 'list' && (
+          <div className="px-4 sm:px-6 py-3 border-t border-border/50 bg-background/50">
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+              
+              {/* Search - Full width on mobile, flex-1 on desktop */}
+              <div className="relative w-full sm:max-w-xl flex-1 min-w-0">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground/40 pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search by name, barcode, brand, or category..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  autoFocus
+                  className="w-full pl-11 pr-11 py-2.5 text-sm bg-background border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-medium text-foreground"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1.5 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4 text-destructive" />
+                  </button>
                 )}
-              >
-                <Icon className={clsx('w-3.5 h-3.5', viewMode === mode ? 'text-primary' : color)} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <DateRangeFilter
-              startDate={filterDate}
-              endDate={filterDateEnd}
-              onChange={(start, end) => {
-                setFilterDate(start);
-                setFilterDateEnd(end);
-              }}
-            />
-            <div className="h-5 w-px bg-border" />
-            <Select
-              value={stockFilter}
-              onChange={v => setStockFilter(v as any)}
-              options={[
-                { value: 'all', label: 'All Stock' },
-                { value: 'low_stock', label: 'Low Stock' },
-                { value: 'out_of_stock', label: 'Out of Stock' },
-                { value: 'in_stock', label: 'In Stock' },
-                { value: 'no_barcode', label: 'No Barcode' },
-              ]}
-              className="min-w-[145px]"
-              triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
-              renderOption={(option, isSelected) => (
-                <div className="flex items-center gap-2">
-                  {option.value === 'low_stock' && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                  {option.value === 'out_of_stock' && <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />}
-                  {option.value === 'in_stock' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                  {option.value === 'no_barcode' && <Tag className="w-3.5 h-3.5 text-orange-500 shrink-0" />}
-                  {option.value === 'all' && <Layers className="w-3.5 h-3.5 text-primary shrink-0" />}
-                  <span className={clsx(isSelected && "font-bold")}>{option.label}</span>
+              </div>
+
+              {/* Filter Controls - Horizontal row */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                
+                {/* View Mode */}
+                <div className="relative">
+                  <label className="sr-only">View Mode</label>
+                  <Select
+                    value={viewMode}
+                    onChange={v => {
+                      setViewMode(v as any);
+                      window.electronAPI?.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: v }).catch(console.error);
+                    }}
+                    options={[
+                      { value: 'estimate', label: 'Estimate' },
+                      { value: 'gst', label: 'GST' },
+                      { value: 'combined', label: 'All Products' },
+                    ]}
+                    className="min-w-[130px]"
+                    triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
+                    renderOption={(option, isSelected) => (
+                      <div className="flex items-center gap-2 py-1">
+                        <span className={clsx(
+                          'w-2.5 h-2.5 rounded-full shrink-0',
+                          option.value === 'estimate' && 'bg-amber-500',
+                          option.value === 'gst' && 'bg-sky-500',
+                          option.value === 'combined' && 'bg-primary'
+                        )} />
+                        <span className={clsx(isSelected && "font-semibold text-sm")}>{option.label}</span>
+                      </div>
+                    )}
+                  />
                 </div>
-              )}
-            />
-            <Select
-              value={sortBy}
-              onChange={v => setSortBy(v as any)}
-              options={[
-                { value: 'name', label: 'Sort by Name' },
-                { value: 'created_at', label: 'Sort by Date Added' },
-                { value: 'updated_at', label: 'Sort by Date Updated' },
-                { value: 'stock', label: 'Sort by Stock (Low to High)' },
-              ]}
-              className="min-w-[180px]"
-              triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
-            />
-            <button onClick={downloadCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0" title="Download CSV">
-              <Save className="w-4 h-4" />
-            </button>
-            <button onClick={() => setShowUploadModal(true)} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm font-bold hover:bg-indigo-100 transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer shrink-0 text-xs sm:text-sm">
-              <Upload className="w-4 h-4" /> Upload (CSV/Excel)
-            </button>
+
+                {/* Date Range */}
+                <div className="relative hidden sm:block">
+                  <DateRangeFilter
+                    startDate={filterDate}
+                    endDate={filterDateEnd}
+                    onChange={(start, end) => {
+                      setFilterDate(start);
+                      setFilterDateEnd(end);
+                    }}
+                  />
+                </div>
+
+                {/* Stock Status */}
+                <div className="relative">
+                  <label className="sr-only">Stock Status</label>
+                  <Select
+                    value={stockFilter}
+                    onChange={v => setStockFilter(v as any)}
+                    options={[
+                      { value: 'all', label: 'All Stock', icon: Layers, color: 'text-primary' },
+                      { value: 'in_stock', label: 'In Stock', icon: CheckCircle2, color: 'text-emerald-500' },
+                      { value: 'low_stock', label: 'Low Stock', icon: AlertTriangle, color: 'text-amber-500' },
+                      { value: 'out_of_stock', label: 'Out of Stock', icon: AlertCircle, color: 'text-red-500' },
+                      { value: 'no_barcode', label: 'No Barcode', icon: Tag, color: 'text-orange-500' },
+                    ]}
+                    className="min-w-[135px]"
+                    triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
+                    renderOption={(option, isSelected) => {
+                      const Icon = option.icon;
+                      return (
+                        <div className="flex items-center gap-2 py-1">
+                          {Icon && <Icon className={clsx('w-3.5 h-3.5 shrink-0', option.color)} />}
+                          <span className={clsx(isSelected && "font-semibold text-sm")}>{option.label}</span>
+                        </div>
+                      );
+                    }}
+                  />
+                </div>
+
+                {/* Sort By */}
+                <div className="relative hidden md:block">
+                  <label className="sr-only">Sort By</label>
+                  <Select
+                    value={sortBy}
+                    onChange={v => setSortBy(v as any)}
+                    options={[
+                      { value: 'name', label: 'Sort by Name' },
+                      { value: 'created_at', label: 'Sort by Date Added' },
+                      { value: 'updated_at', label: 'Sort by Date Updated' },
+                      { value: 'stock', label: 'Sort by Stock (Low to High)' },
+                    ]}
+                    className="min-w-[160px]"
+                    triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
+                  />
+                </div>
+
+                {/* Primary Action - Add Product */}
+                <button
+                  onClick={openAdd}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground shadow-sm font-semibold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2 px-4 cursor-pointer shrink-0 whitespace-nowrap text-sm ml-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add Product</span>
+                </button>
+
+              </div>
+
+            </div>
+
+            {/* Secondary Actions Row - Bulk Delete only (when items selected) */}
             {selectedProductIds.size > 0 && (
-              <button
-                onClick={() => setShowBulkDeleteConfirm(true)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-destructive text-destructive-foreground shadow-sm font-bold hover:bg-destructive/90 transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer text-xs shrink-0 animate-in fade-in"
-              >
-                <Trash className="w-4 h-4" /> Delete ({selectedProductIds.size})
-              </button>
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border/50 hidden sm:flex">
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-destructive text-destructive-foreground shadow-sm font-medium hover:bg-destructive/90 transition-all duration-200 active:scale-95 py-2 px-3 cursor-pointer shrink-0 whitespace-nowrap text-xs animate-in fade-in"
+                >
+                  <Trash className="w-3.5 h-3.5" />
+                  <span>Delete ({selectedProductIds.size})</span>
+                </button>
+              </div>
             )}
-            <button onClick={openAdd} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0">
-              <Plus className="w-4 h-4" /> Add Product
-            </button>
+
           </div>
-        </div>
-        </div>
-      )}
+        )}
+      </header>
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
       <div className={`flex-1 px-4 sm:px-6 pb-6 pt-3 bg-muted/[0.02] w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>

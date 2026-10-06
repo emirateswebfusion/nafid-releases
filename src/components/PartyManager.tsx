@@ -1625,7 +1625,7 @@ export function PartyManager({
           PARTY FORM VIEW
       ══════════════════════════════════════════ */}
       {view === 'party_form' && (
-        <div className="flex flex-col flex-1 min-h-0 bg-background" onKeyDown={handleFormKeyDown}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSaveParty(); }} className="flex flex-col flex-1 min-h-0 bg-background" onKeyDown={handleFormKeyDown as unknown as React.KeyboardEventHandler<HTMLFormElement>}>
           <div className="flex-1 overflow-y-auto p-5 space-y-4" data-enter-nav>
 
             {/* Section: Identity */}
@@ -1935,9 +1935,9 @@ export function PartyManager({
           <div className="shrink-0 border-t border-border bg-card px-5 py-3">
             <div className="flex items-center justify-end gap-2">
               <button
-                type="button"
+                type="submit"
+                data-enter-submit
                 disabled={isSavingParty}
-                onClick={handleSaveParty}
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
               >
                 {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -1945,7 +1945,7 @@ export function PartyManager({
               </button>
             </div>
           </div>
-        </div>
+        </form>
       )}
 
       {/* ══════════════════════════════════════════
@@ -2020,8 +2020,20 @@ export function PartyManager({
 
               {/* Right: FIRST Icons (View Switcher), THEN Total Amount Box */}
               <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                {/* 1. View Switcher & Date Sort for Ledger */}
+                {/* 1. Date Sort Toggle Button (FIRST), THEN View Switcher Grid/Table Button (SECOND) */}
                 <div className="flex items-center gap-2 flex-wrap select-none">
+                  {/* Date Sort Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => setDateSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs hover:bg-muted text-xs font-bold transition-all cursor-pointer text-foreground"
+                    title={dateSortOrder === 'desc' ? "Current: Newest First (Click to sort Oldest First)" : "Current: Oldest First (Click to sort Newest First)"}
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-primary" />
+                    <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                  </button>
+
+                  {/* View Switcher buttons */}
                   <div className="flex items-center p-1 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs">
                     <button
                       type="button"
@@ -2050,17 +2062,6 @@ export function PartyManager({
                       <LayoutList className="w-4 h-4" />
                     </button>
                   </div>
-
-                  {/* Date Sort Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => setDateSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs hover:bg-muted text-xs font-bold transition-all cursor-pointer text-foreground"
-                    title={dateSortOrder === 'desc' ? "Current: Newest First (Click to sort Oldest First)" : "Current: Oldest First (Click to sort Newest First)"}
-                  >
-                    <ArrowUpDown className="w-3.5 h-3.5 text-primary" />
-                    <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
-                  </button>
                 </div>
 
                 {/* 2. Total Amount Box (Then Amount Box) */}
@@ -2553,6 +2554,7 @@ export function PartyManager({
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
+                  data-enter-submit
                   disabled={isSavingTx}
                   className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
                 >

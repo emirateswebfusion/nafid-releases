@@ -51,7 +51,7 @@ export function FloatToast({ message, onClose, title, type = 'success', position
   const posClass = position === 'bottom-left' ? 'bottom-5 left-5' : 'bottom-5 right-5';
 
   return (
-    <div className={clsx('fixed z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-md', posClass)}>
+    <div className={clsx('fixed z-[999999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-md', posClass)}>
       <div className={clsx('p-2 rounded-xl shrink-0', badgeColorMap[msgType] || badgeColorMap.info)}>
         {iconMap[msgType] || iconMap.info}
       </div>

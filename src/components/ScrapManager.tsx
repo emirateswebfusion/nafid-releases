@@ -393,11 +393,14 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     let successCount = 0;
     for (const entry of sellingSelected) {
       if (entry.qty <= 0 || entry.rate <= 0) continue;
-      if (entry.qty > Number(entry.category.current_stock)) {
-        showStatus(`Insufficient stock for ${entry.category.name}`, 'error');
-        continue;
-      }
       if (window.electronAPI) {
+        const cats = await window.electronAPI.dbGetScrapCategories(tenantId || '');
+        const cat = cats.find((c: any) => c.scrap_category_id === entry.category.scrap_category_id);
+        const currentStock = cat ? Number(cat.current_stock) : 0;
+        if (entry.qty > currentStock) {
+          showStatus(`Insufficient stock for ${entry.category.name}`, 'error');
+          continue;
+        }
         const res = await window.electronAPI.dbAddScrapTransaction({
           transaction_id: uuidv4(),
           tenant_id: tenantId,
@@ -409,7 +412,9 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           party_name: '',
           notes: 'Direct scrap sale',
         });
-        if (res.success) successCount++;
+        if (res.success) {
+          successCount++;
+        }
       }
     }
     if (successCount > 0) {

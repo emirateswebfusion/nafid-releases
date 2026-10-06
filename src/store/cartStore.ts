@@ -249,7 +249,7 @@ export const useCartStore = create<CartState>()(
         set((state) => ({
           items: state.items.map(i =>
             i.product_id === productId
-              ? { ...i, offer_price: price, discount_percent: null, discount_flat: null }
+              ? { ...i, offer_price: price, discount_percent: null, discount_flat: null, is_tier_overridden: true }
               : i
           ),
         })),
@@ -263,10 +263,18 @@ export const useCartStore = create<CartState>()(
                   pricing_tier_name: tierName,
                   is_tier_overridden: true,
                   base_price: newPrice,
+                  // A per-item tier is an explicit unit price, so catalog promos must not
+                  // override it in the cart total or when the invoice is saved.
+                  offer_price: null,
+                  discount_percent: null,
+                  discount_flat: null,
+                  catalog_offer_price: null,
+                  catalog_discount_percent: null,
+                  catalog_discount_flat: null,
                   original_pricing_mode: i.original_pricing_mode ?? i.pricing_mode,
                   original_grade_id: i.original_grade_id ?? i.grade_id ?? null,
                   original_grade_rate: i.original_grade_rate ?? i.grade_rate ?? null,
-                  pricing_mode: tierId ? 'FIXED_PRICE' : (i.original_pricing_mode ?? i.pricing_mode),
+                  pricing_mode: 'FIXED_PRICE',
                 }
               : i
           ),

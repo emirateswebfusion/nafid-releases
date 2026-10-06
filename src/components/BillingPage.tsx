@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -105,6 +106,8 @@ interface ItemRateInputProps {
   containerClassName?: string;
   inputClassName?: string;
   unitClassName?: string;
+  purchasePrice?: number;
+  showPurchasePrice?: boolean;
   tierPricesMap?: Record<string, number>;
   pricingTiers?: any[];
   basePrice?: number;
@@ -129,6 +132,8 @@ function ItemRateInput({
   containerClassName,
   inputClassName,
   unitClassName,
+  purchasePrice,
+  showPurchasePrice,
   tierPricesMap,
   pricingTiers,
   basePrice,
@@ -148,6 +153,9 @@ function ItemRateInput({
   );
   const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
   const [isNavigatingMenu, setIsNavigatingMenu] = useState(false);
+  const menuAnchorRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
 
   const options = useMemo(() => {
     if (!pricingTiers || pricingTiers.length === 0) return [];
@@ -264,39 +272,106 @@ function ItemRateInput({
     }
   };
 
-  const shouldShowMenu = isFocused && options.length > 0;
+  const hasTierOptions = options.length > 0;
+  const hasPurchaseCost = Boolean(showPurchasePrice && purchasePrice != null && purchasePrice > 0);
+  const shouldShowMenu = isFocused && (hasTierOptions || hasPurchaseCost);
+
+  const updateMenuPosition = useCallback(() => {
+    const anchor = menuAnchorRef.current;
+    const menu = menuRef.current;
+    if (!anchor || !menu) return;
+
+    const rect = anchor.getBoundingClientRect();
+    const margin = 8;
+    const gap = 6;
+    const spaceAbove = Math.max(0, rect.top - gap - margin);
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - gap - margin);
+    const openAbove = menu.scrollHeight > spaceBelow && spaceAbove > spaceBelow;
+    const availableHeight = openAbove ? spaceAbove : spaceBelow;
+    const menuHeight = Math.min(menu.scrollHeight, availableHeight);
+    const width = menu.offsetWidth || 220;
+    const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+    const top = openAbove
+      ? Math.max(margin, rect.top - gap - menuHeight)
+      : rect.bottom + gap;
+
+    setMenuPosition({ left, top, maxHeight: availableHeight });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!shouldShowMenu) {
+      setMenuPosition(null);
+      return;
+    }
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [shouldShowMenu, options.length, hasPurchaseCost, updateMenuPosition]);
 
   return (
-    <div className="relative inline-block">
+    <div ref={menuAnchorRef} className="inline-block">
       {shouldShowMenu && (
-        <div className="absolute left-0 top-full mt-1.5 min-w-[210px] bg-card text-foreground border border-border rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
-          <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1 border-b border-border mb-1 flex items-center justify-between">
-            <span>Price Tier</span>
-            <span className="text-[8px] text-muted-foreground">↑↓ Select · Enter</span>
-          </div>
-          <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
-            {options.map((opt, idx) => {
-              const isHighlighted = idx === selectedOptionIndex;
-              return (
-                <button
-                  key={opt.tierId || 'base'}
-                  type="button"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleChooseOption(opt);
-                  }}
-                  className={clsx(
-                    "w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer",
-                    isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-muted text-foreground"
-                  )}
-                >
-                  <span className="truncate pr-2">{opt.name}</span>
-                  <span className="font-mono text-[11px] font-black shrink-0">₹{opt.unitPrice.toFixed(2)}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed min-w-[210px] bg-card text-foreground border border-border rounded-2xl p-2 shadow-2xl z-[999] select-none"
+            style={{
+              left: menuPosition?.left ?? 8,
+              top: menuPosition?.top ?? 8,
+              maxHeight: menuPosition?.maxHeight ?? 'calc(100vh - 16px)',
+              maxWidth: 'calc(100vw - 16px)',
+              overflowY: 'auto',
+              visibility: menuPosition ? 'visible' : 'hidden',
+            }}
+          >
+            {hasTierOptions && (
+              <>
+                <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1 border-b border-border mb-1 flex items-center justify-between">
+                  <span>Price Tier</span>
+                  <span className="text-[8px] text-muted-foreground">↑↓ Select · Enter</span>
+                </div>
+                <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
+                  {options.map((opt, idx) => {
+                    const isHighlighted = idx === selectedOptionIndex;
+                    return (
+                      <button
+                        key={opt.tierId || 'base'}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleChooseOption(opt);
+                        }}
+                        className={clsx(
+                          "w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer",
+                          isHighlighted ? "bg-primary text-primary-foreground font-black shadow-xs" : "hover:bg-muted text-foreground"
+                        )}
+                      >
+                        <span className="truncate pr-2">{opt.name}</span>
+                        <span className="font-mono text-[11px] font-black shrink-0">₹{opt.unitPrice.toFixed(2)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {hasPurchaseCost && (
+              <div className={clsx(hasTierOptions ? "border-t border-border pt-1.5 mt-1.5" : "")}>
+                <div className="px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-700 dark:text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
+                  <span>Purchase Cost:</span>
+                  <span className="font-mono font-black text-amber-800 dark:text-amber-200">
+                    ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )
       )}
 
       <div className={containerClassName || "flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors"}>
@@ -326,13 +401,6 @@ interface ItemTotalInputProps {
   qty: number;
   hasDiscount: boolean;
   isScrap?: boolean;
-  purchasePrice?: number;
-  showPurchasePrice?: boolean;
-  tierPricesMap?: Record<string, number>;
-  pricingTiers?: any[];
-  basePrice?: number;
-  selectedTierId?: string | null;
-  onSelectTier?: (productId: string, tierId: string | null, tierName: string | null, newPrice: number) => void;
   onUpdateOfferPrice: (productId: string, unitPrice: number) => void;
   onRemoveDiscount: (productId: string) => void;
   onClearLocalDiscounts: (productId: string) => void;
@@ -348,13 +416,6 @@ function ItemTotalInput({
   qty,
   hasDiscount,
   isScrap = false,
-  purchasePrice,
-  showPurchasePrice = false,
-  tierPricesMap,
-  pricingTiers,
-  basePrice,
-  selectedTierId,
-  onSelectTier,
   onUpdateOfferPrice,
   onRemoveDiscount,
   onClearLocalDiscounts,
@@ -432,37 +493,23 @@ function ItemTotalInput({
     onKeyDown?.(e);
   };
 
-  const hasPurchaseCost = Boolean(showPurchasePrice && purchasePrice != null && purchasePrice > 0);
-
   return (
-    <div className="relative inline-block">
-      {isFocused && hasPurchaseCost && (
-        <div className="absolute right-0 top-full mt-1.5 min-w-[210px] bg-card text-foreground border border-border rounded-2xl p-2 shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-150 select-none">
-          <div className="px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-700 dark:text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
-            <span>Purchase Cost:</span>
-            <span className="font-mono font-black text-amber-800 dark:text-amber-200">
-              ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
-            </span>
-          </div>
-        </div>
+    <input
+      ref={inputRef}
+      type="text"
+      inputMode="decimal"
+      className={clsx(
+        "w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+        isScrap
+          ? (hasDiscount ? "text-emerald-500" : "text-orange-600 dark:text-orange-400")
+          : (hasDiscount ? "text-emerald-500" : "text-foreground")
       )}
-      <input
-        ref={inputRef}
-        type="text"
-        inputMode="decimal"
-        className={clsx(
-          "w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-          isScrap
-            ? (hasDiscount ? "text-emerald-500" : "text-orange-600 dark:text-orange-400")
-            : (hasDiscount ? "text-emerald-500" : "text-foreground")
-        )}
-        value={localVal}
-        onChange={handleChange}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDownInternal}
-      />
-    </div>
+      value={localVal}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
+      onKeyDown={handleKeyDownInternal}
+    />
   );
 }
 
@@ -2306,6 +2353,24 @@ export function BillingPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const findMatchingParty = useCallback((name?: string, phone?: string) => {
+    const cleanName = (name || '').trim().toLowerCase();
+    const cleanPhone = (phone || '').trim();
+    if (!cleanName && !cleanPhone) return null;
+    const combinedList = [...(partiesForTier || []), ...(allCustomersList || []), ...(customerSearchResults || [])];
+    return combinedList.find((c: any) => {
+      if (!c) return false;
+      const cName = (c.name || '').trim().toLowerCase();
+      const cPhone = String(c.phone || '').trim();
+      const matchName = cleanName && cName && (
+        cName === cleanName ||
+        cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
+      );
+      const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
+      return Boolean(matchName || matchPhone);
+    }) || null;
+  }, [partiesForTier, allCustomersList, customerSearchResults]);
+
   const selectCustomerSuggestion = (c: any) => {
     skipCustomerDropdownOnFocusRef.current = true;
     const cleanName = (c.name || '').trim().replace(/\s+/g, ' ');
@@ -3035,25 +3100,18 @@ export function BillingPage() {
     applyPricingTierToCart(tierId);
   }, [applyPricingTierToCart]);
 
-  useEffect(() => {
-    applyPricingTierToCart(selectedTierId);
-  }, [applyPricingTierToCart, selectedTierId]);
+
 
   const applyPartyTier = (name: string, phone: string) => {
     const defaultTier = pricingTiers.find(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');
     const defaultTierId = defaultTier ? defaultTier.pricing_tier_id : '';
     if (!name && !phone) {
-      handlePricingTierChange(defaultTierId);
+      if (!selectedTierId) handlePricingTierChange(defaultTierId);
       return;
     }
-    const match = partiesForTier.find(p =>
-      (name && p.name?.toLowerCase() === name.toLowerCase()) ||
-      (phone && p.phone && String(p.phone) === phone)
-    );
+    const match = findMatchingParty(name, phone);
     if (match?.pricing_tier_id && pricingTiers.some(t => t.pricing_tier_id === match.pricing_tier_id)) {
       handlePricingTierChange(match.pricing_tier_id);
-    } else {
-      handlePricingTierChange(defaultTierId);
     }
   };
 
@@ -3143,7 +3201,7 @@ export function BillingPage() {
     pendingFocusProductIdRef.current = product.product_id;
     setTimeout(() => {
       const pid = product.product_id;
-      const input = ratePcRefs.current[pid] || rateKgRefs.current[pid] || pcsRefs.current[pid] || qtyRefs.current[pid];
+      const input = pcsRefs.current[pid] || qtyRefs.current[pid] || ratePcRefs.current[pid] || rateKgRefs.current[pid];
       if (input) {
         input.focus();
         input.select();
@@ -4640,7 +4698,13 @@ export function BillingPage() {
   const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (discRefs.current[productId]) {
+      if (ratePcRefs.current[productId]) {
+        ratePcRefs.current[productId]?.focus();
+        ratePcRefs.current[productId]?.select();
+      } else if (rateKgRefs.current[productId]) {
+        rateKgRefs.current[productId]?.focus();
+        rateKgRefs.current[productId]?.select();
+      } else if (discRefs.current[productId]) {
         discRefs.current[productId]?.focus();
         discRefs.current[productId]?.select();
       } else if (tierRefs.current[productId]) {
@@ -4722,9 +4786,24 @@ export function BillingPage() {
     if (pcsRefs.current[targetId]) {
       pcsRefs.current[targetId]?.focus();
       pcsRefs.current[targetId]?.select();
-    } else if (qtyRefs.current[targetId]) {
+      return;
+    }
+    if (qtyRefs.current[targetId]) {
       qtyRefs.current[targetId]?.focus();
       qtyRefs.current[targetId]?.select();
+      return;
+    }
+    for (const item of items) {
+      if (pcsRefs.current[item.product_id]) {
+        pcsRefs.current[item.product_id]?.focus();
+        pcsRefs.current[item.product_id]?.select();
+        return;
+      }
+      if (qtyRefs.current[item.product_id]) {
+        qtyRefs.current[item.product_id]?.focus();
+        qtyRefs.current[item.product_id]?.select();
+        return;
+      }
     }
   };
 
@@ -5329,8 +5408,13 @@ export function BillingPage() {
 
       const isEditing = !!editingInvoiceId;
 
+      const pointsRedeemedCalc = showLoyaltyRedemption && loyaltyCustomerData.customerId ? Math.min(pointsToRedeem, loyaltyCustomerData.pointsBalance) : 0;
+      const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
+      const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscountCalc);
+
       const isPaymentPending = paymentMethod === 'PENDING';
-      const effectiveReceivedAmount = isPaymentPending ? 0 : (paymentMethod === 'SPLIT' ? splitTotal : receivedAmount);
+      const defaultFullPaid = (paymentMethod === 'CASH' || paymentMethod === 'UPI' || paymentMethod === 'CARD') ? effectiveGrandTotal : 0;
+      const effectiveReceivedAmount = isPaymentPending ? 0 : (paymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
       const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
 
       const invoice_id = isEditing ? editingInvoiceId : uuidv4();
@@ -5527,8 +5611,7 @@ export function BillingPage() {
         : 0;
       const pointsRedeemedDiscount = pointsRedeemed * loyaltyRedemptionRate;
       const remainingPointsBalance = previousPointsBalance + pointsEarned - pointsRedeemed;
-      // Adjust grand total for points redemption discount
-      const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscount);
+      // Adjust grand total for points redemption discount (already calculated above as effectiveGrandTotal)
 
       // Pass grand total BEFORE scrap deduction so the receipt can properly show
       // the scrap deduction line and compute the correct final grand total.
@@ -5537,10 +5620,7 @@ export function BillingPage() {
 
       const cleanCustName = (customerName || '').trim();
       const cleanCustPhone = (customerPhone || '').trim();
-      const matchedParty = (cleanCustName || cleanCustPhone) ? partiesForTier.find((p: any) =>
-        (cleanCustName && p.name && p.name.trim().toLowerCase() === cleanCustName.toLowerCase()) ||
-        (cleanCustPhone && p.phone && String(p.phone).trim() === cleanCustPhone)
-      ) : null;
+      const matchedParty = findMatchingParty(cleanCustName, cleanCustPhone);
       const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) : 0;
 
       // ── Credit Limit Enforcement ─────────────────────────────────────────────
@@ -5671,7 +5751,7 @@ export function BillingPage() {
             ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
             : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
-            : effectiveBalanceAmount,
+            : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
           split_details: {
             ...(paymentMethod === 'SPLIT' ? (splitDetails || {}) : (splitDetails || {})),
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
@@ -5717,7 +5797,7 @@ export function BillingPage() {
             ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
             : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
-            : effectiveBalanceAmount,
+            : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
@@ -6413,7 +6493,8 @@ export function BillingPage() {
       setTimeout(() => searchRef.current?.focus(), 100);
     },
     'F4': () => {
-      focusCartItemQuantityOrPcs();
+      customerNameInputRef.current?.focus();
+      customerNameInputRef.current?.select();
     },
     'Alt+q': () => {
       focusCartItemQuantityOrPcs();
@@ -6422,12 +6503,10 @@ export function BillingPage() {
       focusCartItemQuantityOrPcs();
     },
     'Alt+c': () => {
-      customerNameInputRef.current?.focus();
-      customerNameInputRef.current?.select();
+      focusCartItemQuantityOrPcs();
     },
     'Alt+C': () => {
-      customerNameInputRef.current?.focus();
-      customerNameInputRef.current?.select();
+      focusCartItemQuantityOrPcs();
     },
     'F8': () => { discountRef.current?.focus(); },
     'F9': () => {
@@ -7091,35 +7170,13 @@ export function BillingPage() {
             )}
           />
         </div>
-        <CustomerOutstandingBadge partyObj={(() => {
-          const cleanName = (customerName || '').trim().toLowerCase();
-          const cleanPhone = (customerPhone || '').trim();
-          if (!cleanName && !cleanPhone) return null;
-          const combinedList = [...(allCustomersList || []), ...(partiesForTier || []), ...(customerSearchResults || [])];
-          return combinedList.find((c: any) => {
-            if (!c || c.balance == null || Number(c.balance) === 0) return false;
-            const cName = (c.name || '').trim().toLowerCase();
-            const cPhone = String(c.phone || '').trim();
-            const matchName = cleanName && cName && (
-              cName === cleanName ||
-              cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
-            );
-            const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
-            return Boolean(matchName || matchPhone);
-          }) || null;
-        })()} />
+        <CustomerOutstandingBadge partyObj={findMatchingParty(customerName, customerPhone)} />
       </div>
 
       {/* Real-time Credit Limit Warning Banner */}
       {(() => {
         if (paymentMethod !== 'CREDIT' && !(paymentMethod === 'SPLIT' && Number(splitDetails.credit) > 0)) return null;
-        const cleanName = (customerName || '').trim();
-        const cleanPhone = (customerPhone || '').trim();
-        if (!cleanName && !cleanPhone) return null;
-        const party = partiesForTier.find((p: any) =>
-          (cleanName && p.name && p.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
-          (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone)
-        );
+        const party = findMatchingParty(customerName, customerPhone);
         if (!party || !(Number(party.credit_limit) > 0)) return null;
         const limit = Number(party.credit_limit);
         const currentBal = Number(party.balance) || 0;
@@ -7288,10 +7345,7 @@ export function BillingPage() {
   );
 
   const renderErpGridB2CWorkspace = () => {
-    const selectedParty = partiesForTier.find((p: any) =>
-      (customerName && p.name && p.name.trim().toLowerCase() === customerName.trim().toLowerCase()) ||
-      (customerPhone && p.phone && String(p.phone).trim() === customerPhone.trim())
-    );
+    const selectedParty = findMatchingParty(customerName, customerPhone);
     const partyBalance = selectedParty ? Number(selectedParty.balance || 0) : 0;
     
     // Focused row item for live stock row indicator
@@ -8656,8 +8710,6 @@ export function BillingPage() {
                           qty={qty}
                           hasDiscount={hasItemBonus}
                           isScrap={true}
-                          purchasePrice={item.purchase_price}
-                          showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
                           onUpdateOfferPrice={updateItemOfferPrice}
                           onRemoveDiscount={removeItemDiscount}
                           onClearLocalDiscounts={pid => {
@@ -8825,161 +8877,7 @@ export function BillingPage() {
                       </div>
                     </div>
 
-                    {/* Rate Edit Inputs Column (Near Qty) */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {item.billing_type === 'WEIGHT' ? (
-                        isPiecesWeight && _ppk > 0 ? (
-                          <>
-                            {/* 1. Rate per Piece (First) */}
-                            <ItemRateInput
-                              productId={item.product_id}
-                              rate={effectivePrice / _ppk}
-                              qty={qty}
-                              unitLabel="/Pc"
-                              placeholder="Rate/Pc"
-                              title="Edit rate per Piece"
-                              containerClassName="flex items-center gap-0.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-lg px-1.5 py-0.5 transition-colors"
-                              inputClassName="w-12 text-center h-6 bg-transparent border-0 text-[11px] font-black text-emerald-700 dark:text-emerald-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              unitClassName="text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300"
-                              tierPricesMap={productPricingMap[item.product_id]}
-                              pricingTiers={pricingTiers}
-                              basePrice={item.original_base_price ?? item.base_price}
-                              selectedTierId={item.pricing_tier_id}
-                              customPpk={_ppk}
-                              setLocalPcStr={(val) => setLocalPcPriceStr(p => ({ ...p, [item.product_id]: val }))}
-                              setLocalKgStr={(val) => setLocalKgRateStr(p => ({ ...p, [item.product_id]: val }))}
-                              onSelectTier={(pid, tid, tname, price) => {
-                                updateItemPricingTier(pid, tid, tname, price);
-                                syncActiveSnapshot();
-                              }}
-                              onUpdateOfferPrice={(pid, price) => {
-                                updateItemOfferPrice(pid, price);
-                              }}
-                              syncActiveSnapshot={syncActiveSnapshot}
-                              inputRef={(el) => {
-                                ratePcRefs.current[item.product_id] = el;
-                                if (el && pendingFocusProductIdRef.current === item.product_id) {
-                                  el.focus();
-                                  el.select();
-                                  pendingFocusProductIdRef.current = null;
-                                }
-                              }}
-                              onKeyDownNext={() => {
-                                const pid = item.product_id;
-                                const next = rateKgRefs.current[pid] || pcsRefs.current[pid] || qtyRefs.current[pid];
-                                if (next) { next.focus(); next.select(); }
-                              }}
-                            />
-
-                            {/* 2. Rate per Kg (Second) */}
-                            <ItemRateInput
-                              productId={item.product_id}
-                              rate={effectivePrice}
-                              qty={qty}
-                              unitLabel="/Kg"
-                              placeholder="Rate/Kg"
-                              title="Edit rate per Kg"
-                              tierPricesMap={productPricingMap[item.product_id]}
-                              pricingTiers={pricingTiers}
-                              basePrice={item.original_base_price ?? item.base_price}
-                              selectedTierId={item.pricing_tier_id}
-                              onSelectTier={(pid, tid, tname, price) => {
-                                updateItemPricingTier(pid, tid, tname, price);
-                                syncActiveSnapshot();
-                              }}
-                              onUpdateOfferPrice={(pid, price) => {
-                                updateItemOfferPrice(pid, price);
-                                const perPc = _ppk > 0 ? +(price / _ppk).toFixed(2) : price;
-                                setLocalPcPriceStr(p => ({ ...p, [item.product_id]: String(perPc) }));
-                              }}
-                              syncActiveSnapshot={syncActiveSnapshot}
-                              inputRef={(el) => {
-                                rateKgRefs.current[item.product_id] = el;
-                                if (el && !ratePcRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
-                                  el.focus();
-                                  el.select();
-                                  pendingFocusProductIdRef.current = null;
-                                }
-                              }}
-                              onKeyDownNext={() => {
-                                const pid = item.product_id;
-                                const next = pcsRefs.current[pid] || qtyRefs.current[pid];
-                                if (next) { next.focus(); next.select(); }
-                              }}
-                            />
-                          </>
-                        ) : (
-                          <ItemRateInput
-                            productId={item.product_id}
-                            rate={effectivePrice}
-                            qty={qty}
-                            unitLabel="/Kg"
-                            placeholder="Rate/Kg"
-                            title="Edit rate per Kg"
-                            tierPricesMap={productPricingMap[item.product_id]}
-                            pricingTiers={pricingTiers}
-                            basePrice={item.original_base_price ?? item.base_price}
-                            selectedTierId={item.pricing_tier_id}
-                            onSelectTier={(pid, tid, tname, price) => {
-                              updateItemPricingTier(pid, tid, tname, price);
-                              syncActiveSnapshot();
-                            }}
-                            onUpdateOfferPrice={(pid, price) => {
-                              updateItemOfferPrice(pid, price);
-                            }}
-                            syncActiveSnapshot={syncActiveSnapshot}
-                            inputRef={(el) => {
-                              rateKgRefs.current[item.product_id] = el;
-                              if (el && pendingFocusProductIdRef.current === item.product_id) {
-                                el.focus();
-                                el.select();
-                                pendingFocusProductIdRef.current = null;
-                              }
-                            }}
-                            onKeyDownNext={() => {
-                              const pid = item.product_id;
-                              const next = pcsRefs.current[pid] || qtyRefs.current[pid];
-                              if (next) { next.focus(); next.select(); }
-                            }}
-                          />
-                        )
-                      ) : (
-                        <ItemRateInput
-                          productId={item.product_id}
-                          rate={effectivePrice}
-                          qty={qty}
-                          unitLabel="/Pc"
-                          placeholder="Rate/Pc"
-                          title="Edit rate per Piece"
-                          tierPricesMap={productPricingMap[item.product_id]}
-                          pricingTiers={pricingTiers}
-                          basePrice={item.original_base_price ?? item.base_price}
-                          selectedTierId={item.pricing_tier_id}
-                          onSelectTier={(pid, tid, tname, price) => {
-                            updateItemPricingTier(pid, tid, tname, price);
-                            syncActiveSnapshot();
-                          }}
-                          onUpdateOfferPrice={(pid, price) => {
-                            updateItemOfferPrice(pid, price);
-                          }}
-                          syncActiveSnapshot={syncActiveSnapshot}
-                          inputRef={(el) => {
-                            ratePcRefs.current[item.product_id] = el;
-                            if (el && pendingFocusProductIdRef.current === item.product_id) {
-                              el.focus();
-                              el.select();
-                              pendingFocusProductIdRef.current = null;
-                            }
-                          }}
-                          onKeyDownNext={() => {
-                            const pid = item.product_id;
-                            const next = pcsRefs.current[pid] || qtyRefs.current[pid];
-                            if (next) { next.focus(); next.select(); }
-                          }}
-                        />
-                      )}
-                    </div>
-
+                    {/* Quantity Controls (First) */}
                     {isPiecesWeight ? (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
@@ -8988,7 +8886,7 @@ export function BillingPage() {
                             type="text" inputMode="numeric"
                             ref={(el) => {
                               pcsRefs.current[item.product_id] = el;
-                              if (el && !ratePcRefs.current[item.product_id] && !rateKgRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
+                              if (el && pendingFocusProductIdRef.current === item.product_id) {
                                 el.focus();
                                 el.select();
                                 pendingFocusProductIdRef.current = null;
@@ -9027,7 +8925,7 @@ export function BillingPage() {
                             ref={(el) => {
                               qtyRefs.current[item.product_id] = el;
                               kRefs.current[item.product_id] = el;
-                              if (el && !ratePcRefs.current[item.product_id] && !rateKgRefs.current[item.product_id] && !pcsRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
+                              if (el && !pcsRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
                                 el.focus();
                                 el.select();
                                 pendingFocusProductIdRef.current = null;
@@ -9050,9 +8948,14 @@ export function BillingPage() {
                               });
                               if (e.key === 'Enter') {
                                 commitKg(e.currentTarget.value, true);
+                                const pid = item.product_id;
+                                setTimeout(() => {
+                                  const nextRate = ratePcRefs.current[pid] || rateKgRefs.current[pid];
+                                  if (nextRate) { nextRate.focus(); nextRate.select(); }
+                                  else if (discRefs.current[pid]) { discRefs.current[pid]?.focus(); discRefs.current[pid]?.select(); }
+                                  else { searchRef.current?.focus(); searchRef.current?.select(); }
+                                }, 0);
                                 e.preventDefault();
-                                searchRef.current?.focus();
-                                searchRef.current?.select();
                               }
                             }}
                           />
@@ -9093,6 +8996,85 @@ export function BillingPage() {
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
                       </div>
                     )}
+
+                    {/* Rate Edit Inputs Column (Second - After Qty) */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.billing_type === 'WEIGHT' ? (
+                        <ItemRateInput
+                          productId={item.product_id}
+                          rate={effectivePrice}
+                          qty={qty}
+                          unitLabel="/Kg"
+                          placeholder="Rate/Kg"
+                          title="Edit rate per Kg"
+                          purchasePrice={item.purchase_price}
+                          showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
+                          tierPricesMap={productPricingMap[item.product_id]}
+                          pricingTiers={pricingTiers}
+                          basePrice={item.original_base_price ?? item.base_price}
+                          selectedTierId={item.pricing_tier_id}
+                          onSelectTier={(pid, tid, tname, price) => {
+                            updateItemPricingTier(pid, tid, tname, price);
+                            syncActiveSnapshot();
+                          }}
+                          onUpdateOfferPrice={(pid, price) => {
+                            updateItemOfferPrice(pid, price);
+                          }}
+                          syncActiveSnapshot={syncActiveSnapshot}
+                          inputRef={(el) => {
+                            rateKgRefs.current[item.product_id] = el;
+                            if (el && !pcsRefs.current[item.product_id] && !qtyRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
+                            }
+                          }}
+                          onKeyDownNext={() => {
+                            const pid = item.product_id;
+                            const next = discRefs.current[pid] || discFlatRefs.current[pid];
+                            if (next) { next.focus(); next.select(); }
+                            else { searchRef.current?.focus(); searchRef.current?.select(); }
+                          }}
+                        />
+                      ) : (
+                        <ItemRateInput
+                          productId={item.product_id}
+                          rate={effectivePrice}
+                          qty={qty}
+                          unitLabel="/Pc"
+                          placeholder="Rate/Pc"
+                          title="Edit rate per Piece"
+                          purchasePrice={item.purchase_price}
+                          showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
+                          tierPricesMap={productPricingMap[item.product_id]}
+                          pricingTiers={pricingTiers}
+                          basePrice={item.original_base_price ?? item.base_price}
+                          selectedTierId={item.pricing_tier_id}
+                          onSelectTier={(pid, tid, tname, price) => {
+                            updateItemPricingTier(pid, tid, tname, price);
+                            syncActiveSnapshot();
+                          }}
+                          onUpdateOfferPrice={(pid, price) => {
+                            updateItemOfferPrice(pid, price);
+                          }}
+                          syncActiveSnapshot={syncActiveSnapshot}
+                          inputRef={(el) => {
+                            ratePcRefs.current[item.product_id] = el;
+                            if (el && !pcsRefs.current[item.product_id] && !qtyRefs.current[item.product_id] && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
+                            }
+                          }}
+                          onKeyDownNext={() => {
+                            const pid = item.product_id;
+                            const next = discRefs.current[pid] || discFlatRefs.current[pid];
+                            if (next) { next.focus(); next.select(); }
+                            else { searchRef.current?.focus(); searchRef.current?.select(); }
+                          }}
+                        />
+                      )}
+                    </div>
 
                     <div className="flex items-center shrink-0">
                       <div className="flex items-center border border-border/60 rounded-lg overflow-hidden focus-within:border-primary/60 transition-all bg-muted/10">
@@ -9188,16 +9170,6 @@ export function BillingPage() {
                         rate={rate}
                         qty={qty}
                         hasDiscount={hasItemDiscount}
-                        purchasePrice={item.purchase_price}
-                        showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
-                        tierPricesMap={productPricingMap[item.product_id]}
-                        pricingTiers={pricingTiers}
-                        basePrice={item.original_base_price ?? item.base_price}
-                        selectedTierId={item.pricing_tier_id}
-                        onSelectTier={(pid, tid, tname, price) => {
-                          updateItemPricingTier(pid, tid, tname, price);
-                          syncActiveSnapshot();
-                        }}
                         inputRef={el => { totalInputRefs.current[item.product_id] = el; }}
                         onUpdateOfferPrice={updateItemOfferPrice}
                         onRemoveDiscount={removeItemDiscount}
@@ -10867,26 +10839,23 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
               </div>
               {/* Change / New Total Due input — hidden in scrap/return/quotation/PENDING/CARD/UPI mode */}
               {(() => {
-                const effectivePaid = ((paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') && splitTotal > 0)
-                  ? splitTotal
-                  : (receivedAmount || 0);
+                const effectivePaid = paymentMethod === 'CREDIT'
+                  ? (receivedAmount || 0)
+                  : paymentMethod === 'SPLIT'
+                  ? (splitTotal > 0 ? splitTotal : Math.max(0, displayGrandTotal - (Number(splitDetails?.credit) || 0)))
+                  : paymentMethod === 'PENDING'
+                  ? 0
+                  : ((receivedAmount && receivedAmount > 0) ? receivedAmount : displayGrandTotal);
 
-                const cleanCustName = (customerName || '').trim();
-                const cleanCustPhone = (customerPhone || '').trim();
-                const selectedPartyObj = (cleanCustName || cleanCustPhone)
-                  ? (partiesForTier || []).find((p: any) =>
-                      (cleanCustName && p.name && p.name.trim().toLowerCase() === cleanCustName.toLowerCase()) ||
-                      (cleanCustPhone && p.phone && String(p.phone).trim() === cleanCustPhone)
-                    )
-                  : null;
+                const selectedPartyObj = findMatchingParty(customerName, customerPhone);
                 const partyOldBalance = selectedPartyObj ? (Number(selectedPartyObj.balance) || 0) : 0;
-                const isCreditCustomer = partyOldBalance !== 0 || paymentMethod === 'CREDIT';
+                const isCreditCustomer = partyOldBalance !== 0 || paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && Number(splitDetails?.credit) > 0);
 
                 if (isCreditCustomer) {
                   const netNewDue = partyOldBalance + displayGrandTotal - effectivePaid;
                   const isDue = netNewDue > 0;
                   return (
-                    <div className={clsx('flex-1 min-w-0 max-w-[150px] transition-all duration-300', isScrapMode || isReturnMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+                    <div className={clsx('flex-1 min-w-0 max-w-[150px] transition-all duration-300', isScrapMode || isReturnMode || isQuotationMode || editingQuotationId ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                       <p className="text-[9px] font-black uppercase tracking-wider mb-0.5 text-amber-600 dark:text-amber-400">
                         {isDue ? 'New Total Due' : 'Advance Balance'}
                       </p>
@@ -12338,5 +12307,3 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
     </div>
   );
 }
-
-

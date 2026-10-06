@@ -1,3 +1,10 @@
+# Vendora v1.7.0 Release Notes
+
+## What's Changed
+- **POS & Cart Updates**: Refactored billing page, cart pane, inventory manager, and party manager components for improved UI responsiveness and stability.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-1.7.0.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.6.9...v1.7.0
+
 # Vendora v1.6.8 Release Notes
 
 ## What's Changed

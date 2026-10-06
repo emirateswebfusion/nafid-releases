@@ -198,7 +198,7 @@ export interface IElectronAPI {
   dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<any[]>;
   dbDeletePurchaseBill: (purchase_bill_id: string) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
-  dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string; limit?: number; numericPrefixOnly?: boolean }) => Promise<any[]>;
   dbProductHasEstimateBills: (args: { product_id: string; tenant_id: string }) => Promise<{ success: boolean; hasEstimate?: boolean; error?: string }>;
   dbGenerateBarcode: (args: { tenant_id: string; item_code?: string; strip_suffix?: string }) => Promise<{ success: boolean; barcode?: string; error?: string }>;
 

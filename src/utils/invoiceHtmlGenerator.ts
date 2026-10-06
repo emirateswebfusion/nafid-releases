@@ -34,6 +34,7 @@ export interface InvoiceData {
   shopWebsite?: string;
   logoUrl?: string;
   upiId?: string;
+  showUpiQr?: boolean;
   invoiceNumber: string;
   date: string;
   dueDate?: string;
@@ -1296,7 +1297,11 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       ${renderHtmlBalanceRows(data, 'div')}
     </div>
 
-    ${data.upiId ? `<div class="upi-box"><p>Pay via UPI: <strong>${data.upiId}</strong></p></div>` : ''}
+    ${data.upiId ? `
+    <div class="upi-box" style="text-align: center; margin-top: 15px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+      ${data.showUpiQr !== false ? `<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;data=${encodeURIComponent(`upi://pay?pa=${data.upiId}&pn=${data.shopName || 'Store'}&am=${data.grandTotal.toFixed(2)}&cu=INR`)}" alt="UPI QR Code" style="width: 140px; height: 140px; margin: 0 auto 6px auto; display: block;" />` : ''}
+      <p style="margin: 0; font-size: 11px; color: #166534; font-weight: 600;">Scan & Pay via UPI: <strong>${data.upiId}</strong></p>
+    </div>` : ''}
 
     ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms & Conditions</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
     ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
@@ -1442,7 +1447,11 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
       </tfoot>
     </table>
 
-    ${data.upiId ? `<div class="upi-box"><p>Pay via UPI: <strong>${data.upiId}</strong></p></div>` : ''}
+    ${data.upiId ? `
+    <div class="upi-box" style="text-align: center; margin-top: 15px; padding: 10px; border: 1px dashed #9ca3af; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+      ${data.showUpiQr !== false ? `<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;data=${encodeURIComponent(`upi://pay?pa=${data.upiId}&pn=${data.shopName || 'Store'}&am=${data.grandTotal.toFixed(2)}&cu=INR`)}" alt="UPI QR Code" style="width: 140px; height: 140px; margin: 0 auto 6px auto; display: block;" />` : ''}
+      <p style="margin: 0; font-size: 11px; font-weight: 600;">Scan & Pay via UPI: <strong>${data.upiId}</strong></p>
+    </div>` : ''}
 
     ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms & Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
     ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `

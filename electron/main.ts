@@ -6844,7 +6844,7 @@ ipcMain.handle('db:productHasEstimateBills', (event, { product_id, tenant_id }: 
   }
 });
 
-ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
+ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search, limit, numericPrefixOnly = false }: { tenant_id: string; search?: string; limit?: number; numericPrefixOnly?: boolean }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
@@ -6861,17 +6861,20 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
     if (search) {
       const cleanSearch = String(search).trim();
       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-      if (/^\d+$/.test(cleanSearch)) {
+      if (/^\d+$/.test(cleanSearch) && numericPrefixOnly) {
         query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ?)';
         params.push(`${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`);
       } else {
         const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-        query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR CLEAN_STR(p.name) LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ? OR CLEAN_STR(p.item_code) LIKE ?)';
-        params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`);
+        const searchFields = ['name', 'sku_barcode', 'item_code', 'brand_manufacturer', 'category', 'hsn_sac_code'];
+        query += ' AND (' + searchFields.map(field => `p.${field} LIKE ? OR REPLACE(p.${field}, ' ', '') LIKE ? OR CLEAN_STR(p.${field}) LIKE ?`).join(' OR ') + ')';
+        searchFields.forEach(() => params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`));
       }
     }
 
-    query += ' ORDER BY p.name COLLATE NOCASE ASC LIMIT 200';
+    const resultLimit = Math.max(1, Math.min(500, Math.floor(Number(limit) || 200)));
+    query += ' ORDER BY p.name COLLATE NOCASE ASC LIMIT ?';
+    params.push(resultLimit);
     return db.prepare(query).all(...params);
   } catch (error: any) {
     console.error('[db:getPurchaseBillProducts]', error);

@@ -6,6 +6,9 @@ import { ChevronDown, Check } from 'lucide-react';
 export interface SelectOption {
   value: string;
   label: string;
+  icon?: any;
+  color?: string;
+  [key: string]: any;
 }
 
 export interface SelectProps {
