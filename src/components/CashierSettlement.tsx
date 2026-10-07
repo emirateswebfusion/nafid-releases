@@ -19,7 +19,7 @@ import clsx from 'clsx';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
-import { loadFeatureFlags, cashierPageTitle } from '../featureFlags';
+import { cashierPageTitle, useFeatureFlagsStore } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getStoreTimezone, getStoreBusinessDate } from '../utils/timezoneHelper';
 import { isAdminRole } from '../utils/permissions';
@@ -144,7 +144,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [transactions, setTransactions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
+  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
 
   useEffect(() => {
     if (window.electronAPI?.setPageContext) {
@@ -644,7 +644,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   };
 
   useEffect(() => {
-    loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
+    loadFlags(tenantId || 'global');
     getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
     if (window.electronAPI?.dbPaymentGetSources) {
       window.electronAPI.dbPaymentGetSources(tenantId || 'global').then((sources: any[]) => {
@@ -657,7 +657,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       window.electronAPI.runInitialSync().catch(() => {});
     }
     Promise.all([load()]).finally(() => setLoading(false));
-  }, [load, tenantId]);
+  }, [load, tenantId, loadFlags]);
 
   // Auto-refresh: keep the settlement page in sync with the billing counter.
   // Newly printed bills (PENDING) appear here instantly without manual reload.
@@ -3082,7 +3082,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                           const isWeight = item.billing_type === 'WEIGHT' || 
                                            weightUoms.includes((item.unit || '').toLowerCase()) ||
                                            (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold));
-                          const pcs = item.pieces_sold ?? item.pieces_override ?? (item.pieces_per_kg && Number(item.quantity) > 0 ? Math.max(1, Math.round(Number(item.quantity) * item.pieces_per_kg)) : undefined);
+                          const pcs = item.pieces_sold ?? item.pieces_override;
                           if (isWeight) {
                             return (
                               <div className="col-span-2 text-center font-bold text-foreground/70">

@@ -172,7 +172,7 @@ export const useCartStore = create<CartState>()(
               lastAddedProductId: newItem.product_id,
               items: state.items.map(i => {
                 if (i.product_id === newItem.product_id) {
-                  const delta = i.billing_type === 'WEIGHT' && !i.pieces_per_kg ? 0.1 : 1;
+                  const delta = i.billing_type === 'WEIGHT' ? 0.1 : 1;
                   return { ...i, quantity: Number(i.quantity) + delta };
                 }
                 return i;

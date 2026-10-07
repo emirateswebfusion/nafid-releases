@@ -3,7 +3,7 @@ import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileTex
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
-import { loadFeatureFlags, cashierPageTitle, type FeatureFlags, type FeatureKey } from '../featureFlags';
+import { useFeatureFlagsStore, cashierPageTitle, type FeatureFlags, type FeatureKey } from '../featureFlags';
 import { hasPermission, isAdminRole, formatRoleName } from '../utils/permissions';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
@@ -51,7 +51,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | 'NONE' | null>(null);
     const [syncMode, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
     const [enableScrap, setEnableScrap] = useState(false);
-    const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
+    const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
     const [gridMode, setGridMode] = useState<'2COL' | '3COL'>('2COL');
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -74,8 +74,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
     useEffect(() => {
         if (!window.electronAPI || !tenantId) return;
-        loadFeatureFlags(tenantId).then(flags => setFeatureFlags(flags));
-    }, [tenantId]);
+        loadFlags(tenantId);
+    }, [tenantId, loadFlags]);
 
     const loadStats = useCallback(async () => {
         if (!window.electronAPI?.dbGetDashboardStats || !tenantId) return;

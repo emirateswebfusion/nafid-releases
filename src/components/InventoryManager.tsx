@@ -6,6 +6,7 @@ import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
+import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
 import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
@@ -138,6 +139,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return pricingTiers.filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
   }, [pricingTiers]);
   const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
+  const [allProductPricingMap, setAllProductPricingMap] = useState<Record<string, Record<string, number>>>({});
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
   const categoryContainerRef = useRef<HTMLDivElement>(null);
@@ -200,6 +202,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const filterDateRef = useRef(filterDate);
   const filterDateEndRef = useRef(filterDateEnd);
   const offsetRef = useRef(offset);
+  const hasMoreRef = useRef(hasMore);
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const viewModeRef = useRef(viewMode);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
   useEffect(() => { sortByRef.current = sortBy; }, [sortBy]);
@@ -207,6 +214,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   useEffect(() => { filterDateRef.current = filterDate; }, [filterDate]);
   useEffect(() => { filterDateEndRef.current = filterDateEnd; }, [filterDateEnd]);
   useEffect(() => { offsetRef.current = offset; }, [offset]);
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
 
   // Focus search input on open / view switch
   useEffect(() => {
@@ -218,15 +227,17 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   }, [view]);
 
-  // Load products when search or sort or stock filter changes (reset)
+  // Load products when search or sort or stock filter or viewMode changes (reset)
   useEffect(() => {
     const timeout = setTimeout(() => {
+      offsetRef.current = 0;
       setOffset(0);
+      hasMoreRef.current = true;
       setHasMore(true);
       loadProducts(true);
     }, 300); // debounce search
     return () => clearTimeout(timeout);
-  }, [searchQuery, sortBy, filterDate, filterDateEnd, stockFilter]);
+  }, [searchQuery, sortBy, filterDate, filterDateEnd, stockFilter, viewMode]);
 
   // Sync listener — auto-refresh silently, using refs so current search/
   // filter state is preserved even though this effect runs only once.
@@ -307,8 +318,29 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   }, [view]);
 
+  const refreshProductPricing = useCallback(async () => {
+    if (window.electronAPI?.dbGetProductPricing) {
+      try {
+        const rows = await window.electronAPI.dbGetProductPricing(tenantId || 'global');
+        if (Array.isArray(rows)) {
+          const map: Record<string, Record<string, number>> = {};
+          for (const r of rows) {
+            if (!r.is_deleted && r.price != null && r.price !== '') {
+              if (!map[r.product_id]) map[r.product_id] = {};
+              map[r.product_id][r.pricing_tier_id] = Number(r.price);
+            }
+          }
+          setAllProductPricingMap(map);
+        }
+      } catch (err) {
+        console.warn('[InventoryManager] Failed to load product pricing:', err);
+      }
+    }
+  }, [tenantId]);
+
   useEffect(() => {
     if (window.electronAPI) {
+      refreshProductPricing();
       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' })
         .then((val: any) => {
           if (val === 'estimate' || val === 'gst' || val === 'combined') setViewMode(val);
@@ -391,57 +423,86 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   }, [labelCodeType, formData.sku_barcode]);
 
   const loadProducts = async (reset = false) => {
+    // If not a reset (loading next page), guard against concurrent or rapid calls
+    if (!reset) {
+      if (isFetchingRef.current || !hasMoreRef.current) return;
+      const now = Date.now();
+      if (now - lastFetchTimeRef.current < 400) return;
+      lastFetchTimeRef.current = now;
+    }
+
+    isFetchingRef.current = true;
     setIsFetching(true);
-    if (window.electronAPI) {
-      const { tenantId } = useAuthStore.getState();
-      // Always read the latest values from refs to avoid stale-closure bugs
-      // (e.g. the sync listener is registered once and must not use old state).
-      const currentSearch = searchQueryRef.current;
-      const currentSortBy = sortByRef.current;
-      const currentStockFilter = stockFilterRef.current;
-      const currentFilterDate = filterDateRef.current;
-      const currentFilterDateEnd = filterDateEndRef.current;
-      const currentOffset = reset ? 0 : offsetRef.current;
 
-      const result = await window.electronAPI.dbGetProducts({
-        tenant_id: tenantId,
-        limit: LIMIT,
-        offset: currentOffset,
-        search: currentSearch,
-        sortBy: currentSortBy,
-        filterDate: currentFilterDate,
-        filterDateEnd: currentFilterDateEnd,
-        stockStatus: currentStockFilter
-      });
+    try {
+      if (window.electronAPI) {
+        const { tenantId } = useAuthStore.getState();
+        // Always read the latest values from refs to avoid stale-closure bugs
+        const currentSearch = searchQueryRef.current;
+        const currentSortBy = sortByRef.current;
+        const currentStockFilter = stockFilterRef.current;
+        const currentFilterDate = filterDateRef.current;
+        const currentFilterDateEnd = filterDateEndRef.current;
+        const currentViewMode = viewModeRef.current;
+        const isGstParam = currentViewMode === 'gst' ? true : currentViewMode === 'estimate' ? false : undefined;
+        const currentOffset = reset ? 0 : offsetRef.current;
 
-      if (reset) {
-        const count = await window.electronAPI.dbGetProductsCount({
+        const result = await window.electronAPI.dbGetProducts({
           tenant_id: tenantId,
+          limit: LIMIT,
+          offset: currentOffset,
           search: currentSearch,
+          sortBy: currentSortBy,
           filterDate: currentFilterDate,
           filterDateEnd: currentFilterDateEnd,
-          stockStatus: currentStockFilter
+          stockStatus: currentStockFilter,
+          isGst: isGstParam
         });
-        setTotalCount(count);
-      }
 
-      if (Array.isArray(result)) {
-        const sortedResult = currentSearch ? sortProductsBySearchPriority(result, currentSearch) : result;
         if (reset) {
-          setProducts(sortedResult);
-        } else {
-          setProducts(prev => {
-             // filter out duplicates just in case
-             const existingIds = new Set(prev.map(p => p.product_id));
-             const merged = [...prev, ...sortedResult.filter(p => !existingIds.has(p.product_id))];
-             return currentSearch ? sortProductsBySearchPriority(merged, currentSearch) : merged;
+          const count = await window.electronAPI.dbGetProductsCount({
+            tenant_id: tenantId,
+            search: currentSearch,
+            filterDate: currentFilterDate,
+            filterDateEnd: currentFilterDateEnd,
+            stockStatus: currentStockFilter,
+            isGst: isGstParam
           });
+          setTotalCount(count);
         }
-        setOffset(currentOffset + result.length);
-        setHasMore(result.length === LIMIT);
+
+        if (Array.isArray(result)) {
+          const sortedResult = currentSearch ? sortProductsBySearchPriority(result, currentSearch) : result;
+          if (reset) {
+            setProducts(sortedResult);
+            const nextOffset = sortedResult.length;
+            offsetRef.current = nextOffset;
+            setOffset(nextOffset);
+            const more = sortedResult.length === LIMIT;
+            hasMoreRef.current = more;
+            setHasMore(more);
+          } else {
+            setProducts(prev => {
+              // filter out duplicates just in case
+              const existingIds = new Set(prev.map(p => p.product_id));
+              const newItems = sortedResult.filter(p => !existingIds.has(p.product_id));
+              return [...prev, ...newItems];
+            });
+            const nextOffset = currentOffset + result.length;
+            offsetRef.current = nextOffset;
+            setOffset(nextOffset);
+            const more = result.length === LIMIT;
+            hasMoreRef.current = more;
+            setHasMore(more);
+          }
+        }
       }
+    } catch (err) {
+      console.error('[InventoryManager] Failed to load products:', err);
+    } finally {
+      isFetchingRef.current = false;
+      setIsFetching(false);
     }
-    setIsFetching(false);
   };
 
   // ── Name autocomplete ───────────────────────────────────────────────
@@ -546,20 +607,47 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   };
 
-  // ── Intersection Observer for infinite scrolling ──
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastElementRef = useCallback((node: HTMLDivElement | null) => {
-    if (isFetching || !hasMore || view !== 'list') return;
-    if (observer.current) observer.current.disconnect();
+  // ── Intersection Observer & Scroll for infinite scrolling ──
+  useEffect(() => {
+    if (view !== 'list') return;
+    const scrollContainer = listScrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
 
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) {
-        loadProducts(false);
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry && entry.isIntersecting) {
+          if (!isFetchingRef.current && hasMoreRef.current) {
+            loadProducts(false);
+          }
+        }
+      },
+      {
+        root: scrollContainer,
+        rootMargin: '150px',
+        threshold: 0.05,
       }
-    }, { threshold: 1.0 });
+    );
 
-    if (node) observer.current.observe(node);
-  }, [isFetching, hasMore, view, offset]);
+    obs.observe(sentinel);
+
+    return () => {
+      obs.disconnect();
+    };
+  }, [view]);
+
+  // Handle scroll on the list container to load next page smoothly
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    savedScrollTop.current = el.scrollTop;
+
+    // Trigger next page when scrolled within 200px of bottom
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceToBottom < 200 && !isFetchingRef.current && hasMoreRef.current) {
+      loadProducts(false);
+    }
+  }, []);
 
   const openAdd = async () => {
     let nextBarcode = '';
@@ -1225,25 +1313,72 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setStatusMessage({ text: 'Generating CSV...', type: 'success' });
     if (window.electronAPI) {
       const { tenantId } = useAuthStore.getState();
-      const result = await window.electronAPI.dbGetProducts({
-        tenant_id: tenantId,
-        filterDate: filterDate,
-        filterDateEnd: filterDateEnd,
-        stockStatus: stockFilterRef.current,
-        limit: 100000 
-      });
+      const tid = tenantId || 'global';
+      const [result, tiersRes, pricingRows] = await Promise.all([
+        window.electronAPI.dbGetProducts({
+          tenant_id: tid,
+          filterDate: filterDate,
+          filterDateEnd: filterDateEnd,
+          stockStatus: stockFilterRef.current,
+          limit: 100000 
+        }),
+        window.electronAPI.dbGetPricingTiers ? window.electronAPI.dbGetPricingTiers(tid) : Promise.resolve([]),
+        window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([])
+      ]);
+
       if (Array.isArray(result) && result.length > 0) {
-        const headers = ['Name', 'Item Code', 'Barcode', 'Category', 'Brand', 'UOM', 'Purchase Price', 'MRP', 'Discount Percentage', 'Offer Price', 'Current Stock', 'Added Date'];
-        const csvContent = [
-          headers.join(','),
-          ...result.map(p => {
-            const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-            const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined ? Number(appliedGrade.purchase_price) : Number(p.purchase_price);
-            const displayMrp = appliedGrade && p.pricing_mode === 'GRADE_RATE' ? Number(appliedGrade.rate) : Number(p.base_price);
-            return `"${(p.name || '').replace(/"/g, '""')}","${p.item_code || ''}","${p.sku_barcode || ''}","${p.category || ''}","${p.brand_manufacturer || ''}","${p.uom || ''}",${displayPurchasePrice || 0},${displayMrp || 0},${p.discount_percent || 0},${p.offer_price || 0},${p.current_stock || 0},"${p.created_at || ''}"`;
-          })
-        ].join('\n');
-        
+        const activeTiers = Array.isArray(tiersRes)
+          ? tiersRes.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
+          : [];
+
+        // Build product_id -> { [pricing_tier_id]: price }
+        const pricingMap: Record<string, Record<string, number>> = {};
+        if (Array.isArray(pricingRows)) {
+          for (const row of pricingRows) {
+            if (!row.is_deleted && row.price != null && row.price !== '') {
+              if (!pricingMap[row.product_id]) {
+                pricingMap[row.product_id] = {};
+              }
+              pricingMap[row.product_id][row.pricing_tier_id] = Number(row.price);
+            }
+          }
+        }
+
+        const dataToExport = result.map(p => {
+          const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+          const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined 
+            ? Number(appliedGrade.purchase_price) 
+            : Number(p.purchase_price);
+          const displayMrp = appliedGrade && p.pricing_mode === 'GRADE_RATE' 
+            ? Number(appliedGrade.rate) 
+            : Number(p.base_price);
+
+          const row: Record<string, any> = {
+            'Name': p.name || '',
+            'Item Code': p.item_code || '',
+            'Barcode': p.sku_barcode || '',
+            'Category': p.category || '',
+            'Brand': p.brand_manufacturer || '',
+            'UOM': p.uom || '',
+            'Purchase Price': displayPurchasePrice || 0,
+            'MRP': displayMrp || 0,
+          };
+
+          // Dynamically add tier columns with their names
+          for (const tier of activeTiers) {
+            const tierPrice = pricingMap[p.product_id]?.[tier.pricing_tier_id];
+            row[tier.name] = tierPrice != null ? tierPrice : '';
+          }
+
+          row['Discount Percentage'] = p.discount_percent || 0;
+          row['Offer Price'] = p.offer_price || 0;
+          row['Current Stock'] = p.current_stock || 0;
+          row['Added Date'] = p.created_at || '';
+
+          return row;
+        });
+
+        const csvContent = Papa.unparse(dataToExport);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -1253,7 +1388,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setStatusMessage({ text: 'CSV Downloaded', type: 'success' });
+        setStatusMessage({ text: 'CSV Downloaded with Pricing Tiers', type: 'success' });
       } else {
         setStatusMessage({ text: 'No products to download for this date', type: 'error' });
       }
@@ -1701,7 +1836,7 @@ return (
           </div>
 
           {/* Scrollable Rows Container */}
-          <div ref={listScrollRef} className="flex-1 overflow-y-auto divide-y divide-border relative">
+          <div ref={listScrollRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto divide-y divide-border relative">
             {isFetching && offset === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={`skel-${i}`} className="grid grid-cols-12 gap-3 px-6 py-4 items-center">
@@ -1815,9 +1950,18 @@ return (
                               {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
                               {p.sku_barcode}
                             </p>
-                            <div className="flex gap-1.5 mt-1 flex-wrap">
+                            <div className="flex gap-1.5 mt-1 flex-wrap items-center">
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
+                              {allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
+                                const tier = activePricingTiers.find(t => t.pricing_tier_id === tid);
+                                if (!tier) return null;
+                                return (
+                                  <span key={tid} className="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 px-1.5 py-0.5 rounded font-bold">
+                                    {tier.name}: ₹{tPrice}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
@@ -1902,15 +2046,17 @@ return (
               </Fragment>
             ))}
 
-            {/* Infinite Scroll Target */}
-            {hasMore && (
-              <div ref={lastElementRef} className="py-6 flex justify-center items-center shrink-0">
-                <div className="flex gap-1 items-center text-muted-foreground text-sm font-medium">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Loading more items...</span>
+            {/* Infinite Scroll Sentinel & Loader */}
+            <div ref={sentinelRef} className="w-full shrink-0 min-h-[1px]">
+              {isFetching && offset > 0 && (
+                <div className="py-6 flex justify-center items-center">
+                  <div className="flex gap-2 items-center text-muted-foreground text-sm font-medium">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Loading next 50 products...</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {!hasMore && products.length > 0 && (
@@ -3115,7 +3261,10 @@ return (
         allowedEntities={['products']}
         hideEntityTabs={true}
         onImportSuccess={() => {
-          loadProducts();
+          setOffset(0);
+          offsetRef.current = 0;
+          loadProducts(true);
+          refreshProductPricing();
           setStatusMessage({ text: 'Products imported successfully!', type: 'success' });
         }}
       />

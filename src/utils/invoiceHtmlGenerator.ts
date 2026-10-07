@@ -12,6 +12,7 @@ export interface InvoiceItemDisplay {
   brand?: string;
   billing_type?: string;
   pieces_override?: number;
+  pieces_sold?: number;
   pieces_per_kg?: number;
   unit?: string;
   hsn?: string;
@@ -221,13 +222,17 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = bs?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#444;">(${item.brand})</span>` : '';
+    const uomLower = (item.unit || '').trim().toLowerCase();
+    const isWeightProd = item.billing_type === 'WEIGHT' || ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
+    const pcsNum = (item.pieces_override != null && item.pieces_override > 0) ? item.pieces_override : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : undefined);
+    const pcsHtml = (isWeightProd && pcsNum != null && !fmt.isWeightHidden) ? ` <span style="font-size:10px; color:#555; font-weight: 600;">(${pcsNum} Pcs)</span>` : '';
     const middleCols = isRateQty
       ? `<td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td>`
       : `<td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td>`;
     return `
     <tr>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; width: 35px;">${idx + 1}</td>
-      <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; font-weight: 500;">${displayName}${brandHtml}</td>
+      <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; font-weight: 500;">${displayName}${brandHtml}${pcsHtml}</td>
       ${middleCols}
       <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; font-weight: 600; width: 85px;">${fmt.displayTotal}</td>
     </tr>
@@ -579,6 +584,10 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = bs?.showBrandName !== false && item.brand ? ` <span style="font-size:9.5px; color:#333; font-weight: 600;">(${item.brand})</span>` : '';
+    const uomLower = (item.unit || '').trim().toLowerCase();
+    const isWeightProd = item.billing_type === 'WEIGHT' || ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
+    const pcsNum = (item.pieces_override != null && item.pieces_override > 0) ? item.pieces_override : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : undefined);
+    const pcsHtml = (isWeightProd && pcsNum != null && !fmt.isWeightHidden) ? ` <span style="font-size:9.5px; color:#4b5563; font-weight: 600;">(${pcsNum} Pcs)</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:9.5px; color:#6b21a8; font-weight:800; letter-spacing:0.3px;">[COMBO OFFER]</b> <span style="font-size:9px; color:#4b5563; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -623,7 +632,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     return `
     <tr style="height: 22px;">
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">${idx + 1}</td>
-      <td style="text-align: left; border-right: 1px solid #000; padding: 3px 5px; font-weight: 500;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td style="text-align: left; border-right: 1px solid #000; padding: 3px 5px; font-weight: 500;">${displayName}${brandHtml}${pcsHtml}${comboHtml}${offerHtml}</td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">${hsnCode}</td>
       ${qtyRateCols}
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${taxableVal.toFixed(2)}</td>
@@ -998,6 +1007,10 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
             const elecNum = data.electronicRefNumber || bs?.electronicRefNumber || data.irn || '';
             return elecNum ? `<div style="font-size: 10px;">Electronic Reference Number : ${elecNum}</div>` : '';
           })()}
+          ${bs?.showDescription !== false && (data.description || data.notes) ? `
+          <div style="margin-top: 4px; font-size: 10px; color: #1a1a1a; line-height: 1.35;">
+            <strong>Description / Remarks:</strong> ${(data.description || data.notes)!.replace(/\n/g, '<br>')}
+          </div>` : ''}
         </div>
         <div style="width: 35%; padding: 4px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 10.5px;">
           <div>
@@ -1049,6 +1062,10 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = bs?.showBrandName !== false && item.brand ? `<br><span class="brand-badge">${item.brand}</span>` : '';
+    const uomLower = (item.unit || '').trim().toLowerCase();
+    const isWeightProd = item.billing_type === 'WEIGHT' || ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
+    const pcsNum = (item.pieces_override != null && item.pieces_override > 0) ? item.pieces_override : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : undefined);
+    const pcsHtml = (isWeightProd && pcsNum != null && !fmt.isWeightHidden) ? ` <span style="font-size:10px; color:#4b5563; font-weight:600;">(${pcsNum} Pcs)</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10.5px; color:#6b21a8; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:10px; color:#4b5563; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -1060,7 +1077,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     return `
     <tr>
       <td class="text-center">${idx + 1}</td>
-      <td>${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td>${displayName}${brandHtml}${pcsHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
       <td class="text-right">₹${fmt.displayTotal}</td>
     </tr>
@@ -1160,6 +1177,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       ${renderHtmlBalanceRows(data, 'table')}
     </tfoot>
   </table>
+  ${bs?.showDescription !== false && (data.description || data.notes) ? `<div style="margin-top: 10px; font-size: 11px; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px;"><strong style="font-weight: 700; color: #0f172a;">Description / Notes:</strong> ${(data.description || data.notes)!.replace(/\n/g, '<br>')}</div>` : ''}
   ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms &amp; Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
   ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
   <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
@@ -1184,6 +1202,10 @@ function generateModernHtml(data: InvoiceData, title: string): string {
     const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = bs?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
+    const uomLower = (item.unit || '').trim().toLowerCase();
+    const isWeightProd = item.billing_type === 'WEIGHT' || ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
+    const pcsNum = (item.pieces_override != null && item.pieces_override > 0) ? item.pieces_override : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : undefined);
+    const pcsHtml = (isWeightProd && pcsNum != null && !fmt.isWeightHidden) ? ` <span style="font-size:9px;color:#4b5563;font-weight:600">(${pcsNum} Pcs)</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10px; color:#059669; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#6b7280; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -1195,7 +1217,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
     return `
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">${idx + 1}</td>
-      <td style="padding:6px 4px;font-size:11px;color:#374151">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td style="padding:6px 4px;font-size:11px;color:#374151">${displayName}${brandHtml}${pcsHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹${fmt.displayTotal}</td>
     </tr>
@@ -1303,6 +1325,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <p style="margin: 0; font-size: 11px; color: #166534; font-weight: 600;">Scan & Pay via UPI: <strong>${data.upiId}</strong></p>
     </div>` : ''}
 
+    ${bs?.showDescription !== false && (data.description || data.notes) ? `<div class="terms" style="margin-top: 10px;"><strong>Description / Notes</strong><br>${(data.description || data.notes)!.replace(/\n/g, '<br>')}</div>` : ''}
     ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms & Conditions</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
     ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
     <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
@@ -1328,6 +1351,10 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
     const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = bs?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
+    const uomLower = (item.unit || '').trim().toLowerCase();
+    const isWeightProd = item.billing_type === 'WEIGHT' || ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
+    const pcsNum = (item.pieces_override != null && item.pieces_override > 0) ? item.pieces_override : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : undefined);
+    const pcsHtml = (isWeightProd && pcsNum != null && !fmt.isWeightHidden) ? ` <span style="font-size:9px;color:#4b5563;font-weight:600">(${pcsNum} Pcs)</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10px; color:#1a1a1a; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#555; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -1339,7 +1366,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
     return `
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${idx + 1}</td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${displayName}${brandHtml}${pcsHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayTotal}</td>
     </tr>
@@ -1453,6 +1480,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
       <p style="margin: 0; font-size: 11px; font-weight: 600;">Scan & Pay via UPI: <strong>${data.upiId}</strong></p>
     </div>` : ''}
 
+    ${bs?.showDescription !== false && (data.description || data.notes) ? `<div class="terms" style="margin-top: 10px;"><strong>Description / Notes:</strong><br>${(data.description || data.notes)!.replace(/\n/g, '<br>')}</div>` : ''}
     ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms & Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
     ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
     <div style="margin-top: 20px; display: flex; justify-content: flex-end;">

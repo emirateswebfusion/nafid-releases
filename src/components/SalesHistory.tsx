@@ -106,7 +106,7 @@ function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): number {
   if (!pmFilter) return getInvoiceNetTotal(inv);
 
   // If invoice is SPLIT and we're filtering by a single method, return that method's portion
-  if (invPm === 'SPLIT' && inv.split_details && singleMethods.includes(pmFilter)) {
+  if ((invPm === 'SPLIT' || invPm === 'CREDIT') && inv.split_details && singleMethods.includes(pmFilter)) {
     try {
       const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
       const jsonKey = pmFilter === 'BANK_TRANSFER' ? 'bank_transfer' : pmFilter.toLowerCase();
@@ -291,8 +291,14 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
                 </span>
               )}
             </div>
-            <div className="text-[10px] text-muted-foreground font-medium">
-              {inv.item_count || 0} item{(inv.item_count || 0) !== 1 ? 's' : ''}
+            <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 flex-wrap">
+              <span>{inv.item_count || 0} item{(inv.item_count || 0) !== 1 ? 's' : ''}</span>
+              {(inv.description || inv.notes) && (
+                <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md max-w-[140px] truncate" title={inv.description || inv.notes}>
+                  <FileText className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate">{inv.description || inv.notes}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -321,7 +327,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex flex-col items-start gap-0.5">
           <PaymentBadge method={inv.payment_method || 'PENDING'} />
-          {inv.payment_method === 'SPLIT' && (() => {
+          {(inv.payment_method === 'SPLIT' || (inv.payment_method === 'CREDIT' && inv.split_details)) && (() => {
             const sd = parseSplitDetails(inv.split_details);
             if (!sd) return null;
             const parts: string[] = [];
@@ -965,6 +971,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
         customerState: (isGstOrB2B || billSettings.showCustomerState !== false) ? (selectedInvoice.customer_state || undefined) : undefined,
+        description: selectedInvoice.description || selectedInvoice.notes || undefined,
+        notes: selectedInvoice.notes || selectedInvoice.description || undefined,
       };
       if (useA4) {
         const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
@@ -1246,7 +1254,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const headers = [
           'Invoice No', 'Date', 'Time', 'Type', 'Customer Name', 'Customer Phone',
           'Customer GSTIN', 'Payment Method', 'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)',
-          'Grand Total (₹)', 'Received (₹)', 'Balance (₹)', 'Biller'
+          'Grand Total (₹)', 'Received (₹)', 'Balance (₹)', 'Biller', 'Description / Remarks'
         ];
 
         const rows = data.map((inv: any) => {
@@ -1267,6 +1275,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             escape((inv.received_amount || 0).toFixed(2)),
             escape((inv.balance_amount || 0).toFixed(2)),
             escape(inv.biller_name || ''),
+            escape(inv.description || inv.notes || ''),
           ];
         });
 
@@ -2138,6 +2147,19 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </div>
             </div>
 
+            {/* Bill Description / Remarks */}
+            {(selectedInvoice.description || selectedInvoice.notes) && (
+              <div className="p-3.5 rounded-xl border border-primary/25 bg-primary/5 space-y-1 shadow-xs">
+                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span>Bill Description / Remarks</span>
+                </div>
+                <div className="text-xs font-semibold text-foreground whitespace-pre-wrap leading-relaxed">
+                  {selectedInvoice.description || selectedInvoice.notes}
+                </div>
+              </div>
+            )}
+
             {/* Items */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -2208,7 +2230,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           const isWeight = item.billing_type === 'WEIGHT' || 
                                            weightUoms.includes((item.unit || '').toLowerCase()) ||
                                            (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold));
-                          const pcs = item.pieces_sold ?? item.pieces_override ?? (item.pieces_per_kg && Number(item.quantity) > 0 ? Math.max(1, Math.round(Number(item.quantity) * item.pieces_per_kg)) : undefined);
+                          const pcs = item.pieces_sold ?? item.pieces_override;
                           if (isWeight) {
                             return (
                               <div className="col-span-2 text-center font-bold text-foreground/70">

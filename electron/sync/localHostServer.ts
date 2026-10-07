@@ -580,7 +580,11 @@ export function startLocalHostServer(port: number = 3888) {
           if (orderCol) {
             query += ` ORDER BY ${orderCol} DESC`;
           }
-          query += ` LIMIT 500`;
+          const rawLimit = Number(url.searchParams.get('limit'));
+          const limit = !isNaN(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 500;
+          const rawOffset = Number(url.searchParams.get('offset'));
+          const offset = !isNaN(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+          query += ` LIMIT ${limit} OFFSET ${offset}`;
 
           try {
             const rows = db.prepare(query).all(...params) as any[];

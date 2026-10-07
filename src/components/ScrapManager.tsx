@@ -53,6 +53,13 @@ interface ScrapTransaction {
 const formatCurrency = (amount: number | undefined | null) =>
   amount == null || isNaN(amount) ? '-' : `\u20B9${amount.toFixed(2)}`;
 
+const formatStock = (stock: number | string | undefined | null) => {
+  if (stock == null || stock === '') return '0';
+  const n = Number(stock);
+  if (isNaN(n)) return '0';
+  return parseFloat(n.toFixed(3)).toString();
+};
+
 const _formatDate = (d: string) => {
   if (!d) return '—';
   const tz = getStoreTimezone();
@@ -856,7 +863,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                 {view === 'list'
                   ? `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} · Track scrap stock & value`
                   : view === 'transaction' && selectedCategory
-                  ? `${transactions.length} transactions · Stock: ${Number(selectedCategory.current_stock).toFixed(1)} ${selectedCategory.unit}`
+                  ? `${transactions.length} transactions · Stock: ${formatStock(selectedCategory.current_stock)} ${selectedCategory.unit}`
                   : view === 'category_form'
                   ? 'Fill in the details below'
                   : view === 'tx_form'
@@ -944,7 +951,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                   <Package className="w-5 h-5" />
                 </div>
                 <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{isNaN(totalStock) ? '-' : `${totalStock.toFixed(1)}`}</p>
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{isNaN(totalStock) ? '-' : formatStock(totalStock)}</p>
                   <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Stock</p>
                   <p className="text-[10px] text-muted-foreground/60 mt-0.5">Units in inventory</p>
                 </div>
@@ -1067,7 +1074,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                                   ? 'bg-muted border-border text-muted-foreground'
                                   : 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
                               )}>
-                                {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
+                                {outOfStock ? 'Out of Stock' : `${formatStock(stock)} ${cat.unit}`}
                               </span>
                             </div>
 
@@ -1272,7 +1279,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                     : 'bg-muted text-muted-foreground border border-border'
                 )}>
                   <p className="text-xl font-black leading-none">
-                    {Number(selectedCategory.current_stock).toFixed(1)}
+                    {formatStock(selectedCategory.current_stock)}
                   </p>
                   <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
                     {selectedCategory.unit}
@@ -1509,7 +1516,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             <div className="shrink-0 border-t border-border bg-card px-5 py-3">
               <div className="flex items-center justify-between">
                 <div className="text-xs text-muted-foreground font-medium">
-                  Current Stock: <span className="font-bold text-foreground">{Number(selectedCategory.current_stock).toFixed(1)} {selectedCategory.unit}</span>
+                  Current Stock: <span className="font-bold text-foreground">{formatStock(selectedCategory.current_stock)} {selectedCategory.unit}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1568,7 +1575,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                Stock: <span className="font-semibold">{Number(s.current_stock).toFixed(1)} {s.unit} · ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
+                                Stock: <span className="font-semibold">{formatStock(s.current_stock)} {s.unit} · ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
                               </div>
                             </div>
                             <div className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
@@ -1612,7 +1619,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-sm text-foreground truncate">{entry.category.name}</div>
                             <div className="text-xs text-muted-foreground mt-0.5">
-                              Stock: <span className={clsx('font-semibold', stockNum <= 0 ? 'text-destructive' : 'text-emerald-500')}>{stockNum.toFixed(1)} {entry.category.unit}</span>
+                              Stock: <span className={clsx('font-semibold', stockNum <= 0 ? 'text-destructive' : 'text-emerald-500')}>{formatStock(stockNum)} {entry.category.unit}</span>
                             </div>
                           </div>
 

@@ -17,10 +17,10 @@ import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
-import { useTabStore, type TabSnapshot, type SplitDetails } from '../store/tabStore';
+import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
-import { loadFeatureFlags, getFeatureFlags } from '../featureFlags';
+import { useFeatureFlagsStore, type FeatureFlags } from '../featureFlags';
 import { sortProductsBySearchPriority } from '../utils/productSort';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
@@ -155,6 +155,7 @@ function ItemRateInput({
   const [isNavigatingMenu, setIsNavigatingMenu] = useState(false);
   const menuAnchorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const optionListRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
 
   const options = useMemo(() => {
@@ -172,11 +173,28 @@ function ItemRateInput({
     return list;
   }, [pricingTiers, tierPricesMap, basePrice, rate]);
 
+  const hasTierOptions = options.length > 0;
+  const hasPurchaseCost = Boolean(showPurchasePrice && purchasePrice != null && purchasePrice > 0);
+  const shouldShowMenu = isFocused && (hasTierOptions || hasPurchaseCost);
+
   useEffect(() => {
-    if (!isFocused) {
-      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
+    if (shouldShowMenu && optionListRef.current && selectedOptionIndex >= 0) {
+      const container = optionListRef.current;
+      const selectedEl = container.querySelector<HTMLElement>(`[data-option-index="${selectedOptionIndex}"]`);
+      if (selectedEl) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elTop = selectedEl.offsetTop;
+        const elBottom = elTop + selectedEl.offsetHeight;
+
+        if (elTop < containerTop) {
+          container.scrollTop = elTop;
+        } else if (elBottom > containerBottom) {
+          container.scrollTop = elBottom - container.clientHeight;
+        }
+      }
     }
-  }, [rate, isFocused]);
+  }, [selectedOptionIndex, shouldShowMenu]);
 
   const handleChooseOption = (opt: { tierId: string; name: string; unitPrice: number }) => {
     let effectiveUnitPrice = opt.unitPrice;
@@ -272,10 +290,6 @@ function ItemRateInput({
     }
   };
 
-  const hasTierOptions = options.length > 0;
-  const hasPurchaseCost = Boolean(showPurchasePrice && purchasePrice != null && purchasePrice > 0);
-  const shouldShowMenu = isFocused && (hasTierOptions || hasPurchaseCost);
-
   const updateMenuPosition = useCallback(() => {
     const anchor = menuAnchorRef.current;
     const menu = menuRef.current;
@@ -333,14 +347,15 @@ function ItemRateInput({
               <>
                 <div className="text-[9px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1 border-b border-border mb-1 flex items-center justify-between">
                   <span>Price Tier</span>
-                  <span className="text-[8px] text-muted-foreground">↑↓ Select · Enter</span>
+                  <span className="text-[8px] text-muted-foreground">{selectedOptionIndex + 1}/{options.length} · ↑↓ Select · Enter</span>
                 </div>
-                <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
+                <div ref={optionListRef} className="space-y-0.5 max-h-[220px] overflow-y-auto custom-scrollbar">
                   {options.map((opt, idx) => {
                     const isHighlighted = idx === selectedOptionIndex;
                     return (
                       <button
                         key={opt.tierId || 'base'}
+                        data-option-index={idx}
                         type="button"
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -640,6 +655,7 @@ export function BillingPage() {
   const splitUpiInputRef = useRef<HTMLInputElement>(null);
   const splitChequeInputRef = useRef<HTMLInputElement>(null);
   const splitCreditInputRef = useRef<HTMLInputElement>(null);
+  const totalOverrideInputRef = useRef<HTMLInputElement>(null);
   // Scanner-burst protection for qty-like inputs: a barcode scanner types digits at
   // ~10-20ms intervals. If the qty field has focus when the trigger is pulled, those
   // digits land in the input instead of being added to the cart. We detect the burst
@@ -709,6 +725,7 @@ export function BillingPage() {
   // Pricing tier state
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
   const [productPricingMap, setProductPricingMap] = useState<Record<string, Record<string, number>>>({});
+  const [productPricingMapLoaded, setProductPricingMapLoaded] = useState(false);
   const [selectedTierId, setSelectedTierId] = useState('');
 
   // Page-wise UPI Configuration and sources state
@@ -766,10 +783,10 @@ export function BillingPage() {
       items.forEach(item => {
         const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
         if (isPiecesWeight) {
-          // Only initialise for brand-new items — NEVER overwrite a value the user has already typed.
-          if (!(item.product_id in prev)) {
-            const pcs = item.pieces_override ?? 1;
-            next[item.product_id] = String(pcs);
+          const numPcs = item.pieces_override ?? 1;
+          const curNum = parseInt(prev[item.product_id] || '', 10);
+          if (!(item.product_id in prev) || (item.pieces_override !== undefined && prev[item.product_id] !== '' && !isNaN(curNum) && curNum !== numPcs)) {
+            next[item.product_id] = String(numPcs);
             changed = true;
           }
         }
@@ -989,6 +1006,8 @@ export function BillingPage() {
   const [showDescriptionState, setShowDescriptionState] = useState(true);
   const [activeDiscField, setActiveDiscField] = useState<'PCT' | 'FLAT' | null>(null);
   const [localDiscText, setLocalDiscText] = useState<string>('');
+  const [isEditingTotal, setIsEditingTotal] = useState(false);
+  const [overrideTotalInput, setOverrideTotalInput] = useState('');
 
   useEffect(() => {
     if (discountValue === 0) {
@@ -1039,8 +1058,8 @@ export function BillingPage() {
       setIsScrapMode(true);
     }
   }, [editingInvoiceNumber, isScrapMode, setIsScrapMode]);
-  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(() => getFeatureFlags());
-  const isCashSettlementEnabled = featureFlags ? featureFlags.cash_settlement !== false : getFeatureFlags().cash_settlement !== false;
+  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
+  const isCashSettlementEnabled = featureFlags ? featureFlags.cash_settlement !== false : true;
   const paymentOptions = useMemo(() => {
     return isCashSettlementEnabled
       ? PAYMENT_OPTIONS
@@ -1120,7 +1139,7 @@ export function BillingPage() {
         else if (isQuotationMode) targetNum = tab.reservedQuotationNumber;
         else if (isReturnMode) targetNum = tab.reservedReturnNumber;
 
-        const shouldUpdate = !tab.title || tab.title === 'New' || tab.title === tab.reservedInvoiceNumber || tab.title === tab.reservedScrapInvoiceNumber || tab.title === tab.reservedQuotationNumber || tab.title === tab.reservedReturnNumber || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
+        const shouldUpdate = !tab.title || tab.title === 'New' || tab.title === 'New Quote' || tab.title === tab.reservedInvoiceNumber || tab.title === tab.reservedScrapInvoiceNumber || tab.title === tab.reservedQuotationNumber || tab.title === tab.reservedReturnNumber || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
         if (targetNum && shouldUpdate) {
           updateActiveTab({ title: targetNum });
         }
@@ -1220,7 +1239,7 @@ export function BillingPage() {
         return (typeof curr === 'object' && curr !== null) ? curr : { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
       })()
     : (rawSplitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 });
-  const splitTotal = paymentMethod === 'SPLIT' ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
+  const splitTotal = (paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.cheque) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
   const receivedAmount = activeTab?.receivedAmount ?? 0;
   const actualRefundPaid = activeTab?.actualRefundPaid ?? 0;
   const customerName = activeTab?.customerName || '';
@@ -1246,11 +1265,11 @@ export function BillingPage() {
        || upiSources[0])
     : null;
 
-  const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
+    const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
     if (!tab) return;
-    if (isScrapMode || isQuotationMode || isReturnMode) return;
+    if (isScrapMode || isQuotationMode || isReturnMode || tab.snapshot?.isQuotationMode) return;
     if (editingActive) return;
 
     try {
@@ -1338,9 +1357,10 @@ export function BillingPage() {
         const nextNum = getNextOffsetInvoiceNumber(result.quotationNumber, otherTabsReserved);
         const oldReserved = tab.reservedQuotationNumber;
         if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
-          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
+          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === 'New Quote' || tab.title === oldReserved || tab.title.startsWith('Bill ') || (tab.reservedInvoiceNumber && tab.title === tab.reservedInvoiceNumber);
           updateActiveTab({
             reservedQuotationNumber: nextNum,
+            reservedInvoiceNumber: '',
             title: shouldUpdateTitle ? nextNum : tab.title
           });
         }
@@ -1383,20 +1403,77 @@ export function BillingPage() {
   const scrapConsumed = Math.min(storeScrapDeduction || 0, Math.max(0, grandTotal - returnConsumed));
   const refundAmount = !isScrapMode ? Math.max(0, totalDeductions - grandTotal) : 0;
 
-  const returnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
+  const returnSubtotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
     return sum + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
   }, 0);
+  const returnTaxTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
+    const origQty = Number(item.originalQuantity) || 1;
+    return sum + ((Number(item.originalTaxAmount) || 0) / origQty) * (Number(item.quantity) || 0);
+  }, 0);
+  const returnTotal = returnSubtotal;
   const originalReturnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
     return sum + (Number(item.rawUnitPrice) || Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
   }, 0);
   const returnDiscountTotal = Math.max(0, originalReturnTotal - returnTotal);
-  const displayGrandTotal = isScrapMode
+  const rawDisplayGrandTotal = isScrapMode
     ? scrapTotal + extraBonus
     : isReturnMode
-      ? returnTotal
+      ? returnSubtotal + returnTaxTotal
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
+
+  const isGrandTotalOverridden = !isScrapMode && !isReturnMode && activeTab?.manualTotalOverride != null && activeTab.manualTotalOverride > 0;
+  const displayGrandTotal = isGrandTotalOverridden
+    ? activeTab.manualTotalOverride!
+    : rawDisplayGrandTotal;
   const balanceAmount = receivedAmount - displayGrandTotal;
   const _bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
+
+  const startEditingTotal = useCallback(() => {
+    if (isScrapMode || isReturnMode || items.length === 0) return;
+    setOverrideTotalInput(String(displayGrandTotal || ''));
+    setIsEditingTotal(true);
+    setTimeout(() => {
+      totalOverrideInputRef.current?.focus();
+      totalOverrideInputRef.current?.select();
+    }, 40);
+  }, [isScrapMode, isReturnMode, items.length, displayGrandTotal]);
+
+  const handleResetGrandTotalOverride = useCallback(() => {
+    setDiscount(0, 'FIXED');
+    updateActiveTab({ manualTotalOverride: null });
+    setIsEditingTotal(false);
+    setOverrideTotalInput('');
+  }, [setDiscount, updateActiveTab]);
+
+  const commitTotalOverride = useCallback(() => {
+    if (!overrideTotalInput || overrideTotalInput.trim() === '') {
+      handleResetGrandTotalOverride();
+      return;
+    }
+    const targetVal = parseFloat(overrideTotalInput);
+    if (isNaN(targetVal) || targetVal < 0) {
+      setIsEditingTotal(false);
+      return;
+    }
+
+    const effectiveTaxRate = (subtotal > 0 && totalTax > 0) ? (totalTax / Math.max(1, subtotal - (discount || 0))) : 0;
+    const deductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
+    const basePayableBeforeDiscount = Math.max(0, (subtotal * (1 + effectiveTaxRate)) - deductions);
+
+    if (targetVal < basePayableBeforeDiscount) {
+      const shortfall = basePayableBeforeDiscount - targetVal;
+      const neededDisc = effectiveTaxRate > 0 ? shortfall / (1 + effectiveTaxRate) : shortfall;
+      const roundedDisc = Math.round(neededDisc * 100) / 100;
+      setDiscount(roundedDisc, 'FIXED');
+    } else {
+      setDiscount(0, 'FIXED');
+    }
+
+    updateActiveTab({ manualTotalOverride: targetVal });
+    setIsEditingTotal(false);
+    setInfoToast(`Grand Total overridden to ₹${targetVal.toFixed(2)}`);
+    setTimeout(() => setInfoToast(null), 2500);
+  }, [overrideTotalInput, subtotal, totalTax, discount, storeScrapDeduction, storeReturnDeduction, setDiscount, updateActiveTab, handleResetGrandTotalOverride]);
 
   const totalProducts = items.length;
   const totalKgs = items.reduce((sum, item) => {
@@ -1437,7 +1514,86 @@ export function BillingPage() {
     const existingTabs = useTabStore.getState().tabs;
     const currentActiveTabId = useTabStore.getState().activeTabId;
 
-    if (preserveCart && existingTabs.length > 0 && !isQActive) {
+    if (isPendingNewQuotation) {
+      // Dedicated robust Quotation Mode initialization
+      useCartStore.getState().clearCart();
+      useCartStore.getState().setReturnMode(false);
+      useCartStore.getState().setIsScrapMode(false);
+      useCartStore.getState().setEditingQuotation(null, null);
+      useCartStore.getState().setEditingInvoice(null, null, null);
+      useCartStore.getState().setQuotationMode(true);
+
+      const quotationSnapshot: TabSnapshot = {
+        items: [],
+        invoiceType: 'BILL_OF_SUPPLY',
+        discountType: 'FIXED',
+        discountValue: 0,
+        customerState: 'KL',
+        scrapDeduction: 0,
+        scrapInvoiceNumber: '',
+        returnDeduction: 0,
+        returnInvoiceNumber: '',
+        isQuotationMode: true,
+        isReturnMode: false,
+        isScrapMode: false,
+        returnRefundMethod: 'ADJUST_BILL',
+        editingQuotationId: null,
+        editingQuotationNumber: null,
+        editingInvoiceId: null,
+        editingInvoiceNumber: null,
+        editingInvoiceRole: null,
+        pendingScrapInvoiceToEdit: null,
+      };
+
+      const activeTab = existingTabs.find(t => t.id === currentActiveTabId);
+      // If current active tab is clean (no items and not editing), adapt it to New Quote
+      if (activeTab && (!activeTab.snapshot?.items || activeTab.snapshot.items.length === 0) && !activeTab.snapshot?.editingInvoiceNumber) {
+        updateActiveTab({
+          title: 'New Quote',
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
+          receivedAmount: 0,
+          reservedInvoiceNumber: '',
+          reservedQuotationNumber: '',
+        });
+        const { tabs: currentTabs, activeTabId: curTabId } = useTabStore.getState();
+        const updatedTabs = currentTabs.map(t => t.id === curTabId ? {
+          ...t,
+          title: 'New Quote',
+          reservedInvoiceNumber: '',
+          reservedQuotationNumber: '',
+          snapshot: quotationSnapshot,
+        } : t);
+        useTabStore.setState({ tabs: updatedTabs });
+        saveStoredTabs(updatedTabs, curTabId);
+        useCartStore.setState({
+          items: [],
+          isQuotationMode: true,
+          isReturnMode: false,
+          isScrapMode: false,
+          editingQuotationId: null,
+          editingQuotationNumber: null,
+          editingInvoiceId: null,
+          editingInvoiceNumber: null,
+        });
+        syncActiveSnapshot();
+        reserveQuotationNumberForTab(true);
+      } else {
+        // Otherwise append a new dedicated tab for Quotation mode
+        addTab(quotationSnapshot, 'New Quote');
+        reserveQuotationNumberForTab(true);
+      }
+      setTimeout(() => {
+        window.focus();
+        if (searchRef.current) {
+          searchRef.current.focus();
+          searchRef.current.select();
+        }
+      }, 100);
+    } else if (preserveCart && existingTabs.length > 0 && !isQActive) {
       // PRESERVE CART & TABS
       let activeTab = existingTabs.find(t => t.id === currentActiveTabId);
       if (!activeTab) {
@@ -1530,6 +1686,7 @@ export function BillingPage() {
 
   useEffect(() => {
     if (!window.electronAPI) return;
+    setProductPricingMapLoaded(false);
     window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
     window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
       if (typeof v === 'string' && v.trim()) {
@@ -1588,7 +1745,7 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
-    loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
+    loadFlags(tenantId || 'global');
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
     });
@@ -1637,6 +1794,7 @@ export function BillingPage() {
             map[r.product_id][r.pricing_tier_id] = Number(r.price) || 0;
           }
           setProductPricingMap(map);
+          setProductPricingMapLoaded(true);
         }
       })
       .catch(console.error);
@@ -1704,11 +1862,11 @@ export function BillingPage() {
           }
         });
       }
-      loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
-      reserveInvoiceNumberForTab(true);
+loadFlags(tenantId || 'global');
       if (isScrapMode) reserveScrapInvoiceNumberForTab(true);
-      if (isQuotationMode) reserveQuotationNumberForTab(true);
-      if (isReturnMode) reserveReturnNumberForTab(true);
+      else if (isQuotationMode) reserveQuotationNumberForTab(true);
+      else if (isReturnMode) reserveReturnNumberForTab(true);
+      else reserveInvoiceNumberForTab(true);
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);
     return () => window.removeEventListener('settings:updated', handleSettingsUpdated);
@@ -1744,13 +1902,14 @@ export function BillingPage() {
 
   // Reserve invoice/scrap/quotation/return number when tab becomes active without a reservation
   useEffect(() => {
-    reserveInvoiceNumberForTab();
     if (isScrapMode) {
       reserveScrapInvoiceNumberForTab();
     } else if (isQuotationMode) {
       reserveQuotationNumberForTab();
     } else if (isReturnMode) {
       reserveReturnNumberForTab();
+    } else {
+      reserveInvoiceNumberForTab();
     }
   }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
 
@@ -1919,6 +2078,10 @@ export function BillingPage() {
   // their mode via events fired after remount.
   useEffect(() => {
     return () => {
+      const currentActiveTab = useTabStore.getState().getActiveTab();
+      if (currentActiveTab?.snapshot?.isQuotationMode) {
+        return;
+      }
       if (localStorage.getItem('pendingNewQuotation') === 'true' || localStorage.getItem('editQuotationData') || localStorage.getItem('editBillData')) {
         return;
       }
@@ -2667,8 +2830,7 @@ export function BillingPage() {
           let grade_id = item.grade_id || null;
           let grade_rate = item.grade_rate || null;
           let uom = item.uom || item.unit || (isPcsWeight ? 'Kgs' : 'PCS');
-          const pcsValForPpk = item.pieces_sold != null ? Number(item.pieces_sold) : (item.pieces_override != null ? Number(item.pieces_override) : undefined);
-          let pieces_per_kg: number | undefined = (pcsValForPpk !== undefined && Number(item.quantity) > 0) ? (pcsValForPpk / Number(item.quantity)) : undefined;
+          let pieces_per_kg: number | undefined = undefined;
           let base_price = Number(item.base_price) || 0;
           let offer_price = item.offer_price ?? null;
           let discount_flat = item.discount_flat ?? null;
@@ -2867,6 +3029,7 @@ export function BillingPage() {
           selectedUpiId: parsedSplitDetails?.upi_id,
           selectedUpiSourceId: parsedSplitDetails?.upi_source_id,
           selectedUpiName: parsedSplitDetails?.upi_name,
+          description: invoice.description || invoice.notes || '',
           title: invoice.invoice_number,
         });
 
@@ -3063,6 +3226,14 @@ export function BillingPage() {
       const tierName = tierId ? (tier?.name || null) : null;
       const originalGradeId = item.original_grade_id ?? item.grade_id ?? null;
       const originalGradeRate = item.original_grade_rate ?? item.grade_rate ?? null;
+      const tierPriceStateIsCurrent = !hasTierPrice || (
+        item.offer_price == null &&
+        item.discount_percent == null &&
+        item.discount_flat == null &&
+        item.catalog_offer_price == null &&
+        item.catalog_discount_percent == null &&
+        item.catalog_discount_flat == null
+      );
 
       if (
         item.base_price === basePrice &&
@@ -3071,7 +3242,8 @@ export function BillingPage() {
         item.pricing_tier_name === tierName &&
         item.original_pricing_mode === originalPricingMode &&
         item.original_grade_id === originalGradeId &&
-        item.original_grade_rate === originalGradeRate
+        item.original_grade_rate === originalGradeRate &&
+        tierPriceStateIsCurrent
       ) {
         return item;
       }
@@ -3087,6 +3259,14 @@ export function BillingPage() {
         original_grade_rate: originalGradeRate,
         pricing_tier_id: tierId || null,
         pricing_tier_name: tierName,
+        ...(hasTierPrice ? {
+          offer_price: null,
+          discount_percent: null,
+          discount_flat: null,
+          catalog_offer_price: null,
+          catalog_discount_percent: null,
+          catalog_discount_flat: null,
+        } : {}),
       };
     });
     if (itemsChanged) {
@@ -3100,7 +3280,11 @@ export function BillingPage() {
     applyPricingTierToCart(tierId);
   }, [applyPricingTierToCart]);
 
-
+  useEffect(() => {
+    if (productPricingMapLoaded) {
+      applyPricingTierToCart(selectedTierId);
+    }
+  }, [productPricingMapLoaded, productPricingMap, selectedTierId, applyPricingTierToCart]);
 
   const applyPartyTier = (name: string, phone: string) => {
     const defaultTier = pricingTiers.find(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');
@@ -3164,6 +3348,7 @@ export function BillingPage() {
       ? +(1 / piecesPerKg).toFixed(3)
       : undefined;
     const tierPrice = getTierPriceForProduct(product);
+    const hasTierPrice = tierPrice != null;
     addItem({
       product_id: product.product_id,
       name: product.name,
@@ -3181,12 +3366,12 @@ export function BillingPage() {
       original_pricing_mode: product.pricing_mode,
       original_grade_id: product.grade_id ?? null,
       original_grade_rate: product.grade_rate ?? null,
-      discount_percent: product.discount_percent ?? null,
-      discount_flat: product.discount_flat ?? null,
-      offer_price: product.offer_price ?? null,
-      catalog_discount_percent: product.catalog_discount_percent !== undefined ? product.catalog_discount_percent : (product.discount_percent ?? null),
-      catalog_discount_flat: product.catalog_discount_flat !== undefined ? product.catalog_discount_flat : (product.discount_flat ?? null),
-      catalog_offer_price: product.catalog_offer_price !== undefined ? product.catalog_offer_price : (product.offer_price ?? null),
+      discount_percent: hasTierPrice ? null : (product.discount_percent ?? null),
+      discount_flat: hasTierPrice ? null : (product.discount_flat ?? null),
+      offer_price: hasTierPrice ? null : (product.offer_price ?? null),
+      catalog_discount_percent: hasTierPrice ? null : (product.catalog_discount_percent !== undefined ? product.catalog_discount_percent : (product.discount_percent ?? null)),
+      catalog_discount_flat: hasTierPrice ? null : (product.catalog_discount_flat !== undefined ? product.catalog_discount_flat : (product.discount_flat ?? null)),
+      catalog_offer_price: hasTierPrice ? null : (product.catalog_offer_price !== undefined ? product.catalog_offer_price : (product.offer_price ?? null)),
       sku_barcode: product.sku_barcode || null,
       brand_manufacturer: product.brand_manufacturer || null,
       isServiceItem: Number(product.is_service_item) ? true : undefined,
@@ -4021,18 +4206,61 @@ export function BillingPage() {
       useCartStore.getState().setEditingInvoice(null, null, null);
       setQuotationMode(true);
       
-      updateActiveTab({
-        customerName: '',
-        customerPhone: '',
-        customerGstin: '',
-        customerAddress: '',
-        paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
-        receivedAmount: 0,
-        reservedQuotationNumber: '',
-      });
-      syncActiveSnapshot();
-      await reserveQuotationNumberForTab(true);
-      syncActiveSnapshot();
+      const quotationSnapshot: TabSnapshot = {
+        items: [],
+        invoiceType: 'BILL_OF_SUPPLY',
+        discountType: 'FIXED',
+        discountValue: 0,
+        customerState: 'KL',
+        scrapDeduction: 0,
+        scrapInvoiceNumber: '',
+        returnDeduction: 0,
+        returnInvoiceNumber: '',
+        isQuotationMode: true,
+        isReturnMode: false,
+        isScrapMode: false,
+        returnRefundMethod: 'ADJUST_BILL',
+        editingQuotationId: null,
+        editingQuotationNumber: null,
+        editingInvoiceId: null,
+        editingInvoiceNumber: null,
+        editingInvoiceRole: null,
+        pendingScrapInvoiceToEdit: null,
+      };
+
+      const existingTabs = useTabStore.getState().tabs;
+      const currentActiveTabId = useTabStore.getState().activeTabId;
+      const activeTab = existingTabs.find(t => t.id === currentActiveTabId);
+
+      if (activeTab && (!activeTab.snapshot?.items || activeTab.snapshot.items.length === 0) && !activeTab.snapshot?.editingInvoiceNumber) {
+        updateActiveTab({
+          title: 'New Quote',
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
+          receivedAmount: 0,
+          reservedInvoiceNumber: '',
+          reservedQuotationNumber: '',
+        });
+        const { tabs: currentTabs, activeTabId: curTabId } = useTabStore.getState();
+        const updatedTabs = currentTabs.map(t => t.id === curTabId ? {
+          ...t,
+          title: 'New Quote',
+          reservedInvoiceNumber: '',
+          reservedQuotationNumber: '',
+          snapshot: quotationSnapshot,
+        } : t);
+        useTabStore.setState({ tabs: updatedTabs });
+        saveStoredTabs(updatedTabs, curTabId);
+        await reserveQuotationNumberForTab(true);
+        syncActiveSnapshot();
+      } else {
+        addTab(quotationSnapshot, 'New Quote');
+        await reserveQuotationNumberForTab(true);
+      }
+
       setTimeout(() => {
         window.focus();
         if (searchRef.current) {
@@ -4048,7 +4276,7 @@ export function BillingPage() {
 
     window.addEventListener('open-new-quotation', handler);
     return () => window.removeEventListener('open-new-quotation', handler);
-  }, [clearCart, setReturnMode, setIsScrapMode, setEditingQuotation, setQuotationMode, updateActiveTab, syncActiveSnapshot, reserveQuotationNumberForTab]);
+  }, [clearCart, setReturnMode, setIsScrapMode, setEditingQuotation, setQuotationMode, updateActiveTab, syncActiveSnapshot, reserveQuotationNumberForTab, isCashSettlementEnabled, addTab]);
 
   // Past bill selection: load selected invoice into cart for editing
   const handleSelectPastBill = async (invoice: any) => {
@@ -4428,51 +4656,7 @@ export function BillingPage() {
       }
 
       if (shouldPrint) {
-        let htmlToPrint = '';
-        try {
-          const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tid, key: 'print_format' });
-          const printFmt = parsePrintFormat(printFmtRaw);
-          if (printFmt.format === 'half-a4') {
-            const qBillSettings = {
-              ...DEFAULT_BILL_SETTINGS,
-              ...(printFmt.billSettings || {}),
-              instructions: quotationTerms || (printFmt.billSettings?.instructions || ''),
-            };
-            const qReceiptData: ReceiptData = {
-              shopName: shopNameState || shopName || 'Shop',
-              shopAddress: shopAddress || undefined,
-              shopPhone: shopPhone || undefined,
-              shopEmail: shopEmail || undefined,
-              shopWebsite: shopWebsite || undefined,
-              shopGstin: shopGstin || undefined,
-              invoiceNumber: quotationNumber,
-              invoiceType: 'QUOTATION',
-              date: new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone() }),
-              items: qItems.map(item => ({
-                name: item.name,
-                quantity: item.quantity,
-                unit_price: item.rate,
-                total: item.amount,
-              })),
-              subtotal: qSubtotal,
-              tax: qTaxTotal,
-              discount: 0,
-              grandTotal: qGrandTotal,
-              customerName: customerName || undefined,
-              customerPhone: customerPhone || undefined,
-              customerAddress: customerAddress || undefined,
-              customerState: customerState || undefined,
-              billerName: useAuthStore.getState().userName || undefined,
-              billSettings: qBillSettings,
-              a5Orientation: printFmt.a5Orientation || 'horizontal',
-            };
-            htmlToPrint = generateInvoiceHtml(qReceiptData, 'half-a4');
-          }
-        } catch (err) {
-          console.warn('Failed to load print format for quotation', err);
-        }
-
-        const fullHtml = htmlToPrint || `<!DOCTYPE html>
+        const fullHtml = `<!DOCTYPE html>
           <html>
             <head>
               <title>Quotation - ${shopName}</title>
@@ -5351,15 +5535,17 @@ export function BillingPage() {
       }
 
       // ── Normal Mode Checkout ──
-      const flags = getFeatureFlags();
+      const flags = useFeatureFlagsStore.getState().flags;
       if (flags?.biller_pin && !useCartStore.getState().billerStaffId) {
         setIsBillerPinModalOpen(true);
         return;
       }
       // Read PCS directly from DOM input elements (100% reliable — avoids ALL React state closure/batching issues)
       const pcsSnapshot: Record<string, number> = {};
+      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
       items.forEach(item => {
-        const domInput = qtyRefs.current[item.product_id];
+        const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
+        const domInput = isPiecesWeight ? pcsRefs.current[item.product_id] : qtyRefs.current[item.product_id];
         if (domInput) {
           const domVal = domInput.value.replace(/[^\d]/g, '');
           const parsed = parseInt(domVal, 10);
@@ -5393,7 +5579,7 @@ export function BillingPage() {
         }
       }
 
-      if (paymentMethod === 'SPLIT') {
+      if (paymentMethod === 'SPLIT' || (paymentMethod === 'CREDIT' && splitTotal > 0)) {
         const totalSplitEntered = splitTotal + (Number(splitDetails?.credit) || 0);
         if (totalSplitEntered <= 0) {
           setHardwareError('Please enter split payment breakdown amounts for Cash, Card, UPI, or Credit');
@@ -5412,9 +5598,10 @@ export function BillingPage() {
       const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
       const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscountCalc);
 
-      const isPaymentPending = paymentMethod === 'PENDING';
-      const defaultFullPaid = (paymentMethod === 'CASH' || paymentMethod === 'UPI' || paymentMethod === 'CARD') ? effectiveGrandTotal : 0;
-      const effectiveReceivedAmount = isPaymentPending ? 0 : (paymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
+      const effectiveFinalPaymentMethod = (paymentMethod === 'CREDIT' && splitTotal > 0) ? 'SPLIT' : paymentMethod;
+      const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
+      const defaultFullPaid = (effectiveFinalPaymentMethod === 'CASH' || effectiveFinalPaymentMethod === 'UPI' || effectiveFinalPaymentMethod === 'CARD') ? effectiveGrandTotal : 0;
+      const effectiveReceivedAmount = isPaymentPending ? 0 : (effectiveFinalPaymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
       const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
 
       const invoice_id = isEditing ? editingInvoiceId : uuidv4();
@@ -5616,7 +5803,7 @@ export function BillingPage() {
       // Pass grand total BEFORE scrap deduction so the receipt can properly show
       // the scrap deduction line and compute the correct final grand total.
       // Without this fix, scrap deduction was subtracted twice (here and in receiptGenerator).
-      const grandTotalBeforeScrap = Math.max(0, grandTotal - pointsRedeemedDiscount);
+      const grandTotalBeforeScrap = Math.max(0, (isGrandTotalOverridden ? (activeTab!.manualTotalOverride! + (storeScrapDeduction || 0) + (storeReturnDeduction || 0)) : grandTotal) - pointsRedeemedDiscount);
 
       const cleanCustName = (customerName || '').trim();
       const cleanCustPhone = (customerPhone || '').trim();
@@ -5629,10 +5816,10 @@ export function BillingPage() {
         const creditLimit = Number(matchedParty.credit_limit);
         // Determine how much of THIS bill is on credit
         let billCreditAmount = 0;
-        if (paymentMethod === 'CREDIT') {
+        if (effectiveFinalPaymentMethod === 'CREDIT') {
           // Whole bill goes on credit (effectiveGrandTotal already accounts for loyalty points)
           billCreditAmount = Math.max(0, effectiveGrandTotal);
-        } else if (paymentMethod === 'SPLIT') {
+        } else if (effectiveFinalPaymentMethod === 'SPLIT') {
           billCreditAmount = Math.max(0, Number(splitDetails.credit) || 0);
         }
         if (billCreditAmount > 0) {
@@ -5681,7 +5868,7 @@ export function BillingPage() {
         remainingPointsBalance: remainingPointsBalance > 0 ? remainingPointsBalance : undefined,
         scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
         returnDeduction: storeReturnDeduction || undefined, returnInvoiceNumber: storeReturnInvoiceNumber || undefined,
-        ...(paymentMethod === 'CREDIT'
+        ...(effectiveFinalPaymentMethod === 'CREDIT'
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveReceivedAmount,
@@ -5689,7 +5876,7 @@ export function BillingPage() {
               customerBalance: partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0),
               paymentMethod: 'CREDIT',
             }
-          : (paymentMethod === 'CASH' && !isPaymentPending)
+          : (effectiveFinalPaymentMethod === 'CASH' && !isPaymentPending)
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveReceivedAmount,
@@ -5701,7 +5888,7 @@ export function BillingPage() {
                 : undefined,
               paymentMethod: 'CASH',
             }
-          : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+          : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveGrandTotal - (Number(splitDetails?.credit) || 0),
@@ -5712,8 +5899,8 @@ export function BillingPage() {
           : {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               customerBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              ...(paymentMethod === 'SPLIT' ? { receivedAmount: effectiveReceivedAmount } : {}),
-              paymentMethod: paymentMethod,
+              ...(effectiveFinalPaymentMethod === 'SPLIT' ? { receivedAmount: effectiveReceivedAmount } : {}),
+              paymentMethod: effectiveFinalPaymentMethod,
             }
         ),
         invoiceType,
@@ -5745,19 +5932,19 @@ export function BillingPage() {
           invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: effectiveGrandTotal, payment_method: paymentMethod,
+          grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
           received_amount: effectiveReceivedAmount,
-          balance_amount: paymentMethod === 'CREDIT'
+          balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
             ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
-            : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+            : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
           split_details: {
-            ...(paymentMethod === 'SPLIT' ? (splitDetails || {}) : (splitDetails || {})),
+            ...((effectiveFinalPaymentMethod === 'SPLIT' || (splitDetails && Number(splitDetails.credit) > 0)) ? (splitDetails || {}) : (splitDetails || {})),
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
             ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(partyOldBalance !== 0 || paymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
-              ? { new_due: (paymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
+            ...(partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
+              ? { new_due: (effectiveFinalPaymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
               : {})
           },
           customer_name: customerName || null, customer_phone: customerPhone || null,
@@ -5783,19 +5970,19 @@ export function BillingPage() {
           invoice_number,
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: effectiveGrandTotal, payment_method: paymentMethod,
+          grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
           split_details: {
-            ...(paymentMethod === 'SPLIT' ? (splitDetails || {}) : (splitDetails || {})),
+            ...((effectiveFinalPaymentMethod === 'SPLIT' || (splitDetails && Number(splitDetails.credit) > 0)) ? (splitDetails || {}) : (splitDetails || {})),
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
             ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(partyOldBalance !== 0 || paymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
-              ? { new_due: (paymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
+            ...(partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
+              ? { new_due: (effectiveFinalPaymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
               : {})
           },
           received_amount: effectiveReceivedAmount,
-          balance_amount: paymentMethod === 'CREDIT'
+          balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
             ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
-            : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+            : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
           customer_name: customerName || null, customer_phone: customerPhone || null,
@@ -6067,7 +6254,7 @@ export function BillingPage() {
           items: returnItems.map(ri => ({ name: ri.name, quantity: ri.quantity, unit_price: ri.unit_price, total: ri.total, brand: ri.brand_manufacturer || undefined })),
           subtotal: returnSubtotal,
           tax: returnTaxTotal,
-          discount: 0,
+          discount: returnDiscountTotal,
           grandTotal: returnSubtotal + returnTaxTotal,
           invoiceType: 'RETURN',
           customerName: selectedReturnInvoice.customer_name || customerName || undefined,
@@ -6550,6 +6737,8 @@ export function BillingPage() {
       setInfoToast(`Payment Mode: ${nextMethod}`);
       setTimeout(() => setInfoToast(null), 2500);
     },
+    'Alt+t': () => { startEditingTotal(); },
+    'Alt+T': () => { startEditingTotal(); },
     'Alt+1': () => { updateActiveTab({ paymentMethod: 'CASH' }); setInfoToast('Payment Mode: CASH'); setTimeout(() => setInfoToast(null), 2000); },
     'Alt+2': () => { updateActiveTab({ paymentMethod: 'UPI' }); setInfoToast('Payment Mode: UPI'); setTimeout(() => setInfoToast(null), 2000); },
     'Alt+3': () => { updateActiveTab({ paymentMethod: 'CARD' }); setInfoToast('Payment Mode: CARD'); setTimeout(() => setInfoToast(null), 2000); },
@@ -7801,8 +7990,19 @@ export function BillingPage() {
 
               {/* Net Payable */}
               <div>
-                <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Net Payable</div>
-                <div className="font-mono text-base font-black text-primary">₹{displayGrandTotal.toFixed(2)}</div>
+                <div className="flex items-center gap-1">
+                  <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Net Payable</div>
+                  {isGrandTotalOverridden && (
+                    <span className="text-[8px] font-extrabold text-amber-600 bg-amber-500/15 px-1 py-0.2 rounded">Overridden</span>
+                  )}
+                </div>
+                <div
+                  className="font-mono text-base font-black text-primary cursor-pointer hover:underline"
+                  onClick={startEditingTotal}
+                  title="Click to edit total"
+                >
+                  ₹{displayGrandTotal.toFixed(2)}
+                </div>
               </div>
 
               {/* Balance / Change */}
@@ -8082,7 +8282,7 @@ export function BillingPage() {
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F5</span>
             </button>
           )}
-          {isHeaderButtonVisible(uiConfig, 'showQuotation') && (!featureFlags || featureFlags.quotations) && (
+          {(isHeaderButtonVisible(uiConfig, 'showQuotation') || isQuotationActive) && (!featureFlags || featureFlags.quotations) && (
           <button
               onClick={() => {
                 const next = !isQuotationMode;
@@ -8398,11 +8598,7 @@ export function BillingPage() {
                         <div className="text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1 flex-wrap">
                           <span className="font-semibold">
                             {isPiecesWeight ? (
-                              ppk > 0 ? (
-                                `${formatCurrency(rate)}/Kg (${formatCurrency(rate / ppk)}/Pc)`
-                              ) : (
-                                `${formatCurrency(rate)}/Kg`
-                              )
+                              `${formatCurrency(rate)}/Kg`
                             ) : (
                               `${formatCurrency(rate)}/unit`
                             )}
@@ -8776,41 +8972,26 @@ export function BillingPage() {
                   (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
                 );
 
-                // Commit Pcs value to store and sync Kg if pieces_per_kg exists
+                // Commit Pcs value to store (entirely independent from Kg)
                 const commitPcs = (pcsStr: string, isFinal = false) => {
                   const pcsVal = parseInt(pcsStr, 10);
                   if (!isNaN(pcsVal) && pcsVal >= 0) {
                     updatePiecesOverride(item.product_id, pcsVal);
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: String(pcsVal) }));
-                    if (_ppk > 0 && pcsVal > 0) {
-                      const calcKg = +(pcsVal / _ppk).toFixed(3);
-                      updateQuantity(item.product_id, calcKg);
-                      setLocalKgStr(p => ({ ...p, [item.product_id]: String(calcKg) }));
-                    }
                   } else if (pcsStr === '' && isFinal) {
                     updatePiecesOverride(item.product_id, 1);
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: '1' }));
-                    if (_ppk > 0) {
-                      const calcKg = +(1 / _ppk).toFixed(3);
-                      updateQuantity(item.product_id, calcKg);
-                      setLocalKgStr(p => ({ ...p, [item.product_id]: String(calcKg) }));
-                    }
                   } else if (isFinal) {
                     const fallback = item.pieces_override ?? 1;
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: String(fallback) }));
                   }
                 };
-                // Commit Kg value to store and sync Pcs if pieces_per_kg exists
+                // Commit Kg value to store (entirely independent from Pcs)
                 const commitKg = (kgStr: string, isFinal = false) => {
                   const cleaned = sanitizeQtyText(kgStr);
                   const kgVal = parseFloat(cleaned);
                   if (!isNaN(kgVal) && kgVal > 0) {
                     updateQuantity(item.product_id, +kgVal.toFixed(3));
-                    if (_ppk > 0) {
-                      const calcPcs = Math.max(1, Math.round(kgVal * _ppk));
-                      updatePiecesOverride(item.product_id, calcPcs);
-                      setLocalPcsStr(p => ({ ...p, [item.product_id]: String(calcPcs) }));
-                    }
                   } else if (isFinal) {
                     // Restore display on blur/final if empty or invalid
                     setLocalKgStr(p => ({ ...p, [item.product_id]: String(item.quantity ?? '') }));
@@ -9736,19 +9917,14 @@ export function BillingPage() {
                 ? 'max-h-[500px] opacity-100 scale-100'
                 : 'max-h-0 opacity-0 scale-95'
             )}>
-              <div className="space-y-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl mt-1">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                    {editingQuotationId ? `Editing Quotation ${editingQuotationNumber}` : 'New Quotation'}
-                  </span>
-                </div>
+              <div className="p-3.5 bg-blue-500/5 border border-blue-500/20 rounded-2xl mt-1">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1">Terms & Conditions</label>
                   <textarea
                     value={quotationTerms}
                     onChange={e => setQuotationTerms(e.target.value)}
-className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                    rows={3}
+                    className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                   />
                 </div>
               </div>
@@ -10304,6 +10480,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                             const raw = e.target.value;
                             setActiveDiscField('PCT');
                             setLocalDiscText(raw);
+                            if (activeTab?.manualTotalOverride) updateActiveTab({ manualTotalOverride: null });
                             if (raw === '' || raw === null || parseFloat(raw) === 0) {
                               setDiscount(0, 'PERCENTAGE');
                             } else {
@@ -10346,6 +10523,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                             const raw = e.target.value;
                             setActiveDiscField('FLAT');
                             setLocalDiscText(raw);
+                            if (activeTab?.manualTotalOverride) updateActiveTab({ manualTotalOverride: null });
                             if (raw === '' || raw === null || parseFloat(raw) === 0) {
                               setDiscount(0, 'FIXED');
                             } else {
@@ -10766,8 +10944,54 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   </p>
                   {isLoadingEditBill ? (
                     <Skeleton className="h-6 w-28 my-1 rounded-md" />
+                  ) : isEditingTotal ? (
+                    <div className="relative mt-1">
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-sm font-black text-primary select-none">₹</span>
+                      <input
+                        ref={totalOverrideInputRef}
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={overrideTotalInput}
+                        onChange={(e) => setOverrideTotalInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            commitTotalOverride();
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setIsEditingTotal(false);
+                          }
+                        }}
+                        onBlur={() => commitTotalOverride()}
+                        placeholder={String(rawDisplayGrandTotal)}
+                        className="w-32 pl-5 pr-2 py-0.5 bg-background border-2 border-primary rounded-xl text-xl font-black text-foreground outline-none no-spinners shadow-xs"
+                        autoFocus
+                      />
+                    </div>
                   ) : (
-                    <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
+                    <p
+                      onClick={startEditingTotal}
+                      title="Click to edit total"
+                      className="text-xl font-black text-foreground leading-none cursor-pointer mt-0.5 hover:text-primary transition-colors select-none"
+                    >
+                      {formatCurrency(displayGrandTotal)}
+                    </p>
+                  )}
+                  {isGrandTotalOverridden && !isLoadingEditBill && (
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md border border-amber-500/20">
+                        Overridden (Base: {formatCurrency(rawDisplayGrandTotal + (discount || 0))})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleResetGrandTotalOverride}
+                        title="Reset to calculated total"
+                        className="text-[9px] font-extrabold text-destructive hover:underline cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    </div>
                   )}
                   {refundAmount > 0 && !isLoadingEditBill && (
                     <p className="mt-1.5 text-[10px] font-black text-orange-600">

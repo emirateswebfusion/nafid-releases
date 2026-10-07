@@ -27,7 +27,7 @@ import { isAdminRole } from '../utils/permissions';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, setFeatureFlag, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey } from '../featureFlags';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../featureFlags';
 import { useTabStore } from '../store/tabStore';
 import { SUPPORTED_TIMEZONES, getStoreTimezone, setStoreTimezone } from '../utils/timezoneHelper';
 
@@ -256,7 +256,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [bankBranch, setBankBranch] = useState('');
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ ...DEFAULT_FEATURE_FLAGS });
+  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
   const [autoPrintBarcode, setAutoPrintBarcode] = useState(true);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
@@ -302,10 +302,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [effectiveCloudState, setEffectiveCloudState] = useState<any>(null);
 
   const handleToggleFeatureFlag = (key: FeatureKey, nextVal?: boolean) => {
-    const currentVal = featureFlags[key];
+    const currentVal = featureFlags?.[key];
     const targetVal = nextVal !== undefined ? nextVal : !currentVal;
 
-    let updatedFlags: FeatureFlags = { ...featureFlags, [key]: targetVal };
+    let updatedFlags: FeatureFlags = { ...DEFAULT_FEATURE_FLAGS, ...featureFlags, [key]: targetVal };
     if (key === 'cash_settlement' && !targetVal) {
       updatedFlags.cash_register = false;
       setShowCashRegister(false);
@@ -317,7 +317,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     }
 
     updatedFlags = sanitizeFeatureFlags(updatedFlags);
-    setFeatureFlags(updatedFlags);
+    useFeatureFlagsStore.getState().setFlags(updatedFlags);
   };
   const [drainingQueue, setDrainingQueue] = useState(false);
   const initialSnapshot = useRef<string>('');
@@ -795,11 +795,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         finalCashReg = finalFlags.cash_register;
       } else {
         try {
-          const flags = await loadFeatureFlags(currentTenant);
-          finalFlags = sanitizeFeatureFlags({ ...flags });
-          if (wereFeatureFlagsStored()) {
-            finalScrap = finalFlags.scrap;
-            finalCashReg = finalFlags.cash_register;
+          await loadFlags(currentTenant);
+          const flags = useFeatureFlagsStore.getState().flags;
+          if (flags) {
+            finalFlags = sanitizeFeatureFlags({ ...flags });
+            if (wereFeatureFlagsStored()) {
+              finalScrap = finalFlags.scrap;
+              finalCashReg = finalFlags.cash_register;
+            }
           }
         } catch {}
       }
@@ -993,7 +996,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setSyncFrequency(finalSyncFreq);
       setEnableScrap(finalScrap);
       setShowCashRegister(finalCashReg);
-      setFeatureFlags(finalFlags);
+      useFeatureFlagsStore.getState().setFlags(finalFlags);
       const storedBillingUI = allSettings['billing_ui_config'];
       if (storedBillingUI && typeof storedBillingUI === 'object') {
         const mergedCfg = {
@@ -1247,7 +1250,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         ? quotationPrefix.trim().replace(/-$/, '')
         : `${cleanCode}-QTN`;
 
-      const sanitizedFlags = sanitizeFeatureFlags(featureFlags);
+      const sanitizedFlags = sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS);
 
       const checks: { promise: Promise<any>; name: string }[] = [
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
@@ -1352,8 +1355,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setAppTimeFormat(timeFormat);
       useCartStore.setState({ shopState });
       useBillingUIStore.getState().updateConfig(billingUIConfig);
-      for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
-      setEnableScrap(Boolean(featureFlags.scrap));
+      useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS));
+      setEnableScrap(Boolean(featureFlags?.scrap));
       if (activeSection === 'network') {
         const syncStatusToast = (syncMode === 'LAN' || (syncMode === 'HYBRID' && lanRole === 'SECONDARY'))
           ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? `Primary Master Server IP ${detectedLocalIp || lanHostIp || '192.168.1.100'}:${lanPort}` : `Connected to Master Server ${lanHostIp}:${lanPort}`})`
@@ -1416,8 +1419,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         b2cStartNumber: finalB2cCounter,
         labelCodeType,
         labelShowShopName,
-        enableScrap: Boolean(featureFlags.scrap),
-        showCashRegister: featureFlags.cash_register,
+        enableScrap: Boolean(featureFlags?.scrap),
+        showCashRegister: Boolean(featureFlags?.cash_register),
         autoPrintBarcode,
         loyaltyEnabled,
         loyaltyEarningRate: Number(loyaltyEarningRate) || 100,
@@ -1962,10 +1965,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                     <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); setFeatureFlags(prev => ({ ...prev, loyalty: v })); }}>Enable Loyalty Points System</label>
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); useFeatureFlagsStore.getState().setFlag('loyalty', v); }}>Enable Loyalty Points System</label>
                       <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for future discounts.</p>
                     </div>
-                    <button type="button" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); setFeatureFlags(prev => ({ ...prev, loyalty: v })); }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <button type="button" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); useFeatureFlagsStore.getState().setFlag('loyalty', v); }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                       <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', loyaltyEnabled ? 'translate-x-5' : 'translate-x-0')} />
                     </button>
                   </div>
@@ -3223,11 +3226,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                   <button
                     type="button"
-                    onClick={() => setFeatureFlags({ ...featureFlags, biller_pin: !featureFlags.biller_pin })}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.biller_pin ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                    title={featureFlags.biller_pin ? 'Enabled' : 'Disabled'}
+                    onClick={() => { const v = !featureFlags?.biller_pin; useFeatureFlagsStore.getState().setFlag('biller_pin', v); }}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags?.biller_pin ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                    title={featureFlags?.biller_pin ? 'Enabled' : 'Disabled'}
                   >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.biller_pin ? 'translate-x-5' : 'translate-x-0')} />
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.biller_pin ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
 
@@ -3239,11 +3242,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                   <button
                     type="button"
-                    onClick={() => setFeatureFlags({ ...featureFlags, sales_staff: !featureFlags.sales_staff })}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.sales_staff ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                    title={featureFlags.sales_staff ? 'Enabled' : 'Disabled'}
+                    onClick={() => { const v = !featureFlags?.sales_staff; useFeatureFlagsStore.getState().setFlag('sales_staff', v); }}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags?.sales_staff ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                    title={featureFlags?.sales_staff ? 'Enabled' : 'Disabled'}
                   >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.sales_staff ? 'translate-x-5' : 'translate-x-0')} />
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.sales_staff ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
               </div>
@@ -3491,7 +3494,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <button
                     type="button"
                     onClick={() => {
-                      setFeatureFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, true])) as FeatureFlags));
+                      useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, true])) as FeatureFlags));
                       setShowCashRegister(true);
                     }}
                     className="px-3 py-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
@@ -3503,7 +3506,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {FEATURE_LIST.map(def => {
-                  const enabled = featureFlags[def.key];
+                  const enabled = featureFlags?.[def.key];
                   return (
                     <div
                       key={def.key}
@@ -4282,7 +4285,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             <button
               type="button"
               onClick={() => {
-                setFeatureFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags));
+                useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags));
                 setShowCashRegister(false);
                 setConfirmTurnOffAllModalOpen(false);
               }}

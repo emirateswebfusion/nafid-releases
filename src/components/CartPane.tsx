@@ -343,18 +343,10 @@ export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => voi
 
               const handlePcsChange = (pcsVal: number) => {
                 updatePiecesOverride(item.product_id, pcsVal);
-                if (item.pieces_per_kg && item.pieces_per_kg > 0 && pcsVal > 0) {
-                  const newKg = +(pcsVal / item.pieces_per_kg).toFixed(3);
-                  updateQuantity(item.product_id, newKg);
-                }
               };
 
               const handleKgChange = (kgVal: number) => {
                 updateQuantity(item.product_id, kgVal);
-                if (item.pieces_per_kg && item.pieces_per_kg > 0 && kgVal > 0) {
-                  const newPcs = Math.max(1, Math.round(kgVal * item.pieces_per_kg));
-                  updatePiecesOverride(item.product_id, newPcs);
-                }
               };
 
               const isLastAdded = item.product_id === lastAddedProductId;

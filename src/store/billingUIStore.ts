@@ -96,7 +96,7 @@ export const DEFAULT_HEADER_BUTTON_CONFIG: Required<HeaderButtonConfig> = {
   showHeldBills: true,
   showTransport: false,
   showScrap: true,
-  showQuotation: false,
+  showQuotation: true,
   showReturn: false,
   showRegister: false,
 };

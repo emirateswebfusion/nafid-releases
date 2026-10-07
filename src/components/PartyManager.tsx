@@ -268,6 +268,163 @@ export function PartyManager({
   };
 
   // ── Merge Duplicates Handlers ──────────────────────────────────────────────
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [selectedPrimaryMap, setSelectedPrimaryMap] = useState<Record<string, string>>({});
+
+  const duplicateGroups = useMemo(() => {
+    const phoneMap = new Map<string, Party[]>();
+    const nameMap = new Map<string, Party[]>();
+
+    parties.forEach(p => {
+      const pType = (p.party_type || 'CUSTOMER').toUpperCase();
+      const cleanPhone = (p.phone || '').replace(/\D/g, '');
+      if (cleanPhone.length >= 7) {
+        const last10 = cleanPhone.slice(-10);
+        const phoneKey = `${pType}:${last10}`;
+        if (!phoneMap.has(phoneKey)) phoneMap.set(phoneKey, []);
+        phoneMap.get(phoneKey)!.push(p);
+      }
+
+      const normName = (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (normName.length >= 3) {
+        const nameKey = `${pType}:${normName}`;
+        if (!nameMap.has(nameKey)) nameMap.set(nameKey, []);
+        nameMap.get(nameKey)!.push(p);
+      }
+    });
+
+    const groups: {
+      key: string;
+      reason: 'phone' | 'name';
+      matchValue: string;
+      parties: Party[];
+    }[] = [];
+
+    const processedPartyIds = new Set<string>();
+
+    for (const [phone, list] of phoneMap.entries()) {
+      if (list.length > 1) {
+        const available = list.filter(p => !processedPartyIds.has(p.party_id));
+        if (available.length > 1) {
+          available.sort((a, b) => {
+            const timeA = new Date(a.created_at || 0).getTime();
+            const timeB = new Date(b.created_at || 0).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            return (b.balance || 0) - (a.balance || 0);
+          });
+          groups.push({
+            key: `phone_${phone}`,
+            reason: 'phone',
+            matchValue: list[0].phone || phone,
+            parties: available
+          });
+          available.forEach(p => processedPartyIds.add(p.party_id));
+        }
+      }
+    }
+
+    for (const [name, list] of nameMap.entries()) {
+      if (list.length > 1) {
+        const available = list.filter(p => !processedPartyIds.has(p.party_id));
+        if (available.length > 1) {
+          available.sort((a, b) => {
+            const timeA = new Date(a.created_at || 0).getTime();
+            const timeB = new Date(b.created_at || 0).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            return (b.balance || 0) - (a.balance || 0);
+          });
+          groups.push({
+            key: `name_${name}`,
+            reason: 'name',
+            matchValue: list[0].name || name,
+            parties: available
+          });
+          available.forEach(p => processedPartyIds.add(p.party_id));
+        }
+      }
+    }
+
+    return groups;
+  }, [parties]);
+
+  const handleMergeGroup = async (group: typeof duplicateGroups[0]) => {
+    if (!tenantId) return;
+    setIsMerging(true);
+    try {
+      const primaryId = selectedPrimaryMap[group.key] || group.parties[0].party_id;
+      const primaryParty = group.parties.find(p => p.party_id === primaryId) || group.parties[0];
+      const duplicates = group.parties.filter(p => p.party_id !== primaryParty.party_id);
+
+      for (const dup of duplicates) {
+        if (window.electronAPI?.dbMergeParties) {
+          const res = await window.electronAPI.dbMergeParties({
+            tenant_id: tenantId,
+            primary_party_id: primaryParty.party_id,
+            secondary_party_id: dup.party_id,
+          });
+          if (!res?.success) throw new Error(res?.error || 'Local merge failed');
+          fetchApi('/parties/merge-duplicates', {
+            method: 'POST',
+            body: JSON.stringify({ party_ids: [primaryParty.party_id, dup.party_id] })
+          }).catch(() => {});
+        } else {
+          await fetchApi('/parties/merge-duplicates', {
+            method: 'POST',
+            body: JSON.stringify({ party_ids: [primaryParty.party_id, dup.party_id] })
+          });
+        }
+      }
+
+      showStatus(`Merged duplicate(s) into ${primaryParty.name}`, 'success');
+      await loadParties();
+    } catch (err: any) {
+      showStatus(err?.message || 'Failed to merge duplicates', 'error');
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const handleMergeAllDuplicates = async () => {
+    if (!tenantId || duplicateGroups.length === 0) return;
+    if (!window.confirm(`Merge all ${duplicateGroups.length} duplicate groups? Older records will be kept as master.`)) return;
+    setIsMerging(true);
+    try {
+      let count = 0;
+      for (const group of duplicateGroups) {
+        const primaryId = selectedPrimaryMap[group.key] || group.parties[0].party_id;
+        const primaryParty = group.parties.find(p => p.party_id === primaryId) || group.parties[0];
+        const duplicates = group.parties.filter(p => p.party_id !== primaryParty.party_id);
+
+        for (const dup of duplicates) {
+          if (window.electronAPI?.dbMergeParties) {
+            await window.electronAPI.dbMergeParties({
+              tenant_id: tenantId,
+              primary_party_id: primaryParty.party_id,
+              secondary_party_id: dup.party_id,
+            });
+            fetchApi('/parties/merge-duplicates', {
+              method: 'POST',
+              body: JSON.stringify({ party_ids: [primaryParty.party_id, dup.party_id] })
+            }).catch(() => {});
+          } else {
+            await fetchApi('/parties/merge-duplicates', {
+              method: 'POST',
+              body: JSON.stringify({ party_ids: [primaryParty.party_id, dup.party_id] })
+            });
+          }
+          count++;
+        }
+      }
+      showStatus(`Successfully merged ${count} duplicate parties!`, 'success');
+      await loadParties();
+      setShowMergeModal(false);
+    } catch (err: any) {
+      showStatus(err?.message || 'Failed to merge duplicates', 'error');
+    } finally {
+      setIsMerging(false);
+    }
+  };
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
@@ -967,6 +1124,19 @@ export function PartyManager({
           <div className="flex items-center gap-2 shrink-0">
             {view === 'list' && isOwner && (
               <>
+                {duplicateGroups.length > 0 && (
+                  <button
+                    onClick={() => setShowMergeModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer animate-pulse"
+                    title={`${duplicateGroups.length} duplicate customer/party group(s) detected`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Merge Duplicates</span>
+                    <span className="ml-0.5 px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-black">
+                      {duplicateGroups.length}
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => setShowUploadModal(true)}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -2991,6 +3161,122 @@ export function PartyManager({
           </div>
         </Modal>
       )}
+
+      {/* ── Merge Duplicates Modal ── */}
+      <Modal
+        isOpen={showMergeModal}
+        onClose={() => { if (!isMerging) setShowMergeModal(false); }}
+        title={
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-amber-500" />
+            <span>Duplicate Parties Detected ({duplicateGroups.length})</span>
+          </div>
+        }
+        className="max-w-3xl w-full"
+      >
+        <div className="p-6 flex flex-col gap-4 max-h-[75vh] overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-muted-foreground pb-2 border-b border-border/60">
+            <p>
+              The system detected identical customer names or phone numbers. Select which record to keep as <span className="text-emerald-500 font-bold">Primary</span>. All invoices and ledger entries will be transferred, and balances recomputed.
+            </p>
+            {duplicateGroups.length > 1 && (
+              <button
+                type="button"
+                disabled={isMerging}
+                onClick={handleMergeAllDuplicates}
+                className="shrink-0 ml-4 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {isMerging ? 'Merging...' : `Merge All (${duplicateGroups.length})`}
+              </button>
+            )}
+          </div>
+
+          {duplicateGroups.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500 mb-2 opacity-80" />
+              <p className="font-bold text-base text-foreground">No Duplicate Parties Found</p>
+              <p className="text-xs mt-1">All customers and suppliers have unique phone numbers and names.</p>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {duplicateGroups.map((group) => {
+                const currentPrimaryId = selectedPrimaryMap[group.key] || group.parties[0].party_id;
+                return (
+                  <div key={group.key} className="p-4 bg-muted/20 dark:bg-muted/10 border border-border/70 rounded-2xl flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          {group.reason === 'phone' ? 'Phone Match' : 'Name Match'}
+                        </span>
+                        <span className="text-xs font-mono font-bold text-foreground">
+                          {group.matchValue}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isMerging}
+                        onClick={() => handleMergeGroup(group)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {isMerging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        <span>Merge Pair</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {group.parties.map((p) => {
+                        const isPrimary = p.party_id === currentPrimaryId;
+                        return (
+                          <div
+                            key={p.party_id}
+                            onClick={() => setSelectedPrimaryMap(prev => ({ ...prev, [group.key]: p.party_id }))}
+                            className={clsx(
+                              'p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between text-xs',
+                              isPrimary
+                                ? 'bg-emerald-500/10 border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/30'
+                                : 'bg-card border-border/60 hover:border-border'
+                            )}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className={clsx('font-black text-xs truncate max-w-[200px]', isPrimary ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>
+                                {p.name}
+                              </span>
+                              <span className={clsx(
+                                'text-[10px] font-black px-2 py-0.5 rounded-full uppercase',
+                                isPrimary
+                                  ? 'bg-emerald-500 text-white dark:text-black'
+                                  : 'bg-muted text-muted-foreground'
+                              )}>
+                                {isPrimary ? 'Keep (Primary)' : 'Merge & Delete'}
+                              </span>
+                            </div>
+                            <div className="space-y-1 text-[11px] text-muted-foreground">
+                              {p.phone && <div><span className="font-semibold">Phone:</span> <span className="font-mono text-foreground">{p.phone}</span></div>}
+                              <div><span className="font-semibold">Balance:</span> <span className="font-bold text-foreground">₹{Number(p.balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                              {p.created_at && <div><span className="font-semibold">Created:</span> {new Date(p.created_at).toLocaleDateString()}</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-border flex justify-end">
+            <button
+              type="button"
+              disabled={isMerging}
+              onClick={() => setShowMergeModal(false)}
+              className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-xl transition-all cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} />
 

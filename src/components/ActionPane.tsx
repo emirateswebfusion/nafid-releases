@@ -12,7 +12,7 @@ import { Input } from './ui/Input';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
-import { loadFeatureFlags } from '../featureFlags';
+import { useFeatureFlagsStore } from '../featureFlags';
 import { useTabStore } from '../store/tabStore';
 import { BillerPinModal } from './BillerPinModal';
 
@@ -25,13 +25,13 @@ export function ActionPane() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const isCheckingOutRef = useRef(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
-  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
+  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [staffList, setStaffList] = useState<any[]>([]);
 
   useEffect(() => {
-    loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
-  }, [tenantId]);
+    loadFlags(tenantId || 'global');
+  }, [tenantId, loadFlags]);
 
   useEffect(() => {
     if (window.electronAPI?.dbGetStaff) {
@@ -121,6 +121,9 @@ export function ActionPane() {
             unit_price: ratePerPiece,
             tax_amount: taxAmount,
             total: itemTotal,
+            pieces_sold: item.pieces_override != null ? Number(item.pieces_override) : undefined,
+            billing_type: item.billing_type,
+            uom: item.uom || item.unit,
           };
         });
 
@@ -259,6 +262,8 @@ export function ActionPane() {
           shippingName: activeTab?.shippingName || undefined,
           shippingAddress: activeTab?.shippingAddress || undefined,
           shippingGstin: activeTab?.shippingGstin || undefined,
+          description: activeTab?.description || undefined,
+          notes: activeTab?.description || undefined,
           isB2B,
           billSettings,
           a5Orientation: printFmt.a5Orientation || 'horizontal',
@@ -281,6 +286,8 @@ export function ActionPane() {
           scrap_deduction: cartState.scrapDeduction || 0,
           scrap_invoice_number: cartState.scrapInvoiceNumber || null,
           grand_total: grandTotal,
+          description: activeTab?.description || null,
+          notes: activeTab?.description || null,
           items: lineItems,
         });
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { useTabStore } from '../store/tabStore';
+import { useTabStore, type TabSnapshot, saveStoredTabs } from '../store/tabStore';
 import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, Plus } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
@@ -130,7 +130,53 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     useCartStore.getState().setEditingInvoice(null, null, null);
     useCartStore.getState().setQuotationMode(true);
     localStorage.setItem('pendingNewQuotation', 'true');
-    useTabStore.getState().syncActiveSnapshot();
+
+    const quotationSnapshot: TabSnapshot = {
+      items: [],
+      invoiceType: 'BILL_OF_SUPPLY',
+      discountType: 'FIXED',
+      discountValue: 0,
+      customerState: 'KL',
+      scrapDeduction: 0,
+      scrapInvoiceNumber: '',
+      returnDeduction: 0,
+      returnInvoiceNumber: '',
+      isQuotationMode: true,
+      isReturnMode: false,
+      isScrapMode: false,
+      returnRefundMethod: 'ADJUST_BILL',
+      editingQuotationId: null,
+      editingQuotationNumber: null,
+      editingInvoiceId: null,
+      editingInvoiceNumber: null,
+      editingInvoiceRole: null,
+      pendingScrapInvoiceToEdit: null,
+    };
+
+    const tabStore = useTabStore.getState();
+    const existingTabs = tabStore.tabs;
+    const currentActiveTabId = tabStore.activeTabId;
+    const activeTab = existingTabs.find(t => t.id === currentActiveTabId);
+
+    if (activeTab && (!activeTab.snapshot?.items || activeTab.snapshot.items.length === 0) && !activeTab.snapshot?.editingInvoiceNumber) {
+      const updated = existingTabs.map(t => t.id === currentActiveTabId ? {
+        ...t,
+        title: 'New Quote',
+        customerName: '',
+        customerPhone: '',
+        customerGstin: '',
+        customerAddress: '',
+        receivedAmount: 0,
+        reservedInvoiceNumber: '',
+        reservedQuotationNumber: '',
+        snapshot: quotationSnapshot,
+      } : t);
+      useTabStore.setState({ tabs: updated });
+      saveStoredTabs(updated, currentActiveTabId);
+    } else {
+      tabStore.addTab(quotationSnapshot, 'New Quote');
+    }
+
     window.dispatchEvent(new CustomEvent('open-new-quotation'));
     onClose();
   };

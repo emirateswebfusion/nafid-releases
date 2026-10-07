@@ -32,14 +32,15 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
     } else if (isScrap) {
       displayNum = tab.reservedScrapInvoiceNumber || tab.title;
     } else if (isQuotation) {
-      displayNum = tab.reservedQuotationNumber || tab.title;
+      const isNormalInv = tab.reservedInvoiceNumber && tab.title === tab.reservedInvoiceNumber;
+      displayNum = tab.reservedQuotationNumber || (tab.title && !isNormalInv ? tab.title : 'New Quote');
     } else if (editingNumber) {
       displayNum = editingNumber;
     } else {
       displayNum = tab.reservedInvoiceNumber || tab.title;
     }
 
-    if (!displayNum) return 'New Bill';
+    if (!displayNum) return isQuotation ? 'New Quote' : 'New Bill';
     if (enableThreeInvoiceSeries) {
       return displayNum;
     }
@@ -53,18 +54,25 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
   return (
     <div className="flex items-end bg-muted/30 border-b border-border overflow-x-auto shrink-0">
       <div className="flex items-end gap-0 px-1">
-        {tabs.map(tab => (
-          <div
-            key={tab.id}
-            onClick={() => switchTab(tab.id)}
-            className={clsx(
-              'flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg border border-border cursor-pointer select-none whitespace-nowrap transition-colors -mb-px',
-              tab.id === activeTabId
-                ? 'bg-background text-foreground border-b-background shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            )}
-          >
-            <span className="truncate max-w-[120px]">{formatTabTitle(tab)}</span>
+        {tabs.map(tab => {
+          const isQuotationTab = !!tab.snapshot?.isQuotationMode;
+          return (
+            <div
+              key={tab.id}
+              onClick={() => switchTab(tab.id)}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg border border-border cursor-pointer select-none whitespace-nowrap transition-colors -mb-px',
+                tab.id === activeTabId
+                  ? isQuotationTab
+                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-b-background shadow-sm font-semibold'
+                    : 'bg-background text-foreground border-b-background shadow-sm'
+                  : isQuotationTab
+                    ? 'text-blue-500/70 hover:text-blue-600 hover:bg-blue-500/5'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              {isQuotationTab && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />}
+              <span className="truncate max-w-[120px]">{formatTabTitle(tab)}</span>
             {tabs.length > 1 && (
               <button
                 onClick={(e) => handleClose(e, tab.id)}
@@ -74,7 +82,8 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
               </button>
             )}
           </div>
-        ))}
+        );
+      })}
         <button
           onClick={handleAdd}
           className="flex items-center justify-center p-2 ml-0.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"

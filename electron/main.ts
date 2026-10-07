@@ -1091,6 +1091,11 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
       }
     }
 
+    if (arg?.isGst !== undefined) {
+      query += ' AND is_gst_applicable = ?';
+      params.push(arg.isGst ? 1 : 0);
+    }
+
     const result = db.prepare(query).get(...params) as { count: number };
     return result ? result.count : 0;
   } catch (error: any) {
@@ -1330,8 +1335,64 @@ ipcMain.handle('db:bulkDeleteProducts', (event, productIds: string[]) => {
 ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => {
   try {
     const db = getDb();
+    
+    if (!products.length) return { success: true };
+    const tenantId = products[0].tenant_id;
+    
+    // Get pricing tiers for this tenant to map names to IDs
+    interface PricingTier { pricing_tier_id: string; name: string; }
+    const tiers = db.prepare('SELECT pricing_tier_id, name FROM pricing_tiers WHERE tenant_id = ? AND is_deleted = 0').all(tenantId) as PricingTier[];
+    const tierNameToId = new Map<string, string>();
+    for (const t of tiers) {
+      tierNameToId.set(t.name.toLowerCase().trim(), t.pricing_tier_id);
+    }
+    
+    // Helper: get or create tier by name dynamically (auto-create if missing)
+    const getOrCreateTierId = (tierName: string): string => {
+      const trimmed = tierName.trim();
+      const normalized = trimmed.toLowerCase();
+      let tierId = tierNameToId.get(normalized);
+      if (tierId) return tierId;
+
+      // Dynamic match against existing tiers (strip spaces and non-alphanumeric chars)
+      const cleanName = normalized.replace(/[^a-z0-9]/g, '');
+      if (cleanName) {
+        for (const t of tiers) {
+          const cleanTier = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (
+            cleanName === cleanTier ||
+            cleanName === `${cleanTier}price` ||
+            cleanName === `${cleanTier}rate` ||
+            cleanTier.includes(cleanName) ||
+            cleanName.includes(cleanTier)
+          ) {
+            tierNameToId.set(normalized, t.pricing_tier_id);
+            return t.pricing_tier_id;
+          }
+        }
+      }
+      
+      // Auto-create missing tier dynamically with the exact provided name
+      const newTierId = crypto.randomUUID();
+      const now = localTimestamp(new Date());
+      db.prepare(`
+        INSERT INTO pricing_tiers (pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, 1, ?, 0, 'PENDING', ?, ?)
+      `).run(newTierId, tenantId, trimmed, tiers.length, now, now);
+      
+      tierNameToId.set(normalized, newTierId);
+      if (cleanName) tierNameToId.set(cleanName, newTierId);
+      tiers.push({ pricing_tier_id: newTierId, name: trimmed });
+      console.log('[bulkImportProducts] Auto-created dynamic tier:', trimmed, '->', newTierId);
+      return newTierId;
+    };
+    
     const transaction = db.transaction((prods) => {
-      const stmt = db.prepare(`
+      const findExistingByBarcode = db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND sku_barcode = ?`);
+      const findExistingByItemCode = db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND item_code = ?`);
+      const findExistingByName = db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND COALESCE(brand_manufacturer, '') = COALESCE(?, '')`);
+
+      const insertStmt = db.prepare(`
         INSERT INTO products (
           product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
           purchase_price, base_price, is_gst_applicable, tax_rate_percent,
@@ -1339,50 +1400,160 @@ ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => 
           discount_percent, discount_flat, offer_price,
           is_deleted, billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
           sync_status, print_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', ?, ?)
+      `);
+
+      const updateStmt = db.prepare(`
+        UPDATE products SET
+          name = ?,
+          sku_barcode = COALESCE(?, sku_barcode),
+          item_code = COALESCE(?, item_code),
+          category = COALESCE(?, category),
+          hsn_sac_code = COALESCE(?, hsn_sac_code),
+          purchase_price = ?,
+          base_price = ?,
+          is_gst_applicable = ?,
+          tax_rate_percent = ?,
+          uom = COALESCE(?, uom),
+          brand_manufacturer = COALESCE(?, brand_manufacturer),
+          current_stock = ?,
+          reorder_level = ?,
+          domain_attributes = COALESCE(?, domain_attributes),
+          discount_percent = ?,
+          discount_flat = ?,
+          offer_price = ?,
+          is_deleted = 0,
+          billing_type = COALESCE(?, billing_type),
+          grade_id = COALESCE(?, grade_id),
+          pricing_mode = COALESCE(?, pricing_mode),
+          average_weight_per_piece = COALESCE(?, average_weight_per_piece),
+          weight_override_allowed = COALESCE(?, weight_override_allowed),
+          sync_status = 'PENDING',
+          updated_at = ?
+        WHERE product_id = ?
+      `);
+      
+      const tierStmt = db.prepare(`
+        INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
+        ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET
+          price = EXCLUDED.price,
+          is_deleted = 0,
+          sync_status = 'PENDING',
+          updated_at = EXCLUDED.updated_at
       `);
       
       const now = new Date();
       for (const p of prods) {
         now.setMilliseconds(now.getMilliseconds() + 1);
         const timestamp = localTimestamp(now);
+
+        const cleanBarcode = (p.sku_barcode && String(p.sku_barcode).trim()) ? String(p.sku_barcode).trim() : null;
+        const cleanItemCode = (p.item_code && String(p.item_code).trim()) ? String(p.item_code).trim() : null;
+        const cleanName = (p.name && String(p.name).trim()) ? String(p.name).trim() : '';
+
+        let existingId: string | null = null;
+        if (cleanBarcode) {
+          const row = findExistingByBarcode.get(tenantId, cleanBarcode) as any;
+          if (row?.product_id) existingId = row.product_id;
+        }
+        if (!existingId && cleanItemCode) {
+          const row = findExistingByItemCode.get(tenantId, cleanItemCode) as any;
+          if (row?.product_id) existingId = row.product_id;
+        }
+        if (!existingId && cleanName) {
+          const row = findExistingByName.get(tenantId, cleanName, p.brand_manufacturer || '') as any;
+          if (row?.product_id) existingId = row.product_id;
+        }
+
+        const effectiveProductId = existingId || p.product_id || crypto.randomUUID();
+
+        if (existingId) {
+          updateStmt.run(
+            p.name,
+            cleanBarcode,
+            cleanItemCode,
+            p.category || null,
+            p.hsn_sac_code || null,
+            p.purchase_price || 0,
+            p.base_price || 0,
+            p.is_gst_applicable ?? 1,
+            p.tax_rate_percent || 0,
+            p.uom || 'Pcs',
+            p.brand_manufacturer || null,
+            p.current_stock || 0,
+            p.reorder_level || 0,
+            typeof p.domain_attributes === 'string' ? p.domain_attributes : JSON.stringify(p.domain_attributes ?? {}),
+            p.discount_percent ?? null,
+            p.discount_flat ?? null,
+            p.offer_price ?? null,
+            p.billing_type || 'PIECE',
+            p.grade_id || null,
+            p.pricing_mode || 'FIXED_PRICE',
+            p.average_weight_per_piece ?? null,
+            p.weight_override_allowed ?? 0,
+            timestamp,
+            existingId
+          );
+        } else {
+          insertStmt.run(
+            effectiveProductId,
+            p.tenant_id,
+            p.name,
+            cleanBarcode,
+            cleanItemCode,
+            p.category || null,
+            p.hsn_sac_code || null,
+            p.purchase_price || 0,
+            p.base_price || 0,
+            p.is_gst_applicable ?? 1,
+            p.tax_rate_percent || 0,
+            p.uom || 'Pcs',
+            p.brand_manufacturer || null,
+            p.current_stock || 0,
+            p.reorder_level || 0,
+            typeof p.domain_attributes === 'string' ? p.domain_attributes : JSON.stringify(p.domain_attributes ?? {}),
+            p.discount_percent ?? null,
+            p.discount_flat ?? null,
+            p.offer_price ?? null,
+            p.billing_type || 'PIECE',
+            p.grade_id || null,
+            p.pricing_mode || 'FIXED_PRICE',
+            p.average_weight_per_piece ?? null,
+            p.weight_override_allowed ?? 0,
+            timestamp,
+            timestamp
+          );
+        }
         
-        stmt.run(
-          p.product_id,
-          p.tenant_id,
-          p.name,
-          p.sku_barcode,
-          p.item_code || null,
-          p.category || null,
-          p.hsn_sac_code || null,
-          p.purchase_price || 0,
-          p.base_price || 0,
-          p.is_gst_applicable ?? 1,
-          p.tax_rate_percent || 0,
-          p.uom || 'Pcs',
-          p.brand_manufacturer || null,
-          p.current_stock || 0,
-          p.reorder_level || 0,
-           typeof p.domain_attributes === 'string' ? p.domain_attributes : JSON.stringify(p.domain_attributes ?? {}),
-           p.discount_percent ?? null,
-           p.discount_flat ?? null,
-           p.offer_price ?? null,
-           0,
-           p.billing_type || 'PIECE',
-          p.grade_id || null,
-          p.pricing_mode || 'FIXED_PRICE',
-          p.average_weight_per_piece ?? null,
-          p.weight_override_allowed ?? 0,
-          timestamp,
-          timestamp
-        );
+        // Handle tier prices - support both tier_id keys and tier_name keys
+        if (p.tier_prices && typeof p.tier_prices === 'object') {
+          for (const [key, price] of Object.entries(p.tier_prices)) {
+            const priceNum = Number(price);
+            if (!isNaN(priceNum) && priceNum >= 0) {
+              let tierId = tierNameToId.get(key.toLowerCase().trim());
+              // Also try direct tier_id match
+              if (!tierId) {
+                const directMatch = tiers.find(t => t.pricing_tier_id === key);
+                if (directMatch) tierId = directMatch.pricing_tier_id;
+              }
+              // Auto-create tier if not found
+              if (!tierId) {
+                tierId = getOrCreateTierId(key);
+              }
+              if (tierId) {
+                tierStmt.run(crypto.randomUUID(), tenantId, effectiveProductId, tierId, priceNum, timestamp, timestamp);
+              }
+            }
+          }
+        }
       }
     });
     transaction(products);
     return { success: true };
   } catch (error: any) {
     console.error('[db:bulkImportProducts]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error?.message || 'Operation failed' };
   }
 }));
 
@@ -1896,6 +2067,11 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
 }));
 
 // â”€â”€ Party (Credit Person) Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function deterministicUUID(seed: string): string {
+  const hash = crypto.createHash('sha1').update(seed).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
 ipcMain.handle('db:getParties', (event, tenantId: string, includeDeleted = false) => {
   try {
     const db = getDb();
@@ -1961,7 +2137,7 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
       const amount = Math.abs(parseFloat(p.balance));
-      const ledgerId = p.party_id + '-OPENING';
+      const ledgerId = deterministicUUID(`party_opening:${p.party_id}`);
       db.prepare(`
         INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, created_by, created_by_name, created_at, updated_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, 'GST', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -2073,7 +2249,7 @@ ipcMain.handle('db:bulkImportParties', safeHandler((event, parties: any[]) => {
 
           if (p.balance && parseFloat(p.balance) !== 0) {
             const amount = Math.abs(parseFloat(p.balance));
-            const ledgerId = p.party_id + '-OPENING';
+            const ledgerId = deterministicUUID(`party_opening:${p.party_id}`);
             insertLedgerStmt.run(
               ledgerId, p.party_id, p.tenant_id, timestamp,
               `Opening Balance (${bt === 'RECEIVABLE' ? 'Receivable' : 'Payable'})`,
@@ -2174,15 +2350,15 @@ ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id
 // Recompute a party's GST / Estimate / total balances from its ledger entries
 function recalcPartyBalances(db: any, partyId: string) {
   try {
-    // 1. Deduplicate by non-empty reference_number (e.g. 7Z4D-043, 7Z4D-043-PAY)
+    // 1. Deduplicate entries by reference_number, description, credit_amount, and debit_amount
     const refDups = db.prepare(`
-      SELECT reference_number, COUNT(*) as cnt 
+      SELECT reference_number, description, credit_amount, debit_amount, COUNT(*) as cnt 
       FROM party_ledger 
       WHERE party_id = ? 
         AND reference_number IS NOT NULL 
         AND TRIM(reference_number) <> '' 
         AND (is_deleted IS NULL OR is_deleted = 0)
-      GROUP BY reference_number 
+      GROUP BY reference_number, description, credit_amount, debit_amount 
       HAVING cnt > 1
     `).all(partyId) as any[];
 
@@ -2191,9 +2367,12 @@ function recalcPartyBalances(db: any, partyId: string) {
         SELECT ledger_id FROM party_ledger
         WHERE party_id = ? 
           AND reference_number = ? 
+          AND description = ?
+          AND credit_amount = ?
+          AND debit_amount = ?
           AND (is_deleted IS NULL OR is_deleted = 0)
         ORDER BY created_at ASC, rowid ASC
-      `).all(partyId, d.reference_number) as any[];
+      `).all(partyId, d.reference_number, d.description, d.credit_amount, d.debit_amount) as any[];
 
       for (let i = 1; i < rows.length; i++) {
         db.prepare(`
@@ -2244,6 +2423,7 @@ function recalcPartyBalances(db: any, partyId: string) {
     let running = 0;
     for (const row of activeEntries) {
       running += (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0);
+      running = Math.round(running * 100) / 100;
       db.prepare(`UPDATE party_ledger SET running_balance = ? WHERE ledger_id = ?`).run(running, row.ledger_id);
     }
   } catch (err) {
@@ -2256,9 +2436,9 @@ function recalcPartyBalances(db: any, partyId: string) {
             COALESCE(SUM(credit_amount - debit_amount), 0) AS total
      FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)`
   ).get(partyId) as any;
-  const gst = parseFloat(rows.gst) || 0;
-  const estimate = parseFloat(rows.estimate) || 0;
-  const total = gst + estimate;
+  const gst = Math.round((parseFloat(rows.gst) || 0) * 100) / 100;
+  const estimate = Math.round((parseFloat(rows.estimate) || 0) * 100) / 100;
+  const total = Math.round((gst + estimate) * 100) / 100;
   const latest = db.prepare(`SELECT transaction_date FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date DESC LIMIT 1`).get(partyId) as any;
   db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
@@ -2309,11 +2489,17 @@ ipcMain.handle('db:mergeParties', safeHandler((event, payload: { tenant_id: stri
         WHERE party_id = ? AND tenant_id = ?
       `).run(secondary_party_id, tenant_id);
 
-      // 4. Recalculate primary party balance
+      // 4. Recalculate primary party balance (soft-deletes duplicate reference numbers & exact matches)
       recalcPartyBalances(db, primary_party_id);
+      recalcPartyBalances(db, secondary_party_id);
     });
 
     tx();
+
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Merge sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
+
     return { success: true };
   } catch (error: any) {
     console.error('[db:mergeParties]', error);
@@ -2338,6 +2524,7 @@ export function syncInvoiceCreditLedger(
     customer_gstin?: string | null;
     user_id?: string;
     user_name?: string;
+    split_details?: any;
     created_at?: string;
   },
   isDelete = false
@@ -2405,41 +2592,52 @@ export function syncInvoiceCreditLedger(
       if (firstEntry.party_id) {
         party = db.prepare(`
           SELECT * FROM parties 
-          WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          WHERE party_id = ? AND tenant_id = ?
         `).get(firstEntry.party_id, tenantId);
+        if (party && party.is_deleted === 1) {
+          db.prepare(`UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`).run(party.party_id);
+          party.is_deleted = 0;
+        }
       }
     }
 
-    // 2. Find party by normalized phone
+    // 2. Find party by normalized phone (check active and soft-deleted)
     const normPhone = custPhone.replace(/\D/g, '');
-    if (!party && normPhone.length >= 5) {
+    if (!party && normPhone.length >= 7) {
       const allParties = db.prepare(`
         SELECT * FROM parties 
-        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+        WHERE tenant_id = ?
       `).all(tenantId) as any[];
 
       party = allParties.find((p: any) => {
         if (!p.phone) return false;
+        if (p.party_type && p.party_type.toUpperCase() === 'SUPPLIER') return false;
         const pPhoneDigits = p.phone.replace(/\D/g, '');
         return pPhoneDigits === normPhone || (normPhone.length >= 10 && pPhoneDigits.slice(-10) === normPhone.slice(-10));
       });
+
+      if (party && party.is_deleted === 1) {
+        db.prepare(`UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`).run(party.party_id);
+        party.is_deleted = 0;
+      }
     }
 
-    // 3. Find party by normalized name
+    // 3. Find party by normalized name (check active and soft-deleted, prioritize customers)
     if (!party && custName) {
       const normName = custName.toLowerCase().replace(/\s+/g, ' ');
-      party = db.prepare(`
+      const allParties = db.prepare(`
         SELECT * FROM parties 
-        WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      `).get(tenantId, normName);
+        WHERE tenant_id = ?
+      `).all(tenantId) as any[];
 
-      if (!party) {
-        const allParties = db.prepare(`
-          SELECT * FROM parties 
-          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-        `).all(tenantId) as any[];
+      party = allParties.find((p: any) => {
+        if (p.party_type && p.party_type.toUpperCase() === 'SUPPLIER') return false;
+        return (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName;
+      });
 
-        party = allParties.find((p: any) => (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName);
+      if (party && party.is_deleted === 1) {
+        db.prepare(`UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`).run(party.party_id);
+        party.is_deleted = 0;
       }
     }
 
@@ -2453,12 +2651,15 @@ export function syncInvoiceCreditLedger(
         SET phone = CASE WHEN ? <> '' THEN ? ELSE phone END,
             address = CASE WHEN ? <> '' THEN ? ELSE address END,
             gstin = CASE WHEN ? <> '' THEN ? ELSE gstin END,
+            is_deleted = 0,
             sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
             updated_at = CURRENT_TIMESTAMP
         WHERE party_id = ?
       `).run(newPhone, newPhone, newAddr, newAddr, newGst, newGst, party.party_id);
     } else {
-      const newPartyId = crypto.randomUUID();
+      const newPartyId = normPhone.length >= 7
+        ? deterministicUUID(`party:${tenantId}:${normPhone.slice(-10)}`)
+        : (custName ? deterministicUUID(`party:${tenantId}:${custName.toLowerCase().trim()}`) : crypto.randomUUID());
       db.prepare(`
         INSERT INTO parties (
           party_id, tenant_id, name, phone, address, gstin, 
@@ -2466,6 +2667,13 @@ export function syncInvoiceCreditLedger(
           notes, pricing_tier_id, credit_limit, is_deleted, sync_status, created_at, updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', NULL, NULL, 0, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(party_id) DO UPDATE SET
+          name = excluded.name,
+          phone = COALESCE(excluded.phone, parties.phone),
+          address = COALESCE(excluded.address, parties.address),
+          is_deleted = 0,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
       `).run(
         newPartyId, tenantId, custName || custPhone, custPhone || null, custAddress, custGstin
       );
@@ -2499,7 +2707,8 @@ export function syncInvoiceCreditLedger(
     const saleEntry = existingEntries.find(e => e.party_id === party.party_id && e.reference_number === invoiceNumber);
     const payEntry = existingEntries.find(e => e.party_id === party.party_id && e.reference_number === `${invoiceNumber}-PAY`);
 
-    // 1. Credit Sale entry
+    // 1. Credit Sale entry (deterministic UUID guarantees idempotency across devices/sync)
+    const saleLedgerId = saleEntry ? saleEntry.ledger_id : deterministicUUID(`credit_sale:${tenantId}:${invoiceNumber}`);
     if (saleEntry) {
       db.prepare(`
         UPDATE party_ledger SET
@@ -2515,7 +2724,6 @@ export function syncInvoiceCreditLedger(
         saleEntry.ledger_id
       );
     } else {
-      const saleLedgerId = crypto.randomUUID();
       db.prepare(`
         INSERT INTO party_ledger (
           ledger_id, party_id, tenant_id, transaction_date, description,
@@ -2524,6 +2732,16 @@ export function syncInvoiceCreditLedger(
           is_deleted, sync_status, created_at, updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'CREDIT', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(ledger_id) DO UPDATE SET
+          credit_amount = excluded.credit_amount,
+          debit_amount = 0,
+          description = excluded.description,
+          transaction_date = excluded.transaction_date,
+          balance_type = excluded.balance_type,
+          payment_method = 'CREDIT',
+          is_deleted = 0,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
       `).run(
         saleLedgerId,
         party.party_id,
@@ -2540,6 +2758,7 @@ export function syncInvoiceCreditLedger(
 
     // 2. Immediate Cash payment at checkout (if customer paid partial cash)
     if (receivedAmount > 0) {
+      const payLedgerId = payEntry ? payEntry.ledger_id : deterministicUUID(`credit_pay:${tenantId}:${invoiceNumber}`);
       if (payEntry) {
         db.prepare(`
           UPDATE party_ledger SET
@@ -2555,7 +2774,6 @@ export function syncInvoiceCreditLedger(
           payEntry.ledger_id
         );
       } else {
-        const payLedgerId = crypto.randomUUID();
         db.prepare(`
           INSERT INTO party_ledger (
             ledger_id, party_id, tenant_id, transaction_date, description,
@@ -2564,6 +2782,16 @@ export function syncInvoiceCreditLedger(
             is_deleted, sync_status, created_at, updated_at
           )
           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(ledger_id) DO UPDATE SET
+            credit_amount = 0,
+            debit_amount = excluded.debit_amount,
+            description = excluded.description,
+            transaction_date = excluded.transaction_date,
+            balance_type = excluded.balance_type,
+            payment_method = 'CASH',
+            is_deleted = 0,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
         `).run(
           payLedgerId,
           party.party_id,
@@ -2747,10 +2975,7 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
       entry.created_by_name || null
     );
 
-    const delta = creditAmount - debitAmount;
-    const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
-    db.prepare(`UPDATE parties SET balance = ?, ${balanceCol} = ${balanceCol} + ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-      .run(newBalance, delta, entry.transaction_date || new Date().toISOString(), entry.party_id);
+    recalcPartyBalances(db, entry.party_id);
 
     return { success: true };
   } catch (error: any) {
@@ -2913,7 +3138,18 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       const custName = (invoice.customer_name || '').trim();
       let matchedParty: any = null;
       if (custPhone) {
-        matchedParty = db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, custPhone);
+        const cleanDigits = custPhone.replace(/\D/g, '');
+        if (cleanDigits.length >= 7) {
+          const last10 = cleanDigits.slice(-10);
+          matchedParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
+            LIMIT 1
+          `).get(tenantId, custPhone, `%${last10}`);
+        } else {
+          matchedParty = db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, custPhone);
+        }
       }
       if (!matchedParty && custName) {
         matchedParty = db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, custName);
@@ -3821,15 +4057,15 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     }
 
     if (search) {
-      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     if (payment_method) {
       const pmUpper = payment_method.toUpperCase();
       if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
         const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
-        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) = 'SPLIT' AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
+        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
         params.push(pmUpper);
       } else {
         query += ' AND UPPER(i.payment_method) = ?';
@@ -3910,7 +4146,7 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
       SELECT 
         COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN 
           CASE
-            WHEN UPPER(i.payment_method) = 'SPLIT' AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+            WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
               THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
             ELSE MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
@@ -3933,15 +4169,15 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     }
 
     if (search) {
-      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     if (payment_method) {
       const pmUpper = payment_method.toUpperCase();
       if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
         const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
-        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) = 'SPLIT' AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
+        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
         params.push(pmUpper);
       } else {
         query += ' AND UPPER(i.payment_method) = ?';
@@ -4198,6 +4434,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       customer_phone: invoice.customer_phone,
       customer_address: invoice.customer_address,
       customer_gstin: invoice.customer_gstin,
+      split_details: (invoice as any).split_details || (payload as any).split_details || existingInv.split_details,
       user_id: payload.role,
       user_name: payload.role,
       created_at: existingInv.created_at,
@@ -4284,6 +4521,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       customer_phone: existingInv.customer_phone,
       customer_address: existingInv.customer_address,
       customer_gstin: existingInv.customer_gstin,
+      split_details: payload.split_details ?? existingInv.split_details,
       created_at: existingInv.created_at,
     });
     backfillLastRun = 0; // reset so next db:getParties re-scans
@@ -5523,7 +5761,8 @@ ipcMain.handle('db:deduplicateScrapCategories', () => {
 ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
   try {
     const db = getDb();
-    const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
+    const qtyNum = Number(t.quantity) || 0;
+    const delta = t.type === 'PURCHASE' ? qtyNum : -qtyNum;
     const paymentStatus = t.payment_status || 'CASH';
     const result = db.transaction(() => {
       if (t.party_name || t.customer_phone) {
@@ -5532,7 +5771,7 @@ ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
       db.prepare(`
         INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.customer_phone || null, t.customer_address || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
+      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, qtyNum, t.rate, t.total_amount, t.party_name || null, t.customer_phone || null, t.customer_address || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
       db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(delta, t.scrap_category_id);
 
       if (t.type === 'PURCHASE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
@@ -5556,6 +5795,28 @@ ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
           db.prepare(`
             UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
           `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+        }
+      } else if (t.type === 'SALE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
+        const todayDate = localDate();
+        const drawer = getOpenCashDrawer(db, t.tenant_id || 'global', todayDate);
+        if (drawer) {
+          const txnId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, sync_status)
+            VALUES (?, ?, ?, 'CASH_IN', ?, 'SCRAP_SALE', ?, 'system', 'PENDING')
+          `).run(
+            txnId,
+            t.tenant_id || 'global',
+            drawer.drawer_id,
+            Number(t.total_amount),
+            `Scrap sale ${t.scrap_invoice_number || ''}`.trim()
+          );
+          const newCashSales = Number(drawer.cash_sales) + Number(t.total_amount);
+          const newCurrentCash = Number(drawer.current_cash) + Number(t.total_amount);
+          const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - Number(drawer.cash_out);
+          db.prepare(`
+            UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashSales, newCurrentCash, newExpectedClosing, drawer.drawer_id);
         }
       }
       return { success: true };
@@ -7011,7 +7272,7 @@ function getCashAmountFromInvoice(inv: any): number {
     }
     return netPayable;
   }
-  if (pm === 'SPLIT') {
+  if (pm === 'SPLIT' || pm === 'CREDIT') {
     if (inv.split_details && inv.split_details !== 'null') {
       try {
         let sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
@@ -7020,9 +7281,12 @@ function getCashAmountFromInvoice(inv: any): number {
         }
         if (sd && typeof sd === 'object') {
           const cashSplit = Math.max(0, Number(sd.cash) || 0);
-          return Math.min(cashSplit, netPayable);
+          if (cashSplit > 0) return Math.min(cashSplit, netPayable);
         }
       } catch {}
+    }
+    if (pm === 'CREDIT' && Number(inv.received_amount) > 0) {
+      return Math.min(Number(inv.received_amount), netPayable);
     }
   }
   return 0;
@@ -7051,22 +7315,33 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
                 ELSE MAX(0, COALESCE(grand_total, 0))
               END
             )
-            WHEN UPPER(payment_method) = 'SPLIT' AND split_details IS NOT NULL THEN (
+            WHEN UPPER(payment_method) IN ('SPLIT', 'CREDIT') AND split_details IS NOT NULL THEN (
               CASE 
                 WHEN json_extract(split_details, '$.cash') IS NOT NULL 
                 THEN MIN(
                   CAST(json_extract(split_details, '$.cash') AS REAL),
                   MAX(0, COALESCE(grand_total, 0))
                 )
+                WHEN UPPER(payment_method) = 'CREDIT' AND received_amount > 0
+                THEN MIN(
+                  received_amount,
+                  MAX(0, COALESCE(grand_total, 0))
+                )
                 ELSE 0 
               END
+            )
+            WHEN UPPER(payment_method) = 'CREDIT' AND received_amount > 0 THEN (
+              MIN(received_amount, MAX(0, COALESCE(grand_total, 0)))
             )
             ELSE 0 
           END
         ), 0) AS total_cash_sales
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-        AND UPPER(payment_method) IN ('CASH', 'SPLIT')
+        AND (
+          UPPER(payment_method) IN ('CASH', 'SPLIT')
+          OR (UPPER(payment_method) = 'CREDIT' AND (received_amount > 0 OR (split_details IS NOT NULL AND CAST(json_extract(split_details, '$.cash') AS REAL) > 0)))
+        )
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)

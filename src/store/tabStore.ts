@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { CartItem, InvoiceType } from './cartStore';
 import { useCartStore } from './cartStore';
-import { getFeatureFlags } from '../featureFlags';
+import { useFeatureFlagsStore } from '../featureFlags';
 
 export type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT' | 'SPLIT';
 
@@ -35,6 +35,7 @@ export interface TabSnapshot {
   editingInvoiceNumber: string | null;
   editingInvoiceRole: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | null;
   pendingScrapInvoiceToEdit: string | null;
+  manualTotalOverride?: number | null;
 }
 
 export interface Tab {
@@ -58,6 +59,7 @@ export interface Tab {
   paymentMethod: PaymentMethod;
   splitDetails?: SplitDetails;
   receivedAmount: number;
+  manualTotalOverride?: number | null;
   /** Actual physical cash refunded to customer — may differ from computed refundAmount */
   actualRefundPaid: number;
   reservedInvoiceNumber: string;
@@ -104,6 +106,7 @@ function getSnapshotFromCartStore(cartState: any): TabSnapshot {
     editingInvoiceNumber: cartState.editingInvoiceNumber,
     editingInvoiceRole: cartState.editingInvoiceRole,
     pendingScrapInvoiceToEdit: cartState.pendingScrapInvoiceToEdit,
+    manualTotalOverride: useTabStore?.getState?.()?.getActiveTab?.()?.manualTotalOverride ?? null,
   };
 }
 
@@ -129,6 +132,9 @@ function applySnapshotToCartStore(snapshot: TabSnapshot) {
     editingInvoiceRole: snapshot.editingInvoiceRole || null,
     pendingScrapInvoiceToEdit: snapshot.pendingScrapInvoiceToEdit || null,
   });
+  if (snapshot.manualTotalOverride !== undefined) {
+    useTabStore.getState().updateActiveTab({ manualTotalOverride: snapshot.manualTotalOverride });
+  }
 }
 
 function resetCartStore(preserveModes = false) {
@@ -163,7 +169,8 @@ function createDefaultTab(): Tab {
   const isQuotationMode = currentCartState?.isQuotationMode || false;
   const isReturnMode = currentCartState?.isReturnMode || false;
   const isScrapMode = currentCartState?.isScrapMode || false;
-  const isCashSettlementOn = getFeatureFlags().cash_settlement !== false;
+  const flags = useFeatureFlagsStore.getState().flags;
+  const isCashSettlementOn = flags?.cash_settlement !== false;
   return {
     id,
     title: isQuotationMode ? 'New Quote' : isReturnMode ? 'Return' : isScrapMode ? 'Scrap' : 'New',
@@ -196,6 +203,7 @@ function createDefaultTab(): Tab {
     paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
     splitDetails: { cash: 0, card: 0, upi: 0, cheque: 0, bank_transfer: 0 },
     receivedAmount: 0,
+    manualTotalOverride: null,
     actualRefundPaid: 0,
     reservedInvoiceNumber: '',
     reservedScrapInvoiceNumber: '',
@@ -267,6 +275,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     if (title) tab.title = title;
     if (initialSnapshot) {
       tab.snapshot = initialSnapshot;
+      applySnapshotToCartStore(initialSnapshot);
     } else {
       resetCartStore(true);
     }

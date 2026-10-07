@@ -40,6 +40,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { OwnerDashboard } from './components/OwnerDashboard';
 import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
+import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
 import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
@@ -63,7 +64,7 @@ import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
-import { loadFeatureFlags, DEFAULT_FEATURE_FLAGS, type FeatureKey, type FeatureFlags } from './featureFlags';
+import { useFeatureFlagsStore, DEFAULT_FEATURE_FLAGS, type FeatureKey, type FeatureFlags, cashierPageTitle } from './featureFlags';
 import { SplashScreen } from './components/SplashScreen';
 
 function App() {
@@ -138,7 +139,7 @@ function App() {
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
   enableScrapRef.current = enableScrap;
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ ...DEFAULT_FEATURE_FLAGS });
+  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
   const featureFlagsRef = useRef(featureFlags);
   featureFlagsRef.current = featureFlags;
   const [showQuotationManager, setShowQuotationManager] = useState(false);
@@ -321,7 +322,7 @@ function App() {
     window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
-    loadFeatureFlags(tid || 'global').then(flags => setFeatureFlags(flags));
+    loadFlags(tid || 'global');
     window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
       if (v === '24h' || v === '12h') {
         setAppTimeFormat(v);
@@ -335,7 +336,7 @@ function App() {
 
     const handleSettingsUpdated = () => {
       const currentTid = useAuthStore.getState().tenantId;
-      loadFeatureFlags(currentTid || 'global').then(flags => setFeatureFlags(flags));
+      loadFlags(currentTid || 'global');
       window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
         if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
       });
@@ -350,10 +351,10 @@ function App() {
     return () => {
       window.removeEventListener('settings:updated', handleSettingsUpdated);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadFlags]);
 
   useEffect(() => {
-    const canOpen = (key: FeatureKey) => Boolean(featureFlagsRef.current[key]);
+    const canOpen = (key: FeatureKey) => Boolean(featureFlagsRef.current?.[key]);
     const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
     const handleOpenStockReport = () => { if (canOpen('stock_report')) setShowStockReport(true); };
     const handleOpenHistory = () => { if (canOpen('sales_history')) setShowSalesHistory(true); };
@@ -373,6 +374,60 @@ function App() {
     const handleOpenNewQuotation = () => {
       if (!canOpen('quotations')) return;
       useCartStore.getState().setRole('BILLER');
+      useCartStore.getState().clearCart();
+      useCartStore.getState().setReturnMode(false);
+      useCartStore.getState().setIsScrapMode(false);
+      useCartStore.getState().setEditingQuotation(null, null);
+      useCartStore.getState().setEditingInvoice(null, null, null);
+      useCartStore.getState().setQuotationMode(true);
+      localStorage.setItem('pendingNewQuotation', 'true');
+
+      const quotationSnapshot: TabSnapshot = {
+        items: [],
+        invoiceType: 'BILL_OF_SUPPLY',
+        discountType: 'FIXED',
+        discountValue: 0,
+        customerState: 'KL',
+        scrapDeduction: 0,
+        scrapInvoiceNumber: '',
+        returnDeduction: 0,
+        returnInvoiceNumber: '',
+        isQuotationMode: true,
+        isReturnMode: false,
+        isScrapMode: false,
+        returnRefundMethod: 'ADJUST_BILL',
+        editingQuotationId: null,
+        editingQuotationNumber: null,
+        editingInvoiceId: null,
+        editingInvoiceNumber: null,
+        editingInvoiceRole: null,
+        pendingScrapInvoiceToEdit: null,
+      };
+
+      const tabStore = useTabStore.getState();
+      const existingTabs = tabStore.tabs;
+      const currentActiveTabId = tabStore.activeTabId;
+      const activeTab = existingTabs.find(t => t.id === currentActiveTabId);
+
+      if (activeTab && (!activeTab.snapshot?.items || activeTab.snapshot.items.length === 0) && !activeTab.snapshot?.editingInvoiceNumber) {
+        const updated = existingTabs.map(t => t.id === currentActiveTabId ? {
+          ...t,
+          title: 'New Quote',
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          receivedAmount: 0,
+          reservedInvoiceNumber: '',
+          reservedQuotationNumber: '',
+          snapshot: quotationSnapshot,
+        } : t);
+        useTabStore.setState({ tabs: updated });
+        saveStoredTabs(updated, currentActiveTabId);
+      } else {
+        tabStore.addTab(quotationSnapshot, 'New Quote');
+      }
+
       setShowQuotationManager(false);
       setShowInventoryManager(false);
       setShowStockReport(false);

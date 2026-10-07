@@ -16,7 +16,7 @@ import { FloatToast } from './ui/FloatToast';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { PermissionSelector } from './PermissionSelector';
-import { loadFeatureFlags } from '../featureFlags';
+import { useFeatureFlagsStore } from '../featureFlags';
 
 interface StaffMember {
   staff_id: string;
@@ -62,14 +62,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const { token, tenantId, userId } = useAuthStore();
   
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
-  const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' | 'ledger' | 'attendance'>('directory');
+const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' | 'ledger' | 'attendance'>('directory');
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [attendanceEnabled, setAttendanceEnabled] = useState(false);
-  const [billerPinEnabled, setBillerPinEnabled] = useState(false);
+  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
 
   // Search and Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,11 +134,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
   // Load Feature Flags for Attendance & Biller PIN
   useEffect(() => {
-    loadFeatureFlags(tenantId || undefined).then((flags) => {
-      setAttendanceEnabled(Boolean(flags.staff_attendance));
-      setBillerPinEnabled(Boolean(flags.biller_pin));
-    });
-  }, [tenantId]);
+    loadFlags(tenantId || undefined);
+  }, [tenantId, loadFlags]);
 
   // Fetch Staff Directory
   const fetchStaff = useCallback(async () => {
@@ -843,7 +839,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                     { id: 'salary', label: 'Salary Book', icon: DollarSign },
                     { id: 'payments', label: 'Advances & Payments', icon: CreditCard },
                     { id: 'ledger', label: 'Staff Ledger', icon: BookOpen },
-                    ...(attendanceEnabled ? [{ id: 'attendance', label: 'Attendance', icon: Calendar }] : [])
+                    ...(featureFlags?.staff_attendance ? [{ id: 'attendance', label: 'Attendance', icon: Calendar }] : [])
                   ].map(tab => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -1041,7 +1037,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                 )}
 
                 {/* ── TAB 5: ATTENDANCE ── */}
-                {activeTab === 'attendance' && attendanceEnabled && (
+                {activeTab === 'attendance' && featureFlags?.staff_attendance && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>

@@ -130,6 +130,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
   displayRate: string;
   displayTotal: string;
   isWeightHidden: boolean;
+  pcsInfo?: string;
 } {
   const effectiveBs = getEffectiveBillSettings(bs, isGstBill);
   const showWeightDetails = effectiveBs.showWeightDetails !== false;
@@ -165,11 +166,17 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
     }
   }
 
+  const rawPcsVal = (item.pieces_override != null && item.pieces_override > 0)
+    ? item.pieces_override
+    : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : undefined);
+  const pcsInfo = (isWeightProduct && rawPcsVal != null && !isWeightHidden) ? `${rawPcsVal} Pcs` : undefined;
+
   return {
     displayQty: qtyStr,
     displayRate: rateVal.toFixed(2),
     displayTotal: item.total.toFixed(2),
     isWeightHidden,
+    pcsInfo,
   };
 }
 
@@ -809,6 +816,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustGstin) text += `GST: ${data.customerGstin}\n`;
       if (showCustState) text += `State: ${data.customerState}\n`;
     }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `Note: ${billDesc.trim()}\n`;
+      }
+    }
 
     text += DASH + '\n';
 
@@ -965,6 +978,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustAddress) text += `  ${data.customerAddress}\n`;
       if (showCustGstin) text += `  GSTIN: ${data.customerGstin}\n`;
       if (showCustState) text += `  State: ${data.customerState}\n`;
+    }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `  Note: ${billDesc.trim()}\n`;
+      }
     }
 
     text += THIN + '\n';
@@ -1127,6 +1146,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustGstin) text += `GSTIN: ${data.customerGstin}\n`;
       if (showCustState) text += `State: ${data.customerState}\n`;
     }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `Note: ${billDesc.trim()}\n`;
+      }
+    }
     text += '\n';
 
     // ── Items table: No | ITEM | QTY | RATE | AMOUNT ──
@@ -1158,6 +1183,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           }
         });
         if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
+        if (fmt.pcsInfo) text += `  Qty: ${fmt.pcsInfo}\n`;
         if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
           text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
         }
@@ -1183,6 +1209,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           }
         });
         if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
+        if (fmt.pcsInfo) text += `  Qty: ${fmt.pcsInfo}\n`;
         if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
           text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
         }
@@ -1340,6 +1367,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustGstin) text += `  GSTIN:   ${data.customerGstin}\n`;
       if (showCustState) text += `  State:   ${data.customerState}\n`;
     }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `  Note:    ${billDesc.trim()}\n`;
+      }
+    }
 
     text += LIGHT + '\n';
 
@@ -1358,6 +1391,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
+      if (fmt.pcsInfo) text += `     Qty: ${fmt.pcsInfo}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate} x ${fmt.displayQty}` : `${fmt.displayQty} x ${fmt.displayRate}`;
       if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `     MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
@@ -1504,6 +1538,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustGstin) text += `GST: ${data.customerGstin}\n`;
       if (showCustState) text += `State: ${data.customerState}\n`;
     }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `Note: ${billDesc.trim()}\n`;
+      }
+    }
 
     // ── Items (dot leaders between name and total) ──
     const dot = (left: string, right: string, width: number): string => {
@@ -1525,6 +1565,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
+      if (fmt.pcsInfo) text += `  Qty: ${fmt.pcsInfo}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
       if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
@@ -1646,6 +1687,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (showCustAddress) text += `${data.customerAddress}\n`;
     if (showCustGstin) text += `GST: ${data.customerGstin}\n`;
     if (showCustState) text += `State: ${data.customerState}\n`;
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `Note: ${billDesc.trim()}\n`;
+      }
+    }
 
     // ── Items (name + total right-aligned, no qty/rate unless offer) ──
     data.items.forEach(item => {
@@ -1661,6 +1708,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
+      if (fmt.pcsInfo) text += ` Qty: ${fmt.pcsInfo}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
       if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += ` ${qtyRateText}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
@@ -1779,6 +1827,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustState) text += `  State: ${data.customerState}\n`;
       text += '\n';
     }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        text += `  Note: ${billDesc.trim()}\n`;
+      }
+    }
 
     // ── Items (numbered with blank line between groups) ──
     text += THIN + '\n';
@@ -1799,6 +1853,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
+      if (fmt.pcsInfo) text += `     Qty: ${fmt.pcsInfo}\n`;
       const qtyRateText = isRateQty ? `${fmt.displayRate} \u00D7 ${fmt.displayQty}` : `${fmt.displayQty} \u00D7 ${fmt.displayRate}`;
       if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `     ${qtyRateText}`;
@@ -2044,6 +2099,15 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (data.customerPhone && showCP) text += B_LINE(` Contact : ${data.customerPhone}`);
       if (data.customerGstin && showCG) text += B_LINE(` GSTIN   : ${data.customerGstin}`);
       if (data.customerState && showCS) text += B_LINE(` State   : ${data.customerState}`);
+    }
+    if (bs?.showDescription !== false) {
+      const billDesc = data.description || data.notes;
+      if (billDesc && billDesc.trim()) {
+        if (!showCN && !showCP && !showCA && !showCG && !showCS) {
+          text += B_MID();
+        }
+        text += B_LINE(` Note    : ${billDesc.trim()}`);
+      }
     }
 
     // ── Item Table ────────────────────────────────────────────────────────────

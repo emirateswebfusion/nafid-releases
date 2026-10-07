@@ -47,10 +47,13 @@ const PRODUCT_COLUMN_SPECS: ColumnSpec[] = [
   { name: 'Brand', required: false, example: 'Royal Gold' },
   { name: 'Purchase Price', required: false, example: '350' },
   { name: 'Stock', required: false, example: '50' },
-  { name: 'Reorder Level', required: false, example: '10' },
+  { name: 'Low Stock', required: false, example: '10' },
   { name: 'Tax Rate %', required: false, example: '5' },
   { name: 'UOM', required: false, example: 'Kgs' },
   { name: 'HSN Code', required: false, example: '1006' },
+  { name: 'Discount %', required: false, example: '5' },
+  { name: 'Discount Flat', required: false, example: '0' },
+  { name: 'Offer Price', required: false, example: '' },
 ];
 
 const SUPPLIER_COLUMN_SPECS: ColumnSpec[] = [
@@ -131,6 +134,7 @@ const PRODUCT_HEADER_MAP: Record<string, string> = {
 
   'reorder level': 'reorder_level',
   'min stock': 'reorder_level',
+  'low stock': 'reorder_level',
 
   'tax rate': 'tax_rate_percent',
   'tax rate %': 'tax_rate_percent',
@@ -144,7 +148,84 @@ const PRODUCT_HEADER_MAP: Record<string, string> = {
   'hsn': 'hsn_sac_code',
   'hsn code': 'hsn_sac_code',
   'hsn/sac': 'hsn_sac_code',
+
+  'discount %': 'discount_percent',
+  'discount percent': 'discount_percent',
+  'discount': 'discount_percent',
+
+  'discount flat': 'discount_flat',
+  'discount amount': 'discount_flat',
+  'flat discount': 'discount_flat',
+
+  'offer price': 'offer_price',
+  'sale price': 'offer_price',
+  'offer': 'offer_price',
 };
+
+// ─── Dynamic Tier Header Matcher (Zero Hardcoding) ───────────────────────────
+
+export function resolveDynamicTierName(
+  header: string,
+  existingTiers: Array<{ pricing_tier_id?: string; name: string }> = []
+): string | null {
+  const raw = String(header || '').trim();
+  if (!raw) return null;
+
+  const lower = raw.toLowerCase();
+  const clean = lower.replace(/[^a-z0-9]/g, '');
+  if (!clean) return null;
+
+  // If this header is a recognized standard product column, it is NOT a tier
+  if (PRODUCT_HEADER_MAP[lower] || PRODUCT_HEADER_MAP[clean]) {
+    return null;
+  }
+
+  // 1. Direct match with existing tier names in store (case/symbol-insensitive)
+  for (const t of existingTiers) {
+    if (!t?.name) continue;
+    const tClean = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (clean === tClean || clean === `${tClean}price` || clean === `${tClean}rate`) {
+      return t.name;
+    }
+  }
+
+  // 2. Fuzzy match against existing tiers (e.g. contains root or edit distance <= 1)
+  for (const t of existingTiers) {
+    if (!t?.name) continue;
+    const tClean = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (clean.includes(tClean) || tClean.includes(clean)) {
+      return t.name;
+    }
+    // Minor typo tolerance (edit distance <= 1, e.g. 'wholsale' vs 'wholesale')
+    if (Math.abs(clean.length - tClean.length) <= 1) {
+      let diff = 0;
+      let i = 0, j = 0;
+      while (i < clean.length && j < tClean.length) {
+        if (clean[i] !== tClean[j]) {
+          diff++;
+          if (clean.length > tClean.length) i++;
+          else if (tClean.length > clean.length) j++;
+          else { i++; j++; }
+        } else {
+          i++; j++;
+        }
+      }
+      diff += (clean.length - i) + (tClean.length - j);
+      if (diff <= 1) {
+        return t.name;
+      }
+    }
+  }
+
+  // 3. Header explicitly prefixed with tier (e.g. "Tier: VIP", "Price Tier: Dealer")
+  const prefixMatch = raw.match(/^(?:tier|price\s*tier)\s*[:\-_]?\s*(.+)$/i);
+  if (prefixMatch && prefixMatch[1]) {
+    return prefixMatch[1].trim();
+  }
+
+  // 4. Any other non-standard column title is dynamically considered a tier
+  return raw;
+}
 
 const PARTY_HEADER_MAP: Record<string, string> = {
   'name': 'name',
@@ -203,10 +284,13 @@ const SAMPLE_PRODUCTS = [
     'Brand': 'Royal Gold',
     'Purchase Price': 350,
     'Stock': 50,
-    'Reorder Level': 10,
+    'Low Stock': 10,
     'Tax Rate %': 5,
     'UOM': 'Kgs',
-    'HSN Code': '1006'
+    'HSN Code': '1006',
+    'Discount %': 5,
+    'Discount Flat': 0,
+    'Offer Price': ''
   },
   {
     'Product Name': 'Sunflower Oil 1L',
@@ -217,10 +301,13 @@ const SAMPLE_PRODUCTS = [
     'Brand': 'Fortune',
     'Purchase Price': 110,
     'Stock': 100,
-    'Reorder Level': 20,
+    'Low Stock': 20,
     'Tax Rate %': 5,
     'UOM': 'Ltrs',
-    'HSN Code': '1512'
+    'HSN Code': '1512',
+    'Discount %': '',
+    'Discount Flat': 0,
+    'Offer Price': 120
   }
 ];
 
@@ -308,6 +395,7 @@ export function DataUploadModal({
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showOrderGuide, setShowOrderGuide] = useState<boolean>(true);
+  const [availableTiers, setAvailableTiers] = useState<Array<{ pricing_tier_id?: string; name: string }>>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -317,14 +405,31 @@ export function DataUploadModal({
       setParsedRows([]);
       setFileName('');
       setMessage(null);
+
+      if (window.electronAPI?.dbGetPricingTiers) {
+        const tid = tenantId || 'global';
+        window.electronAPI.dbGetPricingTiers(tid).then((res: any) => {
+          if (Array.isArray(res)) {
+            setAvailableTiers(res.filter((t: any) => !t.is_deleted));
+          }
+        }).catch((err: any) => console.warn('Failed to load pricing tiers for upload modal:', err));
+      }
     }
-  }, [isOpen, defaultEntity]);
+  }, [isOpen, defaultEntity, tenantId]);
 
   if (!isOpen) return null;
 
   const getSpecs = (): ColumnSpec[] => {
     switch (entityType) {
-      case 'products': return PRODUCT_COLUMN_SPECS;
+      case 'products': {
+        const specs = [...PRODUCT_COLUMN_SPECS];
+        if (availableTiers.length > 0) {
+          availableTiers.forEach(t => {
+            specs.push({ name: `${t.name} (Tier Price)`, required: false, example: '400' });
+          });
+        }
+        return specs;
+      }
       case 'suppliers': return SUPPLIER_COLUMN_SPECS;
       case 'customers': return CUSTOMER_COLUMN_SPECS;
       case 'staff': return STAFF_COLUMN_SPECS;
@@ -444,6 +549,28 @@ export function DataUploadModal({
         mappedData.uom = String(mappedData.uom ?? rawRow['UOM'] ?? 'Pcs').trim() || 'Pcs';
         mappedData.hsn_sac_code = String(mappedData.hsn_sac_code ?? rawRow['HSN Code'] ?? '').trim();
         mappedData.is_gst_applicable = mappedData.tax_rate_percent > 0 ? 1 : 0;
+
+        // Dynamic tier pricing extraction across all headers:
+        // Any non-standard column with a valid numeric price is dynamically extracted as a price tier
+        const tierPrices: Record<string, number> = {};
+        Object.keys(rawRow).forEach((rawKey) => {
+          const tierName = resolveDynamicTierName(rawKey, availableTiers);
+          if (tierName) {
+            const rawVal = rawRow[rawKey];
+            if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+              const str = String(rawVal).trim();
+              const cleaned = str.replace(/^[₹$€£\s]+/, '').replace(/,/g, '');
+              if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
+                const valNum = parseFloat(cleaned);
+                if (!isNaN(valNum) && valNum >= 0) {
+                  tierPrices[tierName] = valNum;
+                }
+              }
+            }
+          }
+        });
+
+        mappedData.tier_prices = tierPrices;
       } else if (entityType === 'staff') {
         const phone = String(mappedData.phone ?? rawRow['Phone'] ?? '').trim();
         const email = String(mappedData.email ?? rawRow['Email'] ?? '').trim();
@@ -500,7 +627,17 @@ export function DataUploadModal({
     let filePrefix = 'product';
 
     if (entityType === 'products') {
-      sampleData = SAMPLE_PRODUCTS;
+      if (availableTiers && availableTiers.length > 0) {
+        sampleData = SAMPLE_PRODUCTS.map((prod, idx) => {
+          const augmented: Record<string, any> = { ...prod };
+          availableTiers.forEach((t: any) => {
+            augmented[t.name] = idx === 0 ? Math.round(Number(prod.MRP) * 0.9) : Math.round(Number(prod.MRP) * 0.95);
+          });
+          return augmented;
+        });
+      } else {
+        sampleData = SAMPLE_PRODUCTS;
+      }
       filePrefix = 'products_demo_template';
     } else if (entityType === 'suppliers') {
       sampleData = SAMPLE_SUPPLIERS;
@@ -565,7 +702,11 @@ export function DataUploadModal({
           hsn_sac_code: r.data.hsn_sac_code || null,
           domain_attributes: '{}',
           billing_type: ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(r.data.uom) ? 'WEIGHT' : 'PIECE',
-          pricing_mode: 'FIXED_PRICE'
+          pricing_mode: 'FIXED_PRICE',
+          discount_percent: r.data.discount_percent != null ? Number(r.data.discount_percent) : null,
+          discount_flat: r.data.discount_flat != null ? Number(r.data.discount_flat) : null,
+          offer_price: r.data.offer_price != null ? Number(r.data.offer_price) : null,
+          tier_prices: r.data.tier_prices || {}
         }));
 
         if (window.electronAPI?.dbBulkImportProducts) {
@@ -822,6 +963,13 @@ export function DataUploadModal({
                   </div>
                 ))}
               </div>
+
+              {entityType === 'products' && (
+                <div className="flex items-start sm:items-center gap-2 p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 text-[11px] text-indigo-950 dark:text-indigo-200 mt-2">
+                  <span className="font-bold shrink-0 text-indigo-700 dark:text-indigo-300">💡 Pricing Tiers:</span>
+                  <span>You can add columns for any price tiers (e.g. <code className="font-bold bg-white/80 dark:bg-slate-800 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">Wholesale</code>, <code className="font-bold bg-white/80 dark:bg-slate-800 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">Dealer</code>, etc.). The system automatically detects and imports them.</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -970,6 +1118,7 @@ export function DataUploadModal({
                       <>
                         <th className="py-2.5 px-3">Product Name</th>
                         <th className="py-2.5 px-3">MRP</th>
+                        <th className="py-2.5 px-3">Tier Price</th>
                         <th className="py-2.5 px-3">Barcode</th>
                         <th className="py-2.5 px-3">Category</th>
                         <th className="py-2.5 px-3">Cost Price</th>
@@ -1015,6 +1164,22 @@ export function DataUploadModal({
                         <>
                           <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{row.data.name || '—'}</td>
                           <td className="py-2 px-3 font-bold text-emerald-700 dark:text-emerald-400">₹{row.data.base_price ?? 0}</td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-slate-400">
+                            {row.data.tier_prices && Object.keys(row.data.tier_prices).length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {Object.entries(row.data.tier_prices as Record<string, number>).map(([tName, tPrice]) => (
+                                  <span
+                                    key={tName}
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                                  >
+                                    {tName}: ₹{String(tPrice)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.sku_barcode || '—'}</td>
                           <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.category || '—'}</td>
                           <td className="py-2 px-3 text-slate-600 dark:text-slate-400">₹{row.data.purchase_price ?? 0}</td>

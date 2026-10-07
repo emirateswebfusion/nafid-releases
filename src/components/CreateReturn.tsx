@@ -30,7 +30,12 @@ interface ReturnItemSelection {
   name: string;
   max_quantity: number;
   quantity: number;
+  raw_unit_price: number;
+  discount_per_unit: number;
   unit_price: number;
+  unit_tax_amount: number;
+  line_eff_total: number;
+  line_eff_tax: number;
   tax_amount: number;
   total: number;
 }
@@ -86,33 +91,35 @@ export function CreateReturn({
         const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
         const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
 
-        const itemsWithDiscount = normalized.map((item: InvoiceItem) => {
+        const selectionsData: ReturnItemSelection[] = normalized.map((item: InvoiceItem) => {
           const origPrice = Number(item.unit_price) || 0;
           const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
+          const discountPerUnit = Number((origPrice - effPrice).toFixed(2));
           const origTax = Number(item.tax_amount) || 0;
           const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
+          const qty = Number(item.quantity) || 1;
+          const unitTax = qty > 0 ? Number((effTax / qty).toFixed(2)) : 0;
+          const lineEffTotal = Number((origPrice * qty * (1 - discountRatio)).toFixed(2));
           return {
-            ...item,
-            unit_price: effPrice,
-            tax_amount: effTax,
-            total: Number((effPrice * item.quantity).toFixed(2)),
-          };
-        });
-
-        setInvoiceItems(itemsWithDiscount);
-        setSelections(
-          itemsWithDiscount.map((item: InvoiceItem) => ({
             invoice_item_id: item.item_id,
             product_id: item.product_id,
             name: item.name,
-            max_quantity: item.quantity,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            tax_amount: item.tax_amount,
-            total: item.total,
-          }))
-        );
-        if (isConvertedBos && itemsWithDiscount.length === 0) {
+            max_quantity: qty,
+            quantity: qty,
+            raw_unit_price: origPrice,
+            discount_per_unit: discountPerUnit,
+            unit_price: effPrice,
+            unit_tax_amount: unitTax,
+            line_eff_total: lineEffTotal,
+            line_eff_tax: effTax,
+            tax_amount: effTax,
+            total: lineEffTotal,
+          };
+        });
+
+        setInvoiceItems(normalized);
+        setSelections(selectionsData);
+        if (isConvertedBos && selectionsData.length === 0) {
           setError('All items from this Bill of Supply were converted to GST. Return them from the GST copy instead.');
         }
       }
@@ -127,12 +134,12 @@ export function CreateReturn({
       prev.map((s, i) => {
         if (i !== index) return s;
         const newQty = Math.max(0, Math.min(s.max_quantity, s.quantity + delta));
-        const ratio = s.max_quantity === 0 ? 0 : newQty / s.max_quantity;
+        const isFull = newQty === s.max_quantity;
         return {
           ...s,
           quantity: newQty,
-          total: Number((s.unit_price * newQty).toFixed(2)),
-          tax_amount: Number((s.tax_amount * ratio).toFixed(2)),
+          total: isFull ? s.line_eff_total : Number((s.unit_price * newQty).toFixed(2)),
+          tax_amount: isFull ? s.line_eff_tax : Number((s.unit_tax_amount * newQty).toFixed(2)),
         };
       })
     );
@@ -143,17 +150,15 @@ export function CreateReturn({
       prev.map((s) => ({
         ...s,
         quantity: s.max_quantity,
-        total: Number((s.unit_price * s.max_quantity).toFixed(2)),
-        tax_amount: s.tax_amount,
+        total: s.line_eff_total,
+        tax_amount: s.line_eff_tax,
       }))
     );
   };
 
-  const subtotal = selections.reduce((sum, s) => sum + Number((s.unit_price * s.quantity).toFixed(2)), 0);
-  const taxTotal = selections.reduce((sum, s) => {
-    if (s.max_quantity === 0) return sum;
-    return sum + Number((s.tax_amount * (s.quantity / s.max_quantity)).toFixed(2));
-  }, 0);
+  const subtotal = selections.reduce((sum, s) => sum + s.total, 0);
+  const taxTotal = selections.reduce((sum, s) => sum + s.tax_amount, 0);
+  const totalDiscount = selections.reduce((sum, s) => sum + Number((s.discount_per_unit * s.quantity).toFixed(2)), 0);
   const grandTotal = Number((subtotal + taxTotal).toFixed(2));
   const hasSelections = selections.some((s) => s.quantity > 0);
 
@@ -245,7 +250,7 @@ export function CreateReturn({
               })),
               subtotal,
               tax: taxTotal,
-              discount: 0,
+              discount: totalDiscount,
               grandTotal,
               customerName: billSettings.showCustomerName !== false ? (invoice.customer_name || undefined) : undefined,
               customerPhone: billSettings.showCustomerPhone !== false ? (invoice.customer_phone || undefined) : undefined,
@@ -354,8 +359,18 @@ export function CreateReturn({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold text-foreground truncate">{s.name}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
-                    {formatCurrency(s.unit_price)} each · Max quantity: <span className="font-bold text-foreground">{s.max_quantity}</span>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-foreground">{formatCurrency(s.unit_price)} each</span>
+                    {s.discount_per_unit > 0 && (
+                      <>
+                        <span className="line-through text-muted-foreground/60 font-mono text-[9px]">{formatCurrency(s.raw_unit_price)}</span>
+                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.2 rounded">
+                          -{formatCurrency(s.discount_per_unit)} disc
+                        </span>
+                      </>
+                    )}
+                    <span>&middot;</span>
+                    <span>Max quantity: <span className="font-bold text-foreground">{s.max_quantity}</span></span>
                   </div>
                 </div>
               </div>
@@ -426,6 +441,11 @@ export function CreateReturn({
           <div>
             <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground block leading-none mb-1">Total Refund Amount</span>
             <div className="text-lg font-black text-rose-500">-{formatCurrency(grandTotal)}</div>
+            {totalDiscount > 0 && (
+              <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                Orig: <span className="line-through font-mono">{formatCurrency(subtotal + taxTotal + totalDiscount)}</span> &middot; Disc: <span className="text-emerald-600 dark:text-emerald-400 font-bold">-{formatCurrency(totalDiscount)}</span>
+              </div>
+            )}
           </div>
           <button
             onClick={handleSubmit}
