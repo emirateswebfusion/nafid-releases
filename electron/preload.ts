@@ -76,6 +76,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Auth
   authSaveToken: (payload: any) => ipcRenderer.invoke('auth:saveToken', payload),
   authGetToken: () => ipcRenderer.invoke('auth:getToken'),
+  authSaveOfflineSession: (payload: any) => ipcRenderer.invoke('auth:saveOfflineSession', payload),
+  authGetOfflineSession: () => ipcRenderer.invoke('auth:getOfflineSession'),
   authClearToken: () => ipcRenderer.invoke('auth:clearToken'),
   authSaveLocalUser: (payload: any) => ipcRenderer.invoke('auth:saveLocalUser', payload),
   authLoginOffline: (payload: any) => ipcRenderer.invoke('auth:loginOffline', payload),

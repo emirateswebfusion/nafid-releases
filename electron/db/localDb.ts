@@ -1085,6 +1085,22 @@ export function initDb() {
   // Ensure defaults for is_deleted are set for legacy data
   db.exec("UPDATE products SET is_deleted = 0 WHERE is_deleted IS NULL");
 
+  // HSN/SAC-coded products belong to the GST list, including zero-rated items.
+  try {
+    const promoted = db.prepare(`
+      UPDATE products
+      SET is_gst_applicable = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE COALESCE(is_deleted, 0) = 0
+        AND COALESCE(is_gst_applicable, 0) <> 1
+        AND TRIM(COALESCE(hsn_sac_code, '')) <> ''
+    `).run().changes;
+    if (promoted > 0) {
+      console.log(`[DB Migration] Marked ${promoted} HSN/SAC-coded products as GST-applicable.`);
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to classify HSN/SAC-coded products:', e.message);
+  }
+
   // Backfill created_at and updated_at for existing rows
   db.exec("UPDATE products SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
   db.exec("UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");

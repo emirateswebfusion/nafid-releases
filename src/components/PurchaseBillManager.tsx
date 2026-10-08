@@ -83,6 +83,11 @@ const formatDate = (d: string) => {
   return date.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const getPurchaseBillFocusables = (root: ParentNode): HTMLElement[] =>
+  Array.from(root.querySelectorAll<HTMLElement>(
+    '[data-select-trigger]:not([disabled]), input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-enter-submit]:not([disabled])'
+  )).filter(element => element.getClientRects().length > 0);
+
 export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName } = useAuthStore();
@@ -137,9 +142,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [billNotes, setBillNotes] = useState('');
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [isSavingAll, setIsSavingAll] = useState(false);
+  const purchaseFormRootRef = useRef<HTMLDivElement>(null);
+  const billDateInputRef = useRef<HTMLInputElement>(null);
+  const supplierInputRef = useRef<HTMLInputElement>(null);
   const gstRef = useRef<PurchaseBillFormHandle>(null);
   const estRef = useRef<PurchaseBillFormHandle>(null);
   const [supplierSearch, setSupplierSearch] = useState('');
+  const [highlightedSupplierIndex, setHighlightedSupplierIndex] = useState(-1);
+  const supplierOptionsRef = useRef<HTMLDivElement>(null);
   const [billType, setBillType] = useState<'GST' | 'ESTIMATE'>('GST');
   const [gstHasItems, setGstHasItems] = useState(false);
   const [estHasItems, setEstHasItems] = useState(false);
@@ -154,7 +164,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   // ── Party Create Dialog ──
   const [showPartyCreateForm, setShowPartyCreateForm] = useState(false);
   const [newPartyForm, setNewPartyForm] = useState({
-    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: '',
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'PAYABLE' as const, notes: '',
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -303,10 +313,27 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   useEffect(() => {
     if (showAddForm && window.electronAPI && tenantId) {
       window.electronAPI.dbGetParties(tenantId)
-        .then(res => { if (Array.isArray(res)) setSuppliers(res); })
+        .then(res => { if (Array.isArray(res)) setSuppliers(res.filter(party => String(party.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER')); })
         .catch(console.error);
     }
   }, [showAddForm, tenantId]);
+
+  useEffect(() => {
+    if (!showAddForm) return;
+    const timer = window.setTimeout(() => billDateInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [showAddForm]);
+
+  useEffect(() => {
+    if (!showAddForm) return;
+    const handlePurchaseShortcut = (event: KeyboardEvent) => {
+      if (event.key !== 'F2' || showPartyCreateForm || viewingBill || (event.target as HTMLElement).closest('[data-product-create-dialog]')) return;
+      event.preventDefault();
+      (billType === 'GST' ? gstRef.current : estRef.current)?.focusSearch();
+    };
+    window.addEventListener('keydown', handlePurchaseShortcut);
+    return () => window.removeEventListener('keydown', handlePurchaseShortcut);
+  }, [showAddForm, showPartyCreateForm, viewingBill, billType]);
 
   const handleViewBill = async (bill: PurchaseBill) => {
     setViewingBill(bill);
@@ -496,11 +523,48 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   };
 
   const filteredSuppliers = suppliers.filter(s =>
-    s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+    String(s.name || '').toLowerCase().includes(supplierSearch.toLowerCase())
   );
 
+  useEffect(() => {
+    supplierOptionsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [highlightedSupplierIndex]);
+
+  const focusNextAfterSupplier = () => {
+    window.setTimeout(() => {
+      const root = purchaseFormRootRef.current;
+      if (!root) return;
+      const focusables = getPurchaseBillFocusables(root);
+      const supplierIndex = focusables.indexOf(supplierInputRef.current as HTMLElement);
+      focusables[supplierIndex + 1]?.focus();
+    }, 0);
+  };
+
+  const selectSupplier = (supplier: any) => {
+    setSupplierName(supplier.name);
+    setSupplierId(supplier.party_id);
+    setSupplierSearch('');
+    setHighlightedSupplierIndex(-1);
+    focusNextAfterSupplier();
+  };
+
+  const handlePurchaseFormKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' || event.defaultPrevented) return;
+    const target = event.target as HTMLElement;
+    if (target.matches('button, [role="button"]') || target.isContentEditable) return;
+    const root = purchaseFormRootRef.current;
+    if (!root || !root.contains(target)) return;
+
+    const focusables = getPurchaseBillFocusables(root);
+    const index = focusables.indexOf(target);
+    if (index < 0 || index >= focusables.length - 1) return;
+
+    event.preventDefault();
+    focusables[index + 1]?.focus();
+  };
+
   const handleCreateParty = async () => {
-    if (!newPartyForm.name.trim()) { setStatusMessage({ text: 'Party name is required', type: 'error' }); setTimeout(() => setStatusMessage(null), 3000); return; }
+    if (!newPartyForm.name.trim()) { setStatusMessage({ text: 'Supplier name is required', type: 'error' }); setTimeout(() => setStatusMessage(null), 3000); return; }
     if (!window.electronAPI || !tenantId || !userId) return;
     setIsSavingParty(true);
     try {
@@ -523,12 +587,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       setTimeout(() => setStatusMessage(null), 3000);
       // Refresh suppliers and auto-select
       const updated = await window.electronAPI.dbGetParties(tenantId);
-      if (Array.isArray(updated)) setSuppliers(updated);
+      if (Array.isArray(updated)) setSuppliers(updated.filter(party => String(party.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER'));
       setSupplierName(newPartyForm.name.trim());
       setSupplierId(partyId);
       setSupplierSearch('');
+      setHighlightedSupplierIndex(-1);
       setShowPartyCreateForm(false);
-      setNewPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '' });
+      setNewPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'PAYABLE', notes: '' });
+      focusNextAfterSupplier();
     } catch {
       setStatusMessage({ text: 'Failed to create party', type: 'error' });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -907,11 +973,17 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
       {/* ── ADD FORM ── */}
       {showAddForm && (
-        <div className="w-full px-4 sm:px-6 pt-4 pb-4 select-none flex flex-col flex-1 min-h-0">
+        <div
+          ref={purchaseFormRootRef}
+          onKeyDown={handlePurchaseFormKeyDown}
+          data-enter-nav
+          className="w-full px-4 sm:px-6 pt-4 pb-4 select-none flex flex-col flex-1 min-h-0"
+        >
           {/* ── Shared Info Card ── */}
           <div className="bg-card border border-border rounded-[28px] shadow-sm px-6 py-4 shrink-0">
             <div className="flex items-center gap-4 flex-wrap">
             <input
+              ref={billDateInputRef}
               type="date" value={billDate}
               onChange={e => setBillDate(e.target.value)}
               className="bg-background/50 border border-border rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all shrink-0"
@@ -920,24 +992,49 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 font-bold text-sm">*</span>
               <input
-                type="text" placeholder="Supplier Name"
+                ref={supplierInputRef}
+                type="text" placeholder="Search or select supplier..."
                 value={supplierSearch || supplierName}
                 onChange={e => {
                   setSupplierSearch(e.target.value);
                   setSupplierName(e.target.value);
                   setSupplierId('');
-                  const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
-                  if (match) { setSupplierName(match.name); setSupplierId(match.party_id); }
+                  setHighlightedSupplierIndex(-1);
                 }}
+                onKeyDown={event => {
+                  if (event.key === 'ArrowDown' && filteredSuppliers.length > 0) {
+                    event.preventDefault();
+                    setHighlightedSupplierIndex(index => (index + 1) % filteredSuppliers.length);
+                  } else if (event.key === 'ArrowUp' && filteredSuppliers.length > 0) {
+                    event.preventDefault();
+                    setHighlightedSupplierIndex(index => index < 0 ? filteredSuppliers.length - 1 : (index - 1 + filteredSuppliers.length) % filteredSuppliers.length);
+                  } else if (event.key === 'Enter' && supplierSearch && filteredSuppliers.length > 0) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectSupplier(filteredSuppliers[highlightedSupplierIndex] || filteredSuppliers[0]);
+                  }
+                }}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={Boolean(supplierSearch && filteredSuppliers.length > 0)}
+                aria-controls="purchase-supplier-options"
+                aria-activedescendant={highlightedSupplierIndex >= 0 ? `purchase-supplier-option-${highlightedSupplierIndex}` : undefined}
                 className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
               />
               {supplierSearch && filteredSuppliers.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">
-                  {filteredSuppliers.map(s => (
+                <div ref={supplierOptionsRef} id="purchase-supplier-options" role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">
+                  {filteredSuppliers.map((s, index) => (
                     <button
                       key={s.party_id} type="button"
-                      onMouseDown={() => { setSupplierName(s.name); setSupplierId(s.party_id); setSupplierSearch(''); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border/40 last:border-0 cursor-pointer"
+                      id={`purchase-supplier-option-${index}`}
+                      role="option"
+                      aria-selected={index === highlightedSupplierIndex}
+                      onMouseDown={event => { event.preventDefault(); selectSupplier(s); }}
+                      onMouseEnter={() => setHighlightedSupplierIndex(index)}
+                      className={clsx(
+                        'w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border/40 last:border-0 cursor-pointer',
+                        index === highlightedSupplierIndex ? 'bg-primary/10 text-primary' : 'hover:bg-muted/40'
+                      )}
                     >
                       <User className="w-4 h-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -953,7 +1050,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               type="button"
               onClick={() => { setNewPartyForm(prev => ({ ...prev, name: supplierSearch || '' })); setShowPartyCreateForm(true); }}
               className="p-2.5 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all active:scale-95 cursor-pointer shrink-0 shadow-inner"
-              title="Create Party"
+              title="Create Supplier"
             >
               <UserPlus className="w-4 h-4" />
             </button>
@@ -1074,8 +1171,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           <div className="bg-card border border-border rounded-[28px] shadow-sm px-6 py-4 shrink-0 flex items-center justify-end gap-3">
 
             <button
+              type="button"
               onClick={handleSaveAll}
               disabled={isSavingAll || !(gstHasItems || estHasItems) || (!!editingBill && !editHasItems)}
+              data-enter-submit
               className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-6 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
@@ -1428,7 +1527,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         </div>
       )}
 
-      {/* ── Create Party Dialog ── */}
+      {/* ── Create Supplier Dialog ── */}
       {showPartyCreateForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPartyCreateForm(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -1443,7 +1542,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <UserCircle className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black uppercase tracking-wider text-primary">Create Party</span>
+                <span className="text-xs font-black uppercase tracking-wider text-primary">Create Supplier</span>
               </div>
               <button
                 type="button"
@@ -1457,9 +1556,9 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[70vh]" data-enter-nav>
-              {/* Party Name */}
+              {/* Supplier Name */}
               <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Supplier Name *</label>
                 <input
                   type="text"
                   placeholder="e.g. Rajan Traders"
@@ -1533,24 +1632,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Type</label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {(['RECEIVABLE', 'PAYABLE'] as const).map(t => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setNewPartyForm(f => ({ ...f, balance_type: t }))}
-                          className={clsx(
-                            'py-2 px-2 rounded-lg border-2 text-[10px] font-black transition-all duration-200 active:scale-95 cursor-pointer text-center',
-                            newPartyForm.balance_type === t
-                              ? t === 'RECEIVABLE'
-                                ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                                : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
-                              : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                          )}
-                        >
-                          {t === 'RECEIVABLE' ? '↑ Receive' : '↓ Payable'}
-                        </button>
-                      ))}
+                    <div className="flex h-[36px] items-center">
+                      <span className="inline-flex items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[10px] font-black text-emerald-700 dark:text-emerald-400">
+                        ↓ Supplier payable
+                      </span>
                     </div>
                   </div>
                   <div>
@@ -1583,7 +1668,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
               >
                 {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                {isSavingParty ? 'Creating…' : 'Create Party'}
+                {isSavingParty ? 'Creating…' : 'Create Supplier'}
               </button>
             </div>
           </div>
@@ -1636,6 +1721,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 interface PurchaseBillFormHandle {
   save: () => Promise<boolean>;
   hasItems: boolean;
+  focusSearch: () => void;
   addItem: (item: {
     product_id: string;
     name: string;
@@ -1754,6 +1840,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [_isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
   const productFormDialogRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [searchDropdownPos, setSearchDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -2755,6 +2842,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   useImperativeHandle(ref, () => ({
     save: handleSave,
     get hasItems() { return billItems.length > 0; },
+    focusSearch: () => productSearchInputRef.current?.focus(),
     addItem: addItemToSection,
     getItems: () => billItems.map(i => ({ ...i })),
     replaceItems: (items) => { setBillItems(items.map(i => ({ ...i }))); },
@@ -2863,8 +2951,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
+                ref={productSearchInputRef}
                 type="text"
-                placeholder="Search products..."
+                placeholder="Search products... (F2)"
                 value={productSearch}
                 onChange={e => searchProducts(e.target.value)}
                 onKeyDown={e => {
@@ -2972,7 +3061,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               <div className="fixed inset-0 bg-black/40 z-[100]" />
               {/* Dialog */}
               <div ref={productFormDialogRef} className="fixed inset-0 z-[101] flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }}>
-                <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden" onKeyDown={handleFormKeyDown}>
+                <div data-product-create-dialog className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden" onKeyDown={handleFormKeyDown}>
                   <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg bg-primary/10 text-primary">

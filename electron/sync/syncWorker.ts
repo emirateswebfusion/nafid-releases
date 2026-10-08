@@ -73,6 +73,12 @@ const PULL_MAX_PAGES = 50;
 const CURSOR_REPLAY_SECONDS = 5;
 let syncInProgress = false;
 let syncPromise: Promise<void> | null = null;
+
+const isGstApplicableProduct = (gstFlag: unknown, hsnCode: unknown): boolean => {
+  const hasHsnCode = String(hsnCode ?? '').trim() !== '';
+  const isExplicitlyGst = gstFlag === undefined || gstFlag === null || gstFlag === true || gstFlag === 'true' || Number(gstFlag) === 1;
+  return hasHsnCode || isExplicitlyGst;
+};
 let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
 let isSyncActive = false;
 
@@ -1534,7 +1540,7 @@ async function syncProducts(token: string, tenantId: string) {
     const products = batch.map((p: any) => ({
       ...p,
       is_deleted: p.is_deleted === true || p.is_deleted === 1 || p.is_deleted === '1' || p.is_deleted === 'true',
-      is_gst_applicable: p.is_gst_applicable === true || p.is_gst_applicable === 1 || p.is_gst_applicable === '1' || p.is_gst_applicable === 'true',
+      is_gst_applicable: isGstApplicableProduct(p.is_gst_applicable, p.hsn_sac_code),
       weight_override_allowed: p.weight_override_allowed === true || p.weight_override_allowed === 1 || p.weight_override_allowed === '1' || p.weight_override_allowed === 'true',
       is_service_item: p.is_service_item === true || p.is_service_item === 1 || p.is_service_item === '1' || p.is_service_item === 'true',
       domain_attributes: (() => { 
@@ -2168,7 +2174,7 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
                 hsn_sac_code: currentP.hsn_sac_code || null,
                 purchase_price: currentP.purchase_price ?? 0,
                 base_price: currentP.base_price,
-                is_gst_applicable: currentP.is_gst_applicable === false ? 0 : 1,
+                is_gst_applicable: isGstApplicableProduct(currentP.is_gst_applicable, currentP.hsn_sac_code) ? 1 : 0,
                 tax_rate_percent: currentP.tax_rate_percent ?? 0,
                 uom: currentP.uom || 'Pcs',
                 brand_manufacturer: currentP.brand_manufacturer || null,
@@ -4525,4 +4531,3 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
   }
   return hasContentChanged;
 }
-

@@ -17,6 +17,12 @@ log.initialize();
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 Object.assign(console, log.functions);
 
+const resolveGstApplicability = (gstFlag: unknown, hsnCode: unknown): number => {
+  const hasHsnCode = String(hsnCode ?? '').trim() !== '';
+  const isExplicitlyGst = gstFlag === undefined || gstFlag === null || gstFlag === true || gstFlag === 'true' || Number(gstFlag) === 1;
+  return hasHsnCode || isExplicitlyGst ? 1 : 0;
+};
+
 process.on('uncaughtException', (err) => {
   log.error('Uncaught Exception:', err);
 });
@@ -678,6 +684,7 @@ app.on('window-all-closed', () => {
 // â”€â”€ Auth Token Persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
+const getOfflineSessionPath = () => path.join(app.getPath('userData'), 'offline-auth.enc');
 
 const encrypt = (text: string): Buffer | null => {
   if (!safeStorage.isEncryptionAvailable()) {
@@ -714,6 +721,23 @@ function readAuthPayload(): any {
   }
 }
 
+function clearOfflineSession() {
+  const offlinePath = getOfflineSessionPath();
+  if (fs.existsSync(offlinePath)) fs.unlinkSync(offlinePath);
+}
+
+function readOfflineSession(): any {
+  const offlinePath = getOfflineSessionPath();
+  if (!fs.existsSync(offlinePath)) return null;
+  const decrypted = decrypt(fs.readFileSync(offlinePath));
+  if (!decrypted) return null;
+  try {
+    return JSON.parse(decrypted);
+  } catch {
+    return null;
+  }
+}
+
 ipcMain.removeHandler('auth:saveToken');
 ipcMain.handle('auth:saveToken', (event, payload) => {
   try {
@@ -737,10 +761,51 @@ ipcMain.handle('auth:saveToken', (event, payload) => {
         login_enabled: payload.login_enabled
       });
     }
+    clearOfflineSession();
     setSyncActive(true);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: 'Failed to save token' };
+  }
+});
+
+ipcMain.removeHandler('auth:saveOfflineSession');
+ipcMain.handle('auth:saveOfflineSession', (event, payload) => {
+  try {
+    if (!payload?.tenant_id || !payload?.user_id || !payload?.role) {
+      return { success: false, error: 'Incomplete offline session' };
+    }
+    const session = {
+      tenant_id: String(payload.tenant_id),
+      user_id: String(payload.user_id),
+      role: String(payload.role),
+      user_name: String(payload.user_name || ''),
+      shop_name: String(payload.shop_name || ''),
+      restricted_page: payload.restricted_page ? String(payload.restricted_page) : null,
+      permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    };
+    const encrypted = encrypt(JSON.stringify(session));
+    if (!encrypted) throw new Error('Unable to encrypt offline session');
+    fs.writeFileSync(getOfflineSessionPath(), encrypted);
+
+    // Offline authentication must not leave an older cloud token active.
+    const encryptedPath = getEncryptedPath();
+    const configPath = getConfigPath();
+    if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
+    if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    setSyncActive(false);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to save offline session' };
+  }
+});
+
+ipcMain.removeHandler('auth:getOfflineSession');
+ipcMain.handle('auth:getOfflineSession', () => {
+  try {
+    return readOfflineSession();
+  } catch {
+    return null;
   }
 });
 
@@ -783,6 +848,7 @@ ipcMain.handle('auth:clearToken', () => {
     if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
     const p = getConfigPath();
     if (fs.existsSync(p)) fs.unlinkSync(p);
+    clearOfflineSession();
     setSyncActive(false);
     return { success: true };
   } catch {
@@ -1128,7 +1194,7 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
       p.hsn_sac_code,
       p.purchase_price,
       p.base_price,
-      p.is_gst_applicable ?? 1,
+      resolveGstApplicability(p.is_gst_applicable, p.hsn_sac_code),
       p.tax_rate_percent,
       p.uom || 'Pcs',
       p.brand_manufacturer,
@@ -1253,7 +1319,7 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
       p.hsn_sac_code,
       p.purchase_price,
       p.base_price,
-      p.is_gst_applicable ?? 1,
+      resolveGstApplicability(p.is_gst_applicable, p.hsn_sac_code),
       p.tax_rate_percent,
       p.uom || 'Pcs',
       p.brand_manufacturer,
@@ -1286,7 +1352,8 @@ ipcMain.handle('db:updateProductGstFlag', safeHandler((event, { tenant_id, produ
   const db = getDb();
   const res = db.prepare(`
     UPDATE products
-    SET is_gst_applicable = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    SET is_gst_applicable = CASE WHEN ? = 1 OR TRIM(COALESCE(hsn_sac_code, '')) <> '' THEN 1 ELSE 0 END,
+        sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
     WHERE product_id = ? AND tenant_id = ?
   `).run(is_gst_applicable ? 1 : 0, product_id, tenant_id);
   if (res.changes === 0) return { success: false, error: 'Product not found' };
@@ -1477,7 +1544,7 @@ ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => 
             p.hsn_sac_code || null,
             p.purchase_price || 0,
             p.base_price || 0,
-            p.is_gst_applicable ?? 1,
+            resolveGstApplicability(p.is_gst_applicable, p.hsn_sac_code),
             p.tax_rate_percent || 0,
             p.uom || 'Pcs',
             p.brand_manufacturer || null,
@@ -1506,7 +1573,7 @@ ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => 
             p.hsn_sac_code || null,
             p.purchase_price || 0,
             p.base_price || 0,
-            p.is_gst_applicable ?? 1,
+            resolveGstApplicability(p.is_gst_applicable, p.hsn_sac_code),
             p.tax_rate_percent || 0,
             p.uom || 'Pcs',
             p.brand_manufacturer || null,
@@ -8425,4 +8492,3 @@ ipcMain.handle('db:getStaffAttendance', safeHandler((event, params: any) => {
 ipcMain.handle('db:saveStaffAttendance', safeHandler((event, params: any) => {
   return dbSaveStaffAttendance(params);
 }));
-

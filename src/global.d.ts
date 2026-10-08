@@ -66,6 +66,8 @@ export interface IElectronAPI {
   testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean } | null>;
+  authSaveOfflineSession: (payload: { tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] }) => Promise<{ success: boolean; error?: string }>;
+  authGetOfflineSession: () => Promise<{ tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   authSaveLocalUser: (payload: any) => Promise<{ success: boolean; error?: string }>;
   authLoginOffline: (payload: { email: string; password: string }) => Promise<{ success: boolean; error?: string; user?: any }>;

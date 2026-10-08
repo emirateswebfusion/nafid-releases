@@ -548,7 +548,7 @@ export function DataUploadModal({
         mappedData.brand_manufacturer = String(mappedData.brand_manufacturer ?? rawRow['Brand'] ?? '').trim();
         mappedData.uom = String(mappedData.uom ?? rawRow['UOM'] ?? 'Pcs').trim() || 'Pcs';
         mappedData.hsn_sac_code = String(mappedData.hsn_sac_code ?? rawRow['HSN Code'] ?? '').trim();
-        mappedData.is_gst_applicable = mappedData.tax_rate_percent > 0 ? 1 : 0;
+        mappedData.is_gst_applicable = (mappedData.tax_rate_percent > 0 || mappedData.hsn_sac_code.length > 0) ? 1 : 0;
 
         // Dynamic tier pricing extraction across all headers:
         // Any non-standard column with a valid numeric price is dynamically extracted as a price tier

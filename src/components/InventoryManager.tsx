@@ -52,6 +52,9 @@ interface Product {
   paper_stock?: number;
 }
 
+const isGstProduct = (product: Pick<Product, 'is_gst_applicable' | 'hsn_sac_code'>) =>
+  Number(product.is_gst_applicable) === 1 || String(product.hsn_sac_code || '').trim() !== '';
+
 const DEFAULT_FORM = {
   item_code: '',
   sku_barcode: '',
@@ -701,7 +704,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       base_price: gradeRate !== null && product.pricing_mode === 'GRADE_RATE' ? gradeRate : (product.base_price || ''),
       current_stock: product.current_stock ?? '',
       reorder_level: product.reorder_level ?? '',
-      is_gst_applicable: product.is_gst_applicable === 1,
+      is_gst_applicable: isGstProduct(product),
       hsn_sac_code: product.hsn_sac_code || '',
       tax_rate_percent: product.tax_rate_percent || 0,
       domain_attributes: (() => {
@@ -782,20 +785,21 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       // Service charge belongs on the billing page only — never in inventory
       // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
       if (Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge') return false;
+      const isGst = isGstProduct(p);
 
       // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
       const { role, restrictedPage } = useAuthStore.getState();
       if (role === 'BILLER') {
         const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
         const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
-        if (!hasOptViewGst && Number(p.is_gst_applicable) !== 1) {
+        if (!hasOptViewGst && !isGst) {
           return false;
         }
       }
 
-      // GST/Estimate membership follows the manual GST Product toggle only.
-      if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
-      if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
+      // An HSN/SAC code classifies a product as GST-applicable, even at 0%.
+      if (viewMode === 'estimate' && isGst) return false;
+      if (viewMode === 'gst' && !isGst) return false;
 
       // Stock status filter
       if (stockFilter === 'low_stock') {
@@ -977,6 +981,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
+      if (field === 'is_gst_applicable' && !value && String(prev.hsn_sac_code || '').trim()) {
+        return prev;
+      }
       const next = { ...prev, [field]: value };
       
       if (field === 'purchase_price' && priceCoding) {
@@ -1451,7 +1458,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         ? 0
         : (Number(formData.current_stock) || 0),
       reorder_level: Number(formData.reorder_level) || 0,
-      is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
+      is_gst_applicable: formData.is_gst_applicable || String(formData.hsn_sac_code || '').trim() !== '' ? 1 : 0,
       domain_attributes: (() => {
         const da = { ...formData.domain_attributes };
         const rawPcs = Number(da?.pcs !== undefined ? da.pcs : da?.pcs_stock) || 0;
@@ -1912,7 +1919,7 @@ return (
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
 
-                  const isGstFlag = Number(p.is_gst_applicable) === 1;
+                  const isGstFlag = isGstProduct(p);
 
                   return (
                     <div
@@ -3292,4 +3299,3 @@ function DomainField({ label, value, onChange, type = 'text' }: { label: string;
     </div>
   );
 }
-

@@ -122,7 +122,7 @@ function App() {
   }, []);
 
   const { currentUserRole } = useCartStore();
-  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role, isCloudSyncPaused } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showComboManager, setShowComboManager] = useState(false);
@@ -264,7 +264,7 @@ function App() {
 
   // Trigger initial sync once on first login — progress events will activate the bar
   useEffect(() => {
-    if (isAuthenticated && !syncChecked && window.electronAPI) {
+    if (isAuthenticated && !isCloudSyncPaused && !syncChecked && window.electronAPI) {
       console.log('[App] System authenticated. Starting cloud sync in background...');
       window.electronAPI.runInitialSync().then(() => {
         console.log('[App] Initial sync completed.');
@@ -273,7 +273,7 @@ function App() {
       });
       setSyncChecked(true);
     }
-  }, [isAuthenticated, syncChecked]);
+  }, [isAuthenticated, isCloudSyncPaused, syncChecked]);
 
   // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
   useEffect(() => {

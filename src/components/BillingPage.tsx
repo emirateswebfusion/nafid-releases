@@ -3343,10 +3343,6 @@ loadFlags(tenantId || 'global');
     } else if (isWeightProduct) {
       piecesPerKg = 1;
     }
-    // For heavy items (1 piece > 1 Kg), default to 1 piece instead of 1 Kg (which rounds to 0 pcs)
-    const initialQtyForProduct = (isWeightProduct && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
-      ? +(1 / piecesPerKg).toFixed(3)
-      : undefined;
     const tierPrice = getTierPriceForProduct(product);
     const hasTierPrice = tierPrice != null;
     addItem({
@@ -3379,7 +3375,6 @@ loadFlags(tenantId || 'global');
       pricing_tier_name: pricingTiers.find(t => t.pricing_tier_id === selectedTierId)?.name || null,
       original_base_price: product.base_price,
       is_tier_overridden: false,
-      quantity: initialQtyForProduct,
     });
     setSearchQuery('');
     setResults([]);
@@ -4392,11 +4387,6 @@ loadFlags(tenantId || 'global');
             } else if (isWeightProduct) {
               piecesPerKg = 1;
             }
-            // For heavy items (1 piece > 1 Kg), default to 1 piece
-            const initialQtyForScan = (isWeightProduct && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
-              ? +(1 / piecesPerKg).toFixed(3)
-              : undefined;
-
             addItem({
               product_id: prod.product_id,
               name: prod.name,
@@ -4417,7 +4407,6 @@ loadFlags(tenantId || 'global');
               sku_barcode: prod.sku_barcode || null,
               brand_manufacturer: prod.brand_manufacturer || null,
               isServiceItem: Number(prod.is_service_item) ? true : undefined,
-              quantity: initialQtyForScan,
             });
             syncActiveSnapshot();
             playBeep();
@@ -7089,6 +7078,24 @@ loadFlags(tenantId || 'global');
 
                   const hasDiscount = finalPrice !== null && finalPrice < basePrice;
                   const displayPrice = hasDiscount ? finalPrice! : basePrice;
+                  const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
+                  const isWeightProduct = p.billing_type === 'WEIGHT' || weightUoms.includes(String(p.uom || '').toLowerCase());
+                  let piecesPerKg = Number(p.pieces_per_kg) || 0;
+                  if (isWeightProduct && piecesPerKg <= 0 && p.domain_attributes) {
+                    try {
+                      const attrs = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+                      const storedPcsPerKg = Number(attrs?.pcs_per_kg) || 0;
+                      const totalPcs = Number(attrs?.pcs) || 0;
+                      const stockKg = Number(p.current_stock) || 0;
+                      piecesPerKg = storedPcsPerKg > 0 ? storedPcsPerKg : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0);
+                    } catch {}
+                  }
+                  const unitPriceRows = isWeightProduct
+                    ? [
+                        ...(piecesPerKg > 0 ? [{ label: '/pc', base: basePrice / piecesPerKg, current: displayPrice / piecesPerKg }] : []),
+                        { label: '/kg', base: basePrice, current: displayPrice },
+                      ]
+                    : [{ label: '/pc', base: basePrice, current: displayPrice }];
 
                   return (
                     <button
@@ -7146,14 +7153,18 @@ loadFlags(tenantId || 'global');
                       <div className="text-right shrink-0 flex flex-col items-end justify-center pl-2">
                         {hasDiscount ? (
                           <div className="flex flex-col items-end">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-xs font-semibold text-muted-foreground/70 line-through">
-                                {formatCurrency(basePrice)}
-                              </span>
-                              <span className="font-mono font-black text-base text-emerald-600 dark:text-emerald-400 tracking-tight group-hover:scale-105 transition-transform">
-                                {formatCurrency(displayPrice)}
-                              </span>
-                            </div>
+                            {unitPriceRows.map(row => (
+                              <div key={row.label} className="flex items-center gap-1.5">
+                                {row.current < row.base - 0.005 && (
+                                  <span className="font-mono text-xs font-semibold text-muted-foreground/70 line-through">
+                                    {formatCurrency(row.base)}{row.label}
+                                  </span>
+                                )}
+                                <span className="font-mono font-black text-base text-emerald-600 dark:text-emerald-400 tracking-tight group-hover:scale-105 transition-transform">
+                                  {formatCurrency(row.current)}{row.label}
+                                </span>
+                              </div>
+                            ))}
                             <div className="flex items-center gap-1.5 mt-1">
                               <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded uppercase">
                                 {p.offer_price ? 'OFFER' : p.discount_percent ? `${p.discount_percent}% OFF` : 'DISCOUNT'}
@@ -7175,9 +7186,11 @@ loadFlags(tenantId || 'global');
                           </div>
                         ) : (
                           <>
-                            <div className="font-mono font-black text-base text-foreground tracking-tight group-hover:scale-105 transition-transform">
-                              {formatCurrency(displayPrice)}
-                            </div>
+                            {unitPriceRows.map(row => (
+                              <div key={row.label} className="font-mono font-black text-base text-foreground tracking-tight group-hover:scale-105 transition-transform">
+                                {formatCurrency(row.current)}{row.label}
+                              </div>
+                            ))}
                             <div className="mt-1">
                               {p.current_stock <= 0 ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
@@ -8935,7 +8948,7 @@ loadFlags(tenantId || 'global');
                 const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
                 const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
                 const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
-                const _ppk = item.pieces_per_kg || 1;
+                const piecesPerKg = Number(item.pieces_per_kg) || 1;
                 const weightKg = Number(item.quantity) || 0;
                 const pieces = isPiecesWeight ? (item.pieces_override ?? 1) : 0;
                 const qty = weightKg;
@@ -8952,6 +8965,7 @@ loadFlags(tenantId || 'global');
                 else if (isAdhocDiscFlatI) { effectivePrice = catalogPriceItem - Number(item.discount_flat); }
                 else if (isAdhocDiscPctI) { effectivePrice = catalogPriceItem * (1 - Number(item.discount_percent) / 100); }
                 effectivePrice = Math.max(effectivePrice, 0);
+                const pricePerPiece = isPiecesWeight ? effectivePrice / piecesPerKg : null;
                 const total = effectivePrice * qty;
 
                 // Explicit discount flag — avoids floating-point comparison bugs
@@ -9051,6 +9065,11 @@ loadFlags(tenantId || 'global');
                           </span>
                         ) : (
                           <span className="italic">No barcode</span>
+                        )}
+                        {pricePerPiece !== null && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono font-bold">
+                            {formatCurrency(pricePerPiece)}/pc
+                          </span>
                         )}
                         {item.brand_manufacturer && (
                           <span className="font-medium">&middot; {item.brand_manufacturer}</span>
