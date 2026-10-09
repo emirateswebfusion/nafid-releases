@@ -35,7 +35,7 @@ export interface IElectronAPI {
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: any }) => Promise<{ success: boolean; error?: string }>;
-  dbGetCustomers: (params: { tenant_id: string }) => Promise<any[]>;
+  dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string }) => Promise<any[]>;
   dbDeleteCustomer: (params: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string; deleted_party_count?: number }>;
   dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;

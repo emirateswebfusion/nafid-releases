@@ -8286,11 +8286,48 @@ ipcMain.handle('db:cashier:deleteCategory', safeHandler((event, { category_id, t
 
 // â”€â”€ Customer / Loyalty Points IPC Handlers â”€â”€
 
-ipcMain.handle('db:getCustomers', (event, { tenant_id }: { tenant_id: string }) => {
+ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_tier_id, search }: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
-    return db.prepare(`SELECT * FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY name COLLATE NOCASE ASC`).all(tenant_id);
+
+    let query = `
+      SELECT c.*, 
+             p.balance as party_balance,
+             p.pricing_tier_id,
+             pt.name as pricing_tier_name
+      FROM customers c
+      LEFT JOIN parties p ON p.tenant_id = c.tenant_id 
+        AND (p.phone = c.phone OR LOWER(p.name) = LOWER(c.name))
+        AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = p.pricing_tier_id
+      WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
+    `;
+    const params: any[] = [tenant_id];
+
+    if (search) {
+      query += ` AND (c.name LIKE ? OR c.phone LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    if (active) {
+      query += ` AND c.last_purchase_date IS NOT NULL AND c.last_purchase_date >= datetime('now', '-90 days')`;
+    }
+
+    if (credit === true) {
+      query += ` AND p.balance > 0`;
+    } else if (credit === false) {
+      query += ` AND (p.balance <= 0 OR p.balance IS NULL)`;
+    }
+
+    if (pricing_tier_id) {
+      query += ` AND p.pricing_tier_id = ?`;
+      params.push(pricing_tier_id);
+    }
+
+    query += ` ORDER BY c.name COLLATE NOCASE ASC`;
+
+    return db.prepare(query).all(...params);
   } catch (error: any) {
     console.error('[db:getCustomers]', error);
     return { error: 'Operation failed' };

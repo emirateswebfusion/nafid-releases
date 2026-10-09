@@ -52,6 +52,29 @@ export interface HeaderButtonConfig {
   showRegister?: boolean;
 }
 
+export type EntryFieldKey = 
+  | 'search' 
+  | 'qty' 
+  | 'weight' 
+  | 'rate' 
+  | 'discount' 
+  | 'discountFlat' 
+  | 'grandTotal';
+
+export type EntryFieldFlowPreset = 
+  | 'full' 
+  | 'noDiscount' 
+  | 'noGrandTotal' 
+  | 'minimal' 
+  | 'custom';
+
+export const ENTRY_FIELD_FLOW_PRESETS: Record<Exclude<EntryFieldFlowPreset, 'custom'>, EntryFieldKey[]> = {
+  full: ['search', 'qty', 'rate', 'discount', 'discountFlat', 'grandTotal', 'search'],
+  noDiscount: ['search', 'qty', 'rate', 'search'],
+  noGrandTotal: ['search', 'qty', 'rate', 'discount', 'discountFlat', 'search'],
+  minimal: ['search', 'qty', 'search'],
+};
+
 export interface BillingUIConfig {
   // Primary Layout Model Presets
   layoutModel: POSLayoutModel;
@@ -64,6 +87,10 @@ export interface BillingUIConfig {
   searchBarPosition: 'top' | 'cart-header';
   customerInfoPosition: 'top-cart' | 'above-payment';
   entryFocusOrder?: 'search-first' | 'customer-first';
+
+  // Entry Field Navigation Flow
+  entryFieldFlowPreset?: EntryFieldFlowPreset;
+  entryFieldFlowCustom?: EntryFieldKey[];
 
   // Density & Touch Sizing
   density: 'compact' | 'normal' | 'touch-large';
@@ -109,6 +136,8 @@ export const DEFAULT_BILLING_UI_CONFIG: BillingUIConfig = {
   searchBarPosition: 'top',
   customerInfoPosition: 'top-cart',
   entryFocusOrder: 'search-first',
+  entryFieldFlowPreset: 'full',
+  entryFieldFlowCustom: undefined,
   density: 'normal',
   touchMode: false,
   showQuickActions: true,
@@ -165,8 +194,8 @@ export function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfi
   }
 
   const modePriority: (keyof HeaderButtonConfig)[] = [
-    'showHistory', 'showHeldBills', 'showScrap', 'showRegister',
-    'showQuotation', 'showReturn', 'showTransport', 'showClearCart'
+    'showClearCart', 'showHistory', 'showHeldBills', 'showScrap', 'showRegister',
+    'showQuotation', 'showReturn', 'showTransport'
   ];
 
   const activeModes: (keyof HeaderButtonConfig)[] = [];
@@ -335,6 +364,8 @@ function loadStoredConfig(): BillingUIConfig {
         quickPageShortcuts: (Array.isArray(parsed.quickPageShortcuts)
           ? parsed.quickPageShortcuts
           : DEFAULT_BILLING_UI_CONFIG.quickPageShortcuts) as QuickPageKey[],
+        entryFieldFlowPreset: parsed.entryFieldFlowPreset ?? DEFAULT_BILLING_UI_CONFIG.entryFieldFlowPreset,
+        entryFieldFlowCustom: Array.isArray(parsed.entryFieldFlowCustom) ? parsed.entryFieldFlowCustom : DEFAULT_BILLING_UI_CONFIG.entryFieldFlowCustom,
         maxTotalHeaderButtons: INTERNAL_HEADER_BUTTON_CAPACITY,
       };
       return sanitizeBillingUIConfig(merged);
@@ -361,6 +392,10 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
       ? partial.quickPageShortcuts
       : (current.quickPageShortcuts || DEFAULT_BILLING_UI_CONFIG.quickPageShortcuts || []);
 
+    const rawCustomFlow = partial.entryFieldFlowCustom !== undefined
+      ? partial.entryFieldFlowCustom
+      : current.entryFieldFlowCustom;
+
     const merged: BillingUIConfig = {
       ...current,
       ...partial,
@@ -369,6 +404,7 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
         ...(partial.headerButtons || {}),
       },
       quickPageShortcuts: (Array.isArray(rawShortcuts) ? rawShortcuts : (['ledger'] as QuickPageKey[])) as QuickPageKey[],
+      entryFieldFlowCustom: Array.isArray(rawCustomFlow) ? rawCustomFlow : undefined,
       maxTotalHeaderButtons: INTERNAL_HEADER_BUTTON_CAPACITY,
     };
     const updated = sanitizeBillingUIConfig(merged);

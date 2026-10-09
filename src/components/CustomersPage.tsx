@@ -1,12 +1,12 @@
 // eslint-disable-next-line @typescript-eslint/parser
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { isAdminRole } from '../utils/permissions';
 import {
   Search, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
-  Trash2, AlertTriangle, Loader2, Edit3,
+  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
@@ -14,8 +14,16 @@ import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
-import { parseUTCDate, getAppTimeFormat } from '../utils/receiptGenerator';
+import { parseUTCDate, getAppTimeFormat, DEFAULT_BILL_SETTINGS, formatBillDateTime, generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
+import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+
+interface PricingTier {
+  pricing_tier_id: string;
+  name: string;
+}
 
 interface Customer {
   customer_id: string;
@@ -27,6 +35,9 @@ interface Customer {
   current_points_balance: number;
   last_purchase_date: string;
   created_at: string;
+  party_balance?: number;
+  pricing_tier_id?: string;
+  pricing_tier_name?: string;
 }
 
 interface Party {
@@ -75,7 +86,39 @@ interface InvoiceRecord {
   scrap_invoice_number?: string;
   return_deduction?: number;
   return_invoice_number?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_address?: string;
+  customer_state?: string;
+  biller_name?: string;
+  description?: string;
+  notes?: string;
+  discount_type?: string;
+  split_details?: string;
 }
+
+interface InvoiceItemRow {
+  name?: string;
+  quantity?: number;
+  unit_price?: number;
+  total?: number;
+  billing_type?: string;
+  pieces_sold?: number;
+  pieces_override?: number;
+  unit?: string;
+  uom?: string;
+  brand_manufacturer?: string;
+  hsn_code?: string;
+  tax_rate_percent?: number;
+  product_id?: string;
+  combo_id?: string;
+  combo_details?: string;
+}
+
+type InvoiceStyle = 'standard' | 'boxed' | 'modern' | 'classic' | 'half-a4';
+
+type ComboItemLine = { product_id: string; quantity: number; product_name?: string };
+type ComboOffer = { combo_id?: string; name?: string; items?: ComboItemLine[] };
 
 function formatCurrency(amount: number): string {
   return `\u20B9${(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -168,8 +211,14 @@ export function CustomersPage({
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [filterActive, setFilterActive] = useState(false);
+  const [filterCredit, setFilterCredit] = useState<'all' | 'credit' | 'no-credit'>('all');
+  const [filterPricingTier, setFilterPricingTier] = useState<string>('');
 
   const [view, setView] = useState<View>('list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -178,6 +227,11 @@ export function CustomersPage({
 
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
+
+  // Bill download / print state
+  const [billFilterStart, setBillFilterStart] = useState('');
+  const [billFilterEnd, setBillFilterEnd] = useState('');
+  const [invoiceBusyId, setInvoiceBusyId] = useState<string | null>(null);
 
   const [loyaltyTxs, setLoyaltyTxs] = useState<LoyaltyTx[]>([]);
   const [loyaltyTxsLoading, setLoyaltyTxsLoading] = useState(false);
@@ -246,12 +300,32 @@ export function CustomersPage({
     }
   };
 
-  const loadCustomers = useCallback(async () => {
+  const loadPricingTiers = useCallback(async () => {
     if (!tenantId || !window.electronAPI) return;
-    setLoading(true);
+    try {
+      const tiers = await window.electronAPI.dbGetPricingTiers(tenantId);
+      setPricingTiers(Array.isArray(tiers) ? tiers : []);
+    } catch {
+      // silent fail
+    }
+  }, [tenantId]);
+
+  const loadCustomers = useCallback(async (isInitialLoad = false) => {
+    if (!tenantId || !window.electronAPI) return;
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setFilterLoading(true);
+    }
     try {
       const [custData, partyData] = await Promise.all([
-        window.electronAPI.dbGetCustomers({ tenant_id: tenantId }),
+        window.electronAPI.dbGetCustomers({
+          tenant_id: tenantId,
+          search: debouncedSearchQuery || undefined,
+          active: filterActive || undefined,
+          credit: filterCredit === 'credit' ? true : filterCredit === 'no-credit' ? false : undefined,
+          pricing_tier_id: filterPricingTier || undefined,
+        }),
         window.electronAPI.dbGetParties(tenantId).catch(() => []),
       ]);
       setCustomers(Array.isArray(custData) ? custData : []);
@@ -260,10 +334,13 @@ export function CustomersPage({
       showStatus('Failed to load customers', 'error');
     } finally {
       setLoading(false);
+      setFilterLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
 
-  useEffect(() => { loadCustomers(); }, [loadCustomers]);
+  useEffect(() => { loadCustomers(true); }, []);
+  useEffect(() => { loadCustomers(false); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  useEffect(() => { loadPricingTiers(); }, [loadPricingTiers]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -279,6 +356,14 @@ export function CustomersPage({
       }
     }).catch(() => {});
   }, [tenantId]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Restore scroll position and highlight customer row when returning to list
   useEffect(() => {
@@ -341,6 +426,8 @@ export function CustomersPage({
 
     setView('detail');
     setDetailTab('purchases');
+    setBillFilterStart('');
+    setBillFilterEnd('');
     setInvoicesLoading(true);
     setLoyaltyTxsLoading(true);
 
@@ -430,11 +517,218 @@ export function CustomersPage({
     }
   };
 
-  const filteredCustomers = customers.filter(c =>
-    !searchQuery ||
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.phone || '').includes(searchQuery)
-  );
+  /* ─── Bill CSV export + individual download/print ─── */
+  const filteredInvoices = useMemo(() => {
+    if (!billFilterStart && !billFilterEnd) return invoices;
+    return invoices.filter(inv => {
+      const key = parseUTCDate(inv.created_at).toLocaleDateString('en-CA', { timeZone: getStoreTimezone() });
+      if (billFilterStart && key < billFilterStart) return false;
+      if (billFilterEnd && key > billFilterEnd) return false;
+      return true;
+    });
+  }, [invoices, billFilterStart, billFilterEnd]);
+
+  type BillConfig = {
+    shopNameVal: string | null | undefined; shopAddr: string | null | undefined;
+    shopPh: string | null | undefined; shopGstin: string | null | undefined;
+    shopStateVal: string | null | undefined; upiVal: string | null | undefined;
+    showQr: unknown; printFmt: ReturnType<typeof parsePrintFormat>;
+    billSettings: typeof DEFAULT_BILL_SETTINGS; receiptWidthCm: number;
+    shopEmailVal: string | null | undefined; shopWebsiteVal: string | null | undefined;
+    combos: ComboOffer[];
+  };
+
+  const loadBillConfig = async (): Promise<BillConfig> => {
+    const tId = tenantId || 'global';
+    const [shopNameVal, shopAddr, shopPh, shopGstin, shopStateVal, upiVal, showQr, printFmtRaw, receiptConfig, shopEmailVal, shopWebsiteVal, combosRaw] = await Promise.all([
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_name' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_address' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_phone' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_gstin' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_state' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'upi_id' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'show_upi_qr' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'print_format' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'receipt_printer_config' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_email' }),
+      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_website' }),
+      window.electronAPI.dbGetComboOffers({ tenant_id: tId }),
+    ]);
+    const printFmt = parsePrintFormat(printFmtRaw);
+    const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+    const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+    const combos: ComboOffer[] = Array.isArray(combosRaw) ? combosRaw : [];
+    return { shopNameVal, shopAddr, shopPh, shopGstin, shopStateVal, upiVal, showQr, printFmt, billSettings, receiptWidthCm, shopEmailVal, shopWebsiteVal, combos };
+  };
+
+  const buildInvoiceData = async (inv: InvoiceRecord, cfg: BillConfig) => {
+    let items: InvoiceItemRow[];
+    try {
+      const data = window.electronAPI?.dbGetInvoiceItems ? await window.electronAPI.dbGetInvoiceItems(inv.invoice_id) : [];
+      items = Array.isArray(data) ? data : [];
+    } catch {
+      items = [];
+    }
+
+    const { printFmt, billSettings } = cfg;
+    const isB2B = inv.invoice_type === 'GST' && !!(inv.customer_gstin && String(inv.customer_gstin).trim());
+    const isGstOrB2B = inv.invoice_type === 'GST' || isB2B;
+    const scrapD = Number(inv.scrap_deduction) || 0;
+    const returnD = Number(inv.return_deduction) || 0;
+    const isInterState = !!(cfg.shopStateVal && inv.customer_state && cfg.shopStateVal !== inv.customer_state);
+    const taxVal = Number(inv.tax_total) || 0;
+    // Stored grand_total is already net of scrap/return deductions, but the generators show
+    // "Net Payable = grandTotal - deductions", so pass the pre-deduction base (same as
+    // SalesHistory's reprint) — otherwise deductions would be subtracted twice.
+    let baseGrandTotal = Number(inv.grand_total) || 0;
+    if (inv.invoice_type !== 'SCRAP') {
+      baseGrandTotal = Math.max(0, (Number(inv.subtotal) || 0) + taxVal - (Number(inv.discount_total) || 0) - (Number(inv.points_redeemed_discount) || 0));
+    }
+
+    const receiptData: ReceiptData = {
+      shopName: (isGstOrB2B || billSettings.showShopName !== false) ? (cfg.shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+      shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (cfg.shopGstin || undefined) : undefined,
+      shopState: (isGstOrB2B || billSettings.showShopState !== false) ? (cfg.shopStateVal || undefined) : undefined,
+      shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (cfg.shopAddr || undefined) : undefined,
+      shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (cfg.shopPh || undefined) : undefined,
+      shopEmail: cfg.shopEmailVal || undefined,
+      shopWebsite: cfg.shopWebsiteVal || undefined,
+      upiId: cfg.upiVal || undefined,
+      showUpiQr: cfg.showQr !== null && cfg.showQr !== undefined ? Boolean(cfg.showQr) : true,
+      showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+      showPriceOverrideMrp: printFmt.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
+      invoiceNumber: inv.invoice_number,
+      invoiceType: inv.invoice_type,
+      date: formatBillDateTime(inv.created_at),
+      billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (inv.biller_name || useAuthStore.getState().userName || undefined) : undefined,
+      items: items.map(item => {
+        let comboItemsParsed: ComboItemLine[] | undefined;
+        if (item.combo_details) {
+          try {
+            const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+            if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
+          } catch { /* corrupted combo_details — render as a normal line */ }
+        }
+        const matchedCombo = cfg.combos.find(c =>
+          (item.combo_id && c.combo_id === item.combo_id) ||
+          (item.name && c.name && c.name.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
+          (item.product_id && c.combo_id === item.product_id)
+        );
+        if (!comboItemsParsed && matchedCombo?.items) comboItemsParsed = matchedCombo.items;
+        const isComboItem = Boolean(item.combo_id || matchedCombo || (comboItemsParsed && comboItemsParsed.length > 0));
+        return {
+          name: item.name || '',
+          quantity: Number(item.quantity) || 0,
+          unit_price: Number(item.unit_price) || 0,
+          total: Number(item.total) || 0,
+          billing_type: item.billing_type,
+          pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
+          pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
+          unit: item.unit || item.uom,
+          brand: item.brand_manufacturer || undefined,
+          isCombo: isComboItem,
+          combo_items: comboItemsParsed,
+        };
+      }),
+      subtotal: Number(inv.subtotal) || 0,
+      tax: taxVal,
+      cgst: isInterState ? undefined : taxVal / 2,
+      sgst: isInterState ? undefined : taxVal / 2,
+      igst: isInterState ? taxVal : undefined,
+      discount: Number(inv.discount_total) || 0,
+      discountType: inv.discount_type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED',
+      discountValue: Number(inv.discount_value) || 0,
+      grandTotal: baseGrandTotal,
+      receivedAmount: inv.received_amount != null ? Number(inv.received_amount) : undefined,
+      balanceAmount: (() => {
+        if (inv.balance_amount == null) return undefined;
+        const rawBal = Number(inv.balance_amount);
+        const pmUpper = (inv.payment_method || '').toUpperCase();
+        if (pmUpper !== 'CREDIT' && pmUpper !== 'SPLIT' && rawBal < 0) return 0;
+        return rawBal;
+      })(),
+      paymentMethod: inv.payment_method,
+      isReprint: true,
+      customerName: (isGstOrB2B || billSettings.showCustomerName !== false) ? (inv.customer_name || undefined) : undefined,
+      customerPhone: (isGstOrB2B || billSettings.showCustomerPhone !== false) ? (inv.customer_phone || undefined) : undefined,
+      customerAddress: (isGstOrB2B || billSettings.showCustomerAddress !== false) ? (inv.customer_address || undefined) : undefined,
+      customerGstin: inv.customer_gstin ? String(inv.customer_gstin).trim() || undefined : undefined,
+      customerState: (isGstOrB2B || billSettings.showCustomerState !== false) ? (inv.customer_state || undefined) : undefined,
+      scrapDeduction: scrapD > 0 ? scrapD : undefined,
+      scrapInvoiceNumber: inv.scrap_invoice_number || undefined,
+      returnDeduction: returnD > 0 ? returnD : undefined,
+      returnInvoiceNumber: inv.return_invoice_number || undefined,
+      description: inv.description || inv.notes || undefined,
+      notes: inv.notes || inv.description || undefined,
+      billSettings,
+      isB2B,
+      a5Orientation: printFmt.a5Orientation || 'horizontal',
+    };
+
+    const isHalfA4 = printFmt.format === 'half-a4';
+    const invoiceStyle = (!isGstOrB2B && isHalfA4)
+      ? 'half-a4'
+      : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
+
+    return { receiptData, isGstOrB2B, invoiceStyle: invoiceStyle as InvoiceStyle };
+  };
+
+  const handleDownloadInvoiceCsv = async (inv: InvoiceRecord) => {
+    setInvoiceBusyId(inv.invoice_id);
+    try {
+      const escape = (val: unknown) => {
+        const str = val == null ? '' : String(val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      };
+      const typeLabel = (inv: InvoiceRecord) => {
+        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'B2B';
+        if (inv.invoice_type === 'GST') return 'B2C';
+        if (inv.invoice_type === 'BILL_OF_SUPPLY') return 'Bill of Supply';
+        if (inv.invoice_type === 'ESTIMATE') return 'Estimate';
+        if (inv.invoice_type === 'SCRAP') return 'Scrap';
+        return inv.invoice_type || '';
+      };
+      const headers = [
+        'Invoice No', 'Date & Time', 'Type', 'Payment Method',
+        'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)', 'Grand Total (₹)',
+        'Received (₹)', 'Balance (₹)', 'Points Earned', 'Points Redeemed',
+        'Biller', 'Description / Remarks',
+      ];
+      const row = [
+        escape(inv.invoice_number),
+        escape(formatDateTime(inv.created_at)),
+        escape(typeLabel(inv)),
+        escape(inv.payment_method || ''),
+        escape((inv.subtotal || 0).toFixed(2)),
+        escape((inv.tax_total || 0).toFixed(2)),
+        escape((inv.discount_total || 0).toFixed(2)),
+        escape((inv.grand_total || 0).toFixed(2)),
+        escape((inv.received_amount || 0).toFixed(2)),
+        escape((inv.balance_amount || 0).toFixed(2)),
+        escape(inv.points_earned || 0),
+        escape(inv.points_redeemed || 0),
+        escape(inv.biller_name || useAuthStore.getState().userName || ''),
+        escape(inv.description || inv.notes || ''),
+      ];
+      const csvContent = [headers.join(','), row.join(',')].join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safeName = String(inv.invoice_number).replace(/[^a-zA-Z0-9._-]+/g, '-');
+      link.download = `invoice-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showStatus(`Downloaded invoice ${inv.invoice_number} as CSV`, 'success');
+    } catch (err) {
+      console.error('Invoice CSV download failed:', err);
+      showStatus('Download failed', 'error');
+    } finally { setInvoiceBusyId(null); }
+  };
 
   const totalPointsIssued = customers.reduce((s, c) => s + (c.total_points_earned || 0), 0);
   const totalPointsRedeemed = customers.reduce((s, c) => s + (c.total_points_redeemed || 0), 0);
@@ -454,11 +748,29 @@ export function CustomersPage({
             </div>
 
             <div className="min-w-0 leading-tight">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base font-black text-foreground truncate tracking-tight">
                   {view === 'list' ? 'Customer Directory' : selectedCustomer?.name || 'Customer Profile'}
                 </h1>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="System Live" />
+                {/* Active Filter Indicator Badge */}
+                {(filterActive || filterCredit !== 'all' || filterPricingTier) && (
+                  <button
+                    onClick={() => {
+                      setFilterActive(false);
+                      setFilterCredit('all');
+                      setFilterPricingTier('');
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold uppercase tracking-wider hover:bg-primary/20 transition-all cursor-pointer"
+                    title="Click to clear all filters"
+                  >
+                    <Filter className="w-3 h-3" />
+                    <span>Filters Active</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-mono">
+                      {(filterActive ? 1 : 0) + (filterCredit !== 'all' ? 1 : 0) + (filterPricingTier ? 1 : 0)}
+                    </span>
+                  </button>
+                )}
               </div>
               <p className="text-[11px] text-muted-foreground font-semibold mt-0.5 flex items-center gap-1.5 truncate">
                 {view === 'list' ? (
@@ -535,6 +847,87 @@ export function CustomersPage({
               )}
             </div>
 
+            {/* Filter Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Active Filter */}
+              <button
+                onClick={() => setFilterActive(!filterActive)}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+                  filterActive
+                    ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30'
+                    : 'bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-foreground'
+                )}
+                title="Active customers (purchased in last 90 days)"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Active</span>
+              </button>
+
+              {/* Credit Filter */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setFilterCredit(filterCredit === 'credit' ? 'all' : 'credit')}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+                    filterCredit === 'credit'
+                      ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30'
+                      : 'bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-foreground'
+                  )}
+                  title="Customers with credit balance (receivable)"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Credit</span>
+                </button>
+                <button
+                  onClick={() => setFilterCredit(filterCredit === 'no-credit' ? 'all' : 'no-credit')}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+                    filterCredit === 'no-credit'
+                      ? 'bg-blue-500/10 text-blue-600 border border-blue-500/30'
+                      : 'bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-foreground'
+                  )}
+                  title="Customers without credit balance"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>No Credit</span>
+                </button>
+              </div>
+
+              {/* Pricing Tier Filter */}
+              {pricingTiers.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={filterPricingTier}
+                    onChange={e => setFilterPricingTier(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted/50 border border-border text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer appearance-none pr-8"
+                  >
+                    <option value="">All Tiers</option>
+                    {pricingTiers.map(tier => (
+                      <option key={tier.pricing_tier_id} value={tier.pricing_tier_id}>{tier.name}</option>
+                    ))}
+                  </select>
+                  <Tag className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50 pointer-events-none" />
+                </div>
+              )}
+
+              {/* Clear Filters */}
+              {(filterActive || filterCredit !== 'all' || filterPricingTier) && (
+                <button
+                  onClick={() => {
+                    setFilterActive(false);
+                    setFilterCredit('all');
+                    setFilterPricingTier('');
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-destructive/80 border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 transition-all"
+                  title="Clear all filters"
+                >
+                  <FilterX className="w-3.5 h-3.5" />
+                  <span>Clear</span>
+                </button>
+              )}
+            </div>
+
             {/* Metric Pills Row */}
             {loyaltyEnabled && (
               <div className="flex items-center gap-2 overflow-x-auto py-0.5 shrink-0">
@@ -571,21 +964,41 @@ export function CustomersPage({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
               </div>
-            ) : filteredCustomers.length === 0 ? (
+            ) : filterLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+                {customers.map((c, i) => (
+                  <div key={c.customer_id} className="p-3.5 rounded-xl bg-card border border-border/80 animate-pulse opacity-60">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-muted/50" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-3/4 bg-muted/50 rounded" />
+                        <div className="h-3 w-1/2 bg-muted/50 rounded" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : customers.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground bg-card rounded-2xl border border-dashed border-border/80 flex flex-col items-center justify-center gap-3 p-8">
                 <div className="p-3.5 bg-muted/40 rounded-xl border border-border/40">
                   <User className="w-8 h-8 text-muted-foreground/40" />
                 </div>
                 <div className="max-w-md">
-                  <p className="text-sm font-extrabold text-foreground">{searchQuery ? 'No matching customers found' : 'No customer records yet'}</p>
+                  <p className="text-sm font-extrabold text-foreground">
+                    {(searchQuery || filterActive || filterCredit !== 'all' || filterPricingTier)
+                      ? 'No matching customers found'
+                      : 'No customer records yet'}
+                  </p>
                   <p className="text-xs text-muted-foreground/80 mt-1 leading-relaxed">
-                    Customer records are automatically logged when phone numbers or details are entered during sales checkout.
+                    {searchQuery || filterActive || filterCredit !== 'all' || filterPricingTier
+                      ? 'Try adjusting your search or filters.'
+                      : 'Customer records are automatically logged when phone numbers or details are entered during sales checkout.'}
                   </p>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3.5 pb-6">
-                {filteredCustomers.map(customer => (
+                {customers.map(customer => (
                   <div
                     key={customer.customer_id}
                     id={`customer-row-${customer.customer_id}`}
@@ -633,6 +1046,12 @@ export function CustomersPage({
                         <Calendar className="w-3 h-3 text-muted-foreground/60" />
                         {customer.last_purchase_date ? formatDate(customer.last_purchase_date) : 'No purchases'}
                       </span>
+
+                      {customer.pricing_tier_name && (
+                        <div className="px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-black font-mono text-[10px]">
+                          {customer.pricing_tier_name}
+                        </div>
+                      )}
 
                       {loyaltyEnabled && (
                         <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-black font-mono">
@@ -846,6 +1265,23 @@ export function CustomersPage({
                   </button>
                 )}
               </div>
+
+              {/* Bill filter + bulk CSV download */}
+              {detailTab === 'purchases' && invoices.length > 0 && (
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <span className="text-[10px] text-muted-foreground font-bold shrink-0">
+                    {filteredInvoices.length === invoices.length
+                      ? `${invoices.length} bill${invoices.length !== 1 ? 's' : ''}`
+                      : `${filteredInvoices.length} of ${invoices.length} bills`}
+                  </span>
+                  <DateRangeFilter
+                    startDate={billFilterStart}
+                    endDate={billFilterEnd}
+                    onChange={(s, e) => { setBillFilterStart(s); setBillFilterEnd(e); }}
+                    align="right"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Tab Body */}
@@ -864,9 +1300,25 @@ export function CustomersPage({
                         Invoices linked to this customer will appear here automatically after checkout.
                       </p>
                     </div>
+                  ) : filteredInvoices.length === 0 ? (
+                    <div className="text-center py-16 text-muted-foreground flex flex-col items-center justify-center gap-3">
+                      <div className="p-4 bg-muted/30 rounded-2xl border border-border/40">
+                        <FilterX className="w-8 h-8 text-muted-foreground/40" />
+                      </div>
+                      <p className="text-sm font-extrabold text-foreground">No bills in selected date range</p>
+                      <p className="text-xs text-muted-foreground/75 max-w-sm">
+                        {`${invoices.length} bill${invoices.length !== 1 ? 's' : ''} exist for this customer. Adjust or clear the date filter to see them.`}
+                      </p>
+                      <button
+                        onClick={() => { setBillFilterStart(''); setBillFilterEnd(''); }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold border border-border bg-muted/50 hover:bg-muted text-foreground transition-all cursor-pointer"
+                      >
+                        Clear Date Filter
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
-                      {invoices.map(inv => (
+                      {filteredInvoices.map(inv => (
                         // eslint-disable-next-line @typescript-eslint/parser
                         <div
                           key={inv.invoice_id}
@@ -894,7 +1346,7 @@ export function CustomersPage({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3 self-end sm:self-center">
+                          <div className="flex items-center gap-2 self-end sm:self-center">
                             {loyaltyEnabled && inv.points_earned > 0 && (
                               <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-mono">
                                 +{inv.points_earned.toFixed(0)} pts earned
@@ -905,6 +1357,24 @@ export function CustomersPage({
                                 -{inv.points_redeemed.toFixed(0)} pts ({formatCurrency(inv.points_redeemed_discount)} off)
                               </span>
                             )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDownloadInvoiceCsv(inv); }}
+                                disabled={invoiceBusyId === inv.invoice_id}
+                                className="p-2 rounded-lg text-muted-foreground/70 hover:text-blue-600 hover:bg-blue-500/10 border border-transparent hover:border-blue-500/25 transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Download bill as CSV"
+                              >
+                                {invoiceBusyId === inv.invoice_id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
                             <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                               View Bill <ChevronRight className="w-3.5 h-3.5" />
                             </span>
@@ -1128,9 +1598,25 @@ export function CustomersPage({
                 </div>
               )}
 
-              {/* Owner Edit Bill Action */}
-              {isAdminRole(role) && (
-                <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              {/* Bill Actions: Download CSV / Edit */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadInvoiceCsv(viewingInvoice)}
+                  disabled={invoiceBusyId === viewingInvoice.invoice_id}
+                  className="px-4 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {invoiceBusyId === viewingInvoice.invoice_id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  )} Download CSV
+                </button>
+                {isAdminRole(role) && (
                   <button
                     type="button"
                     onClick={handleEditBillFromCustomerModal}
@@ -1138,8 +1624,8 @@ export function CustomersPage({
                   >
                     <Edit3 className="w-3.5 h-3.5" /> Edit Bill
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </Modal>

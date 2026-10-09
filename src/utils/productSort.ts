@@ -3,11 +3,22 @@ export function cleanSearchText(str: string): string {
   return str.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
 
+function getWords(query: string): string[] {
+  return query.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
+}
+
+function allWordsMatch(text: string, words: string[]): boolean {
+  if (words.length === 0) return false;
+  const lowerText = text.toLowerCase();
+  return words.every(word => lowerText.includes(word));
+}
+
 export function sortProductsBySearchPriority<T extends { sku_barcode?: string; item_code?: string; name?: string; brand_manufacturer?: string }>(products: T[], searchQuery: string): T[] {
   if (!searchQuery || !searchQuery.trim()) return products;
   const q = searchQuery.trim().toLowerCase();
   const qNoSpace = q.replace(/\s+/g, '');
   const qClean = cleanSearchText(q);
+  const qWords = getWords(q);
 
   const getProductScore = (p: T) => {
     const barcode = String(p.sku_barcode || '').trim().toLowerCase();
@@ -49,9 +60,29 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
       return { tier: 3, numVal, name };
     }
 
+    // Tier 3.5: Word-based fuzzy match on Barcode/Item Code (all words present, any order)
+    if (qWords.length > 1 && (
+      allWordsMatch(barcode, qWords) ||
+      allWordsMatch(code, qWords) ||
+      (qNoSpace.length > 0 && (allWordsMatch(barcodeNoSpace, qWords) || allWordsMatch(codeNoSpace, qWords))) ||
+      (qClean.length > 0 && (allWordsMatch(barcodeClean, qWords) || allWordsMatch(codeClean, qWords)))
+    )) {
+      return { tier: 3.5, numVal: 999999999, name };
+    }
+
     // Tier 4: Product Name or Brand starts with query (normalized, no-space, or clean)
     if (name.startsWith(q) || brand.startsWith(q) || (qNoSpace.length > 0 && (nameNoSpace.startsWith(qNoSpace) || brandNoSpace.startsWith(qNoSpace))) || (qClean.length > 0 && (nameClean.startsWith(qClean) || brandClean.startsWith(qClean)))) {
       return { tier: 4, numVal: 999999999, name };
+    }
+
+    // Tier 4.5: Word-based fuzzy match on Name/Brand (all words present, any order)
+    if (qWords.length > 1 && (
+      allWordsMatch(name, qWords) ||
+      allWordsMatch(brand, qWords) ||
+      (qNoSpace.length > 0 && (allWordsMatch(nameNoSpace, qWords) || allWordsMatch(brandNoSpace, qWords))) ||
+      (qClean.length > 0 && (allWordsMatch(nameClean, qWords) || allWordsMatch(brandClean, qWords)))
+    )) {
+      return { tier: 4.5, numVal: 999999999, name };
     }
 
     // Tier 5: Product Name or Brand contains query

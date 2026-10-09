@@ -199,67 +199,6 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   };
 
   const handlePrint = async () => {
-    if (window.electronAPI) {
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const printFmt = parsePrintFormat(printFmtRaw);
-      if (printFmt.format === 'half-a4' && selectedQuotation) {
-        const [shopNameVal, shopGstin, shopAddr, shopPh, upi, shopStateVal] = await Promise.all([
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
-        ]);
-        const billSettings = {
-          ...DEFAULT_BILL_SETTINGS,
-          ...(printFmt.billSettings || {}),
-          instructions: selectedQuotation.terms_conditions || printFmt.billSettings?.instructions || '',
-        };
-        const receiptData: ReceiptData = {
-          shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
-          shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-          shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
-          shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
-          upiId: upi || undefined,
-          showUpiQr: true,
-          showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-          invoiceNumber: selectedQuotation.quotation_number,
-          invoiceType: 'QUOTATION',
-          date: formatDateLabel(selectedQuotation.created_at),
-          billerName: billSettings.showBillerName !== false ? ((selectedQuotation as any).biller_name || userName || undefined) : undefined,
-          items: quotationItems.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            unit_price: item.rate,
-            total: item.amount,
-            billing_type: (item as any).billing_type,
-            pieces_sold: (item as any).pieces_sold != null ? Number((item as any).pieces_sold) : undefined,
-            pieces_override: (item as any).pieces_override != null ? Number((item as any).pieces_override) : undefined,
-            unit: (item as any).unit || (item as any).uom,
-          })),
-          subtotal: selectedQuotation.subtotal,
-          tax: selectedQuotation.tax_total,
-          discount: 0,
-          grandTotal: selectedQuotation.grand_total,
-          customerName: billSettings.showCustomerName ? (selectedQuotation.customer_name || undefined) : undefined,
-          customerPhone: billSettings.showCustomerPhone !== false ? (selectedQuotation.customer_phone || undefined) : undefined,
-          customerAddress: billSettings.showCustomerAddress !== false ? (selectedQuotation.customer_address || undefined) : undefined,
-          customerState: billSettings.showCustomerState !== false ? ((selectedQuotation as any).customer_state || undefined) : undefined,
-          billSettings,
-          a5Orientation: printFmt.a5Orientation || 'horizontal',
-        };
-        const invoiceHtml = generateInvoiceHtml(receiptData, 'half-a4');
-        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-        if (!printResult.success) {
-          const pw = window.open('', '_blank');
-          if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
-        }
-        return;
-      }
-    }
-
     const content = printRef.current?.innerHTML || '';
     const fullHtml = `<!DOCTYPE html>
       <html>
@@ -312,56 +251,55 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     if (window.electronAPI) {
       const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
-      if (printFmt.format === 'half-a4') {
-        const [shopNameVal, shopGstinVal, shopAddrVal, shopPhVal, upiVal, shopStateVal] = await Promise.all([
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
-        ]);
-        const billSettings = {
-          ...DEFAULT_BILL_SETTINGS,
-          ...(printFmt.billSettings || {}),
-          instructions: selectedQuotation.terms_conditions || printFmt.billSettings?.instructions || '',
-        };
-        const receiptData: ReceiptData = {
-          shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
-          shopGstin: billSettings.showShopGstin !== false ? (shopGstinVal || shopGstin || undefined) : undefined,
-          shopState: billSettings.showShopState !== false ? (shopStateVal || shopState || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress !== false ? (shopAddrVal || shopAddress || undefined) : undefined,
-          shopPhone: billSettings.showPhone !== false ? (shopPhVal || shopPhone || undefined) : undefined,
-          upiId: upiVal || undefined,
-          showUpiQr: true,
-          showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-          invoiceNumber: selectedQuotation.quotation_number,
-          invoiceType: 'QUOTATION',
-          date: formatDateLabel(selectedQuotation.created_at),
-          billerName: billSettings.showBillerName !== false ? ((selectedQuotation as any).biller_name || userName || undefined) : undefined,
-          items: quotationItems.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            unit_price: item.rate,
-            total: item.amount,
-            billing_type: (item as any).billing_type,
-            pieces_sold: (item as any).pieces_sold != null ? Number((item as any).pieces_sold) : undefined,
-            pieces_override: (item as any).pieces_override != null ? Number((item as any).pieces_override) : undefined,
-            unit: (item as any).unit || (item as any).uom,
-          })),
-          subtotal: selectedQuotation.subtotal,
-          tax: selectedQuotation.tax_total,
-          discount: 0,
-          grandTotal: selectedQuotation.grand_total,
-          customerName: billSettings.showCustomerName !== false ? (selectedQuotation.customer_name || undefined) : undefined,
-          customerPhone: billSettings.showCustomerPhone !== false ? (selectedQuotation.customer_phone || undefined) : undefined,
-          customerAddress: billSettings.showCustomerAddress !== false ? (selectedQuotation.customer_address || undefined) : undefined,
-          customerState: billSettings.showCustomerState !== false ? ((selectedQuotation as any).customer_state || undefined) : undefined,
-          billSettings,
-          a5Orientation: printFmt.a5Orientation || 'horizontal',
-        };
-        htmlToExport = generateInvoiceHtml(receiptData, 'half-a4');
-      }
+      const [shopNameVal, shopGstinVal, shopAddrVal, shopPhVal, upiVal, shopStateVal] = await Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
+      ]);
+      const billSettings = {
+        ...DEFAULT_BILL_SETTINGS,
+        ...(printFmt.billSettings || {}),
+        instructions: selectedQuotation.terms_conditions || printFmt.billSettings?.instructions || '',
+      };
+      const receiptData: ReceiptData = {
+        shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin !== false ? (shopGstinVal || shopGstin || undefined) : undefined,
+        shopState: billSettings.showShopState !== false ? (shopStateVal || shopState || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress !== false ? (shopAddrVal || shopAddress || undefined) : undefined,
+        shopPhone: billSettings.showPhone !== false ? (shopPhVal || shopPhone || undefined) : undefined,
+        upiId: upiVal || undefined,
+        showUpiQr: true,
+        showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+        invoiceNumber: selectedQuotation.quotation_number,
+        invoiceType: 'QUOTATION',
+        date: formatDateLabel(selectedQuotation.created_at),
+        billerName: billSettings.showBillerName !== false ? ((selectedQuotation as any).biller_name || userName || undefined) : undefined,
+        items: quotationItems.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.rate,
+          total: item.amount,
+          billing_type: (item as any).billing_type,
+          pieces_sold: (item as any).pieces_sold != null ? Number((item as any).pieces_sold) : undefined,
+          pieces_override: (item as any).pieces_override != null ? Number((item as any).pieces_override) : undefined,
+          unit: (item as any).unit || (item as any).uom,
+        })),
+        subtotal: selectedQuotation.subtotal,
+        tax: selectedQuotation.tax_total,
+        discount: 0,
+        grandTotal: selectedQuotation.grand_total,
+        customerName: billSettings.showCustomerName !== false ? (selectedQuotation.customer_name || undefined) : undefined,
+        customerPhone: billSettings.showCustomerPhone !== false ? (selectedQuotation.customer_phone || undefined) : undefined,
+        customerAddress: billSettings.showCustomerAddress !== false ? (selectedQuotation.customer_address || undefined) : undefined,
+        customerState: billSettings.showCustomerState !== false ? ((selectedQuotation as any).customer_state || undefined) : undefined,
+        billSettings,
+        a5Orientation: printFmt.a5Orientation || 'horizontal',
+      };
+      // Always use standard A4 style for quotations (not half-a4)
+      htmlToExport = generateInvoiceHtml(receiptData, (printFmt.a4Style || 'boxed') as 'standard' | 'modern' | 'classic' | 'boxed' | 'half-a4');
     }
 
     if (!htmlToExport) {

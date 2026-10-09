@@ -245,7 +245,7 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 /* ─── Invoice Row ─── */
-function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck, convertible, upiSources = [] }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[] }) {
+function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload, onPrint }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: any) => void; onPrint?: (inv: any) => void }) {
   const { date, time } = formatDate(inv.created_at);
   const _isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
@@ -1662,6 +1662,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
                 {loading ? '…' : invoices.length === summary.totalInvoices ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}` : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
               </div>
+
               {enableConvertToGst && isAdminRole(useAuthStore.getState().role) && (
                 !selectionMode ? (
                   <button

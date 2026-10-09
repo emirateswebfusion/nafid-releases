@@ -1251,9 +1251,9 @@ export function PartyManager({
                   <Activity className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{parties.length}</p>
-                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Total Parties</p>
-                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{parties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{filteredParties.length}</p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Contacts</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{filteredParties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
                 </div>
               </div>
             </div>

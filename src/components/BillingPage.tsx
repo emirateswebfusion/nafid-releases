@@ -28,7 +28,7 @@ import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole, formatRoleName } from '../utils/permissions';
-import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST, INTERNAL_HEADER_BUTTON_CAPACITY } from '../store/billingUIStore';
+import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST, INTERNAL_HEADER_BUTTON_CAPACITY, type EntryFieldKey, type EntryFieldFlowPreset, ENTRY_FIELD_FLOW_PRESETS } from '../store/billingUIStore';
 import Barcode from 'react-barcode';
 
 
@@ -635,6 +635,38 @@ const BillDescriptionCard = React.memo(({
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
+
+  // Helper to get effective entry field flow from config
+  const getEntryFieldFlow = useCallback((): EntryFieldKey[] => {
+    if (uiConfig.entryFieldFlowPreset === 'custom' && uiConfig.entryFieldFlowCustom) {
+      return uiConfig.entryFieldFlowCustom;
+    }
+    const preset = uiConfig.entryFieldFlowPreset || 'full';
+    return ENTRY_FIELD_FLOW_PRESETS[preset] || ENTRY_FIELD_FLOW_PRESETS.full;
+  }, [uiConfig.entryFieldFlowPreset, uiConfig.entryFieldFlowCustom]);
+
+  // Helper to check if a field is in the flow
+  const isFieldInFlow = useCallback((field: EntryFieldKey): boolean => {
+    return getEntryFieldFlow().includes(field);
+  }, [getEntryFieldFlow]);
+
+  // Helper to get next field in flow
+  const getNextFieldInFlow = useCallback((currentField: EntryFieldKey, isWeightItem: boolean): EntryFieldKey | null => {
+    const flow = getEntryFieldFlow();
+    const currentIndex = flow.indexOf(currentField);
+    if (currentIndex === -1) return null;
+    
+    // For weight items, 'weight' comes after 'qty' in the flow
+    // We need to check if the next field should be 'weight' instead
+    for (let i = currentIndex + 1; i < flow.length; i++) {
+      const nextField = flow[i];
+      // Skip 'weight' if not a weight item
+      if (nextField === 'weight' && !isWeightItem) continue;
+      return nextField;
+    }
+    return null;
+  }, [getEntryFieldFlow]);
+
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const discountPercentRef = useRef<HTMLInputElement>(null);
@@ -2117,9 +2149,13 @@ loadFlags(tenantId || 'global');
       // Fetch up to 500 results so numeric or text searches capture all matching items
       const fetchLimit = 500;
       
-      try {
+      const qWords = searchQuery.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
+        const backendSearch = qWords[0] || searchQuery.trim();
+
+        try {
         const [products, combos] = await Promise.all([
-          window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
+          // Use first word for backend search to get broader results, client-side handles full substring matching
+          window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
           window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: searchQuery, only_active: true }),
         ]);
 
@@ -2141,58 +2177,32 @@ loadFlags(tenantId || 'global');
         }));
 
         const rawProducts = Array.isArray(products) ? products : [];
-        const q = searchQuery.trim().toLowerCase();
-        const qNoSpace = q.replace(/\s+/g, '');
-        const cleanText = (s: string) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-        const qClean = cleanText(searchQuery);
 
         const sortedProds = sortProductsBySearchPriority(rawProducts, searchQuery);
         const filteredProds = sortedProds.filter(p => {
-          const barcode = String(p.sku_barcode || '').trim().toLowerCase();
-          const code = String(p.item_code || '').trim().toLowerCase();
-          const name = String(p.name || '').trim().toLowerCase();
-          const brand = String(p.brand_manufacturer || '').trim().toLowerCase();
-          const cat = String(p.category || '').trim().toLowerCase();
-          const hsn = String(p.hsn_sac_code || '').trim().toLowerCase();
+          const q = searchQuery.trim().toLowerCase();
+          if (!q) return false;
+          
+          // Split query into words for word-based matching (any order)
+          const qWords = q.split(/\s+/).filter(w => w.length > 0);
+          
+          const barcode = String(p.sku_barcode || '').toLowerCase();
+          const code = String(p.item_code || '').toLowerCase();
+          const name = String(p.name || '').toLowerCase();
+          const brand = String(p.brand_manufacturer || '').toLowerCase();
+          const cat = String(p.category || '').toLowerCase();
+          const hsn = String(p.hsn_sac_code || '').toLowerCase();
 
-          const barcodeNoSpace = barcode.replace(/\s+/g, '');
-          const codeNoSpace = code.replace(/\s+/g, '');
-          const nameNoSpace = name.replace(/\s+/g, '');
-          const brandNoSpace = brand.replace(/\s+/g, '');
-          const catNoSpace = cat.replace(/\s+/g, '');
-          const hsnNoSpace = hsn.replace(/\s+/g, '');
+          // Check if ALL query words exist in a field (any order)
+          const allWordsInField = (field: string) => 
+            qWords.every(word => field.includes(word));
 
-          const barcodeClean = cleanText(p.sku_barcode);
-          const codeClean = cleanText(p.item_code);
-          const nameClean = cleanText(p.name);
-          const brandClean = cleanText(p.brand_manufacturer);
-          const catClean = cleanText(p.category);
-          const hsnClean = cleanText(p.hsn_sac_code);
-
-          return (
-            barcode.includes(q) ||
-            code.includes(q) ||
-            name.includes(q) ||
-            brand.includes(q) ||
-            cat.includes(q) ||
-            hsn.includes(q) ||
-            (qNoSpace.length > 0 && (
-              barcodeNoSpace.includes(qNoSpace) ||
-              codeNoSpace.includes(qNoSpace) ||
-              nameNoSpace.includes(qNoSpace) ||
-              brandNoSpace.includes(qNoSpace) ||
-              catNoSpace.includes(qNoSpace) ||
-              hsnNoSpace.includes(qNoSpace)
-            )) ||
-            (qClean.length > 0 && (
-              barcodeClean.includes(qClean) ||
-              codeClean.includes(qClean) ||
-              nameClean.includes(qClean) ||
-              brandClean.includes(qClean) ||
-              catClean.includes(qClean) ||
-              hsnClean.includes(qClean)
-            ))
-          );
+          return allWordsInField(barcode) ||
+                 allWordsInField(code) ||
+                 allWordsInField(name) ||
+                 allWordsInField(brand) ||
+                 allWordsInField(cat) ||
+                 allWordsInField(hsn);
         });
 
         const deduped: any[] = [];
@@ -4869,20 +4879,27 @@ loadFlags(tenantId || 'global');
   };
 
   const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    const item = items.find(i => i.product_id === productId);
+    const isWeightItem = item?.billing_type === 'WEIGHT';
+
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (ratePcRefs.current[productId]) {
-        ratePcRefs.current[productId]?.focus();
-        ratePcRefs.current[productId]?.select();
-      } else if (rateKgRefs.current[productId]) {
-        rateKgRefs.current[productId]?.focus();
-        rateKgRefs.current[productId]?.select();
-      } else if (discRefs.current[productId]) {
+      const nextField = getNextFieldInFlow('qty', isWeightItem);
+      if (nextField === 'weight' && isWeightItem && kRefs.current[productId]) {
+        kRefs.current[productId]?.focus();
+        kRefs.current[productId]?.select();
+      } else if (nextField === 'rate') {
+        if (ratePcRefs.current[productId]) {
+          ratePcRefs.current[productId]?.focus();
+          ratePcRefs.current[productId]?.select();
+        } else if (rateKgRefs.current[productId]) {
+          rateKgRefs.current[productId]?.focus();
+          rateKgRefs.current[productId]?.select();
+        }
+      } else if (nextField === 'discount' && discRefs.current[productId]) {
         discRefs.current[productId]?.focus();
         discRefs.current[productId]?.select();
-      } else if (tierRefs.current[productId]) {
-        tierRefs.current[productId]?.focus();
-      } else if (totalInputRefs.current[productId]) {
+      } else if (nextField === 'grandTotal' && totalInputRefs.current[productId]) {
         totalInputRefs.current[productId]?.focus();
         totalInputRefs.current[productId]?.select();
       } else {
@@ -5144,17 +5161,26 @@ loadFlags(tenantId || 'global');
   };
 
   const handleDiscKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    const item = items.find(i => i.product_id === productId);
+    const isWeightItem = item?.billing_type === 'WEIGHT';
+
     if (e.key === 'Enter') {
       e.preventDefault();
-      const flatInput = discFlatRefs.current[productId];
-      if (flatInput) {
-        flatInput.focus();
-        flatInput.select();
-      } else if (tierRefs.current[productId]) {
-        tierRefs.current[productId]?.focus();
-      } else if (totalInputRefs.current[productId]) {
+      const nextField = getNextFieldInFlow('discount', isWeightItem);
+      if (nextField === 'discountFlat' && discFlatRefs.current[productId]) {
+        discFlatRefs.current[productId]?.focus();
+        discFlatRefs.current[productId]?.select();
+      } else if (nextField === 'grandTotal' && totalInputRefs.current[productId]) {
         totalInputRefs.current[productId]?.focus();
         totalInputRefs.current[productId]?.select();
+      } else if (nextField === 'rate') {
+        if (ratePcRefs.current[productId]) {
+          ratePcRefs.current[productId]?.focus();
+          ratePcRefs.current[productId]?.select();
+        } else if (rateKgRefs.current[productId]) {
+          rateKgRefs.current[productId]?.focus();
+          rateKgRefs.current[productId]?.select();
+        }
       } else {
         searchRef.current?.focus();
         searchRef.current?.select();
@@ -5191,13 +5217,26 @@ loadFlags(tenantId || 'global');
   };
 
   const handleDiscFlatKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    const item = items.find(i => i.product_id === productId);
+    const isWeightItem = item?.billing_type === 'WEIGHT';
+
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (tierRefs.current[productId]) {
-        tierRefs.current[productId]?.focus();
-      } else if (totalInputRefs.current[productId]) {
+      const nextField = getNextFieldInFlow('discountFlat', isWeightItem);
+      if (nextField === 'grandTotal' && totalInputRefs.current[productId]) {
         totalInputRefs.current[productId]?.focus();
         totalInputRefs.current[productId]?.select();
+      } else if (nextField === 'rate') {
+        if (ratePcRefs.current[productId]) {
+          ratePcRefs.current[productId]?.focus();
+          ratePcRefs.current[productId]?.select();
+        } else if (rateKgRefs.current[productId]) {
+          rateKgRefs.current[productId]?.focus();
+          rateKgRefs.current[productId]?.select();
+        }
+      } else if (nextField === 'discount' && discRefs.current[productId]) {
+        discRefs.current[productId]?.focus();
+        discRefs.current[productId]?.select();
       } else {
         searchRef.current?.focus();
         searchRef.current?.select();
@@ -9150,10 +9189,23 @@ loadFlags(tenantId || 'global');
                                 commitKg(e.currentTarget.value, true);
                                 const pid = item.product_id;
                                 setTimeout(() => {
-                                  const nextRate = ratePcRefs.current[pid] || rateKgRefs.current[pid];
-                                  if (nextRate) { nextRate.focus(); nextRate.select(); }
-                                  else if (discRefs.current[pid]) { discRefs.current[pid]?.focus(); discRefs.current[pid]?.select(); }
-                                  else { searchRef.current?.focus(); searchRef.current?.select(); }
+                                  const nextField = getNextFieldInFlow('weight', true);
+                                  if (nextField === 'rate') {
+                                    const nextRate = ratePcRefs.current[pid] || rateKgRefs.current[pid];
+                                    if (nextRate) { nextRate.focus(); nextRate.select(); }
+                                  } else if (nextField === 'discount' && discRefs.current[pid]) {
+                                    discRefs.current[pid]?.focus();
+                                    discRefs.current[pid]?.select();
+                                  } else if (nextField === 'discountFlat' && discFlatRefs.current[pid]) {
+                                    discFlatRefs.current[pid]?.focus();
+                                    discFlatRefs.current[pid]?.select();
+                                  } else if (nextField === 'grandTotal' && totalInputRefs.current[pid]) {
+                                    totalInputRefs.current[pid]?.focus();
+                                    totalInputRefs.current[pid]?.select();
+                                  } else {
+                                    searchRef.current?.focus();
+                                    searchRef.current?.select();
+                                  }
                                 }, 0);
                                 e.preventDefault();
                               }
@@ -9231,9 +9283,20 @@ loadFlags(tenantId || 'global');
                           }}
                           onKeyDownNext={() => {
                             const pid = item.product_id;
-                            const next = discRefs.current[pid] || discFlatRefs.current[pid];
-                            if (next) { next.focus(); next.select(); }
-                            else { searchRef.current?.focus(); searchRef.current?.select(); }
+                            const nextField = getNextFieldInFlow('rate', item.billing_type === 'WEIGHT');
+                            if (nextField === 'discount' && discRefs.current[pid]) {
+                              discRefs.current[pid]?.focus();
+                              discRefs.current[pid]?.select();
+                            } else if (nextField === 'discountFlat' && discFlatRefs.current[pid]) {
+                              discFlatRefs.current[pid]?.focus();
+                              discFlatRefs.current[pid]?.select();
+                            } else if (nextField === 'grandTotal' && totalInputRefs.current[pid]) {
+                              totalInputRefs.current[pid]?.focus();
+                              totalInputRefs.current[pid]?.select();
+                            } else {
+                              searchRef.current?.focus();
+                              searchRef.current?.select();
+                            }
                           }}
                         />
                       ) : (
@@ -9268,9 +9331,20 @@ loadFlags(tenantId || 'global');
                           }}
                           onKeyDownNext={() => {
                             const pid = item.product_id;
-                            const next = discRefs.current[pid] || discFlatRefs.current[pid];
-                            if (next) { next.focus(); next.select(); }
-                            else { searchRef.current?.focus(); searchRef.current?.select(); }
+                            const nextField = getNextFieldInFlow('rate', item.billing_type === 'WEIGHT');
+                            if (nextField === 'discount' && discRefs.current[pid]) {
+                              discRefs.current[pid]?.focus();
+                              discRefs.current[pid]?.select();
+                            } else if (nextField === 'discountFlat' && discFlatRefs.current[pid]) {
+                              discFlatRefs.current[pid]?.focus();
+                              discFlatRefs.current[pid]?.select();
+                            } else if (nextField === 'grandTotal' && totalInputRefs.current[pid]) {
+                              totalInputRefs.current[pid]?.focus();
+                              totalInputRefs.current[pid]?.select();
+                            } else {
+                              searchRef.current?.focus();
+                              searchRef.current?.select();
+                            }
                           }}
                         />
                       )}

@@ -43,8 +43,8 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
       paid: "Gave Cash",
       credit: "Credit (+)",
       debit: "Debit (-)",
-      receivableSub: "Amount owed to you by customers",
-      payableSub: "Amount you owe to suppliers",
+      receivableSub: "Amount owed to you",
+      payableSub: "Amount you owe",
     },
   },
   ACCOUNTING: {
@@ -59,8 +59,8 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
       paid: 'Paid',
       credit: 'Credit',
       debit: 'Debit',
-      receivableSub: 'Amount owed to you by customers',
-      payableSub: 'Amount you owe to suppliers',
+      receivableSub: 'Amount owed to you',
+      payableSub: 'Amount you owe',
     },
   },
   CASHFLOW: {
@@ -75,8 +75,8 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
       paid: 'Cash Out',
       credit: 'Cash In (+)',
       debit: 'Cash Out (-)',
-      receivableSub: 'Upcoming cash inflows from customers',
-      payableSub: 'Upcoming cash outflows to suppliers',
+      receivableSub: 'Upcoming cash inflows',
+      payableSub: 'Upcoming cash outflows',
     },
   },
 };
@@ -123,8 +123,8 @@ export function computeLabels(preset: TerminologyPreset, customLabels: Terminolo
       paid: customLabels.paid || DEFAULT_CUSTOM_LABELS.paid,
       credit: customLabels.credit || DEFAULT_CUSTOM_LABELS.credit,
       debit: customLabels.debit || DEFAULT_CUSTOM_LABELS.debit,
-      receivableSub: 'Customer Balance Owed',
-      payableSub: 'Supplier Balance Owed',
+      receivableSub: 'Balance Owed to You',
+      payableSub: 'Balance You Owe',
     };
   }
   return TERMINOLOGY_PRESETS[preset]?.labels || TERMINOLOGY_PRESETS.SIMPLE.labels;
