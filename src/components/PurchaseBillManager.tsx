@@ -1811,8 +1811,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   getOtherSectionItems?: () => any[];
 }>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems }, ref) => {
   const [billNumber, setBillNumber] = useState('');
+  const [peekedBillNumber, setPeekedBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [manualRoundOff, setManualRoundOff] = useState<string>('');
+  const [createdProductIds, setCreatedProductIds] = useState<string[]>([]);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
@@ -1896,6 +1900,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [newProductPcs, setNewProductPcs] = useState('');
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
   const [editingProductItemId, setEditingProductItemId] = useState<string | null>(null);
+  const [originalProductStock, setOriginalProductStock] = useState<number | null>(null);
   const [sharedEstimateMode, setSharedEstimateMode] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
 
@@ -1954,7 +1959,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           }
           if (!item.purchase_price || Number(item.purchase_price) <= 0) setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : '');
           if (!item.selling_price || Number(item.selling_price) <= 0) setNewProductBasePrice(p.base_price != null ? String(p.base_price) : '');
-          setNewProductStock(p.current_stock != null ? String(p.current_stock) : '');
+          const currentStock = p.current_stock != null ? Number(p.current_stock) : 0;
+          setNewProductStock(currentStock !== 0 ? String(currentStock) : '');
+          setOriginalProductStock(currentStock);
           setNewProductReorderLevel(p.reorder_level != null ? String(p.reorder_level) : '');
           setNewProductHsn(p.hsn_sac_code || '');
           setNewProductTaxRate(p.tax_rate_percent ?? 18);
@@ -2047,10 +2054,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       setBillItems([]);
       setManualRoundOff('');
       if (window.electronAPI && tenantId) {
-        window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId })
+        const getNumFn = window.electronAPI.dbPeekNextPurchaseBillNumber || window.electronAPI.dbGetNextPurchaseBillNumber;
+        getNumFn({ tenant_id: tenantId })
           .then(res => {
             if (res.success && res.billNumber) {
-              setBillNumber(type === 'ESTIMATE' ? res.billNumber + '-EST' : res.billNumber);
+              const generated = type === 'ESTIMATE' ? res.billNumber + '-EST' : res.billNumber;
+              setBillNumber(generated);
+              setPeekedBillNumber(generated);
             }
           })
           .catch(console.error);
@@ -2415,6 +2425,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const resetProductForm = () => {
     setShowProductCreateForm(false);
     setEditingProductItemId(null);
+    setOriginalProductStock(null);
     setSharedEstimateMode(false);
     setNewProductName('');
     setNewProductItemCode('');
@@ -2500,10 +2511,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       const isWeightBilling = weightUoms.includes((newProductUom || '').toLowerCase());
       const billingType: 'WEIGHT' | 'PIECE' = isWeightBilling ? 'WEIGHT' : 'PIECE';
       const rawPcs = Number(newProductPcs) || 0;
-      const currentStockNum = Number(newProductStock) || 0;
+      // Use original stock to avoid double stock entry when purchase bill is saved
+      const stockToPreserve = originalProductStock ?? 0;
       const domainAttrsObj: Record<string, any> = {};
       if (isWeightBilling && rawPcs > 0) {
-        domainAttrsObj.pcs_per_kg = currentStockNum > 0 ? rawPcs / currentStockNum : rawPcs;
+        domainAttrsObj.pcs_per_kg = stockToPreserve > 0 ? rawPcs / stockToPreserve : rawPcs;
         domainAttrsObj.pcs_stock = rawPcs;
         domainAttrsObj.pcs = rawPcs;
       }
@@ -2518,7 +2530,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         uom: newProductUom,
         purchase_price: purchasePrice,
         base_price: basePrice,
-        current_stock: currentStockNum,
+        current_stock: stockToPreserve,
         reorder_level: Number(newProductReorderLevel) || 0,
         is_gst_applicable: type === 'GST' ? 1 : 0,
         tax_rate_percent: type === 'GST' ? newProductTaxRate : 0,
@@ -2616,6 +2628,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       sync_status: 'PENDING',
     });
     if (res.success) {
+      setCreatedProductIds(prev => [...prev, productId]);
       const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
         pricing_tier_id,
         price: price === '' ? null : Number(price),
@@ -2735,12 +2748,27 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         }
       }
 
+      let finalBillNumber = billNumber;
+      if (!editingData && window.electronAPI && tenantId) {
+        try {
+          const res = await window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId });
+          if (res && res.success && res.billNumber) {
+            if (!billNumber || billNumber === peekedBillNumber || billNumber.startsWith('AUTO-')) {
+              finalBillNumber = type === 'ESTIMATE' ? res.billNumber + '-EST' : res.billNumber;
+              setBillNumber(finalBillNumber);
+            }
+          }
+        } catch (err) {
+          console.error('[PurchaseBillManager] Error fetching next bill number on save:', err);
+        }
+      }
+
       const payload = {
         purchase_bill_id: billId,
         tenant_id: tenantId,
         bill_number: type === 'ESTIMATE'
-          ? (billNumber ? (billNumber.endsWith('-EST') ? billNumber : billNumber + '-EST') : `AUTO-${Date.now()}-EST`)
-          : (billNumber || `AUTO-${Date.now()}`),
+          ? (finalBillNumber ? (finalBillNumber.endsWith('-EST') ? finalBillNumber : finalBillNumber + '-EST') : `AUTO-${Date.now()}-EST`)
+          : (finalBillNumber || `AUTO-${Date.now()}`),
         supplier_id: supplierId || null,
         supplier_name: supplierName.trim(),
         bill_date: billDate,
@@ -2770,6 +2798,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         : await window.electronAPI.dbAddPurchaseBill(payload);
 
       if (res.success) {
+        setCreatedProductIds([]);
         onStatusMessage({ text: `${type} purchase bill ${editingData ? 'updated' : 'saved'} successfully!`, type: 'success' });
         onSaved();
         setIsSaving(false);
@@ -2967,6 +2996,14 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
       {/* Products Section */}
       <div className="p-5">
+        {/* Idea 2: Proactive Tip Banner */}
+        <div className="mb-3 px-3.5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2.5 shadow-2xs">
+          <span className="text-base shrink-0">💡</span>
+          <p className="font-medium leading-snug">
+            <span className="font-bold">Important Tip:</span> If a product already exists in your inventory or was added earlier in this bill, search &amp; select it from the dropdown list below instead of creating a new product.
+          </p>
+        </div>
+
         <div ref={searchRef} className="relative mb-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -4020,6 +4057,68 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <Check className="w-3.5 h-3.5" />
                 )}
                 Save Grade
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Idea 1: Discard Cleanup Confirmation Modal */}
+      {showCleanupModal && (
+        <Modal
+          isOpen={showCleanupModal}
+          onClose={() => setShowCleanupModal(false)}
+          title="Delete Unsaved Created Products?"
+        >
+          <div className="p-4 space-y-4">
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-700 dark:text-amber-300 text-xs leading-relaxed space-y-1.5">
+              <p className="font-bold flex items-center gap-1.5 text-sm">
+                <span>⚠️</span> Attention:
+              </p>
+              <p>
+                You created <strong>{createdProductIds.length}</strong> new product(s) in inventory while drafting this purchase bill.
+              </p>
+              <p>
+                When discarding without saving, would you like to delete these product(s) from your inventory catalog or keep them (with 0 stock)?
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (window.electronAPI && createdProductIds.length > 0) {
+                    try {
+                      if (window.electronAPI.dbBulkDeleteProducts) {
+                        await window.electronAPI.dbBulkDeleteProducts(createdProductIds);
+                      } else if (window.electronAPI.dbDeleteProduct) {
+                        for (const pid of createdProductIds) {
+                          await window.electronAPI.dbDeleteProduct(pid);
+                        }
+                      }
+                    } catch (e) {
+                      console.error('[PurchaseBillManager] Product cleanup error:', e);
+                    }
+                  }
+                  setCreatedProductIds([]);
+                  setShowCleanupModal(false);
+                  if (pendingCloseAction) pendingCloseAction();
+                }}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+              >
+                Delete from Inventory
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatedProductIds([]);
+                  setShowCleanupModal(false);
+                  if (pendingCloseAction) pendingCloseAction();
+                }}
+                className="flex-1 px-4 py-2.5 bg-muted hover:bg-muted/80 text-foreground border border-border rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95"
+              >
+                Keep in Inventory (0 Stock)
               </button>
             </div>
           </div>

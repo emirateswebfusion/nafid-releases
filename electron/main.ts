@@ -5020,7 +5020,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           let newSubtotal = 0;
           let newTotalTax = 0;
-          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; bosUnitPrice: number; bosTax: number; bosTotal: number; qtyFromPaper: number }[] = [];
+          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; bosUnitPrice: number; bosTax: number; bosTotal: number; qtyFromPaper: number; paperConsumed: { item_id: string; qty: number }[] }[] = [];
           const skippedItems: string[] = [];
 
           for (const item of items) {
@@ -5041,14 +5041,17 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
             const originalQty = Number(item.quantity) || 0;
 
-            // Compute available paper (dummy) GST stock for this product:
-            const paperPurchasedRow = db.prepare(`
-              SELECT COALESCE(SUM(pbi.quantity), 0) as total_paper
+            // ─── Compute available paper stock WITH rates from purchase bills (FIFO) ───
+            const paperStockRows = db.prepare(`
+              SELECT pbi.item_id, pbi.quantity, pbi.purchase_price, pbi.selling_price, pbi.offer_price
               FROM purchase_bill_items pbi
               JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
-              WHERE pbi.product_id = ? AND pb.bill_type = 'GST' AND pbi.skip_stock_update = 1 AND pb.tenant_id = ?
-            `).get(gstProduct.product_id, payload.tenant_id) as any;
-            const totalPaperPurchased = paperPurchasedRow ? Number(paperPurchasedRow.total_paper) : 0;
+              WHERE pbi.product_id = ? 
+                AND pb.bill_type = 'GST' 
+                AND pbi.skip_stock_update = 1 
+                AND pb.tenant_id = ?
+              ORDER BY pbi.created_at ASC
+            `).all(gstProduct.product_id, payload.tenant_id) as any[];
 
             const paperSoldRow = db.prepare(`
               SELECT COALESCE(SUM(ii.qty_from_paper_stock), 0) as total_paper_sold
@@ -5058,19 +5061,87 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             `).get(gstProduct.product_id, payload.tenant_id) as any;
             const totalPaperSold = paperSoldRow ? Number(paperSoldRow.total_paper_sold) : 0;
 
-            const availablePaperGst = Math.max(0, totalPaperPurchased - totalPaperSold);
-            const qtyToConvert = Math.min(originalQty, availablePaperGst);
+            // Calculate remaining qty per purchase bill item (FIFO consumption)
+            let remainingToSell = totalPaperSold;
+            const availablePaperBatches: { item_id: string; qty: number; purchase_price: number; selling_price: number; offer_price: number }[] = [];
+
+            for (const batch of paperStockRows) {
+              const batchQty = Number(batch.quantity) || 0;
+              const alreadyConsumed = Math.min(batchQty, remainingToSell);
+              const availableQty = batchQty - alreadyConsumed;
+              remainingToSell = Math.max(0, remainingToSell - batchQty);
+              
+              if (availableQty > 0) {
+                availablePaperBatches.push({
+                  item_id: batch.item_id,
+                  qty: availableQty,
+                  purchase_price: Number(batch.purchase_price) || 0,
+                  selling_price: Number(batch.selling_price) || 0,
+                  offer_price: Number(batch.offer_price) || 0,
+                });
+              }
+            }
+
+            const totalAvailablePaper = availablePaperBatches.reduce((sum, b) => sum + b.qty, 0);
+            const qtyToConvert = Math.min(originalQty, totalAvailablePaper);
 
             if (qtyToConvert <= 0) {
               skippedItems.push(`${item.name || item.product_id} (No available paper stock - 0 of ${originalQty} converted)`);
               continue;
             }
 
-            const taxRate = Number(gstProduct.tax_rate_percent) || 0;
-            const newUnitPrice = gstProduct.offer_price && Number(gstProduct.offer_price) > 0
-              ? Number(gstProduct.offer_price)
-              : Number(gstProduct.base_price);
+            // ─── Determine unit price: prefer paper stock rates, fallback to profit % ───
+            let newUnitPrice = 0;
+            let paperConsumed: { item_id: string; qty: number }[] = [];
+            let remainingQty = qtyToConvert;
 
+            for (const batch of availablePaperBatches) {
+              if (remainingQty <= 0) break;
+              const take = Math.min(batch.qty, remainingQty);
+              
+              // Use paper stock rate priority: offer_price > selling_price > purchase_price * (1 + profit%)
+              const batchPrice = batch.offer_price > 0 ? batch.offer_price
+                : batch.selling_price > 0 ? batch.selling_price
+                : batch.purchase_price > 0 ? Math.round(batch.purchase_price * multiplier * 100) / 100
+                : 0;
+              
+              if (batchPrice > 0) {
+                newUnitPrice = batchPrice;
+                paperConsumed.push({ item_id: batch.item_id, qty: take });
+                remainingQty -= take;
+                break;
+              }
+              remainingQty -= take;
+              paperConsumed.push({ item_id: batch.item_id, qty: take });
+            }
+
+            // Fallback: no paper stock with valid rates → use profit % on catalog base_price
+            if (!newUnitPrice || newUnitPrice <= 0) {
+              newUnitPrice = gstProduct.offer_price && Number(gstProduct.offer_price) > 0
+                ? Number(gstProduct.offer_price)
+                : Math.round(Number(gstProduct.base_price) * multiplier * 100) / 100;
+              
+              // Still consume paper stock (FIFO) even if rates not usable
+              remainingQty = qtyToConvert;
+              paperConsumed = [];
+              for (const batch of availablePaperBatches) {
+                if (remainingQty <= 0) break;
+                const take = Math.min(batch.qty, remainingQty);
+                paperConsumed.push({ item_id: batch.item_id, qty: take });
+                remainingQty -= take;
+              }
+            }
+
+            // ─── Decrement paper stock (update purchase_bill_items quantities) ───
+            for (const consumed of paperConsumed) {
+              db.prepare(`
+                UPDATE purchase_bill_items 
+                SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP
+                WHERE item_id = ?
+              `).run(consumed.qty, consumed.item_id);
+            }
+
+            const taxRate = Number(gstProduct.tax_rate_percent) || 0;
             const newTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
             newSubtotal += newTotal;
             const itemTax = Math.round(newTotal * (taxRate / 100) * 100) / 100;
@@ -5090,6 +5161,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               bosTax: Number(item.tax_amount) || 0,
               bosTotal: Number(item.total) || 0,
               qtyFromPaper: qtyToConvert,
+              paperConsumed,
             });
 
             if (qtyToConvert < originalQty) {
@@ -6784,6 +6856,31 @@ ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
 });
 
 // â”€â”€ Purchase Bill IPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ipcMain.handle('db:peekNextPurchaseBillNumber', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const terminalCode = getOrInitTerminalCode(db);
+    const configKey = 'purchase_bill_counter';
+
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+    let counter = 1;
+    if (row) {
+      try {
+        const config = JSON.parse(row.value);
+        counter = (typeof config.counter === 'number' ? config.counter : 1);
+      } catch {
+        counter = 1;
+      }
+    }
+
+    const billNumber = `${terminalCode}-PUR-${String(counter).padStart(3, '0')}`;
+    return { success: true, billNumber, counter };
+  } catch (error: any) {
+    console.error('[db:peekNextPurchaseBillNumber]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:getNextPurchaseBillNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
@@ -8395,6 +8492,26 @@ ipcMain.handle('db:deleteCustomer', (event, { customer_id, tenant_id }: { custom
     })();
   } catch (error: any) {
     console.error('[db:deleteCustomer]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:updateCustomer', (event, c: any) => {
+  try {
+    const db = getDb();
+    if (!c.customer_id || !c.tenant_id) return { success: false, error: 'Customer ID and Tenant ID are required' };
+
+    db.prepare(`
+      UPDATE customers
+      SET name = ?, phone = ?, address = ?,
+          pricing_tier_id = ?,
+          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE customer_id = ? AND tenant_id = ?
+    `).run(c.name, c.phone || null, c.address || null, c.pricing_tier_id || null, c.customer_id, c.tenant_id);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:updateCustomer]', error);
     return { success: false, error: 'Operation failed' };
   }
 });

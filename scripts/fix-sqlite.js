@@ -82,11 +82,26 @@ async function main() {
   if (!nodeFile) throw new Error('Could not find .node file in extracted archive');
   console.log(`✅ Found binary: ${nodeFile}`);
 
+  function copyWithRetry(src, dest, retries = 5, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        fs.copyFileSync(src, dest);
+        return true;
+      } catch (e) {
+        if (i === retries - 1) throw e;
+        console.warn(`⚠️  Copy failed (attempt ${i + 1}/${retries}): ${e.message}. Retrying in ${delay}ms...`);
+        const start = Date.now();
+        while (Date.now() - start < delay) {}
+      }
+    }
+    return false;
+  }
+
   // Install into pnpm path
   if (fs.existsSync(RELEASE_DIR_PNPM)) {
     fs.mkdirSync(RELEASE_DIR_PNPM, { recursive: true });
     const dest = path.join(RELEASE_DIR_PNPM, 'better_sqlite3.node');
-    fs.copyFileSync(nodeFile, dest);
+    copyWithRetry(nodeFile, dest);
     console.log(`✅ Installed to pnpm path: ${dest}`);
   } else {
     console.warn(`⚠️  pnpm path not found: ${RELEASE_DIR_PNPM}`);
@@ -96,7 +111,7 @@ async function main() {
   if (fs.existsSync(RELEASE_DIR_DIRECT)) {
     fs.mkdirSync(RELEASE_DIR_DIRECT, { recursive: true });
     const dest = path.join(RELEASE_DIR_DIRECT, 'better_sqlite3.node');
-    fs.copyFileSync(nodeFile, dest);
+    copyWithRetry(nodeFile, dest);
     console.log(`✅ Installed to direct path: ${dest}`);
   }
 

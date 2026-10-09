@@ -67,6 +67,7 @@ const DEFAULT_FORM = {
   current_stock: '' as string | number,
   reorder_level: '' as string | number,
   is_gst_applicable: false,
+  gst_type: 'REAL' as 'REAL' | 'PAPER',
   hsn_sac_code: '',
   tax_rate_percent: 0,
   domain_attributes: {} as Record<string, any>,
@@ -109,18 +110,23 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+  const [showProductGstBadge, setShowProductGstBadge] = useState(true);
 
   useEffect(() => {
-    const loadRealPaperSetting = () => {
+    const loadSettings = () => {
       if (window.electronAPI?.settingsGet) {
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
         }).catch(() => {});
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge' }).then(val => {
+          if (val === 'false' || val === false) setShowProductGstBadge(false);
+          else setShowProductGstBadge(true);
+        }).catch(() => {});
       }
     };
-    loadRealPaperSetting();
-    window.addEventListener('settings:updated', loadRealPaperSetting);
-    return () => window.removeEventListener('settings:updated', loadRealPaperSetting);
+    loadSettings();
+    window.addEventListener('settings:updated', loadSettings);
+    return () => window.removeEventListener('settings:updated', loadSettings);
   }, [tenantId]);
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -384,7 +390,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   useEffect(() => {
     if (view === 'add' && window.electronAPI) {
-      window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId || 'global' })
+      const getNumFn = window.electronAPI.dbPeekNextPurchaseBillNumber || window.electronAPI.dbGetNextPurchaseBillNumber;
+      getNumFn({ tenant_id: tenantId || 'global' })
         .then(res => {
           if (res.success && res.billNumber) {
             setFormData(prev => ({ ...prev, gst_bill_number: res.billNumber || '' }));
@@ -705,6 +712,12 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       current_stock: product.current_stock ?? '',
       reorder_level: product.reorder_level ?? '',
       is_gst_applicable: isGstProduct(product),
+      gst_type: (() => {
+        try {
+          const da = JSON.parse(product.domain_attributes || '{}');
+          return (da.gst_type === 'PAPER' ? 'PAPER' : 'REAL') as 'REAL' | 'PAPER';
+        } catch { return 'REAL' as 'REAL' | 'PAPER'; }
+      })(),
       hsn_sac_code: product.hsn_sac_code || '',
       tax_rate_percent: product.tax_rate_percent || 0,
       domain_attributes: (() => {
@@ -1472,6 +1485,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         }
         da.pcs_stock = rawPcs > 0 ? rawPcs : 0;
         da.pcs = rawPcs > 0 ? rawPcs : 0;
+        da.gst_type = formData.gst_type || 'REAL';
         return JSON.stringify(da);
       })(),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
@@ -1958,6 +1972,18 @@ return (
                               {p.sku_barcode}
                             </p>
                             <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                              {showProductGstBadge && (
+                                <span className={clsx(
+                                  "text-[9px] px-1.5 py-0.5 rounded font-extrabold border select-none leading-none shrink-0",
+                                  isGstFlag
+                                    ? (da.gst_type === 'PAPER'
+                                        ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30"
+                                        : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30")
+                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                                )}>
+                                  {isGstFlag ? (da.gst_type === 'PAPER' ? 'GST (Paper)' : 'GST (Real)') : 'Estimate'}
+                                </span>
+                              )}
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                               {allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
@@ -2448,16 +2474,16 @@ return (
                 </div>
                 <span className="text-xs font-black text-orange-500 uppercase tracking-wider">4. Taxes & Config</span>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Product</label>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Category</label>
                   <div
                     onClick={() => handleInputChange('is_gst_applicable', !formData.is_gst_applicable)}
                     onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); handleInputChange('is_gst_applicable', !formData.is_gst_applicable); } }}
                     data-focusable-checkbox
                     tabIndex={-1}
                     className={clsx(
-                      'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                      'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[46px]',
                       formData.is_gst_applicable
                         ? 'bg-sky-500/10 border-sky-500/40 text-sky-600 dark:text-sky-400 shadow-sm'
                         : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
@@ -2477,13 +2503,41 @@ return (
                       'font-bold text-xs cursor-pointer select-none',
                       formData.is_gst_applicable ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
                     )}>
-                      {formData.is_gst_applicable ? 'GST' : 'Estimate'}
+                      {formData.is_gst_applicable ? 'GST Product' : 'Estimate Product'}
                     </label>
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    GST Mode
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!formData.is_gst_applicable}
+                    onClick={() => handleInputChange('gst_type', (formData.gst_type || 'REAL') === 'REAL' ? 'PAPER' : 'REAL')}
+                    className={clsx(
+                      'w-full h-[46px] rounded-xl text-xs font-black transition-all duration-200 cursor-pointer select-none border-2 flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed shadow-md',
+                      formData.is_gst_applicable
+                        ? ((formData.gst_type || 'REAL') === 'REAL'
+                            ? 'bg-sky-500 border-sky-600 text-white shadow-sky-500/30 hover:bg-sky-600'
+                            : 'bg-purple-600 border-purple-700 text-white shadow-purple-500/30 hover:bg-purple-700')
+                        : 'bg-muted border-border text-muted-foreground'
+                    )}
+                  >
+                    <span className={clsx(
+                      'w-2 h-2 rounded-full',
+                      formData.is_gst_applicable ? 'bg-white animate-pulse' : 'bg-muted-foreground/40'
+                    )} />
+                    {formData.is_gst_applicable
+                      ? ((formData.gst_type || 'REAL') === 'REAL' ? 'Real GST' : 'Paper GST')
+                      : 'Disabled'}
+                  </button>
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
-                  <input type="text" value={formData.hsn_sac_code} onChange={e => handleInputChange('hsn_sac_code', e.target.value)} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm text-sm" />
+                  <input type="text" value={formData.hsn_sac_code} onChange={e => handleInputChange('hsn_sac_code', e.target.value)} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm text-sm h-[46px]" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>

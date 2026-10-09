@@ -36,6 +36,7 @@ export interface IElectronAPI {
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: any }) => Promise<{ success: boolean; error?: string }>;
   dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string }) => Promise<any[]>;
+  dbUpdateCustomer: (customer: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteCustomer: (params: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string; deleted_party_count?: number }>;
   dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
@@ -194,6 +195,7 @@ export interface IElectronAPI {
   dbPaymentAddTransaction: (tx: any) => Promise<{ success: boolean; balance?: number; error?: string }>;
 
   // Purchase Bills
+  dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
   dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
   dbAddPurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => Promise<any[]>;

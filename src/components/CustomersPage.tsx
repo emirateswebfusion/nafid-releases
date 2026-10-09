@@ -6,7 +6,7 @@ import { isAdminRole } from '../utils/permissions';
 import {
   Search, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
-  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag
+  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
@@ -248,6 +248,12 @@ export function CustomersPage({
   const [matchedPartyToDelete, setMatchedPartyToDelete] = useState<Party | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
 
+  // Edit Customer Modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', address: '', pricing_tier_id: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const showStatus = (text: string, type: 'success' | 'error') => {
@@ -297,6 +303,51 @@ export function CustomersPage({
       showStatus('Failed to delete customer', 'error');
     } finally {
       setDeleteSaving(false);
+    }
+  };
+
+  const handleEditCustomerClick = (cust: Customer, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isOwner) {
+      showStatus('Only owners can edit customers', 'error');
+      return;
+    }
+    setEditingCustomer(cust);
+    setEditForm({ name: cust.name, phone: cust.phone || '', address: cust.address || '', pricing_tier_id: cust.pricing_tier_id || '' });
+    setEditModalOpen(true);
+  };
+
+  const handleConfirmEditCustomer = async () => {
+    if (!editingCustomer || !tenantId || !window.electronAPI?.dbUpdateCustomer) return;
+    if (!editForm.name.trim()) {
+      showStatus('Customer name is required', 'error');
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      const res = await window.electronAPI.dbUpdateCustomer({
+        customer_id: editingCustomer.customer_id,
+        tenant_id: tenantId,
+        name: editForm.name.trim(),
+        phone: editForm.phone.trim() || null,
+        address: editForm.address.trim() || null,
+        pricing_tier_id: editForm.pricing_tier_id || null,
+      });
+      if (res?.success) {
+        showStatus('Customer updated successfully', 'success');
+        setEditModalOpen(false);
+        setEditingCustomer(null);
+        if (selectedCustomer?.customer_id === editingCustomer.customer_id) {
+          setSelectedCustomer({ ...selectedCustomer, ...editForm, pricing_tier_name: pricingTiers.find(t => t.pricing_tier_id === editForm.pricing_tier_id)?.name });
+        }
+        await loadCustomers();
+      } else {
+        showStatus(res?.error || 'Failed to update customer', 'error');
+      }
+    } catch {
+      showStatus('Failed to update customer', 'error');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -793,14 +844,24 @@ export function CustomersPage({
           {/* Right Actions & Close */}
           <div className="flex items-center gap-3 shrink-0">
             {view === 'detail' && selectedCustomer && isOwner && (
-              <button
-                onClick={() => handleDeleteCustomerClick(selectedCustomer)}
-                className="h-9 px-3 rounded-xl text-xs font-bold text-destructive bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs"
-                title="Delete Customer & Ledger"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Delete Customer</span>
-              </button>
+              <>
+                <button
+                  onClick={() => handleEditCustomerClick(selectedCustomer)}
+                  className="h-9 px-3 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  title="Edit Customer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Edit Customer</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteCustomerClick(selectedCustomer)}
+                  className="h-9 px-3 rounded-xl text-xs font-bold text-destructive bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  title="Delete Customer & Ledger"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Delete Customer</span>
+                </button>
+              </>
             )}
 
             {isRestricted ? (
@@ -1697,6 +1758,102 @@ export function CustomersPage({
                   <>
                     <Trash2 className="w-4 h-4" />
                     <span>Delete Customer & Ledger</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Customer Modal */}
+      {editModalOpen && editingCustomer && (
+        <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setEditingCustomer(null); }} title="Edit Customer" size="sm">
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl border border-border bg-muted/30 space-y-2 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-muted-foreground">
+                <User className="w-4 h-4 text-primary" /> Editing Customer: <span className="text-foreground">{editingCustomer.name}</span>
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                ID: <span className="font-mono font-bold text-foreground">{editingCustomer.customer_id}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Name <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                  placeholder="Customer name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Phone</label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                  placeholder="Phone number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Address</label>
+                <textarea
+                  value={editForm.address}
+                  onChange={e => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                  rows={2}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm resize-none"
+                  placeholder="Address"
+                />
+              </div>
+
+              {pricingTiers.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Pricing Tier</label>
+                  <select
+                    value={editForm.pricing_tier_id}
+                    onChange={e => setEditForm(prev => ({ ...prev, pricing_tier_id: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm appearance-none"
+                  >
+                    <option value="">No Tier (Default Pricing)</option>
+                    {pricingTiers.map(tier => (
+                      <option key={tier.pricing_tier_id} value={tier.pricing_tier_id}>{tier.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => { setEditModalOpen(false); setEditingCustomer(null); }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <X className="w-4 h-4 mr-1.5" /> Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingEdit}
+                onClick={handleConfirmEditCustomer}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                {isSavingEdit ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Save Changes</span>
                   </>
                 )}
               </button>

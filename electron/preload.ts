@@ -233,6 +233,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierDeleteCategory: (params: { category_id: string; tenant_id: string }) => ipcRenderer.invoke('db:cashier:deleteCategory', params),
 
   // Purchase Bills
+  dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextPurchaseBillNumber', payload),
   dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextPurchaseBillNumber', payload),
   dbAddPurchaseBill: (payload: any) => ipcRenderer.invoke('db:addPurchaseBill', payload),
   dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:getPurchaseBills', args),
@@ -246,6 +247,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Customers / Loyalty
   dbGetCustomers: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getCustomers', args),
   dbFindCustomers: (args: { tenant_id: string; name?: string; phone?: string }) => ipcRenderer.invoke('db:findCustomers', args),
+  dbUpdateCustomer: (customer: any) => ipcRenderer.invoke('db:updateCustomer', customer),
   dbDeleteCustomer: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:deleteCustomer', args),
   dbGetCustomerInvoices: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerInvoices', args),
   dbDeleteInvoice: (invoice_id: string) => ipcRenderer.invoke('db:deleteInvoice', invoice_id),

@@ -282,6 +282,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [quotationStartNumber, setQuotationStartNumber] = useState<number | string>(1);
   const [stockReportDefaultView, setStockReportDefaultView] = useState('combined');
   const [inventoryDefaultView, setInventoryDefaultView] = useState('combined');
+  const [showProductGstBadge, setShowProductGstBadge] = useState(true);
   const [serviceChargeProduct, setServiceChargeProduct] = useState<any>(null);
   const [serviceChargeBarcode, setServiceChargeBarcode] = useState('');
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
@@ -669,7 +670,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'scale_config', 'price_coding', 'shop_gstin', 'shop_state', 'shop_name', 'shop_address',
           'shop_phone', 'shop_email', 'shop_website', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
           'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
-          'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
+          'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view', 'show_product_gst_badge',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
           'enable_party_gst_balance', 'enable_party_estimate_balance',
           'enable_real_paper_stock', 'enable_convert_to_gst', 'billing_ui_config',
@@ -851,6 +852,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       let finalInvdv = 'combined';
       const invdv = allSettings['inventory_default_view'];
       if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') finalInvdv = invdv;
+
+      const spgb = allSettings['show_product_gst_badge'];
+      setShowProductGstBadge(spgb !== 'false' && spgb !== false);
 
       let finalTimeFmt: '12h' | '24h' = '12h';
       const timeFmt = allSettings['time_format'];
@@ -1305,6 +1309,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         ] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge', value: showProductGstBadge ? 'true' : 'false' }), name: 'show_product_gst_badge' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
@@ -3472,6 +3477,33 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <DefaultStockReportViewSelector value={inventoryDefaultView} onChange={setInventoryDefaultView} />
               </div>
             </div>
+
+            {/* Card 6: Show GST/Estimate Badge Under Product Name */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-xs font-black text-primary uppercase tracking-widest">Product Display</span>
+                  <h4 className="text-sm font-bold text-foreground">Show GST / Estimate Badge Under Product Name</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Show or hide the small badge (GST Real, GST Paper, Estimate) directly under each product name in the Inventory list.
+                  </p>
+                </div>
+                <div
+                  onClick={() => setShowProductGstBadge(!showProductGstBadge)}
+                  className={clsx(
+                    'w-12 h-6 rounded-full p-1 cursor-pointer transition-colors duration-200 ease-in-out shrink-0',
+                    showProductGstBadge ? 'bg-primary' : 'bg-muted-foreground/30'
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      'w-4 h-4 rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm',
+                      showProductGstBadge ? 'translate-x-6' : 'translate-x-0'
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         );
       case 'features':
@@ -3837,7 +3869,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <div className="flex items-center gap-2.5">
                         <span className="text-xs shrink-0">💡</span>
                         <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
-                          Enter the exact IP address displayed on Primary PC 1 (Settings → Network & Connectivity).
+                          Enter the exact IP address displayed on Primary PC 1 (Settings → Network &amp; Connectivity).
                         </p>
                       </div>
                       <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pl-6">
@@ -3847,7 +3879,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   )}
 
                   <p className="text-[10px] text-muted-foreground/80 leading-relaxed font-medium">
-                    * Real-time synchronization of all store data: Invoices, Products, Stock, Inventory, Customers, Ledger & Cashier settlement across all terminals.
+                    * Real-time synchronization of all store data: Invoices, Products, Stock, Inventory, Customers, Ledger &amp; Cashier settlement across all terminals.
                   </p>
                 </div>
               )}
