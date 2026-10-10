@@ -28,6 +28,7 @@ import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole, formatRoleName } from '../utils/permissions';
+import { sortTiersWithMrp, MRP_TIER_ID } from '../utils/pricingTierHelper';
 import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST, INTERNAL_HEADER_BUTTON_CAPACITY, type EntryFieldKey, type EntryFieldFlowPreset, ENTRY_FIELD_FLOW_PRESETS } from '../store/billingUIStore';
 import Barcode from 'react-barcode';
 
@@ -161,13 +162,17 @@ function ItemRateInput({
   const options = useMemo(() => {
     if (!pricingTiers || pricingTiers.length === 0) return [];
     const bp = basePrice ?? rate;
-    const list: Array<{ tierId: string; name: string; unitPrice: number }> = [
-      { tierId: '', name: 'Base (MRP)', unitPrice: bp }
-    ];
+    const list: Array<{ tierId: string; name: string; unitPrice: number }> = [];
+
     pricingTiers.forEach((t: any) => {
-      const p = tierPricesMap?.[t.pricing_tier_id];
-      if (p != null && p > 0) {
-        list.push({ tierId: t.pricing_tier_id, name: t.name, unitPrice: p });
+      const isMrp = t.is_mrp || t.pricing_tier_id === '' || t.pricing_tier_id === MRP_TIER_ID;
+      if (isMrp) {
+        list.push({ tierId: '', name: t.name || 'Base (MRP)', unitPrice: bp });
+      } else {
+        const p = tierPricesMap?.[t.pricing_tier_id];
+        if (p != null && p > 0) {
+          list.push({ tierId: t.pricing_tier_id, name: t.name, unitPrice: p });
+        }
       }
     });
     return list;
@@ -1083,6 +1088,8 @@ export function BillingPage() {
   const [enableScrap, setEnableScrap] = useState(true);
   const [showCashRegister, setShowCashRegister] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+  const [showPaperInGstSetting, setShowPaperInGstSetting] = useState(true);
+  const [showPaperInEstSetting, setShowPaperInEstSetting] = useState(false);
 
   // Safety sync: ensure scrap mode remains active when editing a scrap invoice
   useEffect(() => {
@@ -1774,6 +1781,14 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableRealPaperStock(Boolean(v));
     });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst' }).then((v: any) => {
+      if (v !== null && v !== undefined) setShowPaperInGstSetting(Boolean(v));
+      else setShowPaperInGstSetting(true);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate' }).then((v: any) => {
+      if (v !== null && v !== undefined) setShowPaperInEstSetting(Boolean(v));
+      else setShowPaperInEstSetting(false);
+    });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
@@ -1805,11 +1820,16 @@ export function BillingPage() {
         setShowDescriptionState(v.billSettings.showDescription !== false);
       }
     });
-    window.electronAPI.dbGetPricingTiers(tenantId || 'global')
-      .then((res: any) => {
+    Promise.all([
+      window.electronAPI.dbGetPricingTiers(tenantId || 'global'),
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'mrp_sort_order' })
+    ])
+      .then(([res, mrpSortRes]: [any, any]) => {
         if (Array.isArray(res)) {
           const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
-          setPricingTiers(active);
+          const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
+          const sortedWithMrp = sortTiersWithMrp(active, mrpSortOrder);
+          setPricingTiers(sortedWithMrp);
           const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
           if (defaultTier) {
             setSelectedTierId(defaultTier.pricing_tier_id);
@@ -2177,9 +2197,25 @@ loadFlags(tenantId || 'global');
         }));
 
         const rawProducts = Array.isArray(products) ? products : [];
-
         const sortedProds = sortProductsBySearchPriority(rawProducts, searchQuery);
+
         const filteredProds = sortedProds.filter(p => {
+          const isPaperProduct = (() => {
+            try {
+              const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+              return Boolean(da && da.gst_type === 'PAPER');
+            } catch { return false; }
+          })();
+
+          if (isPaperProduct) {
+            if (invoiceType === 'GST' && !showPaperInGstSetting) {
+              return false;
+            }
+            if (invoiceType !== 'GST' && !showPaperInEstSetting) {
+              return false;
+            }
+          }
+
           const q = searchQuery.trim().toLowerCase();
           if (!q) return false;
           
@@ -2877,7 +2913,15 @@ loadFlags(tenantId || 'global');
             catalog_discount_flat = p.discount_flat != null ? Number(p.discount_flat) : (p.catalog_discount_flat != null ? Number(p.catalog_discount_flat) : null);
             catalog_discount_percent = p.discount_percent != null ? Number(p.discount_percent) : (p.catalog_discount_percent != null ? Number(p.catalog_discount_percent) : null);
 
-            const mrp = Number(p.base_price) || 0;
+            let mrp = Number(p.base_price) || 0;
+            if ((invoiceType === 'GST' || item.isDummyStock) && p.domain_attributes) {
+              try {
+                const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+                if (da.paper_mrp != null && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) {
+                  mrp = Number(da.paper_mrp);
+                }
+              } catch {}
+            }
             const soldPrice = Number(item.unit_price) || 0;
             base_price = Math.max(mrp, soldPrice);
 
@@ -4763,23 +4807,41 @@ loadFlags(tenantId || 'global');
       setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}${shouldPrint ? ' & Printed' : ''}`);
       clearCart();
       setEditingQuotation(null, null);
-      setQuotationMode(false);
-      updateActiveTab({ 
-        customerName: '', 
-        customerPhone: '', 
-        customerGstin: '', 
-        customerAddress: '', 
-        paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
-        receivedAmount: 0,
-        reservedQuotationNumber: '',
-      });
-      syncActiveSnapshot();
-      setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
-      reserveInvoiceNumberForTab();
-      const tab = getActiveTab();
-      if (tab?.reservedInvoiceNumber) {
-        const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
-        updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+
+      const stayInQuotation = uiConfig.stayInQuotationModeAfterPrint ?? false;
+      if (stayInQuotation) {
+        setQuotationMode(true);
+        updateActiveTab({ 
+          customerName: '', 
+          customerPhone: '', 
+          customerGstin: '', 
+          customerAddress: '', 
+          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
+          receivedAmount: 0,
+          reservedQuotationNumber: '',
+        });
+        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+        await reserveQuotationNumberForTab(true);
+        syncActiveSnapshot();
+      } else {
+        setQuotationMode(false);
+        updateActiveTab({ 
+          customerName: '', 
+          customerPhone: '', 
+          customerGstin: '', 
+          customerAddress: '', 
+          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
+          receivedAmount: 0,
+          reservedQuotationNumber: '',
+        });
+        syncActiveSnapshot();
+        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+        await reserveInvoiceNumberForTab(true);
+        const tab = getActiveTab();
+        if (tab?.reservedInvoiceNumber) {
+          const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
+          updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+        }
       }
     } catch (e) {
       setHardwareError('Failed to save quotation');
@@ -5543,19 +5605,28 @@ loadFlags(tenantId || 'global');
         setTimeout(async () => {
           const tabsCount = useTabStore.getState().tabs.length;
           const currentActiveId = activeTabId;
-          setIsScrapMode(false);
-          if (tabsCount > 1) {
+          const stayInScrap = uiConfig.stayInScrapModeAfterPrint ?? false;
+
+          if (tabsCount > 1 && !stayInScrap) {
+            setIsScrapMode(false);
             closeTab(currentActiveId);
           } else {
             clearCart();
             useCartStore.getState().setEditingInvoice(null, null, null);
             updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
-            syncActiveSnapshot();
-            await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
-            const tab = getActiveTab();
-            if (tab?.reservedInvoiceNumber) {
-              updateActiveTab({ title: tab.reservedInvoiceNumber });
+            
+            if (stayInScrap) {
+              setIsScrapMode(true);
+              await reserveScrapInvoiceNumberForTab(true);
+            } else {
+              setIsScrapMode(false);
+              await Promise.all([reserveScrapInvoiceNumberForTab(true), reserveInvoiceNumberForTab(true)]);
+              const tab = getActiveTab();
+              if (tab?.reservedInvoiceNumber) {
+                updateActiveTab({ title: tab.reservedInvoiceNumber });
+              }
             }
+            syncActiveSnapshot();
           }
           setCheckoutSuccess(false); // scrap mode reset
         }, 1800);
@@ -6305,12 +6376,21 @@ loadFlags(tenantId || 'global');
 
       setReturnProcessed(true);
       setReturnSuccessToast(saveOnly ? `Return ${returnNumber} saved successfully!` : `Return ${returnNumber} processed & receipt printed!`);
-      setTimeout(() => {
+      setTimeout(async () => {
         setReturnProcessed(false);
-        setReturnMode(false);
+        const stayInReturn = uiConfig.stayInReturnModeAfterPrint ?? false;
         setSelectedReturnInvoice(null);
         clearCart();
         setReturnSuccessToast(null);
+
+        if (stayInReturn) {
+          setReturnMode(true);
+          await reserveReturnNumberForTab(true);
+        } else {
+          setReturnMode(false);
+          await reserveInvoiceNumberForTab(true);
+        }
+        syncActiveSnapshot();
       }, 3500);
     } catch (e) {
       console.error('Return processing failed', e);
@@ -7479,13 +7559,15 @@ loadFlags(tenantId || 'global');
               className="w-40 sm:w-44"
               value={selectedTierId}
               onChange={v => { if (canOverrideTier) handlePricingTierChange(v); }}
-              options={[
-                { value: '', label: 'MRP' },
-                ...pricingTiers.map(t => ({
-                  value: t.pricing_tier_id,
-                  label: (t.is_default === 1 || t.is_default === true || t.is_default === '1') ? `⭐ ${t.name}` : t.name
-                })),
-              ]}
+              options={pricingTiers.map(t => {
+                const isMrp = t.is_mrp || t.pricing_tier_id === '' || t.pricing_tier_id === MRP_TIER_ID;
+                const labelText = isMrp ? 'MRP' : t.name;
+                const isDefault = t.is_default === 1 || t.is_default === true || t.is_default === '1';
+                return {
+                  value: isMrp ? '' : t.pricing_tier_id,
+                  label: isDefault ? `⭐ ${labelText}` : labelText
+                };
+              })}
               disabled={!canOverrideTier}
             />
             {!canOverrideTier && (
@@ -7678,13 +7760,14 @@ loadFlags(tenantId || 'global');
                 className="w-full"
                 value={selectedTierId}
                 onChange={v => { if (canOverrideTier) handlePricingTierChange(v); }}
-                options={[
-                  { value: '', label: 'MRP' },
-                  ...pricingTiers.map(t => ({
-                    value: t.pricing_tier_id,
-                    label: t.name
-                  })),
-                ]}
+                options={pricingTiers.map(t => {
+                  const isMrp = t.is_mrp || t.pricing_tier_id === '' || t.pricing_tier_id === MRP_TIER_ID;
+                  const labelText = isMrp ? 'MRP' : t.name;
+                  return {
+                    value: isMrp ? '' : t.pricing_tier_id,
+                    label: labelText
+                  };
+                })}
               />
             </div>
 
@@ -8208,7 +8291,7 @@ loadFlags(tenantId || 'global');
         </div>
 
         <div className="flex items-center gap-2">
-          {isHeaderButtonVisible(uiConfig, 'showClearCart') && (items.length > 0 || Boolean((customerName || '').trim() || (customerPhone || '').trim() || (customerGstin || '').trim() || (customerAddress || '').trim() || (activeTab?.shippingName || '').trim())) && (
+          {isHeaderButtonVisible(uiConfig, 'showClearCart') && (
             <button
               onClick={async () => {
                 const tab = getActiveTab();

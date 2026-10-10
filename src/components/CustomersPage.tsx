@@ -4,9 +4,9 @@ import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { isAdminRole } from '../utils/permissions';
 import {
-  Search, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
+  Search, ChevronLeft, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
-  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save
+  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save, Download, Printer, FileText
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
@@ -204,11 +204,13 @@ export function CustomersPage({
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
   const listScrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const lastInteractedCustomerId = useRef<string | null>(null);
   const savedScrollTop = useRef<number>(0);
   const processedInitialCustomer = useRef<string | null>(null);
   const [highlightedCustomerId, setHighlightedCustomerId] = useState<string | null>(null);
 
+  const [visibleCount, setVisibleCount] = useState(50);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
@@ -232,6 +234,8 @@ export function CustomersPage({
   const [billFilterStart, setBillFilterStart] = useState('');
   const [billFilterEnd, setBillFilterEnd] = useState('');
   const [invoiceBusyId, setInvoiceBusyId] = useState<string | null>(null);
+  const [exportingFilteredInvoices, setExportingFilteredInvoices] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const [loyaltyTxs, setLoyaltyTxs] = useState<LoyaltyTx[]>([]);
   const [loyaltyTxsLoading, setLoyaltyTxsLoading] = useState(false);
@@ -390,8 +394,46 @@ export function CustomersPage({
   }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
 
   useEffect(() => { loadCustomers(true); }, []);
-  useEffect(() => { loadCustomers(false); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  useEffect(() => { loadCustomers(false); setVisibleCount(50); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
   useEffect(() => { loadPricingTiers(); }, [loadPricingTiers]);
+
+  // ── Intersection Observer & Scroll for infinite scrolling ──
+  useEffect(() => {
+    if (view !== 'list') return;
+    const scrollContainer = listScrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry && entry.isIntersecting) {
+          setVisibleCount(prev => (prev < customers.length ? prev + 50 : prev));
+        }
+      },
+      {
+        root: scrollContainer,
+        rootMargin: '150px',
+        threshold: 0.05,
+      }
+    );
+
+    obs.observe(sentinel);
+
+    return () => {
+      obs.disconnect();
+    };
+  }, [view, customers.length]);
+
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    savedScrollTop.current = el.scrollTop;
+
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceToBottom < 200) {
+      setVisibleCount(prev => (prev < customers.length ? prev + 50 : prev));
+    }
+  }, [customers.length]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -463,6 +505,10 @@ export function CustomersPage({
     lastInteractedCustomerId.current = customer.customer_id;
     if (listScrollRef.current) {
       savedScrollTop.current = listScrollRef.current.scrollTop;
+    }
+    const idx = customers.findIndex(c => c.customer_id === customer.customer_id);
+    if (idx >= 0 && idx >= visibleCount) {
+      setVisibleCount(Math.ceil((idx + 1) / 50) * 50);
     }
     setSelectedCustomer(customer);
 
@@ -781,6 +827,176 @@ export function CustomersPage({
     } finally { setInvoiceBusyId(null); }
   };
 
+  const handleDownloadFilteredInvoicesCsv = async () => {
+    if (!filteredInvoices || filteredInvoices.length === 0) {
+      showStatus('No bills to export in current filter', 'error');
+      return;
+    }
+    setExportingFilteredInvoices(true);
+    try {
+      const escape = (val: unknown) => {
+        const str = val == null ? '' : String(val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      };
+      const typeLabel = (inv: InvoiceRecord) => {
+        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'B2B';
+        if (inv.invoice_type === 'GST') return 'B2C';
+        if (inv.invoice_type === 'BILL_OF_SUPPLY') return 'Bill of Supply';
+        if (inv.invoice_type === 'ESTIMATE') return 'Estimate';
+        if (inv.invoice_type === 'SCRAP') return 'Scrap';
+        return inv.invoice_type || '';
+      };
+      const headers = [
+        'Invoice No', 'Date & Time', 'Customer Name', 'Customer Phone', 'Type', 'Payment Method',
+        'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)', 'Grand Total (₹)',
+        'Received (₹)', 'Balance (₹)', 'Points Earned', 'Points Redeemed',
+        'Biller', 'Description / Remarks',
+      ];
+      const rows = filteredInvoices.map(inv => [
+        escape(inv.invoice_number),
+        escape(formatDateTime(inv.created_at)),
+        escape(selectedCustomer?.name || inv.customer_name || ''),
+        escape(selectedCustomer?.phone || inv.customer_phone || ''),
+        escape(typeLabel(inv)),
+        escape(inv.payment_method || ''),
+        escape((inv.subtotal || 0).toFixed(2)),
+        escape((inv.tax_total || 0).toFixed(2)),
+        escape((inv.discount_total || 0).toFixed(2)),
+        escape((inv.grand_total || 0).toFixed(2)),
+        escape((inv.received_amount || 0).toFixed(2)),
+        escape((inv.balance_amount || 0).toFixed(2)),
+        escape(inv.points_earned || 0),
+        escape(inv.points_redeemed || 0),
+        escape(inv.biller_name || useAuthStore.getState().userName || ''),
+        escape(inv.description || inv.notes || ''),
+      ]);
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safeCustomer = (selectedCustomer?.name || 'customer').replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const rangeLabel = billFilterStart || billFilterEnd ? `${billFilterStart || 'start'}_to_${billFilterEnd || 'end'}` : 'all_dates';
+      link.download = `customer_bills_${safeCustomer}_${rangeLabel}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showStatus(`Exported ${filteredInvoices.length} bill(s) as CSV`, 'success');
+    } catch (err) {
+      console.error('Filtered bills CSV export failed:', err);
+      showStatus('Export failed', 'error');
+    } finally {
+      setExportingFilteredInvoices(false);
+    }
+  };
+
+  const handleDownloadFilteredInvoicesPdf = async () => {
+    if (!filteredInvoices || filteredInvoices.length === 0) {
+      showStatus('No bills to export in current filter', 'error');
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      const cfg = await loadBillConfig();
+      const billBodies: string[] = [];
+
+      for (const inv of filteredInvoices) {
+        const { receiptData, invoiceStyle } = await buildInvoiceData(inv, cfg);
+        const singleHtml = generateInvoiceHtml(receiptData, invoiceStyle);
+
+        // Extract content inside <body>...</body> if present, else use full HTML
+        const bodyMatch = singleHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        const bodyContent = bodyMatch ? bodyMatch[1] : singleHtml;
+        billBodies.push(bodyContent);
+      }
+
+      const safeCustomerName = (selectedCustomer?.name || 'Customer').replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const docTitle = `Bills_${safeCustomerName}_${billFilterStart || 'start'}_to_${billFilterEnd || 'end'}`;
+
+      const combinedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${docTitle}</title>
+  <style>
+    @media print {
+      @page {
+        size: A4;
+        margin: 8mm;
+      }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .bill-page-break {
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        clear: both;
+      }
+      .bill-page-break:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+    .bill-page-break {
+      page-break-after: always;
+      break-after: page;
+      padding-bottom: 20px;
+    }
+    .bill-page-break:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+  </style>
+</head>
+<body>
+  ${billBodies.map((body, idx) => `<div class="bill-page-break" id="invoice-page-${idx + 1}">${body}</div>`).join('\n')}
+</body>
+</html>`;
+
+      if (window.electronAPI?.printA4Html) {
+        const res = await window.electronAPI.printA4Html(tenantId || 'global', combinedHtml);
+        if (!res?.success && (res as any)?.useDefaultDialog) {
+          const pw = window.open('', '_blank', 'width=900,height=700');
+          if (pw) {
+            pw.document.write(combinedHtml);
+            pw.document.close();
+            setTimeout(() => pw.print(), 500);
+          }
+        }
+      } else {
+        const pw = window.open('', '_blank', 'width=900,height=700');
+        if (pw) {
+          pw.document.write(combinedHtml);
+          pw.document.close();
+          setTimeout(() => pw.print(), 500);
+        }
+      }
+
+      showStatus(`Generated PDF for ${filteredInvoices.length} bill(s) (1 per page)`, 'success');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      showStatus('Failed to generate PDF', 'error');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const totalPointsIssued = customers.reduce((s, c) => s + (c.total_points_earned || 0), 0);
   const totalPointsRedeemed = customers.reduce((s, c) => s + (c.total_points_redeemed || 0), 0);
   const totalPointsActive = customers.reduce((s, c) => s + (c.current_points_balance || 0), 0);
@@ -890,7 +1106,11 @@ export function CustomersPage({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card border border-border/80 px-4 py-2.5 rounded-2xl shadow-xs shrink-0">
             {/* Search Input */}
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+              {filterLoading ? (
+                <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary animate-spin" />
+              ) : (
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+              )}
               <input
                 type="text"
                 placeholder="Search customers by name or phone..."
@@ -1020,24 +1240,10 @@ export function CustomersPage({
           </div>
 
           {/* Customer Cards Grid / List Area */}
-          <div ref={listScrollRef} className="flex-1 overflow-y-auto pr-1">
+          <div ref={listScrollRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto pr-1">
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                 {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
-              </div>
-            ) : filterLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
-                {customers.map((c, i) => (
-                  <div key={c.customer_id} className="p-3.5 rounded-xl bg-card border border-border/80 animate-pulse opacity-60">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-muted/50" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 w-3/4 bg-muted/50 rounded" />
-                        <div className="h-3 w-1/2 bg-muted/50 rounded" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
             ) : customers.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground bg-card rounded-2xl border border-dashed border-border/80 flex flex-col items-center justify-center gap-3 p-8">
@@ -1058,72 +1264,96 @@ export function CustomersPage({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3.5 pb-6">
-                {customers.map(customer => (
-                  <div
-                    key={customer.customer_id}
-                    id={`customer-row-${customer.customer_id}`}
-                    onClick={() => loadCustomerDetails(customer)}
-                    className={clsx(
-                      "p-3.5 rounded-xl bg-card border border-border/80 hover:border-primary/50 hover:shadow-md transition-all duration-200 cursor-pointer group select-none flex flex-col justify-between gap-3",
-                      highlightedCustomerId === customer.customer_id && "ring-2 ring-primary ring-offset-2 bg-primary/10 border-primary"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 via-primary/10 to-transparent text-primary border border-primary/20 flex items-center justify-center font-black text-xs shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                          {getInitials(customer.name)}
-                        </div>
-                        <div className="min-w-0 leading-tight">
-                          <p className="font-bold text-foreground truncate text-sm group-hover:text-primary transition-colors">{customer.name}</p>
-                          <p className="text-xs text-muted-foreground font-medium mt-0.5 flex items-center gap-1 truncate">
-                            {customer.phone ? (
-                              <span className="flex items-center gap-1 text-muted-foreground/90 font-mono">
-                                <Phone className="w-3 h-3 text-primary/70" /> {customer.phone}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground/50">No phone</span>
+              (() => {
+                const displayedCustomers = customers.slice(0, visibleCount);
+
+                return (
+                  <div className="space-y-4">
+                    <div className={clsx(
+                      "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3.5 transition-opacity duration-150",
+                      filterLoading && "opacity-60 pointer-events-none"
+                    )}>
+                      {displayedCustomers.map(customer => (
+                        <div
+                          key={customer.customer_id}
+                          id={`customer-row-${customer.customer_id}`}
+                          onClick={() => loadCustomerDetails(customer)}
+                          className={clsx(
+                            "p-3.5 rounded-xl bg-card border border-border/80 hover:border-primary/50 hover:shadow-md transition-all duration-200 cursor-pointer group select-none flex flex-col justify-between gap-3",
+                            highlightedCustomerId === customer.customer_id && "ring-2 ring-primary ring-offset-2 bg-primary/10 border-primary"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/15 via-primary/10 to-transparent text-primary border border-primary/20 flex items-center justify-center font-black text-xs shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                                {getInitials(customer.name)}
+                              </div>
+                              <div className="min-w-0 leading-tight">
+                                <p className="font-bold text-foreground truncate text-sm group-hover:text-primary transition-colors">{customer.name}</p>
+                                <p className="text-xs text-muted-foreground font-medium mt-0.5 flex items-center gap-1 truncate">
+                                  {customer.phone ? (
+                                    <span className="flex items-center gap-1 text-muted-foreground/90 font-mono">
+                                      <Phone className="w-3 h-3 text-primary/70" /> {customer.phone}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/50">No phone</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isOwner && (
+                                <button
+                                  onClick={(e) => handleDeleteCustomerClick(customer, e)}
+                                  className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100 active:scale-95 cursor-pointer"
+                                  title="Delete Customer & Ledger"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2.5 border-t border-border/40 text-[11px]">
+                            <span className="text-muted-foreground flex items-center gap-1 font-medium">
+                              <Calendar className="w-3 h-3 text-muted-foreground/60" />
+                              {customer.last_purchase_date ? formatDate(customer.last_purchase_date) : 'No purchases'}
+                            </span>
+
+                            {loyaltyEnabled && (
+                              <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-black font-mono">
+                                <Star className="w-3 h-3 fill-emerald-500/20" />
+                                {(customer.current_points_balance || 0).toFixed(0)} pts
+                              </div>
                             )}
-                          </p>
+                          </div>
                         </div>
-                      </div>
+                      ))}
+                    </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isOwner && (
-                          <button
-                            onClick={(e) => handleDeleteCustomerClick(customer, e)}
-                            className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100 active:scale-95 cursor-pointer"
-                            title="Delete Customer & Ledger"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                    {/* Sentinel element for scroll intersection */}
+                    <div ref={sentinelRef} className="h-4 w-full" />
+
+                    {/* Infinite Scroll Progress Bar */}
+                    {customers.length > 0 && (
+                      <div className="flex items-center justify-between border-t border-border/80 pt-3.5 text-xs select-none">
+                        <div className="text-muted-foreground font-semibold">
+                          Showing <span className="font-mono text-foreground font-bold">{Math.min(visibleCount, customers.length)}</span> of{' '}
+                          <span className="font-mono text-foreground font-bold">{customers.length}</span> customers
+                        </div>
+                        {visibleCount < customers.length && (
+                          <div className="text-xs text-muted-foreground font-medium animate-pulse flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            <span>Scroll down to load more...</span>
+                          </div>
                         )}
-                        <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                       </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2.5 border-t border-border/40 text-[11px]">
-                      <span className="text-muted-foreground flex items-center gap-1 font-medium">
-                        <Calendar className="w-3 h-3 text-muted-foreground/60" />
-                        {customer.last_purchase_date ? formatDate(customer.last_purchase_date) : 'No purchases'}
-                      </span>
-
-                      {customer.pricing_tier_name && (
-                        <div className="px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-black font-mono text-[10px]">
-                          {customer.pricing_tier_name}
-                        </div>
-                      )}
-
-                      {loyaltyEnabled && (
-                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-black font-mono">
-                          <Star className="w-3 h-3 fill-emerald-500/20" />
-                          {(customer.current_points_balance || 0).toFixed(0)} pts
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })()
             )}
           </div>
         </div>
@@ -1341,6 +1571,34 @@ export function CustomersPage({
                     onChange={(s, e) => { setBillFilterStart(s); setBillFilterEnd(e); }}
                     align="right"
                   />
+                  <button
+                    type="button"
+                    onClick={handleDownloadFilteredInvoicesPdf}
+                    disabled={exportingPdf || filteredInvoices.length === 0}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Download/Print filtered bills as PDF (1 bill per page)"
+                  >
+                    {exportingPdf ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5" />
+                    )}
+                    <span>Download PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadFilteredInvoicesCsv}
+                    disabled={exportingFilteredInvoices || filteredInvoices.length === 0}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted/60 text-foreground hover:bg-muted border border-border/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Download filtered bills as CSV spreadsheet"
+                  >
+                    {exportingFilteredInvoices ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    <span>CSV</span>
+                  </button>
                 </div>
               )}
             </div>

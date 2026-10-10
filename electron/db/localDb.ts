@@ -33,6 +33,35 @@ export function initDb() {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
+  // Self-healing migration: if current database does not exist or is empty (0 bytes), search legacy/alternate AppData directories to restore user's database
+  if (!fs.existsSync(dbPath) || fs.statSync(dbPath).size === 0) {
+    try {
+      const appData = app.getPath('appData');
+      const candidates = [
+        path.join(appData, 'nafid', 'vendora_v2.db'),
+        path.join(appData, 'nafid', 'vendora.db'),
+        path.join(appData, 'com.nafid', 'vendora_v2.db'),
+        path.join(appData, 'vendora', 'vendora_v2.db'),
+        path.join(appData, 'Vendora', 'vendora_v2.db'),
+        path.join(appData, 'Nafid', 'vendora.db'),
+      ];
+
+      for (const src of candidates) {
+        if (fs.existsSync(src) && fs.statSync(src).size > 0 && src !== dbPath) {
+          console.log(`[DB Self-Healing] Found legacy/alternate database at ${src}. Restoring to ${dbPath}...`);
+          fs.copyFileSync(src, dbPath);
+          const wal = `${src}-wal`;
+          const shm = `${src}-shm`;
+          if (fs.existsSync(wal)) fs.copyFileSync(wal, `${dbPath}-wal`);
+          if (fs.existsSync(shm)) fs.copyFileSync(shm, `${dbPath}-shm`);
+          break;
+        }
+      }
+    } catch (copyErr) {
+      console.error('[DB Self-Healing] Database recovery check error:', copyErr);
+    }
+  }
+
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
 
@@ -470,6 +499,7 @@ export function initDb() {
         name TEXT NOT NULL,
         phone TEXT,
         address TEXT,
+        pricing_tier_id TEXT,
         total_points_earned REAL NOT NULL DEFAULT 0,
         total_points_redeemed REAL NOT NULL DEFAULT 0,
         current_points_balance REAL NOT NULL DEFAULT 0,
@@ -777,7 +807,7 @@ export function initDb() {
     ],
     customers: [
         'customer_id', 'tenant_id', 'name', 'phone', 'address', 'total_points_earned', 'total_points_redeemed',
-        'current_points_balance', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'current_points_balance', 'pricing_tier_id', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     returns: [
         'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',

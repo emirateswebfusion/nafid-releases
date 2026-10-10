@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, Loader2, Layers, Upload } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, Loader2, Layers, Upload, ChevronDown } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -110,6 +110,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+  const [showZeroPaperStock, setShowZeroPaperStock] = useState(false);
   const [showProductGstBadge, setShowProductGstBadge] = useState(true);
 
   useEffect(() => {
@@ -117,6 +118,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       if (window.electronAPI?.settingsGet) {
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
+        }).catch(() => {});
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock' }).then(val => {
+          if (val !== null && val !== undefined) setShowZeroPaperStock(Boolean(val));
         }).catch(() => {});
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge' }).then(val => {
           if (val === 'false' || val === false) setShowProductGstBadge(false);
@@ -710,6 +714,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       purchase_price: product.purchase_price || '',
       base_price: gradeRate !== null && product.pricing_mode === 'GRADE_RATE' ? gradeRate : (product.base_price || ''),
       current_stock: product.current_stock ?? '',
+      gst_purchase_quantity: product.paper_stock !== undefined && product.paper_stock !== null ? String(product.paper_stock) : '',
+      gst_purchase_price: (product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null ? String((product as any).gst_purchase_price) : '',
       reorder_level: product.reorder_level ?? '',
       is_gst_applicable: isGstProduct(product),
       gst_type: (() => {
@@ -726,6 +732,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           const pcsVal = da.pcs !== undefined ? da.pcs : (da.pcs_stock !== undefined ? da.pcs_stock : '');
           da.pcs = pcsVal;
           da.pcs_stock = pcsVal;
+          da.paper_mrp = da.paper_mrp !== undefined ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : '');
           return da;
         } catch { return {}; }
       })(),
@@ -737,8 +744,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       pricing_mode: validGradeId ? (product.pricing_mode || 'FIXED_PRICE') : 'FIXED_PRICE',
       show_gst_purchase: false,
       gst_same_as_current: false,
-      gst_purchase_price: '' as string | number,
-      gst_purchase_quantity: '' as string | number,
       gst_supplier_id: '',
       gst_supplier_name: '',
       gst_bill_number: '',
@@ -1483,9 +1488,21 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         } else {
           delete da.pcs_per_kg;
         }
-        da.pcs_stock = rawPcs > 0 ? rawPcs : 0;
-        da.pcs = rawPcs > 0 ? rawPcs : 0;
-        da.gst_type = formData.gst_type || 'REAL';
+        const hasPaperData = (formData.gst_purchase_price !== '' && Number(formData.gst_purchase_price) > 0) ||
+                             (da.paper_mrp !== undefined && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) ||
+                             (formData.gst_purchase_quantity !== '' && Number(formData.gst_purchase_quantity) > 0);
+        const hasRealData = (formData.purchase_price !== '' && Number(formData.purchase_price) > 0) ||
+                            (formData.base_price !== '' && Number(formData.base_price) > 0) ||
+                            (formData.current_stock !== '' && Number(formData.current_stock) > 0);
+
+        da.gst_type = (hasPaperData && !hasRealData) ? 'PAPER' : 'REAL';
+        if (da.paper_mrp !== undefined && da.paper_mrp !== '' && da.paper_mrp !== null) {
+          da.paper_mrp = Number(da.paper_mrp);
+          da.paper_base_price = Number(da.paper_mrp);
+        } else {
+          delete da.paper_mrp;
+          delete da.paper_base_price;
+        }
         return JSON.stringify(da);
       })(),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
@@ -2035,7 +2052,7 @@ return (
                              <>
                                <span>{formattedStock}</span>
                                {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
-                               {enableRealPaperStock && isGstFlag && p.paper_stock !== undefined && (
+                               {enableRealPaperStock && p.paper_stock !== undefined && (showZeroPaperStock ? true : Number(p.paper_stock || 0) > 0) && (
                                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold mt-0.5" title="Paper Stock from Dummy GST purchases">
                                    Paper: {p.paper_stock}
                                  </span>
@@ -2179,63 +2196,61 @@ return (
                     <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-4">
-                      <div ref={categoryContainerRef} className="relative">
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={formData.category}
-                            onChange={e => {
-                              handleInputChange('category', e.target.value);
+                    <div ref={categoryContainerRef} className="relative">
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={formData.category}
+                          onChange={e => {
+                            handleInputChange('category', e.target.value);
+                            setShowCategorySuggestions(true);
+                            setSelectedCategoryIndex(0);
+                          }}
+                          onFocus={() => setShowCategorySuggestions(true)}
+                          onKeyDown={handleCategoryKeyDown}
+                          className="w-full bg-background border border-border rounded-xl p-3 pr-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
+                          placeholder="Type or select category..."
+                        />
+                        {formData.category && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleInputChange('category', '');
                               setShowCategorySuggestions(true);
-                              setSelectedCategoryIndex(0);
                             }}
-                            onFocus={() => setShowCategorySuggestions(true)}
-                            onKeyDown={handleCategoryKeyDown}
-                            className="w-full bg-background border border-border rounded-xl p-3 pr-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                            placeholder="Type or select category..."
-                          />
-                          {formData.category && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleInputChange('category', '');
-                                setShowCategorySuggestions(true);
-                              }}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground/60 hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                              title="Clear category"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-
-                        {showCategorySuggestions && categorySuggestions.length > 0 && (
-                          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
-                            {categorySuggestions.map((cat, i) => (
-                              <button
-                                key={cat}
-                                type="button"
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  selectCategorySuggestion(cat);
-                                }}
-                                onMouseEnter={() => setSelectedCategoryIndex(i)}
-                                className={clsx(
-                                  'w-full text-left px-4 py-2.5 flex items-center justify-between text-sm transition-colors cursor-pointer border-b border-border/40 last:border-0',
-                                  i === selectedCategoryIndex ? 'bg-primary/10 text-primary font-bold' : 'bg-card text-foreground hover:bg-muted'
-                                )}
-                              >
-                                <span>{cat}</span>
-                                {cat.toLowerCase() === (formData.category || '').trim().toLowerCase() && (
-                                  <Check className="w-4 h-4 text-primary shrink-0" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground/60 hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                            title="Clear category"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
+
+                      {showCategorySuggestions && categorySuggestions.length > 0 && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                          {categorySuggestions.map((cat, i) => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                selectCategorySuggestion(cat);
+                              }}
+                              onMouseEnter={() => setSelectedCategoryIndex(i)}
+                              className={clsx(
+                                'w-full text-left px-4 py-2.5 flex items-center justify-between text-sm transition-colors cursor-pointer border-b border-border/40 last:border-0',
+                                i === selectedCategoryIndex ? 'bg-primary/10 text-primary font-bold' : 'bg-card text-foreground hover:bg-muted'
+                              )}
+                            >
+                              <span>{cat}</span>
+                              {cat.toLowerCase() === (formData.category || '').trim().toLowerCase() && (
+                                <Check className="w-4 h-4 text-primary shrink-0" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
@@ -2309,65 +2324,191 @@ return (
             </section>
 
             {/* Section 2: Pricing */}
-            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300 space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                   <Tag className="w-4 h-4" />
                 </div>
                 <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. Inventory & Pricing</span>
               </div>
-              <div className="flex gap-4">
-                {[
-                  { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
-                  { label: 'MRP', field: 'base_price', prefix: '₹' },
-                  { label: 'Current Stock', field: 'current_stock' },
-                  { label: 'Low Stock Alert', field: 'reorder_level' },
-                ].map(({ label, field, prefix }) => (
-                  <div key={field} className="flex-1 min-w-0">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      {label}
-                      {(field === 'base_price' || field === 'purchase_price') && formData.grade_id && (
-                        <span className="text-indigo-500 ml-1.5 font-normal normal-case">(from grade)</span>
-                      )}
-                    </label>
-                    <div className="relative">
-                      {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
+
+              <div className="flex flex-col gap-4">
+                {/* Card 1: Real Product */}
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-3">
+                  {enableRealPaperStock && (
+                    <div className="flex items-center justify-between pb-2 border-b border-emerald-500/15">
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Real Product (Estimate / Shop)
+                      </span>
+                      <span className="text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-500/20 uppercase tracking-wider">
+                        REAL
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        Purchase Price (₹)
+                        {formData.grade_id && <span className="text-indigo-500 ml-1 font-normal normal-case">(grade)</span>}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">₹</span>
+                        <input
+                          type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={formData.purchase_price}
+                          onChange={e => handleInputChange('purchase_price', e.target.value)}
+                          className="w-full bg-background border border-border rounded-xl p-2.5 pl-7 text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        MRP (₹)
+                        {formData.grade_id && <span className="text-indigo-500 ml-1 font-normal normal-case">(grade)</span>}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">₹</span>
+                        <input
+                          type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={formData.base_price}
+                          onChange={e => handleInputChange('base_price', e.target.value)}
+                          className="w-full bg-background border border-border rounded-xl p-2.5 pl-7 text-emerald-600 dark:text-emerald-400 font-bold focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        Stock
+                      </label>
                       <input
                         type="number" step="0.01"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
-                        value={(formData as any)[field]}
-                        onChange={e => handleInputChange(field, e.target.value)}
-                        className={clsx(
-                          'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
-                          prefix && 'pl-8', 
-                          field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
-                        )}
+                        value={formData.current_stock}
+                        onChange={e => handleInputChange('current_stock', e.target.value)}
+                        className="w-full bg-background border border-border rounded-xl p-2.5 text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        Low Stock Alert
+                      </label>
+                      <input
+                        type="number" step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        value={formData.reorder_level}
+                        onChange={e => handleInputChange('reorder_level', e.target.value)}
+                        className="w-full bg-background border border-border rounded-xl p-2.5 text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                        UOM (Unit)
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <select
+                            value={formData.uom}
+                            onChange={e => handleInputChange('uom', e.target.value)}
+                            className="w-full bg-background border border-border rounded-xl p-2.5 pr-8 text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm text-sm font-medium appearance-none cursor-pointer"
+                          >
+                            {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => (
+                              <option key={u} value={u} className="bg-background text-foreground py-1">
+                                {u}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                        <div className={clsx(
+                          "transition-all duration-300 ease-in-out overflow-hidden flex items-center shrink-0",
+                          ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom)
+                            ? "w-20 opacity-100 scale-100 translate-x-0 ml-0"
+                            : "w-0 opacity-0 scale-90 translate-x-4 pointer-events-none -ml-2"
+                        )}>
+                          <input
+                            type="number" min="1" step="1"
+                            value={formData.domain_attributes?.pcs !== undefined ? formData.domain_attributes.pcs : (formData.domain_attributes?.pcs_stock ?? '')}
+                            onChange={e => handleDomainAttrChange('pcs', e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-20 bg-background border border-border rounded-xl p-2.5 text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-medium shrink-0"
+                            placeholder="Pcs"
+                            title="Optional Pcs count"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-                <div className="flex-1 min-w-0">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">UOM</label>
-                  <Select
-                    value={formData.uom}
-                    onChange={v => handleInputChange('uom', v)}
-                    options={['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => ({ value: u, label: u }))}
-                    triggerClassName="rounded-xl h-[46px]"
-                  />
                 </div>
-                <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', (formData.billing_type === 'WEIGHT' || ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((formData.uom || '').toLowerCase())) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Pcs</label>
-                    <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">(optional)</span>
+
+                {/* Card 2: Paper Product */}
+                {enableRealPaperStock && (
+                  <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-purple-500/15">
+                      <span className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                        Paper Product (GST Ledger)
+                      </span>
+                      <span className="text-[10px] font-black bg-purple-500/15 text-purple-600 dark:text-purple-400 px-2.5 py-0.5 rounded-full border border-purple-500/20 uppercase tracking-wider">
+                        PAPER GST
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                          Paper Purchase (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">₹</span>
+                          <input
+                            type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={formData.gst_purchase_price}
+                            onChange={e => handleInputChange('gst_purchase_price', e.target.value)}
+                            className="w-full bg-background border border-border rounded-xl p-2.5 pl-7 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1 truncate">
+                          Paper MRP (₹)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">₹</span>
+                          <input
+                            type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={formData.domain_attributes?.paper_mrp ?? ''}
+                            onChange={e => handleDomainAttrChange('paper_mrp', e.target.value)}
+                            placeholder={formData.base_price ? `= ${formData.base_price}` : 'MRP'}
+                            className="w-full bg-background border border-border rounded-xl p-2.5 pl-7 text-foreground font-bold text-purple-600 dark:text-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                          Paper Stock (GST)
+                        </label>
+                        <input
+                          type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={formData.gst_purchase_quantity}
+                          onChange={e => handleInputChange('gst_purchase_quantity', e.target.value)}
+                          className="w-full bg-background border border-border rounded-xl p-2.5 text-foreground font-bold text-purple-600 dark:text-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="number" min="1" step="1"
-                    value={formData.domain_attributes?.pcs !== undefined ? formData.domain_attributes.pcs : (formData.domain_attributes?.pcs_stock ?? '')}
-                    onChange={e => handleDomainAttrChange('pcs', e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                    placeholder="e.g. 20"
-                  />
-                </div>
+                )}
               </div>
               {activePricingTiers.length > 0 && (
                 <div className="mt-5 pt-4 border-t border-border">
@@ -2474,7 +2615,7 @@ return (
                 </div>
                 <span className="text-xs font-black text-orange-500 uppercase tracking-wider">4. Taxes & Config</span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Category</label>
                   <div
@@ -2506,33 +2647,6 @@ return (
                       {formData.is_gst_applicable ? 'GST Product' : 'Estimate Product'}
                     </label>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    GST Mode
-                  </label>
-                  <button
-                    type="button"
-                    disabled={!formData.is_gst_applicable}
-                    onClick={() => handleInputChange('gst_type', (formData.gst_type || 'REAL') === 'REAL' ? 'PAPER' : 'REAL')}
-                    className={clsx(
-                      'w-full h-[46px] rounded-xl text-xs font-black transition-all duration-200 cursor-pointer select-none border-2 flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed shadow-md',
-                      formData.is_gst_applicable
-                        ? ((formData.gst_type || 'REAL') === 'REAL'
-                            ? 'bg-sky-500 border-sky-600 text-white shadow-sky-500/30 hover:bg-sky-600'
-                            : 'bg-purple-600 border-purple-700 text-white shadow-purple-500/30 hover:bg-purple-700')
-                        : 'bg-muted border-border text-muted-foreground'
-                    )}
-                  >
-                    <span className={clsx(
-                      'w-2 h-2 rounded-full',
-                      formData.is_gst_applicable ? 'bg-white animate-pulse' : 'bg-muted-foreground/40'
-                    )} />
-                    {formData.is_gst_applicable
-                      ? ((formData.gst_type || 'REAL') === 'REAL' ? 'Real GST' : 'Paper GST')
-                      : 'Disabled'}
-                  </button>
                 </div>
 
                 <div>

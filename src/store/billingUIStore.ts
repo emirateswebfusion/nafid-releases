@@ -113,6 +113,11 @@ export interface BillingUIConfig {
   preserveCartOnHeaderNavigation?: boolean;
   preserveCartOnPageExit?: boolean;
   preserveCartOnNavigation?: boolean; // Legacy fallback
+
+  // Post-Print Mode Persistence Options
+  stayInQuotationModeAfterPrint?: boolean;
+  stayInReturnModeAfterPrint?: boolean;
+  stayInScrapModeAfterPrint?: boolean;
 }
 
 const STORAGE_KEY = 'vendora-billing-ui-config';
@@ -150,6 +155,9 @@ export const DEFAULT_BILLING_UI_CONFIG: BillingUIConfig = {
   preserveCartOnHeaderNavigation: true,
   preserveCartOnPageExit: true,
   preserveCartOnNavigation: true,
+  stayInQuotationModeAfterPrint: false,
+  stayInReturnModeAfterPrint: false,
+  stayInScrapModeAfterPrint: false,
 };
 
 export function isHeaderButtonVisible(config: BillingUIConfig, buttonKey: keyof HeaderButtonConfig): boolean {
@@ -213,6 +221,9 @@ export function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfi
       preserveCartOnHeaderNavigation: config.preserveCartOnHeaderNavigation ?? config.preserveCartOnNavigation ?? true,
       preserveCartOnPageExit: config.preserveCartOnPageExit ?? config.preserveCartOnNavigation ?? true,
       preserveCartOnNavigation: config.preserveCartOnNavigation ?? true,
+      stayInQuotationModeAfterPrint: config.stayInQuotationModeAfterPrint ?? false,
+      stayInReturnModeAfterPrint: config.stayInReturnModeAfterPrint ?? false,
+      stayInScrapModeAfterPrint: config.stayInScrapModeAfterPrint ?? false,
       headerButtons: hb,
       quickPageShortcuts: activeShortcuts,
       maxTotalHeaderButtons: maxCap,
@@ -253,6 +264,9 @@ export function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfi
     preserveCartOnHeaderNavigation: config.preserveCartOnHeaderNavigation ?? config.preserveCartOnNavigation ?? true,
     preserveCartOnPageExit: config.preserveCartOnPageExit ?? config.preserveCartOnNavigation ?? true,
     preserveCartOnNavigation: config.preserveCartOnNavigation ?? true,
+    stayInQuotationModeAfterPrint: config.stayInQuotationModeAfterPrint ?? false,
+    stayInReturnModeAfterPrint: config.stayInReturnModeAfterPrint ?? false,
+    stayInScrapModeAfterPrint: config.stayInScrapModeAfterPrint ?? false,
     headerButtons: sanitizedHB,
     quickPageShortcuts: keptShortcuts,
     maxTotalHeaderButtons: maxCap,
@@ -357,6 +371,9 @@ function loadStoredConfig(): BillingUIConfig {
         preserveCartOnHeaderNavigation: parsed.preserveCartOnHeaderNavigation ?? parsed.preserveCartOnNavigation ?? DEFAULT_BILLING_UI_CONFIG.preserveCartOnHeaderNavigation,
         preserveCartOnPageExit: parsed.preserveCartOnPageExit ?? parsed.preserveCartOnNavigation ?? DEFAULT_BILLING_UI_CONFIG.preserveCartOnPageExit,
         preserveCartOnNavigation: parsed.preserveCartOnNavigation ?? DEFAULT_BILLING_UI_CONFIG.preserveCartOnNavigation,
+        stayInQuotationModeAfterPrint: parsed.stayInQuotationModeAfterPrint ?? DEFAULT_BILLING_UI_CONFIG.stayInQuotationModeAfterPrint,
+        stayInReturnModeAfterPrint: parsed.stayInReturnModeAfterPrint ?? DEFAULT_BILLING_UI_CONFIG.stayInReturnModeAfterPrint,
+        stayInScrapModeAfterPrint: parsed.stayInScrapModeAfterPrint ?? DEFAULT_BILLING_UI_CONFIG.stayInScrapModeAfterPrint,
         headerButtons: {
           ...DEFAULT_HEADER_BUTTON_CONFIG,
           ...(parsed.headerButtons || {}),
@@ -413,6 +430,9 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
     } catch (e) {
       console.error('Failed to save Billing UI config to localStorage', e);
     }
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'billing_ui_config', value: updated }).catch(() => {});
+    }
     window.dispatchEvent(new CustomEvent('billing-ui-config-changed', { detail: updated }));
     set({ config: updated });
   },
@@ -421,6 +441,9 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_BILLING_UI_CONFIG));
     } catch (e) {}
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
+    }
     window.dispatchEvent(new CustomEvent('billing-ui-config-changed', { detail: DEFAULT_BILLING_UI_CONFIG }));
     set({ config: DEFAULT_BILLING_UI_CONFIG });
   },
@@ -432,3 +455,24 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
     }
   }
 }));
+
+export async function hydrateBillingUIFromDB(tenantId?: string) {
+  if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+    try {
+      const tid = tenantId || 'global';
+      const stored = await window.electronAPI.settingsGet({ tenant_id: tid, key: 'billing_ui_config' });
+      if (stored && typeof stored === 'object' && Object.keys(stored).length > 0) {
+        useBillingUIStore.getState().updateConfig(stored);
+      }
+    } catch (e) {
+      console.warn('[billingUIStore] Failed to hydrate from Electron DB:', e);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    hydrateBillingUIFromDB();
+  }, 100);
+}
+

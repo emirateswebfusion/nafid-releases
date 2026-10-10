@@ -2,25 +2,21 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Plus, Trash, Pencil, Check, X, Loader2,
   Tags, ChevronUp, ChevronDown, Shield, Save, Search,
-  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee, BadgePercent, Star
+  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee, BadgePercent, Star, GripVertical
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { useAuthStore } from '../store/authStore';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
-interface PricingTier {
-  pricing_tier_id: string;
-  tenant_id: string;
-  name: string;
-  is_active: number | boolean;
-  sort_order: number;
-  is_deleted?: number | boolean;
-  is_default?: number | boolean | string;
-}
+import { sortTiersWithMrp, MRP_TIER_ID, type PricingTier } from '../utils/pricingTierHelper';
 
-const isTierDefault = (t?: PricingTier): boolean => {
+const isTierDefault = (t?: PricingTier, allTiers: PricingTier[] = []): boolean => {
   if (!t) return false;
+  if (t.is_mrp || t.pricing_tier_id === MRP_TIER_ID) {
+    const hasCustomDefault = allTiers.some(other => !other.is_mrp && (other.is_default === 1 || other.is_default === true || other.is_default === '1'));
+    return !hasCustomDefault;
+  }
   return t.is_default === 1 || t.is_default === true || t.is_default === '1' || t.is_default === 'true';
 };
 
@@ -217,14 +213,18 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     setError(null);
     try {
       const tid = tenantId || 'global';
-      const [tierRes, productRes, pricingRes, overrideRes] = await Promise.all([
+      const [tierRes, productRes, pricingRes, overrideRes, mrpSortRes] = await Promise.all([
         window.electronAPI.dbGetPricingTiers(tid),
         window.electronAPI.dbGetProducts({ tenant_id: tid, include_inactive: true }),
         window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([]),
         window.electronAPI.settingsGet({ tenant_id: tid, key: 'allow_biller_price_override' }),
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'mrp_sort_order' }),
       ]);
+
+      const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
+
       if (Array.isArray(tierRes)) {
-        setTiers(tierRes);
+        setTiers(sortTiersWithMrp(tierRes, mrpSortOrder));
       } else if (tierRes && (tierRes as any).error) {
         setError((tierRes as any).error || 'Failed to load pricing tiers');
       }
@@ -255,7 +255,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     }
   };
 
-  const activeTiers = useMemo(() => tiers.filter(t => (t.is_active === 1 || t.is_active === true) && !t.is_deleted), [tiers]);
+  const activeTiers = useMemo(() => tiers.filter(t => (t.is_mrp || t.is_active === 1 || t.is_active === true) && !t.is_deleted), [tiers]);
 
   const handleAddTier = async () => {
     if (!newName.trim()) return;
@@ -279,7 +279,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   };
 
   const handleRenameTier = async (tier: PricingTier) => {
-    if (!editName.trim()) return;
+    if (!editName.trim() || tier.is_mrp) return;
     setOperating(true);
     const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, name: editName.trim() });
     if (res.success) {
@@ -293,6 +293,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   };
 
   const toggleActive = async (tier: PricingTier) => {
+    if (tier.is_mrp) return;
     setOperating(true);
     const next = !tier.is_active;
     const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, is_active: next });
@@ -306,6 +307,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   };
 
   const handleDeleteTier = async (tier: PricingTier) => {
+    if (tier.is_mrp) return;
     setOperating(true);
     const res = await window.electronAPI.dbDeletePricingTier(tier.pricing_tier_id);
     if (res.success) {
@@ -320,15 +322,15 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
 
   const handleSetDefaultTier = async (tier: PricingTier) => {
     setOperating(true);
-    const isAlreadyDefault = isTierDefault(tier);
-    const targetId = isAlreadyDefault ? '' : tier.pricing_tier_id;
+    const isAlreadyDefault = isTierDefault(tier, tiers);
+    const targetId = (isAlreadyDefault || tier.is_mrp) ? '' : tier.pricing_tier_id;
     const res = await window.electronAPI.dbSetDefaultPricingTier({
       tenant_id: tenantId || 'global',
       pricing_tier_id: targetId,
     });
     if (res.success) {
       setStatusMessage({
-        text: targetId ? `"${tier.name}" set as default viewing tier in Billing` : 'Default pricing tier unset',
+        text: targetId ? `"${tier.name}" set as default viewing tier in Billing` : 'Default pricing tier unset (Base MRP selected)',
         type: 'success',
       });
       await loadData(false);
@@ -338,15 +340,44 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     setOperating(false);
   };
 
-  const moveTier = async (index: number, dir: -1 | 1) => {
-    const target = index + dir;
-    if (target < 0 || target >= tiers.length) return;
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const reorderTier = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= tiers.length || toIndex >= tiers.length) return;
     const reordered = [...tiers];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(target, 0, moved);
-    const payload = reordered.map((t, i) => ({ pricing_tier_id: t.pricing_tier_id, sort_order: i }));
-    const res = await window.electronAPI.dbReorderPricingTiers(payload);
-    if (res.success) setTiers(reordered.map((t, i) => ({ ...t, sort_order: i })));
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    const dbPayload: Array<{ pricing_tier_id: string; sort_order: number }> = [];
+    let newMrpSort = 0;
+
+    const updated = reordered.map((t, i) => {
+      const item = { ...t, sort_order: i };
+      if (item.is_mrp || item.pricing_tier_id === MRP_TIER_ID) {
+        newMrpSort = i;
+      } else {
+        dbPayload.push({ pricing_tier_id: item.pricing_tier_id, sort_order: i });
+      }
+      return item;
+    });
+
+    setTiers(updated);
+    setOperating(true);
+    try {
+      await Promise.all([
+        window.electronAPI.dbReorderPricingTiers(dbPayload),
+        window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'mrp_sort_order', value: newMrpSort }),
+      ]);
+    } catch (e) {
+      console.error('[PricingTiers] drag reorder error', e);
+    } finally {
+      setOperating(false);
+    }
+  };
+
+  const moveTier = async (index: number, dir: -1 | 1) => {
+    await reorderTier(index, index + dir);
   };
 
   const toggleOverride = async (value: boolean) => {
@@ -414,8 +445,9 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   }, [filteredProducts, visibleCount]);
 
   const matrixTiers = useMemo(() => {
-    if (tierFilter === 'all') return activeTiers;
-    return activeTiers.filter(t => t.pricing_tier_id === tierFilter);
+    const customActive = activeTiers.filter(t => !t.is_mrp && t.pricing_tier_id !== MRP_TIER_ID);
+    if (tierFilter === 'all') return customActive;
+    return customActive.filter(t => t.pricing_tier_id === tierFilter);
   }, [activeTiers, tierFilter]);
 
   const saveProductRow = useCallback(async (productId: string) => {
@@ -660,31 +692,50 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
                   </div>
                 ) : tiers.map((tier, index) => (
                   <div
-                    key={tier.pricing_tier_id}
+                    key={tier.pricing_tier_id || index}
+                    draggable={!operating}
+                    onDragStart={(e) => {
+                      setDraggedIndex(index);
+                      e.dataTransfer.setData('text/plain', String(index));
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverIndex !== index) setDragOverIndex(index);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverIndex === index) setDragOverIndex(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedIndex !== null && draggedIndex !== index) {
+                        reorderTier(draggedIndex, index);
+                      }
+                      setDraggedIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedIndex(null);
+                      setDragOverIndex(null);
+                    }}
                     className={clsx(
-                      'grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-muted/30',
+                      'grid grid-cols-12 gap-3 px-6 py-3.5 items-center transition-all duration-150',
+                      draggedIndex === index && 'opacity-40 bg-primary/10 border-2 border-dashed border-primary',
+                      dragOverIndex === index && draggedIndex !== index && 'bg-primary/15 border-t-2 border-t-primary scale-[1.01]',
+                      draggedIndex !== index && dragOverIndex !== index && 'hover:bg-muted/30',
                       !tier.is_active && 'opacity-60'
                     )}
                   >
-                    {/* Sl. No. & Sort Arrows */}
+                    {/* Drag Handle & Sl. No. */}
                     <div className="col-span-1 flex items-center gap-2">
-                      <span className="text-xs font-bold text-muted-foreground w-4 text-center">{index + 1}</span>
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          onClick={() => moveTier(index, -1)}
-                          disabled={index === 0 || operating}
-                          className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
-                        >
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => moveTier(index, 1)}
-                          disabled={index === tiers.length - 1 || operating}
-                          className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
-                        >
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        </button>
+                      <div
+                        className="p-1.5 text-muted-foreground/60 hover:text-primary active:text-primary cursor-grab active:cursor-grabbing rounded-lg hover:bg-muted transition-colors shrink-0"
+                        title="Click & drag to reorder tier position"
+                      >
+                        <GripVertical className="w-4 h-4" />
                       </div>
+                      <span className="text-xs font-bold text-muted-foreground w-4 text-center">{index + 1}</span>
                     </div>
 
                     {/* Name / Inline Edit */}
@@ -722,10 +773,15 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
                       ) : (
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className={clsx('text-sm font-bold', tier.is_active ? 'text-foreground' : 'text-muted-foreground line-through')}>
+                            <p className={clsx('text-sm font-bold', (tier.is_mrp || tier.is_active) ? 'text-foreground' : 'text-muted-foreground line-through')}>
                               {tier.name}
                             </p>
-                            {isTierDefault(tier) && (
+                            {tier.is_mrp && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 shrink-0">
+                                BASE MRP
+                              </span>
+                            )}
+                            {isTierDefault(tier, tiers) && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
                                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                                 Default
@@ -733,7 +789,9 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
                             )}
                           </div>
                           <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                            {tier.is_active ? 'Visible in Inventory & POS Billing' : 'Hidden from all selections'}
+                            {tier.is_mrp
+                              ? 'Base product selling price set in Product Catalog'
+                              : tier.is_active ? 'Visible in Inventory & POS Billing' : 'Hidden from all selections'}
                           </p>
                         </div>
                       )}
@@ -743,11 +801,13 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
                     <div className="col-span-2 flex justify-center">
                       <span className={clsx(
                         'text-[10px] font-bold px-2.5 py-1 rounded-full border',
-                        tier.is_active
+                        tier.is_mrp
+                          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                          : tier.is_active
                           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                           : 'bg-muted text-muted-foreground border-border/40'
                       )}>
-                        {tier.is_active ? 'Active' : 'Disabled'}
+                        {tier.is_mrp ? 'Base Rate' : tier.is_active ? 'Active' : 'Disabled'}
                       </span>
                     </div>
 
@@ -755,16 +815,16 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
                     <div className="col-span-2 flex justify-center">
                       <button
                         onClick={() => toggleActive(tier)}
-                        disabled={operating}
-                        title={tier.is_active ? 'Turn OFF' : 'Turn ON'}
+                        disabled={operating || tier.is_mrp}
+                        title={tier.is_mrp ? 'Base MRP cannot be disabled' : tier.is_active ? 'Turn OFF' : 'Turn ON'}
                         className={clsx(
                           'relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:opacity-50',
-                          tier.is_active ? 'bg-emerald-500' : 'bg-muted'
+                          (tier.is_mrp || tier.is_active) ? 'bg-emerald-500' : 'bg-muted'
                         )}
                       >
                         <span className={clsx(
                           'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all',
-                          tier.is_active ? 'left-[22px]' : 'left-0.5'
+                          (tier.is_mrp || tier.is_active) ? 'left-[22px]' : 'left-0.5'
                         )} />
                       </button>
                     </div>
@@ -776,54 +836,58 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
                         disabled={operating}
                         className={clsx(
                           'p-1.5 rounded-lg cursor-pointer transition-all',
-                          isTierDefault(tier)
+                          isTierDefault(tier, tiers)
                             ? 'text-amber-400 hover:text-amber-500 bg-amber-500/10'
                             : 'text-muted-foreground hover:text-amber-400 hover:bg-muted'
                         )}
-                        title={isTierDefault(tier) ? 'Default viewing tier in Billing (Click to unset)' : 'Set as Default viewing tier in Billing'}
+                        title={isTierDefault(tier, tiers) ? 'Default viewing tier in Billing (Click to unset)' : 'Set as Default viewing tier in Billing'}
                       >
-                        <Star className={clsx('w-3.5 h-3.5', isTierDefault(tier) && 'fill-amber-400 text-amber-400')} />
+                        <Star className={clsx('w-3.5 h-3.5', isTierDefault(tier, tiers) && 'fill-amber-400 text-amber-400')} />
                       </button>
-                      <button
-                        onClick={() => { setTierFilter(tier.pricing_tier_id); setView('matrix'); }}
-                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
-                        title="Set Prices in Matrix"
-                      >
-                        <IndianRupee className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => { setEditingId(tier.pricing_tier_id); setEditName(tier.name); }}
-                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
-                        title="Rename"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      {confirmDeleteId === tier.pricing_tier_id ? (
-                        <div className="inline-flex items-center gap-1 p-0.5 bg-muted/60 border border-border rounded-xl shrink-0">
+                      {!tier.is_mrp && (
+                        <>
                           <button
-                            type="button"
-                            onClick={() => handleDeleteTier(tier)}
-                            className="px-2.5 py-1 text-[10px] font-black bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg cursor-pointer transition-all active:scale-95"
+                            onClick={() => { setTierFilter(tier.pricing_tier_id); setView('matrix'); }}
+                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
+                            title="Set Prices in Matrix"
                           >
-                            Delete
+                            <IndianRupee className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            type="button"
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg cursor-pointer transition-all active:scale-90"
-                            title="Cancel"
+                            onClick={() => { setEditingId(tier.pricing_tier_id); setEditName(tier.name); }}
+                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
+                            title="Rename"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDeleteId(tier.pricing_tier_id)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash className="w-3.5 h-3.5" />
-                        </button>
+                          {confirmDeleteId === tier.pricing_tier_id ? (
+                            <div className="inline-flex items-center gap-1 p-0.5 bg-muted/60 border border-border rounded-xl shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTier(tier)}
+                                className="px-2.5 py-1 text-[10px] font-black bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg cursor-pointer transition-all active:scale-95"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg cursor-pointer transition-all active:scale-90"
+                                title="Cancel"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(tier.pricing_tier_id)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

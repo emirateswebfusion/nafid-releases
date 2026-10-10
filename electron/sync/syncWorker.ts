@@ -1683,12 +1683,6 @@ async function syncSettings(token: string, tenantId: string) {
     const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND (tenant_id = ? OR tenant_id = 'global')`);
     const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
     tx(synced);
-  } else {
-    // If target acknowledged 0 synced and 0 failed (e.g. local hardware/filtered keys), mark remaining pending as SYNCED to prevent infinite 15s retry loop
-    const pendingKeys = pending.map((p: any) => p.key);
-    const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND (tenant_id = ? OR tenant_id = 'global')`);
-    const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
-    tx(pendingKeys);
   }
 }
 
@@ -3093,11 +3087,15 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
 
   const allowedKeys = [
     'shop_name', 'shop_phone', 'shop_address', 'shop_gstin', 'shop_state',
-    'upi_id', 'show_upi_qr', 'show_product_offers',
+    'shop_email', 'shop_website', 'upi_id', 'show_upi_qr', 'show_product_offers',
     'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
-    'price_coding',
-    'three_invoice_series',
-    'isDomainConfirmed',
+    'price_coding', 'three_invoice_series', 'isDomainConfirmed',
+    'billing_ui_config', 'enable_party_gst_balance', 'enable_party_estimate_balance',
+    'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate',
+    'show_zero_paper_stock', 'enable_convert_to_gst', 'show_product_gst_badge',
+    'time_format', 'store_timezone', 'bank_name', 'bank_account_number',
+    'bank_ifsc', 'bank_branch', 'feature_flags', 'print_format', 'label_code_type',
+    'label_show_shop_name', 'auto_print_barcode', 'show_cash_register'
   ];
 
   const upsert = db.prepare(`
@@ -3107,6 +3105,7 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
       value = excluded.value,
       sync_status = 'SYNCED',
       updated_at = excluded.updated_at
+    WHERE settings.sync_status != 'PENDING' OR excluded.updated_at >= settings.updated_at
   `);
 
   const result = await pullPaginated({

@@ -264,6 +264,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [enablePartyGst, setEnablePartyGst] = useState(true);
   const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
+  const [showPaperStockInGst, setShowPaperStockInGst] = useState(true);
+  const [showPaperStockInEstimate, setShowPaperStockInEstimate] = useState(false);
+  const [showZeroPaperStock, setShowZeroPaperStock] = useState(false);
   const [enableConvertToGst, setEnableConvertToGst] = useState(true);
   const [billingUIConfig, setBillingUIConfig] = useState<BillingUIConfig>(() => useBillingUIStore.getState().config);
   const [terminalCode, setTerminalCode] = useState('POS1');
@@ -673,7 +676,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view', 'show_product_gst_badge',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
           'enable_party_gst_balance', 'enable_party_estimate_balance',
-          'enable_real_paper_stock', 'enable_convert_to_gst', 'billing_ui_config',
+          'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate', 'show_zero_paper_stock', 'enable_convert_to_gst', 'billing_ui_config',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -1069,6 +1072,18 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const finalRealPaper = realPaperVal !== null && realPaperVal !== undefined ? Boolean(realPaperVal) : true;
       setEnableRealPaperStock(finalRealPaper);
 
+      const paperGstVal = allSettings['show_paper_stock_in_gst'];
+      const finalPaperGst = paperGstVal !== null && paperGstVal !== undefined ? Boolean(paperGstVal) : true;
+      setShowPaperStockInGst(finalPaperGst);
+
+      const paperEstVal = allSettings['show_paper_stock_in_estimate'];
+      const finalPaperEst = paperEstVal !== null && paperEstVal !== undefined ? Boolean(paperEstVal) : false;
+      setShowPaperStockInEstimate(finalPaperEst);
+
+      const zeroPaperVal = allSettings['show_zero_paper_stock'];
+      const finalZeroPaper = zeroPaperVal !== null && zeroPaperVal !== undefined ? Boolean(zeroPaperVal) : false;
+      setShowZeroPaperStock(finalZeroPaper);
+
       const convertGstVal = allSettings['enable_convert_to_gst'];
       const finalConvertGst = convertGstVal !== null && convertGstVal !== undefined ? Boolean(convertGstVal) : true;
       setEnableConvertToGst(finalConvertGst);
@@ -1314,6 +1329,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock', value: enableRealPaperStock }), name: 'enable_real_paper_stock' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst', value: showPaperStockInGst }), name: 'show_paper_stock_in_gst' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate', value: showPaperStockInEstimate }), name: 'show_paper_stock_in_estimate' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock', value: showZeroPaperStock }), name: 'show_zero_paper_stock' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst', value: enableConvertToGst }), name: 'enable_convert_to_gst' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
@@ -1988,23 +2006,23 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Earning Rate</label>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-muted-foreground font-mono">â‚¹</span>
+                            <span className="text-sm font-bold text-muted-foreground font-mono">₹</span>
                             <input type="number" min="1" value={loyaltyEarningRate}
                               onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
                               className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
                             <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground/70">Customer earns 1 point per â‚¹{loyaltyEarningRate} spent.</p>
+                          <p className="text-[10px] text-muted-foreground/70">Customer earns 1 point per ₹{loyaltyEarningRate} spent.</p>
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = â‚¹</span>
+                            <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
                             <input type="number" min="0.5" step="0.5" value={loyaltyRedemptionRate}
                               onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
                               className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
                           </div>
-                          <p className="text-[10px] text-muted-foreground/70">Each point gives â‚¹{loyaltyRedemptionRate} discount on bills.</p>
+                          <p className="text-[10px] text-muted-foreground/70">Each point gives ₹{loyaltyRedemptionRate} discount on bills.</p>
                         </div>
                       </div>
                     </div>
@@ -2317,33 +2335,105 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               </div>
             )}
 
-            {/* Card: Real & Paper Stock Tracking */}
-            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-4">
-              <div className="flex items-center gap-3 pb-4 border-b border-border">
-                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
-                  <Package className="w-4.5 h-4.5" />
+            {/* Card: Dedicated Paper Stock Settings */}
+            <div className="bg-purple-500/5 border border-purple-500/20 rounded-[28px] p-6 md:p-8 shadow-sm space-y-5">
+              <div className="flex items-center gap-3 pb-4 border-b border-purple-500/15">
+                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-[0_4px_12px_rgba(147,51,234,0.1)] shrink-0">
+                  <Package className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Real &amp; Paper Stock Tracking</h3>
-                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Control Real vs Paper stock separation across purchase bills and reports</p>
+                  <h3 className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                    Paper Stock Settings
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Configure Real vs Paper stock separation, billing visibility, and inventory display</p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                <div className="flex-1 min-w-0">
-                  <label className="text-xs font-bold text-foreground block">Real &amp; Paper Stock Tracking</label>
-                  <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                    Show Real / Paper stock selection in Purchase Bills, Inventory, and Stock Reports. When disabled, all GST purchases default to real physical stock.
-                  </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Enable Real & Paper Stock Tracking */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      Enable Paper Stock Feature
+                    </label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                      Show Paper Stock fields in Inventory, Purchase Bills, and Stock Reports.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEnableRealPaperStock(!enableRealPaperStock)}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableRealPaperStock ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/20')}
+                    title={enableRealPaperStock ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableRealPaperStock ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEnableRealPaperStock(!enableRealPaperStock)}
-                  className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableRealPaperStock ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                  title={enableRealPaperStock ? 'Enabled' : 'Disabled'}
-                >
-                  <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableRealPaperStock ? 'translate-x-5' : 'translate-x-0')} />
-                </button>
+
+                {/* 2. Show Zero Paper Stock Tag in Inventory */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-sky-500" />
+                      Show Zero Paper Stock Tag (Paper: 0)
+                    </label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                      Display Paper: 0 tag in product list even when paper stock is 0.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowZeroPaperStock(!showZeroPaperStock)}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showZeroPaperStock ? 'bg-sky-600 shadow-[0_2px_8px_rgba(14,165,233,0.3)]' : 'bg-muted-foreground/20')}
+                    title={showZeroPaperStock ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showZeroPaperStock ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {/* 3. Show Paper Stock in GST Billing */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      Show Paper Stock in GST Billing
+                    </label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                      Show and allow Paper products &amp; Paper Stock when billing in GST Invoice mode.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPaperStockInGst(!showPaperStockInGst)}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperStockInGst ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/20')}
+                    title={showPaperStockInGst ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperStockInGst ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {/* 4. Show Paper Stock in Estimate Billing */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      Show Paper Stock in Estimate Billing
+                    </label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                      Show and allow Paper products &amp; Paper Stock when billing in Estimate mode.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPaperStockInEstimate(!showPaperStockInEstimate)}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperStockInEstimate ? 'bg-emerald-600 shadow-[0_2px_8px_rgba(16,185,129,0.3)]' : 'bg-muted-foreground/20')}
+                    title={showPaperStockInEstimate ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperStockInEstimate ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

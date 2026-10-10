@@ -352,6 +352,14 @@ import { initSyncWorker, setSyncActive, triggerUrgentInvoiceSync, triggerUrgentC
 let mainWindow: BrowserWindow | null = null;
 const PROTOCOL = 'nafid';
 
+app.name = 'Nafid';
+try {
+  const canonicalUserData = path.join(app.getPath('appData'), 'Nafid');
+  app.setPath('userData', canonicalUserData);
+} catch (e) {
+  console.warn('[Main] Failed to override userData path:', e);
+}
+
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.nafid');
 }
@@ -3231,7 +3239,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         const projected = curBal + billCredit;
         if (projected > creditLimit) {
           const excess = projected - creditLimit;
-          throw new Error(`Credit limit of â‚¹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: â‚¹${curBal.toLocaleString('en-IN')}, Bill credit: â‚¹${billCredit.toLocaleString('en-IN')}. Exceeds limit by â‚¹${excess.toLocaleString('en-IN')}.`);
+          throw new Error(`Credit limit of ₹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ₹${curBal.toLocaleString('en-IN')}, Bill credit: ₹${billCredit.toLocaleString('en-IN')}. Exceeds limit by ₹${excess.toLocaleString('en-IN')}.`);
         }
       }
     }
@@ -5423,7 +5431,8 @@ const LOCAL_DEVICE_SETTING_KEYS = [
   'auto_print_barcode',
   'print_format',
   'label_code_type',
-  'label_show_shop_name'
+  'label_show_shop_name',
+  'billing_ui_config'
 ];
 
 ipcMain.removeHandler('settings:set');
@@ -5433,7 +5442,7 @@ ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
     const tid = tenant_id || 'global';
-    const valString = typeof value === 'string' ? JSON.stringify(value) : JSON.stringify(value);
+    const valString = typeof value === 'string' ? value : JSON.stringify(value);
 
     const upsertStmt = db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) 
@@ -8391,13 +8400,13 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_t
     let query = `
       SELECT c.*, 
              p.balance as party_balance,
-             p.pricing_tier_id,
+             COALESCE(c.pricing_tier_id, p.pricing_tier_id) as pricing_tier_id,
              pt.name as pricing_tier_name
       FROM customers c
       LEFT JOIN parties p ON p.tenant_id = c.tenant_id 
         AND (p.phone = c.phone OR LOWER(p.name) = LOWER(c.name))
         AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = p.pricing_tier_id
+      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = COALESCE(c.pricing_tier_id, p.pricing_tier_id)
       WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
     `;
     const params: any[] = [tenant_id];
@@ -8418,7 +8427,7 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_t
     }
 
     if (pricing_tier_id) {
-      query += ` AND p.pricing_tier_id = ?`;
+      query += ` AND COALESCE(c.pricing_tier_id, p.pricing_tier_id) = ?`;
       params.push(pricing_tier_id);
     }
 
@@ -8427,7 +8436,7 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_t
     return db.prepare(query).all(...params);
   } catch (error: any) {
     console.error('[db:getCustomers]', error);
-    return { error: 'Operation failed' };
+    return [];
   }
 });
 

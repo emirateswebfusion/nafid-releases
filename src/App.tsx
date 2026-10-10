@@ -43,6 +43,7 @@ import { useCartStore } from './store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
 import { useScaleStore } from './store/scaleStore';
+import { hydrateBillingUIFromDB } from './store/billingUIStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
 import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';

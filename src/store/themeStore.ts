@@ -39,6 +39,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   setTheme: (theme) => {
     localStorage.setItem('vendora-theme', theme);
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'vendora-theme', value: theme }).catch(() => {});
+    }
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
     set({ theme });
@@ -47,6 +50,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'light' ? 'dark' : 'light';
     localStorage.setItem('vendora-theme', newTheme);
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'vendora-theme', value: newTheme }).catch(() => {});
+    }
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(newTheme);
     return { theme: newTheme };
@@ -55,6 +61,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   setFontScale: (scale) => {
     const clamped = Math.max(MIN_FONT_SCALE, Math.min(MAX_FONT_SCALE, scale));
     localStorage.setItem(FONT_SCALE_KEY, clamped.toString());
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: FONT_SCALE_KEY, value: clamped }).catch(() => {});
+    }
     applyFontScale(clamped);
     set({ fontScale: clamped });
   },
@@ -62,19 +71,41 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   increaseFontScale: () => {
     const current = get().fontScale;
     const next = Math.min(MAX_FONT_SCALE, current + 10);
-    localStorage.setItem(FONT_SCALE_KEY, next.toString());
-    applyFontScale(next);
-    set({ fontScale: next });
+    get().setFontScale(next);
   },
 
   decreaseFontScale: () => {
     const current = get().fontScale;
     const next = Math.max(MIN_FONT_SCALE, current - 10);
-    localStorage.setItem(FONT_SCALE_KEY, next.toString());
-    applyFontScale(next);
-    set({ fontScale: next });
+    get().setFontScale(next);
   },
 }));
+
+export async function hydrateThemeFromDB() {
+  if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+    try {
+      const storedTheme = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'vendora-theme' });
+      if (storedTheme === 'light' || storedTheme === 'dark') {
+        useThemeStore.getState().setTheme(storedTheme);
+      }
+      const storedScale = await window.electronAPI.settingsGet({ tenant_id: 'global', key: FONT_SCALE_KEY });
+      if (storedScale !== null && storedScale !== undefined) {
+        const val = Number(storedScale);
+        if (!isNaN(val) && val >= MIN_FONT_SCALE && val <= MAX_FONT_SCALE) {
+          useThemeStore.getState().setFontScale(val);
+        }
+      }
+    } catch (e) {
+      console.warn('[themeStore] Failed to hydrate theme from DB:', e);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    hydrateThemeFromDB();
+  }, 100);
+}
 
 // Apply font scale on load
 applyFontScale(loadFontScale());

@@ -152,6 +152,9 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_KEY_PRESET, preset);
     } catch {}
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: STORAGE_KEY_PRESET, value: preset }).catch(() => {});
+    }
     const labels = computeLabels(preset, get().customLabels);
     set({ preset, labels });
   },
@@ -161,6 +164,9 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_KEY_CUSTOM, JSON.stringify(updated));
     } catch {}
+    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+      window.electronAPI.settingsSet({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM, value: updated }).catch(() => {});
+    }
     const labels = computeLabels(get().preset, updated);
     set({ customLabels: updated, labels });
   },
@@ -178,3 +184,33 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     return val;
   }
 }));
+
+export async function hydrateTerminologyFromDB() {
+  if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+    try {
+      const storedPreset = await window.electronAPI.settingsGet({ tenant_id: 'global', key: STORAGE_KEY_PRESET });
+      const storedCustom = await window.electronAPI.settingsGet({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM });
+      
+      let nextPreset = useTerminologyStore.getState().preset;
+      let nextCustom = useTerminologyStore.getState().customLabels;
+
+      if (storedPreset && ['SIMPLE', 'ACCOUNTING', 'CASHFLOW', 'CUSTOM'].includes(storedPreset)) {
+        nextPreset = storedPreset as TerminologyPreset;
+      }
+      if (storedCustom && typeof storedCustom === 'object') {
+        nextCustom = { ...DEFAULT_CUSTOM_LABELS, ...storedCustom };
+      }
+
+      const labels = computeLabels(nextPreset, nextCustom);
+      useTerminologyStore.setState({ preset: nextPreset, customLabels: nextCustom, labels });
+    } catch (e) {
+      console.warn('[terminologyStore] Failed to hydrate terminology from DB:', e);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    hydrateTerminologyFromDB();
+  }, 100);
+}
