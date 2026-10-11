@@ -111,7 +111,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
   const [showZeroPaperStock, setShowZeroPaperStock] = useState(false);
+  const [showPaperOnlyProducts, setShowPaperOnlyProducts] = useState(true);
   const [showProductGstBadge, setShowProductGstBadge] = useState(true);
+  const [showPriceTiersInInventory, setShowPriceTiersInInventory] = useState(true);
 
   useEffect(() => {
     const loadSettings = () => {
@@ -122,9 +124,16 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setShowZeroPaperStock(Boolean(val));
         }).catch(() => {});
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_paper_only_products' }).then(val => {
+          if (val !== null && val !== undefined) setShowPaperOnlyProducts(Boolean(val));
+        }).catch(() => {});
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge' }).then(val => {
           if (val === 'false' || val === false) setShowProductGstBadge(false);
           else setShowProductGstBadge(true);
+        }).catch(() => {});
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory' }).then(val => {
+          if (val === 'false' || val === false) setShowPriceTiersInInventory(false);
+          else setShowPriceTiersInInventory(true);
         }).catch(() => {});
       }
     };
@@ -819,20 +828,25 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       if (viewMode === 'estimate' && isGst) return false;
       if (viewMode === 'gst' && !isGst) return false;
 
+      // Filter out Paper-only products if setting is OFF
+      if (!showPaperOnlyProducts && Number(p.current_stock) <= 0 && Number((p as any).paper_stock || 0) > 0) {
+        return false;
+      }
+
       // Stock status filter
       if (stockFilter === 'low_stock') {
         if (!(Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0 && Number(p.current_stock) > 0)) return false;
       } else if (stockFilter === 'out_of_stock') {
-        if (Number(p.current_stock) > 0) return false;
+        if (Number(p.current_stock) > 0 || Number((p as any).paper_stock || 0) > 0) return false;
       } else if (stockFilter === 'in_stock') {
-        if (Number(p.current_stock) <= 0) return false;
+        if (Number(p.current_stock) <= 0 && Number((p as any).paper_stock || 0) <= 0) return false;
       } else if (stockFilter === 'no_barcode') {
         if (p.sku_barcode && String(p.sku_barcode).trim() !== '') return false;
       }
 
       return true;
     }),
-    [products, viewMode, stockFilter]
+    [products, viewMode, stockFilter, showPaperOnlyProducts]
   );
 
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
@@ -1492,10 +1506,17 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                              (da.paper_mrp !== undefined && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) ||
                              (formData.gst_purchase_quantity !== '' && Number(formData.gst_purchase_quantity) > 0);
         const hasRealData = (formData.purchase_price !== '' && Number(formData.purchase_price) > 0) ||
-                            (formData.base_price !== '' && Number(formData.base_price) > 0) ||
                             (formData.current_stock !== '' && Number(formData.current_stock) > 0);
 
-        da.gst_type = (hasPaperData && !hasRealData) ? 'PAPER' : 'REAL';
+        if (formData.gst_purchase_quantity !== '' && formData.gst_purchase_quantity !== null) {
+          da.paper_stock = Number(formData.gst_purchase_quantity) || 0;
+        }
+
+        const isPaperChosen = (hasPaperData && !hasRealData) ||
+                              (Number(formData.current_stock) <= 0 && Number(da.paper_stock || 0) > 0) ||
+                              (formData.show_gst_purchase && (formData.gst_purchase_is_dummy || Number(formData.gst_purchase_quantity) > 0));
+
+        da.gst_type = isPaperChosen ? 'PAPER' : 'REAL';
         if (da.paper_mrp !== undefined && da.paper_mrp !== '' && da.paper_mrp !== null) {
           da.paper_mrp = Number(da.paper_mrp);
           da.paper_base_price = Number(da.paper_mrp);
@@ -1993,17 +2014,17 @@ return (
                                 <span className={clsx(
                                   "text-[9px] px-1.5 py-0.5 rounded font-extrabold border select-none leading-none shrink-0",
                                   isGstFlag
-                                    ? (da.gst_type === 'PAPER'
+                                    ? (enableRealPaperStock && da.gst_type === 'PAPER'
                                         ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30"
                                         : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30")
                                     : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
                                 )}>
-                                  {isGstFlag ? (da.gst_type === 'PAPER' ? 'GST (Paper)' : 'GST (Real)') : 'Estimate'}
+                                  {isGstFlag ? (enableRealPaperStock ? (da.gst_type === 'PAPER' ? 'Paper' : 'Real') : 'GST') : 'Estimate'}
                                 </span>
                               )}
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
-                              {allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
+                              {showPriceTiersInInventory && allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
                                 const tier = activePricingTiers.find(t => t.pricing_tier_id === tid);
                                 if (!tier) return null;
                                 return (
@@ -2045,21 +2066,31 @@ return (
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[72px]', isLowStock ? 'text-amber-500' : p.current_stock <= 0 ? 'text-red-500' : 'text-foreground')}>
+                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[72px]', isLowStock ? 'text-amber-500' : (p.current_stock <= 0 && Number(p.paper_stock || 0) <= 0) ? 'text-red-500' : 'text-foreground')}>
                           {adjustingStockId === p.product_id ? (
                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                           ) : (
                              <>
-                               <span>{formattedStock}</span>
+                               {p.current_stock > 0 ? (
+                                 <span>{formattedStock}</span>
+                               ) : Number(p.paper_stock || 0) > 0 ? (
+                                 <span className="text-purple-600 dark:text-purple-400 font-bold">{p.paper_stock} {p.uom}</span>
+                               ) : (
+                                 <span>0 {p.uom}</span>
+                               )}
                                {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
                                {enableRealPaperStock && p.paper_stock !== undefined && (showZeroPaperStock ? true : Number(p.paper_stock || 0) > 0) && (
                                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold mt-0.5" title="Paper Stock from Dummy GST purchases">
                                    Paper: {p.paper_stock}
                                  </span>
                                )}
-                               {p.current_stock <= 0 ? (
+                               {p.current_stock <= 0 && Number(p.paper_stock || 0) <= 0 ? (
                                  <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-bold mt-0.5">
                                    <AlertCircle className="w-2.5 h-2.5" /> Out of Stock
+                                 </span>
+                               ) : p.current_stock <= 0 && Number(p.paper_stock || 0) > 0 ? (
+                                 <span className="flex items-center gap-0.5 text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-0.5">
+                                   <Package className="w-2.5 h-2.5" /> Paper Only
                                  </span>
                                ) : isLowStock ? (
                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">

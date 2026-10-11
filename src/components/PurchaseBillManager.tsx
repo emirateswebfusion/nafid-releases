@@ -73,6 +73,7 @@ interface Product {
   uom?: string;
   reorder_level?: number;
   is_service_item?: number;
+  domain_attributes?: any;
 }
 
 const formatDate = (d: string) => {
@@ -2247,6 +2248,16 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     }
 
     if (billItems.some(i => i.product_id === product.product_id)) return;
+
+    const isPaperProduct = (() => {
+      try {
+        const da = typeof product.domain_attributes === 'string'
+          ? JSON.parse(product.domain_attributes || '{}')
+          : (product.domain_attributes || {});
+        return da.gst_type === 'PAPER' || Number(da.paper_stock || 0) > 0;
+      } catch { return false; }
+    })();
+
     setBillItems(prev => [...prev, {
       product_id: product.product_id,
       name: product.name,
@@ -2262,6 +2273,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       is_gst_applicable: product.is_gst_applicable,
       tax_rate_percent: product.tax_rate_percent,
       hsn_sac_code: product.hsn_sac_code,
+      skip_stock_update: isPaperProduct ? 1 : 0,
     }]);
     setProductSearch('');
     setProducts([]);
@@ -3747,15 +3759,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                             <button
                               type="button"
                               onClick={() => toggleBillItemDummy(item)}
-                              title={isDummy ? 'Paper stock (no stock added) — click for Real stock' : 'Real stock (adds stock) — click for paper stock'}
+                              title={isDummy ? 'Paper GST (no shop stock added, updates paper stock & tax ledger) — click for Real Stock' : 'Real Stock (adds shop stock) — click for Paper GST'}
                               className={clsx(
-                                'text-[9px] px-1.5 py-0.5 rounded font-bold border transition-all cursor-pointer select-none',
+                                'text-[9px] px-2 py-0.5 rounded-full font-black border transition-all cursor-pointer select-none uppercase tracking-wider shrink-0',
                                 isDummy
-                                  ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                  ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/25'
+                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
                               )}
                             >
-                              {isDummy ? 'Paper' : 'Real'}
+                              {isDummy ? '📄 Paper' : '📦 Real'}
                             </button>
                           )}
                           {item.stock !== undefined && item.stock !== '' && (

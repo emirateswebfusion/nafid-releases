@@ -2208,6 +2208,7 @@ loadFlags(tenantId || 'global');
           })();
 
           if (isPaperProduct) {
+            if (!enableRealPaperStock) return false;
             if (invoiceType === 'GST' && !showPaperInGstSetting) {
               return false;
             }

@@ -968,7 +968,12 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField && (!arg.stockStatus || arg.stockStatus === 'all'))) {
       const rows = db.prepare(`
         SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
-          (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) as paper_stock
+          CASE WHEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) != 0
+               THEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0))
+               WHEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL) IS NOT NULL
+               THEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL)
+               ELSE 0
+          END as paper_stock
         FROM products p 
         LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
         LEFT JOIN (
@@ -993,7 +998,12 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField, stockStatus } = arg;
     let query = `
       SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
-        (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) as paper_stock
+        CASE WHEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) != 0
+             THEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0))
+             WHEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL) IS NOT NULL
+             THEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL)
+             ELSE 0
+        END as paper_stock
       FROM products p 
       LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
       LEFT JOIN (
@@ -1021,9 +1031,9 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
       if (stockStatus === 'low_stock' || stockStatus === 'low') {
         query += ' AND p.current_stock <= p.reorder_level AND p.reorder_level > 0 AND p.current_stock > 0';
       } else if (stockStatus === 'out_of_stock' || stockStatus === 'out') {
-        query += ' AND p.current_stock <= 0';
+        query += ' AND p.current_stock <= 0 AND COALESCE((COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)), CAST(JSON_EXTRACT(p.domain_attributes, \'$.paper_stock\') AS REAL), 0) <= 0';
       } else if (stockStatus === 'in_stock' || stockStatus === 'in') {
-        query += ' AND p.current_stock > 0';
+        query += ' AND (p.current_stock > 0 OR COALESCE((COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)), CAST(JSON_EXTRACT(p.domain_attributes, \'$.paper_stock\') AS REAL), 0) > 0)';
       } else if (stockStatus === 'no_barcode' || stockStatus === 'no_code') {
         query += " AND (p.sku_barcode IS NULL OR TRIM(p.sku_barcode) = '')";
       }

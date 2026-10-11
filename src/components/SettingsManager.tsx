@@ -267,6 +267,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showPaperStockInGst, setShowPaperStockInGst] = useState(true);
   const [showPaperStockInEstimate, setShowPaperStockInEstimate] = useState(false);
   const [showZeroPaperStock, setShowZeroPaperStock] = useState(false);
+  const [showPaperOnlyProducts, setShowPaperOnlyProducts] = useState(true);
   const [enableConvertToGst, setEnableConvertToGst] = useState(true);
   const [billingUIConfig, setBillingUIConfig] = useState<BillingUIConfig>(() => useBillingUIStore.getState().config);
   const [terminalCode, setTerminalCode] = useState('POS1');
@@ -286,6 +287,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [stockReportDefaultView, setStockReportDefaultView] = useState('combined');
   const [inventoryDefaultView, setInventoryDefaultView] = useState('combined');
   const [showProductGstBadge, setShowProductGstBadge] = useState(true);
+  const [showPriceTiersInInventory, setShowPriceTiersInInventory] = useState(true);
   const [serviceChargeProduct, setServiceChargeProduct] = useState<any>(null);
   const [serviceChargeBarcode, setServiceChargeBarcode] = useState('');
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
@@ -673,10 +675,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'scale_config', 'price_coding', 'shop_gstin', 'shop_state', 'shop_name', 'shop_address',
           'shop_phone', 'shop_email', 'shop_website', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
           'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
-          'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view', 'show_product_gst_badge',
+          'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view', 'show_product_gst_badge', 'show_price_tiers_in_inventory',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
           'enable_party_gst_balance', 'enable_party_estimate_balance',
-          'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate', 'show_zero_paper_stock', 'enable_convert_to_gst', 'billing_ui_config',
+          'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate', 'show_zero_paper_stock', 'show_paper_only_products', 'enable_convert_to_gst', 'billing_ui_config',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -858,6 +860,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       const spgb = allSettings['show_product_gst_badge'];
       setShowProductGstBadge(spgb !== 'false' && spgb !== false);
+
+      const spti = allSettings['show_price_tiers_in_inventory'];
+      setShowPriceTiersInInventory(spti !== 'false' && spti !== false);
 
       let finalTimeFmt: '12h' | '24h' = '12h';
       const timeFmt = allSettings['time_format'];
@@ -1083,6 +1088,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const zeroPaperVal = allSettings['show_zero_paper_stock'];
       const finalZeroPaper = zeroPaperVal !== null && zeroPaperVal !== undefined ? Boolean(zeroPaperVal) : false;
       setShowZeroPaperStock(finalZeroPaper);
+
+      const paperOnlyVal = allSettings['show_paper_only_products'];
+      const finalPaperOnly = paperOnlyVal !== null && paperOnlyVal !== undefined ? Boolean(paperOnlyVal) : true;
+      setShowPaperOnlyProducts(finalPaperOnly);
 
       const convertGstVal = allSettings['enable_convert_to_gst'];
       const finalConvertGst = convertGstVal !== null && convertGstVal !== undefined ? Boolean(convertGstVal) : true;
@@ -1325,6 +1334,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge', value: showProductGstBadge ? 'true' : 'false' }), name: 'show_product_gst_badge' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory', value: showPriceTiersInInventory ? 'true' : 'false' }), name: 'show_price_tiers_in_inventory' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
@@ -1332,6 +1342,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst', value: showPaperStockInGst }), name: 'show_paper_stock_in_gst' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate', value: showPaperStockInEstimate }), name: 'show_paper_stock_in_estimate' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock', value: showZeroPaperStock }), name: 'show_zero_paper_stock' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_only_products', value: showPaperOnlyProducts }), name: 'show_paper_only_products' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst', value: enableConvertToGst }), name: 'enable_convert_to_gst' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
@@ -2336,105 +2347,184 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             )}
 
             {/* Card: Dedicated Paper Stock Settings */}
-            <div className="bg-purple-500/5 border border-purple-500/20 rounded-[28px] p-6 md:p-8 shadow-sm space-y-5">
-              <div className="flex items-center gap-3 pb-4 border-b border-purple-500/15">
-                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-[0_4px_12px_rgba(147,51,234,0.1)] shrink-0">
-                  <Package className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                    Paper Stock Settings
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Configure Real vs Paper stock separation, billing visibility, and inventory display</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. Enable Real & Paper Stock Tracking */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-purple-500" />
-                      Enable Paper Stock Feature
-                    </label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                      Show Paper Stock fields in Inventory, Purchase Bills, and Stock Reports.
+            <div className="bg-purple-500/5 border border-purple-500/20 rounded-[28px] p-6 md:p-8 shadow-sm space-y-5 transition-all duration-300">
+              {/* Card Header with Master Switch in Header */}
+              <div className="flex items-center justify-between gap-4 pb-4 border-b border-purple-500/15">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-[0_4px_12px_rgba(147,51,234,0.1)] shrink-0">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center gap-2">
+                        <span className={clsx("w-2 h-2 rounded-full", enableRealPaperStock ? "bg-purple-500 animate-pulse" : "bg-muted-foreground/40")} />
+                        Paper Stock Settings
+                      </h3>
+                      <span className={clsx(
+                        "text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border",
+                        enableRealPaperStock
+                          ? "bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30"
+                          : "bg-muted/50 text-muted-foreground border-border"
+                      )}>
+                        {enableRealPaperStock ? "ENABLED" : "DISABLED"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5 truncate sm:whitespace-normal">
+                      Configure Real vs Paper stock separation, billing visibility, and inventory display
                     </p>
                   </div>
+                </div>
+
+                {/* Master Switch: Enable Paper Stock Feature in Header */}
+                <div className="flex items-center gap-3 shrink-0 pl-2">
+                  <span className="text-xs font-bold text-foreground hidden sm:inline select-none">
+                    {enableRealPaperStock ? 'Feature Active' : 'Feature Off'}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setEnableRealPaperStock(!enableRealPaperStock)}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableRealPaperStock ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/20')}
-                    title={enableRealPaperStock ? 'Enabled' : 'Disabled'}
+                    className={clsx(
+                      'relative w-12 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer',
+                      enableRealPaperStock ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/30'
+                    )}
+                    title={enableRealPaperStock ? 'Click to Disable Paper Stock Feature' : 'Click to Enable Paper Stock Feature'}
                   >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableRealPaperStock ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {/* 2. Show Zero Paper Stock Tag in Inventory */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-sky-500" />
-                      Show Zero Paper Stock Tag (Paper: 0)
-                    </label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                      Display Paper: 0 tag in product list even when paper stock is 0.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowZeroPaperStock(!showZeroPaperStock)}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showZeroPaperStock ? 'bg-sky-600 shadow-[0_2px_8px_rgba(14,165,233,0.3)]' : 'bg-muted-foreground/20')}
-                    title={showZeroPaperStock ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showZeroPaperStock ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {/* 3. Show Paper Stock in GST Billing */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-purple-500" />
-                      Show Paper Stock in GST Billing
-                    </label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                      Show and allow Paper products &amp; Paper Stock when billing in GST Invoice mode.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPaperStockInGst(!showPaperStockInGst)}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperStockInGst ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/20')}
-                    title={showPaperStockInGst ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperStockInGst ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {/* 4. Show Paper Stock in Estimate Billing */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Show Paper Stock in Estimate Billing
-                    </label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                      Show and allow Paper products &amp; Paper Stock when billing in Estimate mode.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPaperStockInEstimate(!showPaperStockInEstimate)}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperStockInEstimate ? 'bg-emerald-600 shadow-[0_2px_8px_rgba(16,185,129,0.3)]' : 'bg-muted-foreground/20')}
-                    title={showPaperStockInEstimate ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperStockInEstimate ? 'translate-x-5' : 'translate-x-0')} />
+                    <span
+                      className={clsx(
+                        'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300 flex items-center justify-center text-[10px]',
+                        enableRealPaperStock ? 'translate-x-6 text-purple-600 font-bold' : 'translate-x-0 text-muted-foreground'
+                      )}
+                    />
                   </button>
                 </div>
               </div>
+
+              {/* Expandable Sub-Settings: Visible ONLY when Enable Paper Stock Feature is ON */}
+              {enableRealPaperStock ? (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                      Manage Paper Stock Settings
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Detailed preferences for paper stock tracking</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 1. Show Zero Paper Stock Tag in Inventory */}
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-sky-500" />
+                          Show Zero Paper Stock Tag (Paper: 0)
+                        </label>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                          Display Paper: 0 tag in product list even when paper stock is 0.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowZeroPaperStock(!showZeroPaperStock)}
+                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showZeroPaperStock ? 'bg-sky-600 shadow-[0_2px_8px_rgba(14,165,233,0.3)]' : 'bg-muted-foreground/20')}
+                        title={showZeroPaperStock ? 'Enabled' : 'Disabled'}
+                      >
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showZeroPaperStock ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+
+                    {/* 2. Show Paper-Only Products in Inventory */}
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500" />
+                          Show Paper-Only Products in Inventory
+                        </label>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                          Show products with Paper Stock (and 0 Real Shop Stock) in the inventory product list.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPaperOnlyProducts(!showPaperOnlyProducts)}
+                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperOnlyProducts ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/20')}
+                        title={showPaperOnlyProducts ? 'Enabled' : 'Disabled'}
+                      >
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperOnlyProducts ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+
+                    {/* 3. Show Paper Stock in GST Billing */}
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500" />
+                          Show Paper Stock in GST Billing
+                        </label>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                          Show and allow Paper products &amp; Paper Stock when billing in GST Invoice mode.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPaperStockInGst(!showPaperStockInGst)}
+                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperStockInGst ? 'bg-purple-600 shadow-[0_2px_8px_rgba(147,51,234,0.3)]' : 'bg-muted-foreground/20')}
+                        title={showPaperStockInGst ? 'Enabled' : 'Disabled'}
+                      >
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperStockInGst ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+
+                    {/* 4. Show Paper Stock in Estimate Billing */}
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          Show Paper Stock in Estimate Billing
+                        </label>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                          Show and allow Paper products &amp; Paper Stock when billing in Estimate mode.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPaperStockInEstimate(!showPaperStockInEstimate)}
+                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPaperStockInEstimate ? 'bg-emerald-600 shadow-[0_2px_8px_rgba(16,185,129,0.3)]' : 'bg-muted-foreground/20')}
+                        title={showPaperStockInEstimate ? 'Enabled' : 'Disabled'}
+                      >
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPaperStockInEstimate ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+
+                    {/* 5. Show Product Type Badges (Real / Paper / Estimate / GST) */}
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all md:col-span-2">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-xs font-bold text-foreground block flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                          Show GST / Estimate / Paper Badges in Inventory
+                        </label>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                          Show or hide small product type badges (Real, Paper, Estimate, GST) directly under each product name in the Inventory list.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowProductGstBadge(!showProductGstBadge)}
+                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductGstBadge ? 'bg-indigo-600 shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                        title={showProductGstBadge ? 'Enabled' : 'Disabled'}
+                      >
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductGstBadge ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl border border-dashed border-purple-500/20 bg-purple-500/5 text-center space-y-1.5 animate-in fade-in duration-200">
+                  <p className="text-xs font-bold text-muted-foreground">Paper Stock Feature is Disabled</p>
+                  <p className="text-[11px] text-muted-foreground/75 max-w-md mx-auto">
+                    Turn on &quot;Enable Paper Stock Feature&quot; in the header above to expand and manage paper stock options across Inventory, Billing, and Reports.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -3575,7 +3665,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <span className="text-xs font-black text-primary uppercase tracking-widest">Product Display</span>
                   <h4 className="text-sm font-bold text-foreground">Show GST / Estimate Badge Under Product Name</h4>
                   <p className="text-xs text-muted-foreground">
-                    Show or hide the small badge (GST Real, GST Paper, Estimate) directly under each product name in the Inventory list.
+                    Show or hide the small badge (Real, Paper, Estimate / GST) directly under each product name in the Inventory list.
                   </p>
                 </div>
                 <div
@@ -3589,6 +3679,33 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     className={clsx(
                       'w-4 h-4 rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm',
                       showProductGstBadge ? 'translate-x-6' : 'translate-x-0'
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 7: Show Price Tiers Under Product Name */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-xs font-black text-primary uppercase tracking-widest">Product Display</span>
+                  <h4 className="text-sm font-bold text-foreground">Show Price Tiers Under Product Name</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Show or hide pricing tier badges (Wholesale, Retail, Special Retail, etc.) directly under each product name in the Inventory list.
+                  </p>
+                </div>
+                <div
+                  onClick={() => setShowPriceTiersInInventory(!showPriceTiersInInventory)}
+                  className={clsx(
+                    'w-12 h-6 rounded-full p-1 cursor-pointer transition-colors duration-200 ease-in-out shrink-0',
+                    showPriceTiersInInventory ? 'bg-primary' : 'bg-muted-foreground/30'
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      'w-4 h-4 rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm',
+                      showPriceTiersInInventory ? 'translate-x-6' : 'translate-x-0'
                     )}
                   />
                 </div>
