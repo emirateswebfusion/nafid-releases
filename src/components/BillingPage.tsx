@@ -1,3 +1,4 @@
+import { generateQuotationHtml, type QuotationPrintData } from '../utils/quotationHtmlGenerator';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
@@ -1201,6 +1202,8 @@ export function BillingPage() {
   const [shopGstin, setShopGstin] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopPhone, setShopPhone] = useState('');
+  const [shopState, setShopState] = useState('');
+  const [quotationGstEnabledSetting, setQuotationGstEnabledSetting] = useState(true);
   const [shopEmail, setShopEmail] = useState('');
   const [shopWebsite, setShopWebsite] = useState('');
   const [upiId, setUpiId] = useState('');
@@ -1564,7 +1567,7 @@ export function BillingPage() {
 
       const quotationSnapshot: TabSnapshot = {
         items: [],
-        invoiceType: 'BILL_OF_SUPPLY',
+        invoiceType: quotationGstEnabledSetting ? 'GST' : 'BILL_OF_SUPPLY',
         discountType: 'FIXED',
         discountValue: 0,
         customerState: 'KL',
@@ -1745,6 +1748,12 @@ export function BillingPage() {
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
       setShopPhone(typeof v === 'string' ? v : '');
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }).then((v: any) => {
+      setShopState(typeof v === 'string' ? v : '');
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled' }).then((v: any) => {
+      if (v !== undefined && v !== null) setQuotationGstEnabledSetting(v !== 'false' && v !== false);
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v: any) => {
       setShopEmail(typeof v === 'string' ? v : '');
@@ -3407,7 +3416,9 @@ loadFlags(tenantId || 'global');
       purchase_price: product.pricing_mode === 'GRADE_RATE' && product.grade_purchase_price !== undefined && product.grade_purchase_price !== null
         ? Number(product.grade_purchase_price)
         : (product.purchase_price ?? 0),
-      tax_rate_percent: product.tax_rate_percent ?? 0,
+      tax_rate_percent: Number(product.tax_rate_percent ?? (product as any).gst_percent ?? 0),
+      hsn_sac_code: product.hsn_sac_code || (product as any).hsn_code || (product as any).hsn || null,
+      is_gst_applicable: (product as any).is_gst_applicable !== 0,
       uom: product.uom,
       billing_type: effectiveBillingType,
       pieces_per_kg: piecesPerKg,
@@ -4149,6 +4160,13 @@ loadFlags(tenantId || 'global');
         if (quotation.customer_name) updateActiveTab({ customerName: quotation.customer_name });
         if (quotation.customer_phone) updateActiveTab({ customerPhone: quotation.customer_phone });
         if (quotation.customer_address) updateActiveTab({ customerAddress: quotation.customer_address });
+        if (quotation.customer_gstin) updateActiveTab({ customerGstin: quotation.customer_gstin });
+        if (quotation.customer_state) setCustomerState(quotation.customer_state);
+        if (quotation.is_gst === 1 || Number(quotation.tax_total) > 0 || quotationGstEnabledSetting) {
+          setInvoiceType('GST');
+        } else {
+          setInvoiceType('BILL_OF_SUPPLY');
+        }
         if (quotation.terms_conditions) setQuotationTerms(quotation.terms_conditions);
         
         if (Array.isArray(qItems)) {
@@ -4210,7 +4228,9 @@ loadFlags(tenantId || 'global');
               name: item.name || dbProduct.name || 'Product',
               base_price: basePrice,
               purchase_price: Number(dbProduct.purchase_price || item.purchase_price) || 0,
-              tax_rate_percent: 0,
+              tax_rate_percent: Number(item.tax_rate_percent || dbProduct.tax_rate_percent || (dbProduct as any).gst_percent || 0),
+              hsn_sac_code: item.hsn_code || (item as any).hsn_sac_code || dbProduct.hsn_sac_code || dbProduct.hsn_code || null,
+              is_gst_applicable: (dbProduct as any).is_gst_applicable !== 0,
               billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : (dbProduct.billing_type || undefined),
               quantity: qty,
               offer_price,
@@ -4628,6 +4648,10 @@ loadFlags(tenantId || 'global');
         quotationNumber = numRes.quotationNumber || '';
       }
 
+      const hasGstItems = items.some(i => (i as any).is_gst_applicable || (i as any).hsn_sac_code || Number(i.tax_rate_percent) > 0);
+      const isGstQuotation = quotationGstEnabledSetting || invoiceType === 'GST' || hasGstItems;
+      const isInterState = isGstQuotation && Boolean(customerState && shopState && customerState.trim().toLowerCase() !== shopState.trim().toLowerCase());
+
       const qItems = items.map(item => {
         const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
         const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
@@ -4649,6 +4673,18 @@ loadFlags(tenantId || 'global');
 
         const qty = Number(item.quantity) || 0;
         const amount = effectiveRate * qty;
+        const dAmt = Math.max(0, (rate - effectiveRate) * qty);
+
+        const itemTaxRate = isGstQuotation && (item as any).is_gst_applicable !== false ? (Number(item.tax_rate_percent) || 0) : 0;
+        const itemTax = isGstQuotation ? Math.round(amount * (itemTaxRate / 100) * 100) / 100 : 0;
+        const halfRate = itemTaxRate / 2;
+        const cgst_rate = isInterState ? 0 : halfRate;
+        const sgst_rate = isInterState ? 0 : halfRate;
+        const igst_rate = isInterState ? itemTaxRate : 0;
+        const cgst_amount = isInterState ? 0 : Math.round((itemTax / 2) * 100) / 100;
+        const sgst_amount = isInterState ? 0 : Math.round((itemTax / 2) * 100) / 100;
+        const igst_amount = isInterState ? itemTax : 0;
+
         return {
           item_id: item.item_id || uuidv4(),
           product_id: item.product_id,
@@ -4660,130 +4696,107 @@ loadFlags(tenantId || 'global');
           discount_flat: item.discount_flat ?? null,
           discount_percent: item.discount_percent ?? null,
           offer_price: item.offer_price ?? null,
+          discount_amount: dAmt,
+          hsn_code: item.hsn_sac_code || (item as any).hsn_code || (item as any).hsn || null,
+          uom: item.uom || item.unit || (item.billing_type === 'WEIGHT' ? 'KG' : 'PCS'),
+          taxable_amount: amount,
+          tax_rate_percent: itemTaxRate,
+          cgst_rate,
+          cgst_amount,
+          sgst_rate,
+          sgst_amount,
+          igst_rate,
+          igst_amount,
           amount,
         };
       });
 
       const qSubtotal = qItems.reduce((s, i) => s + i.amount, 0);
-      const qTaxTotal = invoiceType === 'GST' ? qSubtotal * 0.18 : 0;
+      const qDiscountTotal = qItems.reduce((s, i) => s + (i.discount_amount || 0), 0);
+      const qTaxTotal = isGstQuotation ? qItems.reduce((s, i) => s + (i.cgst_amount + i.sgst_amount + i.igst_amount), 0) : 0;
       const qGrandTotal = qSubtotal + qTaxTotal;
+
+      const quotationPayload = {
+        quotation_id: quotationId,
+        tenant_id: tid,
+        quotation_number: quotationNumber,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_address: customerAddress || null,
+        customer_gstin: customerGstin || null,
+        customer_state: customerState || null,
+        is_gst: isGstQuotation ? 1 : 0,
+        discount_total: qDiscountTotal,
+        round_off: 0,
+        biller_name: userName || null,
+        terms_conditions: quotationTerms,
+        subtotal: qSubtotal,
+        tax_total: qTaxTotal,
+        grand_total: qGrandTotal,
+        items: qItems.map(i => ({ ...i, tenant_id: tid })),
+      };
 
       if (editingQuotationId) {
         // Update existing quotation
-        await window.electronAPI.dbUpdateQuotation({
-          quotation_id: quotationId,
-          tenant_id: tid,
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          customer_address: customerAddress || null,
-          terms_conditions: quotationTerms,
-          subtotal: qSubtotal,
-          tax_total: qTaxTotal,
-          grand_total: qGrandTotal,
-          items: qItems.map(i => ({ ...i, tenant_id: tid })),
-        });
+        await window.electronAPI.dbUpdateQuotation(quotationPayload);
       } else {
         // Save new quotation
-        await window.electronAPI.dbSaveQuotation({
-          quotation_id: quotationId,
-          tenant_id: tid,
-          quotation_number: quotationNumber,
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          customer_address: customerAddress || null,
-          terms_conditions: quotationTerms,
-          subtotal: qSubtotal,
-          tax_total: qTaxTotal,
-          grand_total: qGrandTotal,
-          items: qItems.map(i => ({ ...i, tenant_id: tid })),
-        });
+        await window.electronAPI.dbSaveQuotation(quotationPayload);
       }
 
       if (shouldPrint) {
-        const fullHtml = `<!DOCTYPE html>
-          <html>
-            <head>
-              <title>Quotation - ${shopName}</title>
-              <style>
-                @page { size: A4; margin: 15mm; }
-                body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
-                .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-                .header h1 { font-size: 24px; margin: 0; }
-                .header p { font-size: 13px; color: #666; margin: 3px 0; }
-                .qtn-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
-                table { width: 100%; border-collapse: collapse; }
-                tfoot { display: table-row-group; page-break-inside: avoid; break-inside: avoid; }
-                th { background: #f5f5f5; padding: 8px 6px; border: 1px solid #ddd; text-align: left; font-size: 10px; text-transform: uppercase; }
-                td { padding: 6px; border: 1px solid #ddd; }
-                .text-right { text-align: right; }
-                .text-center { text-align: center; }
-                .total-row td { font-weight: bold; }
-                .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
-                .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; color: #000; }
-                .terms p { font-size: 13px; color: #1a1a1a; line-height: 1.5; white-space: pre-line; }
-              </style>
-            </head>
-            <body>
-              <div class="header">
-                <h1>${shopNameState || shopName || 'Shop'}</h1>
-                <p>${shopAddress || ''}</p>
-                <p>Phone: ${shopPhone || ''}</p>
-                ${shopGstin ? `<p>GST: ${shopGstin}</p>` : ''}
-                <h2 style="margin-top: 10px;">QUOTATION</h2>
-              </div>
-              <div class="qtn-info">
-                <div>
-                  <p><strong>Quotation #:</strong> ${quotationNumber}</p>
-                  <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                </div>
-                <div style="text-align: right;">
-                  <p><strong>Customer:</strong> ${customerName || 'N/A'}</p>
-                  <p><strong>Phone:</strong> ${customerPhone || ''}</p>
-                  <p><strong>Address:</strong> ${customerAddress || ''}</p>
-                </div>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th class="text-center" style="width: 40px;">#</th>
-                    <th>Item</th>
-                    <th class="text-center" style="width: 100px;">Qty/Weight</th>
-                    <th class="text-right" style="width: 80px;">Rate</th>
-                    <th class="text-right" style="width: 100px;">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${qItems.map((item, idx) => `
-                    <tr>
-                      <td class="border p-2 text-center">${idx + 1}</td>
-                      <td class="border p-2">${item.name}</td>
-                      <td class="border p-2 text-center">${item.quantity}${(Number(item.weight) || 0) > 0 ? ` (${(Number(item.weight) || 0).toFixed(3)} KG)` : ''}</td>
-                      <td class="border p-2 text-right">\u20B9${(Number(item.rate) || 0).toFixed(2)}</td>
-                      <td class="border p-2 text-right font-bold">\u20B9${(Number(item.amount) || 0).toFixed(2)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-                <tfoot>
-                  <tr class="total-row">
-                    <td colspan="4" class="text-right">Subtotal</td>
-                    <td class="text-right">\u20B9${qSubtotal.toFixed(2)}</td>
-                  </tr>
-                  ${qTaxTotal > 0 ? `<tr><td colspan="4" class="text-right">GST (18%)</td><td class="text-right">\u20B9${qTaxTotal.toFixed(2)}</td></tr>` : ''}
-                  <tr class="total-row" style="font-size: 16px;">
-                    <td colspan="4" class="text-right">Grand Total</td>
-                    <td class="text-right" style="color: #2563eb;">\u20B9${qGrandTotal.toFixed(2)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-              <div class="terms">
-                <h3>Terms & Conditions</h3>
-                <p>${quotationTerms || '1. This quotation is valid for 15 days from the date of issue.'}</p>
-              </div>
-              <p style="text-align: center; font-size: 10px; color: #999; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px;">
-                Generated by Nafid POS — ${new Date().toLocaleString('en-IN')}
-              </p>
-            </body>
-          </html>`;
+        const printData: QuotationPrintData = {
+          shopName: shopNameState || shopName || 'My Shop',
+          shopAddress: shopAddress || undefined,
+          shopPhone: shopPhone || undefined,
+          shopEmail: shopEmail || undefined,
+          shopWebsite: shopWebsite || undefined,
+          shopGstin: shopGstin || undefined,
+          shopState: shopState || undefined,
+          quotationNumber,
+          date: new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' }),
+          validUntil: '15 Days from Issue Date',
+          billerName: userName || undefined,
+          customerName: customerName || undefined,
+          customerPhone: customerPhone || undefined,
+          customerAddress: customerAddress || undefined,
+          customerGstin: customerGstin || undefined,
+          customerState: customerState || undefined,
+          reverseCharge: 'No',
+          isGstEnabled: isGstQuotation,
+          items: qItems.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            rate: item.rate,
+            amount: item.amount,
+            hsn_code: item.hsn_code,
+            uom: item.uom,
+            weight: item.weight,
+            base_price: item.base_price,
+            discount_amount: item.discount_amount,
+            discount_percent: item.discount_percent,
+            taxable_amount: item.taxable_amount,
+            tax_rate_percent: item.tax_rate_percent,
+            cgst_rate: item.cgst_rate,
+            cgst_amount: item.cgst_amount,
+            sgst_rate: item.sgst_rate,
+            sgst_amount: item.sgst_amount,
+            igst_rate: item.igst_rate,
+            igst_amount: item.igst_amount,
+          })),
+          subtotal: qSubtotal,
+          discountTotal: qDiscountTotal,
+          taxableAmount: qSubtotal,
+          taxTotal: qTaxTotal,
+          grandTotal: qGrandTotal,
+          termsAndConditions: quotationTerms,
+          bankName: bankNameState || undefined,
+          bankAccount: bankAccountState || undefined,
+          bankIfsc: bankIfscState || undefined,
+          bankBranch: bankBranchState || undefined,
+          upiId: upiId || undefined,
+        };
+        const fullHtml = generateQuotationHtml(printData);
 
         try {
           const printRes = await window.electronAPI.printA4Html(tid, fullHtml);
@@ -6773,6 +6786,7 @@ loadFlags(tenantId || 'global');
       if (next && isScrapMode) setIsScrapMode(false);
       if (next && isReturnMode) setReturnMode(false);
       if (next && isPastBillMode) setIsPastBillMode(false);
+      if (next && quotationGstEnabledSetting) setInvoiceType('GST');
       if (next) reserveQuotationNumberForTab();
       setTimeout(() => searchRef.current?.focus(), 100);
     },
@@ -8292,7 +8306,7 @@ loadFlags(tenantId || 'global');
         </div>
 
         <div className="flex items-center gap-2">
-          {isHeaderButtonVisible(uiConfig, 'showClearCart') && (
+          {isHeaderButtonVisible(uiConfig, 'showClearCart') && items.length > 0 && (
             <button
               onClick={async () => {
                 const tab = getActiveTab();
@@ -8426,6 +8440,7 @@ loadFlags(tenantId || 'global');
                 if (next && isScrapMode) setIsScrapMode(false);
                 if (next && isReturnMode) setReturnMode(false);
                 if (next && isPastBillMode) setIsPastBillMode(false);
+                if (next && quotationGstEnabledSetting) setInvoiceType('GST');
                 if (next) reserveQuotationNumberForTab();
                 syncActiveSnapshot();
                 setTimeout(() => searchRef.current?.focus(), 100);

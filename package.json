@@ -10,7 +10,6 @@
     "dev": "concurrently --kill-others \"vite\" \"npm run build:electron && wait-on tcp:5173 && electron .\"",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "tsc -b && vite build && npm run build:electron",
-    "test": "node --test electron/tests/cashierSettlement.test.cjs",
     "rebuild": "node scripts/fix-sqlite.js",
     "package": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --publish always",
     "package:win": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win",

@@ -29,7 +29,6 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
 };
 import { BillingPage } from './components/BillingPage';
 import { ComboManager } from './components/ComboManager';
-import { DomainWizard } from './components/DomainWizard';
 import { InventoryManager } from './components/InventoryManager';
 import { SalesHistory } from './components/SalesHistory';
 import { StaffManager } from './components/StaffManager';

@@ -45,6 +45,7 @@ export interface CartItem {
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
   combo_price?: number;
   hsn_sac_code?: string | null;
+  is_gst_applicable?: boolean;
   pricing_tier_id?: string | null;
   pricing_tier_name?: string | null;
   is_tier_overridden?: boolean;

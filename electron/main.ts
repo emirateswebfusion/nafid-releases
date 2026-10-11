@@ -6702,17 +6702,55 @@ ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
   try {
     const db = getDb();
     const result = db.transaction(() => {
-      db.prepare(`
-        INSERT INTO quotations (quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address, terms_conditions, subtotal, tax_total, grand_total, status, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'PENDING')
-      `).run(q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total);
+      const qCols = db.prepare('PRAGMA table_info(quotations)').all().map((c: any) => c.name);
+      if (qCols.includes('customer_gstin')) {
+        db.prepare(`
+          INSERT INTO quotations (
+            quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address,
+            customer_gstin, customer_state, is_gst, discount_total, round_off, biller_name,
+            terms_conditions, subtotal, tax_total, grand_total, status, sync_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'PENDING')
+        `).run(
+          q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null,
+          q.customer_gstin || null, q.customer_state || null, q.is_gst ?? (Number(q.tax_total) > 0 ? 1 : 0),
+          Number(q.discount_total) || 0, Number(q.round_off) || 0, q.biller_name || null,
+          q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total
+        );
+      } else {
+        db.prepare(`
+          INSERT INTO quotations (quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address, terms_conditions, subtotal, tax_total, grand_total, status, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'PENDING')
+        `).run(q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total);
+      }
 
-      const stmt = db.prepare(`
-        INSERT INTO quotation_items (item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-      `);
-      for (const item of q.items) {
-        stmt.run(item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount);
+      const qiCols = db.prepare('PRAGMA table_info(quotation_items)').all().map((c: any) => c.name);
+      if (qiCols.includes('hsn_code')) {
+        const stmt = db.prepare(`
+          INSERT INTO quotation_items (
+            item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount,
+            hsn_code, uom, tax_rate_percent, discount_amount, discount_percent, taxable_amount,
+            cgst_amount, sgst_amount, igst_amount, sync_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        `);
+        for (const item of q.items) {
+          stmt.run(
+            item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount,
+            item.hsn_code || null, item.uom || null, Number(item.tax_rate_percent) || 0,
+            Number(item.discount_amount) || 0, Number(item.discount_percent) || 0,
+            Number(item.taxable_amount) || item.amount,
+            Number(item.cgst_amount) || 0, Number(item.sgst_amount) || 0, Number(item.igst_amount) || 0
+          );
+        }
+      } else {
+        const stmt = db.prepare(`
+          INSERT INTO quotation_items (item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        `);
+        for (const item of q.items) {
+          stmt.run(item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount);
+        }
       }
       return { success: true };
     })();
@@ -6745,7 +6783,21 @@ ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: s
 ipcMain.handle('db:getQuotationItems', async (event, quotationId: string) => {
   try {
     const db = getDb();
-    let items = db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
+    const qiCols = db.prepare('PRAGMA table_info(quotation_items)').all().map((c: any) => c.name);
+    let selectFields = 'qi.*';
+    if (qiCols.includes('hsn_code')) {
+      selectFields = "qi.*, COALESCE(NULLIF(TRIM(qi.hsn_code), ''), p.hsn_sac_code, '') AS hsn_code, COALESCE(NULLIF(TRIM(qi.uom), ''), p.uom, 'PCS') AS uom, COALESCE(NULLIF(qi.tax_rate_percent, 0), p.tax_rate_percent, qi.tax_rate_percent, 0) AS tax_rate_percent, COALESCE(p.is_gst_applicable, 1) AS is_gst_applicable";
+    } else {
+      selectFields = "qi.*, COALESCE(p.hsn_sac_code, '') AS hsn_code, COALESCE(p.uom, 'PCS') AS uom, COALESCE(p.tax_rate_percent, 0) AS tax_rate_percent, COALESCE(p.is_gst_applicable, 1) AS is_gst_applicable";
+    }
+    const query = `
+      SELECT ${selectFields}
+      FROM quotation_items qi
+      LEFT JOIN products p ON qi.product_id = p.product_id
+      WHERE qi.quotation_id = ?
+      ORDER BY qi.created_at ASC
+    `;
+    let items = db.prepare(query).all(quotationId);
     if ((!items || items.length === 0) && quotationId) {
       const q = db.prepare('SELECT * FROM quotations WHERE quotation_id = ?').get(quotationId) as any;
       if (q && (Number(q.subtotal) > 0 || Number(q.grand_total) > 0)) {
@@ -6753,7 +6805,7 @@ ipcMain.handle('db:getQuotationItems', async (event, quotationId: string) => {
         db.prepare("UPDATE quotations SET sync_status = 'PENDING' WHERE quotation_id = ?").run(quotationId);
         triggerUrgentQuotationSync().catch(() => {});
         await new Promise(r => setTimeout(r, 300));
-        items = db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
+        items = db.prepare(query).all(quotationId);
       }
     }
     return items;
@@ -6782,25 +6834,62 @@ ipcMain.handle('db:updateQuotation', (event, q) => {
   try {
     const db = getDb();
     const result = db.transaction(() => {
-      // Update header
-      db.prepare(`
-        UPDATE quotations SET 
-          customer_name = ?, customer_phone = ?, customer_address = ?, terms_conditions = ?,
-          subtotal = ?, tax_total = ?, grand_total = ?,
-          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-        WHERE quotation_id = ?
-      `).run(q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total, q.quotation_id);
+      const qCols = db.prepare('PRAGMA table_info(quotations)').all().map((c: any) => c.name);
+      if (qCols.includes('customer_gstin')) {
+        db.prepare(`
+          UPDATE quotations SET 
+            customer_name = ?, customer_phone = ?, customer_address = ?,
+            customer_gstin = ?, customer_state = ?, is_gst = ?, discount_total = ?, round_off = ?, biller_name = ?,
+            terms_conditions = ?, subtotal = ?, tax_total = ?, grand_total = ?,
+            sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE quotation_id = ?
+        `).run(
+          q.customer_name || null, q.customer_phone || null, q.customer_address || null,
+          q.customer_gstin || null, q.customer_state || null, q.is_gst ?? (Number(q.tax_total) > 0 ? 1 : 0),
+          Number(q.discount_total) || 0, Number(q.round_off) || 0, q.biller_name || null,
+          q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total, q.quotation_id
+        );
+      } else {
+        db.prepare(`
+          UPDATE quotations SET 
+            customer_name = ?, customer_phone = ?, customer_address = ?, terms_conditions = ?,
+            subtotal = ?, tax_total = ?, grand_total = ?,
+            sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE quotation_id = ?
+        `).run(q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total, q.quotation_id);
+      }
 
       // Delete old items
       db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(q.quotation_id);
 
       // Insert new items
-      const stmt = db.prepare(`
-        INSERT INTO quotation_items (item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-      `);
-      for (const item of q.items) {
-        stmt.run(item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount);
+      const qiCols = db.prepare('PRAGMA table_info(quotation_items)').all().map((c: any) => c.name);
+      if (qiCols.includes('hsn_code')) {
+        const stmt = db.prepare(`
+          INSERT INTO quotation_items (
+            item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount,
+            hsn_code, uom, tax_rate_percent, discount_amount, discount_percent, taxable_amount,
+            cgst_amount, sgst_amount, igst_amount, sync_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        `);
+        for (const item of q.items) {
+          stmt.run(
+            item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount,
+            item.hsn_code || null, item.uom || null, Number(item.tax_rate_percent) || 0,
+            Number(item.discount_amount) || 0, Number(item.discount_percent) || 0,
+            Number(item.taxable_amount) || item.amount,
+            Number(item.cgst_amount) || 0, Number(item.sgst_amount) || 0, Number(item.igst_amount) || 0
+          );
+        }
+      } else {
+        const stmt = db.prepare(`
+          INSERT INTO quotation_items (item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        `);
+        for (const item of q.items) {
+          stmt.run(item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount);
+        }
       }
       return { success: true };
     })();

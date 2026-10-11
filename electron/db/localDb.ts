@@ -300,6 +300,12 @@ export function initDb() {
         customer_name TEXT,
         customer_phone TEXT,
         customer_address TEXT,
+        customer_gstin TEXT,
+        customer_state TEXT,
+        is_gst INTEGER DEFAULT 0,
+        discount_total REAL DEFAULT 0,
+        round_off REAL DEFAULT 0,
+        biller_name TEXT,
         terms_conditions TEXT,
         subtotal REAL NOT NULL DEFAULT 0,
         tax_total REAL NOT NULL DEFAULT 0,
@@ -323,6 +329,15 @@ export function initDb() {
         weight REAL,
         rate REAL NOT NULL DEFAULT 0,
         amount REAL NOT NULL DEFAULT 0,
+        hsn_code TEXT,
+        uom TEXT,
+        tax_rate_percent REAL DEFAULT 0,
+        discount_amount REAL DEFAULT 0,
+        discount_percent REAL DEFAULT 0,
+        taxable_amount REAL DEFAULT 0,
+        cgst_amount REAL DEFAULT 0,
+        sgst_amount REAL DEFAULT 0,
+        igst_amount REAL DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (quotation_id) REFERENCES quotations(quotation_id)
@@ -778,10 +793,10 @@ export function initDb() {
         'transaction_id', 'tenant_id', 'type', 'scrap_category_id', 'quantity', 'rate', 'total_amount', 'party_name', 'customer_phone', 'customer_address', 'notes', 'transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'scrap_invoice_number'
     ],
     quotations: [
-        'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'
+        'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'customer_gstin', 'customer_state', 'is_gst', 'discount_total', 'round_off', 'biller_name', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'
     ],
     quotation_items: [
-        'item_id', 'quotation_id', 'tenant_id', 'product_id', 'name', 'quantity', 'weight', 'rate', 'amount', 'sync_status', 'created_at'
+        'item_id', 'quotation_id', 'tenant_id', 'product_id', 'name', 'quantity', 'weight', 'rate', 'amount', 'hsn_code', 'uom', 'tax_rate_percent', 'discount_amount', 'discount_percent', 'taxable_amount', 'cgst_amount', 'sgst_amount', 'igst_amount', 'sync_status', 'created_at'
     ],
     warranties: [
         'warranty_id', 'tenant_id', 'invoice_id', 'invoice_item_id', 'customer_name', 'customer_phone', 'product_name', 'product_details', 'purchase_date', 'warranty_period_days', 'expiry_date', 'notes', 'sync_status', 'created_at', 'updated_at'
@@ -861,7 +876,7 @@ export function initDb() {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
         let type = 'TEXT';
-        if (['weight_override_allowed', 'is_service_item', 'is_held', 'is_deleted', 'is_default', 'is_active', 'is_enabled'].includes(col)) {
+        if (['weight_override_allowed', 'is_service_item', 'is_held', 'is_deleted', 'is_default', 'is_active', 'is_enabled', 'is_gst'].includes(col)) {
           type = 'INTEGER DEFAULT 0';
         } else if (col === 'print_status') {
           type = "TEXT DEFAULT 'PENDING'";

@@ -56,6 +56,7 @@ export interface BillSettings {
   showDescription?: boolean;
   reverseCharge?: boolean;
   itemColumnOrder?: 'qty_rate' | 'rate_qty';
+  quotationGstEnabled?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -93,6 +94,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showDescription: true,
   reverseCharge: false,
   itemColumnOrder: 'qty_rate',
+  quotationGstEnabled: true,
 };
 
 export function getEffectiveBillSettings(bs?: BillSettings, isGstBill?: boolean): BillSettings {

@@ -575,6 +575,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     enablePartyGst: overrides.enablePartyGst !== undefined ? overrides.enablePartyGst : enablePartyGst,
     enablePartyEstimate: overrides.enablePartyEstimate !== undefined ? overrides.enablePartyEstimate : enablePartyEstimate,
     enableRealPaperStock: overrides.enableRealPaperStock !== undefined ? overrides.enableRealPaperStock : enableRealPaperStock,
+    showZeroPaperStock: overrides.showZeroPaperStock !== undefined ? overrides.showZeroPaperStock : showZeroPaperStock,
+    showPaperOnlyProducts: overrides.showPaperOnlyProducts !== undefined ? overrides.showPaperOnlyProducts : showPaperOnlyProducts,
+    showPaperStockInGst: overrides.showPaperStockInGst !== undefined ? overrides.showPaperStockInGst : showPaperStockInGst,
+    showPaperStockInEstimate: overrides.showPaperStockInEstimate !== undefined ? overrides.showPaperStockInEstimate : showPaperStockInEstimate,
+    showProductGstBadge: overrides.showProductGstBadge !== undefined ? overrides.showProductGstBadge : showProductGstBadge,
+    showPriceTiersInInventory: overrides.showPriceTiersInInventory !== undefined ? overrides.showPriceTiersInInventory : showPriceTiersInInventory,
     enableConvertToGst: overrides.enableConvertToGst !== undefined ? overrides.enableConvertToGst : enableConvertToGst,
     billingUIConfig: JSON.stringify(overrides.billingUIConfig !== undefined ? overrides.billingUIConfig : billingUIConfig),
     features: JSON.stringify(overrides.featureFlags !== undefined ? overrides.featureFlags : featureFlags)
@@ -585,7 +591,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, enableConvertToGst, billingUIConfig, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -859,10 +865,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') finalInvdv = invdv;
 
       const spgb = allSettings['show_product_gst_badge'];
-      setShowProductGstBadge(spgb !== 'false' && spgb !== false);
+      const finalProductGstBadge = spgb !== 'false' && spgb !== false;
+      setShowProductGstBadge(finalProductGstBadge);
 
       const spti = allSettings['show_price_tiers_in_inventory'];
-      setShowPriceTiersInInventory(spti !== 'false' && spti !== false);
+      const finalPriceTiers = spti !== 'false' && spti !== false;
+      setShowPriceTiersInInventory(finalPriceTiers);
 
       let finalTimeFmt: '12h' | '24h' = '12h';
       const timeFmt = allSettings['time_format'];
@@ -909,6 +917,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (printFmt.openCashDrawerOnPending !== undefined) finalOpenCashDrawer = Boolean(printFmt.openCashDrawerOnPending);
         if (printFmt.receiptFont) finalReceiptFont = printFmt.receiptFont;
         if (printFmt.billSettings) finalBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings };
+        if (allSettings['quotation_gst_enabled'] !== undefined) { const qg = allSettings['quotation_gst_enabled']; finalBillSettings.quotationGstEnabled = qg !== 'false' && qg !== false; }
         if (printFmt.scrapBillSettings) finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings };
       }
 
@@ -1159,6 +1168,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         syncFrequency: finalSyncFreq,
         enablePartyGst: finalPartyGst,
         enablePartyEstimate: finalPartyEst,
+        enableRealPaperStock: finalRealPaper,
+        showZeroPaperStock: finalZeroPaper,
+        showPaperOnlyProducts: finalPaperOnly,
+        showPaperStockInGst: finalPaperGst,
+        showPaperStockInEstimate: finalPaperEst,
+        showProductGstBadge: finalProductGstBadge,
+        showPriceTiersInInventory: finalPriceTiers,
+        enableConvertToGst: finalConvertGst,
         featureFlags: finalFlags
       });
 
@@ -1319,6 +1336,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_open_cash_drawer', value: autoOpenCashDrawer }), name: 'auto_open_cash_drawer' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled', value: billSettings.quotationGstEnabled !== false }), name: 'quotation_gst_enabled' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'default_opening_balance', value: defaultOpeningBalance === '' ? 0 : (Number(defaultOpeningBalance) || 0) }), name: 'default_opening_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
@@ -1477,6 +1495,17 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         lanHostIp,
         lanPort: Number(lanPort) || 3888,
         syncFrequency,
+        enablePartyGst,
+        enablePartyEstimate,
+        enableRealPaperStock,
+        showZeroPaperStock,
+        showPaperOnlyProducts,
+        showPaperStockInGst,
+        showPaperStockInEstimate,
+        showProductGstBadge,
+        showPriceTiersInInventory,
+        enableConvertToGst,
+        billingUIConfig,
         featureFlags
       });
       setSaveRevision(v => v + 1);
@@ -2525,6 +2554,37 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </p>
                 </div>
               )}
+
+              {/* Card Footer: Dedicated Save Button */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-purple-500/15">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground w-full sm:w-auto">
+                  {hasChanges ? (
+                    <span className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                      Unsaved changes pending
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-emerald-500 dark:text-emerald-400 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      Paper stock settings saved
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className={clsx(
+                    "w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer shadow-sm border",
+                    hasChanges
+                      ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-500 shadow-purple-600/30 ring-2 ring-purple-500/20 animate-pulse"
+                      : "bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                  )}
+                >
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Save className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{saving ? 'Saving...' : 'Save Paper Stock Settings'}</span>
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -2948,6 +3008,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                   <button type="button" onClick={() => setBillSettings(s => ({ ...s, reverseCharge: !s.reverseCharge }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.reverseCharge ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.reverseCharge ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, quotationGstEnabled: s.quotationGstEnabled === false ? true : false }))}>Enable GST in Quotations</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, quotations display HSN/SAC, Taxable Value, CGST/SGST/IGST columns, and tax summary. When disabled, generates a clean Non-GST quotation.</p>
+                  </div>
+                  <button type="button" onClick={() => setBillSettings(s => ({ ...s, quotationGstEnabled: s.quotationGstEnabled === false ? true : false }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.quotationGstEnabled !== false ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.quotationGstEnabled !== false ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
 
@@ -4169,21 +4239,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {hasChanges && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className={clsx(
-                "flex items-center gap-1.5 px-4 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm border",
-                "text-primary-foreground bg-primary hover:bg-primary/90 border-primary shadow-primary/20 ring-2 ring-primary/20 animate-pulse"
-              )}
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0 text-current" />}
-              <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
-              <span className="sm:hidden">{saving ? 'Saving...' : 'Save'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className={clsx(
+              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm border",
+              hasChanges
+                ? "text-primary-foreground bg-primary hover:bg-primary/90 border-primary shadow-primary/20 ring-2 ring-primary/20 animate-pulse"
+                : "text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/70 border-border/60"
+            )}
+            title={hasChanges ? "Save Changes (Unsaved Changes Pending)" : "Save Settings"}
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0 text-current" />}
+            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
+            <span className="sm:hidden">{saving ? 'Saving...' : 'Save'}</span>
+          </button>
           <button onClick={onClose}
             className="p-2.5 text-destructive hover:bg-destructive/10 border border-destructive/30 shadow-sm rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Close">
