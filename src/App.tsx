@@ -1,32 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { 
-  ShoppingCart, Banknote, Package, TrendingUp, UserCheck, Users,
-  Trash2, FileText, ShieldCheck, Receipt, BarChart3, Settings, LogOut, Store, Tags, Undo2, Boxes, BadgePercent, Handshake, Wallet, Landmark
-} from 'lucide-react';
 import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
 import { PermissionGuard } from './components/PermissionGuard';
-
-const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
-  BILLING: { label: 'Billing / POS', icon: ShoppingCart },
-  SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
-  CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
-  QUOTATIONS: { label: 'Quotations', icon: FileText },
-  RETURNS: { label: 'Returns', icon: Undo2 },
-  WARRANTIES: { label: 'Warranties', icon: ShieldCheck },
-  CUSTOMERS: { label: 'Customers', icon: UserCheck },
-  PARTIES: { label: 'Ledger', icon: Handshake },
-  INVENTORY: { label: 'Inventory', icon: Package },
-  STOCK_REPORT: { label: 'Stock Report', icon: BarChart3 },
-  PURCHASE_BILLS: { label: 'Purchase Bills', icon: Receipt },
-  COMBO_OFFERS: { label: 'Combo Offers', icon: Boxes },
-  SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
-  FINANCIAL_REPORT: { label: 'Financial Report', icon: Landmark },
-  GRADES: { label: 'Categories & Grades', icon: Tags },
-  PRICING_TIERS: { label: 'Pricing Tiers', icon: BadgePercent },
-  PAYMENT_METHODS: { label: 'Payment Methods', icon: Wallet },
-  SETTINGS: { label: 'Settings', icon: Settings },
-};
 import { BillingPage } from './components/BillingPage';
 import { ComboManager } from './components/ComboManager';
 import { InventoryManager } from './components/InventoryManager';
@@ -42,11 +17,9 @@ import { useCartStore } from './store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
 import { useScaleStore } from './store/scaleStore';
-import { hydrateBillingUIFromDB } from './store/billingUIStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
 import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';
-
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
 import { PaymentMethods } from './components/PaymentMethods';
@@ -64,7 +37,7 @@ import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
-import { useFeatureFlagsStore, DEFAULT_FEATURE_FLAGS, type FeatureKey, type FeatureFlags, cashierPageTitle } from './featureFlags';
+import { useFeatureFlagsStore, type FeatureKey } from './featureFlags';
 import { SplashScreen } from './components/SplashScreen';
 
 function App() {
@@ -196,7 +169,7 @@ function App() {
     { text: "The only person you are destined to become is the person you decide to be.", author: "Ralph Waldo Emerson" },
     { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
     { text: "Dream big and dare to fail.", author: "Norman Vaughan" },
-    { text: "Act now. There is never any time but now.", author: "Molière" },
+    { text: "Act now. There is never any time but now.", author: "MoliÃ¨re" },
     { text: "The best revenge is massive success.", author: "Frank Sinatra" },
     { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
     { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
@@ -262,7 +235,7 @@ function App() {
     return () => clearTimeout(timer);
   }, [syncComplete]);
 
-  // Trigger initial sync once on first login — progress events will activate the bar
+  // Trigger initial sync once on first login â€” progress events will activate the bar
   useEffect(() => {
     if (isAuthenticated && !isCloudSyncPaused && !syncChecked && window.electronAPI) {
       console.log('[App] System authenticated. Starting cloud sync in background...');
@@ -275,7 +248,7 @@ function App() {
     }
   }, [isAuthenticated, isCloudSyncPaused, syncChecked]);
 
-  // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
+  // Listen to real sync progress from electron â€” handles ALL syncs (initial + periodic)
   useEffect(() => {
     if (!window.electronAPI?.onSyncProgress) return;
     window.electronAPI.onSyncProgress((progress) => {
@@ -829,7 +802,7 @@ function App() {
           useAuthStore.getState().logout();
         }}
         onClose={() => {
-          // User chose to continue working offline — just dismiss the modal.
+          // User chose to continue working offline â€” just dismiss the modal.
           // Cloud sync remains paused; status pill in header will show "Re-Login Needed".
           setShowSessionExpiredModal(false);
         }}

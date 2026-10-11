@@ -6711,6 +6711,24 @@ ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
             terms_conditions, subtotal, tax_total, grand_total, status, sync_status
           )
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'PENDING')
+          ON CONFLICT(quotation_id) DO UPDATE SET
+            quotation_number = excluded.quotation_number,
+            customer_name = excluded.customer_name,
+            customer_phone = excluded.customer_phone,
+            customer_address = excluded.customer_address,
+            customer_gstin = excluded.customer_gstin,
+            customer_state = excluded.customer_state,
+            is_gst = excluded.is_gst,
+            discount_total = excluded.discount_total,
+            round_off = excluded.round_off,
+            biller_name = excluded.biller_name,
+            terms_conditions = excluded.terms_conditions,
+            subtotal = excluded.subtotal,
+            tax_total = excluded.tax_total,
+            grand_total = excluded.grand_total,
+            status = 'ACTIVE',
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
         `).run(
           q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null,
           q.customer_gstin || null, q.customer_state || null, q.is_gst ?? (Number(q.tax_total) > 0 ? 1 : 0),
@@ -6721,8 +6739,23 @@ ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
         db.prepare(`
           INSERT INTO quotations (quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address, terms_conditions, subtotal, tax_total, grand_total, status, sync_status)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'PENDING')
+          ON CONFLICT(quotation_id) DO UPDATE SET
+            quotation_number = excluded.quotation_number,
+            customer_name = excluded.customer_name,
+            customer_phone = excluded.customer_phone,
+            customer_address = excluded.customer_address,
+            terms_conditions = excluded.terms_conditions,
+            subtotal = excluded.subtotal,
+            tax_total = excluded.tax_total,
+            grand_total = excluded.grand_total,
+            status = 'ACTIVE',
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
         `).run(q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total);
       }
+
+      // Delete old items before inserting new ones to prevent duplicate rows
+      db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(q.quotation_id);
 
       const qiCols = db.prepare('PRAGMA table_info(quotation_items)').all().map((c: any) => c.name);
       if (qiCols.includes('hsn_code')) {
@@ -6806,6 +6839,14 @@ ipcMain.handle('db:getQuotationItems', async (event, quotationId: string) => {
         triggerUrgentQuotationSync().catch(() => {});
         await new Promise(r => setTimeout(r, 300));
         items = db.prepare(query).all(quotationId);
+      }
+    }
+    if (Array.isArray(items) && items.length > 1) {
+      const timestamps: number[] = items.map((i: any) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
+      const uniqueTs = Array.from(new Set<number>(timestamps));
+      if (uniqueTs.length > 1) {
+        const latestTs = Math.max(...uniqueTs);
+        items = items.filter((i: any) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
       }
     }
     return items;

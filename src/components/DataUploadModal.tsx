@@ -9,7 +9,6 @@ import Papa from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuthStore } from '../store/authStore';
 import { Modal } from './ui/Modal';
-import { RedCrossButton } from './ui/RedCrossButton';
 import { Button } from './ui/Button';
 
 export type UploadEntityType = 'products' | 'suppliers' | 'customers' | 'staff';

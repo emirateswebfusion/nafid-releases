@@ -933,6 +933,23 @@ export function initDb() {
     console.warn('[DB Migration] Failed to flag incomplete quotations for re-sync:', e.message);
   }
 
+  // Deduplicate historical quotation_items, keeping only the latest revision batch per quotation
+  try {
+    const dedupedCount = db.prepare(`
+      DELETE FROM quotation_items
+      WHERE created_at != (
+        SELECT MAX(qi2.created_at)
+        FROM quotation_items qi2
+        WHERE qi2.quotation_id = quotation_items.quotation_id
+      )
+    `).run().changes;
+    if (dedupedCount > 0) {
+      console.log(`[DB Migration] Cleaned up ${dedupedCount} stale/duplicate quotation items.`);
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to deduplicate quotation items:', e.message);
+  }
+
   // Deduplicate actual sku_barcode conflicts before applying unique constraints
   try {
     db.exec(`

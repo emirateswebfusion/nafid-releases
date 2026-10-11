@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Plus, Trash, Pencil, Check, X, Loader2,
-  Tags, ChevronUp, ChevronDown, Shield, Save, Search,
+  Tags, ChevronDown, Shield, Save, Search,
   Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee, BadgePercent, Star, GripVertical
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';

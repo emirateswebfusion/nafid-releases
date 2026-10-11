@@ -316,6 +316,7 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
           }
         }
       } else if (tableName === 'quotations' && Array.isArray(rawRow.items)) {
+        db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(rawRow.quotation_id);
         for (const line of rawRow.items) {
           if (!line.quotation_id) line.quotation_id = rawRow.quotation_id;
           if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';

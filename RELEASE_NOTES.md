@@ -1,3 +1,10 @@
+# Vendora v1.7.4 Release Notes
+
+## What's Changed
+- **Quotation & Biller Updates**: Enhanced quotation management, biller PIN modal authentication, weighing scale integration, and sync worker stability.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-1.7.4.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.7.3...v1.7.4
+
 # Vendora v1.7.3 Release Notes
 
 ## What's Changed

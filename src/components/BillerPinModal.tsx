@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, AlertCircle, Loader2, CheckCircle2, KeyRound, X } from 'lucide-react';
+import { AlertCircle, KeyRound } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';

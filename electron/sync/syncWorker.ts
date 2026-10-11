@@ -4493,8 +4493,16 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
               updated_at: toSqliteDate(q.updated_at),
             });
 
-            const itemsList = Array.isArray(q.items) ? q.items : (Array.isArray(q.quotation_items) ? q.quotation_items : (Array.isArray(q.quotationItems) ? q.quotationItems : null));
+            let itemsList = Array.isArray(q.items) ? q.items : (Array.isArray(q.quotation_items) ? q.quotation_items : (Array.isArray(q.quotationItems) ? q.quotationItems : null));
             if (itemsList && itemsList.length > 0) {
+              if (itemsList.length > 1) {
+                const timestamps: number[] = itemsList.map((i: any) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
+                const uniqueTs = Array.from(new Set<number>(timestamps));
+                if (uniqueTs.length > 1) {
+                  const latestTs = Math.max(...uniqueTs);
+                  itemsList = itemsList.filter((i: any) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
+                }
+              }
               deleteItems.run(q.quotation_id);
               for (let idx = 0; idx < itemsList.length; idx++) {
                 const item = itemsList[idx];

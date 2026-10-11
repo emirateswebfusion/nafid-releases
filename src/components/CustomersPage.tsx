@@ -14,7 +14,7 @@ import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
-import { parseUTCDate, getAppTimeFormat, DEFAULT_BILL_SETTINGS, formatBillDateTime, generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { parseUTCDate, getAppTimeFormat, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
 import { DateRangeFilter } from './ui/DateRangeFilter';

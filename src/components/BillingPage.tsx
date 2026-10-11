@@ -6376,7 +6376,6 @@ loadFlags(tenantId || 'global');
           customerState: (selectedReturnInvoice as any)?.customer_state || undefined,
           billSettings,
         };
-        const { generateReceiptText } = await import('../utils/receiptGenerator');
         const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
         const printResult = await window.electronAPI.printReceipt(tid, receiptText);
         if (printResult?.skipped) {

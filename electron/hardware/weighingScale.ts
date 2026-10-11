@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb';
 
 function getScaleConfig() {
@@ -34,12 +34,14 @@ export async function initWeighingScale(mainWindow: BrowserWindow) {
   } catch (error: any) {
     console.warn('[Hardware] Native serialport not available. Starting MOCK weighing scale for development.');
     
-    // Fallback: Random weight simulation for development
-    setInterval(() => {
-      const mockWeight = (Math.random() * 500).toFixed(2);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('hardware:scaleWeight', parseFloat(mockWeight));
-      }
-    }, 5000);
+    // Fallback: Random weight simulation ONLY in local dev if explicitly requested
+    if (!app.isPackaged && process.env.MOCK_SCALE === 'true') {
+      setInterval(() => {
+        const mockWeight = (Math.random() * 500).toFixed(2);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('hardware:scaleWeight', parseFloat(mockWeight));
+        }
+      }, 5000);
+    }
   }
 }

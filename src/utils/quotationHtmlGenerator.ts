@@ -200,70 +200,79 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
 <head>
   <meta charset="utf-8" />
   <title>Quotation - ${escapeHtml(data.quotationNumber)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
     @page {
       size: A4 portrait;
-      margin: 12mm 10mm 14mm 10mm;
+      margin: 10mm 10mm 12mm 10mm;
     }
     *, *::before, *::after {
       box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     html, body {
       margin: 0;
       padding: 0;
       background: #ffffff !important;
-      color: #111111 !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      font-size: 11px;
-      line-height: 1.35;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      color: #0f172a !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     }
     .quotation-container {
       width: 100%;
       max-width: 210mm;
       margin: 0 auto;
       background: #ffffff;
-      border: 1.5px solid #1a1a1a;
-      padding: 10px 12px;
+      border: 1.5px solid #0f172a;
+      padding: 12px 14px;
     }
     /* HEADER */
     .shop-header {
       text-align: center;
-      padding-bottom: 6px;
-      border-bottom: 1.5px solid #1a1a1a;
+      padding-bottom: 7px;
+      border-bottom: 1.5px solid #0f172a;
     }
     .shop-title {
-      font-size: 22px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 20px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.6px;
       line-height: 1.2;
-      color: #000000;
-      margin: 0 0 2px 0;
+      color: #0f172a;
+      margin: 0 0 3px 0;
     }
     .shop-meta-line {
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 500;
-      color: #222222;
+      color: #334155;
       margin: 2px 0;
       line-height: 1.35;
     }
     .shop-meta-line strong {
       font-weight: 700;
-      color: #000000;
+      color: #0f172a;
     }
     .quotation-title-banner {
       display: inline-block;
-      margin-top: 5px;
+      margin-top: 6px;
       padding: 3px 18px;
-      font-size: 13px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: 2px;
       text-transform: uppercase;
-      border: 1.5px solid #1a1a1a;
-      background: #f7f7f7;
-      color: #000000;
+      border: 1.5px solid #0f172a;
+      background: #f8fafc;
+      color: #0f172a;
     }
 
     /* DETAILS SECTION */
@@ -271,73 +280,77 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       display: table;
       width: 100%;
       table-layout: fixed;
-      border-bottom: 1.5px solid #1a1a1a;
+      border-bottom: 1.5px solid #0f172a;
       margin-top: 0;
     }
     .details-col-left, .details-col-right {
       display: table-cell;
       vertical-align: top;
-      padding: 6px 8px;
+      padding: 7px 9px;
     }
     .details-col-left {
-      width: 58%;
-      border-right: 1.5px solid #1a1a1a;
+      width: 56%;
+      border-right: 1.5px solid #0f172a;
     }
     .details-col-right {
-      width: 42%;
+      width: 44%;
     }
     .section-label {
-      font-size: 9.5px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 9px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #333333;
-      border-bottom: 1px dashed #aaaaaa;
-      padding-bottom: 2px;
+      letter-spacing: 0.6px;
+      color: #475569;
+      border-bottom: 1px dashed #cbd5e1;
+      padding-bottom: 3px;
       margin-bottom: 4px;
     }
     .customer-name {
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 700;
-      color: #000000;
+      color: #0f172a;
       margin-bottom: 2px;
     }
     .detail-text {
-      font-size: 10.5px;
-      color: #111111;
-      margin: 1.5px 0;
-      line-height: 1.3;
+      font-size: 10px;
+      color: #334155;
+      margin: 2px 0;
+      line-height: 1.35;
     }
     .meta-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10.5px;
+      font-size: 10px;
     }
     .meta-table td {
       padding: 2px 0;
       vertical-align: top;
     }
     .meta-label {
-      font-weight: 700;
-      color: #222222;
-      width: 45%;
+      font-weight: 600;
+      color: #475569;
+      width: 44%;
     }
     .meta-value {
       text-align: right;
-      color: #000000;
-      font-weight: 500;
+      color: #0f172a;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
     }
     .meta-value.mono {
-      font-family: Consolas, "Courier New", monospace;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-weight: 700;
-      font-size: 11.5px;
+      font-size: 11px;
+      letter-spacing: 0.4px;
+      font-variant-numeric: tabular-nums;
     }
 
     /* PRODUCT TABLE */
     table.product-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10.5px;
+      font-size: 10px;
       margin-top: 0;
       page-break-inside: auto;
     }
@@ -349,23 +362,26 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       break-inside: avoid;
     }
     table.product-table th {
-      background-color: #f2f2f2;
-      border: 1px solid #1a1a1a;
+      background-color: #f8fafc;
+      border: 1px solid #0f172a;
       border-top: none;
-      padding: 5px 4px;
-      font-size: 9.5px;
+      padding: 6px 4px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 8.5px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.4px;
       text-align: center;
-      color: #000000;
+      color: #0f172a;
     }
     table.product-table td {
-      border: 1px solid #1a1a1a;
+      border: 1px solid #0f172a;
       padding: 5px 4px;
-      vertical-align: top;
-      color: #111111;
+      vertical-align: middle;
+      color: #0f172a;
       line-height: 1.3;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
     }
     .text-left { text-align: left !important; }
     .text-center { text-align: center !important; }
@@ -373,6 +389,8 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     .font-bold { font-weight: 700 !important; }
     .item-name {
       font-weight: 600;
+      font-size: 10.5px;
+      color: #0f172a;
       word-break: break-word;
       white-space: normal;
     }
@@ -380,7 +398,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     /* TOTALS & SUMMARY */
     .summary-section {
       width: 100%;
-      border-top: 1.5px solid #1a1a1a;
+      border-top: 1.5px solid #0f172a;
       display: table;
       table-layout: fixed;
       page-break-inside: avoid;
@@ -388,53 +406,55 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     .words-and-terms {
       display: table-cell;
-      width: 58%;
+      width: 56%;
       vertical-align: top;
       padding: 8px 10px 8px 4px;
-      border-right: 1.5px solid #1a1a1a;
+      border-right: 1.5px solid #0f172a;
     }
     .amounts-table-cell {
       display: table-cell;
-      width: 42%;
+      width: 44%;
       vertical-align: top;
       padding: 0;
     }
     .words-box {
-      background: #fafafa;
-      border: 1px solid #ddd;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
       border-radius: 4px;
       padding: 6px 8px;
       margin-bottom: 8px;
     }
     .words-label {
-      font-size: 9px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 8.5px;
       font-weight: 800;
       text-transform: uppercase;
-      color: #555555;
+      color: #64748b;
       letter-spacing: 0.5px;
       margin-bottom: 2px;
     }
     .words-value {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 700;
-      color: #000000;
+      color: #0f172a;
       line-height: 1.35;
     }
     .terms-box {
       padding: 4px 0;
     }
     .terms-title {
-      font-size: 9.5px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 9px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #333333;
-      margin-bottom: 4px;
+      color: #334155;
+      margin-bottom: 3px;
     }
     .terms-text {
-      font-size: 10px;
-      color: #444444;
-      line-height: 1.4;
+      font-size: 9.5px;
+      color: #475569;
+      line-height: 1.45;
       white-space: pre-line;
       margin: 0;
     }
@@ -443,48 +463,53 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     table.amounts-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10.5px;
+      font-size: 10px;
     }
     table.amounts-table td {
-      padding: 4px 8px;
-      border-bottom: 1px solid #e0e0e0;
+      padding: 4.5px 8px;
+      border-bottom: 1px solid #e2e8f0;
     }
     table.amounts-table tr:last-child td {
       border-bottom: none;
     }
     .amount-label {
       font-weight: 600;
-      color: #333333;
+      color: #334155;
       text-align: left;
     }
     .amount-value {
       text-align: right;
       font-weight: 600;
-      color: #000000;
-      font-family: Consolas, "Courier New", monospace;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
     }
     .grand-total-row td {
-      background: #f5f5f5;
-      border-top: 1.5px solid #1a1a1a !important;
+      background: #f1f5f9;
+      border-top: 1.5px solid #0f172a !important;
       border-bottom: none !important;
       padding: 7px 8px !important;
     }
     .grand-total-row .amount-label {
-      font-size: 12px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 11.5px;
       font-weight: 800;
       text-transform: uppercase;
-      color: #000000;
+      letter-spacing: 0.5px;
+      color: #0f172a;
     }
     .grand-total-row .amount-value {
       font-size: 13.5px;
       font-weight: 800;
-      color: #000000;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+      font-variant-numeric: tabular-nums;
     }
 
     /* BANK DETAILS & SIGNATURE (BOTTOM OF FINAL PAGE) */
     .footer-section {
       width: 100%;
-      border-top: 1.5px solid #1a1a1a;
+      border-top: 1.5px solid #0f172a;
       display: table;
       table-layout: fixed;
       margin-top: 8px;
@@ -493,63 +518,70 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     .bank-box {
       display: table-cell;
-      width: 58%;
+      width: 56%;
       vertical-align: top;
       padding: 6px 8px;
-      border-right: 1.5px solid #1a1a1a;
-      font-size: 10px;
+      border-right: 1.5px solid #0f172a;
+      font-size: 9.5px;
     }
     .bank-title {
-      font-size: 9.5px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 9px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #333333;
-      border-bottom: 1px dashed #aaaaaa;
+      color: #475569;
+      border-bottom: 1px dashed #cbd5e1;
       padding-bottom: 2px;
       margin-bottom: 4px;
     }
     .bank-row {
       margin: 2px 0;
-      color: #222222;
+      color: #334155;
     }
     .bank-row strong {
       display: inline-block;
       width: 85px;
-      color: #000000;
+      color: #0f172a;
+      font-weight: 700;
     }
     .signature-box {
       display: table-cell;
-      width: 42%;
+      width: 44%;
       vertical-align: bottom;
       text-align: right;
       padding: 8px 10px;
     }
     .sig-for-shop {
-      font-size: 10.5px;
-      font-weight: 700;
-      color: #000000;
-      margin-bottom: 45px;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #0f172a;
+      margin-bottom: 40px;
     }
     .sig-line {
-      font-size: 10.5px;
+      font-size: 9.5px;
       font-weight: 700;
-      color: #000000;
-      border-top: 1px dashed #555555;
+      color: #475569;
+      border-top: 1px dashed #64748b;
       display: inline-block;
-      padding-top: 3px;
+      padding-top: 4px;
       min-width: 140px;
       text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     /* SYSTEM FOOTER */
     .system-footer {
       text-align: center;
       font-size: 8.5px;
-      color: #777777;
+      color: #64748b;
       margin-top: 6px;
       padding-top: 4px;
-      border-top: 1px dotted #ccc;
+      border-top: 1px dotted #cbd5e1;
     }
 
     @media print {
@@ -559,7 +591,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
         padding: 0 !important;
       }
       .quotation-container {
-        border: 1.5px solid #000000 !important;
+        border: 1.5px solid #0f172a !important;
         max-width: 100% !important;
         padding: 8px 10px !important;
       }
