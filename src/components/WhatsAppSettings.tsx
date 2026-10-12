@@ -3,6 +3,7 @@ import { MessageSquare, QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { FloatToast, type ToastMessage } from './ui/FloatToast';
+import { WhatsAppIcon } from './ui/WhatsAppIcon';
 
 interface WhatsAppSettingsProps {
   tenantId?: string;
@@ -88,7 +89,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       <div className="flex items-center justify-between pb-4 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-            <MessageSquare className="w-5 h-5" />
+            <WhatsAppIcon className="w-5 h-5 text-emerald-500 fill-current" />
           </div>
           <div>
             <h3 className="text-sm font-black uppercase tracking-wider text-foreground">

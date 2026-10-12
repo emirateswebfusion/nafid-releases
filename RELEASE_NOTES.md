@@ -1,3 +1,10 @@
+# Vendora v1.7.5 Release Notes
+
+## What's Changed
+- **WhatsApp Integration & UI Enhancements**: Added WhatsApp billing helper, customizable WhatsApp settings, refined date range filters, and updated quotation generation.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-1.7.5.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.7.4...v1.7.5
+
 # Vendora v1.7.4 Release Notes
 
 ## What's Changed

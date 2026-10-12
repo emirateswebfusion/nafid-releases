@@ -247,10 +247,11 @@ export function CustomersPage({
   const [filterPricingTier, setFilterPricingTier] = useState<string>('');
   const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
 
-  const [view, setView] = useState<View>('list');
+  const [view, setView] = useState<View>(() => initialCustomerIdOrQuery ? 'detail' : 'list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [matchedParty, setMatchedParty] = useState<Party | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>('purchases');
+  const [initialLoading, setInitialLoading] = useState(initialCustomerIdOrQuery ? true : false);
 
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
@@ -719,6 +720,7 @@ export function CustomersPage({
     if (found) {
       loadCustomerDetails(found);
     }
+    setInitialLoading(false);
   }, [initialCustomerIdOrQuery, customers]);
 
   const handleOpenInvoiceDetail = async (inv: InvoiceRecord) => {
@@ -1590,8 +1592,38 @@ export function CustomersPage({
       )}
 
       {/* Customer Detail View */}
-      {view === 'detail' && selectedCustomer && (
-        <div className="flex-1 flex flex-col min-h-0 w-full px-4 sm:px-6 py-4 space-y-4 overflow-y-auto">
+      {view === 'detail' && (
+        initialLoading ? (
+          <div className="flex-1 flex flex-col min-h-0 w-full px-4 sm:px-6 py-4 space-y-4 overflow-y-auto">
+            {/* Loading Skeleton */}
+            <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0 animate-pulse">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-muted/30 border border-border/30 flex items-center justify-center font-black text-xl shrink-0" />
+                <div className="space-y-1 min-w-0">
+                  <div className="h-6 w-48 bg-muted/30 rounded-lg" />
+                  <div className="h-4 w-32 bg-muted/30 rounded-lg" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-xs animate-pulse space-y-4">
+              <div className="h-4 w-1/3 bg-muted/30 rounded-lg" />
+              <div className="h-4 w-1/2 bg-muted/30 rounded-lg" />
+              <div className="h-4 w-2/3 bg-muted/30 rounded-lg" />
+              <div className="h-4 w-1/4 bg-muted/30 rounded-lg" />
+            </div>
+            <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-xs animate-pulse space-y-4">
+              <div className="h-4 w-1/3 bg-muted/30 rounded-lg" />
+              <div className="grid grid-cols-3 gap-4">
+                <div className="h-24 bg-muted/30 rounded-xl" />
+                <div className="h-24 bg-muted/30 rounded-xl" />
+                <div className="h-24 bg-muted/30 rounded-xl" />
+              </div>
+              <div className="h-24 bg-muted/30 rounded-xl" />
+              <div className="h-24 bg-muted/30 rounded-xl" />
+            </div>
+          </div>
+        ) : selectedCustomer ? (
+          <div className="flex-1 flex flex-col min-h-0 w-full px-4 sm:px-6 py-4 space-y-4 overflow-y-auto">
           {/* Profile Banner */}
           <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3.5 min-w-0">
@@ -2088,7 +2120,7 @@ export function CustomersPage({
             </div>
           </div>
         </div>
-      )}
+      ) : null )}
 
       {/* Invoice Detail Modal */}
       {viewingInvoice && (

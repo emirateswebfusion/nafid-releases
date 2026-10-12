@@ -2192,17 +2192,10 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
     const phoneClean = (p.phone || '').replace(/\D/g, '');
     const nameClean = (p.name || '').trim().toLowerCase();
 
-    // Deduplication check: re-use existing party if same phone or name exists
-    let existing: any = null;
-    if (phoneClean.length >= 7) {
-      const allParties = db.prepare('SELECT * FROM parties WHERE tenant_id = ?').all(p.tenant_id) as any[];
-      existing = allParties.find((party: any) => {
-        const pDigits = (party.phone || '').replace(/\D/g, '');
-        return pDigits.length >= 7 && (pDigits === phoneClean || (phoneClean.length >= 10 && pDigits.slice(-10) === phoneClean.slice(-10)));
-      });
-    }
-    if (!existing && nameClean) {
-      existing = db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ?').get(p.tenant_id, nameClean);
+    // Duplicate check: Do NOT allow creation of another party with the exact same name
+    const existingSameName = db.prepare('SELECT party_id, name FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(p.tenant_id, nameClean);
+    if (existingSameName) {
+      return { success: false, error: `A party named "${p.name.trim()}" already exists!` };
     }
 
     const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
@@ -2210,30 +2203,6 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
     const creditPeriodDays = Math.max(1, parseInt(p.credit_period_days, 10) || 30);
     const creditPeriodBasis = p.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined ? (p.restrict_on_credit_expiry ? 1 : 0) : 1;
-
-    if (existing) {
-      db.prepare(`
-        UPDATE parties 
-        SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address), gstin = COALESCE(?, gstin),
-            credit_limit = COALESCE(?, credit_limit),
-            credit_period_enabled = COALESCE(?, credit_period_enabled),
-            credit_period_days = COALESCE(?, credit_period_days),
-            credit_period_basis = COALESCE(?, credit_period_basis),
-            restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
-            is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-        WHERE party_id = ?
-      `).run(
-        p.name, p.phone || null, p.address || null, p.gstin || null,
-        p.credit_limit !== undefined ? creditLimit : null,
-        p.credit_period_enabled !== undefined ? creditPeriodEnabled : null,
-        p.credit_period_days !== undefined ? creditPeriodDays : null,
-        p.credit_period_basis || null,
-        p.restrict_on_credit_expiry !== undefined ? restrictOnCreditExpiry : null,
-        existing.party_id
-      );
-      return { success: true, party_id: existing.party_id, reused: true };
-    }
-
     const bt = p.balance_type || 'RECEIVABLE';
     const initialBalance = bt === 'RECEIVABLE'
       ? Math.abs(p.balance || 0)
@@ -2434,6 +2403,14 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
       params.push(p.custom_category || null);
     }
 
+    // Fetch existing party details before update to ensure robust matching even if name or phone changed
+    const oldPartyRow: any = db.prepare('SELECT tenant_id, phone, name FROM parties WHERE party_id = ?').get(p.party_id);
+    const tenantId = p.tenant_id || oldPartyRow?.tenant_id;
+    const oldPhone = (oldPartyRow?.phone || '').trim();
+    const oldName = (oldPartyRow?.name || '').trim();
+    const newPhone = (p.phone || '').trim();
+    const newName = (p.name || '').trim();
+
     updateSql += `, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`;
     params.push(p.party_id);
 
@@ -2441,21 +2418,28 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
 
     // Synchronize to matching customer in customers table if exists
     try {
-      const partyRow: any = db.prepare('SELECT tenant_id, phone, name FROM parties WHERE party_id = ?').get(p.party_id);
-      const tenantId = p.tenant_id || partyRow?.tenant_id;
-      const phoneToCheck = (p.phone || partyRow?.phone || '').trim();
-      const nameToCheck = (p.name || partyRow?.name || '').trim();
       let cust: any = null;
-      if (phoneToCheck) {
-        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, phoneToCheck);
+      if (newPhone) {
+        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, newPhone);
       }
-      if (!cust && nameToCheck) {
-        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, nameToCheck.toLowerCase());
+      if (!cust && oldPhone) {
+        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, oldPhone);
+      }
+      if (!cust && newName) {
+        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, newName.toLowerCase());
+      }
+      if (!cust && oldName) {
+        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, oldName.toLowerCase());
       }
       if (cust) {
         db.prepare(`
           UPDATE customers 
-          SET credit_limit = COALESCE(?, credit_limit),
+          SET name = COALESCE(?, name),
+              phone = COALESCE(?, phone),
+              address = COALESCE(?, address),
+              gstin = COALESCE(?, gstin),
+              notes = COALESCE(?, notes),
+              credit_limit = COALESCE(?, credit_limit),
               credit_period_enabled = COALESCE(?, credit_period_enabled),
               credit_period_days = COALESCE(?, credit_period_days),
               credit_period_basis = COALESCE(?, credit_period_basis),
@@ -2464,6 +2448,11 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
               sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
           WHERE customer_id = ? AND tenant_id = ?
         `).run(
+          p.name || null,
+          p.phone || null,
+          p.address || null,
+          p.gstin !== undefined ? (p.gstin ? p.gstin.trim().toUpperCase() : null) : null,
+          p.notes !== undefined ? (p.notes ? p.notes.trim() : null) : null,
           hasCreditLimit ? creditLimit : null,
           hasCreditPeriodEnabled ? (p.credit_period_enabled ? 1 : 0) : null,
           hasCreditPeriodDays ? Math.max(1, parseInt(p.credit_period_days, 10) || 30) : null,
@@ -8919,118 +8908,61 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_t
     const db = getDb();
     if (!tenant_id) return [];
 
+    // Single LEFT JOIN to best-matching party (CUSTOMER-type preferred, highest absolute balance)
+    // resolves all 6 party fields in one pass instead of 6 correlated subqueries
     let query = `
-      SELECT sub.*, 
-             sub.resolved_pricing_tier_id as pricing_tier_id,
-             pt.name as pricing_tier_name
-      FROM (
-        SELECT c.*, 
-               COALESCE(c.credit_limit, (
-                 SELECT p.credit_limit FROM parties p 
-                 WHERE p.tenant_id = c.tenant_id 
-                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                   AND (
-                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                   )
-                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
-               ), 0) as credit_limit,
-               COALESCE(c.credit_period_enabled, (
-                 SELECT p.credit_period_enabled FROM parties p 
-                 WHERE p.tenant_id = c.tenant_id 
-                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                   AND (
-                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                   )
-                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
-               ), 0) as credit_period_enabled,
-               COALESCE(c.credit_period_days, (
-                 SELECT p.credit_period_days FROM parties p 
-                 WHERE p.tenant_id = c.tenant_id 
-                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                   AND (
-                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                   )
-                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
-               ), 30) as credit_period_days,
-               COALESCE(c.credit_period_basis, (
-                 SELECT p.credit_period_basis FROM parties p 
-                 WHERE p.tenant_id = c.tenant_id 
-                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                   AND (
-                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                   )
-                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
-               ), 'BILL_BASED') as credit_period_basis,
-               COALESCE(c.restrict_on_credit_expiry, (
-                 SELECT p.restrict_on_credit_expiry FROM parties p 
-                 WHERE p.tenant_id = c.tenant_id 
-                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                   AND (
-                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                   )
-                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
-               ), 1) as restrict_on_credit_expiry,
-               (
-                 SELECT p.balance FROM parties p 
-                 WHERE p.tenant_id = c.tenant_id 
-                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                   AND (
-                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                   )
-                 ORDER BY 
-                   CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END,
-                   ABS(COALESCE(p.balance, 0)) DESC
-                 LIMIT 1
-               ) as party_balance,
-               COALESCE(
-                 c.pricing_tier_id,
-                 (
-                   SELECT p.pricing_tier_id FROM parties p 
-                   WHERE p.tenant_id = c.tenant_id 
-                     AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-                     AND (
-                       (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
-                       OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
-                     )
-                   ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END
-                   LIMIT 1
-                 )
-               ) as resolved_pricing_tier_id
-        FROM customers c
-        WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
-      ) sub
-      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = sub.resolved_pricing_tier_id
-      WHERE 1=1
+      SELECT c.*,
+             COALESCE(c.credit_limit,          p.credit_limit,          0)            AS credit_limit,
+             COALESCE(c.credit_period_enabled, p.credit_period_enabled, 0)            AS credit_period_enabled,
+             COALESCE(c.credit_period_days,    p.credit_period_days,    30)           AS credit_period_days,
+             COALESCE(c.credit_period_basis,   p.credit_period_basis,   'BILL_BASED') AS credit_period_basis,
+             COALESCE(c.restrict_on_credit_expiry, p.restrict_on_credit_expiry, 1)   AS restrict_on_credit_expiry,
+             p.balance                                                                AS party_balance,
+             p.gstin                                                                  AS gstin,
+             p.notes                                                                  AS notes,
+             COALESCE(c.pricing_tier_id, p.pricing_tier_id)                          AS resolved_pricing_tier_id,
+             pt.name                                                                  AS pricing_tier_name
+      FROM customers c
+      LEFT JOIN parties p ON p.tenant_id = c.tenant_id
+        AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+        AND p.party_id = (
+          SELECT p2.party_id FROM parties p2
+          WHERE p2.tenant_id = c.tenant_id
+            AND (p2.is_deleted IS NULL OR p2.is_deleted = 0)
+            AND (
+              (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p2.phone IS NOT NULL AND TRIM(p2.phone) <> '' AND p2.phone = c.phone)
+              OR (LOWER(TRIM(p2.name)) = LOWER(TRIM(c.name)))
+            )
+          ORDER BY CASE WHEN p2.party_type = 'CUSTOMER' THEN 0 ELSE 1 END,
+                   ABS(COALESCE(p2.balance, 0)) DESC
+          LIMIT 1
+        )
+      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = COALESCE(c.pricing_tier_id, p.pricing_tier_id)
+      WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
     `;
     const params: any[] = [tenant_id];
 
     if (search) {
-      query += ` AND (sub.name LIKE ? OR sub.phone LIKE ?)`;
+      query += ` AND (c.name LIKE ? OR c.phone LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
 
     if (active) {
-      query += ` AND sub.last_purchase_date IS NOT NULL AND sub.last_purchase_date >= datetime('now', '-90 days')`;
+      query += ` AND c.last_purchase_date IS NOT NULL AND c.last_purchase_date >= datetime('now', '-90 days')`;
     }
 
     if (credit === true) {
-      query += ` AND sub.party_balance > 0`;
+      query += ` AND p.balance > 0`;
     } else if (credit === false) {
-      query += ` AND (sub.party_balance <= 0 OR sub.party_balance IS NULL)`;
+      query += ` AND (p.balance <= 0 OR p.balance IS NULL)`;
     }
 
     if (pricing_tier_id) {
-      query += ` AND sub.resolved_pricing_tier_id = ?`;
+      query += ` AND COALESCE(c.pricing_tier_id, p.pricing_tier_id) = ?`;
       params.push(pricing_tier_id);
     }
 
-    query += ` ORDER BY sub.name COLLATE NOCASE ASC`;
+    query += ` ORDER BY c.name COLLATE NOCASE ASC`;
 
     const rows = db.prepare(query).all(...params) as any[];
 
@@ -9080,6 +9012,11 @@ ipcMain.handle('db:createCustomer', (event, c: any) => {
   try {
     const db = getDb();
     if (!c.name || !c.tenant_id) return { success: false, error: 'Customer name and Tenant ID are required' };
+    const nameClean = (c.name || '').trim().toLowerCase();
+    const existingSameName = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, nameClean);
+    if (existingSameName) {
+      return { success: false, error: `A customer named "${c.name.trim()}" already exists!` };
+    }
 
     const customerId = c.customer_id || crypto.randomUUID();
     const creditLimit = Math.max(0, Number(c.credit_limit) || 0);
@@ -9088,14 +9025,17 @@ ipcMain.handle('db:createCustomer', (event, c: any) => {
     const creditPeriodBasis = c.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = c.restrict_on_credit_expiry !== undefined ? (c.restrict_on_credit_expiry ? 1 : 0) : 1;
 
+    const cleanGstin = (c.gstin || '').trim().toUpperCase() || null;
+    const cleanNotes = (c.notes || '').trim() || null;
+
     db.prepare(`
       INSERT INTO customers (
-        customer_id, tenant_id, name, phone, address, pricing_tier_id,
+        customer_id, tenant_id, name, phone, address, gstin, notes, pricing_tier_id,
         credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
         sync_status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run(
-      customerId, c.tenant_id, c.name, c.phone || null, c.address || null, c.pricing_tier_id || null,
+      customerId, c.tenant_id, c.name, c.phone || null, c.address || null, cleanGstin, cleanNotes, c.pricing_tier_id || null,
       creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry
     );
 
@@ -9114,12 +9054,14 @@ ipcMain.handle('db:createCustomer', (event, c: any) => {
       db.prepare(`
         UPDATE parties 
         SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+            gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
             credit_limit = ?, credit_period_enabled = ?, credit_period_days = ?, credit_period_basis = ?, restrict_on_credit_expiry = ?,
             pricing_tier_id = COALESCE(?, pricing_tier_id),
             sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE party_id = ?
       `).run(
         c.name, c.phone || null, c.address || null,
+        cleanGstin, cleanNotes,
         creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
         c.pricing_tier_id || null, matchedParty.party_id
       );
@@ -9127,13 +9069,13 @@ ipcMain.handle('db:createCustomer', (event, c: any) => {
       const partyId = crypto.randomUUID();
       db.prepare(`
         INSERT INTO parties (
-          party_id, tenant_id, name, phone, address, balance, gst_balance, estimate_balance,
+          party_id, tenant_id, name, phone, address, gstin, notes, balance, gst_balance, estimate_balance,
           balance_type, party_type, pricing_tier_id, credit_limit,
           credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
           is_deleted, sync_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
-        partyId, c.tenant_id, c.name, c.phone || null, c.address || null,
+        partyId, c.tenant_id, c.name, c.phone || null, c.address || null, cleanGstin, cleanNotes,
         c.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry
       );
     }
@@ -9245,6 +9187,14 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
     `;
     const params: any[] = [c.name, c.phone || null, c.address || null, c.pricing_tier_id || null];
 
+    if (c.gstin !== undefined) {
+      updateSql += `, gstin = ?`;
+      params.push(c.gstin ? c.gstin.trim().toUpperCase() : null);
+    }
+    if (c.notes !== undefined) {
+      updateSql += `, notes = ?`;
+      params.push(c.notes ? c.notes.trim() : null);
+    }
     if (hasCreditLimit) {
       updateSql += `, credit_limit = ?`;
       params.push(creditLimit);
@@ -9266,26 +9216,38 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
       params.push(restrictOnCreditExpiry);
     }
 
+    // Fetch existing customer details before update to ensure robust matching even if name or phone changed
+    const oldCustomerRow: any = db.prepare('SELECT tenant_id, phone, name FROM customers WHERE customer_id = ? AND tenant_id = ?').get(c.customer_id, c.tenant_id);
+    const oldPhone = (oldCustomerRow?.phone || '').trim();
+    const oldName = (oldCustomerRow?.name || '').trim();
+    const newPhone = (c.phone || '').trim();
+    const newName = (c.name || '').trim();
+
     updateSql += `, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`;
     params.push(c.customer_id, c.tenant_id);
 
     db.prepare(updateSql).run(...params);
 
     // Sync to matching party in parties
-    const cleanPhone = (c.phone || '').trim();
-    const cleanName = (c.name || '').trim();
     let matchedParty: any = null;
-    if (cleanPhone) {
-      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, cleanPhone);
+    if (newPhone) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, newPhone);
     }
-    if (!matchedParty && cleanName) {
-      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, cleanName.toLowerCase());
+    if (!matchedParty && oldPhone) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, oldPhone);
+    }
+    if (!matchedParty && newName) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, newName.toLowerCase());
+    }
+    if (!matchedParty && oldName) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, oldName.toLowerCase());
     }
 
     if (matchedParty) {
       db.prepare(`
         UPDATE parties 
         SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+            gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
             credit_limit = COALESCE(?, credit_limit),
             credit_period_enabled = COALESCE(?, credit_period_enabled),
             credit_period_days = COALESCE(?, credit_period_days),
@@ -9298,6 +9260,8 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
         c.name,
         c.phone || null,
         c.address || null,
+        c.gstin !== undefined ? (c.gstin ? c.gstin.trim().toUpperCase() : null) : null,
+        c.notes !== undefined ? (c.notes ? c.notes.trim() : null) : null,
         hasCreditLimit ? creditLimit : null,
         hasCreditPeriodEnabled ? creditPeriodEnabled : null,
         hasCreditPeriodDays ? creditPeriodDays : null,

@@ -95,7 +95,39 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }
   const [tempEndDate, setTempEndDate] = useState(endDate);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [effectiveAlign, setEffectiveAlign] = useState<'left' | 'right'>(align);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const updateAlignment = () => {
+    if (align === 'right') {
+      setEffectiveAlign('right');
+      return;
+    }
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      if (rect.left + 336 > window.innerWidth) {
+        setEffectiveAlign('right');
+      } else {
+        setEffectiveAlign('left');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (align === 'right') {
+      setEffectiveAlign('right');
+    } else {
+      updateAlignment();
+    }
+  }, [align]);
+
+  useEffect(() => {
+    if (open) {
+      updateAlignment();
+      window.addEventListener('resize', updateAlignment);
+      return () => window.removeEventListener('resize', updateAlignment);
+    }
+  }, [open, align]);
 
   useEffect(() => {
     if (open) {
@@ -194,7 +226,10 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }
     <div ref={containerRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => {
+          updateAlignment();
+          setOpen(o => !o);
+        }}
         className={clsx(
           'flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm transition-all bg-background select-none',
           open ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-muted-foreground/30'
@@ -214,8 +249,8 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }
 
       {open && (
         <div className={clsx(
-          "absolute top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 animate-in fade-in slide-in-from-top-2 max-h-[calc(100vh-180px)] overflow-y-auto",
-          align === 'right' ? "right-0" : "left-0"
+          "absolute top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 animate-in fade-in slide-in-from-top-2 max-h-[calc(100vh-180px)] overflow-y-auto",
+          effectiveAlign === 'right' ? "right-0" : "left-0"
         )}>
           {/* Header Split */}
           <div className="grid grid-cols-2 border-b border-border pb-2 mb-2">

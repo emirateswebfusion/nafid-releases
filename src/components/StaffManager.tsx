@@ -13,6 +13,8 @@ import { Modal } from './ui/Modal';
 import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
+import { WhatsAppIcon } from './ui/WhatsAppIcon';
+import { formatWhatsAppStaffSalaryMessage } from '../utils/whatsappBillHelper';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { PermissionSelector } from './PermissionSelector';
@@ -489,6 +491,51 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
   };
 
   // Toggle Staff Active / Inactive Status
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
+  const handleSendWhatsAppSalary = async () => {
+    if (!selectedStaff) return;
+    const phone = (selectedStaff.phone || '').trim();
+    if (!phone) {
+      setStatusMessage({ text: 'Staff member does not have a phone number saved', type: 'error' });
+      return;
+    }
+    if (!window.electronAPI?.whatsappSendInvoice) {
+      setStatusMessage({ text: 'WhatsApp service not available', type: 'error' });
+      return;
+    }
+
+    setIsSendingWhatsApp(true);
+    try {
+      const shopNameVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' });
+      const storeName = shopNameVal || 'My Shop';
+
+      const waMsg = formatWhatsAppStaffSalaryMessage({
+        shopName: storeName,
+        staffName: selectedStaff.name,
+        staffCode: selectedStaff.staff_code,
+        monthlySalary: selectedStaff.monthly_salary,
+        currentBalance: selectedStaff.current_balance,
+      });
+
+      const res = await window.electronAPI.whatsappSendInvoice({
+        phone,
+        message: waMsg,
+      });
+
+      if (res?.success) {
+        setStatusMessage({ text: 'Salary statement sent to ' + selectedStaff.name + ' via WhatsApp!', type: 'success' });
+      } else {
+        setStatusMessage({ text: 'WhatsApp Send Failed: ' + (res?.error || 'Unknown error'), type: 'error' });
+      }
+    } catch (err) {
+      console.error('Failed to send salary statement via WhatsApp', err);
+      setStatusMessage({ text: 'Failed to send salary statement via WhatsApp', type: 'error' });
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
   const handleToggleStatus = async (staffMember: StaffMember) => {
     const newStatus = staffMember.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     try {
@@ -796,6 +843,19 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
                       className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer flex items-center gap-1.5"
                     >
                       <Edit className="w-3.5 h-3.5" /> Edit Profile
+                    </button>
+                    <button
+                      onClick={handleSendWhatsAppSalary}
+                      disabled={isSendingWhatsApp}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
+                      title="Send Salary Statement to Staff via WhatsApp"
+                    >
+                      {isSendingWhatsApp ? (
+                        <div className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin shrink-0" />
+                      ) : (
+                        <WhatsAppIcon className="w-3.5 h-3.5 fill-emerald-500 text-emerald-500 shrink-0" />
+                      )}
+                      <span>WhatsApp Statement</span>
                     </button>
                   </div>
                 </div>

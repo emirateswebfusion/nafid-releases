@@ -121,7 +121,9 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       dAmt = (Number(item.base_price) * (dPct / 100)) * qty;
     }
 
-    const taxableVal = item.taxable_amount != null ? Number(item.taxable_amount) : (isGst ? lineTotal : lineTotal);
+    let taxableVal = (item.taxable_amount != null && Number(item.taxable_amount) > 0)
+      ? Number(item.taxable_amount)
+      : (rate * qty > 0 ? (rate * qty) : lineTotal);
     const taxRate = Number(item.tax_rate_percent) || 0;
     const halfRate = taxRate / 2;
 
@@ -247,19 +249,19 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       text-transform: uppercase;
       letter-spacing: 0.6px;
       line-height: 1.2;
-      color: #0f172a;
+      color: #000000;
       margin: 0 0 3px 0;
     }
     .shop-meta-line {
       font-size: 10px;
       font-weight: 500;
-      color: #334155;
+      color: #000000;
       margin: 2px 0;
       line-height: 1.35;
     }
     .shop-meta-line strong {
       font-weight: 700;
-      color: #0f172a;
+      color: #000000;
     }
     .quotation-title-banner {
       display: inline-block;
@@ -280,7 +282,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       display: table;
       width: 100%;
       table-layout: fixed;
-      border-bottom: 1.5px solid #0f172a;
+      border-bottom: 1.5px solid #000000;
       margin-top: 0;
     }
     .details-col-left, .details-col-right {
@@ -290,7 +292,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     .details-col-left {
       width: 56%;
-      border-right: 1.5px solid #0f172a;
+      border-right: 1.5px solid #000000;
     }
     .details-col-right {
       width: 44%;
@@ -301,20 +303,20 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.6px;
-      color: #475569;
-      border-bottom: 1px dashed #cbd5e1;
+      color: #000000;
+      border-bottom: 1px dashed #000000;
       padding-bottom: 3px;
       margin-bottom: 4px;
     }
     .customer-name {
       font-size: 12.5px;
       font-weight: 700;
-      color: #0f172a;
+      color: #000000;
       margin-bottom: 2px;
     }
     .detail-text {
       font-size: 10px;
-      color: #334155;
+      color: #000000;
       margin: 2px 0;
       line-height: 1.35;
     }
@@ -329,12 +331,12 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     .meta-label {
       font-weight: 600;
-      color: #475569;
+      color: #000000;
       width: 44%;
     }
     .meta-value {
       text-align: right;
-      color: #0f172a;
+      color: #000000;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
@@ -363,7 +365,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     table.product-table th {
       background-color: #f8fafc;
-      border: 1px solid #0f172a;
+      border: 1px solid #000000;
       border-top: none;
       padding: 6px 4px;
       font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
@@ -372,13 +374,13 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       text-transform: uppercase;
       letter-spacing: 0.4px;
       text-align: center;
-      color: #0f172a;
+      color: #000000;
     }
     table.product-table td {
-      border: 1px solid #0f172a;
+      border: 1px solid #000000;
       padding: 5px 4px;
       vertical-align: middle;
-      color: #0f172a;
+      color: #000000;
       line-height: 1.3;
       font-variant-numeric: tabular-nums;
       font-feature-settings: "tnum" 1;
@@ -390,7 +392,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     .item-name {
       font-weight: 600;
       font-size: 10.5px;
-      color: #0f172a;
+      color: #000000;
       word-break: break-word;
       white-space: normal;
     }
@@ -398,7 +400,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     /* TOTALS & SUMMARY */
     .summary-section {
       width: 100%;
-      border-top: 1.5px solid #0f172a;
+      border-top: 1.5px solid #000000;
       display: table;
       table-layout: fixed;
       page-break-inside: avoid;
@@ -409,7 +411,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       width: 56%;
       vertical-align: top;
       padding: 8px 10px 8px 4px;
-      border-right: 1.5px solid #0f172a;
+      border-right: 1.5px solid #000000;
     }
     .amounts-table-cell {
       display: table-cell;
@@ -419,7 +421,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     .words-box {
       background: #f8fafc;
-      border: 1px solid #cbd5e1;
+      border: 1px solid #000000;
       border-radius: 4px;
       padding: 6px 8px;
       margin-bottom: 8px;
@@ -429,14 +431,14 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       font-size: 8.5px;
       font-weight: 800;
       text-transform: uppercase;
-      color: #64748b;
+      color: #000000;
       letter-spacing: 0.5px;
       margin-bottom: 2px;
     }
     .words-value {
       font-size: 10.5px;
       font-weight: 700;
-      color: #0f172a;
+      color: #000000;
       line-height: 1.35;
     }
     .terms-box {
@@ -448,12 +450,12 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #334155;
+      color: #000000;
       margin-bottom: 3px;
     }
     .terms-text {
       font-size: 9.5px;
-      color: #475569;
+      color: #000000;
       line-height: 1.45;
       white-space: pre-line;
       margin: 0;
@@ -474,19 +476,19 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     }
     .amount-label {
       font-weight: 600;
-      color: #334155;
+      color: #000000;
       text-align: left;
     }
     .amount-value {
       text-align: right;
       font-weight: 600;
-      color: #0f172a;
+      color: #000000;
       font-variant-numeric: tabular-nums;
       font-feature-settings: "tnum" 1;
     }
     .grand-total-row td {
       background: #f1f5f9;
-      border-top: 1.5px solid #0f172a !important;
+      border-top: 1.5px solid #000000 !important;
       border-bottom: none !important;
       padding: 7px 8px !important;
     }
@@ -496,12 +498,12 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #0f172a;
+      color: #000000;
     }
     .grand-total-row .amount-value {
       font-size: 13.5px;
       font-weight: 800;
-      color: #0f172a;
+      color: #000000;
       letter-spacing: 0.2px;
       font-variant-numeric: tabular-nums;
     }
@@ -509,7 +511,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     /* BANK DETAILS & SIGNATURE (BOTTOM OF FINAL PAGE) */
     .footer-section {
       width: 100%;
-      border-top: 1.5px solid #0f172a;
+      border-top: 1.5px solid #000000;
       display: table;
       table-layout: fixed;
       margin-top: 8px;
@@ -521,7 +523,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       width: 56%;
       vertical-align: top;
       padding: 6px 8px;
-      border-right: 1.5px solid #0f172a;
+      border-right: 1.5px solid #000000;
       font-size: 9.5px;
     }
     .bank-title {
@@ -530,19 +532,19 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #475569;
-      border-bottom: 1px dashed #cbd5e1;
+      color: #000000;
+      border-bottom: 1px dashed #000000;
       padding-bottom: 2px;
       margin-bottom: 4px;
     }
     .bank-row {
       margin: 2px 0;
-      color: #334155;
+      color: #000000;
     }
     .bank-row strong {
       display: inline-block;
       width: 85px;
-      color: #0f172a;
+      color: #000000;
       font-weight: 700;
     }
     .signature-box {
@@ -558,14 +560,14 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.4px;
-      color: #0f172a;
+      color: #000000;
       margin-bottom: 40px;
     }
     .sig-line {
       font-size: 9.5px;
       font-weight: 700;
-      color: #475569;
-      border-top: 1px dashed #64748b;
+      color: #000000;
+      border-top: 1px dashed #000000;
       display: inline-block;
       padding-top: 4px;
       min-width: 140px;

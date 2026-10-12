@@ -71,3 +71,41 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
 
   return `🧾 *INVOICE: ${inv}*\n🏢 *${shop}*\n📅 *Date:* ${date}${cust}${itemsText}${paymentText}${footer}`;
 }
+
+export interface WhatsAppStatementDetails {
+  shopName: string;
+  partyName: string;
+  partyType?: string;
+  phone?: string;
+  balance: number;
+  balanceLabel?: string;
+  totalDebit?: number;
+  totalCredit?: number;
+  entryCount: number;
+  lastDate?: string;
+}
+
+export function formatWhatsAppStatementMessage(data: WhatsAppStatementDetails): string {
+  const shop = data.shopName || 'STORE';
+  const bal = Math.abs(data.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const typeText = data.balance > 0 ? 'Receivable (Due)' : data.balance < 0 ? 'Payable (Advance/Credit)' : 'Settled';
+
+  return `📑 *ACCOUNT STATEMENT*\n🏢 *${shop}*\n👤 *Party:* ${data.partyName} (${data.partyType || 'Customer'})\n\n💰 *Current Balance:* ₹${bal} [${data.balanceLabel || typeText}]\n📊 *Total Entries:* ${data.entryCount}${data.lastDate ? `\n📅 *Last Activity:* ${data.lastDate}` : ''}\n\n🙏 *Thank you!*`;
+}
+
+export interface WhatsAppStaffSalaryDetails {
+  shopName: string;
+  staffName: string;
+  staffCode?: string;
+  monthlySalary?: number;
+  currentBalance: number;
+  monthYear?: string;
+}
+
+export function formatWhatsAppStaffSalaryMessage(data: WhatsAppStaffSalaryDetails): string {
+  const shop = data.shopName || 'STORE';
+  const bal = Number(data.currentBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sal = data.monthlySalary ? Number(data.monthlySalary).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : null;
+
+  return `👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ₹${sal}\n` : ''}💰 *Pending Balance:* ₹${bal}\n\n🙏 *Thank you!*`;
+}

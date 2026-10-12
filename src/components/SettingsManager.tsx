@@ -24,6 +24,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
 import { WhatsAppSettings } from './WhatsAppSettings';
+import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { isAdminRole } from '../utils/permissions';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
@@ -92,9 +93,9 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
   },
   {
     category: 'Integrations & Services',
-    icon: MessageSquare,
+    icon: WhatsAppIcon as any,
     items: [
-      { id: 'whatsapp', label: 'WhatsApp Integration', icon: MessageSquare },
+      { id: 'whatsapp', label: 'WhatsApp Integration', icon: WhatsAppIcon as any },
     ],
   },
   {

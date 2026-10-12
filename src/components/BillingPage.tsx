@@ -18,6 +18,7 @@ import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../utils/whatsappBillHelper';
+import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
@@ -6476,6 +6477,117 @@ loadFlags(tenantId || 'global');
     }
   };
 
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
+  const handleWhatsAppSendActiveBill = async () => {
+    if (items.length === 0) {
+      setHardwareError('No items in the active bill to send');
+      setTimeout(() => setHardwareError(null), 3500);
+      return;
+    }
+    const custPhone = (customerPhone || activeTab?.customerPhone || '').trim();
+    if (!custPhone) {
+      setHardwareError('Please enter Customer Mobile Number to send via WhatsApp');
+      setTimeout(() => setHardwareError(null), 4000);
+      return;
+    }
+    if (!window.electronAPI?.whatsappSendInvoice) {
+      setHardwareError('WhatsApp service not available in this environment');
+      setTimeout(() => setHardwareError(null), 3500);
+      return;
+    }
+
+    setIsSendingWhatsApp(true);
+    try {
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+
+      const isB2B = Boolean(customerGstin?.trim());
+      const isGstOrB2B = invoiceType === 'GST' || isB2B;
+      const isHalfA4 = printFmt.format === 'half-a4';
+      const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
+
+      const billNo = activeTab?.reservedInvoiceNumber || activeTab?.title || 'ACTIVE';
+      const receiptItems = items.map(item => {
+        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
+        const qty = Number(item.quantity) || 0;
+        const total = rate * qty;
+        return {
+          name: item.name,
+          quantity: qty,
+          unit_price: rate,
+          total,
+          brand: item.brand_manufacturer || undefined,
+          billing_type: item.billing_type,
+          unit: item.unit || item.uom,
+        };
+      });
+
+      const activeReceiptData: ReceiptData = {
+        shopName: shopNameState || shopName || 'My Shop',
+        shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
+        shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (shopAddress || undefined) : undefined,
+        shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (shopPhone || undefined) : undefined,
+        invoiceNumber: billNo,
+        date: formatBillDateTime(new Date()),
+        billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (useAuthStore.getState().userName || undefined) : undefined,
+        items: receiptItems,
+        subtotal,
+        tax: totalTax,
+        discount,
+        grandTotal: displayGrandTotal,
+        paymentMethod,
+        customerName: customerName || undefined,
+        customerPhone: custPhone,
+        customerAddress: customerAddress || undefined,
+        customerGstin: customerGstin?.trim() || undefined,
+        billSettings,
+        isB2B,
+      };
+
+      const fullHtml = generateInvoiceHtml(activeReceiptData, invStyle as any);
+      const waMessage = formatWhatsAppBillMessage({
+        shopName: shopNameState || shopName || 'Store',
+        invoiceNumber: billNo,
+        date: new Date().toLocaleDateString('en-IN'),
+        customerName: customerName || undefined,
+        customerPhone: custPhone,
+        items: receiptItems.map(i => ({
+          name: i.name,
+          quantity: i.quantity,
+          unit_price: Number(i.unit_price) || 0,
+          total: Number(i.total) || 0
+        })),
+        grandTotal: displayGrandTotal,
+        receivedAmount: paymentMethod === 'CASH' ? Number(receivedAmount || displayGrandTotal) : displayGrandTotal,
+        balanceAmount: paymentMethod === 'CREDIT' ? displayGrandTotal : 0,
+        paymentMethod,
+      });
+
+      const sendRes = await window.electronAPI.whatsappSendInvoice({
+        phone: custPhone,
+        message: waMessage,
+        htmlContent: fullHtml,
+        fileName: "Invoice_" + billNo + ".pdf"
+      });
+
+      if (sendRes?.success) {
+        setInfoToast("Invoice PDF sent to WhatsApp (" + custPhone + ") successfully!");
+        setTimeout(() => setInfoToast(null), 4000);
+      } else {
+        setHardwareError("WhatsApp Send Failed: " + (sendRes?.error || 'Unknown error'));
+        setTimeout(() => setHardwareError(null), 5000);
+      }
+    } catch (err: any) {
+      console.error('[WhatsApp Manual Send Error]:', err);
+      setHardwareError("WhatsApp Error: " + (err?.message || 'Could not send'));
+      setTimeout(() => setHardwareError(null), 5000);
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
   const [heldBills, setHeldBills] = useState<any[]>([]);
   const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
   const [heldBillsLoading, setHeldBillsLoading] = useState(false);
@@ -11466,6 +11578,19 @@ loadFlags(tenantId || 'global');
                   >
                     <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                     <span>Save</span>
+                  </button>
+                  <button
+                    onClick={handleWhatsAppSendActiveBill}
+                    disabled={isSendingWhatsApp || items.length === 0}
+                    className="px-2.5 sm:px-3 md:px-3.5 py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-black text-xs sm:text-xs md:text-sm lg:text-base flex items-center justify-center gap-1 sm:gap-1.5 hover:bg-emerald-500/10 hover:border-emerald-500 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer shrink-0"
+                    title="Send Active Bill via WhatsApp"
+                  >
+                    {isSendingWhatsApp ? (
+                      <div className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin shrink-0" />
+                    ) : (
+                      <WhatsAppIcon className="w-4 h-4 fill-emerald-500 text-emerald-500 shrink-0" />
+                    )}
+                    <span className="hidden sm:inline">WhatsApp</span>
                   </button>
                   <button
                     onClick={() => handleSaveQuotation(true)}

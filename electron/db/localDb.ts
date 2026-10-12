@@ -206,6 +206,17 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_product_pricing_tenant_product ON product_pricing(tenant_id, product_id, is_deleted);
     CREATE INDEX IF NOT EXISTS idx_pricing_tiers_tenant ON pricing_tiers(tenant_id, is_deleted);
 
+    -- Performance indexes for customer list & detail queries
+    CREATE INDEX IF NOT EXISTS idx_customers_tenant_deleted ON customers(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+    CREATE INDEX IF NOT EXISTS idx_customers_customer_id ON customers(customer_id, tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_parties_tenant_phone ON parties(tenant_id, phone, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_parties_tenant_deleted ON parties(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_party_ledger_party_id ON party_ledger(party_id, tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_invoices_customer_tenant ON invoices(customer_id, tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_customer ON loyalty_transactions(customer_id, tenant_id);
+
+
     CREATE TABLE IF NOT EXISTS parties (
         party_id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
@@ -519,6 +530,8 @@ export function initDb() {
         name TEXT NOT NULL,
         phone TEXT,
         address TEXT,
+        gstin TEXT,
+        notes TEXT,
         pricing_tier_id TEXT,
         credit_limit REAL DEFAULT 0,
         credit_period_enabled INTEGER DEFAULT 0,
@@ -832,7 +845,7 @@ export function initDb() {
         'performed_at', 'sync_status', 'created_at'
     ],
     customers: [
-        'customer_id', 'tenant_id', 'name', 'phone', 'address', 'total_points_earned', 'total_points_redeemed',
+        'customer_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'notes', 'total_points_earned', 'total_points_redeemed',
         'current_points_balance', 'pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     returns: [
@@ -1525,6 +1538,14 @@ export function initDb() {
       console.log('[DB Migration] Adding restrict_on_credit_expiry to customers...');
       db.exec("ALTER TABLE customers ADD COLUMN restrict_on_credit_expiry INTEGER DEFAULT 1");
     }
+    if (!custCols.includes('gstin')) {
+      console.log('[DB Migration] Adding gstin to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN gstin TEXT");
+    }
+    if (!custCols.includes('notes')) {
+      console.log('[DB Migration] Adding notes to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN notes TEXT");
+    }
 
     // Backfill: existing balances are treated as GST balance (legacy behavior)
     db.exec("UPDATE parties SET gst_balance = balance WHERE gst_balance = 0 AND balance != 0");
@@ -2064,12 +2085,12 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         const cleanPhone = (c.phone || '').replace(/\D/g, '');
         const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
 
-        if (last10 && !last10.startsWith('0000')) {
-          if (phoneMap.has(last10)) {
-            union(i, phoneMap.get(last10)!);
-          } else {
-            phoneMap.set(last10, i);
-          }
+        // Phone match alone does not merge; different people can share numbers
+        // Only exact normalized names merge duplicates
+        if (normName && normName.length >= 2 && last10 && !last10.startsWith('0000')) {
+          const comboKey = normName + ":" + last10;
+          if (phoneMap.has(comboKey)) union(i, phoneMap.get(comboKey)!);
+          else phoneMap.set(comboKey, i);
         }
 
         if (normName && normName.length >= 2) {
@@ -2172,14 +2193,14 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         const cleanPhone = (p.phone || '').replace(/\D/g, '');
         const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
 
-        if (last10 && !last10.startsWith('0000')) {
-          const phoneKey = `${pType}:${last10}`;
-          if (phoneMap.has(phoneKey)) {
-            union(i, phoneMap.get(phoneKey)!);
-          } else {
-            phoneMap.set(phoneKey, i);
-          }
+        // Phone match alone does not merge; different people can share numbers
+        // Only exact same party_type + normalized name merge duplicates
+        if (normName && normName.length >= 3 && last10 && !last10.startsWith('0000')) {
+          const comboKey = pType + ":" + normName + ":" + last10;
+          if (phoneMap.has(comboKey)) union(i, phoneMap.get(comboKey)!);
+          else phoneMap.set(comboKey, i);
         }
+        // end combo phone key
 
         if (normName && normName.length >= 3) {
           const nameKey = `${pType}:${normName}`;
