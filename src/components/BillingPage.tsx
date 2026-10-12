@@ -6,7 +6,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, MessageSquare, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -17,6 +17,7 @@ import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { formatWhatsAppBillMessage } from '../utils/whatsappBillHelper';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
@@ -5923,28 +5924,42 @@ loadFlags(tenantId || 'global');
       const matchedParty = findMatchingParty(cleanCustName, cleanCustPhone);
       const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) : 0;
 
-      // ── Credit Limit Enforcement ─────────────────────────────────────────────
-      // Block checkout if the party's credit balance would exceed their limit.
-      if (matchedParty && Number(matchedParty.credit_limit) > 0) {
-        const creditLimit = Number(matchedParty.credit_limit);
-        // Determine how much of THIS bill is on credit
-        let billCreditAmount = 0;
-        if (effectiveFinalPaymentMethod === 'CREDIT') {
-          // Whole bill goes on credit (effectiveGrandTotal already accounts for loyalty points)
-          billCreditAmount = Math.max(0, effectiveGrandTotal);
-        } else if (effectiveFinalPaymentMethod === 'SPLIT') {
-          billCreditAmount = Math.max(0, Number(splitDetails.credit) || 0);
+      // ── Credit Limit & Credit Period Enforcement ──────────────────────────────
+      // Determine how much of THIS bill is on credit
+      let billCreditAmount = 0;
+      if (effectiveFinalPaymentMethod === 'CREDIT') {
+        billCreditAmount = Math.max(0, effectiveGrandTotal);
+      } else if (effectiveFinalPaymentMethod === 'SPLIT') {
+        billCreditAmount = Math.max(0, Number(splitDetails.credit) || 0);
+      }
+
+      // Check credit period expiry restriction (Cash purchases remain 100% available)
+      if (billCreditAmount > 0 && matchedParty) {
+        const creditPeriodEnabled = Boolean((matchedParty as any).credit_period_enabled);
+        const restrictOnExpiry = (matchedParty as any).restrict_on_credit_expiry !== false && (matchedParty as any).restrict_on_credit_expiry !== 0;
+        const hasOverdue = Boolean((matchedParty as any).has_overdue);
+
+        if (creditPeriodEnabled && restrictOnExpiry && hasOverdue) {
+          const overdueCount = (matchedParty as any).overdue_bills_count || 1;
+          const overdueAmt = (matchedParty as any).overdue_amount ? ` (₹${Number((matchedParty as any).overdue_amount).toFixed(2)})` : '';
+          setHardwareError(
+            `Credit purchases restricted for ${matchedParty.name}! Customer has ${overdueCount} overdue bill${overdueCount !== 1 ? 's' : ''}${overdueAmt} exceeding credit period. Please collect outstanding dues or switch to Cash/Card/UPI.`
+          );
+          return;
         }
-        if (billCreditAmount > 0) {
-          const projectedBalance = partyOldBalance + billCreditAmount;
-          if (projectedBalance > creditLimit) {
-            const excess = projectedBalance - creditLimit;
-            const fmtNum = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            setHardwareError(
-              `Credit Limit Exceeded for ${matchedParty.name}! Limit: ₹${fmtNum(creditLimit)}, Current Due: ₹${fmtNum(partyOldBalance)}, Bill Credit: ₹${fmtNum(billCreditAmount)}. Exceeds limit by ₹${fmtNum(excess)} — Cannot complete bill.`
-            );
-            return;
-          }
+      }
+
+      // Block checkout if the party's credit balance would exceed their limit.
+      if (matchedParty && Number(matchedParty.credit_limit) > 0 && billCreditAmount > 0) {
+        const creditLimit = Number(matchedParty.credit_limit);
+        const projectedBalance = partyOldBalance + billCreditAmount;
+        if (projectedBalance > creditLimit) {
+          const excess = projectedBalance - creditLimit;
+          const fmtNum = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          setHardwareError(
+            `Credit Limit Exceeded for ${matchedParty.name}! Limit: ₹${fmtNum(creditLimit)}, Current Due: ₹${fmtNum(partyOldBalance)}, Bill Credit: ₹${fmtNum(billCreditAmount)}. Exceeds limit by ₹${fmtNum(excess)} — Cannot complete bill.`
+          );
+          return;
         }
       }
       // ─────────────────────────────────────────────────────────────────────────
@@ -6036,6 +6051,15 @@ loadFlags(tenantId || 'global');
         billSettings,
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
+        ...(billCreditAmount > 0 && matchedParty && (matchedParty as any).credit_period_enabled ? {
+          dueDate: (() => {
+            const days = Number((matchedParty as any).credit_period_days) || 30;
+            const d = new Date();
+            d.setDate(d.getDate() + days);
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+          })(),
+          creditPeriodDays: Number((matchedParty as any).credit_period_days) || 30,
+        } : {}),
       };
 
       let result: any;
@@ -6233,6 +6257,45 @@ loadFlags(tenantId || 'global');
       }
 
       setCheckoutSuccess(saveOnly || !printSuccess ? 'saved' : 'printed');
+
+      // ── Send Bill via WhatsApp (Automatic if enabled & phone present) ──
+      const isAutoWhatsApp = localStorage.getItem('auto_whatsapp_send') === 'true';
+      const custPhone = (customerPhone || activeTab?.customerPhone || '').trim();
+      if (isAutoWhatsApp && custPhone && window.electronAPI?.whatsappSendInvoice) {
+        try {
+          const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
+          const fullHtml = generateInvoiceHtml(receiptData, invStyle as any);
+          const waMessage = formatWhatsAppBillMessage({
+            shopName: receiptData.shopName || shopName || 'Store',
+            invoiceNumber: confirmedInvoiceNumber,
+            date: receiptData.date || new Date().toLocaleDateString('en-IN'),
+            customerName: customerName || undefined,
+            customerPhone: custPhone,
+            items: (receiptItems || []).map((i: any) => ({
+              name: i.name,
+              quantity: i.quantity,
+              unit_price: Number(i.unit_price) || 0,
+              total: Number(i.total) || 0
+            })),
+            grandTotal: effectiveGrandTotal,
+            receivedAmount: effectiveReceivedAmount,
+            balanceAmount: (partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)) ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount,
+            paymentMethod: effectiveFinalPaymentMethod,
+            dueDate: (receiptData as any).dueDate,
+            creditPeriodDays: (receiptData as any).creditPeriodDays,
+            customerBalance: partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : undefined,
+          });
+
+          window.electronAPI.whatsappSendInvoice({
+            phone: custPhone,
+            message: waMessage,
+            htmlContent: fullHtml,
+            fileName: `Invoice_${confirmedInvoiceNumber}.pdf`
+          }).catch((err) => console.warn('[WhatsApp Auto Send Error]:', err));
+        } catch (e) {
+          console.warn('[WhatsApp Build Error]:', e);
+        }
+      }
 
       // Notify the cashier settlement page (if open) to refresh instantly
       try {
@@ -7546,6 +7609,63 @@ loadFlags(tenantId || 'global');
             </div>
           </div>
         );
+      })()}
+
+      {/* Real-time Credit Period & Overdue Status Warning Banner */}
+      {(() => {
+        const party = findMatchingParty(customerName, customerPhone);
+        if (!party || !(party as any).credit_period_enabled) return null;
+        const isCreditTx = paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && Number(splitDetails.credit) > 0);
+        const hasOverdue = Boolean((party as any).has_overdue);
+        const isRestricted = (party as any).restrict_on_credit_expiry !== false && (party as any).restrict_on_credit_expiry !== 0;
+        const overdueCount = (party as any).overdue_bills_count || 0;
+        const overdueAmt = Number((party as any).overdue_amount || 0);
+        const creditDays = (party as any).credit_period_days || 30;
+        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        if (hasOverdue) {
+          return (
+            <div className={`mb-2 rounded-xl px-3 py-2 border text-xs flex flex-col gap-1 transition-all duration-300 ${
+              isCreditTx && isRestricted
+                ? 'border-rose-500 bg-rose-500/15 text-rose-800 dark:text-rose-300 shadow-xs'
+                : 'border-amber-400 bg-amber-500/10 text-amber-800 dark:text-amber-300'
+            }`}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-extrabold flex items-center gap-1">
+                  ⚠️ Overdue Payment Alert ({overdueCount} bill{overdueCount !== 1 ? 's' : ''})
+                </span>
+                <span className="font-mono font-bold">Total Overdue: ₹{fmtN(overdueAmt)}</span>
+              </div>
+              <p className="text-[11px] font-semibold leading-snug">
+                {isCreditTx && isRestricted ? (
+                  <span className="text-rose-700 dark:text-rose-400 font-extrabold">
+                    🚫 Further credit purchases are restricted for this customer until overdue bills are settled. Switch to Cash/Card/UPI.
+                  </span>
+                ) : (
+                  <span>
+                    Customer has {overdueCount} bill(s) past the {creditDays}-day credit period. {isCreditTx ? 'Credit purchase is permitted under owner policy.' : ''}
+                  </span>
+                )}
+              </p>
+            </div>
+          );
+        }
+
+        if (isCreditTx) {
+          const projectedDueDate = new Date();
+          projectedDueDate.setDate(projectedDueDate.getDate() + creditDays);
+          const dueStr = projectedDueDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+          return (
+            <div className="mb-2 rounded-xl px-3 py-1.5 border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs flex items-center justify-between gap-2">
+              <span className="font-bold flex items-center gap-1">
+                ⏳ Credit Period: {creditDays} Days
+              </span>
+              <span className="font-mono font-semibold text-[11px]">Payment Due By: {dueStr}</span>
+            </div>
+          );
+        }
+
+        return null;
       })()}
 
       <div className="flex items-center gap-2 flex-wrap">

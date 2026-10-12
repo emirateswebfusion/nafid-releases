@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { isAdminRole } from '../utils/permissions';
 import {
-  Search, ChevronLeft, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
+  Search, ChevronLeft, User, UserCheck, UserPlus, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
   Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save, Download, Printer, FileText
 } from 'lucide-react';
@@ -36,6 +36,15 @@ interface Customer {
   last_purchase_date: string;
   created_at: string;
   party_balance?: number;
+  credit_limit?: number;
+  credit_period_enabled?: boolean | number;
+  credit_period_days?: number;
+  credit_period_basis?: 'BILL_BASED' | 'OLDEST_UNPAID' | string;
+  restrict_on_credit_expiry?: boolean | number;
+  has_overdue?: boolean;
+  overdue_bills_count?: number;
+  overdue_amount?: number;
+  oldest_overdue_days?: number;
   pricing_tier_id?: string;
   pricing_tier_name?: string;
 }
@@ -49,6 +58,13 @@ interface Party {
   estimate_balance?: number;
   balance_type: 'RECEIVABLE' | 'PAYABLE';
   credit_limit?: number;
+  credit_period_enabled?: boolean | number;
+  credit_period_days?: number;
+  credit_period_basis?: 'BILL_BASED' | 'OLDEST_UNPAID' | string;
+  restrict_on_credit_expiry?: boolean | number;
+  has_overdue?: boolean;
+  overdue_bills_count?: number;
+  overdue_amount?: number;
 }
 
 interface LoyaltyTx {
@@ -95,6 +111,13 @@ interface InvoiceRecord {
   notes?: string;
   discount_type?: string;
   split_details?: string;
+  due_date?: string | null;
+  is_credit_bill?: boolean;
+  outstanding_amount?: number;
+  is_overdue?: boolean;
+  overdue_days?: number;
+  remaining_days?: number;
+  credit_status?: 'OVERDUE' | 'DUE_SOON' | 'ACTIVE' | 'PAID' | 'NON_CREDIT' | string;
 }
 
 interface InvoiceItemRow {
@@ -220,7 +243,9 @@ export function CustomersPage({
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState(false);
   const [filterCredit, setFilterCredit] = useState<'all' | 'credit' | 'no-credit'>('all');
+  const [filterOverdue, setFilterOverdue] = useState(false);
   const [filterPricingTier, setFilterPricingTier] = useState<string>('');
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
 
   const [view, setView] = useState<View>('list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -252,10 +277,35 @@ export function CustomersPage({
   const [matchedPartyToDelete, setMatchedPartyToDelete] = useState<Party | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
 
+  // Add Customer Modal state
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [isSavingAdd, setIsSavingAdd] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    pricing_tier_id: '',
+    credit_limit: '',
+    credit_period_enabled: false,
+    credit_period_days: '30',
+    credit_period_basis: 'BILL_BASED',
+    restrict_on_credit_expiry: true
+  });
+
   // Edit Customer Modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', address: '', pricing_tier_id: '' });
+  const [editForm, setEditForm] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    pricing_tier_id: '',
+    credit_limit: '',
+    credit_period_enabled: false,
+    credit_period_days: '30',
+    credit_period_basis: 'BILL_BASED',
+    restrict_on_credit_expiry: true
+  });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -310,6 +360,61 @@ export function CustomersPage({
     }
   };
 
+  const handleAddCustomerClick = () => {
+    if (!isOwner) {
+      showStatus('Only owners can add customers', 'error');
+      return;
+    }
+    setAddForm({
+      name: '',
+      phone: '',
+      address: '',
+      pricing_tier_id: '',
+      credit_limit: '',
+      credit_period_enabled: false,
+      credit_period_days: '30',
+      credit_period_basis: 'BILL_BASED',
+      restrict_on_credit_expiry: true,
+    });
+    setAddModalOpen(true);
+  };
+
+  const handleConfirmAddCustomer = async () => {
+    if (!tenantId || !window.electronAPI?.dbCreateCustomer) return;
+    if (!addForm.name.trim()) {
+      showStatus('Customer name is required', 'error');
+      return;
+    }
+    setIsSavingAdd(true);
+    try {
+      const parsedCreditLimit = Math.max(0, parseFloat(addForm.credit_limit) || 0);
+      const parsedCreditPeriodDays = Math.max(1, parseInt(addForm.credit_period_days, 10) || 30);
+      const res = await window.electronAPI.dbCreateCustomer({
+        tenant_id: tenantId,
+        name: addForm.name.trim(),
+        phone: addForm.phone.trim() || null,
+        address: addForm.address.trim() || null,
+        pricing_tier_id: addForm.pricing_tier_id || null,
+        credit_limit: parsedCreditLimit,
+        credit_period_enabled: addForm.credit_period_enabled,
+        credit_period_days: parsedCreditPeriodDays,
+        credit_period_basis: addForm.credit_period_basis,
+        restrict_on_credit_expiry: addForm.restrict_on_credit_expiry,
+      });
+      if (res?.success) {
+        showStatus('Customer created successfully', 'success');
+        setAddModalOpen(false);
+        await loadCustomers();
+      } else {
+        showStatus(res?.error || 'Failed to create customer', 'error');
+      }
+    } catch {
+      showStatus('Failed to create customer', 'error');
+    } finally {
+      setIsSavingAdd(false);
+    }
+  };
+
   const handleEditCustomerClick = (cust: Customer, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!isOwner) {
@@ -317,7 +422,17 @@ export function CustomersPage({
       return;
     }
     setEditingCustomer(cust);
-    setEditForm({ name: cust.name, phone: cust.phone || '', address: cust.address || '', pricing_tier_id: cust.pricing_tier_id || '' });
+    setEditForm({
+      name: cust.name,
+      phone: cust.phone || '',
+      address: cust.address || '',
+      pricing_tier_id: cust.pricing_tier_id || '',
+      credit_limit: cust.credit_limit != null && Number(cust.credit_limit) > 0 ? String(cust.credit_limit) : '',
+      credit_period_enabled: Boolean(cust.credit_period_enabled),
+      credit_period_days: String(cust.credit_period_days || 30),
+      credit_period_basis: cust.credit_period_basis || 'BILL_BASED',
+      restrict_on_credit_expiry: cust.restrict_on_credit_expiry !== false && (cust.restrict_on_credit_expiry as any) !== 0,
+    });
     setEditModalOpen(true);
   };
 
@@ -329,6 +444,8 @@ export function CustomersPage({
     }
     setIsSavingEdit(true);
     try {
+      const parsedCreditLimit = Math.max(0, parseFloat(editForm.credit_limit) || 0);
+      const parsedCreditPeriodDays = Math.max(1, parseInt(editForm.credit_period_days, 10) || 30);
       const res = await window.electronAPI.dbUpdateCustomer({
         customer_id: editingCustomer.customer_id,
         tenant_id: tenantId,
@@ -336,13 +453,27 @@ export function CustomersPage({
         phone: editForm.phone.trim() || null,
         address: editForm.address.trim() || null,
         pricing_tier_id: editForm.pricing_tier_id || null,
+        credit_limit: parsedCreditLimit,
+        credit_period_enabled: editForm.credit_period_enabled,
+        credit_period_days: parsedCreditPeriodDays,
+        credit_period_basis: editForm.credit_period_basis,
+        restrict_on_credit_expiry: editForm.restrict_on_credit_expiry,
       });
       if (res?.success) {
         showStatus('Customer updated successfully', 'success');
         setEditModalOpen(false);
         setEditingCustomer(null);
         if (selectedCustomer?.customer_id === editingCustomer.customer_id) {
-          setSelectedCustomer({ ...selectedCustomer, ...editForm, pricing_tier_name: pricingTiers.find(t => t.pricing_tier_id === editForm.pricing_tier_id)?.name });
+          setSelectedCustomer({
+            ...selectedCustomer,
+            ...editForm,
+            credit_limit: parsedCreditLimit,
+            credit_period_enabled: editForm.credit_period_enabled,
+            credit_period_days: parsedCreditPeriodDays,
+            credit_period_basis: editForm.credit_period_basis,
+            restrict_on_credit_expiry: editForm.restrict_on_credit_expiry,
+            pricing_tier_name: pricingTiers.find(t => t.pricing_tier_id === editForm.pricing_tier_id)?.name
+          });
         }
         await loadCustomers();
       } else {
@@ -380,10 +511,22 @@ export function CustomersPage({
           active: filterActive || undefined,
           credit: filterCredit === 'credit' ? true : filterCredit === 'no-credit' ? false : undefined,
           pricing_tier_id: filterPricingTier || undefined,
+          overdue: filterOverdue || undefined,
         }),
         window.electronAPI.dbGetParties(tenantId).catch(() => []),
       ]);
-      setCustomers(Array.isArray(custData) ? custData : []);
+
+      const cleanCusts: Customer[] = [];
+      if (Array.isArray(custData)) {
+        const seen = new Set<string>();
+        for (const c of custData) {
+          if (!c.customer_id || seen.has(c.customer_id)) continue;
+          seen.add(c.customer_id);
+          cleanCusts.push(c);
+        }
+      }
+
+      setCustomers(cleanCusts);
       setParties(Array.isArray(partyData) ? partyData : []);
     } catch {
       showStatus('Failed to load customers', 'error');
@@ -391,7 +534,25 @@ export function CustomersPage({
       setLoading(false);
       setFilterLoading(false);
     }
-  }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier, filterOverdue]);
+
+  const handleCleanDuplicates = async () => {
+    if (!tenantId || !window.electronAPI?.dbDeduplicateCustomers) return;
+    try {
+      setCleaningDuplicates(true);
+      const res = await window.electronAPI.dbDeduplicateCustomers(tenantId);
+      if (res.success) {
+        showStatus(`Merged ${res.merged_customers || 0} duplicate customer(s) & ${res.merged_parties || 0} duplicate ledger record(s)`, 'success');
+        await loadCustomers(false);
+      } else {
+        showStatus(res.error || 'Failed to merge duplicates', 'error');
+      }
+    } catch {
+      showStatus('Failed to merge duplicates', 'error');
+    } finally {
+      setCleaningDuplicates(false);
+    }
+  };
 
   useEffect(() => { loadCustomers(true); }, []);
   useEffect(() => { loadCustomers(false); setVisibleCount(50); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
@@ -1059,6 +1220,27 @@ export function CustomersPage({
 
           {/* Right Actions & Close */}
           <div className="flex items-center gap-3 shrink-0">
+            {view === 'list' && (
+              <button
+                onClick={handleCleanDuplicates}
+                disabled={cleaningDuplicates}
+                className="h-9 px-3 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/50 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                title="Scan and merge duplicate customer and credit ledger records"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${cleaningDuplicates ? 'animate-spin' : 'text-amber-500'}`} />
+                <span className="hidden sm:inline">{cleaningDuplicates ? 'Merging...' : 'Merge Duplicates'}</span>
+              </button>
+            )}
+            {view === 'list' && isOwner && (
+              <button
+                onClick={handleAddCustomerClick}
+                className="h-9 px-3.5 rounded-xl text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                title="Add New Customer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Add Customer</span>
+              </button>
+            )}
             {view === 'detail' && selectedCustomer && isOwner && (
               <>
                 <button
@@ -1173,6 +1355,26 @@ export function CustomersPage({
                   <CreditCard className="w-3.5 h-3.5" />
                   <span>No Credit</span>
                 </button>
+
+                {/* Overdue Filter */}
+                <button
+                  onClick={() => setFilterOverdue(!filterOverdue)}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer',
+                    filterOverdue
+                      ? 'bg-rose-500/10 text-rose-600 border border-rose-500/30 font-black'
+                      : 'bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-foreground'
+                  )}
+                  title="Filter customers with overdue credit payments"
+                >
+                  <AlertTriangle className={clsx("w-3.5 h-3.5", filterOverdue ? "text-rose-600 animate-pulse" : "text-muted-foreground")} />
+                  <span>Overdue</span>
+                  {customers.filter(c => c.has_overdue).length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-black leading-tight">
+                      {customers.filter(c => c.has_overdue).length}
+                    </span>
+                  )}
+                </button>
               </div>
 
               {/* Pricing Tier Filter */}
@@ -1193,14 +1395,15 @@ export function CustomersPage({
               )}
 
               {/* Clear Filters */}
-              {(filterActive || filterCredit !== 'all' || filterPricingTier) && (
+              {(filterActive || filterCredit !== 'all' || filterOverdue || filterPricingTier) && (
                 <button
                   onClick={() => {
                     setFilterActive(false);
                     setFilterCredit('all');
+                    setFilterOverdue(false);
                     setFilterPricingTier('');
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-destructive/80 border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-destructive/80 border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 transition-all cursor-pointer"
                   title="Clear all filters"
                 >
                   <FilterX className="w-3.5 h-3.5" />
@@ -1314,6 +1517,33 @@ export function CustomersPage({
                               )}
                               <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                             </div>
+                          </div>
+
+                          {/* Status and Credit Tags */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            {customer.has_overdue && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 animate-pulse">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {customer.overdue_bills_count || 1} OVERDUE
+                              </span>
+                            )}
+                            {Boolean(customer.credit_period_enabled) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                                <Clock className="w-2.5 h-2.5" />
+                                {customer.credit_period_days || 30}d Period
+                              </span>
+                            )}
+                            {customer.party_balance != null && customer.party_balance > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 font-mono">
+                                Due: ₹{customer.party_balance.toFixed(2)}
+                              </span>
+                            )}
+                            {customer.pricing_tier_name && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400">
+                                <Tag className="w-2.5 h-2.5" />
+                                {customer.pricing_tier_name}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between pt-2.5 border-t border-border/40 text-[11px]">
@@ -1442,6 +1672,63 @@ export function CustomersPage({
                       <span>View</span>
                       <ExternalLink className="w-3 h-3" />
                     </button>
+                  </div>
+                );
+              })()}
+
+              {/* Credit Period & Limit Status Card */}
+              {(() => {
+                const creditLimit = Number(selectedCustomer.credit_limit || matchedParty?.credit_limit || 0);
+                const hasCreditPeriod = Boolean(selectedCustomer.credit_period_enabled || matchedParty?.credit_period_enabled);
+                const days = selectedCustomer.credit_period_days || (matchedParty as any)?.credit_period_days || 30;
+                const isOverdue = Boolean(selectedCustomer.has_overdue || (matchedParty as any)?.has_overdue);
+                const overdueBillsCount = selectedCustomer.overdue_bills_count || (matchedParty as any)?.overdue_bills_count || 0;
+                const overdueAmount = Number(selectedCustomer.overdue_amount || (matchedParty as any)?.overdue_amount || 0);
+                const isRestricted = selectedCustomer.restrict_on_credit_expiry !== false && (selectedCustomer.restrict_on_credit_expiry as any) !== 0 && (matchedParty as any)?.restrict_on_credit_expiry !== false;
+
+                if (!hasCreditPeriod && creditLimit <= 0) return null;
+
+                return (
+                  <div className={clsx(
+                    "rounded-xl p-3 border flex-1 md:flex-initial min-w-[210px] flex items-center justify-between gap-3 shadow-xs",
+                    isOverdue
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400"
+                      : "bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
+                  )}>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{isOverdue ? 'Overdue Payment' : 'Credit Terms'}</span>
+                      </div>
+                      <div className="text-xs font-black mt-1 flex items-center gap-2">
+                        {isOverdue ? (
+                          <span className="text-rose-600 dark:text-rose-400 font-mono">
+                            {overdueBillsCount} bill{overdueBillsCount !== 1 ? 's' : ''} ({formatCurrency(overdueAmount)})
+                          </span>
+                        ) : hasCreditPeriod ? (
+                          <span className="font-mono text-foreground font-black">
+                            {days} Days Period
+                          </span>
+                        ) : (
+                          <span className="font-mono text-foreground font-black">
+                            Limit: {formatCurrency(creditLimit)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {creditLimit > 0 && <span>Limit: {formatCurrency(creditLimit)} · </span>}
+                        {hasCreditPeriod && (
+                          <span className={isRestricted && isOverdue ? "text-rose-600 dark:text-rose-400 font-bold" : ""}>
+                            {isRestricted ? (isOverdue ? 'Credit Blocked' : 'Strict') : 'Allowed'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isOverdue && (
+                      <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-xs shrink-0">
+                        OVERDUE
+                      </span>
+                    )}
                   </div>
                 );
               })()}
@@ -1661,6 +1948,32 @@ export function CustomersPage({
                               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                 {inv.payment_method && renderPaymentMethodBadge(inv.payment_method)}
                                 {inv.invoice_type && renderBillTypeBadge(inv)}
+                                {inv.due_date && (
+                                  <span className="text-[10px] font-mono font-bold text-muted-foreground flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded-md border border-border/40">
+                                    Due: {inv.due_date}
+                                  </span>
+                                )}
+                                {inv.credit_status === 'OVERDUE' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                                    ⚠️ {inv.overdue_days != null ? `${inv.overdue_days}d OVERDUE` : 'OVERDUE'}
+                                    {inv.outstanding_amount != null && ` (${formatCurrency(inv.outstanding_amount)})`}
+                                  </span>
+                                )}
+                                {inv.credit_status === 'DUE_SOON' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                    ⏰ Due in {inv.remaining_days}d
+                                  </span>
+                                )}
+                                {inv.credit_status === 'ACTIVE' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                                    ⏳ {inv.remaining_days != null ? `${inv.remaining_days}d left` : 'Active Credit'}
+                                  </span>
+                                )}
+                                {inv.credit_status === 'PAID' && (inv.payment_method === 'CREDIT' || inv.is_credit_bill) && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                    ✓ Settled
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1788,6 +2101,21 @@ export function CustomersPage({
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   {viewingInvoice.payment_method && renderPaymentMethodBadge(viewingInvoice.payment_method)}
                   {viewingInvoice.invoice_type && renderBillTypeBadge(viewingInvoice)}
+                  {viewingInvoice.due_date && (
+                    <span className="text-[10px] font-mono font-bold text-muted-foreground bg-background px-2 py-0.5 rounded-md border border-border">
+                      Due: {viewingInvoice.due_date}
+                    </span>
+                  )}
+                  {viewingInvoice.credit_status === 'OVERDUE' && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-xs">
+                      ⚠️ OVERDUE ({viewingInvoice.overdue_days != null ? `${viewingInvoice.overdue_days}d` : ''})
+                    </span>
+                  )}
+                  {viewingInvoice.credit_status === 'DUE_SOON' && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                      ⏰ Due in {viewingInvoice.remaining_days}d
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right">
@@ -2024,9 +2352,273 @@ export function CustomersPage({
         </Modal>
       )}
 
+      {/* Add Customer Modal */}
+      {addModalOpen && (
+        <Modal isOpen={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add New Customer" size="md">
+          <div className="space-y-4">
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Name <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  value={addForm.name}
+                  onChange={e => setAddForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                  placeholder="Customer name"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Phone</label>
+                  <input
+                    type="tel"
+                    value={addForm.phone}
+                    onChange={e => setAddForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                    placeholder="Phone number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Credit Limit (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 50000 (0 = No limit)"
+                      value={addForm.credit_limit}
+                      onChange={e => setAddForm(prev => ({ ...prev, credit_limit: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm no-spinners"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Address</label>
+                <textarea
+                  value={addForm.address}
+                  onChange={e => setAddForm(prev => ({ ...prev, address: e.target.value }))}
+                  rows={2}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm resize-none"
+                  placeholder="Customer address"
+                />
+              </div>
+
+              {pricingTiers.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Pricing Tier</label>
+                  <select
+                    value={addForm.pricing_tier_id}
+                    onChange={e => setAddForm(prev => ({ ...prev, pricing_tier_id: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm appearance-none"
+                  >
+                    <option value="">No Tier (Default Pricing)</option>
+                    {pricingTiers.map(tier => (
+                      <option key={tier.pricing_tier_id} value={tier.pricing_tier_id}>{tier.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Credit Period Section */}
+              <div className="pt-2 border-t border-border/70">
+                <div className={clsx(
+                  "rounded-2xl border transition-all duration-200 overflow-hidden",
+                  addForm.credit_period_enabled
+                    ? "bg-card border-indigo-500/30 shadow-xs"
+                    : "bg-muted/15 border-border/60"
+                )}>
+                  {/* Header & Toggle */}
+                  <div className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={clsx(
+                        "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                        addForm.credit_period_enabled
+                          ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        <Clock className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-foreground uppercase tracking-wider">Credit Period Management</span>
+                          {addForm.credit_period_enabled && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-mono">
+                              {addForm.credit_period_days || 30} Days
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                          Enforce payment deadlines independently of credit limits.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={addForm.credit_period_enabled}
+                        onChange={e => setAddForm(prev => ({ ...prev, credit_period_enabled: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {addForm.credit_period_enabled && (
+                    <div className="p-4 pt-2 border-t border-border/60 space-y-4 animate-in fade-in duration-200">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            Credit Duration (Days)
+                          </label>
+                          <span className="text-xs font-extrabold text-primary font-mono">
+                            {addForm.credit_period_days || 30} Days Grace Period
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/70 shrink-0">
+                            {[15, 30, 45, 50, 60].map(days => (
+                              <button
+                                key={days}
+                                type="button"
+                                onClick={() => setAddForm(prev => ({ ...prev, credit_period_days: String(days) }))}
+                                className={clsx(
+                                  "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95",
+                                  String(addForm.credit_period_days) === String(days)
+                                    ? "bg-primary text-primary-foreground shadow-xs"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+                                )}
+                              >
+                                {days}d
+                              </button>
+                            ))}
+                          </div>
+                          <div className="relative flex-1">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              placeholder="Custom days (e.g. 30)"
+                              value={addForm.credit_period_days}
+                              onChange={e => setAddForm(prev => ({ ...prev, credit_period_days: e.target.value }))}
+                              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all shadow-xs no-spinners pr-14"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                              Days
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Calculation Basis
+                        </label>
+                        <select
+                          value={addForm.credit_period_basis}
+                          onChange={e => setAddForm(prev => ({ ...prev, credit_period_basis: e.target.value }))}
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all shadow-xs"
+                        >
+                          <option value="BILL_BASED">Option A: Bill-Based (Payment due date calculated separately from each bill)</option>
+                          <option value="OLDEST_UNPAID">Option B: Oldest Unpaid Bill (Due date counted from oldest unsettled bill)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                          When Credit Period Expires
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setAddForm(prev => ({ ...prev, restrict_on_credit_expiry: true }))}
+                            className={clsx(
+                              "p-3 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-98 flex items-start gap-2.5",
+                              addForm.restrict_on_credit_expiry
+                                ? "border-rose-500 bg-rose-500/10 shadow-xs"
+                                : "border-border/80 bg-background hover:bg-muted/30"
+                            )}
+                          >
+                            <span className="text-base leading-none mt-0.5">🚫</span>
+                            <div className="min-w-0">
+                              <p className={clsx("text-xs font-black", addForm.restrict_on_credit_expiry ? "text-rose-600 dark:text-rose-400" : "text-foreground")}>
+                                Restrict Further Credit
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Blocks credit purchases if past bills are overdue. Cash sales remain available.
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setAddForm(prev => ({ ...prev, restrict_on_credit_expiry: false }))}
+                            className={clsx(
+                              "p-3 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-98 flex items-start gap-2.5",
+                              !addForm.restrict_on_credit_expiry
+                                ? "border-emerald-500 bg-emerald-500/10 shadow-xs"
+                                : "border-border/80 bg-background hover:bg-muted/30"
+                            )}
+                          >
+                            <span className="text-base leading-none mt-0.5">✅</span>
+                            <div className="min-w-0">
+                              <p className={clsx("text-xs font-black", !addForm.restrict_on_credit_expiry ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+                                Allow Further Credit
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Can continue credit purchases even after expiry, subject to available credit limit.
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setAddModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <X className="w-4 h-4 mr-1.5" /> Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingAdd}
+                onClick={handleConfirmAddCustomer}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                {isSavingAdd ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Creating Customer...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    <span>Create Customer</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* Edit Customer Modal */}
       {editModalOpen && editingCustomer && (
-        <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setEditingCustomer(null); }} title="Edit Customer" size="sm">
+        <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setEditingCustomer(null); }} title="Edit Customer" size="md">
           <div className="space-y-4">
             <div className="p-3.5 rounded-xl border border-border bg-muted/30 space-y-2 text-xs">
               <div className="flex items-center gap-1.5 font-bold text-muted-foreground">
@@ -2050,15 +2642,33 @@ export function CustomersPage({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Phone</label>
-                <input
-                  type="tel"
-                  value={editForm.phone}
-                  onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
-                  placeholder="Phone number"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Phone</label>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                    placeholder="Phone number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Credit Limit (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 50000 (0 = No limit)"
+                      value={editForm.credit_limit}
+                      onChange={e => setEditForm(prev => ({ ...prev, credit_limit: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm no-spinners"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -2087,6 +2697,165 @@ export function CustomersPage({
                   </select>
                 </div>
               )}
+
+              {/* Credit Period Section */}
+              <div className="pt-2 border-t border-border/70">
+                <div className={clsx(
+                  "rounded-2xl border transition-all duration-200 overflow-hidden",
+                  editForm.credit_period_enabled
+                    ? "bg-card border-indigo-500/30 shadow-xs"
+                    : "bg-muted/15 border-border/60"
+                )}>
+                  {/* Header & Toggle */}
+                  <div className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={clsx(
+                        "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                        editForm.credit_period_enabled
+                          ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        <Clock className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-foreground uppercase tracking-wider">Credit Period Management</span>
+                          {editForm.credit_period_enabled && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-mono">
+                              {editForm.credit_period_days || 30} Days
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                          Enforce payment deadlines independently of credit limits.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={editForm.credit_period_enabled}
+                        onChange={e => setEditForm(prev => ({ ...prev, credit_period_enabled: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {editForm.credit_period_enabled && (
+                    <div className="p-4 pt-2 border-t border-border/60 space-y-4 animate-in fade-in duration-200">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            Credit Duration (Days)
+                          </label>
+                          <span className="text-xs font-extrabold text-primary font-mono">
+                            {editForm.credit_period_days || 30} Days Grace Period
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/70 shrink-0">
+                            {[15, 30, 45, 50, 60].map(days => (
+                              <button
+                                key={days}
+                                type="button"
+                                onClick={() => setEditForm(prev => ({ ...prev, credit_period_days: String(days) }))}
+                                className={clsx(
+                                  "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95",
+                                  String(editForm.credit_period_days) === String(days)
+                                    ? "bg-primary text-primary-foreground shadow-xs"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+                                )}
+                              >
+                                {days}d
+                              </button>
+                            ))}
+                          </div>
+                          <div className="relative flex-1">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              placeholder="Custom days (e.g. 30)"
+                              value={editForm.credit_period_days}
+                              onChange={e => setEditForm(prev => ({ ...prev, credit_period_days: e.target.value }))}
+                              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all shadow-xs no-spinners pr-14"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                              Days
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Calculation Basis
+                        </label>
+                        <select
+                          value={editForm.credit_period_basis}
+                          onChange={e => setEditForm(prev => ({ ...prev, credit_period_basis: e.target.value }))}
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all shadow-xs"
+                        >
+                          <option value="BILL_BASED">Option A: Bill-Based (Payment due date calculated separately from each bill)</option>
+                          <option value="OLDEST_UNPAID">Option B: Oldest Unpaid Bill (Due date counted from oldest unsettled bill)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                          When Credit Period Expires
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(prev => ({ ...prev, restrict_on_credit_expiry: true }))}
+                            className={clsx(
+                              "p-3 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-98 flex items-start gap-2.5",
+                              editForm.restrict_on_credit_expiry
+                                ? "border-rose-500 bg-rose-500/10 shadow-xs"
+                                : "border-border/80 bg-background hover:bg-muted/30"
+                            )}
+                          >
+                            <span className="text-base leading-none mt-0.5">🚫</span>
+                            <div className="min-w-0">
+                              <p className={clsx("text-xs font-black", editForm.restrict_on_credit_expiry ? "text-rose-600 dark:text-rose-400" : "text-foreground")}>
+                                Restrict Further Credit
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Blocks credit purchases if past bills are overdue. Cash sales remain available.
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(prev => ({ ...prev, restrict_on_credit_expiry: false }))}
+                            className={clsx(
+                              "p-3 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-98 flex items-start gap-2.5",
+                              !editForm.restrict_on_credit_expiry
+                                ? "border-emerald-500 bg-emerald-500/10 shadow-xs"
+                                : "border-border/80 bg-background hover:bg-muted/30"
+                            )}
+                          >
+                            <span className="text-base leading-none mt-0.5">✅</span>
+                            <div className="min-w-0">
+                              <p className={clsx("text-xs font-black", !editForm.restrict_on_credit_expiry ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+                                Allow Further Credit
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Can continue credit purchases even after expiry, subject to available credit limit.
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">

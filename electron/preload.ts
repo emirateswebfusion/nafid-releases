@@ -97,6 +97,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printReady: (contentHeightPx?: number) => ipcRenderer.invoke('hardware:printReady', contentHeightPx),
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename }),
+
+  // WhatsApp APIs
+  whatsappGetStatus: () => ipcRenderer.invoke('whatsapp:getStatus'),
+  whatsappConnect: () => ipcRenderer.invoke('whatsapp:connect'),
+  whatsappDisconnect: () => ipcRenderer.invoke('whatsapp:disconnect'),
+  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => ipcRenderer.invoke('whatsapp:sendInvoice', payload),
+  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('whatsapp:status-update', listener);
+    return () => {
+      ipcRenderer.removeListener('whatsapp:status-update', listener);
+    };
+  },
   
   onUpdateStatus: (callback: (status: string) => void) => {
     ipcRenderer.on('update-status', (_event, status) => callback(status));
@@ -245,10 +258,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGenerateBarcode: (args: { tenant_id: string; item_code?: string; strip_suffix?: string }) => ipcRenderer.invoke('db:generateBarcode', args),
 
   // Customers / Loyalty
-  dbGetCustomers: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getCustomers', args),
+  dbGetCustomers: (args: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => ipcRenderer.invoke('db:getCustomers', args),
+  dbCreateCustomer: (customer: any) => ipcRenderer.invoke('db:createCustomer', customer),
+  dbCheckCustomerCreditStatus: (args: { tenant_id: string; customer_id?: string; customer_name?: string; customer_phone?: string }) => ipcRenderer.invoke('db:checkCustomerCreditStatus', args),
   dbFindCustomers: (args: { tenant_id: string; name?: string; phone?: string }) => ipcRenderer.invoke('db:findCustomers', args),
   dbUpdateCustomer: (customer: any) => ipcRenderer.invoke('db:updateCustomer', customer),
   dbDeleteCustomer: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:deleteCustomer', args),
+  dbDeduplicateCustomers: (tenant_id?: string) => ipcRenderer.invoke('db:deduplicateCustomers', tenant_id),
   dbGetCustomerInvoices: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerInvoices', args),
   dbDeleteInvoice: (invoice_id: string) => ipcRenderer.invoke('db:deleteInvoice', invoice_id),
   dbGetCustomerLoyaltyTransactions: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerLoyaltyTransactions', args),
@@ -285,4 +301,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncClearPending: (payload: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => ipcRenderer.invoke('sync:clearPending', payload),
   syncGetPending: (payload: { tenant_id: string }) => ipcRenderer.invoke('sync:getPending', payload),
   setPageContext: (payload: { page: string; active: boolean }) => ipcRenderer.invoke('sync:setPageContext', payload),
+  resetFastPollBackoff: () => ipcRenderer.invoke('sync:resetFastPollBackoff'),
 });

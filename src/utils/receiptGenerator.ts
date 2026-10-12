@@ -327,6 +327,8 @@ export interface ReceiptData {
   bankAccount?: string;
   bankIfsc?: string;
   bankBranch?: string;
+  dueDate?: string;
+  creditPeriodDays?: number;
 }
 
 export function shouldShowItemMrp(data: ReceiptData, item: ReceiptItem): boolean {
@@ -446,6 +448,9 @@ export function formatBalanceLines(
       } else {
         lines.push(`${padRight('BALANCE DUE', labelW)}  ${padLeft('0.00', totalW)}`);
       }
+    }
+    if (data.dueDate) {
+      lines.push(`${padRight('PAYMENT DUE DATE', labelW)}  ${padLeft(String(data.dueDate), totalW)}`);
     }
   } else {
     if (data.receivedAmount != null && data.receivedAmount > 0) {

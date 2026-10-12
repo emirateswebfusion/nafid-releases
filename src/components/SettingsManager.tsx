@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
-  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode
+  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare
 } from 'lucide-react';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
@@ -23,6 +23,7 @@ import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
+import { WhatsAppSettings } from './WhatsAppSettings';
 import { isAdminRole } from '../utils/permissions';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
@@ -87,6 +88,13 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     icon: Monitor,
     items: [
       { id: 'hardware', label: 'Devices & Hardware', icon: Monitor },
+    ],
+  },
+  {
+    category: 'Integrations & Services',
+    icon: MessageSquare,
+    items: [
+      { id: 'whatsapp', label: 'WhatsApp Integration', icon: MessageSquare },
     ],
   },
   {
@@ -202,6 +210,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const { shopDomain } = useCartStore();
   const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
+  const [autoWhatsAppSend, setAutoWhatsAppSend] = useState<boolean>(() => localStorage.getItem('auto_whatsapp_send') === 'true');
   const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
   const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
@@ -2069,6 +2078,21 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        );
+      case 'whatsapp':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm">
+              <WhatsAppSettings
+                tenantId={tenantId}
+                autoSendEnabled={autoWhatsAppSend}
+                onAutoSendChange={(val) => {
+                  setAutoWhatsAppSend(val);
+                  localStorage.setItem('auto_whatsapp_send', val ? 'true' : 'false');
+                }}
+              />
             </div>
           </div>
         );

@@ -139,7 +139,15 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:getReceiptText', () => currentReceiptText);
 
-  ipcMain.handle('hardware:getA4Html', () => currentA4Html);
+  ipcMain.handle('hardware:getA4Html', () => {
+    if (currentA4Html) return currentA4Html;
+    try {
+      const { getSharedA4Html } = require('../whatsapp/sharedPrintHtml');
+      return getSharedA4Html() || '';
+    } catch {
+      return '';
+    }
+  });
 
   ipcMain.handle('hardware:printA4Html', async (event, { tenant_id, htmlContent }: { tenant_id: string; htmlContent: string }) => {
     try {

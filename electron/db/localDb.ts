@@ -171,6 +171,7 @@ export function initDb() {
         held_until DATETIME,
         is_held INTEGER DEFAULT 0,
         hold_note TEXT,
+        due_date DATETIME,
         UNIQUE(tenant_id, invoice_number)
     );
 
@@ -217,6 +218,10 @@ export function initDb() {
         estimate_balance REAL NOT NULL DEFAULT 0,
         pricing_tier_id TEXT,
         credit_limit REAL NOT NULL DEFAULT 0,
+        credit_period_enabled INTEGER DEFAULT 0,
+        credit_period_days INTEGER DEFAULT 30,
+        credit_period_basis TEXT DEFAULT 'BILL_BASED',
+        restrict_on_credit_expiry INTEGER DEFAULT 1,
         party_type TEXT DEFAULT 'CUSTOMER',
         custom_category TEXT,
         notes TEXT,
@@ -515,6 +520,11 @@ export function initDb() {
         phone TEXT,
         address TEXT,
         pricing_tier_id TEXT,
+        credit_limit REAL DEFAULT 0,
+        credit_period_enabled INTEGER DEFAULT 0,
+        credit_period_days INTEGER DEFAULT 30,
+        credit_period_basis TEXT DEFAULT 'BILL_BASED',
+        restrict_on_credit_expiry INTEGER DEFAULT 1,
         total_points_earned REAL NOT NULL DEFAULT 0,
         total_points_redeemed REAL NOT NULL DEFAULT 0,
         current_points_balance REAL NOT NULL DEFAULT 0,
@@ -753,7 +763,8 @@ export function initDb() {
         'converted_to_invoice_id', 'converted_to_invoice_number',
         'settled_at',
         'is_deleted',
-        'biller_staff_id', 'sales_staff_id'
+        'biller_staff_id', 'sales_staff_id',
+        'due_date'
     ],
     staff: [
         'staff_id', 'tenant_id', 'staff_code', 'name', 'phone', 'email', 'role_designation', 'user_id', 'biller_pin_hash', 'joining_date', 'monthly_salary', 'status', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -781,7 +792,7 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id', 'credit_limit', 'party_type', 'custom_category'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'party_type', 'custom_category'
     ],
     party_ledger: [
         'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'balance_type', 'payment_method', 'reference_number', 'created_by', 'created_by_name', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -822,7 +833,7 @@ export function initDb() {
     ],
     customers: [
         'customer_id', 'tenant_id', 'name', 'phone', 'address', 'total_points_earned', 'total_points_redeemed',
-        'current_points_balance', 'pricing_tier_id', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'current_points_balance', 'pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     returns: [
         'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',
@@ -1475,10 +1486,50 @@ export function initDb() {
       console.log('[DB Migration] Adding custom_category to parties...');
       db.exec("ALTER TABLE parties ADD COLUMN custom_category TEXT");
     }
+    if (!partyCols.includes('credit_period_enabled')) {
+      console.log('[DB Migration] Adding credit_period_enabled to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN credit_period_enabled INTEGER DEFAULT 0");
+    }
+    if (!partyCols.includes('credit_period_days')) {
+      console.log('[DB Migration] Adding credit_period_days to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN credit_period_days INTEGER DEFAULT 30");
+    }
+    if (!partyCols.includes('credit_period_basis')) {
+      console.log('[DB Migration] Adding credit_period_basis to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN credit_period_basis TEXT DEFAULT 'BILL_BASED'");
+    }
+    if (!partyCols.includes('restrict_on_credit_expiry')) {
+      console.log('[DB Migration] Adding restrict_on_credit_expiry to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN restrict_on_credit_expiry INTEGER DEFAULT 1");
+    }
+
+    // Customers table credit columns migration
+    const custCols = db.prepare(`PRAGMA table_info(customers)`).all().map((c: any) => c.name);
+    if (!custCols.includes('credit_limit')) {
+      console.log('[DB Migration] Adding credit_limit to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0");
+    }
+    if (!custCols.includes('credit_period_enabled')) {
+      console.log('[DB Migration] Adding credit_period_enabled to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN credit_period_enabled INTEGER DEFAULT 0");
+    }
+    if (!custCols.includes('credit_period_days')) {
+      console.log('[DB Migration] Adding credit_period_days to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN credit_period_days INTEGER DEFAULT 30");
+    }
+    if (!custCols.includes('credit_period_basis')) {
+      console.log('[DB Migration] Adding credit_period_basis to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN credit_period_basis TEXT DEFAULT 'BILL_BASED'");
+    }
+    if (!custCols.includes('restrict_on_credit_expiry')) {
+      console.log('[DB Migration] Adding restrict_on_credit_expiry to customers...');
+      db.exec("ALTER TABLE customers ADD COLUMN restrict_on_credit_expiry INTEGER DEFAULT 1");
+    }
+
     // Backfill: existing balances are treated as GST balance (legacy behavior)
     db.exec("UPDATE parties SET gst_balance = balance WHERE gst_balance = 0 AND balance != 0");
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add balance/credit_limit columns to parties:', e.message);
+    console.warn('[DB Migration] Failed to add balance/credit_limit/credit_period columns to parties/customers:', e.message);
   }
 
   // Migration: Add balance_type & payment_method columns to party_ledger
@@ -1761,6 +1812,9 @@ export function initDb() {
 
   // Backfill customer records from past transactions
   backfillCustomersFromInvoices(db);
+
+  // Auto-deduplicate customer and party records to keep balances clean and prevent duplicates
+  autoDeduplicateCustomersAndParties(db);
 }
 
 export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
@@ -1794,6 +1848,7 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       igst_total: 'REAL DEFAULT 0',
       supply_type: "TEXT DEFAULT 'INTRA'",
       actual_refund_paid: 'REAL DEFAULT 0',
+      due_date: 'DATETIME',
     };
 
     for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
@@ -1859,6 +1914,11 @@ export function getDb() {
   return db;
 }
 
+export function deterministicUUID(seed: string): string {
+  const hash = crypto.createHash('sha1').update(seed).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
 export function upsertCustomerRecord(
   db: Database.Database,
   tenantId: string,
@@ -1877,18 +1937,18 @@ export function upsertCustomerRecord(
     let existing: any = null;
     const phoneClean = (phone || '').replace(/\D/g, '');
     if (phoneClean.length >= 7) {
-      const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ?').all(tenantId) as any[];
+      const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)').all(tenantId) as any[];
       existing = allCust.find((c: any) => {
         const cPhoneDigits = (c.phone || '').replace(/\D/g, '');
         return cPhoneDigits.length >= 7 && (cPhoneDigits === phoneClean || (phoneClean.length >= 10 && cPhoneDigits.slice(-10) === phoneClean.slice(-10)));
       });
     }
     if (!existing && name) {
-      const candidates = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND name = ? COLLATE NOCASE').all(tenantId, name);
+      const candidates = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) AND name = ? COLLATE NOCASE').all(tenantId, name);
       if (candidates && candidates.length > 0) {
         existing = candidates[0];
       } else {
-        const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ?').all(tenantId);
+        const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)').all(tenantId);
         const normTarget = name.toLowerCase().replace(/\s+/g, ' ');
         existing = allCust.find((c: any) => (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normTarget);
       }
@@ -1902,6 +1962,7 @@ export function upsertCustomerRecord(
         SET name = ?,
             phone = COALESCE(?, phone),
             address = COALESCE(?, address),
+            is_deleted = 0,
             last_purchase_date = CURRENT_TIMESTAMP,
             sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
             updated_at = CURRENT_TIMESTAMP
@@ -1909,16 +1970,285 @@ export function upsertCustomerRecord(
       `).run(displayName, phone, address, existing.customer_id);
       return existing.customer_id as string;
     } else {
-      const customer_id = crypto.randomUUID();
+      const seedKey = phoneClean.length >= 7 
+        ? `cust:${tenantId}:${phoneClean.slice(-10)}` 
+        : `cust:${tenantId}:${name.toLowerCase()}`;
+      const customer_id = deterministicUUID(seedKey);
       db.prepare(`
-        INSERT INTO customers (customer_id, tenant_id, name, phone, address, total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO customers (customer_id, tenant_id, name, phone, address, total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date, is_deleted, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(customer_id) DO UPDATE SET
+          name = excluded.name,
+          phone = COALESCE(excluded.phone, customers.phone),
+          address = COALESCE(excluded.address, customers.address),
+          is_deleted = 0,
+          last_purchase_date = CURRENT_TIMESTAMP,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
       `).run(customer_id, tenantId, displayName, phone, address);
       return customer_id;
     }
   } catch (err: any) {
     console.error('[DB] upsertCustomerRecord error:', err.message);
     return null;
+  }
+}
+
+function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
+  try {
+    const rows: any = d.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN balance_type = 'GST' THEN credit_amount - debit_amount ELSE 0 END), 0) AS gst,
+        COALESCE(SUM(CASE WHEN balance_type = 'ESTIMATE' THEN credit_amount - debit_amount ELSE 0 END), 0) AS estimate,
+        COALESCE(SUM(credit_amount - debit_amount), 0) AS total
+      FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+    `).get(partyId);
+    const gst = Math.round((parseFloat(rows?.gst) || 0) * 100) / 100;
+    const estimate = Math.round((parseFloat(rows?.estimate) || 0) * 100) / 100;
+    const total = Math.round((gst + estimate) * 100) / 100;
+    const latest: any = d.prepare(`
+      SELECT transaction_date FROM party_ledger 
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) 
+      ORDER BY transaction_date DESC LIMIT 1
+    `).get(partyId);
+    d.prepare(`
+      UPDATE parties 
+      SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+      WHERE party_id = ?
+    `).run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
+    return total;
+  } catch (err: any) {
+    console.error('[recalcPartyBalanceLocal error]:', err.message);
+    return 0;
+  }
+}
+
+export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database): { merged_customers: number; merged_parties: number } {
+  const d = targetDb || db;
+  if (!d) return { merged_customers: 0, merged_parties: 0 };
+
+  let mergedCustomers = 0;
+  let mergedParties = 0;
+
+  try {
+    // 1. DEDUPLICATE CUSTOMERS
+    const custTenants = d.prepare('SELECT DISTINCT tenant_id FROM customers').all().map((r: any) => r.tenant_id);
+    for (const tenantId of custTenants) {
+      const custs = d.prepare(`
+        SELECT customer_id, tenant_id, name, phone, address, total_points_earned, total_points_redeemed, current_points_balance, created_at
+        FROM customers 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      `).all(tenantId) as any[];
+
+      const n = custs.length;
+      if (n <= 1) continue;
+
+      const parent = Array.from({ length: n }, (_, i) => i);
+      function find(i: number): number {
+        if (parent[i] === i) return i;
+        parent[i] = find(parent[i]);
+        return parent[i];
+      }
+      function union(i: number, j: number) {
+        const rootI = find(i);
+        const rootJ = find(j);
+        if (rootI !== rootJ) parent[rootI] = rootJ;
+      }
+
+      const phoneMap = new Map<string, number>();
+      const nameMap = new Map<string, number>();
+
+      for (let i = 0; i < n; i++) {
+        const c = custs[i];
+        const normName = (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const cleanPhone = (c.phone || '').replace(/\D/g, '');
+        const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
+
+        if (last10 && !last10.startsWith('0000')) {
+          if (phoneMap.has(last10)) {
+            union(i, phoneMap.get(last10)!);
+          } else {
+            phoneMap.set(last10, i);
+          }
+        }
+
+        if (normName && normName.length >= 2) {
+          if (nameMap.has(normName)) {
+            union(i, nameMap.get(normName)!);
+          } else {
+            nameMap.set(normName, i);
+          }
+        }
+      }
+
+      const clusters = new Map<number, any[]>();
+      for (let i = 0; i < n; i++) {
+        const root = find(i);
+        if (!clusters.has(root)) clusters.set(root, []);
+        clusters.get(root)!.push(custs[i]);
+      }
+
+      for (const [_, list] of clusters) {
+        if (list.length <= 1) continue;
+
+        // Sort: prefer record with a valid phone, then older created_at
+        list.sort((a: any, b: any) => {
+          const aClean = (a.phone || '').replace(/\D/g, '');
+          const bClean = (b.phone || '').replace(/\D/g, '');
+          const aHasValidPhone = aClean.length >= 7 && !aClean.startsWith('0000') ? 1 : 0;
+          const bHasValidPhone = bClean.length >= 7 && !bClean.startsWith('0000') ? 1 : 0;
+          if (aHasValidPhone !== bHasValidPhone) return bHasValidPhone - aHasValidPhone;
+          const timeA = new Date(a.created_at || 0).getTime();
+          const timeB = new Date(b.created_at || 0).getTime();
+          return timeA - timeB;
+        });
+
+        const primary = list[0];
+        const duplicates = list.slice(1);
+
+        let totEarned = primary.total_points_earned || 0;
+        let totRedeemed = primary.total_points_redeemed || 0;
+        let bestAddr = primary.address;
+        let bestPhone = primary.phone;
+        mergedCustomers += duplicates.length;
+
+        for (const dup of duplicates) {
+          totEarned += dup.total_points_earned || 0;
+          totRedeemed += dup.total_points_redeemed || 0;
+          if (!bestAddr && dup.address) bestAddr = dup.address;
+          if (!bestPhone && dup.phone) bestPhone = dup.phone;
+
+          d.prepare('UPDATE invoices SET customer_id = ? WHERE customer_id = ?').run(primary.customer_id, dup.customer_id);
+          d.prepare('UPDATE loyalty_transactions SET customer_id = ? WHERE customer_id = ?').run(primary.customer_id, dup.customer_id);
+          d.prepare("UPDATE customers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?").run(dup.customer_id);
+        }
+
+        const bal = totEarned - totRedeemed;
+        d.prepare(`
+          UPDATE customers 
+          SET address = COALESCE(?, address),
+              phone = COALESCE(?, phone),
+              total_points_earned = ?,
+              total_points_redeemed = ?,
+              current_points_balance = ?,
+              sync_status = 'PENDING',
+              updated_at = CURRENT_TIMESTAMP
+          WHERE customer_id = ?
+        `).run(bestAddr, bestPhone, totEarned, totRedeemed, bal, primary.customer_id);
+      }
+    }
+
+    // 2. DEDUPLICATE PARTIES (same party_type and phone/name)
+    const partyTenants = d.prepare('SELECT DISTINCT tenant_id FROM parties').all().map((r: any) => r.tenant_id);
+    for (const tenantId of partyTenants) {
+      const parties = d.prepare(`
+        SELECT party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, credit_limit, notes, created_at
+        FROM parties 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      `).all(tenantId) as any[];
+
+      const n = parties.length;
+      if (n <= 1) continue;
+
+      const parent = Array.from({ length: n }, (_, i) => i);
+      function find(i: number): number {
+        if (parent[i] === i) return i;
+        parent[i] = find(parent[i]);
+        return parent[i];
+      }
+      function union(i: number, j: number) {
+        const rootI = find(i);
+        const rootJ = find(j);
+        if (rootI !== rootJ) parent[rootI] = rootJ;
+      }
+
+      const phoneMap = new Map<string, number>();
+      const nameMap = new Map<string, number>();
+
+      for (let i = 0; i < n; i++) {
+        const p = parties[i];
+        const pType = (p.party_type || 'CUSTOMER').toUpperCase();
+        const normName = (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const cleanPhone = (p.phone || '').replace(/\D/g, '');
+        const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
+
+        if (last10 && !last10.startsWith('0000')) {
+          const phoneKey = `${pType}:${last10}`;
+          if (phoneMap.has(phoneKey)) {
+            union(i, phoneMap.get(phoneKey)!);
+          } else {
+            phoneMap.set(phoneKey, i);
+          }
+        }
+
+        if (normName && normName.length >= 3) {
+          const nameKey = `${pType}:${normName}`;
+          if (nameMap.has(nameKey)) {
+            union(i, nameMap.get(nameKey)!);
+          } else {
+            nameMap.set(nameKey, i);
+          }
+        }
+      }
+
+      const clusters = new Map<number, any[]>();
+      for (let i = 0; i < n; i++) {
+        const root = find(i);
+        if (!clusters.has(root)) clusters.set(root, []);
+        clusters.get(root)!.push(parties[i]);
+      }
+
+      for (const [_, list] of clusters) {
+        if (list.length <= 1) continue;
+
+        // Prefer party with non-zero balance / ledger entries, then older created_at
+        list.sort((a: any, b: any) => {
+          const balA = Math.abs(a.balance || 0);
+          const balB = Math.abs(b.balance || 0);
+          if (balA !== balB) return balB - balA;
+          const timeA = new Date(a.created_at || 0).getTime();
+          const timeB = new Date(b.created_at || 0).getTime();
+          return timeA - timeB;
+        });
+
+        const primary = list[0];
+        const duplicates = list.slice(1);
+
+        let bestPhone = primary.phone;
+        let bestAddr = primary.address;
+        let bestGstin = primary.gstin;
+        mergedParties += duplicates.length;
+
+        for (const dup of duplicates) {
+          if (!bestPhone && dup.phone) bestPhone = dup.phone;
+          if (!bestAddr && dup.address) bestAddr = dup.address;
+          if (!bestGstin && dup.gstin) bestGstin = dup.gstin;
+
+          d.prepare("UPDATE party_ledger SET party_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(primary.party_id, dup.party_id);
+          try {
+            d.prepare('UPDATE purchase_bills SET supplier_id = ? WHERE supplier_id = ?').run(primary.party_id, dup.party_id);
+          } catch {}
+          d.prepare("UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(dup.party_id);
+        }
+
+        d.prepare(`
+          UPDATE parties 
+          SET phone = COALESCE(?, phone),
+              address = COALESCE(?, address),
+              gstin = COALESCE(?, gstin),
+              sync_status = 'PENDING',
+              updated_at = CURRENT_TIMESTAMP
+          WHERE party_id = ?
+        `).run(bestPhone, bestAddr, bestGstin, primary.party_id);
+
+        recalcPartyBalanceLocal(d, primary.party_id);
+      }
+    }
+    console.log('[DB Auto-Deduplication] Completed clean deduplication of customers and parties.');
+    return { merged_customers: mergedCustomers, merged_parties: mergedParties };
+  } catch (err: any) {
+    console.error('[DB Auto-Deduplication Error]:', err.message);
+    return { merged_customers: 0, merged_parties: 0 };
   }
 }
 

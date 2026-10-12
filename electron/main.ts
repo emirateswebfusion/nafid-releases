@@ -8,8 +8,9 @@ import dns from 'node:dns';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
-import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser } from './db/localDb';
+import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser, autoDeduplicateCustomersAndParties } from './db/localDb';
 import { calculateCashierSettlement } from './utils/cashierSettlement';
+import { initWhatsAppIpc } from './whatsapp/whatsappService';
 
 
 // Initialize and configure structured logging
@@ -524,6 +525,13 @@ function createWindow() {
     // Production: Load from built files
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  mainWindow.on('focus', async () => {
+    try {
+      const { resetFastPollBackoff } = await import('./sync/syncWorker.js');
+      resetFastPollBackoff();
+    } catch {}
+  });
 }
 
 app.whenReady().then(async () => {
@@ -538,6 +546,7 @@ app.whenReady().then(async () => {
     console.error('[Main] Backfill credit invoices error:', e);
   }
   initPrinter();
+  initWhatsAppIpc();
   setupCSP();
   createWindow();
 
@@ -2196,13 +2205,32 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
       existing = db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ?').get(p.tenant_id, nameClean);
     }
 
+    const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
+    const creditPeriodEnabled = p.credit_period_enabled ? 1 : 0;
+    const creditPeriodDays = Math.max(1, parseInt(p.credit_period_days, 10) || 30);
+    const creditPeriodBasis = p.credit_period_basis || 'BILL_BASED';
+    const restrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined ? (p.restrict_on_credit_expiry ? 1 : 0) : 1;
+
     if (existing) {
       db.prepare(`
         UPDATE parties 
         SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address), gstin = COALESCE(?, gstin),
+            credit_limit = COALESCE(?, credit_limit),
+            credit_period_enabled = COALESCE(?, credit_period_enabled),
+            credit_period_days = COALESCE(?, credit_period_days),
+            credit_period_basis = COALESCE(?, credit_period_basis),
+            restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
             is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE party_id = ?
-      `).run(p.name, p.phone || null, p.address || null, p.gstin || null, existing.party_id);
+      `).run(
+        p.name, p.phone || null, p.address || null, p.gstin || null,
+        p.credit_limit !== undefined ? creditLimit : null,
+        p.credit_period_enabled !== undefined ? creditPeriodEnabled : null,
+        p.credit_period_days !== undefined ? creditPeriodDays : null,
+        p.credit_period_basis || null,
+        p.restrict_on_credit_expiry !== undefined ? restrictOnCreditExpiry : null,
+        existing.party_id
+      );
       return { success: true, party_id: existing.party_id, reused: true };
     }
 
@@ -2210,14 +2238,13 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
     const initialBalance = bt === 'RECEIVABLE'
       ? Math.abs(p.balance || 0)
       : -Math.abs(p.balance || 0);
-    const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
     const partyType = p.party_type || 'CUSTOMER';
     const customCategory = p.custom_category || null;
 
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, pricing_tier_id, credit_limit, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, pricing_tier_id, credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry);
 
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
@@ -2366,6 +2393,10 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     const hasPartyType = p.party_type !== undefined;
     const hasCustomCategory = p.custom_category !== undefined;
     const creditLimit = hasCreditLimit ? Math.max(0, Number(p.credit_limit) || 0) : 0;
+    const hasCreditPeriodEnabled = p.credit_period_enabled !== undefined;
+    const hasCreditPeriodDays = p.credit_period_days !== undefined;
+    const hasCreditPeriodBasis = p.credit_period_basis !== undefined;
+    const hasRestrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined;
 
     let updateSql = `UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?`;
     const params: any[] = [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null];
@@ -2377,6 +2408,22 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     if (hasCreditLimit) {
       updateSql += `, credit_limit = ?`;
       params.push(creditLimit);
+    }
+    if (hasCreditPeriodEnabled) {
+      updateSql += `, credit_period_enabled = ?`;
+      params.push(p.credit_period_enabled ? 1 : 0);
+    }
+    if (hasCreditPeriodDays) {
+      updateSql += `, credit_period_days = ?`;
+      params.push(Math.max(1, parseInt(p.credit_period_days, 10) || 30));
+    }
+    if (hasCreditPeriodBasis) {
+      updateSql += `, credit_period_basis = ?`;
+      params.push(p.credit_period_basis || 'BILL_BASED');
+    }
+    if (hasRestrictOnCreditExpiry) {
+      updateSql += `, restrict_on_credit_expiry = ?`;
+      params.push(p.restrict_on_credit_expiry ? 1 : 0);
     }
     if (hasPartyType) {
       updateSql += `, party_type = ?`;
@@ -2391,6 +2438,45 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     params.push(p.party_id);
 
     db.prepare(updateSql).run(...params);
+
+    // Synchronize to matching customer in customers table if exists
+    try {
+      const partyRow: any = db.prepare('SELECT tenant_id, phone, name FROM parties WHERE party_id = ?').get(p.party_id);
+      const tenantId = p.tenant_id || partyRow?.tenant_id;
+      const phoneToCheck = (p.phone || partyRow?.phone || '').trim();
+      const nameToCheck = (p.name || partyRow?.name || '').trim();
+      let cust: any = null;
+      if (phoneToCheck) {
+        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, phoneToCheck);
+      }
+      if (!cust && nameToCheck) {
+        cust = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(tenantId, nameToCheck.toLowerCase());
+      }
+      if (cust) {
+        db.prepare(`
+          UPDATE customers 
+          SET credit_limit = COALESCE(?, credit_limit),
+              credit_period_enabled = COALESCE(?, credit_period_enabled),
+              credit_period_days = COALESCE(?, credit_period_days),
+              credit_period_basis = COALESCE(?, credit_period_basis),
+              restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+              pricing_tier_id = COALESCE(?, pricing_tier_id),
+              sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE customer_id = ? AND tenant_id = ?
+        `).run(
+          hasCreditLimit ? creditLimit : null,
+          hasCreditPeriodEnabled ? (p.credit_period_enabled ? 1 : 0) : null,
+          hasCreditPeriodDays ? Math.max(1, parseInt(p.credit_period_days, 10) || 30) : null,
+          hasCreditPeriodBasis ? (p.credit_period_basis || 'BILL_BASED') : null,
+          hasRestrictOnCreditExpiry ? (p.restrict_on_credit_expiry ? 1 : 0) : null,
+          hasTier ? (p.pricing_tier_id || null) : null,
+          cust.customer_id, tenantId
+        );
+      }
+    } catch (syncErr) {
+      console.warn('[db:updateParty] Customer sync skipped:', syncErr);
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateParty]', error);
@@ -2686,7 +2772,7 @@ export function syncInvoiceCreditLedger(
       }
     }
 
-    // 2. Find party by normalized phone (check active and soft-deleted)
+    // 2. Find party by normalized phone (check active and soft-deleted, prioritize CUSTOMER then fallback to any)
     const normPhone = custPhone.replace(/\D/g, '');
     if (!party && normPhone.length >= 7) {
       const allParties = db.prepare(`
@@ -2699,6 +2785,10 @@ export function syncInvoiceCreditLedger(
         if (p.party_type && p.party_type.toUpperCase() === 'SUPPLIER') return false;
         const pPhoneDigits = p.phone.replace(/\D/g, '');
         return pPhoneDigits === normPhone || (normPhone.length >= 10 && pPhoneDigits.slice(-10) === normPhone.slice(-10));
+      }) || allParties.find((p: any) => {
+        if (!p.phone) return false;
+        const pPhoneDigits = p.phone.replace(/\D/g, '');
+        return pPhoneDigits === normPhone || (normPhone.length >= 10 && pPhoneDigits.slice(-10) === normPhone.slice(-10));
       });
 
       if (party && party.is_deleted === 1) {
@@ -2707,7 +2797,7 @@ export function syncInvoiceCreditLedger(
       }
     }
 
-    // 3. Find party by normalized name (check active and soft-deleted, prioritize customers)
+    // 3. Find party by normalized name (check active and soft-deleted, prioritize CUSTOMER then fallback to any)
     if (!party && custName) {
       const normName = custName.toLowerCase().replace(/\s+/g, ' ');
       const allParties = db.prepare(`
@@ -2717,6 +2807,8 @@ export function syncInvoiceCreditLedger(
 
       party = allParties.find((p: any) => {
         if (p.party_type && p.party_type.toUpperCase() === 'SUPPLIER') return false;
+        return (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName;
+      }) || allParties.find((p: any) => {
         return (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName;
       });
 
@@ -3151,6 +3243,264 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
   }
 });
 
+// ── Helper: Compute customer credit status & FIFO allocations ──
+export function computeCustomerCreditStatusSync(db: any, tenantId: string, customerId: string, invoices: any[]) {
+  // 1. Fetch customer credit configuration
+  const customer: any = db.prepare(`
+    SELECT c.*, 
+           p.party_id, p.balance as party_balance, p.credit_limit as party_credit_limit,
+           p.credit_period_enabled as party_credit_period_enabled,
+           p.credit_period_days as party_credit_period_days,
+           p.credit_period_basis as party_credit_period_basis,
+           p.restrict_on_credit_expiry as party_restrict_on_credit_expiry
+    FROM customers c
+    LEFT JOIN parties p ON p.tenant_id = c.tenant_id AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+      AND ((c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone = c.phone) OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name))))
+    WHERE c.customer_id = ? AND c.tenant_id = ?
+    ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
+  `).get(customerId, tenantId) || {};
+
+  const partyBalance = Number(customer.party_balance ?? 0);
+  const creditPeriodEnabled = Boolean(customer.credit_period_enabled ?? customer.party_credit_period_enabled ?? false);
+  const creditPeriodDays = Number(customer.credit_period_days ?? customer.party_credit_period_days ?? 30) || 30;
+  const now = new Date();
+
+  // If party balance is <= 0, customer owes nothing (all settled)
+  const isSettled = partyBalance <= 0;
+
+  // 2. Fetch all debits (payments) from party_ledger if a party exists
+  let ledgerDebits: any[] = [];
+  if (customer.party_id) {
+    ledgerDebits = db.prepare(`
+      SELECT ledger_id, debit_amount, reference_number, transaction_date 
+      FROM party_ledger 
+      WHERE party_id = ? AND tenant_id = ? AND debit_amount > 0 AND (is_deleted IS NULL OR is_deleted = 0)
+      ORDER BY transaction_date ASC, created_at ASC
+    `).all(customer.party_id, tenantId) as any[];
+  }
+
+  // Map explicit payments by invoice reference
+  const explicitPayments = new Map<string, number>();
+  let totalExplicitDebits = 0;
+  let totalDebits = 0;
+
+  for (const d of ledgerDebits) {
+    const amt = Number(d.debit_amount) || 0;
+    totalDebits += amt;
+    const ref = (d.reference_number || '').trim();
+    if (ref) {
+      const cleanRef = ref.replace(/-PAY$/i, '');
+      explicitPayments.set(cleanRef, (explicitPayments.get(cleanRef) || 0) + amt);
+      totalExplicitDebits += amt;
+    }
+  }
+
+  let unallocatedPool = Math.max(0, totalDebits - totalExplicitDebits);
+
+  // 3. Sort credit bills oldest to newest for FIFO allocation
+  const creditInvoices = invoices.filter((inv: any) => {
+    const pm = (inv.payment_method || '').toUpperCase();
+    let splitCredit = 0;
+    if (inv.split_details) {
+      try {
+        const s = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+        splitCredit = Number(s?.credit) || 0;
+      } catch {}
+    }
+    return pm === 'CREDIT' || splitCredit > 0 || (Number(inv.balance_amount) > 0 && pm !== 'CASH');
+  }).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  const billAllocations = new Map<string, { outstanding: number; dueDate: Date | null; isOverdue: boolean; overdueDays: number; remainingDays: number; status: string }>();
+
+  for (const inv of creditInvoices) {
+    const invNum = (inv.invoice_number || '').trim();
+    const pm = (inv.payment_method || '').toUpperCase();
+    let splitCredit = 0;
+    if (inv.split_details) {
+      try {
+        const s = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+        splitCredit = Number(s?.credit) || 0;
+      } catch {}
+    }
+
+    const billCreditTotal = pm === 'SPLIT' && splitCredit > 0
+      ? splitCredit
+      : Math.max(0, Number(inv.grand_total) - (Number(inv.received_amount) || 0));
+
+    if (isSettled) {
+      billAllocations.set(inv.invoice_id, {
+        outstanding: 0,
+        dueDate: inv.due_date ? new Date(inv.due_date) : null,
+        isOverdue: false,
+        overdueDays: 0,
+        remainingDays: 0,
+        status: 'PAID'
+      });
+      continue;
+    }
+
+    const directPay = explicitPayments.get(invNum) || 0;
+    let rem = Math.max(0, billCreditTotal - directPay);
+
+    if (rem > 0 && unallocatedPool > 0) {
+      const take = Math.min(rem, unallocatedPool);
+      rem -= take;
+      unallocatedPool -= take;
+    }
+
+    // Determine due date
+    let dueDate: Date | null = null;
+    if (inv.due_date) {
+      dueDate = new Date(inv.due_date);
+    } else if (creditPeriodEnabled && creditPeriodDays > 0 && inv.created_at) {
+      dueDate = new Date(new Date(inv.created_at).getTime() + creditPeriodDays * 24 * 60 * 60 * 1000);
+    }
+
+    let isOverdue = false;
+    let overdueDays = 0;
+    let remainingDays = 0;
+    let status = 'PAID';
+
+    if (rem > 0.005) {
+      if (dueDate) {
+        const diffMs = dueDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        if (diffDays < 0) {
+          isOverdue = true;
+          overdueDays = Math.abs(diffDays);
+          status = 'OVERDUE';
+        } else {
+          remainingDays = diffDays;
+          status = diffDays <= 3 ? 'DUE_SOON' : 'ACTIVE';
+        }
+      } else {
+        status = 'ACTIVE';
+      }
+    } else {
+      rem = 0;
+      status = 'PAID';
+    }
+
+    billAllocations.set(inv.invoice_id, {
+      outstanding: Math.round(rem * 100) / 100,
+      dueDate,
+      isOverdue,
+      overdueDays,
+      remainingDays,
+      status
+    });
+  }
+
+  return invoices.map((inv: any) => {
+    const alloc = billAllocations.get(inv.invoice_id);
+    if (alloc) {
+      return {
+        ...inv,
+        is_credit_bill: true,
+        due_date: alloc.dueDate ? alloc.dueDate.toISOString() : null,
+        outstanding_amount: alloc.outstanding,
+        is_overdue: alloc.isOverdue,
+        overdue_days: alloc.overdueDays,
+        remaining_days: alloc.remainingDays,
+        credit_status: alloc.status
+      };
+    }
+    return {
+      ...inv,
+      is_credit_bill: false,
+      outstanding_amount: 0,
+      is_overdue: false,
+      overdue_days: 0,
+      remaining_days: 0,
+      credit_status: 'NON_CREDIT'
+    };
+  });
+}
+
+export function checkCustomerOverdueSync(db: any, tenantId: string, customerId?: string, custPhone?: string, custName?: string) {
+  let cust: any = null;
+  if (customerId) {
+    cust = db.prepare('SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ?').get(customerId, tenantId);
+  }
+  if (!cust && custPhone) {
+    const cleanDigits = custPhone.replace(/\D/g, '');
+    if (cleanDigits.length >= 7) {
+      cust = db.prepare(`SELECT * FROM customers WHERE tenant_id = ? AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)`).get(tenantId, custPhone, `%${cleanDigits.slice(-10)}`);
+    } else {
+      cust = db.prepare('SELECT * FROM customers WHERE tenant_id = ? AND phone = ?').get(tenantId, custPhone);
+    }
+  }
+  if (!cust && custName) {
+    cust = db.prepare('SELECT * FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ?').get(tenantId, custName.trim().toLowerCase());
+  }
+
+  let party: any = null;
+  if (custPhone) {
+    const cleanDigits = custPhone.replace(/\D/g, '');
+    if (cleanDigits.length >= 7) {
+      party = db.prepare(`SELECT * FROM parties WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?) LIMIT 1`).get(tenantId, custPhone, `%${cleanDigits.slice(-10)}`);
+    } else {
+      party = db.prepare(`SELECT * FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0) LIMIT 1`).get(tenantId, custPhone);
+    }
+  }
+  if (!party && custName) {
+    party = db.prepare(`SELECT * FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0) LIMIT 1`).get(tenantId, custName.trim().toLowerCase());
+  }
+
+  const periodEnabled = Boolean(cust?.credit_period_enabled ?? party?.credit_period_enabled ?? false);
+  const restrictOnExpiry = (cust?.restrict_on_credit_expiry ?? party?.restrict_on_credit_expiry) !== 0 && (cust?.restrict_on_credit_expiry ?? party?.restrict_on_credit_expiry) !== false;
+  const creditPeriodDays = Number(cust?.credit_period_days ?? party?.credit_period_days ?? 30) || 30;
+  const partyBal = Number(party?.balance ?? cust?.party_balance ?? 0);
+
+  if (!periodEnabled || partyBal <= 0) {
+    return {
+      isOverdue: false,
+      overdueCount: 0,
+      overdueAmount: 0,
+      oldestOverdueDays: 0,
+      restrictOnExpiry,
+      creditPeriodEnabled: periodEnabled,
+      creditPeriodDays,
+      customerName: cust?.name || party?.name || custName || 'Customer'
+    };
+  }
+
+  const cId = cust?.customer_id;
+  if (!cId) {
+    return {
+      isOverdue: false,
+      overdueCount: 0,
+      overdueAmount: 0,
+      oldestOverdueDays: 0,
+      restrictOnExpiry,
+      creditPeriodEnabled: periodEnabled,
+      creditPeriodDays,
+      customerName: cust?.name || party?.name || custName || 'Customer'
+    };
+  }
+
+  const invs = db.prepare(`
+    SELECT invoice_id, invoice_number, grand_total, received_amount, balance_amount, payment_method, split_details, due_date, created_at
+    FROM invoices
+    WHERE customer_id = ? AND tenant_id = ? AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (is_held IS NULL OR is_held = 0) AND (is_deleted IS NULL OR is_deleted = 0)
+    ORDER BY created_at DESC
+  `).all(cId, tenantId) as any[];
+
+  const enriched = computeCustomerCreditStatusSync(db, tenantId, cId, invs);
+  const overdues = enriched.filter((i: any) => i.is_overdue);
+
+  return {
+    isOverdue: overdues.length > 0,
+    overdueCount: overdues.length,
+    overdueAmount: overdues.reduce((acc: number, curr: any) => acc + (Number(curr.outstanding_amount) || 0), 0),
+    oldestOverdueDays: overdues.length > 0 ? Math.max(...overdues.map((o: any) => o.overdue_days || 0)) : 0,
+    restrictOnExpiry,
+    creditPeriodEnabled: periodEnabled,
+    creditPeriodDays,
+    customerName: cust?.name || party?.name || custName || 'Customer'
+  };
+}
+
 const recentCheckoutsCache = new Map<string, { timestamp: number; result: any }>();
 
 ipcMain.handle('db:checkout', safeHandler((event, payload) => {
@@ -3208,7 +3558,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
   let checkoutCreatedAt = '';
   const transaction = db.transaction(() => {
-    // Credit Limit enforcement guard
+    // Credit Limit & Credit Period enforcement guard
     const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
     let splitObj: any = null;
     if (invoice.split_details && typeof invoice.split_details === 'string') {
@@ -3252,6 +3602,16 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
           throw new Error(`Credit limit of ₹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ₹${curBal.toLocaleString('en-IN')}, Bill credit: ₹${billCredit.toLocaleString('en-IN')}. Exceeds limit by ₹${excess.toLocaleString('en-IN')}.`);
         }
       }
+
+      // Credit Period Expiry restriction check:
+      // Restricts only credit purchases if configured to restrict when overdue bills exist
+      const overdueStatus = checkCustomerOverdueSync(db, tenantId, invoice.customer_id, custPhone, custName);
+      if (overdueStatus.creditPeriodEnabled && overdueStatus.restrictOnExpiry && overdueStatus.isOverdue) {
+        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        throw new Error(
+          `Credit purchase blocked: ${overdueStatus.customerName} has ${overdueStatus.overdueCount} overdue credit bill(s) totaling ₹${fmtN(overdueStatus.overdueAmount)} (oldest overdue by ${overdueStatus.oldestOverdueDays} days). Credit period has expired. Please settle pending dues before making new credit purchases.`
+        );
+      }
     }
 
     const customerId = invoice.customer_id || upsertCustomerRecord(
@@ -3262,6 +3622,17 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.customer_address
     );
 
+    // Calculate due date if credit purchase and customer has credit period configured
+    let calculatedDueDate: string | null = invoice.due_date || null;
+    if (!calculatedDueDate && isCreditBilling) {
+      const custPhone = (invoice.customer_phone || '').trim();
+      const custName = (invoice.customer_name || '').trim();
+      const overdueStatus = checkCustomerOverdueSync(db, tenantId, customerId || invoice.customer_id, custPhone, custName);
+      if (overdueStatus.creditPeriodEnabled && overdueStatus.creditPeriodDays > 0) {
+        calculatedDueDate = new Date(Date.now() + overdueStatus.creditPeriodDays * 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+
     const nowTimestamp = localTimestamp();
     checkoutCreatedAt = nowTimestamp;
     const invStmt = db.prepare(`
@@ -3270,9 +3641,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
-        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, notes, description, settled_at, created_at, updated_at
+        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, notes, description, settled_at, due_date, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -3309,6 +3680,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.notes || invoice.description || null,
       invoice.description || invoice.notes || null,
       (invoice.payment_method && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') ? nowTimestamp : null,
+      calculatedDueDate,
       nowTimestamp,
       nowTimestamp
     );
@@ -5529,6 +5901,16 @@ ipcMain.handle('sync:setPageContext', async (_event, payload: { page: string; ac
     return { success: true };
   } catch (err: any) {
     console.error('[Main] sync:setPageContext error:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('sync:resetFastPollBackoff', async () => {
+  try {
+    const { resetFastPollBackoff } = await import('./sync/syncWorker.js');
+    resetFastPollBackoff();
+    return { success: true };
+  } catch (err: any) {
     return { success: false, error: err.message };
   }
 });
@@ -8532,51 +8914,245 @@ ipcMain.handle('db:cashier:deleteCategory', safeHandler((event, { category_id, t
 
 // â”€â”€ Customer / Loyalty Points IPC Handlers â”€â”€
 
-ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_tier_id, search }: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string }) => {
+ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_tier_id, search, overdue }: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
 
     let query = `
-      SELECT c.*, 
-             p.balance as party_balance,
-             COALESCE(c.pricing_tier_id, p.pricing_tier_id) as pricing_tier_id,
+      SELECT sub.*, 
+             sub.resolved_pricing_tier_id as pricing_tier_id,
              pt.name as pricing_tier_name
-      FROM customers c
-      LEFT JOIN parties p ON p.tenant_id = c.tenant_id 
-        AND (p.phone = c.phone OR LOWER(p.name) = LOWER(c.name))
-        AND (p.is_deleted IS NULL OR p.is_deleted = 0)
-      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = COALESCE(c.pricing_tier_id, p.pricing_tier_id)
-      WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
+      FROM (
+        SELECT c.*, 
+               COALESCE(c.credit_limit, (
+                 SELECT p.credit_limit FROM parties p 
+                 WHERE p.tenant_id = c.tenant_id 
+                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                   AND (
+                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                   )
+                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
+               ), 0) as credit_limit,
+               COALESCE(c.credit_period_enabled, (
+                 SELECT p.credit_period_enabled FROM parties p 
+                 WHERE p.tenant_id = c.tenant_id 
+                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                   AND (
+                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                   )
+                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
+               ), 0) as credit_period_enabled,
+               COALESCE(c.credit_period_days, (
+                 SELECT p.credit_period_days FROM parties p 
+                 WHERE p.tenant_id = c.tenant_id 
+                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                   AND (
+                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                   )
+                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
+               ), 30) as credit_period_days,
+               COALESCE(c.credit_period_basis, (
+                 SELECT p.credit_period_basis FROM parties p 
+                 WHERE p.tenant_id = c.tenant_id 
+                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                   AND (
+                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                   )
+                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
+               ), 'BILL_BASED') as credit_period_basis,
+               COALESCE(c.restrict_on_credit_expiry, (
+                 SELECT p.restrict_on_credit_expiry FROM parties p 
+                 WHERE p.tenant_id = c.tenant_id 
+                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                   AND (
+                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                   )
+                 ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END LIMIT 1
+               ), 1) as restrict_on_credit_expiry,
+               (
+                 SELECT p.balance FROM parties p 
+                 WHERE p.tenant_id = c.tenant_id 
+                   AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                   AND (
+                     (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                     OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                   )
+                 ORDER BY 
+                   CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END,
+                   ABS(COALESCE(p.balance, 0)) DESC
+                 LIMIT 1
+               ) as party_balance,
+               COALESCE(
+                 c.pricing_tier_id,
+                 (
+                   SELECT p.pricing_tier_id FROM parties p 
+                   WHERE p.tenant_id = c.tenant_id 
+                     AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                     AND (
+                       (c.phone IS NOT NULL AND TRIM(c.phone) <> '' AND p.phone IS NOT NULL AND TRIM(p.phone) <> '' AND p.phone = c.phone)
+                       OR (LOWER(TRIM(p.name)) = LOWER(TRIM(c.name)))
+                     )
+                   ORDER BY CASE WHEN p.party_type = 'CUSTOMER' THEN 0 ELSE 1 END
+                   LIMIT 1
+                 )
+               ) as resolved_pricing_tier_id
+        FROM customers c
+        WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
+      ) sub
+      LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = sub.resolved_pricing_tier_id
+      WHERE 1=1
     `;
     const params: any[] = [tenant_id];
 
     if (search) {
-      query += ` AND (c.name LIKE ? OR c.phone LIKE ?)`;
+      query += ` AND (sub.name LIKE ? OR sub.phone LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
 
     if (active) {
-      query += ` AND c.last_purchase_date IS NOT NULL AND c.last_purchase_date >= datetime('now', '-90 days')`;
+      query += ` AND sub.last_purchase_date IS NOT NULL AND sub.last_purchase_date >= datetime('now', '-90 days')`;
     }
 
     if (credit === true) {
-      query += ` AND p.balance > 0`;
+      query += ` AND sub.party_balance > 0`;
     } else if (credit === false) {
-      query += ` AND (p.balance <= 0 OR p.balance IS NULL)`;
+      query += ` AND (sub.party_balance <= 0 OR sub.party_balance IS NULL)`;
     }
 
     if (pricing_tier_id) {
-      query += ` AND COALESCE(c.pricing_tier_id, p.pricing_tier_id) = ?`;
+      query += ` AND sub.resolved_pricing_tier_id = ?`;
       params.push(pricing_tier_id);
     }
 
-    query += ` ORDER BY c.name COLLATE NOCASE ASC`;
+    query += ` ORDER BY sub.name COLLATE NOCASE ASC`;
 
-    return db.prepare(query).all(...params);
+    const rows = db.prepare(query).all(...params) as any[];
+
+    for (const row of rows) {
+      const bal = Number(row.party_balance || 0);
+      const periodEnabled = Boolean(row.credit_period_enabled);
+      if (bal > 0 && periodEnabled) {
+        const overdueStatus = checkCustomerOverdueSync(db, tenant_id, row.customer_id, row.phone, row.name);
+        row.has_overdue = overdueStatus.isOverdue;
+        row.overdue_bills_count = overdueStatus.overdueCount;
+        row.overdue_amount = overdueStatus.overdueAmount;
+        row.oldest_overdue_days = overdueStatus.oldestOverdueDays;
+      } else {
+        row.has_overdue = false;
+        row.overdue_bills_count = 0;
+        row.overdue_amount = 0;
+        row.oldest_overdue_days = 0;
+      }
+    }
+
+    if (overdue === true || String(overdue) === 'true') {
+      return rows.filter((r: any) => r.has_overdue);
+    }
+
+    return rows;
   } catch (error: any) {
     console.error('[db:getCustomers]', error);
     return [];
+  }
+});
+
+ipcMain.handle('db:checkCustomerCreditStatus', (event, { tenant_id, customer_id, customer_name, customer_phone }: { tenant_id: string; customer_id?: string; customer_name?: string; customer_phone?: string }) => {
+  try {
+    const db = getDb();
+    const status = checkCustomerOverdueSync(db, tenant_id, customer_id, customer_phone, customer_name);
+    return {
+      allowed: !(status.creditPeriodEnabled && status.restrictOnExpiry && status.isOverdue),
+      ...status
+    };
+  } catch (error: any) {
+    console.error('[db:checkCustomerCreditStatus]', error);
+    return { allowed: true, isOverdue: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:createCustomer', (event, c: any) => {
+  try {
+    const db = getDb();
+    if (!c.name || !c.tenant_id) return { success: false, error: 'Customer name and Tenant ID are required' };
+
+    const customerId = c.customer_id || crypto.randomUUID();
+    const creditLimit = Math.max(0, Number(c.credit_limit) || 0);
+    const creditPeriodEnabled = c.credit_period_enabled ? 1 : 0;
+    const creditPeriodDays = Math.max(1, parseInt(c.credit_period_days, 10) || 30);
+    const creditPeriodBasis = c.credit_period_basis || 'BILL_BASED';
+    const restrictOnCreditExpiry = c.restrict_on_credit_expiry !== undefined ? (c.restrict_on_credit_expiry ? 1 : 0) : 1;
+
+    db.prepare(`
+      INSERT INTO customers (
+        customer_id, tenant_id, name, phone, address, pricing_tier_id,
+        credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
+        sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(
+      customerId, c.tenant_id, c.name, c.phone || null, c.address || null, c.pricing_tier_id || null,
+      creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry
+    );
+
+    // Also sync to parties table as CUSTOMER party
+    let matchedParty: any = null;
+    const cleanPhone = (c.phone || '').trim();
+    const cleanName = (c.name || '').trim();
+    if (cleanPhone) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, cleanPhone);
+    }
+    if (!matchedParty && cleanName) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, cleanName.toLowerCase());
+    }
+
+    if (matchedParty) {
+      db.prepare(`
+        UPDATE parties 
+        SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+            credit_limit = ?, credit_period_enabled = ?, credit_period_days = ?, credit_period_basis = ?, restrict_on_credit_expiry = ?,
+            pricing_tier_id = COALESCE(?, pricing_tier_id),
+            sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE party_id = ?
+      `).run(
+        c.name, c.phone || null, c.address || null,
+        creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+        c.pricing_tier_id || null, matchedParty.party_id
+      );
+    } else {
+      const partyId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO parties (
+          party_id, tenant_id, name, phone, address, balance, gst_balance, estimate_balance,
+          balance_type, party_type, pricing_tier_id, credit_limit,
+          credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
+          is_deleted, sync_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(
+        partyId, c.tenant_id, c.name, c.phone || null, c.address || null,
+        c.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry
+      );
+    }
+
+    return { success: true, customer_id: customerId };
+  } catch (error: any) {
+    console.error('[db:createCustomer]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:deduplicateCustomers', (event, tenant_id?: string) => {
+  try {
+    const db = getDb();
+    const result = autoDeduplicateCustomersAndParties(db);
+    return { success: true, ...result };
+  } catch (error: any) {
+    console.error('[db:deduplicateCustomers]', error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -8650,13 +9226,87 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
     const db = getDb();
     if (!c.customer_id || !c.tenant_id) return { success: false, error: 'Customer ID and Tenant ID are required' };
 
-    db.prepare(`
+    const hasCreditLimit = c.credit_limit !== undefined;
+    const hasCreditPeriodEnabled = c.credit_period_enabled !== undefined;
+    const hasCreditPeriodDays = c.credit_period_days !== undefined;
+    const hasCreditPeriodBasis = c.credit_period_basis !== undefined;
+    const hasRestrictOnCreditExpiry = c.restrict_on_credit_expiry !== undefined;
+
+    const creditLimit = hasCreditLimit ? Math.max(0, Number(c.credit_limit) || 0) : 0;
+    const creditPeriodEnabled = hasCreditPeriodEnabled ? (c.credit_period_enabled ? 1 : 0) : 0;
+    const creditPeriodDays = hasCreditPeriodDays ? Math.max(1, parseInt(c.credit_period_days, 10) || 30) : 30;
+    const creditPeriodBasis = c.credit_period_basis || 'BILL_BASED';
+    const restrictOnCreditExpiry = hasRestrictOnCreditExpiry ? (c.restrict_on_credit_expiry ? 1 : 0) : 1;
+
+    let updateSql = `
       UPDATE customers
       SET name = ?, phone = ?, address = ?,
-          pricing_tier_id = ?,
-          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-      WHERE customer_id = ? AND tenant_id = ?
-    `).run(c.name, c.phone || null, c.address || null, c.pricing_tier_id || null, c.customer_id, c.tenant_id);
+          pricing_tier_id = ?
+    `;
+    const params: any[] = [c.name, c.phone || null, c.address || null, c.pricing_tier_id || null];
+
+    if (hasCreditLimit) {
+      updateSql += `, credit_limit = ?`;
+      params.push(creditLimit);
+    }
+    if (hasCreditPeriodEnabled) {
+      updateSql += `, credit_period_enabled = ?`;
+      params.push(creditPeriodEnabled);
+    }
+    if (hasCreditPeriodDays) {
+      updateSql += `, credit_period_days = ?`;
+      params.push(creditPeriodDays);
+    }
+    if (hasCreditPeriodBasis) {
+      updateSql += `, credit_period_basis = ?`;
+      params.push(creditPeriodBasis);
+    }
+    if (hasRestrictOnCreditExpiry) {
+      updateSql += `, restrict_on_credit_expiry = ?`;
+      params.push(restrictOnCreditExpiry);
+    }
+
+    updateSql += `, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`;
+    params.push(c.customer_id, c.tenant_id);
+
+    db.prepare(updateSql).run(...params);
+
+    // Sync to matching party in parties
+    const cleanPhone = (c.phone || '').trim();
+    const cleanName = (c.name || '').trim();
+    let matchedParty: any = null;
+    if (cleanPhone) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, cleanPhone);
+    }
+    if (!matchedParty && cleanName) {
+      matchedParty = db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, cleanName.toLowerCase());
+    }
+
+    if (matchedParty) {
+      db.prepare(`
+        UPDATE parties 
+        SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+            credit_limit = COALESCE(?, credit_limit),
+            credit_period_enabled = COALESCE(?, credit_period_enabled),
+            credit_period_days = COALESCE(?, credit_period_days),
+            credit_period_basis = COALESCE(?, credit_period_basis),
+            restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+            pricing_tier_id = COALESCE(?, pricing_tier_id),
+            sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE party_id = ?
+      `).run(
+        c.name,
+        c.phone || null,
+        c.address || null,
+        hasCreditLimit ? creditLimit : null,
+        hasCreditPeriodEnabled ? creditPeriodEnabled : null,
+        hasCreditPeriodDays ? creditPeriodDays : null,
+        hasCreditPeriodBasis ? creditPeriodBasis : null,
+        hasRestrictOnCreditExpiry ? restrictOnCreditExpiry : null,
+        c.pricing_tier_id || null,
+        matchedParty.party_id
+      );
+    }
 
     return { success: true };
   } catch (error: any) {
@@ -8669,12 +9319,13 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
   try {
     const db = getDb();
     if (!customer_id || !tenant_id) return [];
-    return db.prepare(`
+    const rawInvoices = db.prepare(`
       SELECT *
       FROM invoices
       WHERE customer_id = ? AND tenant_id = ? AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (is_held IS NULL OR is_held = 0) AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY created_at DESC
     `).all(customer_id, tenant_id);
+    return computeCustomerCreditStatusSync(db, tenant_id, customer_id, rawInvoices);
   } catch (error: any) {
     console.error('[db:getCustomerInvoices]', error);
     return { error: 'Operation failed' };

@@ -13,7 +13,7 @@ import {
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
   Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
-  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload, ArrowUpDown, ArrowUp, ArrowDown,
+  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload, ArrowUpDown, ArrowUp, ArrowDown, Clock, AlertTriangle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -44,6 +44,14 @@ interface Party {
   created_at: string;
   pricing_tier_id?: string | null;
   credit_limit?: number;
+  credit_period_enabled?: boolean | number;
+  credit_period_days?: number;
+  credit_period_basis?: 'BILL_BASED' | 'OLDEST_UNPAID' | string;
+  restrict_on_credit_expiry?: boolean | number;
+  has_overdue?: boolean;
+  overdue_bills_count?: number;
+  overdue_amount?: number;
+  oldest_overdue_days?: number;
   connected_tenant_id?: string | null;
   connected_party_id?: string | null;
   connection_status?: 'UNLINKED' | 'PENDING' | 'CONNECTED' | string;
@@ -166,7 +174,11 @@ export function PartyManager({
     name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE',
     party_type: 'CUSTOMER' as 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM',
     custom_category: '',
-    notes: '', pricing_tier_id: '', credit_limit: '', connect_code: ''
+    notes: '', pricing_tier_id: '', credit_limit: '', connect_code: '',
+    credit_period_enabled: false,
+    credit_period_days: '30',
+    credit_period_basis: 'BILL_BASED',
+    restrict_on_credit_expiry: true
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -830,7 +842,11 @@ export function PartyManager({
   }, [initialPartyIdOrQuery, parties]);
 
   const resetPartyForm = () => {
-    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', party_type: 'CUSTOMER', custom_category: '', notes: '', pricing_tier_id: '', credit_limit: '', connect_code: '' });
+    setPartyForm({
+      name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE',
+      party_type: 'CUSTOMER', custom_category: '', notes: '', pricing_tier_id: '', credit_limit: '', connect_code: '',
+      credit_period_enabled: false, credit_period_days: '30', credit_period_basis: 'BILL_BASED', restrict_on_credit_expiry: true
+    });
     setEditingParty(null);
   };
 
@@ -839,6 +855,7 @@ export function PartyManager({
     if (!isOwner) { showStatus('Only owners can manage parties', 'error'); return; }
     setIsSavingParty(true);
     const parsedCreditLimit = Math.max(0, parseFloat(partyForm.credit_limit) || 0);
+    const parsedCreditPeriodDays = Math.max(1, parseInt(partyForm.credit_period_days, 10) || 30);
     try {
       if (editingParty) {
         await window.electronAPI.dbUpdateParty({
@@ -852,6 +869,10 @@ export function PartyManager({
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
+          credit_period_enabled: partyForm.credit_period_enabled,
+          credit_period_days: parsedCreditPeriodDays,
+          credit_period_basis: partyForm.credit_period_basis,
+          restrict_on_credit_expiry: partyForm.restrict_on_credit_expiry,
         });
         showStatus('Party updated successfully', 'success');
       } else {
@@ -869,6 +890,10 @@ export function PartyManager({
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
+          credit_period_enabled: partyForm.credit_period_enabled,
+          credit_period_days: parsedCreditPeriodDays,
+          credit_period_basis: partyForm.credit_period_basis,
+          restrict_on_credit_expiry: partyForm.restrict_on_credit_expiry,
           created_by: userId,
           created_by_name: userName || undefined,
         });
@@ -1545,20 +1570,35 @@ export function PartyManager({
                             </span>
                           </td>
 
-                          {/* Credit Limit */}
+                          {/* Credit Limit & Period */}
                           <td className="py-3 px-4 text-right font-mono font-semibold text-muted-foreground">
-                            {party.credit_limit != null && Number(party.credit_limit) > 0 ? (
-                              <span className={clsx(
-                                "px-2 py-0.5 rounded border text-[11px] font-bold",
-                                isReceivable && party.balance >= party.credit_limit
-                                  ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
-                                  : "bg-muted border-border text-foreground"
-                              )}>
-                                ₹{Number(party.credit_limit).toLocaleString('en-IN')}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground/30">—</span>
-                            )}
+                            <div className="flex flex-col items-end gap-1">
+                              {party.credit_limit != null && Number(party.credit_limit) > 0 && (
+                                <span className={clsx(
+                                  "px-2 py-0.5 rounded border text-[11px] font-bold",
+                                  isReceivable && party.balance >= party.credit_limit
+                                    ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                                    : "bg-muted border-border text-foreground"
+                                )}>
+                                  ₹{Number(party.credit_limit).toLocaleString('en-IN')}
+                                </span>
+                              )}
+                              {Boolean(party.credit_period_enabled) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {party.credit_period_days || 30}d
+                                </span>
+                              )}
+                              {party.has_overdue && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-black bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400 animate-pulse">
+                                  <AlertTriangle className="w-2.5 h-2.5" />
+                                  OVERDUE
+                                </span>
+                              )}
+                              {(!party.credit_limit || Number(party.credit_limit) <= 0) && !party.credit_period_enabled && !party.has_overdue && (
+                                <span className="text-muted-foreground/30">—</span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Last Activity */}
@@ -1592,6 +1632,10 @@ export function PartyManager({
                                       notes: party.notes || '',
                                       pricing_tier_id: party.pricing_tier_id || '',
                                       credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
+                                      credit_period_enabled: Boolean(party.credit_period_enabled),
+                                      credit_period_days: String(party.credit_period_days || 30),
+                                      credit_period_basis: party.credit_period_basis || 'BILL_BASED',
+                                      restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
                                       connect_code: (party as any).connect_code || '',
                                     });
                                     setView('party_form');
@@ -1699,6 +1743,18 @@ export function PartyManager({
                               Limit: ₹{Number(party.credit_limit).toLocaleString('en-IN')}
                             </span>
                           )}
+                          {Boolean(party.credit_period_enabled) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 border text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20">
+                              <Clock className="w-2.5 h-2.5" />
+                              {party.credit_period_days || 30}d Period
+                            </span>
+                          )}
+                          {party.has_overdue && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded-md shrink-0 border text-rose-600 dark:text-rose-400 bg-rose-500/15 border-rose-500/30 animate-pulse">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              OVERDUE ({party.overdue_bills_count || 1})
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground font-medium">
                           {party.phone && (
@@ -1761,6 +1817,10 @@ export function PartyManager({
                                 notes: party.notes || '',
                                 pricing_tier_id: party.pricing_tier_id || '',
                                 credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
+                                credit_period_enabled: Boolean(party.credit_period_enabled),
+                                credit_period_days: String(party.credit_period_days || 30),
+                                credit_period_basis: party.credit_period_basis || 'BILL_BASED',
+                                restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
                                 connect_code: (party as any).connect_code || '',
                               });
                               setView('party_form');
@@ -1960,65 +2020,271 @@ export function PartyManager({
                     </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Address</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-3 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <div className="flex flex-col h-full">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    Address
+                  </label>
+                  <div className="relative flex-1 flex flex-col min-h-0">
+                    <MapPin className="absolute left-3 top-3 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
                     <textarea
-                      placeholder="Optional address"
+                      placeholder="Optional address, door number, street, city or PIN"
                       value={partyForm.address}
                       onChange={e => setPartyForm(f => ({ ...f, address: e.target.value }))}
-                      rows={4}
-                      className={clsx(fieldCls, 'pl-9 resize-none')}
+                      className={clsx(fieldCls, 'pl-9 resize-none flex-1 w-full min-h-[160px] leading-relaxed')}
                     />
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-violet-500" />
-                    Default Pricing Tier
-                  </label>
-                  {pricingTiers.length > 0 ? (
-                    <Select
-                      value={partyForm.pricing_tier_id}
-                      onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
-                      options={[
-                        { value: '', label: 'MRP' },
-                        ...pricingTiers
-                          .filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
-                          .map(t => ({ value: t.pricing_tier_id, label: t.name })),
-                      ]}
-                      triggerClassName="rounded-xl h-[46px] w-full"
-                    />
-                  ) : (
-                    <div className="p-3 bg-muted/40 border border-border rounded-xl text-xs text-muted-foreground">
-                      No custom pricing tiers configured yet. Standard MRP price will be applied. (Configure tiers in <span className="font-bold text-foreground">Settings &gt; Pricing Tiers</span>).
-                    </div>
-                  )}
-                  <p className="text-[10px] text-muted-foreground mt-1.5">Bills for this party will automatically apply the selected pricing tier's rates.</p>
+              {/* ── Commercial & Credit Configuration ── */}
+              <div className="mt-5 pt-5 border-t border-border/70 space-y-5">
+                {/* Section Header */}
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-md bg-amber-500/10 text-amber-500">
+                    <CreditCard className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                    Commercial & Credit Configuration
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                    Credit Limit (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00 (No Limit)"
-                      value={partyForm.credit_limit}
-                      onChange={e => setPartyForm(f => ({ ...f, credit_limit: e.target.value }))}
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      className={clsx(fieldCls, 'pl-8 no-spinners')}
-                    />
+                {/* Pricing Tier & Credit Limit Side-by-Side Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Default Pricing Tier Card */}
+                  <div className="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col justify-between">
+                    <div>
+                      <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-violet-500" />
+                        Default Pricing Tier
+                      </label>
+                      <p className="text-[11px] text-muted-foreground mb-2.5">
+                        Applied automatically when billing items to this customer.
+                      </p>
+                    </div>
+                    {pricingTiers.length > 0 ? (
+                      <Select
+                        value={partyForm.pricing_tier_id}
+                        onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
+                        options={[
+                          { value: '', label: 'Standard MRP (Default)' },
+                          ...pricingTiers
+                            .filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
+                            .map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                        ]}
+                        triggerClassName="rounded-xl h-[42px] w-full bg-background"
+                      />
+                    ) : (
+                      <div className="p-2.5 bg-background border border-border/80 rounded-xl text-xs text-muted-foreground">
+                        Standard MRP (Configure custom tiers in <span className="font-semibold text-foreground">Settings &gt; Pricing Tiers</span>).
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1.5">Maximum credit allowed. Billing on credit above this limit will be blocked with a toast message.</p>
+
+                  {/* Credit Limit Card */}
+                  <div className="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <CreditCard className="w-3.5 h-3.5 text-amber-500" />
+                          Credit Limit (₹)
+                        </label>
+                        <span className="text-[11px] font-mono font-semibold text-muted-foreground">
+                          {Number(partyForm.credit_limit) > 0 ? `Max ₹${Number(partyForm.credit_limit).toLocaleString('en-IN')}` : 'No Limit'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mb-2.5">
+                        Maximum outstanding credit balance allowed.
+                      </p>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00 (No Limit)"
+                        value={partyForm.credit_limit}
+                        onChange={e => setPartyForm(f => ({ ...f, credit_limit: e.target.value }))}
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        className={clsx(fieldCls, 'pl-8 bg-background no-spinners h-[42px] font-mono font-bold')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Dedicated Credit Period Box ── */}
+                <div className={clsx(
+                  "rounded-2xl border transition-all duration-200 overflow-hidden",
+                  partyForm.credit_period_enabled
+                    ? "bg-card border-indigo-500/30 shadow-xs"
+                    : "bg-muted/15 border-border/60"
+                )}>
+                  {/* Credit Period Header & Toggle */}
+                  <div className="p-4.5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={clsx(
+                        "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                        partyForm.credit_period_enabled
+                          ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        <Clock className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-foreground tracking-tight">Credit Period Management</span>
+                          {partyForm.credit_period_enabled && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-mono">
+                              {partyForm.credit_period_days || 30} Days
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          Enforce payment deadlines independently of credit limits. Overdue credit bills can restrict new credit purchases.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
+                      <input
+                        type="checkbox"
+                        checked={partyForm.credit_period_enabled}
+                        onChange={e => setPartyForm(f => ({ ...f, credit_period_enabled: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {/* Expanded Settings */}
+                  {partyForm.credit_period_enabled && (
+                    <div className="px-5 pb-5 pt-3 border-t border-border/60 space-y-4.5 animate-in fade-in-50 duration-200">
+                      {/* Duration Configuration */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            Credit Duration (Days)
+                          </label>
+                          <span className="text-xs font-mono font-extrabold text-primary">
+                            {partyForm.credit_period_days || 30} Days Grace Period
+                          </span>
+                        </div>
+
+                        {/* Combined Preset Pills & Input Group */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/70 shrink-0">
+                            {[15, 30, 45, 50, 60].map(days => (
+                              <button
+                                key={days}
+                                type="button"
+                                onClick={() => setPartyForm(f => ({ ...f, credit_period_days: String(days) }))}
+                                className={clsx(
+                                  "px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer select-none active:scale-95",
+                                  String(partyForm.credit_period_days) === String(days)
+                                    ? "bg-primary text-primary-foreground shadow-xs"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+                                )}
+                              >
+                                {days}d
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="relative flex-1">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              placeholder="Custom days (e.g. 30)"
+                              value={partyForm.credit_period_days}
+                              onChange={e => setPartyForm(f => ({ ...f, credit_period_days: e.target.value }))}
+                              onWheel={e => (e.target as HTMLInputElement).blur()}
+                              className={clsx(fieldCls, 'h-[40px] no-spinners text-xs font-bold pr-16')}
+                            />
+                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                              Days
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Calculation Basis Dropdown */}
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Calculation Basis
+                        </label>
+                        <select
+                          value={partyForm.credit_period_basis}
+                          onChange={e => setPartyForm(f => ({ ...f, credit_period_basis: e.target.value }))}
+                          className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all shadow-xs cursor-pointer"
+                        >
+                          <option value="BILL_BASED">Option A: Bill-Based (Payment due date calculated separately from each bill date)</option>
+                          <option value="OLDEST_UNPAID">Option B: Oldest Unpaid Bill (Due date counted from oldest unsettled bill)</option>
+                        </select>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Calculates each credit bill's deadline individually and tracks overdue status via FIFO settlement.
+                        </p>
+                      </div>
+
+                      {/* Expiry Restriction Policy Selection */}
+                      <div>
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                          When Credit Period Expires
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setPartyForm(f => ({ ...f, restrict_on_credit_expiry: true }))}
+                            className={clsx(
+                              "p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-98 flex items-start gap-3",
+                              partyForm.restrict_on_credit_expiry
+                                ? "border-rose-500 bg-rose-500/10 shadow-xs"
+                                : "border-border/80 bg-background hover:bg-muted/30"
+                            )}
+                          >
+                            <span className="text-base leading-none mt-0.5">🚫</span>
+                            <div className="min-w-0">
+                              <p className={clsx("text-xs font-black", partyForm.restrict_on_credit_expiry ? "text-rose-600 dark:text-rose-400" : "text-foreground")}>
+                                Restrict Further Credit
+                              </p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Blocks new credit sales if any previous bill is overdue. Cash/Card/UPI transactions remain fully open.
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPartyForm(f => ({ ...f, restrict_on_credit_expiry: false }))}
+                            className={clsx(
+                              "p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-98 flex items-start gap-3",
+                              !partyForm.restrict_on_credit_expiry
+                                ? "border-emerald-500 bg-emerald-500/10 shadow-xs"
+                                : "border-border/80 bg-background hover:bg-muted/30"
+                            )}
+                          >
+                            <span className="text-base leading-none mt-0.5">✅</span>
+                            <div className="min-w-0">
+                              <p className={clsx("text-xs font-black", !partyForm.restrict_on_credit_expiry ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+                                Allow Further Credit
+                              </p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Permits further credit sales even past due date, subject to available credit limit.
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Info Banner */}
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs text-amber-700 dark:text-amber-400">
+                        <span className="text-sm shrink-0">💡</span>
+                        <p className="leading-relaxed">
+                          <strong>Independent Control:</strong> Credit Period functions independently of Credit Limit. A customer may have plenty of available limit but will still be restricted from credit purchases if past bills remain unpaid.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -2258,6 +2524,27 @@ export function PartyManager({
               </div>
             </div>
           </div>
+
+          {/* Overdue Warning Banner */}
+          {selectedParty.has_overdue && (
+            <div className="shrink-0 px-5 py-3 bg-rose-500/10 border-b border-rose-500/20 text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse shrink-0" />
+                <div>
+                  <span className="font-bold">Overdue Payment Warning: </span>
+                  <span>
+                    This customer has {selectedParty.overdue_bills_count || 'pending'} overdue credit bill(s) totaling ₹{Number(selectedParty.overdue_amount || 0).toLocaleString('en-IN')}.
+                    {selectedParty.restrict_on_credit_expiry !== false && selectedParty.restrict_on_credit_expiry !== 0
+                      ? ' New credit billing is restricted.'
+                      : ' Credit purchases allowed (Warning only).'}
+                  </span>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-700 dark:text-rose-300 text-[10px] font-black uppercase tracking-wider shrink-0">
+                {selectedParty.oldest_overdue_days ? `${selectedParty.oldest_overdue_days}d Overdue` : 'Overdue'}
+              </span>
+            </div>
+          )}
 
           {/* ── Ledger entries ── */}
           <div className="flex-1 overflow-y-auto px-5 py-4">

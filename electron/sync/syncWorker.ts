@@ -617,19 +617,60 @@ async function clearAuthAndNotify() {
 
 import { startLocalHostServer } from './localHostServer.js';
 
-const FAST_INVOICE_PULL_MS = 3000;
+// ── Smart Adaptive Polling for Cash Settlement ──────────────────────────────
+const FAST_PULL_ACTIVE_MS = 10000; // 10 seconds baseline (down from 3s, cuts ~70% immediately)
 let fastInvoicePullTimerId: NodeJS.Timeout | null = null;
 let fastInvoicePullInProgress = false;
 let consecutiveFastPullFailures = 0;
+let consecutiveNoUpdates = 0;
 let activePageContext: string | null = null;
 let syncCycleTimerId: NodeJS.Timeout | null = null;
 
+function isAppWindowFocused(): boolean {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win || win.isDestroyed()) return true;
+    if (win.isMinimized()) return false;
+    return win.isFocused();
+  } catch {
+    return true;
+  }
+}
+
 function getFastPullIntervalMs(): number {
-  if (consecutiveFastPullFailures <= 0) return FAST_INVOICE_PULL_MS;
-  if (consecutiveFastPullFailures === 1) return 6000;
-  if (consecutiveFastPullFailures === 2) return 12000;
-  if (consecutiveFastPullFailures === 3) return 30000;
+  // 1. Network / Server error backoff
+  if (consecutiveFastPullFailures >= 3) return 60000;
+  if (consecutiveFastPullFailures === 2) return 30000;
+  if (consecutiveFastPullFailures === 1) return 15000;
+
+  // 2. If app window is minimized or not focused, conserve Vercel serverless memory
+  if (!isAppWindowFocused()) {
+    return 60000; // 1 minute when minimized / running in background
+  }
+
+  // 3. Adaptive backoff based on activity in store:
+  // - Active rush (new bills coming): 10 seconds
+  // - Mild idle (no new bills for ~30s): 20 seconds
+  // - Moderate idle (no new bills for ~2m): 35 seconds
+  // - Deep idle (no new bills for ~5m+): 60 seconds
+  if (consecutiveNoUpdates <= 1) return FAST_PULL_ACTIVE_MS;
+  if (consecutiveNoUpdates <= 4) return 20000;
+  if (consecutiveNoUpdates <= 8) return 35000;
   return 60000;
+}
+
+export function resetFastPollBackoff() {
+  consecutiveNoUpdates = 0;
+  consecutiveFastPullFailures = 0;
+  if (activePageContext === 'cash_settlement' && isSyncActive) {
+    if (fastInvoicePullTimerId) {
+      clearTimeout(fastInvoicePullTimerId);
+      fastInvoicePullTimerId = null;
+    }
+    triggerFastLightweightBillPull().finally(() => {
+      scheduleNextFastLightweightPull();
+    });
+  }
 }
 
 async function triggerFastLightweightBillPull() {
@@ -647,7 +688,10 @@ async function triggerFastLightweightBillPull() {
       if (res.success) {
         consecutiveFastPullFailures = 0;
         if (res.updated) {
+          consecutiveNoUpdates = 0; // Reset backoff immediately on active data
           notifyRenderer('fast-invoice-pull-changed');
+        } else {
+          consecutiveNoUpdates++; // Step down polling frequency during quiet periods
         }
       } else {
         consecutiveFastPullFailures++;
@@ -690,8 +734,9 @@ export function setPageContext(page: string | null, active: boolean) {
 
   if (activePageContext === 'cash_settlement') {
     if (!fastInvoicePullTimerId) {
-      console.log('[SyncWorker] 🟢 Entering Cash Settlement screen — Starting lightweight bill poll timer (3s)');
+      console.log('[SyncWorker] 🟢 Entering Cash Settlement screen — Starting Smart Adaptive Bill Poll timer');
       consecutiveFastPullFailures = 0;
+      consecutiveNoUpdates = 0;
       triggerFastLightweightBillPull().finally(() => {
         scheduleNextFastLightweightPull();
       });
@@ -701,6 +746,7 @@ export function setPageContext(page: string | null, active: boolean) {
       console.log('[SyncWorker] 🔴 Leaving Cash Settlement screen — Destroying lightweight bill poll timer');
       clearTimeout(fastInvoicePullTimerId);
       fastInvoicePullTimerId = null;
+      consecutiveNoUpdates = 0;
     }
   }
 }

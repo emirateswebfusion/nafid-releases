@@ -35,9 +35,12 @@ export interface IElectronAPI {
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: any }) => Promise<{ success: boolean; error?: string }>;
-  dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string }) => Promise<any[]>;
+  dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => Promise<any[]>;
+  dbCreateCustomer: (customer: any) => Promise<{ success: boolean; customer_id?: string; error?: string }>;
   dbUpdateCustomer: (customer: any) => Promise<{ success: boolean; error?: string }>;
+  dbCheckCustomerCreditStatus: (params: { tenant_id: string; customer_id?: string; customer_name?: string; customer_phone?: string }) => Promise<{ allowed: boolean; isOverdue: boolean; overdueCount: number; overdueAmount: number; oldestOverdueDays: number; restrictOnExpiry: boolean; creditPeriodEnabled: boolean; creditPeriodDays: number; customerName: string; error?: string }>;
   dbDeleteCustomer: (params: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string; deleted_party_count?: number }>;
+  dbDeduplicateCustomers: (tenant_id?: string) => Promise<{ success: boolean; error?: string; merged_customers?: number; merged_parties?: number }>;
   dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;
@@ -97,6 +100,13 @@ export interface IElectronAPI {
   printReady: (contentHeightPx?: number) => Promise<{ success: boolean; error?: string }>;
   printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
+
+  // WhatsApp APIs
+  whatsappGetStatus: () => Promise<{ status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }>;
+  whatsappConnect: () => Promise<{ success: boolean; status: string; qrCode?: string | null; phone?: string | null }>;
+  whatsappDisconnect: () => Promise<{ success: boolean; error?: string }>;
+  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
+  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: any) => void) => void;
@@ -238,6 +248,7 @@ export interface IElectronAPI {
   dbToggleComboOfferActive: (params: { combo_id: string; tenant_id: string; is_active: boolean }) => Promise<{ success: boolean; error?: string }>;
 
   setPageContext: (payload: { page: string; active: boolean }) => Promise<{ success: boolean; error?: string }>;
+  resetFastPollBackoff: () => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {
