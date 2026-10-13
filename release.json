@@ -1,8 +1,8 @@
 {
-  "tag_name": "v1.7.8",
-  "name": "v1.7.8",
+  "tag_name": "v1.7.9",
+  "name": "v1.7.9",
   "draft": false,
   "prerelease": false,
-  "body": "Release v1.7.8 - Bug fixes: Fixed cash drawer sync UNIQUE constraint error, improved party credit balance recalculation on startup after DB reset",
+  "body": "Release v1.7.9 - Fix window display visibility on all machines, fix cash drawer sync conflict, automatic party balance recalculation on startup",
   "target_commitish": "main"
 }

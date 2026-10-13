@@ -514,7 +514,7 @@ function createWindow() {
   }
 
   if (!app.isPackaged) {
-    // Development: Load from Vite dev server â€” requires ELECTRON_DEV_SERVER_URL in .env
+    // Development: Load from Vite dev server — requires ELECTRON_DEV_SERVER_URL in .env
     const devUrl = process.env.ELECTRON_DEV_SERVER_URL;
     if (!devUrl) {
       throw new Error('[Electron] ELECTRON_DEV_SERVER_URL environment variable is required in development mode.');
@@ -525,6 +525,13 @@ function createWindow() {
     // Production: Load from built files
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  mainWindow.once('ready-to-show', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
 
   mainWindow.on('focus', async () => {
     try {

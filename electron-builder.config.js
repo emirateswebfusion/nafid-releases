@@ -78,8 +78,9 @@ module.exports = {
     artifactName: '${productName}-Setup-${version}.${ext}'
   },
   nsis: {
-    oneClick: false,
-    allowToChangeInstallationDirectory: true,
+    oneClick: true,
+    perMachine: false,
+    allowElevation: true,
     deleteAppDataOnUninstall: false,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
