@@ -1071,13 +1071,11 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
 
      if (filterDate && String(filterDate).trim() !== '') {
         const dateCol = dateField === 'updated_at' ? 'COALESCE(p.updated_at, p.created_at)' : 'p.created_at';
-        if (arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '') {
-          query += ` AND (substr(${dateCol}, 1, 10) BETWEEN ? AND ? OR date(${dateCol}, 'localtime') BETWEEN ? AND ?)`;
-          params.push(filterDate, arg.filterDateEnd, filterDate, arg.filterDateEnd);
-        } else {
-          query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
-          params.push(filterDate, filterDate);
-        }
+        const cleanStart = parseCleanDate(filterDate);
+        const cleanEnd = arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '' ? parseCleanDate(arg.filterDateEnd) : cleanStart;
+        const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
+        query += ` AND (${dateCol} >= ? AND ${dateCol} <= ?)`;
+        params.push(startUtc, endUtc);
      }
 
      if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
@@ -1163,13 +1161,11 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
 
     if (arg?.filterDate && String(arg.filterDate).trim() !== '') {
        const dateCol = arg?.dateField === 'updated_at' ? 'COALESCE(updated_at, created_at)' : 'created_at';
-       if (arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '') {
-         query += ` AND (substr(${dateCol}, 1, 10) BETWEEN ? AND ? OR date(${dateCol}, 'localtime') BETWEEN ? AND ?)`;
-         params.push(arg.filterDate, arg.filterDateEnd, arg.filterDate, arg.filterDateEnd);
-       } else {
-         query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
-         params.push(arg.filterDate, arg.filterDate);
-       }
+       const cleanStart = parseCleanDate(arg.filterDate);
+       const cleanEnd = arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '' ? parseCleanDate(arg.filterDateEnd) : cleanStart;
+       const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
+       query += ` AND (${dateCol} >= ? AND ${dateCol} <= ?)`;
+       params.push(startUtc, endUtc);
     }
 
     if (arg?.stockStatus && arg.stockStatus !== 'all') {
@@ -4549,11 +4545,11 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       const cleanEnd = filterDateEnd ? parseCleanDate(filterDateEnd) : cleanStart;
       const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, activeTenantId);
 
-      query += ` AND (
-        (COALESCE(i.settled_at, i.created_at) >= ? AND COALESCE(i.settled_at, i.created_at) <= ?)
-        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) BETWEEN ? AND ?
-      )`;
-      params.push(startUtc, endUtc, cleanStart, cleanEnd);
+      // Use created_at for date filtering to match the grouping/ordering in the UI.
+      // Using COALESCE(settled_at, created_at) caused invoices created on a different date
+      // to appear under wrong date groups (e.g. filtered for Oct 12 but displayed under Oct 19).
+      query += ` AND (i.created_at >= ? AND i.created_at <= ?)`;
+      params.push(startUtc, endUtc);
     }
 
     query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
@@ -4661,11 +4657,11 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
       const cleanEnd = filterDateEnd ? parseCleanDate(filterDateEnd) : cleanStart;
       const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, activeTenantId);
 
-      query += ` AND (
-        (COALESCE(i.settled_at, i.created_at) >= ? AND COALESCE(i.settled_at, i.created_at) <= ?)
-        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) BETWEEN ? AND ?
-      )`;
-      params.push(startUtc, endUtc, cleanStart, cleanEnd);
+      // Use created_at for date filtering to match the grouping/ordering in the UI.
+      // Using COALESCE(settled_at, created_at) caused invoices created on a different date
+      // to appear under wrong date groups (e.g. filtered for Oct 12 but displayed under Oct 19).
+      query += ` AND (i.created_at >= ? AND i.created_at <= ?)`;
+      params.push(startUtc, endUtc);
     }
 
     const row = db.prepare(query).get(...params) as any;
@@ -4686,16 +4682,17 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
   try {
     const db = getDb();
     const dateStr = localDate(new Date(), tenantId);
+    const { startUtc, endUtc } = getUtcRangeForStoreDateRange(dateStr, dateStr, tenantId);
     const row = db.prepare(`
       SELECT COALESCE(SUM(MIN(grand_total, MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
-        AND (created_at >= ? OR substr(created_at, 1, 10) = ?)
+        AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
         AND converted_to_invoice_id IS NULL 
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
-    `).get(tenantId, dateStr, dateStr) as any;
+    `).get(tenantId, startUtc, endUtc) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
     console.error('[db:getDashboardStats]', error);

@@ -17,10 +17,13 @@ async function getBaileys() {
 // WhatsApp session and state variables
 let sock: any = null;
 let currentQrBase64: string | null = null;
-let connectionStatus: 'disconnected' | 'connecting' | 'connected' = 'disconnected';
+let connectionStatus: 'disconnected' | 'connecting' | 'syncing' | 'connected' = 'disconnected';
 let connectedPhone: string | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
+
+// Track if we've shown QR code and are waiting for scan
+let qrShown = false;
 
 // Helper to notify all renderer windows about WhatsApp state changes
 function broadcastWhatsAppState() {
@@ -88,6 +91,7 @@ export async function startWhatsAppConnection(): Promise<void> {
         try {
           currentQrBase64 = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
           connectionStatus = 'connecting';
+          qrShown = true;
           broadcastWhatsAppState();
         } catch (err) {
           console.error('[WhatsApp] QR generate error:', err);
@@ -102,6 +106,7 @@ export async function startWhatsAppConnection(): Promise<void> {
         currentQrBase64 = null;
         connectionStatus = 'disconnected';
         connectedPhone = null;
+        qrShown = false;
         sock = null;
         broadcastWhatsAppState();
 
@@ -121,21 +126,34 @@ export async function startWhatsAppConnection(): Promise<void> {
           }, timeout);
         }
       } else if (connection === 'open') {
-        console.log('[WhatsApp] Connection established successfully!');
+        console.log('[WhatsApp] Connection established successfully! QR scanned, waiting for session sync...');
         reconnectAttempts = 0;
-        connectionStatus = 'connected';
         currentQrBase64 = null;
+        qrShown = false;
+
+        // Transition to syncing state - QR scanned, now waiting for session to fully stabilize
+        connectionStatus = 'syncing';
+        broadcastWhatsAppState();
 
         // Extract phone number from JID
         const jid = sock?.user?.id || '';
         connectedPhone = jid.split(':')[0] || jid.split('@')[0] || 'Connected';
-        broadcastWhatsAppState();
+
+        // After a brief delay, mark as fully connected (session stabilized)
+        setTimeout(() => {
+          if (connectionStatus === 'syncing') {
+            console.log('[WhatsApp] Session stabilized, marking as connected');
+            connectionStatus = 'connected';
+            broadcastWhatsAppState();
+          }
+        }, 3000);
       }
     });
   } catch (error) {
     console.error('[WhatsApp] startWhatsAppConnection error:', error);
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
+    qrShown = false;
     broadcastWhatsAppState();
   }
 }
@@ -158,6 +176,7 @@ export async function logoutWhatsApp(): Promise<{ success: boolean; error?: stri
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
     connectedPhone = null;
+    qrShown = false;
     broadcastWhatsAppState();
     return { success: true };
   } catch (error: any) {

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, PowerOff, ShieldCheck } from 'lucide-react';
+import { MessageSquare, QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, PowerOff, ShieldCheck, Loader2, WifiSync } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { FloatToast, type ToastMessage } from './ui/FloatToast';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
+
+type WhatsAppStatus = 'disconnected' | 'connecting' | 'syncing' | 'connected';
 
 interface WhatsAppSettingsProps {
   tenantId?: string;
@@ -15,7 +17,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   autoSendEnabled,
   onAutoSendChange,
 }) => {
-  const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [status, setStatus] = useState<WhatsAppStatus>('disconnected');
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -41,7 +43,10 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         setPhone(data.phone);
         if (data.status === 'connected') {
           setLoading(false);
-          setMsg({ text: 'WhatsApp connected successfully!', type: 'success' });
+          setMsg({ text: 'WhatsApp connected and synced successfully!', type: 'success' });
+        }
+        if (data.status === 'syncing') {
+          setLoading(false);
         }
       });
       return () => {
@@ -96,7 +101,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               WhatsApp Integration & Automation
             </h3>
             <p className="text-xs text-muted-foreground">
-              Send digital invoices, payment reminders, reports, and alerts directly from your shop's WhatsApp number
+              Send digital invoices, payment reminders, reports, and alerts directly from your shop&apos;s WhatsApp number
             </p>
           </div>
         </div>
@@ -105,6 +110,11 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Connected ({phone || 'Ready'})
+            </span>
+          ) : status === 'syncing' ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/20">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Syncing Data...
             </span>
           ) : status === 'connecting' ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
@@ -148,6 +158,25 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 Disconnect Number
               </Button>
             </div>
+          ) : status === 'syncing' ? (
+            <div className="py-6 space-y-4">
+              <div className="w-20 h-20 rounded-full bg-blue-500/10 border-2 border-blue-500 text-blue-500 flex items-center justify-center mx-auto">
+                <WifiSync className="w-10 h-10 animate-spin" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-foreground">WhatsApp Connected</h4>
+                <p className="text-xs text-muted-foreground mt-1 font-mono">
+                  Syncing your data&hellip; Please wait.
+                </p>
+                <p className="text-[11px] text-muted-foreground/80 mt-2 max-w-xs mx-auto">
+                  Please do not close the app or disconnect. This usually takes a few seconds.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                <span>Synchronizing session&hellip;</span>
+              </div>
+            </div>
           ) : qrCode ? (
             <div className="space-y-4">
               <div className="p-3 bg-white rounded-xl shadow-md inline-block border border-border">
@@ -159,7 +188,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   Open WhatsApp on your phone &gt; Settings / Menu &gt; Linked Devices &gt; Link a Device
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleConnect} disabled={loading} className="text-xs">
+              <Button variant="outline" size="sm" onClick={handleConnect} disabled={loading || (status as WhatsAppStatus) === 'connecting' || (status as WhatsAppStatus) === 'syncing'} className="text-xs">
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                 Refresh QR Code
               </Button>
@@ -175,9 +204,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   Connect your business or personal mobile number without paying any external messaging API costs.
                 </p>
               </div>
-              <Button onClick={handleConnect} disabled={loading} className="text-xs font-bold px-6">
+              <Button onClick={handleConnect} disabled={loading || (status as WhatsAppStatus) === 'connecting' || (status as WhatsAppStatus) === 'syncing'} className="text-xs font-bold px-6">
                 <QrCode className="w-4 h-4 mr-2" />
-                {loading ? 'Initializing...' : 'Generate WhatsApp QR Code'}
+                {loading ? 'Initializing...' : (status as WhatsAppStatus) === 'connecting' || (status as WhatsAppStatus) === 'syncing' ? 'Please Wait...' : 'Generate WhatsApp QR Code'}
               </Button>
             </div>
           )}

@@ -5,7 +5,8 @@ import {
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
-  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare
+  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare,
+  Zap, Wrench
 } from 'lucide-react';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
@@ -3746,24 +3747,64 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-extrabold rounded-lg border border-blue-500/20 shrink-0 uppercase tracking-wider">{updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}</span>
                     </div>
                     {updateInfo.releaseNotes && (
-                      <div className="px-5 py-4.5 bg-muted/20">
-                        <p className="text-[10px] font-extrabold text-muted-foreground/80 uppercase tracking-widest mb-3">What's New</p>
-                        <div className="text-xs text-muted-foreground/80 max-h-36 overflow-y-auto leading-relaxed space-y-2 font-medium">
+                      <div className="px-5 py-4 bg-muted/20 border-b border-border/40 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                            <p className="text-xs font-black text-foreground uppercase tracking-wider">
+                              What's New in v{updateInfo.version}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-muted-foreground/70 bg-background/80 px-2 py-0.5 rounded-full border border-border/50">
+                            Release Highlights
+                          </span>
+                        </div>
+
+                        <div className="bg-background/90 rounded-xl p-3.5 border border-border/60 max-h-56 overflow-y-auto space-y-2 text-xs">
                           {typeof updateInfo.releaseNotes === 'string'
-                            ? updateInfo.releaseNotes.split('\n').filter(Boolean).map((line: string, i: number) => (<p key={i} className="flex items-start gap-2.5"><span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" /><span>{line}</span></p>))
-                            : <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>}
+                            ? updateInfo.releaseNotes
+                                .split('\n')
+                                .map((line: string) => line.trim())
+                                .filter(Boolean)
+                                .map((line: string, i: number) => {
+                                  const isFix = /fix|bug|issue|error|resolved|patch/i.test(line);
+                                  const cleanLine = line.replace(/^[-*•\d.]+\s*/, '');
+                                  return (
+                                    <div key={i} className="flex items-start gap-2.5 group">
+                                      <div className={clsx(
+                                        "mt-0.5 p-1 rounded-md shrink-0 flex items-center justify-center text-[10px]",
+                                        isFix
+                                          ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                      )}>
+                                        {isFix ? <Wrench className="w-3 h-3" /> : <Zap className="w-3 h-3 fill-amber-500/20" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="leading-snug text-foreground/90 font-medium">
+                                          {cleanLine}
+                                        </p>
+                                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-60 text-muted-foreground">
+                                          {isFix ? 'Fix / Improvement' : 'New Feature'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                            : (
+                              <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>
+                            )}
                         </div>
                       </div>
                     )}
                     {isDownloading && downloadProgress && (
-                      <div className="px-5 pb-4.5">
+                      <div className="px-5 py-4 bg-muted/10">
                         <div className="w-full bg-border/50 rounded-full h-2 overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300" style={{ width: `${Math.min(downloadProgress.percent, 100)}%` }} /></div>
                         <div className="flex items-center justify-between mt-2"><p className="text-[10px] font-bold text-muted-foreground/80">{Math.round(downloadProgress.percent)}%</p><p className="text-[10px] font-bold text-muted-foreground/80 font-mono">{formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}</p></div>
                       </div>
                     )}
                     {updateReady && (
-                      <div className="px-5 pb-4.5">
-                        <button type="button" onClick={handleInstallUpdate} className="flex items-center justify-center gap-2 w-full h-11 rounded-2xl font-bold text-xs bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer shadow-sm">
+                      <div className="p-5 bg-gradient-to-t from-primary/5 to-transparent">
+                        <button type="button" onClick={handleInstallUpdate} className="flex items-center justify-center gap-2.5 w-full h-12 rounded-2xl font-bold text-xs bg-primary text-primary-foreground hover:brightness-110 transition-all duration-200 active:scale-95 cursor-pointer shadow-md">
                           <RotateCcw className="w-4 h-4 shrink-0" /> Restart & Install Update
                         </button>
                       </div>

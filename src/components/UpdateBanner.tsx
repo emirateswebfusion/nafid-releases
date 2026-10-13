@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Download, RotateCcw, Sparkles } from 'lucide-react';
+import { X, Download, RotateCcw, Zap } from 'lucide-react';
 import clsx from 'clsx';
 
 interface UpdateBannerProps {
@@ -111,7 +111,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
                 onClick={() => { handleDismiss(); onOpenSettings(); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 border border-blue-500/30 transition-all active:scale-95 cursor-pointer"
               >
-                <Sparkles className="w-3 h-3" />
+                <Zap className="w-3 h-3 fill-blue-500/20" />
                 See What's New
               </button>
             )}

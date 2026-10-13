@@ -98,12 +98,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename }),
 
-  // WhatsApp APIs
+// WhatsApp APIs
   whatsappGetStatus: () => ipcRenderer.invoke('whatsapp:getStatus'),
   whatsappConnect: () => ipcRenderer.invoke('whatsapp:connect'),
   whatsappDisconnect: () => ipcRenderer.invoke('whatsapp:disconnect'),
   whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => ipcRenderer.invoke('whatsapp:sendInvoice', payload),
-  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }) => void) => {
+  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => {
     const listener = (_event: any, data: any) => callback(data);
     ipcRenderer.on('whatsapp:status-update', listener);
     return () => {

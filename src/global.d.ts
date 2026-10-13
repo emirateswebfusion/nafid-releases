@@ -106,7 +106,7 @@ export interface IElectronAPI {
   whatsappConnect: () => Promise<{ success: boolean; status: string; qrCode?: string | null; phone?: string | null }>;
   whatsappDisconnect: () => Promise<{ success: boolean; error?: string }>;
   whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
-  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
+  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: any) => void) => void;
