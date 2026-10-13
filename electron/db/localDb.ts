@@ -48,13 +48,38 @@ export function initDb() {
 
       for (const src of candidates) {
         if (fs.existsSync(src) && fs.statSync(src).size > 0 && src !== dbPath) {
-          console.log(`[DB Self-Healing] Found legacy/alternate database at ${src}. Restoring to ${dbPath}...`);
-          fs.copyFileSync(src, dbPath);
-          const wal = `${src}-wal`;
-          const shm = `${src}-shm`;
-          if (fs.existsSync(wal)) fs.copyFileSync(wal, `${dbPath}-wal`);
-          if (fs.existsSync(shm)) fs.copyFileSync(shm, `${dbPath}-shm`);
-          break;
+          // Validate the candidate database has minimum required schema before copying
+          let isValid = false;
+          try {
+            const testDb = new Database(src, { readonly: true });
+            const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
+            const tableNames = tables.map(t => t.name);
+            // Check for critical tables and columns that migrations depend on
+            const hasProducts = tableNames.includes('products');
+            const hasInvoices = tableNames.includes('invoices');
+            const hasParties = tableNames.includes('parties');
+            let hasIsDeleted = false;
+            if (hasProducts) {
+              const cols = testDb.prepare("PRAGMA table_info(products)").all() as { name: string }[];
+              hasIsDeleted = cols.some(c => c.name === 'is_deleted');
+            }
+            testDb.close();
+            isValid = hasProducts && hasInvoices && hasParties && hasIsDeleted;
+          } catch {
+            isValid = false;
+          }
+
+          if (isValid) {
+            console.log(`[DB Self-Healing] Found compatible legacy database at ${src}. Restoring to ${dbPath}...`);
+            fs.copyFileSync(src, dbPath);
+            const wal = `${src}-wal`;
+            const shm = `${src}-shm`;
+            if (fs.existsSync(wal)) fs.copyFileSync(wal, `${dbPath}-wal`);
+            if (fs.existsSync(shm)) fs.copyFileSync(shm, `${dbPath}-shm`);
+            break;
+          } else {
+            console.log(`[DB Self-Healing] Skipping incompatible legacy database at ${src} (missing required schema)`);
+          }
         }
       }
     } catch (copyErr) {
