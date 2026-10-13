@@ -246,8 +246,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierDeleteCategory: (params: { category_id: string; tenant_id: string }) => ipcRenderer.invoke('db:cashier:deleteCategory', params),
 
   // Purchase Bills
-  dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextPurchaseBillNumber', payload),
-  dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextPurchaseBillNumber', payload),
+  dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string; bill_type?: string }) => ipcRenderer.invoke('db:peekNextPurchaseBillNumber', payload),
+  dbGetNextPurchaseBillNumber: (payload: { tenant_id: string; bill_type?: string }) => ipcRenderer.invoke('db:getNextPurchaseBillNumber', payload),
   dbAddPurchaseBill: (payload: any) => ipcRenderer.invoke('db:addPurchaseBill', payload),
   dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:getPurchaseBills', args),
   dbGetPurchaseBillItems: (purchase_bill_id: string) => ipcRenderer.invoke('db:getPurchaseBillItems', purchase_bill_id),

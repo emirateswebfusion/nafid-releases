@@ -294,6 +294,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [scrapStartNumber, setScrapStartNumber] = useState<number | string>(1);
   const [quotationPrefix, setQuotationPrefix] = useState('');
   const [quotationStartNumber, setQuotationStartNumber] = useState<number | string>(1);
+  const [purchaseBillPrefix, setPurchaseBillPrefix] = useState('');
+  const [purchaseBillStartNumber, setPurchaseBillStartNumber] = useState<number | string>(1);
   const [stockReportDefaultView, setStockReportDefaultView] = useState('combined');
   const [inventoryDefaultView, setInventoryDefaultView] = useState('combined');
   const [showProductGstBadge, setShowProductGstBadge] = useState(true);
@@ -573,6 +575,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     scrapStartNumber: overrides.scrapStartNumber !== undefined ? overrides.scrapStartNumber : scrapStartNumber,
     quotationPrefix: overrides.quotationPrefix !== undefined ? overrides.quotationPrefix : quotationPrefix,
     quotationStartNumber: overrides.quotationStartNumber !== undefined ? overrides.quotationStartNumber : quotationStartNumber,
+    purchaseBillPrefix: overrides.purchaseBillPrefix !== undefined ? overrides.purchaseBillPrefix : purchaseBillPrefix,
+    purchaseBillStartNumber: overrides.purchaseBillStartNumber !== undefined ? overrides.purchaseBillStartNumber : purchaseBillStartNumber,
     stockReportDefaultView: overrides.stockReportDefaultView !== undefined ? overrides.stockReportDefaultView : stockReportDefaultView,
     inventoryDefaultView: overrides.inventoryDefaultView !== undefined ? overrides.inventoryDefaultView : inventoryDefaultView,
     serviceChargeBarcode: overrides.serviceChargeBarcode !== undefined ? overrides.serviceChargeBarcode : serviceChargeBarcode,
@@ -601,7 +605,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -696,11 +700,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'enable_party_gst_balance', 'enable_party_estimate_balance',
           'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate', 'show_zero_paper_stock', 'show_paper_only_products', 'enable_convert_to_gst', 'billing_ui_config',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
-          'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
+          'quotation_counter', 'purchase_bill_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
         const globalOnlyKeys = new Set([
           'terminal_code', 'invoice_counter_config', 'return_counter',
-          'scrap_invoice_counter', 'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
+          'scrap_invoice_counter', 'quotation_counter', 'purchase_bill_counter', 'three_invoice_series', 'dual_invoice_series'
         ]);
 
         const results = await Promise.allSettled(
@@ -977,6 +981,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (quotationCfg.counter) finalQuotationStart = quotationCfg.counter;
       }
 
+      let finalPurchaseBillPrefix = '';
+      let finalPurchaseBillStart: number | string = 1;
+      const pbCfg = allSettings['purchase_bill_counter'];
+      if (pbCfg && typeof pbCfg === 'object') {
+        if (pbCfg.prefix) finalPurchaseBillPrefix = String(pbCfg.prefix).replace(/-$/, '');
+        if (pbCfg.counter) finalPurchaseBillStart = pbCfg.counter;
+      }
+
       let finalTripleSeries = false;
       let finalB2bPrefix = '';
       let finalB2bStart: number | string = 1;
@@ -1074,6 +1086,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setScrapStartNumber(finalScrapStart);
       setQuotationPrefix(finalQuotationPrefix);
       setQuotationStartNumber(finalQuotationStart);
+      setPurchaseBillPrefix(finalPurchaseBillPrefix);
+      setPurchaseBillStartNumber(finalPurchaseBillStart);
       setEnableThreeInvoiceSeries(finalTripleSeries);
       setB2bPrefix(finalB2bPrefix);
       setB2bStartNumber(finalB2bStart);
@@ -1287,6 +1301,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const finalReturnCounter = Number(returnStartNumber) || 1;
       const finalScrapCounter = Number(scrapStartNumber) || 1;
       const finalQuotationCounter = Number(quotationStartNumber) || 1;
+      const finalPurchaseBillCounter = Number(purchaseBillStartNumber) || 1;
       const finalB2bCounter = Number(b2bStartNumber) || 1;
       const finalB2cCounter = Number(b2cStartNumber) || 1;
 
@@ -1304,6 +1319,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const computedQuotationPrefix = (quotationPrefix && quotationPrefix.trim())
         ? quotationPrefix.trim().replace(/-$/, '')
         : `${cleanCode}-QTN`;
+      const computedPurchaseBillPrefix = (purchaseBillPrefix && purchaseBillPrefix.trim())
+        ? purchaseBillPrefix.trim().replace(/-$/, '')
+        : `${cleanCode}-PUR`;
 
       const sanitizedFlags = sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS);
 
@@ -1354,6 +1372,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${computedScrapPrefix}-`, counter: finalScrapCounter } }), name: 'scrap_invoice_counter' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${computedQuotationPrefix}-`, counter: finalQuotationCounter } }), name: 'quotation_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'purchase_bill_counter', value: { prefix: `${computedPurchaseBillPrefix}-`, counter: finalPurchaseBillCounter } }), name: 'purchase_bill_counter' },
+        ...(tenantId && tenantId !== 'global' ? [
+          { promise: window.electronAPI.settingsSet({ tenant_id: tenantId, key: 'purchase_bill_counter', value: { prefix: `${computedPurchaseBillPrefix}-`, counter: finalPurchaseBillCounter } }), name: 'purchase_bill_counter_tenant' },
+        ] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? finalB2bCounter : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? finalB2cCounter : 1 } }), name: 'three_invoice_series' },
         ...(enableThreeInvoiceSeries ? [
           { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: finalB2bCounter } }), name: 'gst_b2b_invoice' },
@@ -1871,6 +1893,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       setScrapPrefix(`${newCode}-SCR`);
                       setQuotationPrefix(`${newCode}-QTN`);
                       setReturnPrefix(`${newCode}-RTN`);
+                      setPurchaseBillPrefix(`${newCode}-PUR`);
                     }
                   }} placeholder="Auto-generated" className="font-mono font-bold uppercase tracking-wider bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" maxLength={6} />
                   <p className="text-[10px] text-muted-foreground/70 mt-1">Format: <span className="font-mono text-foreground/80">{terminalCode || 'POS1'}-XXX</span></p>
@@ -2018,6 +2041,51 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
                         <Input type="number" min="1" value={returnStartNumber} onChange={(e) => setReturnStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold bg-background focus:ring-4 focus:ring-rose-500/10 rounded-xl" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Purchase Bill Counter */}
+              <div className="mt-6 border-t border-border/40 pt-6 space-y-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-black text-emerald-500 uppercase tracking-widest">Purchase Bill Counter</span>
+                  <p className="text-[10px] text-muted-foreground/75 mt-0.5">Prefix and next starting number for purchase bills</p>
+                </div>
+                <div className="space-y-4 pt-2">
+                  <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.03] p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        Purchase Bill Series
+                      </h5>
+                      <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border px-2 py-0.5 rounded-lg">
+                        {purchaseBillPrefix || `${terminalCode}-PUR`}-{String(Number(purchaseBillStartNumber) || 1).padStart(3, '0')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
+                        <Input
+                          type="text"
+                          value={purchaseBillPrefix || `${terminalCode}-PUR`}
+                          onChange={(e) => setPurchaseBillPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12))}
+                          className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-emerald-500/10 rounded-xl"
+                          maxLength={12}
+                          placeholder="Auto-generated"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Next Number</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={purchaseBillStartNumber}
+                          onChange={(e) => setPurchaseBillStartNumber(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder="e.g. 1"
+                          className="font-mono font-bold bg-background focus:ring-4 focus:ring-emerald-500/10 rounded-xl"
+                        />
                       </div>
                     </div>
                   </div>

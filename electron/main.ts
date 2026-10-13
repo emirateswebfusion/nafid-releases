@@ -7376,66 +7376,140 @@ ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
 });
 
 // â”€â”€ Purchase Bill IPC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-ipcMain.handle('db:peekNextPurchaseBillNumber', (event, { tenant_id }: { tenant_id: string }) => {
-  try {
-    const db = getDb();
-    const terminalCode = getOrInitTerminalCode(db);
-    const configKey = 'purchase_bill_counter';
+function getNextOrPeekPurchaseBillNumber(
+  db: any,
+  tenantId: string,
+  billType?: string,
+  advance: boolean = false
+): { success: boolean; billNumber: string; counter: number } {
+  const terminalCode = getOrInitTerminalCode(db);
+  const defaultPrefix = `${terminalCode}-PUR-`;
+  const configKey = 'purchase_bill_counter';
+  const effectiveTenant = tenantId || 'global';
 
-    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
-    let counter = 1;
-    if (row) {
-      try {
-        const config = JSON.parse(row.value);
-        counter = (typeof config.counter === 'number' ? config.counter : 1);
-      } catch {
-        counter = 1;
+  // 1. Fetch configured prefix/counter from tenant or global settings
+  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(effectiveTenant, configKey)
+    || db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+
+  let prefix = defaultPrefix;
+  let configuredCounter: number | null = null;
+
+  if (row && row.value) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if (typeof parsed.counter === 'number' && parsed.counter > 0) {
+        configuredCounter = parsed.counter;
+      }
+      if (parsed.prefix && typeof parsed.prefix === 'string' && parsed.prefix.trim().length > 0) {
+        const clean = parsed.prefix.trim().replace(/[^A-Z0-9_-]/gi, '').toUpperCase();
+        prefix = clean.endsWith('-') ? clean : `${clean}-`;
+      }
+    } catch {}
+  }
+
+  // 2. If no explicit prefix was configured in settings, inspect existing purchase bills for this tenant
+  const existingBills: any[] = db.prepare(
+    'SELECT bill_number, bill_type FROM purchase_bills WHERE tenant_id = ?'
+  ).all(effectiveTenant);
+
+  if ((!row || prefix === defaultPrefix) && existingBills.length > 0) {
+    for (const b of existingBills) {
+      const match = String(b.bill_number || '').match(/^([A-Z0-9]+-PUR-)/i);
+      if (match) {
+        prefix = match[1].toUpperCase();
+        break;
       }
     }
+  }
 
-    const billNumber = `${terminalCode}-PUR-${String(counter).padStart(3, '0')}`;
-    return { success: true, billNumber, counter };
+  const isEstimate = (billType || '').toUpperCase() === 'ESTIMATE';
+
+  // 3. Scan existing bills for the maximum used numeric counter in this series
+  let maxUsed = 0;
+  for (const b of existingBills) {
+    const numStr = String(b.bill_number || '');
+    const isEstBill = numStr.endsWith('-EST') || (b.bill_type || '').toUpperCase() === 'ESTIMATE';
+
+    // GST series matches non-EST bills; Estimate series matches EST bills
+    if (isEstimate === isEstBill) {
+      const match = numStr.match(/(\d+)(?:-EST)?$/i);
+      if (match) {
+        const parsedNum = parseInt(match[1], 10);
+        if (!isNaN(parsedNum) && parsedNum > maxUsed) {
+          maxUsed = parsedNum;
+        }
+      }
+    }
+  }
+
+  // 4. Determine starting counter:
+  // Counter is strictly maxUsed + 1 if bills exist, else fallback to configuredCounter or 1.
+  let counter = 1;
+  if (maxUsed > 0) {
+    counter = maxUsed + 1;
+  } else {
+    counter = configuredCounter && configuredCounter > 0 ? configuredCounter : 1;
+  }
+
+  // 5. Duplicate check against existing bills
+  const checkStmt = db.prepare(
+    'SELECT 1 FROM purchase_bills WHERE tenant_id = ? AND bill_number = ? LIMIT 1'
+  );
+
+  let candidate = isEstimate
+    ? `${prefix}${String(counter).padStart(3, '0')}-EST`
+    : `${prefix}${String(counter).padStart(3, '0')}`;
+
+  while (checkStmt.get(effectiveTenant, candidate)) {
+    counter++;
+    candidate = isEstimate
+      ? `${prefix}${String(counter).padStart(3, '0')}-EST`
+      : `${prefix}${String(counter).padStart(3, '0')}`;
+  }
+
+  // 6. If advancing, persist next counter value
+  if (advance) {
+    const nextConfig = { prefix, counter: counter + 1 };
+    db.prepare(`
+      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+      VALUES (?, ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_id, key) DO UPDATE SET
+        value = EXCLUDED.value,
+        sync_status = 'LOCAL',
+        updated_at = CURRENT_TIMESTAMP
+    `).run(effectiveTenant, configKey, JSON.stringify(nextConfig));
+
+    if (effectiveTenant !== 'global') {
+      db.prepare(`
+        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+        VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, key) DO UPDATE SET
+          value = EXCLUDED.value,
+          sync_status = 'LOCAL',
+          updated_at = CURRENT_TIMESTAMP
+      `).run(configKey, JSON.stringify(nextConfig));
+    }
+  }
+
+  return { success: true, billNumber: candidate, counter };
+}
+
+ipcMain.handle('db:peekNextPurchaseBillNumber', (event, payload: { tenant_id: string; bill_type?: string }) => {
+  try {
+    const db = getDb();
+    return getNextOrPeekPurchaseBillNumber(db, payload?.tenant_id, payload?.bill_type, false);
   } catch (error: any) {
     console.error('[db:peekNextPurchaseBillNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
 });
 
-ipcMain.handle('db:getNextPurchaseBillNumber', (event, { tenant_id }: { tenant_id: string }) => {
+ipcMain.handle('db:getNextPurchaseBillNumber', (event, payload: { tenant_id: string; bill_type?: string }) => {
   try {
     const db = getDb();
-    const terminalCode = getOrInitTerminalCode(db);
-    const configKey = 'purchase_bill_counter';
-
     const result = db.transaction(() => {
-      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
-      let counter = 1;
-      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-PUR-`, counter: 1 };
-
-      if (row) {
-        try {
-          config = JSON.parse(row.value);
-          counter = (typeof config.counter === 'number' ? config.counter : 1);
-        } catch {
-          counter = 1;
-        }
-      }
-
-      const billNumber = `${terminalCode}-PUR-${String(counter).padStart(3, '0')}`;
-
-      config.counter = counter + 1;
-      db.prepare(`
-        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-        ON CONFLICT(tenant_id, key) DO UPDATE SET
-          value = EXCLUDED.value,
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-      `).run('global', configKey, JSON.stringify(config));
-
-      return { success: true, billNumber, counter };
+      return getNextOrPeekPurchaseBillNumber(db, payload?.tenant_id, payload?.bill_type, true);
     })();
-
     return result;
   } catch (error: any) {
     console.error('[db:getNextPurchaseBillNumber]', error);

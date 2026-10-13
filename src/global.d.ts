@@ -205,8 +205,8 @@ export interface IElectronAPI {
   dbPaymentAddTransaction: (tx: any) => Promise<{ success: boolean; balance?: number; error?: string }>;
 
   // Purchase Bills
-  dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
-  dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
+  dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string; bill_type?: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
+  dbGetNextPurchaseBillNumber: (payload: { tenant_id: string; bill_type?: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
   dbAddPurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<any[]>;

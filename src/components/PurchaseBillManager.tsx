@@ -2056,12 +2056,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       setManualRoundOff('');
       if (window.electronAPI && tenantId) {
         const getNumFn = window.electronAPI.dbPeekNextPurchaseBillNumber || window.electronAPI.dbGetNextPurchaseBillNumber;
-        getNumFn({ tenant_id: tenantId })
+        getNumFn({ tenant_id: tenantId, bill_type: type })
           .then(res => {
             if (res.success && res.billNumber) {
-              const generated = type === 'ESTIMATE' ? res.billNumber + '-EST' : res.billNumber;
-              setBillNumber(generated);
-              setPeekedBillNumber(generated);
+              setBillNumber(res.billNumber);
+              setPeekedBillNumber(res.billNumber);
             }
           })
           .catch(console.error);
@@ -2072,7 +2071,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         .then(res => { if (res) setPriceCoding(res); })
         .catch(console.error);
     }
-  }, [tenantId, editingData]);
+  }, [tenantId, editingData, type]);
 
   useEffect(() => {
     if (window.electronAPI && tenantId && showProductCreateForm) {
@@ -2763,10 +2762,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       let finalBillNumber = billNumber;
       if (!editingData && window.electronAPI && tenantId) {
         try {
-          const res = await window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId });
+          const res = await window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId, bill_type: type });
           if (res && res.success && res.billNumber) {
             if (!billNumber || billNumber === peekedBillNumber || billNumber.startsWith('AUTO-')) {
-              finalBillNumber = type === 'ESTIMATE' ? res.billNumber + '-EST' : res.billNumber;
+              finalBillNumber = res.billNumber;
               setBillNumber(finalBillNumber);
             }
           }

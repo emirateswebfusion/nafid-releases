@@ -404,7 +404,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   useEffect(() => {
     if (view === 'add' && window.electronAPI) {
       const getNumFn = window.electronAPI.dbPeekNextPurchaseBillNumber || window.electronAPI.dbGetNextPurchaseBillNumber;
-      getNumFn({ tenant_id: tenantId || 'global' })
+      getNumFn({ tenant_id: tenantId || 'global', bill_type: 'GST' })
         .then(res => {
           if (res.success && res.billNumber) {
             setFormData(prev => ({ ...prev, gst_bill_number: res.billNumber || '' }));
