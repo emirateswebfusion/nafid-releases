@@ -3579,6 +3579,27 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       @current_cash, @expected_closing, @actual_cash, @cash_short, @cash_excess, @closing_remarks,
       @status, @opened_by, @closed_by, @opened_at, @closed_at, 'SYNCED', @created_at, @updated_at
     )
+    ON CONFLICT(drawer_id) DO UPDATE SET
+      tenant_id = excluded.tenant_id,
+      business_date = excluded.business_date,
+      opening_balance = excluded.opening_balance,
+      cash_sales = MAX(cash_drawer.cash_sales, excluded.cash_sales),
+      cash_in = excluded.cash_in,
+      cash_out = excluded.cash_out,
+      current_cash = MAX(cash_drawer.current_cash, excluded.current_cash),
+      expected_closing = MAX(cash_drawer.expected_closing, excluded.expected_closing),
+      actual_cash = excluded.actual_cash,
+      cash_short = excluded.cash_short,
+      cash_excess = excluded.cash_excess,
+      closing_remarks = excluded.closing_remarks,
+      status = excluded.status,
+      opened_by = COALESCE(cash_drawer.opened_by, excluded.opened_by),
+      closed_by = excluded.closed_by,
+      opened_at = COALESCE(cash_drawer.opened_at, excluded.opened_at),
+      closed_at = excluded.closed_at,
+      sync_status = CASE WHEN cash_drawer.sync_status = 'PENDING' THEN 'PENDING' ELSE 'SYNCED' END,
+      updated_at = excluded.updated_at
+    WHERE cash_drawer.sync_status != 'PENDING'
   `);
 
   const result = await pullPaginated({

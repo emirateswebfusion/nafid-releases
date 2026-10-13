@@ -545,6 +545,24 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.error('[Main] Backfill credit invoices error:', e);
   }
+
+  // After DB deletion and cloud re-sync, party balances may be stale.
+  // Recalculate all party balances 15s after startup (post initial sync).
+  setTimeout(() => {
+    try {
+      const _db = getDb();
+      const parties = _db.prepare(`SELECT party_id FROM parties WHERE (is_deleted IS NULL OR is_deleted = 0)`).all() as { party_id: string }[];
+      if (parties.length > 0) {
+        console.log(`[Main] Post-startup party balance recalculation: ${parties.length} parties...`);
+        for (const p of parties) {
+          try { recalcPartyBalances(_db, p.party_id); } catch {}
+        }
+        console.log('[Main] Party balance recalculation complete.');
+      }
+    } catch (e: any) {
+      console.warn('[Main] Party balance recalc error:', e.message);
+    }
+  }, 15000);
   initPrinter();
   initWhatsAppIpc();
   setupCSP();
