@@ -1,0 +1,9 @@
+Nafid POS - End User License Agreement
+
+Copyright © 2026 Emirates WebFusion. All rights reserved.
+
+This software is proprietary and confidential. Unauthorized copying, distribution, or modification is strictly prohibited.
+
+By installing and using this software, you agree to the terms and conditions set forth by Emirates WebFusion.
+
+For support, contact: info@emirateswebfusion.com

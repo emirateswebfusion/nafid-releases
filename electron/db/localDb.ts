@@ -194,28 +194,6 @@ export function initDb() {
         FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
     );
 
-    CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
-    CREATE INDEX IF NOT EXISTS idx_invoice_items_tenant_product ON invoice_items(tenant_id, product_id);
-    CREATE INDEX IF NOT EXISTS idx_products_tenant_deleted ON products(tenant_id, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(sku_barcode);
-    CREATE INDEX IF NOT EXISTS idx_products_item_code ON products(item_code);
-    CREATE INDEX IF NOT EXISTS idx_products_grade ON products(grade_id);
-    CREATE INDEX IF NOT EXISTS idx_invoices_tenant_type_deleted ON invoices(tenant_id, invoice_type, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_purchase_bill_items_tenant_product ON purchase_bill_items(tenant_id, product_id);
-    CREATE INDEX IF NOT EXISTS idx_purchase_bills_tenant_supplier ON purchase_bills(tenant_id, supplier_name);
-    CREATE INDEX IF NOT EXISTS idx_product_pricing_tenant_product ON product_pricing(tenant_id, product_id, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_pricing_tiers_tenant ON pricing_tiers(tenant_id, is_deleted);
-
-    -- Performance indexes for customer list & detail queries
-    CREATE INDEX IF NOT EXISTS idx_customers_tenant_deleted ON customers(tenant_id, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
-    CREATE INDEX IF NOT EXISTS idx_customers_customer_id ON customers(customer_id, tenant_id);
-    CREATE INDEX IF NOT EXISTS idx_parties_tenant_phone ON parties(tenant_id, phone, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_parties_tenant_deleted ON parties(tenant_id, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_party_ledger_party_id ON party_ledger(party_id, tenant_id, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_invoices_customer_tenant ON invoices(customer_id, tenant_id, is_deleted);
-    CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_customer ON loyalty_transactions(customer_id, tenant_id);
-
 
     CREATE TABLE IF NOT EXISTS parties (
         party_id TEXT PRIMARY KEY,
@@ -752,6 +730,29 @@ export function initDb() {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
+
+    -- Indexes (created after all tables to avoid forward references)
+    CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_invoice_items_tenant_product ON invoice_items(tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_products_tenant_deleted ON products(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(sku_barcode);
+    CREATE INDEX IF NOT EXISTS idx_products_item_code ON products(item_code);
+    CREATE INDEX IF NOT EXISTS idx_products_grade ON products(grade_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_tenant_type_deleted ON invoices(tenant_id, invoice_type, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_purchase_bill_items_tenant_product ON purchase_bill_items(tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_purchase_bills_tenant_supplier ON purchase_bills(tenant_id, supplier_name);
+    CREATE INDEX IF NOT EXISTS idx_product_pricing_tenant_product ON product_pricing(tenant_id, product_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_pricing_tiers_tenant ON pricing_tiers(tenant_id, is_deleted);
+
+    -- Performance indexes for customer list & detail queries
+    CREATE INDEX IF NOT EXISTS idx_customers_tenant_deleted ON customers(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+    CREATE INDEX IF NOT EXISTS idx_customers_customer_id ON customers(customer_id, tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_parties_tenant_phone ON parties(tenant_id, phone, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_parties_tenant_deleted ON parties(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_party_ledger_party_id ON party_ledger(party_id, tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_invoices_customer_tenant ON invoices(customer_id, tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_customer ON loyalty_transactions(customer_id, tenant_id);
   `);
   const schemaMap: any = {
     product_grades: [

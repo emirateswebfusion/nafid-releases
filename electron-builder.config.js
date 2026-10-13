@@ -78,9 +78,10 @@ module.exports = {
     artifactName: '${productName}-Setup-${version}.${ext}'
   },
   nsis: {
-    oneClick: true,
+    oneClick: false,
     perMachine: false,
     allowElevation: true,
+    allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
@@ -89,6 +90,8 @@ module.exports = {
     uninstallerIcon: 'build/icon.ico',
     installerHeaderIcon: 'build/icon.ico',
     runAfterFinish: true,
+    installerLanguages: ['en'],
+    license: 'build/license.txt',
   },
   publish: repoUrl ? [
     {

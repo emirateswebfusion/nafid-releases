@@ -353,6 +353,38 @@ import { initSyncWorker, setSyncActive, triggerUrgentInvoiceSync, triggerUrgentC
 let mainWindow: BrowserWindow | null = null;
 const PROTOCOL = 'nafid';
 
+// Helper to safely access mainWindow across async boundaries
+function getMainWindow(): BrowserWindow | null {
+  return mainWindow;
+}
+
+// Updater state machine (module scope for access in IPC handlers)
+type UpdaterState = 'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error';
+let updaterState: UpdaterState = 'idle';
+let lastCheckTime = 0;
+let isUpdateCheckInProgress = false;
+let updateCheckTimer: NodeJS.Timeout | null = null;
+const MIN_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes minimum between checks
+const STARTUP_CHECK_DELAY_MS = 30 * 1000; // Wait 30s after startup before first check
+
+function setUpdaterState(newState: UpdaterState) {
+  const oldState = updaterState;
+  updaterState = newState;
+  log.info(`[Updater] State transition: ${oldState} -> ${newState}`);
+  const win = getMainWindow();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('update-status', newState);
+  }
+}
+
+function canCheckForUpdates(): boolean {
+  const now = Date.now();
+  if (isUpdateCheckInProgress) return false;
+  if (now - lastCheckTime < MIN_CHECK_INTERVAL_MS) return false;
+  if (updaterState === 'checking' || updaterState === 'downloading') return false;
+  return true;
+}
+
 app.name = 'Nafid';
 try {
   const canonicalUserData = path.join(app.getPath('appData'), 'Nafid');
@@ -380,9 +412,10 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', (event, commandLine) => {
     // Someone tried to run a second instance, we should focus our window.
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
       
       // On Windows, the deep link URL is in the commandLine arguments
       const url = commandLine.pop();
@@ -394,17 +427,18 @@ if (!gotTheLock) {
 }
 
 function handleDeepLink(url: string) {
-  if (!mainWindow) return;
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
   try {
     const urlObj = new URL(url);
     const token = urlObj.searchParams.get('token');
     // Only forward tokens that look like JWTs (3 dot-separated base64 parts)
     // This prevents arbitrary data injection from other apps that register vendora://
     if (token && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
-      mainWindow.webContents.send('auth:deep-link', token);
+      win.webContents.send('auth:deep-link', token);
     }
   } catch (err) {
-    console.error('[DeepLink] Failed to parse URL:', url);
+    log.error('[DeepLink] Failed to parse URL:', url, err);
   }
 }
 
@@ -486,11 +520,11 @@ function getAppIconPath(): string | undefined {
   return undefined;
 }
 
-function createWindow() {
+function createWindow(): BrowserWindow {
   const iconPath = getAppIconPath();
-  console.log(`[Main] Using window icon path: ${iconPath || 'None'}`);
+  log.info(`[Main] Using window icon path: ${iconPath || 'None'}`);
 
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1280,
     height: 800,
     webPreferences: {
@@ -500,18 +534,45 @@ function createWindow() {
     },
     autoHideMenuBar: true,
     icon: iconPath,
+    show: false, // Don't show until ready-to-show
   });
 
   if (iconPath) {
     try {
       const img = nativeImage.createFromPath(iconPath);
       if (!img.isEmpty()) {
-        mainWindow.setIcon(img);
+        win.setIcon(img);
       }
     } catch (err) {
-      console.error('[Main] Error setting native icon:', err);
+      log.error('[Main] Error setting native icon:', err);
     }
   }
+
+  // Handle renderer load failures
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    log.error(`[Main] Renderer failed to load: ${errorCode} - ${errorDescription} - ${validatedURL} - isMainFrame: ${isMainFrame}`);
+    if (isMainFrame && app.isPackaged) {
+      // In production, try to reload once
+      if (!win.webContents.isLoading()) {
+        log.warn('[Main] Attempting to reload renderer...');
+        win.loadFile(path.join(__dirname, '../dist/index.html')).catch((e) => {
+          log.error('[Main] Reload failed:', e);
+        });
+      }
+    }
+  });
+
+  win.webContents.on('render-process-gone', (event, details) => {
+    log.error('[Main] Render process gone:', details);
+  });
+
+  win.webContents.on('unresponsive', () => {
+    log.warn('[Main] Renderer became unresponsive');
+  });
+
+  win.webContents.on('responsive', () => {
+    log.info('[Main] Renderer became responsive again');
+  });
 
   if (!app.isPackaged) {
     // Development: Load from Vite dev server — requires ELECTRON_DEV_SERVER_URL in .env
@@ -519,59 +580,63 @@ function createWindow() {
     if (!devUrl) {
       throw new Error('[Electron] ELECTRON_DEV_SERVER_URL environment variable is required in development mode.');
     }
-    mainWindow.loadURL(devUrl);
-    mainWindow.webContents.openDevTools();
+    win.loadURL(devUrl);
+    win.webContents.openDevTools({ mode: 'detach' });
   } else {
     // Production: Load from built files
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  mainWindow.once('ready-to-show', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+  // Show window when ready - this is the critical fix for invisible window
+  win.once('ready-to-show', () => {
+    if (win && !win.isDestroyed()) {
+      log.info('[Main] Window ready-to-show, showing and focusing');
+      win.show();
+      win.focus();
     }
   });
 
-  mainWindow.on('focus', async () => {
+  // Fallback: if ready-to-show doesn't fire within 10 seconds, force show
+  const showTimeout = setTimeout(() => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      log.warn('[Main] ready-to-show timeout, forcing window show');
+      win.show();
+      win.focus();
+    }
+  }, 10000);
+
+  win.once('show', () => {
+    clearTimeout(showTimeout);
+  });
+
+  win.on('focus', async () => {
     try {
       const { resetFastPollBackoff } = await import('./sync/syncWorker.js');
       resetFastPollBackoff();
     } catch {}
   });
+
+  win.on('closed', () => {
+    log.info('[Main] Main window closed');
+  });
+
+  return win;
 }
 
 app.whenReady().then(async () => {
   const dbPath = path.join(app.getPath('userData'), 'vendora_v2.db');
-  console.log(`[Main] App Data Path: ${app.getPath('userData')}`);
-  console.log(`[Main] Database Path: ${dbPath}`);
+  log.info(`[Main] App Data Path: ${app.getPath('userData')}`);
+  log.info(`[Main] Database Path: ${dbPath}`);
+  log.info(`[Main] App version: ${app.getVersion()}`);
+  log.info(`[Main] Packaged: ${app.isPackaged}`);
+  log.info(`[Main] Platform: ${process.platform}`);
+  log.info(`[Main] Executable: ${process.execPath}`);
 
+  // Initialize minimal DB connection first (fast)
   initDb();
-  try {
-    backfillCreditInvoices(getDb());
-  } catch (e) {
-    console.error('[Main] Backfill credit invoices error:', e);
-  }
+  log.info('[Main] Database initialized');
 
-  // After DB deletion and cloud re-sync, party balances may be stale.
-  // Recalculate all party balances 15s after startup (post initial sync).
-  setTimeout(() => {
-    try {
-      const _db = getDb();
-      const parties = _db.prepare(`SELECT party_id FROM parties WHERE (is_deleted IS NULL OR is_deleted = 0)`).all() as { party_id: string }[];
-      if (parties.length > 0) {
-        console.log(`[Main] Post-startup party balance recalculation: ${parties.length} parties...`);
-        for (const p of parties) {
-          try { recalcPartyBalances(_db, p.party_id); } catch {}
-        }
-        console.log('[Main] Party balance recalculation complete.');
-      }
-    } catch (e: any) {
-      console.warn('[Main] Party balance recalc error:', e.message);
-    }
-  }, 15000);
-  initPrinter();
-  initWhatsAppIpc();
+  // Setup CSP and create window FIRST - show UI immediately
   setupCSP();
   createWindow();
 
@@ -591,11 +656,25 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Initialize hardware and sync worker after window exists
   if (mainWindow) {
     initBarcodeScanner(mainWindow);
     initWeighingScale(mainWindow);
+    initPrinter();
+    initWhatsAppIpc();
     initSyncWorker();
-    
+  }
+
+  // Run heavy database operations in background (non-blocking)
+  setImmediate(() => {
+    try {
+      log.info('[Main] Running background database maintenance...');
+      backfillCreditInvoices(getDb());
+      log.info('[Main] Credit invoices backfill complete');
+    } catch (e) {
+      log.error('[Main] Backfill credit invoices error:', e);
+    }
+
     // Auto-expire any stale held bills on startup
     try {
       const _db = getDb();
@@ -611,7 +690,7 @@ app.whenReady().then(async () => {
       _db.prepare("UPDATE invoices SET subtotal = 0 WHERE sync_status = 'PENDING' AND (subtotal IS NULL OR subtotal < 0)").run();
       // Self-heal: fix any PENDING invoices with missing/null received_amount
       _db.prepare("UPDATE invoices SET received_amount = 0 WHERE sync_status = 'PENDING' AND (received_amount IS NULL OR received_amount < 0)").run();
-      // Self-heal: ensure grand_total reflects net total after discounts for any invoices where grand_total was stored as gross/subtotal
+      // Self-heal: ensure grand_total reflects net total after discounts
       _db.prepare(`
         UPDATE invoices 
         SET grand_total = MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0))
@@ -638,40 +717,125 @@ app.whenReady().then(async () => {
           }
         });
         expireTx();
-        console.log(`[Main] Auto-expired ${staleBills.length} stale held bill(s) on startup`);
+        log.info(`[Main] Auto-expired ${staleBills.length} stale held bill(s) on startup`);
       }
     } catch (e: any) {
-      console.warn('[Main] Failed to expire stale holds on startup:', e.message);
+      log.warn('[Main] Failed to expire stale holds on startup:', e.message);
     }
-  }
+  });
+
+  // Post-startup party balance recalculation (run after initial sync completes)
+  setTimeout(() => {
+    try {
+      const _db = getDb();
+      const parties = _db.prepare(`SELECT party_id FROM parties WHERE (is_deleted IS NULL OR is_deleted = 0)`).all() as { party_id: string }[];
+      if (parties.length > 0) {
+        log.info(`[Main] Post-startup party balance recalculation: ${parties.length} parties...`);
+        for (const p of parties) {
+          try { recalcPartyBalances(_db, p.party_id); } catch {}
+        }
+        log.info('[Main] Party balance recalculation complete.');
+      }
+    } catch (e: any) {
+      log.warn('[Main] Party balance recalc error:', e.message);
+    }
+  }, 30000); // Increased to 30s to let initial sync complete first
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 
-  // Auto-Update Configuration
+  // Auto-Update Configuration with proper state machine
   const updaterToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
   if (updaterToken) {
     autoUpdater.requestHeaders = {
       Authorization: `token ${updaterToken}`
     };
-    console.log('[Updater] Configured GitHub authorization headers for private repo updates.');
+    log.info('[Updater] Configured GitHub authorization headers for private repo updates.');
   }
 
-  autoUpdater.autoDownload = true;
+  // Disable auto-download initially - we'll control it via state machine
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('update-available', (info) => {
-    console.log('[Updater] Update available:', info.version);
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'update-available');
-      mainWindow.webContents.send('update-info', info);
+  async function performUpdateCheck(notify: boolean = false): Promise<void> {
+    if (!canCheckForUpdates()) {
+      log.debug('[Updater] Skipping check - conditions not met', { state: updaterState, lastCheckTime, inProgress: isUpdateCheckInProgress });
+      return;
     }
+
+    isUpdateCheckInProgress = true;
+    lastCheckTime = Date.now();
+    setUpdaterState('checking');
+
+    try {
+      log.info('[Updater] Checking for updates...');
+      const result = await autoUpdater.checkForUpdatesAndNotify();
+      
+      if (result && result.isUpdateAvailable && result.updateInfo) {
+        log.info('[Updater] Update available:', result.updateInfo.version);
+        setUpdaterState('update-available');
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-info', result.updateInfo);
+        }
+        // Auto-download the update
+        try {
+          setUpdaterState('downloading');
+          await autoUpdater.downloadUpdate();
+        } catch (downloadErr) {
+          log.error('[Updater] Download failed:', downloadErr);
+          setUpdaterState('error');
+        }
+      } else {
+        log.info('[Updater] No updates available');
+        setUpdaterState('idle');
+      }
+    } catch (err: any) {
+      const msg = err.message || '';
+      log.error('[Updater] Check error:', msg);
+      
+      // Network errors are not critical - keep app usable
+      const isNetworkError = 
+        msg.includes('net::ERR_') ||
+        msg.includes('ENOTFOUND') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('ENETUNREACH') ||
+        msg.includes('request failed') ||
+        msg.toLowerCase().includes('network') ||
+        msg.includes('404') ||
+        msg.includes('Cannot find') ||
+        msg.includes('no published version');
+      
+      if (isNetworkError) {
+        log.warn('[Updater] Network error during check, keeping app usable');
+        setUpdaterState('idle');
+      } else {
+        setUpdaterState('error');
+      }
+    } finally {
+      isUpdateCheckInProgress = false;
+    }
+  }
+
+  // Event handlers for auto-updater events
+  autoUpdater.on('update-available', (info) => {
+    log.info('[Updater] Update available (event):', info.version);
+    setUpdaterState('update-available');
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-info', info);
+    }
+    // Start download automatically
+    autoUpdater.downloadUpdate().catch((err) => {
+      log.error('[Updater] Auto-download failed:', err);
+      setUpdaterState('error');
+    });
   });
 
   autoUpdater.on('download-progress', (progress) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('update-download-progress', {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-download-progress', {
         percent: progress.percent,
         bytesPerSecond: progress.bytesPerSecond,
         transferred: progress.transferred,
@@ -680,41 +844,45 @@ app.whenReady().then(async () => {
     }
   });
 
-  autoUpdater.on('update-downloaded', () => {
-    console.log('[Updater] Update downloaded.');
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'ready-to-install');
-    }
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('[Updater] Update downloaded and ready to install:', info?.version);
+    setUpdaterState('downloaded');
   });
 
   autoUpdater.on('error', (err) => {
-    console.error('[Updater] Error:', err);
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'error');
+    log.error('[Updater] Error:', err);
+    // Don't transition to error state if we're already downloaded (install can still proceed)
+    if (updaterState !== 'downloaded') {
+      setUpdaterState('error');
     }
   });
 
-  let lastCheckTime = 0;
-  const triggerUpdateCheck = () => {
-    const now = Date.now();
-    // Debounce checks so they don't fire more frequently than every 60 seconds
-    if (now - lastCheckTime < 60 * 1000) return;
-    lastCheckTime = now;
-    autoUpdater.checkForUpdatesAndNotify().catch(err => {
-      console.error('[Updater] Check error:', err.message);
-    });
-  };
-
-  // Check for updates every 5 minutes (reduced from 60 minutes for fast release detection)
-  setInterval(triggerUpdateCheck, 5 * 60 * 1000);
-
-  // Also check for updates when app window receives focus
-  if (mainWindow) {
-    mainWindow.on('focus', triggerUpdateCheck);
+  // Schedule periodic update checks (30 minutes)
+  function scheduleNextUpdateCheck() {
+    if (updateCheckTimer) {
+      clearTimeout(updateCheckTimer);
+    }
+    updateCheckTimer = setTimeout(() => {
+      performUpdateCheck().finally(() => {
+        scheduleNextUpdateCheck();
+      });
+    }, MIN_CHECK_INTERVAL_MS);
   }
 
-  // Initial check on startup
-  triggerUpdateCheck();
+  // Initial check after startup delay
+  setTimeout(() => {
+    performUpdateCheck(true).finally(() => {
+      scheduleNextUpdateCheck();
+    });
+  }, STARTUP_CHECK_DELAY_MS);
+
+  // Cleanup on quit
+  app.on('before-quit', () => {
+    if (updateCheckTimer) {
+      clearTimeout(updateCheckTimer);
+      updateCheckTimer = null;
+    }
+  });
 });
 
 app.on('window-all-closed', () => {
@@ -907,12 +1075,12 @@ ipcMain.removeHandler('app:getVersion');
 ipcMain.handle('app:getVersion', () => app.getVersion());
 
 ipcMain.handle('app:installUpdate', () => {
-  console.log('[Updater] Triggering quitAndInstall...');
+  log.info('[Updater] Triggering quitAndInstall...');
   setImmediate(() => {
     try {
       autoUpdater.quitAndInstall(false, true);
     } catch (e) {
-      console.error('[Updater] quitAndInstall error:', e);
+      log.error('[Updater] quitAndInstall error:', e);
     }
     setTimeout(() => {
       BrowserWindow.getAllWindows().forEach(w => {
@@ -925,32 +1093,65 @@ ipcMain.handle('app:installUpdate', () => {
 
 ipcMain.handle('app:downloadUpdate', async () => {
   try {
+    if (updaterState === 'downloading' || updaterState === 'downloaded') {
+      log.warn('[Updater] Download already in progress or completed');
+      return { success: true, message: 'Download already in progress' };
+    }
+    log.info('[Updater] Manual download triggered');
     await autoUpdater.downloadUpdate();
     return { success: true };
   } catch (error: any) {
-    console.error('[Updater] Download error:', error);
-    return { success: false, error: 'Operation failed' };
+    log.error('[Updater] Download error:', error);
+    return { success: false, error: error.message || 'Operation failed' };
   }
 });
 
 ipcMain.handle('app:checkForUpdates', async () => {
   try {
+    // For manual checks, bypass the state machine throttling but still prevent concurrent checks
+    if (isUpdateCheckInProgress) {
+      return { success: false, error: 'Check already in progress' };
+    }
+    
+    isUpdateCheckInProgress = true;
+    lastCheckTime = Date.now();
+    setUpdaterState('checking');
+    
+    log.info('[Updater] Manual check for updates...');
     const result = await autoUpdater.checkForUpdatesAndNotify();
+    
     // result contains complex objects (like CancellationToken) that cannot be cloned over IPC.
     // We only return the updateInfo which is serializable.
     if (result && result.isUpdateAvailable && result.updateInfo) {
+      log.info('[Updater] Manual check found update:', result.updateInfo.version);
+      setUpdaterState('update-available');
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-info', result.updateInfo);
+      }
+      // Auto-start download
+      try {
+        setUpdaterState('downloading');
+        await autoUpdater.downloadUpdate();
+      } catch (downloadErr) {
+        log.error('[Updater] Auto-download after manual check failed:', downloadErr);
+        setUpdaterState('error');
+      }
       return { success: true, updateInfo: result.updateInfo };
     }
-    // No update available â€” already on latest version
+    // No update available — already on latest version
+    log.info('[Updater] Manual check: no updates available');
+    setUpdaterState('idle');
     return { success: true, updateInfo: null };
   } catch (error: any) {
-    console.error('[Updater] Manual check error:', error);
+    log.error('[Updater] Manual check error:', error);
     const msg = error.message || '';
-    // 404 means no release found on the current channel â€” likely already up-to-date
+    // 404 means no release found on the current channel — likely already up-to-date
     if (msg.includes('404') || msg.includes('Cannot find') || msg.includes('no published version')) {
+      setUpdaterState('idle');
       return { success: true, updateInfo: null };
     }
-    // Network errors â€” show a clean message
+    // Network errors — show a clean message
     if (
       msg.includes('net::ERR_') ||
       msg.includes('ENOTFOUND') ||
@@ -959,9 +1160,13 @@ ipcMain.handle('app:checkForUpdates', async () => {
       msg.includes('request failed') ||
       msg.toLowerCase().includes('network')
     ) {
+      setUpdaterState('idle');
       return { success: false, error: 'No internet connection' };
     }
+    setUpdaterState('error');
     return { success: false, error: msg };
+  } finally {
+    isUpdateCheckInProgress = false;
   }
 });
 
