@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { isAdminRole } from '../utils/permissions';
+import { isAdminRole, hasPermission } from '../utils/permissions';
 import {
   Search, ChevronLeft, User, UserCheck, UserPlus, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
@@ -742,6 +742,11 @@ export function CustomersPage({
 
   const handleEditBillFromCustomerModal = async () => {
     if (!viewingInvoice) return;
+    const { role, permissions } = useAuthStore.getState();
+    if (!hasPermission({ role, permissions }, 'sales.edit')) {
+      showStatus('Permission Denied: You do not have permission to edit bills', 'error');
+      return;
+    }
     try {
       let itemsToEdit = invoiceItems;
       if (!itemsToEdit || itemsToEdit.length === 0) {
@@ -2295,7 +2300,7 @@ export function CustomersPage({
                     </svg>
                   )} Download CSV
                 </button>
-                {isAdminRole(role) && (
+                {hasPermission(useAuthStore.getState(), 'sales.edit') && (
                   <button
                     type="button"
                     onClick={handleEditBillFromCustomerModal}

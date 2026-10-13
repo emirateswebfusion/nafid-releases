@@ -170,6 +170,7 @@ export function initDb() {
         tenant_id TEXT,
         invoice_number TEXT,
         invoice_type TEXT DEFAULT 'tax_invoice',
+        customer_id TEXT,
         customer_name TEXT,
         customer_phone TEXT,
         customer_gstin TEXT,
@@ -197,6 +198,26 @@ export function initDb() {
         is_held INTEGER DEFAULT 0,
         hold_note TEXT,
         due_date DATETIME,
+        scrap_deduction REAL DEFAULT 0,
+        scrap_invoice_number TEXT,
+        points_earned REAL DEFAULT 0,
+        points_redeemed REAL DEFAULT 0,
+        points_redeemed_discount REAL DEFAULT 0,
+        previous_points_balance REAL DEFAULT 0,
+        remaining_points_balance REAL DEFAULT 0,
+        converted_from_invoice_id TEXT,
+        converted_from_invoice_number TEXT,
+        converted_to_invoice_id TEXT,
+        converted_to_invoice_number TEXT,
+        biller_staff_id TEXT,
+        sales_staff_id TEXT,
+        cgst_total REAL DEFAULT 0,
+        sgst_total REAL DEFAULT 0,
+        igst_total REAL DEFAULT 0,
+        supply_type TEXT DEFAULT 'INTRA',
+        actual_refund_paid REAL DEFAULT 0,
+        notes TEXT,
+        description TEXT,
         UNIQUE(tenant_id, invoice_number)
     );
 
@@ -216,7 +237,23 @@ export function initDb() {
         is_service_item INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
+        combo_id TEXT,
+        combo_details TEXT,
+        cgst_rate REAL,
+        sgst_rate REAL,
+        igst_rate REAL,
+        cgst_amount REAL,
+        sgst_amount REAL,
+        igst_amount REAL,
+        hsn_sac_code TEXT,
+        supply_type TEXT,
+        source_item_id TEXT,
+        bos_unit_price REAL,
+        bos_tax_amount REAL,
+        bos_total REAL,
+        qty_from_paper_stock REAL,
+        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
     );
 
 
@@ -230,6 +267,7 @@ export function initDb() {
         balance REAL NOT NULL DEFAULT 0,
         gst_balance REAL NOT NULL DEFAULT 0,
         estimate_balance REAL NOT NULL DEFAULT 0,
+        balance_type TEXT DEFAULT 'GST',
         pricing_tier_id TEXT,
         credit_limit REAL NOT NULL DEFAULT 0,
         credit_period_enabled INTEGER DEFAULT 0,
@@ -481,6 +519,7 @@ export function initDb() {
         is_gst_applicable INTEGER DEFAULT 1,
         tax_rate_percent REAL DEFAULT 0,
         hsn_sac_code TEXT,
+        skip_stock_update INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -566,6 +605,7 @@ export function initDb() {
         created_by TEXT,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
         FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
     );
@@ -803,7 +843,8 @@ export function initDb() {
         'settled_at',
         'is_deleted',
         'biller_staff_id', 'sales_staff_id',
-        'due_date'
+        'due_date',
+        'cgst_total', 'sgst_total', 'igst_total', 'supply_type', 'actual_refund_paid', 'notes', 'description'
     ],
     staff: [
         'staff_id', 'tenant_id', 'staff_code', 'name', 'phone', 'email', 'role_designation', 'user_id', 'biller_pin_hash', 'joining_date', 'monthly_salary', 'status', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -822,7 +863,10 @@ export function initDb() {
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item',
-        'source_item_id', 'bos_unit_price', 'bos_tax_amount', 'bos_total', 'combo_id', 'combo_details'
+        'pieces_sold', 'billing_type', 'uom', 'sync_status', 'created_at',
+        'combo_id', 'combo_details',
+        'cgst_rate', 'sgst_rate', 'igst_rate', 'cgst_amount', 'sgst_amount', 'igst_amount', 'hsn_sac_code', 'supply_type',
+        'source_item_id', 'bos_unit_price', 'bos_tax_amount', 'bos_total', 'qty_from_paper_stock'
     ],
     users: [
         'user_id', 'tenant_id', 'name', 'email', 'role', 'created_at'
@@ -855,7 +899,7 @@ export function initDb() {
         'purchase_bill_id', 'tenant_id', 'bill_number', 'supplier_id', 'supplier_name', 'bill_date', 'invoice_number', 'notes', 'total_amount', 'bill_type', 'sync_status', 'created_at', 'updated_at'
     ],
     purchase_bill_items: [
-        'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'selling_price', 'offer_price', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'sync_status', 'created_at', 'updated_at'
+        'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'selling_price', 'offer_price', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'skip_stock_update', 'sync_status', 'created_at', 'updated_at'
     ],
     cash_drawer: [
         'drawer_id', 'tenant_id', 'business_date', 'opening_balance', 'cash_sales', 'cash_in', 'cash_out',
@@ -877,7 +921,7 @@ export function initDb() {
     returns: [
         'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',
         'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at',
-        'refund_method', 'adjusted_invoice_number'
+        'refund_method', 'adjusted_invoice_number', 'adjusted_amount'
     ],
     return_items: [
         'return_item_id', 'return_id', 'tenant_id', 'invoice_item_id', 'product_id', 'name', 'quantity',

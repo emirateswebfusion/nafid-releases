@@ -638,7 +638,7 @@ app.whenReady().then(async () => {
 
   // Setup CSP and create window FIRST - show UI immediately
   setupCSP();
-  createWindow();
+  mainWindow = createWindow();
 
   // Handle deep link when app is opened via protocol
   // On Windows: command line arguments; on macOS: open-url event

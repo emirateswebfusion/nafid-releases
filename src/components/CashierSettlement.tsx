@@ -22,7 +22,7 @@ import { parsePrintFormat } from '../utils/printFormatHelper';
 import { cashierPageTitle, useFeatureFlagsStore } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getStoreTimezone, getStoreBusinessDate } from '../utils/timezoneHelper';
-import { isAdminRole } from '../utils/permissions';
+import { isAdminRole, hasPermission } from '../utils/permissions';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'SPLIT';
 
@@ -2805,9 +2805,13 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 )}
               </div>
               <div className="flex gap-2">
-                {isAdminRole(useAuthStore.getState().role) && (
+                {hasPermission(useAuthStore.getState(), 'sales.edit') && (
                   <button
                     onClick={async () => {
+                      const { role, permissions } = useAuthStore.getState();
+                      if (!hasPermission({ role, permissions }, 'sales.edit')) {
+                        return;
+                      }
                       if (!window.electronAPI || !selectedInvoice) return;
                       let currentItems = invoiceItems;
                       if (!currentItems.length) {

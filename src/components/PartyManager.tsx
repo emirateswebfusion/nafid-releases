@@ -4,7 +4,7 @@ import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import { useTerminologyStore } from '../store/terminologyStore';
 import { fetchApi } from '../lib/api';
-import { isAdminRole } from '../utils/permissions';
+import { isAdminRole, hasPermission } from '../utils/permissions';
 import {
   Search, Loader2, UserPlus, Handshake,
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
@@ -491,6 +491,11 @@ export function PartyManager({
 
   const handleEditBillFromModal = async () => {
     if (!viewingInvoice) return;
+    const { role, permissions } = useAuthStore.getState();
+    if (!hasPermission({ role, permissions }, 'sales.edit')) {
+      showStatus('Permission Denied: You do not have permission to edit bills', 'error');
+      return;
+    }
     try {
       let itemsToEdit = viewingInvoiceItems;
       if (!itemsToEdit || itemsToEdit.length === 0) {
@@ -3215,7 +3220,7 @@ export function PartyManager({
 
                 {/* Print & Edit buttons */}
                 <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                  {isOwner && (
+                  {hasPermission(useAuthStore.getState(), 'sales.edit') && (
                     <button
                       type="button"
                       onClick={handleEditBillFromModal}

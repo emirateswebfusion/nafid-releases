@@ -210,6 +210,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [a4Printer, setA4Printer] = useState<any>({ deviceName: '' });
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
+  const [printersLoading, setPrintersLoading] = useState(false);
   const { shopDomain } = useCartStore();
   const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
   const [autoWhatsAppSend, setAutoWhatsAppSend] = useState<boolean>(() => localStorage.getItem('auto_whatsapp_send') === 'true');
@@ -1210,30 +1211,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       // 2. Non-blocking asynchronous background jobs: Printers, Version, Service Charge Item
       // A. Printers (Windows Print Spooler enumeration can take several seconds - do NOT block UI)
-      window.electronAPI.getPrinters().then((pr: any) => {
-        const printerList = Array.isArray(pr) ? pr : [];
-        setOsPrinters(printerList);
-
-        if (printerList.length > 0) {
-          const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
-          if (defPr && defPr.name) {
-            setReceiptPrinter((prev: any) => {
-              if (!prev?.deviceName) {
-                updateSnapshotField(s => ({ ...s, receiptPrinter: { ...s.receiptPrinter, deviceName: defPr.name } }));
-                return { ...prev, deviceName: defPr.name };
-              }
-              return prev;
-            });
-            setBarcodePrinter((prev: any) => {
-              if (!prev?.deviceName) {
-                updateSnapshotField(s => ({ ...s, barcodePrinter: { ...s.barcodePrinter, deviceName: defPr.name } }));
-                return { ...prev, deviceName: defPr.name };
-              }
-              return prev;
-            });
-          }
-        }
-      }).catch((err: any) => console.error('[SettingsManager] Failed to get printers in background', err));
+      fetchPrinters(false);
 
       // B. App Version
       window.electronAPI.appGetVersion().then((v: string) => {
@@ -1264,6 +1242,49 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     } catch (err: any) {
       window.electronAPI?.logError?.('[SettingsManager] ERROR in loadSettings: ' + (err?.message || String(err)));
       setLoading(false);
+    }
+  };
+
+  const fetchPrinters = async (showToast = false) => {
+    if (!window.electronAPI) return;
+    setPrintersLoading(true);
+    try {
+      const pr = await window.electronAPI.getPrinters();
+      const printerList = Array.isArray(pr) ? pr : [];
+      setOsPrinters(printerList);
+
+      if (printerList.length > 0) {
+        const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
+        if (defPr && defPr.name) {
+          setReceiptPrinter((prev: any) => {
+            if (!prev?.deviceName) {
+              updateSnapshotField(s => ({ ...s, receiptPrinter: { ...s.receiptPrinter, deviceName: defPr.name } }));
+              return { ...prev, deviceName: defPr.name };
+            }
+            return prev;
+          });
+          setBarcodePrinter((prev: any) => {
+            if (!prev?.deviceName) {
+              updateSnapshotField(s => ({ ...s, barcodePrinter: { ...s.barcodePrinter, deviceName: defPr.name } }));
+              return { ...prev, deviceName: defPr.name };
+            }
+            return prev;
+          });
+        }
+      }
+      if (showToast) {
+        setMessage({
+          type: 'success',
+          text: printerList.length > 0 ? `Found ${printerList.length} printer(s)` : 'No printers found. Make sure printers are installed and powered on.'
+        });
+      }
+    } catch (err: any) {
+      console.error('[SettingsManager] Failed to get printers', err);
+      if (showToast) {
+        setMessage({ type: 'error', text: `Failed to fetch printers: ${err.message || 'Unknown error'}` });
+      }
+    } finally {
+      setPrintersLoading(false);
     }
   };
 
@@ -2198,6 +2219,20 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               })}
             </div>
 
+            {/* Refresh Printers Button */}
+            <div className="flex justify-end mt-3">
+              <button
+                type="button"
+                onClick={() => fetchPrinters(true)}
+                disabled={printersLoading}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30 hover:border-primary/30 transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh printer list from system"
+              >
+                <RefreshCw className={clsx("w-4 h-4 shrink-0 transition-transform duration-300", printersLoading && "animate-spin")} />
+                <span>{printersLoading ? 'Refreshing...' : 'Refresh Printers'}</span>
+              </button>
+            </div>
+
             {/* Render selected hardware settings card */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm">
               {activeHardwareTab === 'receipt' && (
@@ -2232,7 +2267,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     ) : (
                       <div className="col-span-2 space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
-                        <Select value={receiptPrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
+                        <Select value={receiptPrinter.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Select a printer --'} onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
+                        {osPrinters.length === 0 && (
+                          <p className="text-[10px] text-amber-500/90">No printers detected. Install printer drivers, then click <strong>Refresh Printers</strong> above.</p>
+                        )}
                       </div>
                     )}
                     <div className="col-span-2 space-y-2">
@@ -2313,7 +2351,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     ) : (
                       <div className="col-span-2 space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
-                        <Select value={barcodePrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setBarcodePrinter({ ...barcodePrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
+                        <Select value={barcodePrinter.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Select a printer --'} onChange={v => setBarcodePrinter({ ...barcodePrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
+                        {osPrinters.length === 0 && (
+                          <p className="text-[10px] text-amber-500/90">No printers detected. Install printer drivers, then click <strong>Refresh Printers</strong> above.</p>
+                        )}
                       </div>
                     )}
                     {barcodePrinter.type === 'usb' && (
@@ -2336,16 +2377,19 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
               )}
 
-              {activeHardwareTab === 'a4' && (
+{activeHardwareTab === 'a4' && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 pb-4 border-b border-border">
                     <FileText className="w-4.5 h-4.5 text-primary" />
-                    <span className="text-xs font-black uppercase tracking-widest text-foreground">A4 &amp; A5 Printer Settings</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">A4 & A5 Printer Settings</span>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Select A4 / A5 Printer Device</label>
-                    <Select value={a4Printer.deviceName} placeholder="-- Use default system printer --" onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
-                    <p className="text-[10px] text-muted-foreground/75 mt-2">Choose the printer to use for A5 estimates &amp; full A4 invoices. Leave as default to use system printer dialog.</p>
+                    <Select value={a4Printer.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Use default system printer --'} onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
+                    {osPrinters.length === 0 && (
+                      <p className="text-[10px] text-amber-500/90">No printers detected. Install printer drivers, then click <strong>Refresh Printers</strong> above.</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground/75 mt-2">Choose the printer to use for A5 estimates & full A4 invoices. Leave as default to use system printer dialog.</p>
                   </div>
                 </div>
               )}

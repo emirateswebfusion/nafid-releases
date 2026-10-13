@@ -1,8 +1,8 @@
 {
-  "tag_name": "v1.7.9",
-  "name": "v1.7.9",
+  "tag_name": "v1.7.11",
+  "name": "v1.7.11",
   "draft": false,
   "prerelease": false,
-  "body": "Release v1.7.9 - Fix window display visibility on all machines, fix cash drawer sync conflict, automatic party balance recalculation on startup",
+  "body": "Release v1.7.11 - Critical fix: Database schema migration for invoices table (customer_id column missing causing startup crash). Added 18 missing columns to invoices, 15 to invoice_items, and synced all schemaMap entries for auto-migration. Fixes SqliteError: no such column: customer_id on app init.",
   "target_commitish": "main"
 }
