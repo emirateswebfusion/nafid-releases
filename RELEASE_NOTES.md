@@ -1,3 +1,10 @@
+# Vendora v1.7.14 Release Notes
+
+## What's Changed
+- **Billing, Sales History & Sync Updates**: Updated localDb transaction queries, billing page optimization, party manager enhancements, sales history filters, and sync worker reliability.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-1.7.14.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.7.13...v1.7.14
+
 # Vendora v1.7.5 Release Notes
 
 ## What's Changed

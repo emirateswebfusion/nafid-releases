@@ -2010,6 +2010,368 @@ export function deterministicUUID(seed: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
+/**
+ * CustomerIdentityService - Single authoritative source for customer/party identity resolution
+ * Replaces all scattered matching logic across the codebase
+ */
+export class CustomerIdentityService {
+  /**
+   * Find or create a customer and their corresponding party record atomically
+   * Uses deterministic IDs based on stable business keys (phone or name+tenant)
+   */
+  static findOrCreateCustomerAndParty(
+    db: Database.Database,
+    tenantId: string,
+    rawData: {
+      name?: string | null;
+      phone?: string | null;
+      address?: string | null;
+      gstin?: string | null;
+      notes?: string | null;
+      pricing_tier_id?: string | null;
+      credit_limit?: number;
+      credit_period_enabled?: boolean;
+      credit_period_days?: number;
+      credit_period_basis?: string;
+      restrict_on_credit_expiry?: boolean;
+    }
+  ): { customer_id: string; party_id: string; isNew: boolean } | null {
+    if (!db || !tenantId) return null;
+
+    const name = (rawData.name || '').trim().replace(/\s+/g, ' ');
+    const phone = (rawData.phone || '').trim() || null;
+    const address = (rawData.address || '').trim() || null;
+    const gstin = (rawData.gstin || '').trim().toUpperCase() || null;
+    const notes = (rawData.notes || '').trim() || null;
+    const pricingTierId = rawData.pricing_tier_id || null;
+    const creditLimit = Math.max(0, Number(rawData.credit_limit) || 0);
+    const creditPeriodEnabled = rawData.credit_period_enabled ? 1 : 0;
+    const creditPeriodDays = Math.max(1, parseInt(String(rawData.credit_period_days || 30), 10) || 30);
+    const creditPeriodBasis = rawData.credit_period_basis || 'BILL_BASED';
+    const restrictOnCreditExpiry = (() => {
+      const v = rawData.restrict_on_credit_expiry;
+      if (v === undefined) return 0;
+      const str = String(v);
+      if (str === 'false' || str === '0') return 0;
+      return 1;
+    })();
+
+    if (!name && !phone) return null;
+
+    const phoneClean = (phone || '').replace(/\D/g, '');
+
+    try {
+      // ========== LOOKUP PHASE: Single authoritative matching ==========
+      // Priority: 1) Phone match (cleaned, last 10 digits)  2) Exact name + phone  3) Exact name
+      
+      let existingCustomer: any = null;
+      let existingParty: any = null;
+
+      // 1. Try to find by phone (cleaned)
+      if (phoneClean.length >= 7) {
+        const last10 = phoneClean.slice(-10);
+        existingCustomer = db.prepare(`
+          SELECT * FROM customers 
+          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+          LIMIT 1
+        `).get(tenantId, `%${last10}`);
+        
+        if (existingCustomer) {
+          existingParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+            LIMIT 1
+          `).get(tenantId, `%${last10}`);
+        }
+      }
+
+      // 2. Try exact name + phone combo
+      if (!existingCustomer && name && phone) {
+        existingCustomer = db.prepare(`
+          SELECT * FROM customers 
+          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            AND name = ? AND phone = ?
+          LIMIT 1
+        `).get(tenantId, name, phone);
+        
+        if (existingCustomer) {
+          existingParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND name = ? AND phone = ? AND party_type = 'CUSTOMER'
+            LIMIT 1
+          `).get(tenantId, name, phone);
+        }
+      }
+
+      // 3. Try exact name match (for customers without phone)
+      if (!existingCustomer && name) {
+        existingCustomer = db.prepare(`
+          SELECT * FROM customers 
+          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            AND LOWER(TRIM(name)) = LOWER(?)
+          ORDER BY 
+            CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
+            created_at ASC
+          LIMIT 1
+        `).get(tenantId, name);
+        
+        if (existingCustomer) {
+          existingParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND LOWER(TRIM(name)) = LOWER(?) AND party_type = 'CUSTOMER'
+            ORDER BY 
+              CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
+              created_at ASC
+            LIMIT 1
+          `).get(tenantId, name);
+        }
+      }
+
+      const displayName = name || phone!;
+      const now = new Date().toISOString();
+
+      // ========== UPDATE EXISTING ==========
+      if (existingCustomer) {
+        // Update customer
+        db.prepare(`
+          UPDATE customers
+          SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+              gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
+              pricing_tier_id = COALESCE(?, pricing_tier_id),
+              credit_limit = COALESCE(?, credit_limit),
+              credit_period_enabled = COALESCE(?, credit_period_enabled),
+              credit_period_days = COALESCE(?, credit_period_days),
+              credit_period_basis = COALESCE(?, credit_period_basis),
+              restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+              is_deleted = 0,
+              last_purchase_date = ?,
+              sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE customer_id = ?
+        `).run(
+          displayName, phone, address, gstin, notes, pricingTierId,
+          creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+          now, existingCustomer.customer_id
+        );
+
+        // Update or create party
+        if (existingParty) {
+          db.prepare(`
+            UPDATE parties
+            SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+                gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
+                pricing_tier_id = COALESCE(?, pricing_tier_id),
+                credit_limit = COALESCE(?, credit_limit),
+                credit_period_enabled = COALESCE(?, credit_period_enabled),
+                credit_period_days = COALESCE(?, credit_period_days),
+                credit_period_basis = COALESCE(?, credit_period_basis),
+                restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+                is_deleted = 0,
+                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE party_id = ?
+          `).run(
+            displayName, phone, address, gstin, notes, pricingTierId,
+            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            existingParty.party_id
+          );
+        } else {
+          // Create missing party for existing customer
+          const partyId = phoneClean.length >= 7
+            ? deterministicUUID(`party:${tenantId}:${phoneClean.slice(-10)}`)
+            : deterministicUUID(`party:${tenantId}:${name.toLowerCase()}`);
+          db.prepare(`
+            INSERT INTO parties (
+              party_id, tenant_id, name, phone, address, gstin, notes,
+              balance, gst_balance, estimate_balance, balance_type, party_type,
+              pricing_tier_id, credit_limit,
+              credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
+              is_deleted, sync_status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
+          `).run(
+            partyId, tenantId, displayName, phone, address, gstin, notes,
+            pricingTierId, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            now, now
+          );
+          existingParty = { party_id: partyId };
+        }
+
+        return { 
+          customer_id: existingCustomer.customer_id, 
+          party_id: existingParty.party_id, 
+          isNew: false 
+        };
+      }
+
+      // ========== CREATE NEW ==========
+      // Generate deterministic ID based on STABLE business key
+      const customerSeedKey = phoneClean.length >= 7
+        ? `cust:${tenantId}:${phoneClean.slice(-10)}`
+        : `cust:${tenantId}:${name.toLowerCase()}:${Date.now()}`; // Add timestamp to prevent name-only collision
+      const customer_id = deterministicUUID(customerSeedKey);
+
+      const partySeedKey = phoneClean.length >= 7
+        ? `party:${tenantId}:${phoneClean.slice(-10)}`
+        : `party:${tenantId}:${name.toLowerCase()}:${Date.now()}`;
+      const party_id = deterministicUUID(partySeedKey);
+
+      const transaction = db.transaction(() => {
+        // Insert customer
+        db.prepare(`
+          INSERT INTO customers (
+            customer_id, tenant_id, name, phone, address, gstin, notes, pricing_tier_id,
+            credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
+            total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date,
+            is_deleted, sync_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, 0, 'PENDING', ?, ?)
+        `).run(
+          customer_id, tenantId, displayName, phone, address, gstin, notes, pricingTierId,
+          creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+          now, now, now
+        );
+
+        // Insert party
+        db.prepare(`
+          INSERT INTO parties (
+            party_id, tenant_id, name, phone, address, gstin, notes,
+            balance, gst_balance, estimate_balance, balance_type, party_type,
+            pricing_tier_id, credit_limit,
+            credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
+            is_deleted, sync_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
+        `).run(
+          party_id, tenantId, displayName, phone, address, gstin, notes,
+          pricingTierId, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+          now, now
+        );
+      });
+
+      transaction();
+
+      return { customer_id, party_id, isNew: true };
+    } catch (err: any) {
+      console.error('[CustomerIdentityService] Error:', err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Find existing customer by various criteria (read-only)
+   */
+  static findCustomer(
+    db: Database.Database,
+    tenantId: string,
+    criteria: { name?: string; phone?: string; customer_id?: string }
+  ): any | null {
+    if (!db || !tenantId) return null;
+    const { name, phone, customer_id } = criteria;
+
+    if (customer_id) {
+      return db.prepare('SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)')
+        .get(customer_id, tenantId);
+    }
+
+    const phoneClean = (phone || '').replace(/\D/g, '');
+    
+    // 1. Phone match
+    if (phoneClean.length >= 7) {
+      const last10 = phoneClean.slice(-10);
+      const found = db.prepare(`
+        SELECT * FROM customers 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+        LIMIT 1
+      `).get(tenantId, `%${last10}`);
+      if (found) return found;
+    }
+
+    // 2. Exact name + phone
+    if (name && phone) {
+      const found = db.prepare(`
+        SELECT * FROM customers 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          AND name = ? AND phone = ?
+        LIMIT 1
+      `).get(tenantId, name.trim().replace(/\s+/g, ' '), phone.trim());
+      if (found) return found;
+    }
+
+    // 3. Exact name
+    if (name) {
+      const found = db.prepare(`
+        SELECT * FROM customers 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          AND LOWER(TRIM(name)) = LOWER(?)
+        ORDER BY CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END, created_at ASC
+        LIMIT 1
+      `).get(tenantId, name.trim().replace(/\s+/g, ' '));
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  /**
+   * Find existing party by various criteria (read-only)
+   */
+  static findParty(
+    db: Database.Database,
+    tenantId: string,
+    criteria: { name?: string; phone?: string; party_id?: string; party_type?: string }
+  ): any | null {
+    if (!db || !tenantId) return null;
+    const { name, phone, party_id, party_type = 'CUSTOMER' } = criteria;
+
+    if (party_id) {
+      return db.prepare('SELECT * FROM parties WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)')
+        .get(party_id, tenantId);
+    }
+
+    const phoneClean = (phone || '').replace(/\D/g, '');
+    
+    // 1. Phone match
+    if (phoneClean.length >= 7) {
+      const last10 = phoneClean.slice(-10);
+      const found = db.prepare(`
+        SELECT * FROM parties 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          AND party_type = ? AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+        LIMIT 1
+      `).get(tenantId, party_type, `%${last10}`);
+      if (found) return found;
+    }
+
+    // 2. Exact name + phone
+    if (name && phone) {
+      const found = db.prepare(`
+        SELECT * FROM parties 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          AND party_type = ? AND name = ? AND phone = ?
+        LIMIT 1
+      `).get(tenantId, party_type, name.trim().replace(/\s+/g, ' '), phone.trim());
+      if (found) return found;
+    }
+
+    // 3. Exact name
+    if (name) {
+      const found = db.prepare(`
+        SELECT * FROM parties 
+        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          AND party_type = ? AND LOWER(TRIM(name)) = LOWER(?)
+        ORDER BY CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END, created_at ASC
+        LIMIT 1
+      `).get(tenantId, party_type, name.trim().replace(/\s+/g, ' '));
+      if (found) return found;
+    }
+
+    return null;
+  }
+}
+
 export function upsertCustomerRecord(
   db: Database.Database,
   tenantId: string,
@@ -2017,72 +2379,13 @@ export function upsertCustomerRecord(
   rawPhone?: string | null,
   rawAddress?: string | null
 ): string | null {
-  if (!db || !tenantId) return null;
-  const name = (rawName || '').trim().replace(/\s+/g, ' ');
-  const phone = (rawPhone || '').trim() || null;
-  const address = (rawAddress || '').trim() || null;
-
-  if (!name && !phone) return null;
-
-  try {
-    let existing: any = null;
-    const phoneClean = (phone || '').replace(/\D/g, '');
-    if (phoneClean.length >= 7) {
-      const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)').all(tenantId) as any[];
-      existing = allCust.find((c: any) => {
-        const cPhoneDigits = (c.phone || '').replace(/\D/g, '');
-        return cPhoneDigits.length >= 7 && (cPhoneDigits === phoneClean || (phoneClean.length >= 10 && cPhoneDigits.slice(-10) === phoneClean.slice(-10)));
-      });
-    }
-    if (!existing && name) {
-      const candidates = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) AND name = ? COLLATE NOCASE').all(tenantId, name);
-      if (candidates && candidates.length > 0) {
-        existing = candidates[0];
-      } else {
-        const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)').all(tenantId);
-        const normTarget = name.toLowerCase().replace(/\s+/g, ' ');
-        existing = allCust.find((c: any) => (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normTarget);
-      }
-    }
-
-    const displayName = name || phone!;
-
-    if (existing) {
-      db.prepare(`
-        UPDATE customers
-        SET name = ?,
-            phone = COALESCE(?, phone),
-            address = COALESCE(?, address),
-            is_deleted = 0,
-            last_purchase_date = CURRENT_TIMESTAMP,
-            sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE customer_id = ?
-      `).run(displayName, phone, address, existing.customer_id);
-      return existing.customer_id as string;
-    } else {
-      const seedKey = phoneClean.length >= 7 
-        ? `cust:${tenantId}:${phoneClean.slice(-10)}` 
-        : `cust:${tenantId}:${name.toLowerCase()}`;
-      const customer_id = deterministicUUID(seedKey);
-      db.prepare(`
-        INSERT INTO customers (customer_id, tenant_id, name, phone, address, total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date, is_deleted, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT(customer_id) DO UPDATE SET
-          name = excluded.name,
-          phone = COALESCE(excluded.phone, customers.phone),
-          address = COALESCE(excluded.address, customers.address),
-          is_deleted = 0,
-          last_purchase_date = CURRENT_TIMESTAMP,
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-      `).run(customer_id, tenantId, displayName, phone, address);
-      return customer_id;
-    }
-  } catch (err: any) {
-    console.error('[DB] upsertCustomerRecord error:', err.message);
-    return null;
-  }
+  // Delegate to the new unified CustomerIdentityService for consistency
+  const result = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+    name: rawName,
+    phone: rawPhone,
+    address: rawAddress
+  });
+  return result?.customer_id || null;
 }
 
 function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
@@ -2336,6 +2639,24 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
       }
     }
     console.log('[DB Auto-Deduplication] Completed clean deduplication of customers and parties.');
+
+    // Create partial unique indexes after deduplication to prevent future duplicates
+    try {
+      d.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_name_no_phone 
+        ON customers(tenant_id, name) 
+        WHERE phone IS NULL OR phone = '';
+      `);
+      d.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_parties_tenant_name_phone_customer 
+        ON parties(tenant_id, name, phone) 
+        WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0);
+      `);
+      console.log('[DB Auto-Deduplication] Partial unique indexes created/verified.');
+    } catch (idxErr: any) {
+      console.warn('[DB Auto-Deduplication] Could not create partial unique indexes:', idxErr.message);
+    }
+
     return { merged_customers: mergedCustomers, merged_parties: mergedParties };
   } catch (err: any) {
     console.error('[DB Auto-Deduplication Error]:', err.message);

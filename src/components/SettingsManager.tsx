@@ -253,6 +253,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [receiptFont, setReceiptFont] = useState('courier');
   const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
   const [scrapBillSettings, setScrapBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
+  const [showFullyPaidCashInLedger, setShowFullyPaidCashInLedger] = useState(false);
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4' | 'half-a4'>('thermal');
   const [a5Orientation, setA5Orientation] = useState<'horizontal' | 'vertical'>('horizontal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
@@ -648,11 +649,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       window.electronAPI.onUpdateInfo((info: any) => {
         if (info) {
           setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
+          // The main process already starts the download automatically when update-available fires.
+          // Do NOT call appDownloadUpdate() here — that would start a second concurrent download,
+          // causing a race condition that leaves slow machines stuck at 100% indefinitely.
           setIsDownloading(true);
           setUpdateStatus('Downloading...');
-          window.electronAPI!.appDownloadUpdate().then((res: any) => {
-            if (!res.success) { setIsDownloading(false); setUpdateStatus('Download failed'); }
-          });
         }
       });
     }
@@ -935,7 +936,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (printFmt.billSettings) finalBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings };
         if (allSettings['quotation_gst_enabled'] !== undefined) { const qg = allSettings['quotation_gst_enabled']; finalBillSettings.quotationGstEnabled = qg !== 'false' && qg !== false; }
         if (printFmt.scrapBillSettings) finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings };
+      
+      // Load showFullyPaidCashInLedger setting
+      const fullyPaidCashSetting = allSettings['show_fully_paid_cash_in_ledger'];
+      if (fullyPaidCashSetting !== undefined) {
+        const val = fullyPaidCashSetting !== 'false' && fullyPaidCashSetting !== false;
+        setShowFullyPaidCashInLedger(val);
       }
+    }
 
       let rawTermCode = allSettings['terminal_code'];
       if (rawTermCode && typeof rawTermCode === 'object') {
@@ -1410,6 +1418,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_fully_paid_cash_in_ledger', value: showFullyPaidCashInLedger }), name: 'show_fully_paid_cash_in_ledger' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock', value: enableRealPaperStock }), name: 'enable_real_paper_stock' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst', value: showPaperStockInGst }), name: 'show_paper_stock_in_gst' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate', value: showPaperStockInEstimate }), name: 'show_paper_stock_in_estimate' },
@@ -2268,9 +2277,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <div className="col-span-2 space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
                         <Select value={receiptPrinter.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Select a printer --'} onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
-                        {osPrinters.length === 0 && (
-                          <p className="text-[10px] text-amber-500/90">No printers detected. Install printer drivers, then click <strong>Refresh Printers</strong> above.</p>
-                        )}
                       </div>
                     )}
                     <div className="col-span-2 space-y-2">
@@ -2352,9 +2358,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <div className="col-span-2 space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
                         <Select value={barcodePrinter.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Select a printer --'} onChange={v => setBarcodePrinter({ ...barcodePrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
-                        {osPrinters.length === 0 && (
-                          <p className="text-[10px] text-amber-500/90">No printers detected. Install printer drivers, then click <strong>Refresh Printers</strong> above.</p>
-                        )}
                       </div>
                     )}
                     {barcodePrinter.type === 'usb' && (
@@ -2386,9 +2389,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Select A4 / A5 Printer Device</label>
                     <Select value={a4Printer.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Use default system printer --'} onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
-                    {osPrinters.length === 0 && (
-                      <p className="text-[10px] text-amber-500/90">No printers detected. Install printer drivers, then click <strong>Refresh Printers</strong> above.</p>
-                    )}
                     <p className="text-[10px] text-muted-foreground/75 mt-2">Choose the printer to use for A5 estimates & full A4 invoices. Leave as default to use system printer dialog.</p>
                   </div>
                 </div>
@@ -3100,8 +3100,18 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </button>
                 </div>
 
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none">Show Fully Paid Cash Transactions in Party Ledger</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, sales where the customer pays the full bill amount in cash will appear in the party ledger as a sale and payment entry (net zero effect on balance). When disabled, such transactions are hidden from the party ledger.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowFullyPaidCashInLedger(!showFullyPaidCashInLedger)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showFullyPaidCashInLedger ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showFullyPaidCashInLedger ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
                 {autoOpenCashDrawer && (
-                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                     <label className="text-xs font-bold text-foreground mb-1 block">Default Opening Amount (₹)</label>
                     <p className="text-[10px] text-muted-foreground/75 mb-2.5">Set a default cash amount to start the drawer with. If empty or cleared, opening balance will be 0 (starts from 0).</p>
                     <div className="relative max-w-xs">

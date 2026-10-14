@@ -146,6 +146,14 @@ export function PartyManager({
   const tLabels = useTerminologyStore(state => state.labels);
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
+  const getPartyBalance = useCallback((p: any): number => {
+    if (!p) return 0;
+    if (p.current_balance !== undefined && p.current_balance !== null && !isNaN(Number(p.current_balance))) {
+      return Number(p.current_balance);
+    }
+    return Number(p.balance || 0);
+  }, []);
+
   const listScrollRef = useRef<HTMLDivElement>(null);
   const lastInteractedPartyId = useRef<string | null>(null);
   const savedScrollTop = useRef<number>(0);
@@ -158,6 +166,7 @@ export function PartyManager({
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
 
   const [view, setView] = useState<View>('list');
+  const prevViewRef = useRef<View>(view);
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [listLayoutMode, setListLayoutMode] = useState<'table' | 'cards'>('table');
   const [ledgerLayoutMode, setLedgerLayoutMode] = useState<'table' | 'cards'>('table');
@@ -630,6 +639,13 @@ export function PartyManager({
   useEffect(() => { loadParties(); }, [loadParties]);
 
   useEffect(() => {
+    if (prevViewRef.current === 'ledger' && view === 'list') {
+      loadParties();
+    }
+    prevViewRef.current = view;
+  }, [view, loadParties]);
+
+  useEffect(() => {
     if (!tenantId) return;
     window.electronAPI.dbGetPricingTiers(tenantId)
       .then(res => {
@@ -659,7 +675,8 @@ export function PartyManager({
         const entries = Array.isArray(data) ? data : [];
         setLedger(entries);
         const latestBal = entries.length > 0 ? Number(entries[entries.length - 1].running_balance) || 0 : 0;
-        setSelectedParty(prev => prev ? { ...prev, balance: latestBal } : prev);
+        setSelectedParty(prev => prev ? { ...prev, balance: latestBal, current_balance: latestBal } : prev);
+        setParties(prev => prev.map(p => p.party_id === partyId ? { ...p, balance: latestBal, current_balance: latestBal } : p));
       }
     } catch {
       showStatus('Failed to load ledger', 'error');
@@ -986,8 +1003,8 @@ export function PartyManager({
 
   const customCategoriesList = allCustomCategories;
 
-  const totalReceivable = filteredParties.reduce((s, p) => s + (p.balance > 0 ? p.balance : 0), 0);
-  const totalPayable = filteredParties.reduce((s, p) => s + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
+  const totalReceivable = filteredParties.reduce((s, p) => { const b = getPartyBalance(p); return s + (b > 0 ? b : 0); }, 0);
+  const totalPayable = filteredParties.reduce((s, p) => { const b = getPartyBalance(p); return s + (b < 0 ? Math.abs(b) : 0); }, 0);
 
   // ── Shared field style ──
   const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
@@ -1071,7 +1088,7 @@ export function PartyManager({
             )}
 
             <RedCrossButton
-              onClick={onBackToCustomers ? onBackToCustomers : (view === 'list' ? onClose : view === 'ledger' ? () => setView('list') : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); })}
+              onClick={onBackToCustomers ? onBackToCustomers : (view === 'list' ? onClose : view === 'ledger' ? () => { setView('list'); loadParties(); } : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); })}
               title="Close"
             />
           </div>
@@ -1356,8 +1373,9 @@ export function PartyManager({
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {filteredParties.map(party => {
-                      const isReceivable = party.balance > 0;
-                      const isPayable = party.balance < 0;
+                      const balance = getPartyBalance(party);
+                      const isReceivable = balance > 0;
+                      const isPayable = balance < 0;
                       const hue = nameToHue(party.name);
                       return (
                         <tr
@@ -1436,7 +1454,7 @@ export function PartyManager({
                               isPayable ? "text-emerald-600 dark:text-emerald-400" :
                               "text-muted-foreground"
                             )}>
-                              ₹{Math.abs(party.balance).toFixed(2)}
+                              ₹{Math.abs(balance).toFixed(2)}
                             </span>
                             <span className={clsx(
                               "inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border mt-0.5",
@@ -1454,7 +1472,7 @@ export function PartyManager({
                               {party.credit_limit != null && Number(party.credit_limit) > 0 && (
                                 <span className={clsx(
                                   "px-2 py-0.5 rounded border text-[11px] font-bold",
-                                  isReceivable && party.balance >= party.credit_limit
+                                  isReceivable && balance >= party.credit_limit
                                     ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
                                     : "bg-muted border-border text-foreground"
                                 )}>
@@ -1545,9 +1563,10 @@ export function PartyManager({
               <div className="space-y-2">
                 {filteredParties.map(party => {
                   const hue = nameToHue(party.name);
-                  const isReceivable = party.balance > 0;
-                  const isPayable = party.balance < 0;
-                  const _isSettled = party.balance === 0;
+                  const balance = getPartyBalance(party);
+                  const isReceivable = balance > 0;
+                  const isPayable = balance < 0;
+                  const _isSettled = balance === 0;
                   return (
                     <div
                       key={party.party_id}
@@ -1613,7 +1632,7 @@ export function PartyManager({
                           {party.credit_limit != null && Number(party.credit_limit) > 0 && (
                             <span className={clsx(
                               "inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 border",
-                              isReceivable && party.balance >= party.credit_limit
+                              isReceivable && balance >= party.credit_limit
                                 ? "text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20"
                                 : "text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20"
                             )}>
@@ -1656,7 +1675,7 @@ export function PartyManager({
                           isPayable ? 'text-emerald-600 dark:text-emerald-400' :
                           'text-muted-foreground'
                         )}>
-                          ₹{Math.abs(party.balance).toFixed(2)}
+                          ₹{Math.abs(balance).toFixed(2)}
                         </p>
                         <span className={clsx(
                           'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border',
@@ -1668,10 +1687,10 @@ export function PartyManager({
                         </span>
                         {party.credit_limit != null && Number(party.credit_limit) > 0 && isReceivable && (
                           <div className="mt-0.5 text-[9px]">
-                            {party.balance >= party.credit_limit ? (
+                            {balance >= party.credit_limit ? (
                               <span className="text-red-500 font-bold">Limit Reached</span>
                             ) : (
-                              <span className="text-muted-foreground font-medium">Avail: ₹{Math.max(0, Number(party.credit_limit) - Number(party.balance)).toLocaleString('en-IN')}</span>
+                              <span className="text-muted-foreground font-medium">Avail: ₹{Math.max(0, Number(party.credit_limit) - Number(balance)).toLocaleString('en-IN')}</span>
                             )}
                           </div>
                         )}
@@ -2379,26 +2398,31 @@ export function PartyManager({
                 </div>
 
                 {/* 2. Total Amount Box (Then Amount Box) */}
-                <div className={clsx(
-                  'flex items-center gap-2.5 px-3.5 py-2 rounded-2xl shadow-xs border',
-                  selectedParty.balance > 0
-                    ? 'bg-rose-500 text-white border-rose-600'
-                    : selectedParty.balance < 0
-                    ? 'bg-emerald-600 text-white border-emerald-700'
-                    : 'bg-muted text-muted-foreground border-border'
-                )}>
-                  <div className="p-1.5 rounded-xl bg-black/10 dark:bg-white/20 shrink-0">
-                    <Wallet className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-base font-black leading-none font-mono">
-                      ₹{Math.abs(selectedParty.balance).toFixed(2)}
-                    </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-90">
-                      {selectedParty.balance > 0 ? tLabels.receivable : selectedParty.balance < 0 ? tLabels.payable : 'Settled'}
-                    </p>
-                  </div>
-                </div>
+                {(() => {
+                  const selBal = getPartyBalance(selectedParty);
+                  return (
+                    <div className={clsx(
+                      'flex items-center gap-2.5 px-3.5 py-2 rounded-2xl shadow-xs border',
+                      selBal > 0
+                        ? 'bg-rose-500 text-white border-rose-600'
+                        : selBal < 0
+                        ? 'bg-emerald-600 text-white border-emerald-700'
+                        : 'bg-muted text-muted-foreground border-border'
+                    )}>
+                      <div className="p-1.5 rounded-xl bg-black/10 dark:bg-white/20 shrink-0">
+                        <Wallet className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-base font-black leading-none font-mono">
+                          ₹{Math.abs(selBal).toFixed(2)}
+                        </p>
+                        <p className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-90">
+                          {selBal > 0 ? tLabels.receivable : selBal < 0 ? tLabels.payable : 'Settled'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

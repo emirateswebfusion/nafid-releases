@@ -1728,31 +1728,23 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </div>
               <div className="flex items-center gap-1.5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                {[
-                  { value: '', label: 'All' },
-                  { value: 'PENDING', label: 'Pending' },
-                  { value: 'CASH', label: 'Cash' },
-                  { value: 'CARD', label: 'Card' },
-                  { value: 'UPI', label: 'UPI' },
-                  { value: 'CHEQUE', label: 'Cheque' },
-                  { value: 'CREDIT', label: 'Credit' },
-                  { value: 'SPLIT', label: 'Split' },
-                ].map(opt => {
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => setPaymentFilter(opt.value)}
-                      className={clsx(
-                        'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
-                        paymentFilter === opt.value
-                          ? 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15'
-                          : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
+                <Select
+                  value={paymentFilter}
+                  onChange={setPaymentFilter}
+                  options={[
+                    { value: '', label: 'All' },
+                    { value: 'PENDING', label: 'Pending' },
+                    { value: 'CASH', label: 'Cash' },
+                    { value: 'CARD', label: 'Card' },
+                    { value: 'UPI', label: 'UPI' },
+                    { value: 'CHEQUE', label: 'Cheque' },
+                    { value: 'CREDIT', label: 'Credit' },
+                    { value: 'SPLIT', label: 'Split' },
+                  ]}
+                  size="xs"
+                  className="w-36"
+                  triggerClassName="rounded-full h-7 border px-3 transition-all bg-primary/10 text-primary border-primary/25 dark:bg-primary/15"
+                />
                 <span className="w-px h-5 bg-border/60 mx-1 shrink-0" />
                 {(() => {
                   const typeChipColors: Record<string, { bg: string; text: string; border: string }> = {

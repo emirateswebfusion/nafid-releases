@@ -8,7 +8,7 @@ import dns from 'node:dns';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
-import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser, autoDeduplicateCustomersAndParties } from './db/localDb';
+import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser, autoDeduplicateCustomersAndParties, CustomerIdentityService } from './db/localDb';
 import { calculateCashierSettlement } from './utils/cashierSettlement';
 import { initWhatsAppIpc } from './whatsapp/whatsappService';
 
@@ -373,7 +373,10 @@ function setUpdaterState(newState: UpdaterState) {
   log.info(`[Updater] State transition: ${oldState} -> ${newState}`);
   const win = getMainWindow();
   if (win && !win.isDestroyed()) {
-    win.webContents.send('update-status', newState);
+    // Map internal 'downloaded' state to 'ready-to-install' so the renderer
+    // knows to enable the install button (renderer only handles 'ready-to-install').
+    const broadcastState = newState === 'downloaded' ? 'ready-to-install' : newState;
+    win.webContents.send('update-status', broadcastState);
   }
 }
 
@@ -636,6 +639,14 @@ app.whenReady().then(async () => {
   initDb();
   log.info('[Main] Database initialized');
 
+  // Run auto-deduplication to clean up existing duplicates and create partial unique indexes
+  try {
+    const dedupResult = autoDeduplicateCustomersAndParties();
+    log.info(`[Main] Auto-deduplication completed: ${dedupResult.merged_customers} customers, ${dedupResult.merged_parties} parties merged`);
+  } catch (e: any) {
+    log.warn('[Main] Auto-deduplication failed (non-fatal):', e.message);
+  }
+
   // Setup CSP and create window FIRST - show UI immediately
   setupCSP();
   mainWindow = createWindow();
@@ -820,16 +831,18 @@ app.whenReady().then(async () => {
   // Event handlers for auto-updater events
   autoUpdater.on('update-available', (info) => {
     log.info('[Updater] Update available (event):', info.version);
-    setUpdaterState('update-available');
+    // Only set state and notify UI here. The actual download is triggered by the
+    // state-machine callers (performUpdateCheck / app:checkForUpdates) that already
+    // call downloadUpdate() after this event fires. Calling it a second time here
+    // causes a race condition where two concurrent downloads collide, leaving slow
+    // machines stuck at 100% with the download never completing.
+    if (updaterState !== 'downloading' && updaterState !== 'downloaded') {
+      setUpdaterState('update-available');
+    }
     const win = BrowserWindow.getAllWindows()[0];
     if (win && !win.isDestroyed()) {
       win.webContents.send('update-info', info);
     }
-    // Start download automatically
-    autoUpdater.downloadUpdate().catch((err) => {
-      log.error('[Updater] Auto-download failed:', err);
-      setUpdaterState('error');
-    });
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -1098,10 +1111,13 @@ ipcMain.handle('app:downloadUpdate', async () => {
       return { success: true, message: 'Download already in progress' };
     }
     log.info('[Updater] Manual download triggered');
+    setUpdaterState('downloading');
     await autoUpdater.downloadUpdate();
+    // Note: setUpdaterState('downloaded') is handled by the 'update-downloaded' event
     return { success: true };
   } catch (error: any) {
     log.error('[Updater] Download error:', error);
+    setUpdaterState('error');
     return { success: false, error: error.message || 'Operation failed' };
   }
 });
@@ -2397,14 +2413,76 @@ ipcMain.handle('db:getParties', (event, tenantId: string, includeDeleted = false
     const db = getDb();
     if (!tenantId) return [];
     backfillCreditInvoices(db);
+    reconcileAllPartyBalances(db, tenantId);
     const sql = includeDeleted
       ? `SELECT p.*, 
-          (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id) AS last_transaction_date
+          COALESCE(
+            (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = p.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            p.balance,
+            0
+          ) AS current_balance,
+          COALESCE(
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = p.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            p.gst_balance,
+            p.balance,
+            0
+          ) AS current_gst_balance,
+          COALESCE(
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = p.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            p.estimate_balance,
+            0
+          ) AS current_estimate_balance,
+          (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)) AS last_transaction_date
         FROM parties p WHERE p.tenant_id = ? ORDER BY p.is_deleted ASC, p.name COLLATE NOCASE ASC`
       : `SELECT p.*, 
-          (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id) AS last_transaction_date
+          COALESCE(
+            (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = p.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            p.balance,
+            0
+          ) AS current_balance,
+          COALESCE(
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = p.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            p.gst_balance,
+            p.balance,
+            0
+          ) AS current_gst_balance,
+          COALESCE(
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = p.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            p.estimate_balance,
+            0
+          ) AS current_estimate_balance,
+          (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)) AS last_transaction_date
         FROM parties p WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC`;
-    const parties = db.prepare(sql).all(tenantId);
+    const parties = db.prepare(sql).all(tenantId) as any[];
+    for (const p of parties) {
+      if (p.current_balance !== undefined && p.current_balance !== null) {
+        p.balance = Number(p.current_balance);
+      }
+      if (p.current_gst_balance !== undefined && p.current_gst_balance !== null) {
+        p.gst_balance = Number(p.current_gst_balance);
+      }
+      if (p.current_estimate_balance !== undefined && p.current_estimate_balance !== null) {
+        p.estimate_balance = Number(p.current_estimate_balance);
+      }
+    }
     return parties;
   } catch (error: any) {
     console.error('[db:getParties]', error);
@@ -2734,7 +2812,7 @@ ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id
 });
 
 // Recompute a party's GST / Estimate / total balances from its ledger entries
-function recalcPartyBalances(db: any, partyId: string) {
+export function recalcPartyBalances(db: any, partyId: string) {
   try {
     // 1. Deduplicate entries by reference_number, description, credit_amount, and debit_amount
     const refDups = db.prepare(`
@@ -2829,6 +2907,47 @@ function recalcPartyBalances(db: any, partyId: string) {
   db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
   return total;
+}
+
+export function reconcileAllPartyBalances(db: any, tenantId?: string) {
+  try {
+    const tenantClause = tenantId ? 'WHERE parties.tenant_id = ? AND' : 'WHERE';
+    const params = tenantId ? [tenantId] : [];
+    db.prepare(`
+      UPDATE parties
+      SET balance = COALESCE(
+            (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = parties.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            parties.balance, 0
+          ),
+          gst_balance = COALESCE(
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = parties.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            parties.gst_balance, parties.balance, 0
+          ),
+          estimate_balance = COALESCE(
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+             FROM party_ledger pl
+             WHERE pl.party_id = parties.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            parties.estimate_balance, 0
+          ),
+          last_transaction_date = COALESCE(
+            (SELECT MAX(pl.transaction_date)
+             FROM party_ledger pl
+             WHERE pl.party_id = parties.party_id
+               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+            parties.last_transaction_date
+          )
+      ${tenantClause} parties.party_id IN (SELECT DISTINCT party_id FROM party_ledger pl WHERE pl.is_deleted IS NULL OR pl.is_deleted = 0)
+    `).run(...params);
+  } catch (err: any) {
+    console.error('[reconcileAllPartyBalances] Error:', err);
+  }
 }
 
 ipcMain.handle('db:mergeParties', safeHandler((event, payload: { tenant_id: string; primary_party_id: string; secondary_party_id: string }) => {
@@ -2943,6 +3062,149 @@ export function syncInvoiceCreditLedger(
     const isSplitCredit = paymentMethodUpper === 'SPLIT' && splitCredit > 0;
     const isCredit = paymentMethodUpper === 'CREDIT' || isSplitCredit;
 
+    // Check for fully paid CASH transaction
+    const isCash = paymentMethodUpper === 'CASH';
+    const invoiceGrandTotal = Number(invoice.grand_total) || 0;
+    const invoiceReceivedAmount = Math.max(0, Number(invoice.received_amount) || 0);
+    const isFullyPaidCash = isCash && invoiceGrandTotal > 0 && invoiceReceivedAmount >= invoiceGrandTotal - 0.01 && invoiceReceivedAmount <= invoiceGrandTotal + 0.01;
+
+    // If fully paid cash transaction, check setting to show in party ledger
+    if (isFullyPaidCash) {
+      const showFullyPaidCashSetting = db.prepare(`
+        SELECT value FROM settings WHERE tenant_id = ? AND key = ?
+      `).get(tenantId, 'show_fully_paid_cash_in_ledger');
+      
+      const showFullyPaidCash = showFullyPaidCashSetting ? JSON.parse(showFullyPaidCashSetting.value) : false;
+      
+      if (showFullyPaidCash) {
+        // Handle fully paid cash transaction - create ledger entries that cancel out
+        // but show the sale and payment in party ledger
+        const custName = (invoice.customer_name || '').trim();
+        const custPhone = (invoice.customer_phone || '').trim();
+        const custAddress = (invoice.customer_address || '').trim() || null;
+        const custGstin = (invoice.customer_gstin || '').trim() || null;
+
+        if (!custName && !custPhone) return;
+
+        // Use the unified CustomerIdentityService for consistent party resolution
+        const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+          name: custName,
+          phone: custPhone,
+          address: custAddress,
+          gstin: custGstin,
+        });
+
+        if (!identityResult) {
+          console.error('[syncInvoiceCreditLedger] Failed to resolve customer/party identity for fully paid cash');
+          return;
+        }
+
+        const party = { party_id: identityResult.party_id, name: custName || custPhone };
+
+        // Party changed? Clean up entries from previous party
+        const oldPartyIds = new Set<string>();
+        for (const entry of existingEntries) {
+          if (entry.party_id !== party.party_id) {
+            oldPartyIds.add(entry.party_id);
+            db.prepare(`
+              UPDATE party_ledger 
+              SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+              WHERE ledger_id = ?
+            `).run(entry.ledger_id);
+          }
+        }
+        for (const opId of oldPartyIds) {
+          recalcPartyBalances(db, opId);
+        }
+
+        const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
+        const txDate = invoice.created_at || localTimestamp();
+        const saleDescription = `Cash Sale ${invoiceNumber} - ${custName || party.name || 'Customer'}`;
+
+        // 1. Cash Sale entry (credit) - records the sale
+        const saleLedgerId = deterministicUUID(`cash_sale:${tenantId}:${invoiceNumber}`);
+        db.prepare(`
+          INSERT INTO party_ledger (
+            ledger_id, party_id, tenant_id, transaction_date, description,
+            credit_amount, debit_amount, running_balance, balance_type,
+            payment_method, reference_number, created_by, created_by_name,
+            is_deleted, sync_status, created_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(ledger_id) DO UPDATE SET
+            credit_amount = excluded.credit_amount,
+            debit_amount = 0,
+            description = excluded.description,
+            transaction_date = excluded.transaction_date,
+            balance_type = excluded.balance_type,
+            payment_method = 'CASH',
+            is_deleted = 0,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+        `).run(
+          saleLedgerId,
+          party.party_id,
+          tenantId,
+          txDate,
+          saleDescription,
+          invoiceGrandTotal,
+          balanceType,
+          invoiceNumber,
+          invoice.user_id || 'system',
+          invoice.user_name || 'System'
+        );
+
+        // 2. Immediate Cash payment entry (debit) - records the payment
+        const payLedgerId = deterministicUUID(`cash_pay:${tenantId}:${invoiceNumber}`);
+        db.prepare(`
+          INSERT INTO party_ledger (
+            ledger_id, party_id, tenant_id, transaction_date, description,
+            credit_amount, debit_amount, running_balance, balance_type,
+            payment_method, reference_number, created_by, created_by_name,
+            is_deleted, sync_status, created_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(ledger_id) DO UPDATE SET
+            credit_amount = 0,
+            debit_amount = excluded.debit_amount,
+            description = excluded.description,
+            transaction_date = excluded.transaction_date,
+            balance_type = excluded.balance_type,
+            payment_method = 'CASH',
+            is_deleted = 0,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+        `).run(
+          payLedgerId,
+          party.party_id,
+          tenantId,
+          txDate,
+          `Payment received for ${invoiceNumber}`,
+          invoiceGrandTotal,
+          balanceType,
+          `${invoiceNumber}-PAY`,
+          invoice.user_id || 'system',
+          invoice.user_name || 'System'
+        );
+
+        // Re-sequence running_balance for the party
+        const allEntries = db.prepare(`
+          SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+          WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+          ORDER BY transaction_date ASC, created_at ASC
+        `).all(party.party_id) as any[];
+
+        let running = 0;
+        for (const row of allEntries) {
+          running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+          db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+        }
+
+        recalcPartyBalances(db, party.party_id);
+        return;
+      }
+    }
+
     // If deleted or neither CREDIT nor SPLIT-with-credit: soft delete any existing ledger entries
     if (isDelete || !isCredit) {
       if (existingEntries.length > 0) {
@@ -2969,108 +3231,20 @@ export function syncInvoiceCreditLedger(
 
     if (!custName && !custPhone) return;
 
-    // Find matching party or re-use existing
-    let party: any = null;
+    // Use the unified CustomerIdentityService for consistent party resolution
+    const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+      name: custName,
+      phone: custPhone,
+      address: custAddress,
+      gstin: custGstin,
+    });
 
-    // 1. If invoice already had ledger entries under a party, attempt to reuse that party first
-    if (existingEntries.length > 0) {
-      const firstEntry = existingEntries[0];
-      if (firstEntry.party_id) {
-        party = db.prepare(`
-          SELECT * FROM parties 
-          WHERE party_id = ? AND tenant_id = ?
-        `).get(firstEntry.party_id, tenantId);
-        if (party && party.is_deleted === 1) {
-          db.prepare(`UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`).run(party.party_id);
-          party.is_deleted = 0;
-        }
-      }
+    if (!identityResult) {
+      console.error('[syncInvoiceCreditLedger] Failed to resolve customer/party identity');
+      return;
     }
 
-    // 2. Find party by normalized phone (check active and soft-deleted, prioritize CUSTOMER then fallback to any)
-    const normPhone = custPhone.replace(/\D/g, '');
-    if (!party && normPhone.length >= 7) {
-      const allParties = db.prepare(`
-        SELECT * FROM parties 
-        WHERE tenant_id = ?
-      `).all(tenantId) as any[];
-
-      party = allParties.find((p: any) => {
-        if (!p.phone) return false;
-        if (p.party_type && p.party_type.toUpperCase() === 'SUPPLIER') return false;
-        const pPhoneDigits = p.phone.replace(/\D/g, '');
-        return pPhoneDigits === normPhone || (normPhone.length >= 10 && pPhoneDigits.slice(-10) === normPhone.slice(-10));
-      }) || allParties.find((p: any) => {
-        if (!p.phone) return false;
-        const pPhoneDigits = p.phone.replace(/\D/g, '');
-        return pPhoneDigits === normPhone || (normPhone.length >= 10 && pPhoneDigits.slice(-10) === normPhone.slice(-10));
-      });
-
-      if (party && party.is_deleted === 1) {
-        db.prepare(`UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`).run(party.party_id);
-        party.is_deleted = 0;
-      }
-    }
-
-    // 3. Find party by normalized name (check active and soft-deleted, prioritize CUSTOMER then fallback to any)
-    if (!party && custName) {
-      const normName = custName.toLowerCase().replace(/\s+/g, ' ');
-      const allParties = db.prepare(`
-        SELECT * FROM parties 
-        WHERE tenant_id = ?
-      `).all(tenantId) as any[];
-
-      party = allParties.find((p: any) => {
-        if (p.party_type && p.party_type.toUpperCase() === 'SUPPLIER') return false;
-        return (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName;
-      }) || allParties.find((p: any) => {
-        return (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName;
-      });
-
-      if (party && party.is_deleted === 1) {
-        db.prepare(`UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`).run(party.party_id);
-        party.is_deleted = 0;
-      }
-    }
-
-    if (party) {
-      // Keep party phone, address, and gstin updated if new details were provided
-      const newPhone = (custPhone || '').trim();
-      const newAddr = (custAddress || '').trim();
-      const newGst = (custGstin || '').trim();
-      db.prepare(`
-        UPDATE parties 
-        SET phone = CASE WHEN ? <> '' THEN ? ELSE phone END,
-            address = CASE WHEN ? <> '' THEN ? ELSE address END,
-            gstin = CASE WHEN ? <> '' THEN ? ELSE gstin END,
-            is_deleted = 0,
-            sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE party_id = ?
-      `).run(newPhone, newPhone, newAddr, newAddr, newGst, newGst, party.party_id);
-    } else {
-      const newPartyId = normPhone.length >= 7
-        ? deterministicUUID(`party:${tenantId}:${normPhone.slice(-10)}`)
-        : (custName ? deterministicUUID(`party:${tenantId}:${custName.toLowerCase().trim()}`) : crypto.randomUUID());
-      db.prepare(`
-        INSERT INTO parties (
-          party_id, tenant_id, name, phone, address, gstin, 
-          balance, gst_balance, estimate_balance, balance_type, party_type,
-          notes, pricing_tier_id, credit_limit, is_deleted, sync_status, created_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', NULL, NULL, 0, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT(party_id) DO UPDATE SET
-          name = excluded.name,
-          phone = COALESCE(excluded.phone, parties.phone),
-          address = COALESCE(excluded.address, parties.address),
-          is_deleted = 0,
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-      `).run(
-        newPartyId, tenantId, custName || custPhone, custPhone || null, custAddress, custGstin
-      );
-      party = { party_id: newPartyId, name: custName || custPhone };
-    }
+    const party = { party_id: identityResult.party_id, name: custName || custPhone };
 
     // Party changed? Clean up entries from previous party
     const oldPartyIds = new Set<string>();
@@ -3217,6 +3391,154 @@ export function syncInvoiceCreditLedger(
     recalcPartyBalances(db, party.party_id);
   } catch (err: any) {
     console.error('[syncInvoiceCreditLedger] Error:', err);
+  }
+}
+
+export function syncReturnLedger(
+  db: any,
+  params: {
+    tenant_id: string;
+    return_number: string;
+    return_id?: string;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    customer_address?: string | null;
+    customer_gstin?: string | null;
+    grand_total: number;
+    refund_method: string; // 'CASH' | 'ADJUST_BILL' | 'CARD' | 'UPI' | etc.
+    adjusted_invoice_number?: string | null;
+    amount?: number; // For ADJUST_BILL, the amount being adjusted
+    user_id?: string;
+    user_name?: string;
+    created_at?: string;
+  }
+) {
+  try {
+    const tenantId = params.tenant_id || 'global';
+    const returnNumber = params.return_number;
+    if (!returnNumber) return;
+
+    const custName = (params.customer_name || '').trim();
+    const custPhone = (params.customer_phone || '').trim();
+    const custAddress = (params.customer_address || '').trim() || null;
+    const custGstin = (params.customer_gstin || '').trim() || null;
+
+    if (!custName && !custPhone) return;
+
+    // Use the unified CustomerIdentityService for consistent party resolution
+    const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+      name: custName,
+      phone: custPhone,
+      address: custAddress,
+      gstin: custGstin,
+    });
+
+    if (!identityResult) {
+      console.error('[syncReturnLedger] Failed to resolve customer/party identity');
+      return;
+    }
+
+    const party = { party_id: identityResult.party_id, name: custName || custPhone };
+
+    // Determine the reference number for the ledger entry
+    const referenceNumber = params.adjusted_invoice_number
+      ? `${returnNumber}-ADJ-${params.adjusted_invoice_number}`
+      : returnNumber;
+
+    // Check for existing entry
+    const existingEntry = db.prepare(`
+      SELECT * FROM party_ledger WHERE tenant_id = ? AND reference_number = ? LIMIT 1
+    `).get(tenantId, referenceNumber) as any;
+
+    const refundMethod = (params.refund_method || '').toUpperCase();
+    const isCashRefund = refundMethod === 'CASH';
+    const isAdjustBill = refundMethod === 'ADJUST_BILL';
+    const isOtherRefund = ['CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE'].includes(refundMethod);
+    const adjustmentAmount = params.amount || (isCashRefund || isOtherRefund ? params.grand_total : 0);
+
+    if (adjustmentAmount <= 0 && !isCashRefund && !isOtherRefund && !isAdjustBill) return;
+
+    const balanceType = 'GST'; // Returns typically affect GST balance
+    const txDate = params.created_at || localTimestamp();
+    let description = `Return ${returnNumber} - ${custName || party.name || 'Customer'}`;
+    if (isCashRefund) {
+      description = `Return refund ${returnNumber} - ${custName || party.name || 'Customer'}`;
+    } else if (isAdjustBill) {
+      description = `Return credit adjusted ${returnNumber} → ${params.adjusted_invoice_number} - ${custName || party.name || 'Customer'}`;
+    } else if (isOtherRefund) {
+      description = `Return refund (${refundMethod}) ${returnNumber} - ${custName || party.name || 'Customer'}`;
+    }
+
+    const debitAmount = adjustmentAmount;
+
+    if (existingEntry) {
+      // Update existing entry
+      db.prepare(`
+        UPDATE party_ledger SET
+          credit_amount = 0, debit_amount = ?, description = ?, transaction_date = ?,
+          balance_type = ?, payment_method = ?, is_deleted = 0,
+          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE ledger_id = ?
+      `).run(
+        debitAmount,
+        description,
+        txDate,
+        balanceType,
+        refundMethod,
+        existingEntry.ledger_id
+      );
+    } else {
+      // Create new entry with deterministic UUID
+      const ledgerId = deterministicUUID(`return:${tenantId}:${referenceNumber}`);
+      db.prepare(`
+        INSERT INTO party_ledger (
+          ledger_id, party_id, tenant_id, transaction_date, description,
+          credit_amount, debit_amount, running_balance, balance_type,
+          payment_method, reference_number, created_by, created_by_name,
+          is_deleted, sync_status, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(ledger_id) DO UPDATE SET
+          credit_amount = 0,
+          debit_amount = excluded.debit_amount,
+          description = excluded.description,
+          transaction_date = excluded.transaction_date,
+          balance_type = excluded.balance_type,
+          payment_method = excluded.payment_method,
+          is_deleted = 0,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      `).run(
+        ledgerId,
+        party.party_id,
+        tenantId,
+        txDate,
+        description,
+        debitAmount,
+        balanceType,
+        refundMethod,
+        referenceNumber,
+        params.user_id || 'system',
+        params.user_name || 'System'
+      );
+    }
+
+    // Re-sequence running_balance for the party
+    const allEntries = db.prepare(`
+      SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      ORDER BY transaction_date ASC, created_at ASC
+    `).all(party.party_id) as any[];
+
+    let running = 0;
+    for (const row of allEntries) {
+      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+    }
+
+    recalcPartyBalances(db, party.party_id);
+  } catch (err: any) {
+    console.error('[syncReturnLedger] Error:', err);
   }
 }
 
@@ -3717,6 +4039,7 @@ export function checkCustomerOverdueSync(db: any, tenantId: string, customerId?:
 }
 
 const recentCheckoutsCache = new Map<string, { timestamp: number; result: any }>();
+const customerCreateCache = new Map<string, number>();
 
 ipcMain.handle('db:checkout', safeHandler((event, payload) => {
   const { items, scrap_items, ...invoice } = payload;
@@ -4982,7 +5305,20 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   const { items, ...invoice } = payload;
   const db = getDb();
   const existingInv = db.prepare(`SELECT invoice_number, invoice_type, tenant_id, payment_method, received_amount, actual_refund_paid, balance_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
-  const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
+  if (!existingInv) {
+    return { success: false, error: 'Invoice not found' };
+  }
+  const oldCash = getCashAmountFromInvoice(existingInv);
+
+  // Deduplication guard: block duplicate update calls within a 4-second window for the same invoice
+  const itemsSig = (items || []).map((i: any) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
+  const updateCacheKey = `update:${existingInv.tenant_id || payload.tenant_id}:${payload.invoice_id}:${invoice.grand_total}:${itemsSig}`;
+  const now = Date.now();
+  const cachedUpdate = recentCheckoutsCache.get(updateCacheKey);
+  if (cachedUpdate && (now - cachedUpdate.timestamp < 4000)) {
+    console.warn(`[db:updateInvoice] Duplicate update request blocked within 4s window for invoice ${payload.invoice_id}. Returning previous result.`);
+    return cachedUpdate.result;
+  }
 
   const finalReceivedAmount = payload.received_amount !== undefined ? payload.received_amount : (existingInv?.received_amount ?? null);
   const finalActualRefundPaid = payload.actual_refund_paid !== undefined ? payload.actual_refund_paid : (existingInv?.actual_refund_paid ?? 0);
@@ -5126,7 +5462,14 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
-    return { success: true, created_at: existingInv?.created_at };
+    const res = { success: true, created_at: existingInv?.created_at };
+    recentCheckoutsCache.set(updateCacheKey, { timestamp: now, result: res });
+    if (recentCheckoutsCache.size > 100) {
+      for (const [k, v] of recentCheckoutsCache.entries()) {
+        if (now - v.timestamp > 30000) recentCheckoutsCache.delete(k);
+      }
+    }
+    return res;
   } catch (error: any) {
     console.error('[db:updateInvoice]', error);
     return { success: false, error: 'Operation failed' };
@@ -5148,6 +5491,15 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       return { success: false, error: 'Invoice not found' };
     }
     const oldCash = getCashAmountFromInvoice(existingInv);
+
+    // Deduplication guard
+    const paymentCacheKey = `updatePayment:${existingInv.tenant_id || payload.tenant_id}:${payload.invoice_id}:${payload.payment_method}:${payload.received_amount}:${payload.balance_amount}`;
+    const now = Date.now();
+    const cachedPayment = recentCheckoutsCache.get(paymentCacheKey);
+    if (cachedPayment && (now - cachedPayment.timestamp < 4000)) {
+      console.warn(`[db:updateInvoicePayment] Duplicate update request blocked within 4s window for invoice ${payload.invoice_id}. Returning previous result.`);
+      return cachedPayment.result;
+    }
 
     const splitDetailsVal = payload.split_details && typeof payload.split_details === 'object'
       ? JSON.stringify(payload.split_details)
@@ -5202,7 +5554,14 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice payment update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
-    return { success: true };
+    const res = { success: true };
+    recentCheckoutsCache.set(paymentCacheKey, { timestamp: now, result: res });
+    if (recentCheckoutsCache.size > 100) {
+      for (const [k, v] of recentCheckoutsCache.entries()) {
+        if (now - v.timestamp > 30000) recentCheckoutsCache.delete(k);
+      }
+    }
+    return res;
   } catch (error: any) {
     console.error('[db:updateInvoicePayment]', error);
     return { success: false, error: 'Operation failed' };
@@ -5215,9 +5574,11 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   invoice_id: string;
   tenant_id: string;
   user_id?: string;
+  user_name?: string;
   return_number: string;
   customer_name?: string;
   customer_phone?: string;
+  customer_address?: string;
   subtotal: number;
   tax_total: number;
   grand_total: number;
@@ -5242,15 +5603,18 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
     if (returnData.customer_name || returnData.customer_phone) {
       upsertCustomerRecord(db, returnData.tenant_id || 'global', returnData.customer_name, returnData.customer_phone, null);
     }
+    const now = localTimestamp();
     db.prepare(`
-      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, customer_address, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
     `).run(
       returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
       returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,
+      returnData.customer_address || null,
       returnData.subtotal, returnData.tax_total, returnData.grand_total, returnData.reason || null,
       returnData.refund_method || null, returnData.adjusted_invoice_number || null,
-      returnData.adjusted_amount ?? 0
+      returnData.adjusted_amount ?? 0,
+      now, now
     );
 
     const itemStmt = db.prepare(`
@@ -5294,6 +5658,37 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
           `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
         }
       }
+      // Sync party ledger for cash refund
+      syncReturnLedger(db, {
+        tenant_id: returnData.tenant_id || 'global',
+        return_number: returnData.return_number,
+        return_id: returnData.return_id,
+        customer_name: returnData.customer_name,
+        customer_phone: returnData.customer_phone,
+        customer_address: returnData.customer_address || null,
+        customer_gstin: null,
+        grand_total: returnData.grand_total,
+        refund_method: 'CASH',
+        user_id: returnData.user_id,
+        user_name: returnData.user_name || returnData.user_id,
+        created_at: localTimestamp(),
+      });
+    } else if (['CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE'].includes((returnData.refund_method || '').toUpperCase()) && Number(returnData.grand_total) > 0) {
+      // Sync party ledger for non-cash refunds
+      syncReturnLedger(db, {
+        tenant_id: returnData.tenant_id || 'global',
+        return_number: returnData.return_number,
+        return_id: returnData.return_id,
+        customer_name: returnData.customer_name,
+        customer_phone: returnData.customer_phone,
+        customer_address: returnData.customer_address || null,
+        customer_gstin: null,
+        grand_total: returnData.grand_total,
+        refund_method: returnData.refund_method || 'CASH',
+        user_id: returnData.user_id,
+        user_name: returnData.user_name || returnData.user_id,
+        created_at: localTimestamp(),
+      });
     }
   });
 
@@ -5410,6 +5805,13 @@ ipcMain.handle('db:settleReturnInvoice', safeHandler((event, { tenant_id, return
   const db = getDb();
   const amt = Math.max(0, Number(amount) || 0);
   if (amt <= 0) return { success: false, error: 'Invalid adjustment amount' };
+  
+  // Get return details for ledger sync
+  const returnData = db.prepare(`
+    SELECT return_id, return_number, customer_name, customer_phone, customer_address, grand_total, refund_method, created_at, user_id
+    FROM returns WHERE tenant_id = ? AND return_number = ?
+  `).get(tenant_id, return_number) as any;
+  
   const res = db.prepare(`
     UPDATE returns 
     SET adjusted_amount = COALESCE(adjusted_amount, 0) + ?,
@@ -5417,7 +5819,29 @@ ipcMain.handle('db:settleReturnInvoice', safeHandler((event, { tenant_id, return
         sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
     WHERE tenant_id = ? AND return_number = ? AND grand_total > COALESCE(adjusted_amount, 0)
   `).run(amt, adjusted_invoice_number, tenant_id, return_number);
+  
   if (res.changes === 0) return { success: false, error: 'Return not found or already fully adjusted' };
+  
+  // Sync party ledger for ADJUST_BILL
+  if (returnData && returnData.refund_method === 'ADJUST_BILL') {
+    syncReturnLedger(db, {
+      tenant_id: tenant_id || 'global',
+      return_number: returnData.return_number,
+      return_id: returnData.return_id,
+      customer_name: returnData.customer_name,
+      customer_phone: returnData.customer_phone,
+      customer_address: returnData.customer_address,
+      customer_gstin: null,
+      grand_total: returnData.grand_total,
+      refund_method: 'ADJUST_BILL',
+      adjusted_invoice_number: adjusted_invoice_number,
+      amount: amt,
+      user_id: returnData.user_id,
+      user_name: returnData.user_name || returnData.user_id,
+      created_at: localTimestamp(),
+    });
+  }
+  
   return { success: true };
 }));
 
@@ -8815,6 +9239,26 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: storedReceivedAmount, requested_net_amount: received, refund_amount: actualRefundPaid, expected_refund_amount: calculatedRefund, settlement_discount: settlementDiscount, discount: newDiscountTotal, payment_method, split_details: split_details || null, grand_total: newGrandTotal }),
         user_id, user_name || null
       );
+
+      // Sync party credit ledger for credit payments
+      syncInvoiceCreditLedger(db, {
+        invoice_id: invoice.invoice_id,
+        tenant_id: targetTenantId,
+        invoice_number: invoice.invoice_number,
+        invoice_type: invoice.invoice_type,
+        grand_total: newGrandTotal,
+        payment_method: payment_method,
+        received_amount: storedReceivedAmount,
+        balance_amount: 0, // Fully settled
+        customer_name: invoice.customer_name,
+        customer_phone: invoice.customer_phone,
+        customer_address: invoice.customer_address,
+        customer_gstin: invoice.customer_gstin,
+        split_details: splitStr,
+        user_id: user_id,
+        user_name: user_name,
+        created_at: invoice.created_at,
+      });
     });
     
     tx();
@@ -9218,7 +9662,14 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id, active, credit, pricing_t
              COALESCE(c.credit_period_days,    p.credit_period_days,    30)           AS credit_period_days,
              COALESCE(c.credit_period_basis,   p.credit_period_basis,   'BILL_BASED') AS credit_period_basis,
              COALESCE(c.restrict_on_credit_expiry, p.restrict_on_credit_expiry, 1)   AS restrict_on_credit_expiry,
-             p.balance                                                                AS party_balance,
+             COALESCE(
+               (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), 2)
+                FROM party_ledger pl
+                WHERE pl.party_id = p.party_id
+                  AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+               p.balance,
+               0
+             )                                                                        AS party_balance,
              p.gstin                                                                  AS gstin,
              p.notes                                                                  AS notes,
              COALESCE(c.pricing_tier_id, p.pricing_tier_id)                          AS resolved_pricing_tier_id,
@@ -9313,6 +9764,16 @@ ipcMain.handle('db:createCustomer', (event, c: any) => {
   try {
     const db = getDb();
     if (!c.name || !c.tenant_id) return { success: false, error: 'Customer name and Tenant ID are required' };
+    
+    // Deduplication cache: block duplicate create requests within 2-second window
+    const cacheKey = `createCust:${c.tenant_id}:${c.name.trim().toLowerCase()}:${(c.phone || '').trim()}`;
+    const now = Date.now();
+    const cached = customerCreateCache.get(cacheKey);
+    if (cached && (now - cached < 2000)) {
+      console.warn(`[db:createCustomer] Duplicate create request blocked within 2s window. Returning existing.`);
+      return { success: false, error: 'Duplicate request blocked. Please wait.' };
+    }
+
     const nameClean = (c.name || '').trim().toLowerCase();
     const existingSameName = db.prepare('SELECT customer_id FROM customers WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(c.tenant_id, nameClean);
     if (existingSameName) {
@@ -9379,6 +9840,15 @@ ipcMain.handle('db:createCustomer', (event, c: any) => {
         partyId, c.tenant_id, c.name, c.phone || null, c.address || null, cleanGstin, cleanNotes,
         c.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry
       );
+    }
+
+    // Record successful creation in cache
+    customerCreateCache.set(cacheKey, now);
+    // Cleanup old cache entries
+    if (customerCreateCache.size > 100) {
+      for (const [k, v] of customerCreateCache.entries()) {
+        if (now - v > 30000) customerCreateCache.delete(k);
+      }
     }
 
     return { success: true, customer_id: customerId };

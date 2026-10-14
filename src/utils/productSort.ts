@@ -93,18 +93,18 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
     return { tier: 99, numVal: 999999999, name };
   };
 
-  return [...products].sort((a, b) => {
-    const scoreA = getProductScore(a);
-    const scoreB = getProductScore(b);
-
-    if (scoreA.tier !== scoreB.tier) {
-      return scoreA.tier - scoreB.tier;
+  const scored = products.map(p => ({ p, score: getProductScore(p) }));
+  scored.sort((a, b) => {
+    if (a.score.tier !== b.score.tier) {
+      return a.score.tier - b.score.tier;
     }
 
-    if (scoreA.numVal !== scoreB.numVal) {
-      return scoreA.numVal - scoreB.numVal;
+    if (a.score.numVal !== b.score.numVal) {
+      return a.score.numVal - b.score.numVal;
     }
 
-    return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+    return String(a.p.name || '').localeCompare(String(b.p.name || ''), undefined, { numeric: true, sensitivity: 'base' });
   });
+
+  return scored.map(item => item.p);
 }

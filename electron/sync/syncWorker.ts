@@ -2707,7 +2707,51 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
 async function pullParties(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const upsert = db.prepare(`
+  // Upsert by business key for CUSTOMER-type parties using the partial unique index
+  // For CUSTOMER parties: unique on (tenant_id, name, phone) WHERE party_type = 'CUSTOMER' AND is_deleted = 0
+  // For other party types (SUPPLIER, STAFF, CUSTOM): fall back to party_id
+  const upsertCustomerParty = db.prepare(`
+    INSERT INTO parties (
+      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @party_type, @custom_category, @notes, @last_transaction_date, @pricing_tier_id, @credit_limit, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(tenant_id, name, phone) WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0) DO UPDATE SET
+      party_id = excluded.party_id,
+      address = excluded.address,
+      gstin = excluded.gstin,
+      balance = CASE
+        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        ELSE excluded.balance
+      END,
+      gst_balance = CASE
+        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        ELSE excluded.gst_balance
+      END,
+      estimate_balance = CASE
+        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        ELSE excluded.estimate_balance
+      END,
+      balance_type = excluded.balance_type,
+      party_type = excluded.party_type,
+      custom_category = excluded.custom_category,
+      notes = excluded.notes,
+      last_transaction_date = COALESCE(excluded.last_transaction_date, parties.last_transaction_date),
+      pricing_tier_id = excluded.pricing_tier_id,
+      credit_limit = excluded.credit_limit,
+      is_deleted = excluded.is_deleted,
+      created_at = COALESCE(parties.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE parties.sync_status != 'PENDING' OR excluded.updated_at >= parties.updated_at OR parties.updated_at IS NULL
+  `);
+
+  const upsertOtherParty = db.prepare(`
     INSERT INTO parties (
       party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, is_deleted,
       sync_status, created_at, updated_at
@@ -2720,14 +2764,26 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
       phone = excluded.phone,
       address = excluded.address,
       gstin = excluded.gstin,
-      balance = excluded.balance,
-      gst_balance = excluded.gst_balance,
-      estimate_balance = excluded.estimate_balance,
+      balance = CASE
+        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        ELSE excluded.balance
+      END,
+      gst_balance = CASE
+        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        ELSE excluded.gst_balance
+      END,
+      estimate_balance = CASE
+        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        ELSE excluded.estimate_balance
+      END,
       balance_type = excluded.balance_type,
       party_type = excluded.party_type,
       custom_category = excluded.custom_category,
       notes = excluded.notes,
-      last_transaction_date = excluded.last_transaction_date,
+      last_transaction_date = COALESCE(excluded.last_transaction_date, parties.last_transaction_date),
       pricing_tier_id = excluded.pricing_tier_id,
       credit_limit = excluded.credit_limit,
       is_deleted = excluded.is_deleted,
@@ -2748,11 +2804,16 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
       const tx = db.transaction((parties: any[]) => {
         for (const p of parties) {
           try {
-            upsert.run({
+            const isCustomer = (p.party_type || 'CUSTOMER').toUpperCase() === 'CUSTOMER';
+            const hasPhone = p.phone && p.phone.trim() !== '';
+            // Use business key upsert for CUSTOMER parties with phone
+            // For CUSTOMER parties without phone or non-CUSTOMER parties, use party_id
+            const stmt = (isCustomer && hasPhone) ? upsertCustomerParty : upsertOtherParty;
+            stmt.run({
               party_id: p.party_id,
               tenant_id: tenantId,
               name: p.name,
-              phone: p.phone || null,
+              phone: hasPhone ? p.phone.trim() : null,
               address: p.address || null,
               gstin: p.gstin || null,
               balance: p.balance ?? 0,
@@ -2914,6 +2975,46 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
         }
       });
       tx(rows);
+      if (rows && rows.length > 0) {
+        try {
+          db.prepare(`
+            UPDATE parties
+            SET balance = COALESCE(
+                  (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2)
+                   FROM party_ledger pl
+                   WHERE pl.party_id = parties.party_id
+                     AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+                  parties.balance, 0
+                ),
+                gst_balance = COALESCE(
+                  (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+                   FROM party_ledger pl
+                   WHERE pl.party_id = parties.party_id
+                     AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+                  parties.gst_balance, parties.balance, 0
+                ),
+                estimate_balance = COALESCE(
+                  (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+                   FROM party_ledger pl
+                   WHERE pl.party_id = parties.party_id
+                     AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+                  parties.estimate_balance, 0
+                ),
+                last_transaction_date = COALESCE(
+                  (SELECT MAX(pl.transaction_date)
+                   FROM party_ledger pl
+                   WHERE pl.party_id = parties.party_id
+                     AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
+                  parties.last_transaction_date
+                )
+            WHERE tenant_id = ? AND parties.party_id IN (
+              SELECT DISTINCT pl.party_id FROM party_ledger pl WHERE pl.tenant_id = ? AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+            )
+          `).run(tenantId, tenantId);
+        } catch (recalcErr: any) {
+          console.error('[SyncWorker] Recalc after pullPartyLedger error:', recalcErr.message);
+        }
+      }
       return reconcilePending(db, 'party_ledger', 'ledger_id', rows);
     },
   });
@@ -3916,21 +4017,46 @@ async function pullCashCategories(token: string, tenantId: string): Promise<bool
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const upsert = db.prepare(`
+  // Upsert by business key (tenant_id, name, phone) using the partial unique indexes
+  // For customers with phone: unique on (tenant_id, name, phone) where phone IS NOT NULL AND phone != ''
+  // For customers without phone: unique on (tenant_id, name) where phone IS NULL OR phone = ''
+  const upsertWithPhone = db.prepare(`
     INSERT INTO customers (customer_id, tenant_id, name, phone, address,
       total_points_earned, total_points_redeemed, current_points_balance,
       last_purchase_date, is_deleted, sync_status, created_at, updated_at)
     VALUES (@customer_id, @tenant_id, @name, @phone, @address,
       @total_points_earned, @total_points_redeemed, @current_points_balance,
       @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at)
-    ON CONFLICT(customer_id) DO UPDATE SET
-      name = excluded.name, phone = excluded.phone, address = excluded.address,
+    ON CONFLICT(tenant_id, name, phone) DO UPDATE SET
+      customer_id = excluded.customer_id,
+      address = excluded.address,
       total_points_earned = excluded.total_points_earned,
       total_points_redeemed = excluded.total_points_redeemed,
       current_points_balance = excluded.current_points_balance,
       last_purchase_date = excluded.last_purchase_date,
       is_deleted = excluded.is_deleted,
       sync_status = 'SYNCED', updated_at = excluded.updated_at
+    WHERE customers.sync_status != 'PENDING'
+  `);
+
+  const upsertNoPhone = db.prepare(`
+    INSERT INTO customers (customer_id, tenant_id, name, phone, address,
+      total_points_earned, total_points_redeemed, current_points_balance,
+      last_purchase_date, is_deleted, sync_status, created_at, updated_at)
+    VALUES (@customer_id, @tenant_id, @name, @phone, @address,
+      @total_points_earned, @total_points_redeemed, @current_points_balance,
+      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at)
+    ON CONFLICT(tenant_id, name) WHERE phone IS NULL OR phone = '' DO UPDATE SET
+      customer_id = excluded.customer_id,
+      phone = excluded.phone,
+      address = excluded.address,
+      total_points_earned = excluded.total_points_earned,
+      total_points_redeemed = excluded.total_points_redeemed,
+      current_points_balance = excluded.current_points_balance,
+      last_purchase_date = excluded.last_purchase_date,
+      is_deleted = excluded.is_deleted,
+      sync_status = 'SYNCED', updated_at = excluded.updated_at
+    WHERE customers.sync_status != 'PENDING'
   `);
 
   const result = await pullPaginated({
@@ -3943,9 +4069,11 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
     processPage: (rows) => {
       const tx = db.transaction((rows: any[]) => {
         for (const r of rows) {
-          upsert.run({
+          const hasPhone = r.phone && r.phone.trim() !== '';
+          const stmt = hasPhone ? upsertWithPhone : upsertNoPhone;
+          stmt.run({
             customer_id: r.customer_id, tenant_id: r.tenant_id || tenantId,
-            name: r.name, phone: r.phone || null, address: r.address || null,
+            name: r.name, phone: hasPhone ? r.phone.trim() : null, address: r.address || null,
             total_points_earned: r.total_points_earned ?? 0,
             total_points_redeemed: r.total_points_redeemed ?? 0,
             current_points_balance: r.current_points_balance ?? 0,

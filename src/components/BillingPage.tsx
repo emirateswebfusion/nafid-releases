@@ -155,6 +155,13 @@ function ItemRateInput({
   const [localVal, setLocalVal] = useState<string>(() =>
     Number.isInteger(rate) ? String(rate) : rate.toFixed(2)
   );
+
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
+    }
+  }, [rate, isFocused]);
+
   const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
   const [isNavigatingMenu, setIsNavigatingMenu] = useState(false);
   const menuAnchorRef = useRef<HTMLDivElement>(null);
@@ -266,15 +273,23 @@ function ItemRateInput({
   };
 
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (options.length > 0 && isFocused) {
+    if (options.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        e.stopPropagation();
+        if (!isFocused) {
+          setIsFocused(true);
+        }
         setIsNavigatingMenu(true);
         setSelectedOptionIndex(prev => (prev + 1) % options.length);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
+        e.stopPropagation();
+        if (!isFocused) {
+          setIsFocused(true);
+        }
         setIsNavigatingMenu(true);
         setSelectedOptionIndex(prev => (prev - 1 + options.length) % options.length);
         return;
@@ -282,14 +297,33 @@ function ItemRateInput({
       if (e.key === 'Enter') {
         if (isNavigatingMenu && options[selectedOptionIndex]) {
           e.preventDefault();
+          e.stopPropagation();
           handleChooseOption(options[selectedOptionIndex]);
           return;
         }
+        if (isFocused && !isNavigatingMenu) {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsFocused(false);
+          setIsNavigatingMenu(false);
+          if (onKeyDownNext) {
+            onKeyDownNext();
+          }
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsFocused(false);
+        setIsNavigatingMenu(false);
+        return;
       }
     }
 
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !options.length) {
       e.preventDefault();
+      e.stopPropagation();
       setIsFocused(false);
       setIsNavigatingMenu(false);
       if (onKeyDownNext) {
@@ -447,15 +481,18 @@ function ItemTotalInput({
   inputRef,
 }: ItemTotalInputProps) {
   const [isFocused, setIsFocused] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [localVal, setLocalVal] = useState<string>(() => (total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : ''));
 
   useEffect(() => {
     if (!isFocused) {
       setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : (total === 0 ? '0' : ''));
+      setIsDirty(false);
     }
   }, [total, isFocused]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsDirty(true);
     const raw = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
     setLocalVal(raw);
 
@@ -481,6 +518,11 @@ function ItemTotalInput({
 
   const handleBlur = () => {
     setIsFocused(false);
+    if (!isDirty) {
+      setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : (total === 0 ? '0' : ''));
+      return;
+    }
+    setIsDirty(false);
     const parsed = parseFloat(localVal);
 
     if (localVal === '' || isNaN(parsed) || parsed < 0) {
@@ -2170,25 +2212,28 @@ loadFlags(tenantId || 'global');
   }, [loadScrapInvoiceForEdit, updateActiveTab]);
 
   useEffect(() => {
-    // In scrap mode, return mode, or past bill mode, skip product search
-    if (isScrapMode || isReturnMode || isPastBillMode || searchQuery.length < 1) { setResults([]); return; }
+    // In scrap mode, return mode, or past bill mode, or queries under 2 chars, skip product search
+    if (isScrapMode || isReturnMode || isPastBillMode || searchQuery.trim().length < 2) { setResults([]); return; }
+    let isCurrent = true;
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const { tenantId } = useAuthStore.getState();
       // GST invoices: only show GST-applicable products (quotations stay unfiltered)
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
-      // Fetch up to 500 results so numeric or text searches capture all matching items
-      const fetchLimit = 500;
+      // Fetch up to 100 results so numeric or text searches capture all matching items without UI lag
+      const fetchLimit = 100;
       
       const qWords = searchQuery.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
-        const backendSearch = qWords[0] || searchQuery.trim();
+      const backendSearch = qWords[0] || searchQuery.trim();
 
-        try {
+      try {
         const [products, combos] = await Promise.all([
           // Use first word for backend search to get broader results, client-side handles full substring matching
           window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
           window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: searchQuery, only_active: true }),
         ]);
+
+        if (!isCurrent) return;
 
         const comboResults = (Array.isArray(combos) ? combos : []).map((c: any) => ({
           product_id: c.combo_id,
@@ -2263,13 +2308,19 @@ loadFlags(tenantId || 'global');
           }
           deduped.push(p);
         }
-        setResults([...comboResults, ...deduped]);
+
+        if (!isCurrent) return;
+        setResults([...comboResults, ...deduped].slice(0, 50));
         setSelectedIndex(0);
       } catch (err) {
+        if (!isCurrent) return;
         console.error('[BillingPage] Product search error:', err);
       }
-    }, 150);
-    return () => clearTimeout(t);
+    }, 250);
+    return () => {
+      isCurrent = false;
+      clearTimeout(t);
+    };
   }, [searchQuery, isScrapMode, invoiceType, isQuotationMode]);
 
   // Fetch categories & grades immediately so options are ready instantly when form opens
@@ -4439,56 +4490,8 @@ loadFlags(tenantId || 'global');
         try {
           const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code });
           if (Array.isArray(products) && products.length > 0) {
-            // Add the product directly to the cart
-            const prod = products[0];
-            
-            const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
-            const isWeightProduct = prod.billing_type === 'WEIGHT' || weightUoms.includes((prod.uom || '').toLowerCase());
-            const effectiveBillingType: 'WEIGHT' | 'PIECE' = isWeightProduct ? 'WEIGHT' : 'PIECE';
-
-            // Replicate the piece-per-kg logic from handleSelectProduct
-            let piecesPerKg;
-            if (isWeightProduct && prod.domain_attributes) {
-              try {
-                const da = typeof prod.domain_attributes === 'string'
-                  ? JSON.parse(prod.domain_attributes)
-                  : prod.domain_attributes;
-                const storedPpk = Number(da.pcs_per_kg) || 0;
-                const totalPcs = Number(da.pcs) || 0;
-                const stockKg = Number(prod.current_stock) || 0;
-                // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
-                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
-              } catch {
-                piecesPerKg = 1;
-              }
-            } else if (isWeightProduct) {
-              piecesPerKg = 1;
-            }
-            addItem({
-              product_id: prod.product_id,
-              name: prod.name,
-              base_price: prod.base_price,
-              purchase_price: prod.pricing_mode === 'GRADE_RATE' && prod.grade_purchase_price !== undefined && prod.grade_purchase_price !== null
-                ? Number(prod.grade_purchase_price)
-                : (prod.purchase_price ?? 0),
-              tax_rate_percent: prod.tax_rate_percent ?? 0,
-              uom: prod.uom,
-              billing_type: effectiveBillingType,
-              pieces_per_kg: piecesPerKg,
-              grade_id: prod.grade_id,
-              pricing_mode: prod.pricing_mode,
-              grade_rate: prod.grade_rate,
-              discount_percent: prod.discount_percent ?? null,
-              discount_flat: prod.discount_flat ?? null,
-              offer_price: prod.offer_price ?? null,
-              sku_barcode: prod.sku_barcode || null,
-              brand_manufacturer: prod.brand_manufacturer || null,
-              isServiceItem: Number(prod.is_service_item) ? true : undefined,
-            });
-            syncActiveSnapshot();
+            handleSelectProduct(products[0]);
             playBeep();
-
-            // Keep focus on search input for next scan!
             setSearchQuery('');
             setResults([]);
             setTimeout(() => {
@@ -5694,7 +5697,7 @@ loadFlags(tenantId || 'global');
         }
       }
 
-      if (paymentMethod === 'SPLIT' || (paymentMethod === 'CREDIT' && splitTotal > 0)) {
+      if (paymentMethod === 'SPLIT') {
         const totalSplitEntered = splitTotal + (Number(splitDetails?.credit) || 0);
         if (totalSplitEntered <= 0) {
           setHardwareError('Please enter split payment breakdown amounts for Cash, Card, UPI, or Credit');
@@ -5713,7 +5716,7 @@ loadFlags(tenantId || 'global');
       const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
       const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscountCalc);
 
-      const effectiveFinalPaymentMethod = (paymentMethod === 'CREDIT' && splitTotal > 0) ? 'SPLIT' : paymentMethod;
+      const effectiveFinalPaymentMethod = paymentMethod === 'SPLIT' ? 'SPLIT' : paymentMethod;
       const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
       const defaultFullPaid = (effectiveFinalPaymentMethod === 'CASH' || effectiveFinalPaymentMethod === 'UPI' || effectiveFinalPaymentMethod === 'CARD') ? effectiveGrandTotal : 0;
       const effectiveReceivedAmount = isPaymentPending ? 0 : (effectiveFinalPaymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
@@ -7544,7 +7547,7 @@ loadFlags(tenantId || 'global');
           </div>
         )}
 
-        {!isPastBillMode && !isScrapMode && !isReturnMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
+        {!isPastBillMode && !isScrapMode && !isReturnMode && searchQuery.trim().length >= 2 && results.length === 0 && !showProductCreateForm && (
           <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-50 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
             <button
               type="button"
