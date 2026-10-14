@@ -1209,6 +1209,49 @@ ipcMain.handle('db:debugSyncState', (event, tenant_id: string) => {
   }
 });
 
+function buildProductSearchConditions(search: string, tablePrefix: string = 'p.') {
+  const cleanSearch = String(search).trim();
+  const tokens = cleanSearch.split(/\s+/).filter(w => w.length > 0);
+  const p = tablePrefix;
+
+  const buildSingleFieldGroup = (val: string) => {
+    const valNoSpace = val.replace(/\s+/g, '');
+    const valClean = val.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const sql = `(${p}name LIKE ? OR REPLACE(${p}name, ' ', '') LIKE ? OR CLEAN_STR(${p}name) LIKE ? OR ${p}sku_barcode LIKE ? OR REPLACE(${p}sku_barcode, ' ', '') LIKE ? OR CLEAN_STR(${p}sku_barcode) LIKE ? OR ${p}item_code LIKE ? OR REPLACE(${p}item_code, ' ', '') LIKE ? OR CLEAN_STR(${p}item_code) LIKE ? OR ${p}brand_manufacturer LIKE ? OR REPLACE(${p}brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(${p}brand_manufacturer) LIKE ? OR ${p}category LIKE ? OR REPLACE(${p}category, ' ', '') LIKE ? OR CLEAN_STR(${p}category) LIKE ? OR ${p}hsn_sac_code LIKE ? OR CLEAN_STR(${p}hsn_sac_code) LIKE ?)`;
+    const params = [
+      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
+      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
+      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
+      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
+      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
+      `%${val}%`, `%${valClean}%`,
+    ];
+    return { sql, params };
+  };
+
+  if (tokens.length <= 1) {
+    const single = buildSingleFieldGroup(cleanSearch);
+    return {
+      sql: `(${single.sql} OR ${p}product_id = ?)`,
+      params: [...single.params, cleanSearch]
+    };
+  }
+
+  const tokenClauses: string[] = [];
+  const tokenParams: any[] = [];
+  for (const token of tokens) {
+    const tGroup = buildSingleFieldGroup(token);
+    tokenClauses.push(tGroup.sql);
+    tokenParams.push(...tGroup.params);
+  }
+
+  const fullGroup = buildSingleFieldGroup(cleanSearch);
+  const sql = `((${tokenClauses.join(' AND ')}) OR ${fullGroup.sql} OR ${p}product_id = ?)`;
+  const params = [...tokenParams, ...fullGroup.params, cleanSearch];
+
+  return { sql, params };
+}
+
 ipcMain.handle('db:getProducts', (event, arg: any) => {
   try {
     const db = getDb();
@@ -1300,19 +1343,9 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ?)';
         params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
      } else if (search) {
-        const cleanSearch = String(search).trim();
-        const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-        const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-        query += ' AND (p.name LIKE ? OR REPLACE(p.name, \' \', \'\') LIKE ? OR CLEAN_STR(p.name) LIKE ? OR p.sku_barcode LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR p.item_code LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ? OR CLEAN_STR(p.item_code) LIKE ? OR p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, \' \', \'\') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? OR p.category LIKE ? OR REPLACE(p.category, \' \', \'\') LIKE ? OR CLEAN_STR(p.category) LIKE ? OR p.hsn_sac_code LIKE ? OR CLEAN_STR(p.hsn_sac_code) LIKE ? OR p.product_id = ?)';
-        params.push(
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchClean}%`,
-          cleanSearch
-        );
+        const cond = buildProductSearchConditions(search, 'p.');
+        query += ` AND ${cond.sql}`;
+        params.push(...cond.params);
      }
 
      if (filterDate && String(filterDate).trim() !== '') {
@@ -1338,16 +1371,22 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
             `WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR REPLACE(p.sku_barcode, ' ', '') = ? OR REPLACE(p.item_code, ' ', '') = ? OR CLEAN_STR(p.sku_barcode) = ? OR CLEAN_STR(p.item_code) = ? THEN 1 ` +
             `WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 2 ` +
             `WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 3 ` +
-            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? OR p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 4 ` +
-            `ELSE 5 ` +
+            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 4 ` +
+            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 5 ` +
+            `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 6 ` +
+            `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 7 ` +
+            `ELSE 8 ` +
           `END ASC, ` +
           `p.name COLLATE NOCASE ASC, ` +
           `p.product_id ASC`;
         params.push(
           cleanSearch, cleanSearch, cleanSearchNoSpace, cleanSearchNoSpace, cleanSearchClean, cleanSearchClean,
+          `${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`, `${cleanSearchClean}%`,
           `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`
+          `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
+          `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`,
+          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`
         );
      }
     else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
@@ -1390,19 +1429,9 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     const params: any[] = [tenantId];
     
     if (arg?.search) {
-       const cleanSearch = String(arg.search).trim();
-       const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-       const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-       query += ' AND (name LIKE ? OR REPLACE(name, \' \', \'\') LIKE ? OR CLEAN_STR(name) LIKE ? OR sku_barcode LIKE ? OR REPLACE(sku_barcode, \' \', \'\') LIKE ? OR CLEAN_STR(sku_barcode) LIKE ? OR item_code LIKE ? OR REPLACE(item_code, \' \', \'\') LIKE ? OR CLEAN_STR(item_code) LIKE ? OR brand_manufacturer LIKE ? OR REPLACE(brand_manufacturer, \' \', \'\') LIKE ? OR CLEAN_STR(brand_manufacturer) LIKE ? OR category LIKE ? OR REPLACE(category, \' \', \'\') LIKE ? OR CLEAN_STR(category) LIKE ? OR hsn_sac_code LIKE ? OR CLEAN_STR(hsn_sac_code) LIKE ? OR product_id = ?)';
-       params.push(
-         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-         `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-         `%${cleanSearch}%`, `%${cleanSearchClean}%`,
-         cleanSearch
-       );
+       const cond = buildProductSearchConditions(arg.search, '');
+       query += ` AND ${cond.sql}`;
+       params.push(...cond.params);
     }
 
     if (arg?.filterDate && String(arg.filterDate).trim() !== '') {
@@ -2507,6 +2536,7 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
     const creditPeriodDays = Math.max(1, parseInt(p.credit_period_days, 10) || 30);
     const creditPeriodBasis = p.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined ? (p.restrict_on_credit_expiry ? 1 : 0) : 1;
+    const whatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined ? (p.whatsapp_alerts_enabled ? 1 : 0) : 1;
     const bt = p.balance_type || 'RECEIVABLE';
     const initialBalance = bt === 'RECEIVABLE'
       ? Math.abs(p.balance || 0)
@@ -2515,9 +2545,9 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
     const customCategory = p.custom_category || null;
 
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, pricing_tier_id, credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, pricing_tier_id, credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry, whatsapp_alerts_enabled, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry, whatsappAlertsEnabled);
 
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
@@ -2670,6 +2700,7 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     const hasCreditPeriodDays = p.credit_period_days !== undefined;
     const hasCreditPeriodBasis = p.credit_period_basis !== undefined;
     const hasRestrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined;
+    const hasWhatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined;
 
     let updateSql = `UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?`;
     const params: any[] = [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null];
@@ -2705,6 +2736,10 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     if (hasCustomCategory) {
       updateSql += `, custom_category = ?`;
       params.push(p.custom_category || null);
+    }
+    if (hasWhatsappAlertsEnabled) {
+      updateSql += `, whatsapp_alerts_enabled = ?`;
+      params.push(p.whatsapp_alerts_enabled ? 1 : 0);
     }
 
     // Fetch existing party details before update to ensure robust matching even if name or phone changed
@@ -4002,8 +4037,9 @@ export function checkCustomerOverdueSync(db: any, tenantId: string, customerId?:
     };
   }
 
-  const cId = cust?.customer_id;
-  if (!cId) {
+  const cId = cust?.customer_id || '';
+  const pId = party?.party_id || '';
+  if (!cId && !pId) {
     return {
       isOverdue: false,
       overdueCount: 0,
@@ -4016,14 +4052,33 @@ export function checkCustomerOverdueSync(db: any, tenantId: string, customerId?:
     };
   }
 
+  const cleanPh = (cust?.phone || party?.phone || custPhone || '').replace(/\D/g, '');
+  const last10Ph = cleanPh.length >= 7 ? cleanPh.slice(-10) : '';
+  const cleanNm = (cust?.name || party?.name || custName || '').trim().toLowerCase();
+
   const invs = db.prepare(`
     SELECT invoice_id, invoice_number, grand_total, received_amount, balance_amount, payment_method, split_details, due_date, created_at
     FROM invoices
-    WHERE customer_id = ? AND tenant_id = ? AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (is_held IS NULL OR is_held = 0) AND (is_deleted IS NULL OR is_deleted = 0)
+    WHERE tenant_id = ?
+      AND (
+        (? != '' AND customer_id = ?)
+        OR (? != '' AND customer_id = ?)
+        OR (? != '' AND customer_phone IS NOT NULL AND customer_phone != '' AND REPLACE(REPLACE(REPLACE(customer_phone, ' ', ''), '-', ''), '+', '') LIKE ?)
+        OR (? != '' AND customer_name IS NOT NULL AND LOWER(REPLACE(TRIM(customer_name), '  ', ' ')) = ? AND (customer_phone IS NULL OR customer_phone = '' OR ? = ''))
+      )
+      AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+      AND (is_held IS NULL OR is_held = 0)
+      AND (is_deleted IS NULL OR is_deleted = 0)
     ORDER BY created_at DESC
-  `).all(cId, tenantId) as any[];
+  `).all(
+    tenantId,
+    cId, cId,
+    pId, pId,
+    last10Ph ? `%${last10Ph}` : '', last10Ph ? `%${last10Ph}` : '',
+    cleanNm, cleanNm, last10Ph
+  ) as any[];
 
-  const enriched = computeCustomerCreditStatusSync(db, tenantId, cId, invs);
+  const enriched = computeCustomerCreditStatusSync(db, tenantId, cId || pId, invs);
   const overdues = enriched.filter((i: any) => i.is_overdue);
 
   return {
@@ -8535,10 +8590,9 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search, limit,
         query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, \' \', \'\') LIKE ? OR REPLACE(p.item_code, \' \', \'\') LIKE ?)';
         params.push(`${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`);
       } else {
-        const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-        const searchFields = ['name', 'sku_barcode', 'item_code', 'brand_manufacturer', 'category', 'hsn_sac_code'];
-        query += ' AND (' + searchFields.map(field => `p.${field} LIKE ? OR REPLACE(p.${field}, ' ', '') LIKE ? OR CLEAN_STR(p.${field}) LIKE ?`).join(' OR ') + ')';
-        searchFields.forEach(() => params.push(`%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`));
+        const cond = buildProductSearchConditions(cleanSearch, 'p.');
+        query += ` AND ${cond.sql}`;
+        params.push(...cond.params);
       }
     }
 
@@ -10050,17 +10104,106 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
   }
 });
 
-ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
+ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id, phone, name }: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => {
   try {
     const db = getDb();
-    if (!customer_id || !tenant_id) return [];
+    if (!customer_id && !phone && !name) return [];
+    const effectiveTenantId = tenant_id || 'global';
+
+    // 1. Resolve customer record
+    let cust: any = null;
+    if (customer_id) {
+      cust = db.prepare('SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ?').get(customer_id, effectiveTenantId);
+    }
+    const cleanArgPhone = (phone || '').replace(/\D/g, '');
+    if (!cust && cleanArgPhone.length >= 7) {
+      cust = db.prepare(`SELECT * FROM customers WHERE tenant_id = ? AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)`).get(effectiveTenantId, phone, `%${cleanArgPhone.slice(-10)}`);
+    }
+    if (!cust && name) {
+      cust = db.prepare('SELECT * FROM customers WHERE tenant_id = ? AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(REPLACE(TRIM(name), "  ", " ")) = LOWER(REPLACE(TRIM(?), "  ", " ")))').get(effectiveTenantId, name.trim(), name.trim());
+    }
+
+    // 2. Resolve associated party
+    const searchPhone = (cust?.phone || phone || '').trim();
+    const searchName = (cust?.name || name || '').trim();
+    const phoneClean = searchPhone.replace(/\D/g, '');
+    const phoneLast10 = phoneClean.length >= 7 ? phoneClean.slice(-10) : '';
+
+    let party: any = null;
+    if (customer_id) {
+      party = db.prepare('SELECT * FROM parties WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)').get(customer_id, effectiveTenantId);
+    }
+    if (!party && phoneLast10) {
+      party = db.prepare(`SELECT * FROM parties WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?) LIMIT 1`).get(effectiveTenantId, searchPhone, `%${phoneLast10}`);
+    }
+    if (!party && searchName) {
+      party = db.prepare(`SELECT * FROM parties WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(REPLACE(TRIM(name), "  ", " ")) = LOWER(REPLACE(TRIM(?), "  ", " "))) LIMIT 1`).get(effectiveTenantId, searchName, searchName);
+    }
+
+    // If customer wasn't found in customers table, but party was, try finding customer via party
+    if (!cust && party) {
+      const pClean = (party.phone || '').replace(/\D/g, '');
+      if (pClean.length >= 7) {
+        cust = db.prepare(`SELECT * FROM customers WHERE tenant_id = ? AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)`).get(effectiveTenantId, party.phone, `%${pClean.slice(-10)}`);
+      }
+      if (!cust && party.name) {
+        cust = db.prepare('SELECT * FROM customers WHERE tenant_id = ? AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(REPLACE(TRIM(name), "  ", " ")) = LOWER(REPLACE(TRIM(?), "  ", " ")))').get(effectiveTenantId, party.name.trim(), party.name.trim());
+      }
+    }
+
+    const targetCustomerId = cust?.customer_id || customer_id;
+    const targetPartyId = party?.party_id || '';
+    const nameNorm = searchName ? searchName.toLowerCase().replace(/\s+/g, ' ') : '';
+
+    // 3. Self-healing: link any unlinked invoices belonging to this customer
+    if (targetCustomerId) {
+      if (phoneLast10) {
+        db.prepare(`
+          UPDATE invoices
+          SET customer_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE (customer_id IS NULL OR customer_id = '')
+            AND tenant_id = ?
+            AND customer_phone IS NOT NULL AND customer_phone != ''
+            AND REPLACE(REPLACE(REPLACE(customer_phone, ' ', ''), '-', ''), '+', '') LIKE ?
+        `).run(targetCustomerId, effectiveTenantId, `%${phoneLast10}`);
+      }
+      if (nameNorm) {
+        db.prepare(`
+          UPDATE invoices
+          SET customer_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE (customer_id IS NULL OR customer_id = '')
+            AND tenant_id = ?
+            AND customer_name IS NOT NULL
+            AND LOWER(REPLACE(TRIM(customer_name), '  ', ' ')) = ?
+            AND (customer_phone IS NULL OR customer_phone = '' OR (? != '' AND REPLACE(REPLACE(REPLACE(customer_phone, ' ', ''), '-', ''), '+', '') LIKE ?))
+        `).run(targetCustomerId, effectiveTenantId, nameNorm, phoneLast10, `%${phoneLast10}`);
+      }
+    }
+
+    // 4. Query all matching invoices
     const rawInvoices = db.prepare(`
       SELECT *
       FROM invoices
-      WHERE customer_id = ? AND tenant_id = ? AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (is_held IS NULL OR is_held = 0) AND (is_deleted IS NULL OR is_deleted = 0)
+      WHERE tenant_id = ?
+        AND (
+          (? != '' AND customer_id = ?)
+          OR (? != '' AND customer_id = ?)
+          OR (? != '' AND customer_phone IS NOT NULL AND customer_phone != '' AND REPLACE(REPLACE(REPLACE(customer_phone, ' ', ''), '-', ''), '+', '') LIKE ?)
+          OR (? != '' AND customer_name IS NOT NULL AND LOWER(REPLACE(TRIM(customer_name), '  ', ' ')) = ? AND (customer_phone IS NULL OR customer_phone = '' OR ? = ''))
+        )
+        AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (is_held IS NULL OR is_held = 0)
+        AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY created_at DESC
-    `).all(customer_id, tenant_id);
-    return computeCustomerCreditStatusSync(db, tenant_id, customer_id, rawInvoices);
+    `).all(
+      effectiveTenantId,
+      targetCustomerId || '', targetCustomerId || '',
+      targetPartyId || '', targetPartyId || '',
+      phoneLast10 ? `%${phoneLast10}` : '', phoneLast10 ? `%${phoneLast10}` : '',
+      nameNorm || '', nameNorm || '', phoneLast10 || ''
+    ) as any[];
+
+    return computeCustomerCreditStatusSync(db, effectiveTenantId, targetCustomerId, rawInvoices);
   } catch (error: any) {
     console.error('[db:getCustomerInvoices]', error);
     return { error: 'Operation failed' };

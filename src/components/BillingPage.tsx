@@ -6,7 +6,8 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, MessageSquare, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, MessageSquare, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent,
+  ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -121,6 +122,10 @@ interface ItemRateInputProps {
   syncActiveSnapshot: () => void;
   inputRef?: (el: HTMLInputElement | null) => void;
   onKeyDownNext?: () => void;
+  onKeyDownBack?: () => void;
+  onKeyDownUp?: () => void;
+  onKeyDownDown?: () => void;
+  onFocus?: () => void;
   customPpk?: number;
   setLocalPcStr?: (val: string) => void;
   setLocalKgStr?: (val: string) => void;
@@ -147,6 +152,10 @@ function ItemRateInput({
   syncActiveSnapshot,
   inputRef,
   onKeyDownNext,
+  onKeyDownBack,
+  onKeyDownUp,
+  onKeyDownDown,
+  onFocus,
   customPpk,
   setLocalPcStr,
   setLocalKgStr,
@@ -243,6 +252,7 @@ function ItemRateInput({
       setSelectedOptionIndex(activeIdx >= 0 ? activeIdx : 0);
     }
     e.target.select();
+    onFocus?.();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -312,6 +322,26 @@ function ItemRateInput({
           return;
         }
       }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsFocused(false);
+        setIsNavigatingMenu(false);
+        if (onKeyDownNext) {
+          onKeyDownNext();
+        }
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsFocused(false);
+        setIsNavigatingMenu(false);
+        if (onKeyDownBack) {
+          onKeyDownBack();
+        }
+        return;
+      }
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
@@ -321,13 +351,33 @@ function ItemRateInput({
       }
     }
 
-    if (e.key === 'Enter' && !options.length) {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
       e.stopPropagation();
       setIsFocused(false);
       setIsNavigatingMenu(false);
       if (onKeyDownNext) {
         onKeyDownNext();
+      }
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFocused(false);
+      setIsNavigatingMenu(false);
+      if (onKeyDownBack) {
+        onKeyDownBack();
+      }
+    } else if (e.key === 'ArrowDown') {
+      if (onKeyDownDown) {
+        e.preventDefault();
+        e.stopPropagation();
+        onKeyDownDown();
+      }
+    } else if (e.key === 'ArrowUp') {
+      if (onKeyDownUp) {
+        e.preventDefault();
+        e.stopPropagation();
+        onKeyDownUp();
       }
     }
   };
@@ -463,6 +513,9 @@ interface ItemTotalInputProps {
   onClearLocalDiscounts: (productId: string) => void;
   syncActiveSnapshot: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onKeyDownNext?: () => void;
+  onKeyDownBack?: () => void;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
   inputRef?: (el: HTMLInputElement | null) => void;
 }
 
@@ -478,6 +531,9 @@ function ItemTotalInput({
   onClearLocalDiscounts,
   syncActiveSnapshot,
   onKeyDown,
+  onKeyDownNext,
+  onKeyDownBack,
+  onFocus,
   inputRef,
 }: ItemTotalInputProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -549,11 +605,24 @@ function ItemTotalInput({
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(true);
     e.target.select();
+    onFocus?.(e);
   };
 
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       handleBlur();
+      if (onKeyDownNext) {
+        e.preventDefault();
+        onKeyDownNext();
+        return;
+      }
+    } else if (e.key === 'ArrowLeft') {
+      handleBlur();
+      if (onKeyDownBack) {
+        e.preventDefault();
+        onKeyDownBack();
+        return;
+      }
     }
     onKeyDown?.(e);
   };
@@ -1009,6 +1078,114 @@ export function BillingPage() {
   const customerGstinInputRef = useRef<HTMLInputElement>(null);
   const paymentOptionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipCustomerDropdownOnFocusRef = useRef(false);
+  const activeCartProductIdRef = useRef<string | null>(null);
+
+  const focusCartField = useCallback((field: string, productId: string): boolean => {
+    let el: HTMLElement | null = null;
+    if (field === 'pcs') el = pcsRefs.current[productId] || null;
+    else if (field === 'qty' || field === 'weight') el = qtyRefs.current[productId] || kRefs.current[productId] || null;
+    else if (field === 'rate') el = ratePcRefs.current[productId] || rateKgRefs.current[productId] || null;
+    else if (field === 'discount') el = discRefs.current[productId] || null;
+    else if (field === 'discountFlat') el = discFlatRefs.current[productId] || null;
+    else if (field === 'tier') el = tierRefs.current[productId] || null;
+    else if (field === 'grandTotal') el = totalInputRefs.current[productId] || null;
+
+    if (el) {
+      el.focus();
+      if ('select' in el && typeof (el as any).select === 'function') {
+        (el as any).select();
+      }
+      activeCartProductIdRef.current = productId;
+      setFocusedRowProductId(productId);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const focusFirstCartField = useCallback((pidOverride?: string): boolean => {
+    if (items.length === 0) return false;
+    const targetPid = pidOverride || activeCartProductIdRef.current || lastAddedProductId || items[0]?.product_id;
+    if (!targetPid) return false;
+    const order = ['pcs', 'qty', 'rate', 'discount', 'discountFlat', 'grandTotal'];
+    for (const f of order) {
+      if (focusCartField(f, targetPid)) return true;
+    }
+    return false;
+  }, [items, lastAddedProductId, focusCartField]);
+
+  const focusLastCartField = useCallback((pidOverride?: string): boolean => {
+    if (items.length === 0) return false;
+    const targetPid = pidOverride || activeCartProductIdRef.current || lastAddedProductId || items[items.length - 1]?.product_id;
+    if (!targetPid) return false;
+    const order = ['grandTotal', 'tier', 'discountFlat', 'discount', 'rate', 'qty', 'pcs'];
+    for (const f of order) {
+      if (focusCartField(f, targetPid)) return true;
+    }
+    return false;
+  }, [items, lastAddedProductId, focusCartField]);
+
+  const focusNextCartField = useCallback((currentField: string, productId: string) => {
+    activeCartProductIdRef.current = productId;
+    const order = ['pcs', 'qty', 'rate', 'discount', 'discountFlat', 'tier', 'grandTotal'];
+    const idx = order.indexOf(currentField);
+    if (idx !== -1) {
+      for (let i = idx + 1; i < order.length; i++) {
+        if (focusCartField(order[i], productId)) return;
+      }
+    }
+    searchRef.current?.focus();
+    searchRef.current?.select();
+  }, [focusCartField]);
+
+  const focusPrevCartField = useCallback((currentField: string, productId: string) => {
+    activeCartProductIdRef.current = productId;
+    const order = ['pcs', 'qty', 'rate', 'discount', 'discountFlat', 'tier', 'grandTotal'];
+    const idx = order.indexOf(currentField);
+    if (idx !== -1) {
+      for (let i = idx - 1; i >= 0; i--) {
+        if (focusCartField(order[i], productId)) return;
+      }
+    }
+    searchRef.current?.focus();
+    searchRef.current?.select();
+  }, [focusCartField]);
+
+  const focusCustomerFieldsReverse = useCallback(() => {
+    if (invoiceType === 'GST' && customerGstinInputRef.current) {
+      customerGstinInputRef.current.focus();
+      customerGstinInputRef.current.select();
+    } else if (customerAddressInputRef.current) {
+      customerAddressInputRef.current.focus();
+      customerAddressInputRef.current.select();
+    } else if (customerPhoneInputRef.current) {
+      customerPhoneInputRef.current.focus();
+      customerPhoneInputRef.current.select();
+    } else if (customerNameInputRef.current) {
+      customerNameInputRef.current.focus();
+      customerNameInputRef.current.select();
+    }
+  }, [invoiceType]);
+
+  const handleRateUpDown = useCallback((productId: string, direction: 'up' | 'down') => {
+    const idx = items.findIndex(i => i.product_id === productId);
+    if (idx === -1) return;
+    if (direction === 'down') {
+      if (idx < items.length - 1) {
+        const nextPid = items[idx + 1].product_id;
+        const nextRate = ratePcRefs.current[nextPid] || rateKgRefs.current[nextPid] || qtyRefs.current[nextPid];
+        if (nextRate) { nextRate.focus(); if ('select' in nextRate) (nextRate as any).select(); }
+      }
+    } else {
+      if (idx > 0) {
+        const prevPid = items[idx - 1].product_id;
+        const prevRate = ratePcRefs.current[prevPid] || rateKgRefs.current[prevPid] || qtyRefs.current[prevPid];
+        if (prevRate) { prevRate.focus(); if ('select' in prevRate) (prevRate as any).select(); }
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    }
+  }, [items]);
 
   const searchResultListRef = useRef<HTMLDivElement>(null);
   const pastBillListRef = useRef<HTMLDivElement>(null);
@@ -2220,15 +2397,13 @@ loadFlags(tenantId || 'global');
       const { tenantId } = useAuthStore.getState();
       // GST invoices: only show GST-applicable products (quotations stay unfiltered)
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
-      // Fetch up to 100 results so numeric or text searches capture all matching items without UI lag
-      const fetchLimit = 100;
+      // Fetch up to 200 results so numeric or text searches capture all matching items without UI lag
+      const fetchLimit = 200;
       
-      const qWords = searchQuery.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
-      const backendSearch = qWords[0] || searchQuery.trim();
+      const backendSearch = searchQuery.trim();
 
       try {
         const [products, combos] = await Promise.all([
-          // Use first word for backend search to get broader results, client-side handles full substring matching
           window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
           window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: searchQuery, only_active: true }),
         ]);
@@ -2286,16 +2461,9 @@ loadFlags(tenantId || 'global');
           const cat = String(p.category || '').toLowerCase();
           const hsn = String(p.hsn_sac_code || '').toLowerCase();
 
-          // Check if ALL query words exist in a field (any order)
-          const allWordsInField = (field: string) => 
-            qWords.every(word => field.includes(word));
-
-          return allWordsInField(barcode) ||
-                 allWordsInField(code) ||
-                 allWordsInField(name) ||
-                 allWordsInField(brand) ||
-                 allWordsInField(cat) ||
-                 allWordsInField(hsn);
+          // Check if ALL query words exist across product fields (any order)
+          const matchFields = [barcode, code, name, brand, cat, hsn];
+          return qWords.every(word => matchFields.some(field => field.includes(word)));
         });
 
         const deduped: any[] = [];
@@ -2650,6 +2818,7 @@ loadFlags(tenantId || 'global');
     const cleanAddress = (c.address || '').trim();
 
     updateActiveTab({
+      customerId: c.customer_id || '',
       customerName: cleanName,
       customerPhone: cleanPhone,
       customerAddress: cleanAddress,
@@ -4896,9 +5065,7 @@ loadFlags(tenantId || 'global');
       } else if (searchQuery.trim() === '') {
         e.preventDefault();
         if (items.length > 0) {
-          const firstId = items[0].product_id;
-          qtyRefs.current[firstId]?.focus();
-          qtyRefs.current[firstId]?.select();
+          focusFirstCartField();
         } else {
           customerNameInputRef.current?.focus();
           customerNameInputRef.current?.select();
@@ -4915,11 +5082,28 @@ loadFlags(tenantId || 'global');
         customerNameInputRef.current?.select();
       }
     }
+    else if (e.key === 'ArrowRight') {
+      if (maxLen === 0 && searchQuery.trim() === '') {
+        e.preventDefault();
+        focusFirstCartField();
+      }
+    }
+    else if (e.key === 'ArrowLeft') {
+      const inputEl = e.currentTarget as HTMLInputElement;
+      if (maxLen === 0 && (searchQuery.trim() === '' || inputEl.selectionStart === 0)) {
+        e.preventDefault();
+        if (items.length > 0) {
+          focusLastCartField();
+        } else {
+          focusCustomerFieldsReverse();
+        }
+      }
+    }
     else if (e.key === 'Enter') {
       if (searchQuery.trim() === '' && maxLen === 0) {
         if (items.length > 0) {
           e.preventDefault();
-          paymentOptionRefs.current[paymentMethod]?.focus();
+          focusFirstCartField();
           return;
         }
       }
@@ -4960,33 +5144,12 @@ loadFlags(tenantId || 'global');
   };
 
   const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    const item = items.find(i => i.product_id === productId);
-    const isWeightItem = item?.billing_type === 'WEIGHT';
-
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      const nextField = getNextFieldInFlow('qty', isWeightItem);
-      if (nextField === 'weight' && isWeightItem && kRefs.current[productId]) {
-        kRefs.current[productId]?.focus();
-        kRefs.current[productId]?.select();
-      } else if (nextField === 'rate') {
-        if (ratePcRefs.current[productId]) {
-          ratePcRefs.current[productId]?.focus();
-          ratePcRefs.current[productId]?.select();
-        } else if (rateKgRefs.current[productId]) {
-          rateKgRefs.current[productId]?.focus();
-          rateKgRefs.current[productId]?.select();
-        }
-      } else if (nextField === 'discount' && discRefs.current[productId]) {
-        discRefs.current[productId]?.focus();
-        discRefs.current[productId]?.select();
-      } else if (nextField === 'grandTotal' && totalInputRefs.current[productId]) {
-        totalInputRefs.current[productId]?.focus();
-        totalInputRefs.current[productId]?.select();
-      } else {
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
+      focusNextCartField('qty', productId);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      focusPrevCartField('qty', productId);
     } else if (e.key === 'ArrowDown') {
       const idx = items.findIndex(i => i.product_id === productId);
       if (idx !== -1 && idx < items.length - 1) {
@@ -5015,18 +5178,6 @@ loadFlags(tenantId || 'global');
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
-      }
-    } else if (e.key === 'ArrowRight') {
-      if (discRefs.current[productId]) {
-        e.preventDefault();
-        discRefs.current[productId]?.focus();
-        discRefs.current[productId]?.select();
-      }
-    } else if (e.key === 'ArrowLeft') {
-      if (pcsRefs.current[productId]) {
-        e.preventDefault();
-        pcsRefs.current[productId]?.focus();
-        pcsRefs.current[productId]?.select();
       }
     } else if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
       e.preventDefault();
@@ -5079,28 +5230,12 @@ loadFlags(tenantId || 'global');
   };
 
   const handlePcsKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      if (qtyRefs.current[productId]) {
-        qtyRefs.current[productId]?.focus();
-        qtyRefs.current[productId]?.select();
-      } else if (discRefs.current[productId]) {
-        discRefs.current[productId]?.focus();
-        discRefs.current[productId]?.select();
-      } else {
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
-    } else if (e.key === 'ArrowRight') {
-      if (qtyRefs.current[productId]) {
-        e.preventDefault();
-        qtyRefs.current[productId]?.focus();
-        qtyRefs.current[productId]?.select();
-      } else if (discRefs.current[productId]) {
-        e.preventDefault();
-        discRefs.current[productId]?.focus();
-        discRefs.current[productId]?.select();
-      }
+      focusNextCartField('pcs', productId);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      focusPrevCartField('pcs', productId);
     } else if (e.key === 'ArrowDown') {
       const idx = items.findIndex(i => i.product_id === productId);
       if (idx !== -1 && idx < items.length - 1) {
@@ -5242,38 +5377,12 @@ loadFlags(tenantId || 'global');
   };
 
   const handleDiscKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    const item = items.find(i => i.product_id === productId);
-    const isWeightItem = item?.billing_type === 'WEIGHT';
-
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      const nextField = getNextFieldInFlow('discount', isWeightItem);
-      if (nextField === 'discountFlat' && discFlatRefs.current[productId]) {
-        discFlatRefs.current[productId]?.focus();
-        discFlatRefs.current[productId]?.select();
-      } else if (nextField === 'grandTotal' && totalInputRefs.current[productId]) {
-        totalInputRefs.current[productId]?.focus();
-        totalInputRefs.current[productId]?.select();
-      } else if (nextField === 'rate') {
-        if (ratePcRefs.current[productId]) {
-          ratePcRefs.current[productId]?.focus();
-          ratePcRefs.current[productId]?.select();
-        } else if (rateKgRefs.current[productId]) {
-          rateKgRefs.current[productId]?.focus();
-          rateKgRefs.current[productId]?.select();
-        }
-      } else {
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
+      focusNextCartField('discount', productId);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      qtyRefs.current[productId]?.focus();
-      qtyRefs.current[productId]?.select();
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      discFlatRefs.current[productId]?.focus();
-      discFlatRefs.current[productId]?.select();
+      focusPrevCartField('discount', productId);
     } else if (e.key === 'ArrowDown') {
       const idx = items.findIndex(i => i.product_id === productId);
       if (idx !== -1 && idx < items.length - 1) {
@@ -5298,34 +5407,12 @@ loadFlags(tenantId || 'global');
   };
 
   const handleDiscFlatKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    const item = items.find(i => i.product_id === productId);
-    const isWeightItem = item?.billing_type === 'WEIGHT';
-
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      const nextField = getNextFieldInFlow('discountFlat', isWeightItem);
-      if (nextField === 'grandTotal' && totalInputRefs.current[productId]) {
-        totalInputRefs.current[productId]?.focus();
-        totalInputRefs.current[productId]?.select();
-      } else if (nextField === 'rate') {
-        if (ratePcRefs.current[productId]) {
-          ratePcRefs.current[productId]?.focus();
-          ratePcRefs.current[productId]?.select();
-        } else if (rateKgRefs.current[productId]) {
-          rateKgRefs.current[productId]?.focus();
-          rateKgRefs.current[productId]?.select();
-        }
-      } else if (nextField === 'discount' && discRefs.current[productId]) {
-        discRefs.current[productId]?.focus();
-        discRefs.current[productId]?.select();
-      } else {
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
+      focusNextCartField('discountFlat', productId);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      discRefs.current[productId]?.focus();
-      discRefs.current[productId]?.select();
+      focusPrevCartField('discountFlat', productId);
     } else if (e.key === 'ArrowDown') {
       const idx = items.findIndex(i => i.product_id === productId);
       if (idx !== -1 && idx < items.length - 1) {
@@ -5341,41 +5428,50 @@ loadFlags(tenantId || 'global');
         const prevId = items[idx - 1].product_id;
         discFlatRefs.current[prevId]?.focus();
         discFlatRefs.current[prevId]?.select();
+      } else {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
       }
     }
   };
 
   const handleTierKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      if (totalInputRefs.current[productId]) {
-        totalInputRefs.current[productId]?.focus();
-        totalInputRefs.current[productId]?.select();
-      } else {
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
+      focusNextCartField('tier', productId);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      if (discFlatRefs.current[productId]) {
-        discFlatRefs.current[productId]?.focus();
-        discFlatRefs.current[productId]?.select();
-      }
+      focusPrevCartField('tier', productId);
     }
   };
 
   const handleTotalInputKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      focusNextCartField('grandTotal', productId);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      if (tierRefs.current[productId]) {
-        tierRefs.current[productId]?.focus();
-      } else if (discFlatRefs.current[productId]) {
-        discFlatRefs.current[productId]?.focus();
-        discFlatRefs.current[productId]?.select();
+      focusPrevCartField('grandTotal', productId);
+    } else if (e.key === 'ArrowDown') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx !== -1 && idx < items.length - 1) {
+        e.preventDefault();
+        const nextId = items[idx + 1].product_id;
+        totalInputRefs.current[nextId]?.focus();
+        totalInputRefs.current[nextId]?.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx > 0) {
+        e.preventDefault();
+        const prevId = items[idx - 1].product_id;
+        totalInputRefs.current[prevId]?.focus();
+        totalInputRefs.current[prevId]?.select();
+      } else {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
       }
     }
   };
@@ -6088,6 +6184,7 @@ loadFlags(tenantId || 'global');
               ? { new_due: (effectiveFinalPaymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
               : {})
           },
+          customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
@@ -6126,6 +6223,7 @@ loadFlags(tenantId || 'global');
             : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
+          customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
@@ -7593,7 +7691,7 @@ loadFlags(tenantId || 'global');
             onChange={e => {
               const val = e.target.value;
               if (!val.trim() && !customerPhone.trim()) {
-                updateActiveTab({ customerName: '', customerAddress: '', customerGstin: '' });
+                updateActiveTab({ customerId: '', customerName: '', customerAddress: '', customerGstin: '' });
                 setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
                 setShowCustomerDropdown(false);
               } else {
@@ -7662,7 +7760,7 @@ loadFlags(tenantId || 'global');
             onChange={e => {
               const val = e.target.value;
               if (!val.trim() && !customerName.trim()) {
-                updateActiveTab({ customerPhone: '', customerAddress: '', customerGstin: '' });
+                updateActiveTab({ customerId: '', customerPhone: '', customerAddress: '', customerGstin: '' });
                 setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
                 setShowCustomerDropdown(false);
               } else {
@@ -9466,7 +9564,11 @@ loadFlags(tenantId || 'global');
                             }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={localPcsStr[item.product_id] ?? String(pieces)}
-                            onFocus={e => e.target.select()}
+                            onFocus={e => {
+                              e.target.select();
+                              activeCartProductIdRef.current = item.product_id;
+                              setFocusedRowProductId(item.product_id);
+                            }}
                             onChange={e => {
                               const raw = e.target.value.replace(/[^\d]/g, '');
                               setLocalPcsStr(p => ({ ...p, [item.product_id]: raw }));
@@ -9481,13 +9583,8 @@ loadFlags(tenantId || 'global');
                               });
                               if (e.key === 'Enter') {
                                 commitPcs(e.currentTarget.value, true);
-                                const pid = item.product_id;
-                                setTimeout(() => {
-                                  const kInput = qtyRefs.current[pid] || kRefs.current[pid];
-                                  if (kInput) { kInput.focus(); kInput.select(); }
-                                }, 0);
-                                e.preventDefault();
                               }
+                              handlePcsKeyDown(e, item.product_id);
                             }}
                           />
                         </div>
@@ -9505,7 +9602,11 @@ loadFlags(tenantId || 'global');
                             }}
                             className="w-16 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={localKgStr[item.product_id] ?? String(item.quantity ?? '')}
-                            onFocus={e => e.target.select()}
+                            onFocus={e => {
+                              e.target.select();
+                              activeCartProductIdRef.current = item.product_id;
+                              setFocusedRowProductId(item.product_id);
+                            }}
                             onChange={e => {
                               const raw = sanitizeQtyText(e.target.value);
                               setLocalKgStr(p => ({ ...p, [item.product_id]: raw }));
@@ -9520,28 +9621,8 @@ loadFlags(tenantId || 'global');
                               });
                               if (e.key === 'Enter') {
                                 commitKg(e.currentTarget.value, true);
-                                const pid = item.product_id;
-                                setTimeout(() => {
-                                  const nextField = getNextFieldInFlow('weight', true);
-                                  if (nextField === 'rate') {
-                                    const nextRate = ratePcRefs.current[pid] || rateKgRefs.current[pid];
-                                    if (nextRate) { nextRate.focus(); nextRate.select(); }
-                                  } else if (nextField === 'discount' && discRefs.current[pid]) {
-                                    discRefs.current[pid]?.focus();
-                                    discRefs.current[pid]?.select();
-                                  } else if (nextField === 'discountFlat' && discFlatRefs.current[pid]) {
-                                    discFlatRefs.current[pid]?.focus();
-                                    discFlatRefs.current[pid]?.select();
-                                  } else if (nextField === 'grandTotal' && totalInputRefs.current[pid]) {
-                                    totalInputRefs.current[pid]?.focus();
-                                    totalInputRefs.current[pid]?.select();
-                                  } else {
-                                    searchRef.current?.focus();
-                                    searchRef.current?.select();
-                                  }
-                                }, 0);
-                                e.preventDefault();
                               }
+                              handleQtyKeyDown(e, item.product_id);
                             }}
                           />
                         </div>
@@ -9565,7 +9646,11 @@ loadFlags(tenantId || 'global');
                             (item.billing_type === 'WEIGHT' || item.isScrap) ? "w-20 min-w-[5rem]" : "w-12"
                           )}
                           value={item.quantity}
-                          onFocus={e => e.target.select()}
+                          onFocus={e => {
+                            e.target.select();
+                            activeCartProductIdRef.current = item.product_id;
+                            setFocusedRowProductId(item.product_id);
+                          }}
                           onBlur={e => {
                             const val = Number(e.target.value);
                             if (!e.target.value || isNaN(val) || val <= 0) {
@@ -9614,22 +9699,13 @@ loadFlags(tenantId || 'global');
                               pendingFocusProductIdRef.current = null;
                             }
                           }}
-                          onKeyDownNext={() => {
-                            const pid = item.product_id;
-                            const nextField = getNextFieldInFlow('rate', item.billing_type === 'WEIGHT');
-                            if (nextField === 'discount' && discRefs.current[pid]) {
-                              discRefs.current[pid]?.focus();
-                              discRefs.current[pid]?.select();
-                            } else if (nextField === 'discountFlat' && discFlatRefs.current[pid]) {
-                              discFlatRefs.current[pid]?.focus();
-                              discFlatRefs.current[pid]?.select();
-                            } else if (nextField === 'grandTotal' && totalInputRefs.current[pid]) {
-                              totalInputRefs.current[pid]?.focus();
-                              totalInputRefs.current[pid]?.select();
-                            } else {
-                              searchRef.current?.focus();
-                              searchRef.current?.select();
-                            }
+                          onKeyDownNext={() => focusNextCartField('rate', item.product_id)}
+                          onKeyDownBack={() => focusPrevCartField('rate', item.product_id)}
+                          onKeyDownDown={() => handleRateUpDown(item.product_id, 'down')}
+                          onKeyDownUp={() => handleRateUpDown(item.product_id, 'up')}
+                          onFocus={() => {
+                            activeCartProductIdRef.current = item.product_id;
+                            setFocusedRowProductId(item.product_id);
                           }}
                         />
                       ) : (
@@ -9662,22 +9738,13 @@ loadFlags(tenantId || 'global');
                               pendingFocusProductIdRef.current = null;
                             }
                           }}
-                          onKeyDownNext={() => {
-                            const pid = item.product_id;
-                            const nextField = getNextFieldInFlow('rate', item.billing_type === 'WEIGHT');
-                            if (nextField === 'discount' && discRefs.current[pid]) {
-                              discRefs.current[pid]?.focus();
-                              discRefs.current[pid]?.select();
-                            } else if (nextField === 'discountFlat' && discFlatRefs.current[pid]) {
-                              discFlatRefs.current[pid]?.focus();
-                              discFlatRefs.current[pid]?.select();
-                            } else if (nextField === 'grandTotal' && totalInputRefs.current[pid]) {
-                              totalInputRefs.current[pid]?.focus();
-                              totalInputRefs.current[pid]?.select();
-                            } else {
-                              searchRef.current?.focus();
-                              searchRef.current?.select();
-                            }
+                          onKeyDownNext={() => focusNextCartField('rate', item.product_id)}
+                          onKeyDownBack={() => focusPrevCartField('rate', item.product_id)}
+                          onKeyDownDown={() => handleRateUpDown(item.product_id, 'down')}
+                          onKeyDownUp={() => handleRateUpDown(item.product_id, 'up')}
+                          onFocus={() => {
+                            activeCartProductIdRef.current = item.product_id;
+                            setFocusedRowProductId(item.product_id);
                           }}
                         />
                       )}
@@ -9712,7 +9779,11 @@ loadFlags(tenantId || 'global');
                             }
                             syncActiveSnapshot();
                           }}
-                          onFocus={e => e.target.select()}
+                          onFocus={e => {
+                            e.target.select();
+                            activeCartProductIdRef.current = item.product_id;
+                            setFocusedRowProductId(item.product_id);
+                          }}
                           onKeyDown={e => {
                             handleDiscKeyDown(e, item.product_id);
                           }}
@@ -9746,7 +9817,11 @@ loadFlags(tenantId || 'global');
                             }
                             syncActiveSnapshot();
                           }}
-                          onFocus={e => e.target.select()}
+                          onFocus={e => {
+                            e.target.select();
+                            activeCartProductIdRef.current = item.product_id;
+                            setFocusedRowProductId(item.product_id);
+                          }}
                           onKeyDown={e => {
                             handleDiscFlatKeyDown(e, item.product_id);
                           }}
@@ -9786,6 +9861,12 @@ loadFlags(tenantId || 'global');
                         }}
                         syncActiveSnapshot={syncActiveSnapshot}
                         onKeyDown={e => handleTotalInputKeyDown(e, item.product_id)}
+                        onKeyDownNext={() => focusNextCartField('grandTotal', item.product_id)}
+                        onKeyDownBack={() => focusPrevCartField('grandTotal', item.product_id)}
+                        onFocus={() => {
+                          activeCartProductIdRef.current = item.product_id;
+                          setFocusedRowProductId(item.product_id);
+                        }}
                       />
                       {(hasItemDiscount || rate * qty > total + 0.005) && rate * qty > total + 0.005 && (
                         <div className="text-[9px] text-muted-foreground/50 line-through font-semibold -mt-0.5 text-right">{formatCurrency(rate * qty)}</div>

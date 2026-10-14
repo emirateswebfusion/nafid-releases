@@ -693,7 +693,12 @@ export function CustomersPage({
     if (!window.electronAPI) return;
     try {
       const [invData, loyaltyData] = await Promise.all([
-        window.electronAPI.dbGetCustomerInvoices({ customer_id: customer.customer_id, tenant_id: tenantId }),
+        window.electronAPI.dbGetCustomerInvoices({
+          customer_id: customer.customer_id,
+          tenant_id: tenantId,
+          phone: customer.phone,
+          name: customer.name,
+        }),
         window.electronAPI.dbGetCustomerLoyaltyTransactions({ customer_id: customer.customer_id, tenant_id: tenantId }),
       ]);
       setInvoices(Array.isArray(invData) ? invData : []);

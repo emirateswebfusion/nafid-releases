@@ -41,7 +41,7 @@ export interface IElectronAPI {
   dbCheckCustomerCreditStatus: (params: { tenant_id: string; customer_id?: string; customer_name?: string; customer_phone?: string }) => Promise<{ allowed: boolean; isOverdue: boolean; overdueCount: number; overdueAmount: number; oldestOverdueDays: number; restrictOnExpiry: boolean; creditPeriodEnabled: boolean; creditPeriodDays: number; customerName: string; error?: string }>;
   dbDeleteCustomer: (params: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string; deleted_party_count?: number }>;
   dbDeduplicateCustomers: (tenant_id?: string) => Promise<{ success: boolean; error?: string; merged_customers?: number; merged_parties?: number }>;
-  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
+  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => Promise<any[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;
   dbAddGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;

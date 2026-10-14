@@ -70,24 +70,42 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
       return { tier: 3.5, numVal: 999999999, name };
     }
 
-    // Tier 4: Product Name or Brand starts with query (normalized, no-space, or clean)
-    if (name.startsWith(q) || brand.startsWith(q) || (qNoSpace.length > 0 && (nameNoSpace.startsWith(qNoSpace) || brandNoSpace.startsWith(qNoSpace))) || (qClean.length > 0 && (nameClean.startsWith(qClean) || brandClean.startsWith(qClean)))) {
+    // Tier 4: Product Name starts with query (normalized, no-space, or clean)
+    if (name.startsWith(q) || (qNoSpace.length > 0 && nameNoSpace.startsWith(qNoSpace)) || (qClean.length > 0 && nameClean.startsWith(qClean))) {
       return { tier: 4, numVal: 999999999, name };
     }
 
-    // Tier 4.5: Word-based fuzzy match on Name/Brand (all words present, any order)
-    if (qWords.length > 1 && (
-      allWordsMatch(name, qWords) ||
-      allWordsMatch(brand, qWords) ||
-      (qNoSpace.length > 0 && (allWordsMatch(nameNoSpace, qWords) || allWordsMatch(brandNoSpace, qWords))) ||
-      (qClean.length > 0 && (allWordsMatch(nameClean, qWords) || allWordsMatch(brandClean, qWords)))
-    )) {
-      return { tier: 4.5, numVal: 999999999, name };
+    // Tier 4.2: Product Name contains query
+    if (name.includes(q) || (qNoSpace.length > 0 && nameNoSpace.includes(qNoSpace)) || (qClean.length > 0 && nameClean.includes(qClean))) {
+      return { tier: 4.2, numVal: 999999999, name };
     }
 
-    // Tier 5: Product Name or Brand contains query
-    if (name.includes(q) || brand.includes(q) || (qNoSpace.length > 0 && (nameNoSpace.includes(qNoSpace) || brandNoSpace.includes(qNoSpace))) || (qClean.length > 0 && (nameClean.includes(qClean) || brandClean.includes(qClean)))) {
-      return { tier: 5, numVal: 999999999, name };
+    // Tier 4.4: Brand starts with query
+    if (brand.startsWith(q) || (qNoSpace.length > 0 && brandNoSpace.startsWith(qNoSpace)) || (qClean.length > 0 && brandClean.startsWith(qClean))) {
+      return { tier: 4.4, numVal: 999999999, name };
+    }
+
+    // Tier 4.6: Brand contains query
+    if (brand.includes(q) || (qNoSpace.length > 0 && brandNoSpace.includes(qNoSpace)) || (qClean.length > 0 && brandClean.includes(qClean))) {
+      return { tier: 4.6, numVal: 999999999, name };
+    }
+
+    // Tier 4.8: Word-based match on Product Name (all words present, any order)
+    if (qWords.length > 1 && (
+      allWordsMatch(name, qWords) ||
+      (qNoSpace.length > 0 && allWordsMatch(nameNoSpace, qWords)) ||
+      (qClean.length > 0 && allWordsMatch(nameClean, qWords))
+    )) {
+      return { tier: 4.8, numVal: 999999999, name };
+    }
+
+    // Tier 4.9: Word-based match across Product Name, Brand, and Codes
+    if (qWords.length > 1) {
+      const combined = `${name} ${brand} ${barcode} ${code}`;
+      const combinedClean = `${nameClean} ${brandClean} ${barcodeClean} ${codeClean}`;
+      if (allWordsMatch(combined, qWords) || allWordsMatch(combinedClean, qWords)) {
+        return { tier: 4.9, numVal: 999999999, name };
+      }
     }
 
     return { tier: 99, numVal: 999999999, name };

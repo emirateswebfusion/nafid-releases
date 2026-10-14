@@ -1,3 +1,10 @@
+# Vendora v1.7.15 Release Notes
+
+## What's Changed
+- **Billing, Settlement & Sync Improvements**: Refined cashier settlement, billing flow, customer and party management, WhatsApp settings, and sync worker stability.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-1.7.15.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.7.14...v1.7.15
+
 # Vendora v1.7.14 Release Notes
 
 ## What's Changed

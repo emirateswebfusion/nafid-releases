@@ -2413,6 +2413,29 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
             && toSqliteDate(currentInv.updated_at) !== prior.updated_at;
           if (isDirtyPending) continue;
 
+          let resolvedCustId = currentInv.customer_id || null;
+          if (!resolvedCustId && (currentInv.customer_phone || currentInv.customer_name)) {
+            const custCleanDigits = (currentInv.customer_phone || '').replace(/\D/g, '');
+            if (custCleanDigits.length >= 7) {
+              const matchedCust = db.prepare(`
+                SELECT customer_id FROM customers 
+                WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+                  AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
+                LIMIT 1
+              `).get(currentInv.tenant_id, currentInv.customer_phone, `%${custCleanDigits.slice(-10)}`) as any;
+              if (matchedCust) resolvedCustId = matchedCust.customer_id;
+            }
+            if (!resolvedCustId && currentInv.customer_name) {
+              const matchedCust = db.prepare(`
+                SELECT customer_id FROM customers 
+                WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+                  AND LOWER(REPLACE(TRIM(name), '  ', ' ')) = LOWER(REPLACE(TRIM(?), '  ', ' '))
+                LIMIT 1
+              `).get(currentInv.tenant_id, currentInv.customer_name) as any;
+              if (matchedCust) resolvedCustId = matchedCust.customer_id;
+            }
+          }
+
           let retryCount = 0;
           let success = false;
           while (retryCount < 2 && !success) {
@@ -2444,7 +2467,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 scrap_invoice_number: currentInv.scrap_invoice_number || null,
                 return_deduction: currentInv.return_deduction ?? 0,
                 return_invoice_number: currentInv.return_invoice_number || null,
-                customer_id: currentInv.customer_id || null,
+                customer_id: resolvedCustId,
                 points_earned: currentInv.points_earned ?? 0,
                 points_redeemed: currentInv.points_redeemed ?? 0,
                 points_redeemed_discount: currentInv.points_redeemed_discount ?? 0,
@@ -4017,37 +4040,19 @@ async function pullCashCategories(token: string, tenantId: string): Promise<bool
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  // Upsert by business key (tenant_id, name, phone) using the partial unique indexes
-  // For customers with phone: unique on (tenant_id, name, phone) where phone IS NOT NULL AND phone != ''
-  // For customers without phone: unique on (tenant_id, name) where phone IS NULL OR phone = ''
-  const upsertWithPhone = db.prepare(`
-    INSERT INTO customers (customer_id, tenant_id, name, phone, address,
+  // Upsert customer by primary key (customer_id)
+  const upsertCustomer = db.prepare(`
+    INSERT INTO customers (
+      customer_id, tenant_id, name, phone, address,
       total_points_earned, total_points_redeemed, current_points_balance,
-      last_purchase_date, is_deleted, sync_status, created_at, updated_at)
-    VALUES (@customer_id, @tenant_id, @name, @phone, @address,
+      last_purchase_date, is_deleted, sync_status, created_at, updated_at
+    ) VALUES (
+      @customer_id, @tenant_id, @name, @phone, @address,
       @total_points_earned, @total_points_redeemed, @current_points_balance,
-      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at)
-    ON CONFLICT(tenant_id, name, phone) DO UPDATE SET
-      customer_id = excluded.customer_id,
-      address = excluded.address,
-      total_points_earned = excluded.total_points_earned,
-      total_points_redeemed = excluded.total_points_redeemed,
-      current_points_balance = excluded.current_points_balance,
-      last_purchase_date = excluded.last_purchase_date,
-      is_deleted = excluded.is_deleted,
-      sync_status = 'SYNCED', updated_at = excluded.updated_at
-    WHERE customers.sync_status != 'PENDING'
-  `);
-
-  const upsertNoPhone = db.prepare(`
-    INSERT INTO customers (customer_id, tenant_id, name, phone, address,
-      total_points_earned, total_points_redeemed, current_points_balance,
-      last_purchase_date, is_deleted, sync_status, created_at, updated_at)
-    VALUES (@customer_id, @tenant_id, @name, @phone, @address,
-      @total_points_earned, @total_points_redeemed, @current_points_balance,
-      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at)
-    ON CONFLICT(tenant_id, name) WHERE phone IS NULL OR phone = '' DO UPDATE SET
-      customer_id = excluded.customer_id,
+      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(customer_id) DO UPDATE SET
+      name = excluded.name,
       phone = excluded.phone,
       address = excluded.address,
       total_points_earned = excluded.total_points_earned,
@@ -4055,8 +4060,34 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
       current_points_balance = excluded.current_points_balance,
       last_purchase_date = excluded.last_purchase_date,
       is_deleted = excluded.is_deleted,
-      sync_status = 'SYNCED', updated_at = excluded.updated_at
-    WHERE customers.sync_status != 'PENDING'
+      sync_status = 'SYNCED',
+      updated_at = excluded.updated_at
+    WHERE customers.sync_status != 'PENDING' OR excluded.updated_at >= customers.updated_at OR customers.updated_at IS NULL
+  `);
+
+  const findCustomerByPhone = db.prepare(`
+    SELECT customer_id FROM customers 
+    WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)
+    LIMIT 1
+  `);
+
+  const findCustomerByNameNoPhone = db.prepare(`
+    SELECT customer_id FROM customers 
+    WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND (phone IS NULL OR phone = '') AND (is_deleted IS NULL OR is_deleted = 0)
+    LIMIT 1
+  `);
+
+  const updateCustomerById = db.prepare(`
+    UPDATE customers 
+    SET name = @name, phone = @phone, address = @address,
+        total_points_earned = @total_points_earned,
+        total_points_redeemed = @total_points_redeemed,
+        current_points_balance = @current_points_balance,
+        last_purchase_date = @last_purchase_date,
+        is_deleted = @is_deleted,
+        sync_status = 'SYNCED',
+        updated_at = @updated_at
+    WHERE customer_id = @target_customer_id AND (sync_status != 'PENDING' OR @updated_at >= updated_at OR updated_at IS NULL)
   `);
 
   const result = await pullPaginated({
@@ -4069,18 +4100,46 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
     processPage: (rows) => {
       const tx = db.transaction((rows: any[]) => {
         for (const r of rows) {
-          const hasPhone = r.phone && r.phone.trim() !== '';
-          const stmt = hasPhone ? upsertWithPhone : upsertNoPhone;
-          stmt.run({
-            customer_id: r.customer_id, tenant_id: r.tenant_id || tenantId,
-            name: r.name, phone: hasPhone ? r.phone.trim() : null, address: r.address || null,
-            total_points_earned: r.total_points_earned ?? 0,
-            total_points_redeemed: r.total_points_redeemed ?? 0,
-            current_points_balance: r.current_points_balance ?? 0,
-            last_purchase_date: toSqliteDate(r.last_purchase_date),
-            is_deleted: r.is_deleted ? 1 : 0,
-            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
-          });
+          try {
+            const hasPhone = r.phone && r.phone.trim() !== '';
+            const phoneVal = hasPhone ? r.phone.trim() : null;
+            const tId = r.tenant_id || tenantId;
+
+            // Check if another local customer already has this phone or name (without phone)
+            let existingLocalCust: any = null;
+            if (phoneVal) {
+              existingLocalCust = findCustomerByPhone.get(tId, phoneVal);
+            } else if (r.name) {
+              existingLocalCust = findCustomerByNameNoPhone.get(tId, r.name);
+            }
+
+            const rowParams = {
+              customer_id: r.customer_id,
+              tenant_id: tId,
+              name: r.name,
+              phone: phoneVal,
+              address: r.address || null,
+              total_points_earned: r.total_points_earned ?? 0,
+              total_points_redeemed: r.total_points_redeemed ?? 0,
+              current_points_balance: r.current_points_balance ?? 0,
+              last_purchase_date: toSqliteDate(r.last_purchase_date),
+              is_deleted: r.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(r.created_at),
+              updated_at: toSqliteDate(r.updated_at),
+            };
+
+            if (existingLocalCust && existingLocalCust.customer_id !== r.customer_id) {
+              // Update the existing local customer to prevent UNIQUE constraint violation
+              updateCustomerById.run({
+                ...rowParams,
+                target_customer_id: existingLocalCust.customer_id,
+              });
+            } else {
+              upsertCustomer.run(rowParams);
+            }
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling customer:', e.message);
+          }
         }
       });
       tx(rows);

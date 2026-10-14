@@ -26,6 +26,8 @@ import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
 import { getAppTimeFormat, parseUTCDate, formatBillDateTime, generateReceiptText } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { WhatsAppIcon } from './ui/WhatsAppIcon';
+import { formatWhatsAppLedgerTxMessage } from '../utils/whatsappBillHelper';
 
 interface Party {
   party_id: string;
@@ -48,6 +50,7 @@ interface Party {
   credit_period_days?: number;
   credit_period_basis?: 'BILL_BASED' | 'OLDEST_UNPAID' | string;
   restrict_on_credit_expiry?: boolean | number;
+  whatsapp_alerts_enabled?: boolean | number;
   has_overdue?: boolean;
   overdue_bills_count?: number;
   overdue_amount?: number;
@@ -125,6 +128,7 @@ const PaymentMethodIcon = ({ method }: { method: string }) => {
     BANK_TRANSFER: <Building2 className="w-3.5 h-3.5" />,
     UPI: <Smartphone className="w-3.5 h-3.5" />,
     CARD: <CreditCard className="w-3.5 h-3.5" />,
+    CHEQUE: <Receipt className="w-3.5 h-3.5" />,
     OTHER: <MoreHorizontal className="w-3.5 h-3.5" />,
   };
   return map[method] ?? <MoreHorizontal className="w-3.5 h-3.5" />;
@@ -187,7 +191,8 @@ export function PartyManager({
     credit_period_enabled: false,
     credit_period_days: '30',
     credit_period_basis: 'BILL_BASED',
-    restrict_on_credit_expiry: true
+    restrict_on_credit_expiry: true,
+    whatsapp_alerts_enabled: true,
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -307,11 +312,13 @@ export function PartyManager({
 
   const [editingTx, setEditingTx] = useState<LedgerEntry | null>(null);
   const [isSavingTx, setIsSavingTx] = useState(false);
+  const [ledgerWhatsappMode, setLedgerWhatsappMode] = useState<string>('ALL_PARTIES_ALL_TX');
   const [txForm, setTxForm] = useState({
     amount: '', transaction_type: 'CREDIT' as 'CREDIT' | 'DEBIT',
     description: '', transaction_date: '', reference_number: '',
     balance_type: 'GST' as 'GST' | 'ESTIMATE',
-    payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER',
+    payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'CHEQUE' | 'OTHER',
+    send_whatsapp: true,
   });
 
   const [deleteTxModalOpen, setDeleteTxModalOpen] = useState(false);
@@ -538,15 +545,19 @@ export function PartyManager({
   const loadPartySettings = useCallback(async () => {
     if (!tenantId || !window.electronAPI) return;
     try {
-      const [gstVal, estVal] = await Promise.all([
+      const [gstVal, estVal, waModeVal] = await Promise.all([
         window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_gst_balance' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_estimate_balance' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'ledger_whatsapp_mode' }),
       ]);
       let g = gstVal !== null && gstVal !== undefined ? Boolean(gstVal) : true;
       let e = estVal !== null && estVal !== undefined ? Boolean(estVal) : true;
       if (!g && !e) g = true;
       setEnablePartyGst(g);
       setEnablePartyEstimate(e);
+      if (waModeVal && typeof waModeVal === 'string') {
+        setLedgerWhatsappMode(waModeVal);
+      }
     } catch (err) {
       console.error('Failed to load party balance settings', err);
     }
@@ -608,6 +619,19 @@ export function PartyManager({
     const defaultBalanceType = enablePartyGst ? 'GST' : 'ESTIMATE';
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    let shouldSendWa = false;
+    const hasPhone = Boolean(selectedParty?.phone && selectedParty.phone.trim());
+    if (ledgerWhatsappMode === 'ALL_PARTIES_ALL_TX') {
+      shouldSendWa = hasPhone;
+    } else if (ledgerWhatsappMode === 'SELECTED_PARTIES_ALL_TX') {
+      const isPartyEnabled = selectedParty?.whatsapp_alerts_enabled !== 0 && selectedParty?.whatsapp_alerts_enabled !== false;
+      shouldSendWa = isPartyEnabled && hasPhone;
+    } else if (ledgerWhatsappMode === 'SELECTED_TRANSACTIONS') {
+      shouldSendWa = hasPhone;
+    } else {
+      shouldSendWa = false;
+    }
+
     setTxForm({
       amount: '',
       transaction_type: transactionType,
@@ -616,6 +640,7 @@ export function PartyManager({
       reference_number: '',
       balance_type: defaultBalanceType,
       payment_method: 'CASH',
+      send_whatsapp: shouldSendWa,
     });
     setView('tx_form');
   };
@@ -709,7 +734,8 @@ export function PartyManager({
     setPartyForm({
       name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE',
       party_type: 'CUSTOMER', custom_category: '', notes: '', pricing_tier_id: '', credit_limit: '', connect_code: '',
-      credit_period_enabled: false, credit_period_days: '30', credit_period_basis: 'BILL_BASED', restrict_on_credit_expiry: true
+      credit_period_enabled: false, credit_period_days: '30', credit_period_basis: 'BILL_BASED', restrict_on_credit_expiry: true,
+      whatsapp_alerts_enabled: true,
     });
     setEditingParty(null);
   };
@@ -781,6 +807,7 @@ export function PartyManager({
           credit_period_days: parsedCreditPeriodDays,
           credit_period_basis: partyForm.credit_period_basis,
           restrict_on_credit_expiry: partyForm.restrict_on_credit_expiry,
+          whatsapp_alerts_enabled: partyForm.whatsapp_alerts_enabled,
         });
         showStatus('Party updated successfully', 'success');
       } else {
@@ -802,6 +829,7 @@ export function PartyManager({
           credit_period_days: parsedCreditPeriodDays,
           credit_period_basis: partyForm.credit_period_basis,
           restrict_on_credit_expiry: partyForm.restrict_on_credit_expiry,
+          whatsapp_alerts_enabled: partyForm.whatsapp_alerts_enabled,
           created_by: userId,
           created_by_name: userName || undefined,
         });
@@ -850,6 +878,47 @@ export function PartyManager({
       showStatus('Delete failed', 'error');
     } finally {
       setDeletePartySaving(false);
+    }
+  };
+
+  const handleSendWhatsAppForEntry = async (entry: LedgerEntry) => {
+    if (!selectedParty) return;
+    const phone = (selectedParty.phone || '').trim();
+    if (!phone) {
+      showStatus('WhatsApp alert not sent: Party phone number is missing', 'error');
+      return;
+    }
+    if (!window.electronAPI?.whatsappSendInvoice) {
+      showStatus('WhatsApp service not available', 'error');
+      return;
+    }
+
+    try {
+      const amt = Number(entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount) || 0;
+      const runningBal = Number(entry.running_balance) || 0;
+      const ob = runningBal - (Number(entry.credit_amount) || 0) + (Number(entry.debit_amount) || 0);
+
+      const waMsg = formatWhatsAppLedgerTxMessage({
+        openingBalance: ob,
+        amount: amt,
+        newBalance: runningBal,
+        paymentMethod: entry.payment_method || 'CASH',
+        transactionType: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
+        partyName: selectedParty.name,
+      });
+
+      const res = await window.electronAPI.whatsappSendInvoice({
+        phone,
+        message: waMsg,
+      });
+
+      if (res?.success) {
+        showStatus(`WhatsApp alert sent to ${selectedParty.name}!`, 'success');
+      } else {
+        showStatus(`WhatsApp Alert Failed: ${res?.error || 'WhatsApp not able to connect'}`, 'error');
+      }
+    } catch (err: any) {
+      showStatus('WhatsApp Alert Failed: ' + (err?.message || 'Connection error'), 'error');
     }
   };
 
@@ -908,7 +977,60 @@ export function PartyManager({
           });
         }
 
-        showStatus('Transaction added', 'success');
+        // WhatsApp notification handling
+        let shouldSendWa = false;
+        if (ledgerWhatsappMode === 'ALL_PARTIES_ALL_TX') {
+          shouldSendWa = txForm.send_whatsapp !== false;
+        } else if (ledgerWhatsappMode === 'SELECTED_PARTIES_ALL_TX') {
+          const isPartyEnabled = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
+          shouldSendWa = isPartyEnabled && txForm.send_whatsapp !== false;
+        } else if (ledgerWhatsappMode === 'SELECTED_TRANSACTIONS') {
+          shouldSendWa = Boolean(txForm.send_whatsapp);
+        } else if (ledgerWhatsappMode === 'DISABLED') {
+          shouldSendWa = false;
+        }
+
+        if (shouldSendWa) {
+          const partyPhone = (selectedParty.phone || '').trim();
+          if (!partyPhone) {
+            showStatus('Transaction added. WhatsApp alert not sent: Party phone number is missing', 'error');
+          } else {
+            try {
+              const ob = getPartyBalance(selectedParty);
+              const creditAmt = txForm.transaction_type === 'CREDIT' ? parsedAmount : 0;
+              const debitAmt = txForm.transaction_type === 'DEBIT' ? parsedAmount : 0;
+              const nb = ob + creditAmt - debitAmt;
+
+              const waMsg = formatWhatsAppLedgerTxMessage({
+                openingBalance: ob,
+                amount: parsedAmount,
+                newBalance: nb,
+                paymentMethod: txForm.payment_method,
+                transactionType: txForm.transaction_type,
+                partyName: selectedParty.name,
+              });
+
+              if (window.electronAPI?.whatsappSendInvoice) {
+                const waRes = await window.electronAPI.whatsappSendInvoice({
+                  phone: partyPhone,
+                  message: waMsg,
+                });
+                if (!waRes?.success) {
+                  showStatus(`Transaction added. WhatsApp Alert Failed: ${waRes?.error || 'WhatsApp not able to connect'}`, 'error');
+                } else {
+                  showStatus(`Transaction added & WhatsApp alert sent to ${selectedParty.name}!`, 'success');
+                }
+              } else {
+                showStatus('Transaction added. WhatsApp service not available', 'error');
+              }
+            } catch (waErr: any) {
+              console.error('[PartyManager] WhatsApp send error:', waErr);
+              showStatus(`Transaction added. WhatsApp Alert Failed: ${waErr?.message || 'Connection error'}`, 'error');
+            }
+          }
+        } else {
+          showStatus('Transaction added', 'success');
+        }
       }
       await loadLedger(selectedParty.party_id);
       const freshParties = await loadParties();
@@ -1532,6 +1654,7 @@ export function PartyManager({
                                       credit_period_days: String(party.credit_period_days || 30),
                                       credit_period_basis: party.credit_period_basis || 'BILL_BASED',
                                       restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
+                                      whatsapp_alerts_enabled: party.whatsapp_alerts_enabled !== 0 && party.whatsapp_alerts_enabled !== false,
                                       connect_code: (party as any).connect_code || '',
                                     });
                                     setView('party_form');
@@ -1718,6 +1841,7 @@ export function PartyManager({
                                 credit_period_days: String(party.credit_period_days || 30),
                                 credit_period_basis: party.credit_period_basis || 'BILL_BASED',
                                 restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
+                                whatsapp_alerts_enabled: party.whatsapp_alerts_enabled !== 0 && party.whatsapp_alerts_enabled !== false,
                                 connect_code: (party as any).connect_code || '',
                               });
                               setView('party_form');
@@ -2262,6 +2386,34 @@ export function PartyManager({
                 className={clsx(fieldCls, 'resize-none')}
               />
             </section>
+
+            {/* Section: WhatsApp Alerts */}
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
+                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+                  <WhatsAppIcon className="w-4 h-4 text-emerald-500 fill-current" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  {editingParty ? '3' : '4'}. WhatsApp Alerts
+                </span>
+              </div>
+              <label className="flex items-start gap-3.5 p-4 rounded-2xl bg-muted/30 border border-border/80 hover:bg-muted/50 transition-colors cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={partyForm.whatsapp_alerts_enabled}
+                  onChange={e => setPartyForm(f => ({ ...f, whatsapp_alerts_enabled: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border"
+                />
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-foreground block">
+                    Enable WhatsApp Transaction Alerts for this Party
+                  </span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5 block leading-relaxed">
+                    When active, ledger transactions recorded for this party will send an automated text message showing Opening Balance, Paid/Received Amount, and Balance.
+                  </span>
+                </div>
+              </label>
+            </section>
           </div>
 
           {/* Footer */}
@@ -2312,6 +2464,17 @@ export function PartyManager({
                     {selectedParty.phone && (
                       <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg">
                         <Phone className="w-3 h-3" /> {selectedParty.phone}
+                      </span>
+                    )}
+                    {selectedParty.phone && (
+                      <span className={clsx(
+                        "flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg border",
+                        selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          : "bg-muted/50 text-muted-foreground border-border"
+                      )}>
+                        <WhatsAppIcon className="w-3 h-3 text-emerald-500 fill-current" />
+                        <span>{selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false ? 'WA Alerts On' : 'WA Alerts Off'}</span>
                       </span>
                     )}
                     {selectedParty.gstin && (
@@ -2542,7 +2705,7 @@ export function PartyManager({
                             {entry.payment_method ? (
                               <span className="inline-flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded text-[11px] border border-border/40">
                                 <PaymentMethodIcon method={entry.payment_method} />
-                                {entry.payment_method === 'CASH' ? 'Cash' : entry.payment_method === 'BANK_TRANSFER' ? 'Bank' : entry.payment_method === 'UPI' ? 'UPI' : entry.payment_method === 'CARD' ? 'Card' : 'Other'}
+                                {entry.payment_method === 'CASH' ? 'Cash' : entry.payment_method === 'BANK_TRANSFER' ? 'Bank' : entry.payment_method === 'UPI' ? 'UPI' : entry.payment_method === 'CARD' ? 'Card' : entry.payment_method === 'CHEQUE' ? 'Cheque' : 'Other'}
                               </span>
                             ) : (
                               <span>—</span>
@@ -2585,6 +2748,14 @@ export function PartyManager({
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendWhatsAppForEntry(entry)}
+                                className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                                title="Send WhatsApp Message"
+                              >
+                                <WhatsAppIcon className="w-3.5 h-3.5 fill-current text-emerald-600" />
+                              </button>
                               {isOwner && (
                                 <button
                                   type="button"
@@ -2599,6 +2770,7 @@ export function PartyManager({
                                       reference_number: entry.reference_number || '',
                                       balance_type: entry.balance_type || 'GST',
                                       payment_method: (entry.payment_method as any) || 'CASH',
+                                      send_whatsapp: false,
                                     });
                                     setView('tx_form');
                                   }}
@@ -2669,9 +2841,21 @@ export function PartyManager({
                           </div>
                         )}
                         <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{entry.description}</p>
-                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground font-medium">
+                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground font-medium flex-wrap">
                           <span>{formatDateTime(entry.transaction_date)}</span>
                           {entry.payment_method && <span>· {entry.payment_method}</span>}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendWhatsAppForEntry(entry);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                            title="Send WhatsApp Alert"
+                          >
+                            <WhatsAppIcon className="w-3 h-3 fill-current text-emerald-600" />
+                            <span>WhatsApp</span>
+                          </button>
                         </div>
                       </div>
 
@@ -2857,8 +3041,8 @@ export function PartyManager({
               {/* Payment method */}
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Payment Method</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'OTHER'] as const).map(m => (
+                <div className="grid grid-cols-6 gap-2">
+                  {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'CHEQUE', 'OTHER'] as const).map(m => (
                     <button
                       key={m}
                       type="button"
@@ -2873,7 +3057,7 @@ export function PartyManager({
                       )}
                     >
                       <PaymentMethodIcon method={m} />
-                      {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : 'Other'}
+                      {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : m === 'CHEQUE' ? 'Cheque' : 'Other'}
                     </button>
                   ))}
                 </div>
@@ -2886,6 +3070,68 @@ export function PartyManager({
                   </p>
                 )}
               </div>
+
+              {/* WhatsApp Notification Card */}
+              {ledgerWhatsappMode !== 'DISABLED' && (
+                <div className="mt-5 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={txForm.send_whatsapp}
+                        onChange={e => setTxForm(f => ({ ...f, send_whatsapp: e.target.checked }))}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border"
+                      />
+                      <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                        <WhatsAppIcon className="w-4 h-4 text-emerald-500 fill-current" />
+                        Send WhatsApp Alert to Party
+                      </span>
+                    </label>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      {ledgerWhatsappMode === 'ALL_PARTIES_ALL_TX' ? 'Case 1: Auto (All Parties)' : ledgerWhatsappMode === 'SELECTED_PARTIES_ALL_TX' ? 'Case 2: Selected Parties' : 'Case 3: Selective Tx'}
+                    </span>
+                  </div>
+
+                  {selectedParty?.phone ? (
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Party Mobile: <strong className="text-foreground font-mono">+{selectedParty.phone}</strong></span>
+                      {selectedParty.whatsapp_alerts_enabled === 0 || selectedParty.whatsapp_alerts_enabled === false ? (
+                        <span className="text-amber-500 font-semibold text-[10px]">⚠️ Party profile has WhatsApp alerts disabled</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                      <span>Party has no phone number. WhatsApp notification will be skipped.</span>
+                    </div>
+                  )}
+
+                  {txForm.send_whatsapp && (
+                    <div className="p-3 rounded-xl bg-card border border-border font-mono text-xs text-foreground leading-relaxed shadow-inner space-y-1">
+                      <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center justify-between">
+                        <span>Message Preview:</span>
+                        <span className="text-[9px] font-mono text-emerald-600">Standard</span>
+                      </div>
+                      <div className="whitespace-pre-line text-emerald-700 dark:text-emerald-400 font-bold bg-muted/40 p-2 rounded-lg">
+                        {(() => {
+                          const ob = getPartyBalance(selectedParty);
+                          const amt = parseFloat(txForm.amount) || 0;
+                          const credit = txForm.transaction_type === 'CREDIT' ? amt : 0;
+                          const debit = txForm.transaction_type === 'DEBIT' ? amt : 0;
+                          const nb = ob + credit - debit;
+                          return formatWhatsAppLedgerTxMessage({
+                            openingBalance: ob,
+                            amount: amt,
+                            newBalance: nb,
+                            paymentMethod: txForm.payment_method,
+                            transactionType: txForm.transaction_type,
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           </div>
 

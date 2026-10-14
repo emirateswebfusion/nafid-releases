@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, PowerOff, ShieldCheck, Loader2, WifiSync } from 'lucide-react';
+import { MessageSquare, QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, PowerOff, ShieldCheck, Loader2, WifiSync, BookOpen, Bell, CheckSquare } from 'lucide-react';
+import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { FloatToast, type ToastMessage } from './ui/FloatToast';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
+
+export type LedgerWhatsAppMode = 'ALL_PARTIES_ALL_TX' | 'SELECTED_PARTIES_ALL_TX' | 'SELECTED_TRANSACTIONS' | 'DISABLED';
 
 type WhatsAppStatus = 'disconnected' | 'connecting' | 'syncing' | 'connected';
 
@@ -14,6 +17,7 @@ interface WhatsAppSettingsProps {
 }
 
 export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
+  tenantId,
   autoSendEnabled,
   onAutoSendChange,
 }) => {
@@ -22,6 +26,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [phone, setPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [ledgerMode, setLedgerMode] = useState<LedgerWhatsAppMode>('ALL_PARTIES_ALL_TX');
 
   useEffect(() => {
     // Initial status check
@@ -54,6 +59,35 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       };
     }
   }, []);
+
+  useEffect(() => {
+    if (window.electronAPI?.settingsGet) {
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'ledger_whatsapp_mode' })
+        .then((val) => {
+          if (val && ['ALL_PARTIES_ALL_TX', 'SELECTED_PARTIES_ALL_TX', 'SELECTED_TRANSACTIONS', 'DISABLED'].includes(val)) {
+            setLedgerMode(val as LedgerWhatsAppMode);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [tenantId]);
+
+  const handleLedgerModeChange = async (mode: LedgerWhatsAppMode) => {
+    setLedgerMode(mode);
+    try {
+      if (window.electronAPI?.settingsSet) {
+        await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'ledger_whatsapp_mode',
+          value: mode,
+        });
+        window.dispatchEvent(new CustomEvent('settings:updated'));
+        setMsg({ text: 'Ledger WhatsApp notification rule updated!', type: 'success' });
+      }
+    } catch (err: any) {
+      setMsg({ text: 'Failed to update ledger notification rule', type: 'error' });
+    }
+  };
 
   const handleConnect = async () => {
     setLoading(true);
@@ -248,6 +282,104 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 <li>Credit period & Due date reminders (for credit bills)</li>
                 <li>Ledger balance details</li>
               </ul>
+            </div>
+          </div>
+
+          {/* Ledger WhatsApp Notifications Card */}
+          <div className="p-5 rounded-2xl bg-card border border-border/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-primary" />
+                Ledger Transaction Alerts
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                4 Scenarios
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Configure how WhatsApp text messages are sent to parties when new transactions are added to their ledger.
+            </p>
+
+            <div className="space-y-2.5">
+              {[
+                {
+                  id: 'ALL_PARTIES_ALL_TX' as const,
+                  label: 'Case 1: All Parties — All Transactions',
+                  desc: 'Automatically send WhatsApp alert for every transaction added to any party.',
+                  badge: 'Auto All',
+                },
+                {
+                  id: 'SELECTED_PARTIES_ALL_TX' as const,
+                  label: 'Case 2: Selected Parties Only — All Transactions',
+                  desc: 'Only send alerts to parties that have "WhatsApp Alerts" turned ON in their party profile.',
+                  badge: 'Party Filtered',
+                },
+                {
+                  id: 'SELECTED_TRANSACTIONS' as const,
+                  label: 'Case 3: Selective Transactions (Manual Toggle)',
+                  desc: 'Provide a toggle in the Add Transaction form so the cashier chooses per transaction.',
+                  badge: 'Manual / Select',
+                },
+                {
+                  id: 'DISABLED' as const,
+                  label: 'Case 4: Disabled (None)',
+                  desc: 'Do not send WhatsApp alerts to any party for any ledger transactions.',
+                  badge: 'Off',
+                },
+              ].map((item) => {
+                const isSelected = ledgerMode === item.id;
+                return (
+                  <label
+                    key={item.id}
+                    onClick={() => handleLedgerModeChange(item.id)}
+                    className={clsx(
+                      'flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none',
+                      isSelected
+                        ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm'
+                        : 'border-border/60 bg-muted/20 hover:bg-muted/40 text-muted-foreground'
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="ledger_whatsapp_mode"
+                      value={item.id}
+                      checked={isSelected}
+                      onChange={() => handleLedgerModeChange(item.id)}
+                      className="mt-0.5 w-4 h-4 text-primary focus:ring-primary border-border"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={clsx('text-xs font-bold', isSelected ? 'text-foreground' : 'text-foreground/80')}>
+                          {item.label}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                          {item.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        {item.desc}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Live Message Preview */}
+            <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-foreground">Message Format Preview:</span>
+                <span className="text-[10px] font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md font-semibold">Standard Format</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-card border border-border font-mono text-[11px] text-foreground leading-relaxed whitespace-pre-line shadow-inner">
+{`OB -Rs = -1500/-
+UPI =Rs = 500/-
+Bal = -1000/-`}
+              </div>
+              <div className="text-[10px] text-muted-foreground space-y-1">
+                <p>• <strong>Payment Method:</strong> UPI, Cash, Card, Bank, or Cheque dynamically appears.</p>
+                <p>• <strong>Error Handling:</strong> If the party phone is missing or WhatsApp is disconnected, an immediate floating toast alert is displayed on screen.</p>
+              </div>
             </div>
           </div>
         </div>

@@ -42,6 +42,7 @@ export interface Tab {
   id: string;
   title: string;
   snapshot: TabSnapshot;
+  customerId?: string;
   customerName: string;
   customerPhone: string;
   customerGstin: string;

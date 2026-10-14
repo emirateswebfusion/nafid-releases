@@ -109,3 +109,37 @@ export function formatWhatsAppStaffSalaryMessage(data: WhatsAppStaffSalaryDetail
 
   return `👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ₹${sal}\n` : ''}💰 *Pending Balance:* ₹${bal}\n\n🙏 *Thank you!*`;
 }
+
+export interface WhatsAppLedgerTxDetails {
+  openingBalance: number;
+  amount: number;
+  newBalance: number;
+  paymentMethod: string;
+  transactionType?: 'CREDIT' | 'DEBIT';
+  partyName?: string;
+  shopName?: string;
+}
+
+export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): string {
+  const methodMap: Record<string, string> = {
+    UPI: 'UPI',
+    CASH: 'Cash',
+    CARD: 'Card',
+    BANK_TRANSFER: 'Bank',
+    BANK: 'Bank',
+    CHEQUE: 'Cheque',
+    OTHER: 'Other',
+  };
+  const methodName = methodMap[data.paymentMethod?.toUpperCase()] || data.paymentMethod || 'Payment';
+
+  const formatAmt = (val: number) => {
+    const num = Number(val) || 0;
+    return Number.isInteger(num) ? num.toString() : num.toFixed(2);
+  };
+
+  const ob = formatAmt(data.openingBalance);
+  const amt = formatAmt(data.amount);
+  const bal = formatAmt(data.newBalance);
+
+  return `OB -Rs = ${ob}/-\n${methodName} =Rs = ${amt}/-\nBal = ${bal}/-`;
+}

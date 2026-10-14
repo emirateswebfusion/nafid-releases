@@ -274,6 +274,7 @@ export function initDb() {
         credit_period_days INTEGER DEFAULT 30,
         credit_period_basis TEXT DEFAULT 'BILL_BASED',
         restrict_on_credit_expiry INTEGER DEFAULT 1,
+        whatsapp_alerts_enabled INTEGER DEFAULT 1,
         party_type TEXT DEFAULT 'CUSTOMER',
         custom_category TEXT,
         notes TEXT,
@@ -1082,6 +1083,16 @@ export function initDb() {
     console.warn('[DB Migration] Could not create unique index for invoice number. Duplicate data might exist.', e.message);
   }
 
+  try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_parties_tenant_name_phone_customer 
+      ON parties(tenant_id, name, phone) 
+      WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0);
+    `);
+  } catch (e: any) {
+    console.warn('[DB Migration] Could not create unique index for parties:', e.message);
+  }
+
   // Fix inline constraint for products table by recreating it if needed
   try {
     const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as any;
@@ -1585,6 +1596,10 @@ export function initDb() {
       console.log('[DB Migration] Adding restrict_on_credit_expiry to parties...');
       db.exec("ALTER TABLE parties ADD COLUMN restrict_on_credit_expiry INTEGER DEFAULT 1");
     }
+    if (!partyCols.includes('whatsapp_alerts_enabled')) {
+      console.log('[DB Migration] Adding whatsapp_alerts_enabled to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN whatsapp_alerts_enabled INTEGER DEFAULT 1");
+    }
 
     // Customers table credit columns migration
     const custCols = db.prepare(`PRAGMA table_info(customers)`).all().map((c: any) => c.name);
@@ -1773,29 +1788,21 @@ export function initDb() {
       console.log('[DB Migration] Removing products FK from invoice_items (temp billing items support)...');
       db.exec('PRAGMA foreign_keys=off;');
       const migrateInvoiceItems = db.transaction(() => {
+        const tableCols = db.prepare("PRAGMA table_info(invoice_items)").all() as any[];
+        const colDefs = tableCols.map((c: any) => {
+          let def = `"${c.name}" ${c.type}`;
+          if (c.pk) def += ' PRIMARY KEY';
+          if (c.notnull && !c.pk) def += ' NOT NULL';
+          if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
+          return def;
+        }).join(',\n              ');
         db.exec(`
           CREATE TABLE invoice_items_new (
-              item_id TEXT PRIMARY KEY,
-              invoice_id TEXT NOT NULL,
-              tenant_id TEXT,
-              product_id TEXT NOT NULL,
-              name TEXT,
-              quantity REAL NOT NULL,
-              unit_price REAL NOT NULL,
-              tax_amount REAL DEFAULT 0,
-              total REAL NOT NULL,
-              is_service_item INTEGER DEFAULT 0,
-              source_item_id TEXT,
-              bos_unit_price REAL DEFAULT 0,
-              bos_tax_amount REAL DEFAULT 0,
-              bos_total REAL DEFAULT 0,
-              qty_from_paper_stock REAL DEFAULT 0,
-              sync_status TEXT DEFAULT 'PENDING',
-              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              ${colDefs},
               FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
           );
         `);
-        const cols = db.prepare("PRAGMA table_info(invoice_items)").all().map((c: any) => c.name).join(', ');
+        const cols = tableCols.map((c: any) => `"${c.name}"`).join(', ');
         db.exec(`INSERT INTO invoice_items_new (${cols}) SELECT ${cols} FROM invoice_items;`);
         db.exec('DROP TABLE invoice_items;');
         db.exec('ALTER TABLE invoice_items_new RENAME TO invoice_items;');
@@ -1814,24 +1821,21 @@ export function initDb() {
       console.log('[DB Migration] Removing products FK from return_items (temp billing items support)...');
       db.exec('PRAGMA foreign_keys=off;');
       const migrateReturnItems = db.transaction(() => {
+        const tableCols = db.prepare("PRAGMA table_info(return_items)").all() as any[];
+        const colDefs = tableCols.map((c: any) => {
+          let def = `"${c.name}" ${c.type}`;
+          if (c.pk) def += ' PRIMARY KEY';
+          if (c.notnull && !c.pk) def += ' NOT NULL';
+          if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
+          return def;
+        }).join(',\n              ');
         db.exec(`
           CREATE TABLE return_items_new (
-              return_item_id TEXT PRIMARY KEY,
-              return_id TEXT NOT NULL,
-              tenant_id TEXT NOT NULL,
-              invoice_item_id TEXT,
-              product_id TEXT NOT NULL,
-              name TEXT,
-              quantity REAL NOT NULL,
-              unit_price REAL NOT NULL,
-              tax_amount REAL NOT NULL DEFAULT 0,
-              total REAL NOT NULL,
-              sync_status TEXT DEFAULT 'PENDING',
-              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              ${colDefs},
               FOREIGN KEY (return_id) REFERENCES returns(return_id)
           );
         `);
-        const cols = db.prepare("PRAGMA table_info(return_items)").all().map((c: any) => c.name).join(', ');
+        const cols = tableCols.map((c: any) => `"${c.name}"`).join(', ');
         db.exec(`INSERT INTO return_items_new (${cols}) SELECT ${cols} FROM return_items;`);
         db.exec('DROP TABLE return_items;');
         db.exec('ALTER TABLE return_items_new RENAME TO return_items;');
@@ -2059,70 +2063,76 @@ export class CustomerIdentityService {
     if (!name && !phone) return null;
 
     const phoneClean = (phone || '').replace(/\D/g, '');
+    const displayName = name || phone!;
+    const now = new Date().toISOString();
 
     try {
-      // ========== LOOKUP PHASE: Single authoritative matching ==========
-      // Priority: 1) Phone match (cleaned, last 10 digits)  2) Exact name + phone  3) Exact name
+      // ========== LOOKUP PHASE ==========
+      // Look up existingCustomer and existingParty INDEPENDENTLY
+      // Priority: 1) Exact name + phone  2) Phone match (last 10 digits)  3) Exact name
       
       let existingCustomer: any = null;
       let existingParty: any = null;
 
-      // 1. Try to find by phone (cleaned)
-      if (phoneClean.length >= 7) {
-        const last10 = phoneClean.slice(-10);
-        existingCustomer = db.prepare(`
-          SELECT * FROM customers 
-          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-            AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
-          LIMIT 1
-        `).get(tenantId, `%${last10}`);
-        
-        if (existingCustomer) {
-          existingParty = db.prepare(`
-            SELECT * FROM parties 
-            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
-            LIMIT 1
-          `).get(tenantId, `%${last10}`);
-        }
-      }
-
-      // 2. Try exact name + phone combo
-      if (!existingCustomer && name && phone) {
+      // 1. Try exact name + phone match first
+      if (name && phone) {
         existingCustomer = db.prepare(`
           SELECT * FROM customers 
           WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
             AND name = ? AND phone = ?
           LIMIT 1
         `).get(tenantId, name, phone);
-        
-        if (existingCustomer) {
+
+        existingParty = db.prepare(`
+          SELECT * FROM parties 
+          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+            AND name = ? AND phone = ?
+          LIMIT 1
+        `).get(tenantId, name, phone);
+      }
+
+      // 2. Try phone match (cleaned, last 10 digits)
+      if (phoneClean.length >= 7) {
+        const last10 = phoneClean.slice(-10);
+        if (!existingCustomer) {
+          existingCustomer = db.prepare(`
+            SELECT * FROM customers 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+            LIMIT 1
+          `).get(tenantId, `%${last10}`);
+        }
+        if (!existingParty) {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND name = ? AND phone = ? AND party_type = 'CUSTOMER'
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+              AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
             LIMIT 1
-          `).get(tenantId, name, phone);
+          `).get(tenantId, `%${last10}`);
         }
       }
 
-      // 3. Try exact name match (for customers without phone)
-      if (!existingCustomer && name) {
-        existingCustomer = db.prepare(`
-          SELECT * FROM customers 
-          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-            AND LOWER(TRIM(name)) = LOWER(?)
-          ORDER BY 
-            CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
-            created_at ASC
-          LIMIT 1
-        `).get(tenantId, name);
-        
-        if (existingCustomer) {
+      // 3. Try exact name match
+      if (name) {
+        if (!existingCustomer) {
+          existingCustomer = db.prepare(`
+            SELECT * FROM customers 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND LOWER(TRIM(name)) = LOWER(?)
+            ORDER BY 
+              CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
+              created_at ASC
+            LIMIT 1
+          `).get(tenantId, name);
+        }
+        if (!existingParty) {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND LOWER(TRIM(name)) = LOWER(?) AND party_type = 'CUSTOMER'
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+              AND LOWER(TRIM(name)) = LOWER(?)
             ORDER BY 
               CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
               created_at ASC
@@ -2131,35 +2141,107 @@ export class CustomerIdentityService {
         }
       }
 
-      const displayName = name || phone!;
-      const now = new Date().toISOString();
+      // 4. Fallback check for parties matching idx_parties_tenant_name_phone_customer
+      if (!existingParty) {
+        existingParty = db.prepare(`
+          SELECT * FROM parties 
+          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+            AND name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL))
+          LIMIT 1
+        `).get(tenantId, displayName, phone, phone);
+      }
 
-      // ========== UPDATE EXISTING ==========
+      const isNew = !existingCustomer && !existingParty;
+      let finalCustomerId = existingCustomer?.customer_id;
+      let finalPartyId = existingParty?.party_id;
+
+      // ========== PROCESS CUSTOMER ==========
       if (existingCustomer) {
-        // Update customer
-        db.prepare(`
-          UPDATE customers
-          SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
-              gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
-              pricing_tier_id = COALESCE(?, pricing_tier_id),
-              credit_limit = COALESCE(?, credit_limit),
-              credit_period_enabled = COALESCE(?, credit_period_enabled),
-              credit_period_days = COALESCE(?, credit_period_days),
-              credit_period_basis = COALESCE(?, credit_period_basis),
-              restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
-              is_deleted = 0,
-              last_purchase_date = ?,
-              sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE customer_id = ?
-        `).run(
-          displayName, phone, address, gstin, notes, pricingTierId,
-          creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
-          now, existingCustomer.customer_id
-        );
+        try {
+          db.prepare(`
+            UPDATE customers
+            SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
+                gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
+                pricing_tier_id = COALESCE(?, pricing_tier_id),
+                credit_limit = COALESCE(?, credit_limit),
+                credit_period_enabled = COALESCE(?, credit_period_enabled),
+                credit_period_days = COALESCE(?, credit_period_days),
+                credit_period_basis = COALESCE(?, credit_period_basis),
+                restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+                is_deleted = 0,
+                last_purchase_date = ?,
+                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE customer_id = ?
+          `).run(
+            displayName, phone, address, gstin, notes, pricingTierId,
+            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            now, existingCustomer.customer_id
+          );
+        } catch (_) {
+          db.prepare(`
+            UPDATE customers
+            SET name = ?, address = COALESCE(?, address),
+                gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
+                pricing_tier_id = COALESCE(?, pricing_tier_id),
+                credit_limit = COALESCE(?, credit_limit),
+                credit_period_enabled = COALESCE(?, credit_period_enabled),
+                credit_period_days = COALESCE(?, credit_period_days),
+                credit_period_basis = COALESCE(?, credit_period_basis),
+                restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+                is_deleted = 0,
+                last_purchase_date = ?,
+                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE customer_id = ?
+          `).run(
+            displayName, address, gstin, notes, pricingTierId,
+            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            now, existingCustomer.customer_id
+          );
+        }
+      } else {
+        const customerSeedKey = phoneClean.length >= 7
+          ? `cust:${tenantId}:${phoneClean.slice(-10)}`
+          : `cust:${tenantId}:${name.toLowerCase()}:${Date.now()}`;
+        finalCustomerId = deterministicUUID(customerSeedKey);
 
-        // Update or create party
-        if (existingParty) {
+        try {
+          db.prepare(`
+            INSERT INTO customers (
+              customer_id, tenant_id, name, phone, address, gstin, notes, pricing_tier_id,
+              credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
+              total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date,
+              is_deleted, sync_status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, 0, 'PENDING', ?, ?)
+          `).run(
+            finalCustomerId, tenantId, displayName, phone, address, gstin, notes, pricingTierId,
+            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            now, now, now
+          );
+        } catch (insertCustErr: any) {
+          const fallbackCust: any = db.prepare(`
+            SELECT customer_id FROM customers 
+            WHERE tenant_id = ? AND (
+              customer_id = ? 
+              OR (phone IS NOT NULL AND phone = ?)
+              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
+              OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(?))
+            ) LIMIT 1
+          `).get(tenantId, finalCustomerId, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name);
+          if (fallbackCust) {
+            finalCustomerId = fallbackCust.customer_id;
+            try {
+              db.prepare('UPDATE customers SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?').run(finalCustomerId);
+            } catch {}
+          }
+        }
+      }
+
+      // ========== PROCESS PARTY ==========
+      if (existingParty) {
+        try {
           db.prepare(`
             UPDATE parties
             SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
@@ -2179,11 +2261,30 @@ export class CustomerIdentityService {
             creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
             existingParty.party_id
           );
-        } else {
-          // Create missing party for existing customer
-          const partyId = phoneClean.length >= 7
-            ? deterministicUUID(`party:${tenantId}:${phoneClean.slice(-10)}`)
-            : deterministicUUID(`party:${tenantId}:${name.toLowerCase()}`);
+        } catch (_) {
+          db.prepare(`
+            UPDATE parties
+            SET address = COALESCE(?, address), gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
+                pricing_tier_id = COALESCE(?, pricing_tier_id), credit_limit = COALESCE(?, credit_limit),
+                credit_period_enabled = COALESCE(?, credit_period_enabled), credit_period_days = COALESCE(?, credit_period_days),
+                credit_period_basis = COALESCE(?, credit_period_basis), restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+                is_deleted = 0,
+                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE party_id = ?
+          `).run(
+            address, gstin, notes, pricingTierId,
+            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            existingParty.party_id
+          );
+        }
+      } else {
+        const partySeedKey = phoneClean.length >= 7
+          ? `party:${tenantId}:${phoneClean.slice(-10)}`
+          : `party:${tenantId}:${name.toLowerCase()}:${Date.now()}`;
+        finalPartyId = deterministicUUID(partySeedKey);
+
+        try {
           db.prepare(`
             INSERT INTO parties (
               party_id, tenant_id, name, phone, address, gstin, notes,
@@ -2193,66 +2294,38 @@ export class CustomerIdentityService {
               is_deleted, sync_status, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
           `).run(
-            partyId, tenantId, displayName, phone, address, gstin, notes,
+            finalPartyId, tenantId, displayName, phone, address, gstin, notes,
             pricingTierId, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
             now, now
           );
-          existingParty = { party_id: partyId };
-        }
+        } catch (insertPartyErr: any) {
+          const fallbackParty: any = db.prepare(`
+            SELECT party_id FROM parties 
+            WHERE tenant_id = ? AND (
+              party_id = ? 
+              OR (name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL)))
+              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
+              OR (LOWER(TRIM(name)) = LOWER(?))
+            )
+            LIMIT 1
+          `).get(tenantId, finalPartyId, displayName, phone, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name);
 
-        return { 
-          customer_id: existingCustomer.customer_id, 
-          party_id: existingParty.party_id, 
-          isNew: false 
-        };
+          if (fallbackParty) {
+            finalPartyId = fallbackParty.party_id;
+            try {
+              db.prepare('UPDATE parties SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE party_id = ?').run(finalPartyId);
+            } catch {}
+          } else {
+            console.warn('[CustomerIdentityService] Could not insert party but customer exists:', insertPartyErr.message);
+          }
+        }
       }
 
-      // ========== CREATE NEW ==========
-      // Generate deterministic ID based on STABLE business key
-      const customerSeedKey = phoneClean.length >= 7
-        ? `cust:${tenantId}:${phoneClean.slice(-10)}`
-        : `cust:${tenantId}:${name.toLowerCase()}:${Date.now()}`; // Add timestamp to prevent name-only collision
-      const customer_id = deterministicUUID(customerSeedKey);
-
-      const partySeedKey = phoneClean.length >= 7
-        ? `party:${tenantId}:${phoneClean.slice(-10)}`
-        : `party:${tenantId}:${name.toLowerCase()}:${Date.now()}`;
-      const party_id = deterministicUUID(partySeedKey);
-
-      const transaction = db.transaction(() => {
-        // Insert customer
-        db.prepare(`
-          INSERT INTO customers (
-            customer_id, tenant_id, name, phone, address, gstin, notes, pricing_tier_id,
-            credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
-            total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date,
-            is_deleted, sync_status, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, 0, 'PENDING', ?, ?)
-        `).run(
-          customer_id, tenantId, displayName, phone, address, gstin, notes, pricingTierId,
-          creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
-          now, now, now
-        );
-
-        // Insert party
-        db.prepare(`
-          INSERT INTO parties (
-            party_id, tenant_id, name, phone, address, gstin, notes,
-            balance, gst_balance, estimate_balance, balance_type, party_type,
-            pricing_tier_id, credit_limit,
-            credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
-            is_deleted, sync_status, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
-        `).run(
-          party_id, tenantId, displayName, phone, address, gstin, notes,
-          pricingTierId, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
-          now, now
-        );
-      });
-
-      transaction();
-
-      return { customer_id, party_id, isNew: true };
+      return {
+        customer_id: finalCustomerId!,
+        party_id: finalPartyId!,
+        isNew
+      };
     } catch (err: any) {
       console.error('[CustomerIdentityService] Error:', err.message);
       return null;
@@ -2642,10 +2715,11 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
 
     // Create partial unique indexes after deduplication to prevent future duplicates
     try {
+      d.exec(`DROP INDEX IF EXISTS idx_customers_tenant_name_no_phone;`);
       d.exec(`
         CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_name_no_phone 
         ON customers(tenant_id, name) 
-        WHERE phone IS NULL OR phone = '';
+        WHERE (phone IS NULL OR phone = '') AND (is_deleted IS NULL OR is_deleted = 0);
       `);
       d.exec(`
         CREATE UNIQUE INDEX IF NOT EXISTS idx_parties_tenant_name_phone_customer 
@@ -2689,9 +2763,11 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
       SET customer_id = (
         SELECT customer_id FROM customers c
         WHERE c.tenant_id = invoices.tenant_id
+          AND (c.is_deleted IS NULL OR c.is_deleted = 0)
           AND (
-            (invoices.customer_phone IS NOT NULL AND TRIM(invoices.customer_phone) != '' AND c.phone = TRIM(invoices.customer_phone))
-            OR (c.name = TRIM(invoices.customer_name) COLLATE NOCASE)
+            (invoices.customer_phone IS NOT NULL AND TRIM(invoices.customer_phone) != '' AND c.phone IS NOT NULL AND c.phone != '' AND
+             REPLACE(REPLACE(REPLACE(c.phone, ' ', ''), '-', ''), '+', '') LIKE '%' || SUBSTR(REPLACE(REPLACE(REPLACE(invoices.customer_phone, ' ', ''), '-', ''), '+', ''), -10))
+            OR (LOWER(REPLACE(TRIM(c.name), '  ', ' ')) = LOWER(REPLACE(TRIM(invoices.customer_name), '  ', ' ')))
           )
         LIMIT 1
       )

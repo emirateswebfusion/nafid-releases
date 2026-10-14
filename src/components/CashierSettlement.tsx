@@ -2788,23 +2788,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         {selectedInvoice && (
           <div className="space-y-4 text-foreground">
 
-            {/* Action Buttons & Time */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border rounded-2xl">
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {formatDate(selectedInvoice.created_at).date}
-                  <span className="opacity-60">at</span>
-                  {formatDate(selectedInvoice.created_at).time}
-                </span>
-                {selectedInvoice.biller_name && (
-                  <span className="flex items-center gap-1">
-                    <User className="w-3.5 h-3.5" />
-                    {selectedInvoice.biller_name}
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end p-2.5 sm:p-3 bg-muted/30 border border-border rounded-2xl">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {hasPermission(useAuthStore.getState(), 'sales.edit') && (
                   <button
                     onClick={async () => {
@@ -2949,6 +2935,24 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 {selectedInvoice.customer_gstin && (
                   <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
                 )}
+                <div className="pt-1 border-t border-border/50 text-[10px] text-muted-foreground space-y-0.5">
+                  {(selectedInvoice.biller_staff_name || selectedInvoice.biller_name) && (
+                    <div>Biller: <span className="font-bold text-foreground">{selectedInvoice.biller_staff_name || selectedInvoice.biller_name}</span></div>
+                  )}
+                  {selectedInvoice.created_at && (
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span>
+                        <span className="font-bold text-foreground">{formatDate(selectedInvoice.created_at).date}</span>
+                        <span className="opacity-60 mx-1">at</span>
+                        <span className="font-bold text-foreground">{formatDate(selectedInvoice.created_at).time}</span>
+                      </span>
+                    </div>
+                  )}
+                  {selectedInvoice.sales_staff_name && (
+                    <div>Sales Handler: <span className="font-bold text-foreground">{selectedInvoice.sales_staff_name}</span></div>
+                  )}
+                </div>
               </div>
               <div className="p-3.5 rounded-xl border border-border bg-card space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
