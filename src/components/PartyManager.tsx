@@ -167,6 +167,8 @@ export function PartyManager({
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(50);
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
 
   const [view, setView] = useState<View>('list');
@@ -571,6 +573,23 @@ export function PartyManager({
     return () => window.removeEventListener('settings:updated', handleSettingsUpdate);
   }, [loadPartySettings]);
 
+  // Debounce search query to keep typing at 60fps with zero input lag
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setDebouncedSearchQuery('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset pagination when search query or filters change
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [debouncedSearchQuery, activeTab, customCategoryFilter]);
+
   // Restore scroll position and highlight party row when returning to list
   useEffect(() => {
     if (view === 'list' && (lastInteractedPartyId.current || savedScrollTop.current > 0)) {
@@ -578,6 +597,10 @@ export function PartyManager({
       if (targetId) {
         setHighlightedPartyId(targetId);
         const timer = setTimeout(() => setHighlightedPartyId(null), 3000);
+        const targetIdx = parties.findIndex(p => p.party_id === targetId);
+        if (targetIdx >= 0 && targetIdx >= visibleCount) {
+          setVisibleCount(Math.ceil((targetIdx + 1) / 50) * 50);
+        }
       }
 
       const restore = () => {
@@ -716,17 +739,26 @@ export function PartyManager({
 
     processedInitialTarget.current = initialPartyIdOrQuery;
     const q = initialPartyIdOrQuery.trim().toLowerCase();
-    const found = parties.find(p =>
-      p.party_id === initialPartyIdOrQuery ||
-      (p.phone && String(p.phone).trim() === initialPartyIdOrQuery.trim()) ||
-      (p.name && p.name.trim().toLowerCase() === q)
-    );
+    const queryDigits = initialPartyIdOrQuery.replace(/\D/g, '');
+
+    const found = parties.find(p => {
+      if (!p) return false;
+      if (p.party_id === initialPartyIdOrQuery) return true;
+      const pDigits = (p.phone || '').replace(/\D/g, '');
+      if (queryDigits && pDigits) {
+        if (queryDigits === pDigits) return true;
+        if (queryDigits.length >= 7 && pDigits.length >= 7 && queryDigits.slice(-10) === pDigits.slice(-10)) return true;
+      }
+      if (p.name && p.name.trim().toLowerCase() === q) return true;
+      return false;
+    });
     if (found) {
       setSelectedParty(found);
       setView('ledger');
       loadLedger(found.party_id);
     } else {
       setSearchQuery(initialPartyIdOrQuery);
+      setDebouncedSearchQuery(initialPartyIdOrQuery);
     }
   }, [initialPartyIdOrQuery, parties]);
 
@@ -1101,32 +1133,76 @@ export function PartyManager({
     return Array.from(list);
   }, [savedCustomCategories, parties]);
 
-  const filteredParties = parties.filter(p => {
-    const matchesSearch = !searchQuery.trim() ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.phone || '').includes(searchQuery) ||
-      (p.gstin || '').toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (!matchesSearch) return false;
+  // Single-pass calculation of tab counts to avoid multi-pass filtering per render
+  const tabCounts = useMemo(() => {
+    let customer = 0;
+    let supplier = 0;
+    let staff = 0;
+    let custom = 0;
+    for (let i = 0; i < parties.length; i++) {
+      const t = (parties[i].party_type || 'CUSTOMER').toUpperCase();
+      if (t === 'CUSTOMER') customer++;
+      else if (t === 'SUPPLIER') supplier++;
+      else if (t === 'STAFF') staff++;
+      else if (t === 'CUSTOM') custom++;
+    }
+    return { customer, supplier, staff, custom };
+  }, [parties]);
 
-    const pType = (p.party_type || 'CUSTOMER').toUpperCase();
-    if (activeTab === 'CUSTOMER') return pType === 'CUSTOMER';
-    if (activeTab === 'SUPPLIER') return pType === 'SUPPLIER';
-    if (activeTab === 'STAFF') return pType === 'STAFF';
-    if (activeTab === 'CUSTOM') {
-      if (pType !== 'CUSTOM') return false;
-      if (customCategoryFilter !== 'ALL') {
-        return (p.custom_category || '').toLowerCase() === customCategoryFilter.toLowerCase();
+  const filteredParties = useMemo(() => {
+    const rawQ = debouncedSearchQuery.trim();
+    const q = rawQ.toLowerCase();
+    const phoneQ = rawQ.replace(/\s+/g, '');
+    const hasSearch = Boolean(q);
+
+    return parties.filter(p => {
+      if (hasSearch) {
+        const nameMatch = p.name ? p.name.toLowerCase().includes(q) : false;
+        const phoneMatch = p.phone ? p.phone.includes(phoneQ) : false;
+        const gstinMatch = p.gstin ? p.gstin.toLowerCase().includes(q) : false;
+        if (!nameMatch && !phoneMatch && !gstinMatch) return false;
+      }
+
+      const pType = (p.party_type || 'CUSTOMER').toUpperCase();
+      if (activeTab === 'CUSTOMER') return pType === 'CUSTOMER';
+      if (activeTab === 'SUPPLIER') return pType === 'SUPPLIER';
+      if (activeTab === 'STAFF') return pType === 'STAFF';
+      if (activeTab === 'CUSTOM') {
+        if (pType !== 'CUSTOM') return false;
+        if (customCategoryFilter !== 'ALL') {
+          return (p.custom_category || '').toLowerCase() === customCategoryFilter.toLowerCase();
+        }
+        return true;
       }
       return true;
-    }
-    return true;
-  });
+    });
+  }, [parties, debouncedSearchQuery, activeTab, customCategoryFilter]);
+
+  const displayedParties = useMemo(() => {
+    return filteredParties.slice(0, visibleCount);
+  }, [filteredParties, visibleCount]);
 
   const customCategoriesList = allCustomCategories;
 
-  const totalReceivable = filteredParties.reduce((s, p) => { const b = getPartyBalance(p); return s + (b > 0 ? b : 0); }, 0);
-  const totalPayable = filteredParties.reduce((s, p) => { const b = getPartyBalance(p); return s + (b < 0 ? Math.abs(b) : 0); }, 0);
+  const { totalReceivable, totalPayable } = useMemo(() => {
+    let rec = 0;
+    let pay = 0;
+    for (let i = 0; i < filteredParties.length; i++) {
+      const b = getPartyBalance(filteredParties[i]);
+      if (b > 0) rec += b;
+      else if (b < 0) pay += Math.abs(b);
+    }
+    return { totalReceivable: rec, totalPayable: pay };
+  }, [filteredParties, getPartyBalance]);
+
+  const isSearchPending = searchQuery.trim() !== debouncedSearchQuery.trim();
+
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 350) {
+      setVisibleCount(prev => (prev < filteredParties.length ? Math.min(prev + 50, filteredParties.length) : prev));
+    }
+  }, [filteredParties.length]);
 
   // ── Shared field style ──
   const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
@@ -1304,18 +1380,24 @@ export function PartyManager({
           {/* Search & Layout toggle */}
           <div className="shrink-0 px-5 py-3 border-b border-border bg-background flex items-center justify-between gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              {isSearchPending ? (
+                <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary animate-spin pointer-events-none" />
+              ) : (
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              )}
               <input
                 type="text"
-                placeholder="Search by name or phone..."
+                placeholder="Search by name, phone or GSTIN..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className={clsx(fieldCls, 'pl-10')}
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  type="button"
+                  onClick={() => { setSearchQuery(''); setDebouncedSearchQuery(''); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-destructive hover:bg-destructive/10 border border-destructive/30 transition-colors cursor-pointer"
+                  title="Clear search"
                 >
                   <X className="w-3.5 h-3.5 text-destructive" />
                 </button>
@@ -1382,7 +1464,7 @@ export function PartyManager({
               >
                 🛒 Customers
                 <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
-                  {parties.filter(p => (p.party_type || 'CUSTOMER').toUpperCase() === 'CUSTOMER').length}
+                  {tabCounts.customer}
                 </span>
               </button>
 
@@ -1397,7 +1479,7 @@ export function PartyManager({
               >
                 📦 Suppliers
                 <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
-                  {parties.filter(p => (p.party_type || '').toUpperCase() === 'SUPPLIER').length}
+                  {tabCounts.supplier}
                 </span>
               </button>
 
@@ -1412,7 +1494,7 @@ export function PartyManager({
               >
                 👥 Staff
                 <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
-                  {parties.filter(p => (p.party_type || '').toUpperCase() === 'STAFF').length}
+                  {tabCounts.staff}
                 </span>
               </button>
 
@@ -1427,7 +1509,7 @@ export function PartyManager({
               >
                 🏦 Custom / Chitty
                 <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-black/10 dark:bg-white/20 font-mono">
-                  {parties.filter(p => (p.party_type || '').toUpperCase() === 'CUSTOM').length}
+                  {tabCounts.custom}
                 </span>
               </button>
             </div>
@@ -1451,7 +1533,7 @@ export function PartyManager({
               </div>
             )}
           </div>
-          <div ref={listScrollRef} className="flex-1 overflow-y-auto px-5 py-4">
+          <div ref={listScrollRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto px-5 py-4">
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
@@ -1494,7 +1576,7 @@ export function PartyManager({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {filteredParties.map(party => {
+                    {displayedParties.map(party => {
                       const balance = getPartyBalance(party);
                       const isReceivable = balance > 0;
                       const isPayable = balance < 0;
@@ -1502,6 +1584,7 @@ export function PartyManager({
                       return (
                         <tr
                           key={party.party_id}
+                          id={`party-row-${party.party_id}`}
                           onClick={() => {
                             lastInteractedPartyId.current = party.party_id;
                             if (listScrollRef.current) {
@@ -1684,7 +1767,7 @@ export function PartyManager({
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredParties.map(party => {
+                {displayedParties.map(party => {
                   const hue = nameToHue(party.name);
                   const balance = getPartyBalance(party);
                   const isReceivable = balance > 0;
@@ -1866,6 +1949,23 @@ export function PartyManager({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Pagination / Load more indicator */}
+            {filteredParties.length > displayedParties.length && (
+              <div className="py-4 text-center">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Showing <span className="font-bold text-foreground font-mono">{displayedParties.length}</span> of{' '}
+                  <span className="font-bold text-foreground font-mono">{filteredParties.length}</span> parties
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount(prev => Math.min(prev + 50, filteredParties.length))}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer shadow-xs border border-border"
+                >
+                  Load more ({filteredParties.length - displayedParties.length} remaining)...
+                </button>
               </div>
             )}
           </div>

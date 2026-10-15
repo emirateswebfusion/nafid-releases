@@ -20,7 +20,8 @@ export type FeatureKey =
   | 'biller_pin'
   | 'sales_staff'
   | 'sales_history'
-  | 'loyalty';
+  | 'loyalty'
+  | 'ai_assistant';
 
 export type FeatureFlags = Record<FeatureKey, boolean>;
 
@@ -29,6 +30,8 @@ export interface FeatureDef {
   label: string;
   desc: string;
 }
+
+export const isAiAssistantAvailable = !import.meta.env.PROD || import.meta.env.VITE_ENABLE_AI_ASSISTANT === 'true';
 
 export const FEATURE_LIST: FeatureDef[] = [
   { key: 'billing', label: 'Billing', desc: 'Create new invoices and manage sales' },
@@ -53,6 +56,9 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'sales_staff', label: 'Enable Customer Handler / Sales Staff', desc: 'Allow selecting customer handler / sales staff on billing for sales attribution' },
   { key: 'sales_history', label: 'Sales History', desc: 'Review past transactions and reports' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
+  ...(isAiAssistantAvailable ? [
+    { key: 'ai_assistant' as FeatureKey, label: 'AI Business Assistant', desc: 'Smart AI chatbot for sales analytics, stock alerts, credit reports & commands' }
+  ] : []),
 ];
 
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
@@ -78,6 +84,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   sales_staff: false,
   sales_history: true,
   loyalty: true,
+  ai_assistant: false,
 };
 
 export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {

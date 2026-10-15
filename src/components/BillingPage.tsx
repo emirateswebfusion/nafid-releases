@@ -993,6 +993,7 @@ export function BillingPage() {
   }, 0);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProductSearching, setIsProductSearching] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const productFormDialogRef = useRef<HTMLDivElement>(null);
@@ -2389,23 +2390,32 @@ loadFlags(tenantId || 'global');
   }, [loadScrapInvoiceForEdit, updateActiveTab]);
 
   useEffect(() => {
-    // In scrap mode, return mode, or past bill mode, or queries under 2 chars, skip product search
-    if (isScrapMode || isReturnMode || isPastBillMode || searchQuery.trim().length < 2) { setResults([]); return; }
+    // In scrap mode, return mode, or past bill mode, or queries under 1 char, skip product search
+    const trimmed = searchQuery.trim();
+    if (isScrapMode || isReturnMode || isPastBillMode || trimmed.length < 1) {
+      setResults([]);
+      setIsProductSearching(false);
+      return;
+    }
+    setIsProductSearching(true);
     let isCurrent = true;
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!window.electronAPI) {
+        setIsProductSearching(false);
+        return;
+      }
       const { tenantId } = useAuthStore.getState();
       // GST invoices: only show GST-applicable products (quotations stay unfiltered)
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
       // Fetch up to 200 results so numeric or text searches capture all matching items without UI lag
       const fetchLimit = 200;
       
-      const backendSearch = searchQuery.trim();
+      const backendSearch = trimmed;
 
       try {
         const [products, combos] = await Promise.all([
           window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
-          window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: searchQuery, only_active: true }),
+          window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: trimmed, only_active: true }),
         ]);
 
         if (!isCurrent) return;
@@ -2428,7 +2438,7 @@ loadFlags(tenantId || 'global');
         }));
 
         const rawProducts = Array.isArray(products) ? products : [];
-        const sortedProds = sortProductsBySearchPriority(rawProducts, searchQuery);
+        const sortedProds = sortProductsBySearchPriority(rawProducts, trimmed);
 
         const filteredProds = sortedProds.filter(p => {
           const isPaperProduct = (() => {
@@ -2448,7 +2458,7 @@ loadFlags(tenantId || 'global');
             }
           }
 
-          const q = searchQuery.trim().toLowerCase();
+          const q = trimmed.toLowerCase();
           if (!q) return false;
           
           // Split query into words for word-based matching (any order)
@@ -2483,13 +2493,15 @@ loadFlags(tenantId || 'global');
       } catch (err) {
         if (!isCurrent) return;
         console.error('[BillingPage] Product search error:', err);
+      } finally {
+        if (isCurrent) setIsProductSearching(false);
       }
-    }, 250);
+    }, 120);
     return () => {
       isCurrent = false;
       clearTimeout(t);
     };
-  }, [searchQuery, isScrapMode, invoiceType, isQuotationMode]);
+  }, [searchQuery, isScrapMode, isReturnMode, isPastBillMode, invoiceType, isQuotationMode, enableRealPaperStock, showPaperInGstSetting, showPaperInEstSetting]);
 
   // Fetch categories & grades immediately so options are ready instantly when form opens
   const loadCategoriesAndGrades = useCallback(() => {
@@ -2727,22 +2739,21 @@ loadFlags(tenantId || 'global');
     return () => clearTimeout(t);
   }, [customerName, customerPhone, tenantId]);
 
-  // Compute filtered & deduplicated customer suggestions
-  const filteredCustomerSuggestions = useMemo(() => {
-    const qName = customerName.trim().replace(/\s+/g, ' ').toLowerCase();
-    const qPhone = customerPhone.trim();
-    if (!qName && !qPhone) return [];
-
-    const partyMap = new Map<string, any>();
+  // Memoize party map and party customer list so they are not rebuilt on every keystroke
+  const cachedPartyMap = useMemo(() => {
+    const map = new Map<string, any>();
     (partiesForTier || []).forEach((p: any) => {
       const pName = (p.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
       const pPhone = (p.phone || '').trim();
-      if (pName) partyMap.set(pName, p);
-      if (pPhone) partyMap.set(pPhone, p);
-      if (pName && pPhone) partyMap.set(`${pName}|${pPhone}`, p);
+      if (pName) map.set(pName, p);
+      if (pPhone) map.set(pPhone, p);
+      if (pName && pPhone) map.set(`${pName}|${pPhone}`, p);
     });
+    return map;
+  }, [partiesForTier]);
 
-    const partyCustomers = (partiesForTier || []).map((p: any) => ({
+  const cachedPartyCustomers = useMemo(() => {
+    return (partiesForTier || []).map((p: any) => ({
       name: p.name,
       phone: p.phone,
       address: p.address,
@@ -2752,7 +2763,15 @@ loadFlags(tenantId || 'global');
       balance: p.balance,
       party_type: p.party_type,
     }));
-    const combined = [...partyCustomers, ...customerSearchResults, ...allCustomersList];
+  }, [partiesForTier]);
+
+  // Compute filtered & deduplicated customer suggestions
+  const filteredCustomerSuggestions = useMemo(() => {
+    const qName = customerName.trim().replace(/\s+/g, ' ').toLowerCase();
+    const qPhone = customerPhone.trim();
+    if (!qName && !qPhone) return [];
+
+    const combined = [...cachedPartyCustomers, ...customerSearchResults, ...allCustomersList];
     const seen = new Set<string>();
     const matched: any[] = [];
 
@@ -2768,16 +2787,26 @@ loadFlags(tenantId || 'global');
 
       if (matchesName || matchesPhone) {
         seen.add(key);
-        const pMatch = partyMap.get(key) || partyMap.get(cNormName) || (cPhone ? partyMap.get(cPhone) : null);
+        const pMatch = cachedPartyMap.get(key) || cachedPartyMap.get(cNormName) || (cPhone ? cachedPartyMap.get(cPhone) : null);
         const mergedBal = c.balance ?? (pMatch ? pMatch.balance : undefined);
         matched.push({
           ...c,
           balance: mergedBal,
         });
+        if (matched.length >= 15) break;
       }
     }
-    return matched.slice(0, 15);
-  }, [customerName, customerPhone, customerSearchResults, allCustomersList, partiesForTier]);
+    return matched;
+  }, [customerName, customerPhone, customerSearchResults, allCustomersList, cachedPartyCustomers, cachedPartyMap]);
+
+  // Debounce party tier application during customer typing so typing is never blocked
+  useEffect(() => {
+    if (!customerName.trim() && !customerPhone.trim()) return;
+    const timer = setTimeout(() => {
+      applyPartyTier(customerName, customerPhone);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [customerName, customerPhone]);
 
   // Click outside to dismiss customer suggestions dropdown
   useEffect(() => {
@@ -7204,14 +7233,18 @@ loadFlags(tenantId || 'global');
       <div ref={searchContainerRef} className="relative">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className={clsx(
-              "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300",
-              isScrapActive ? "text-orange-500" :
-              isReturnMode ? "text-rose-500" :
-              isQuotationActive ? "text-blue-500" :
-              isPastBillMode ? "text-teal-500" :
-              "text-muted-foreground"
-            )} />
+            {isProductSearching ? (
+              <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary animate-spin" />
+            ) : (
+              <Search className={clsx(
+                "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300",
+                isScrapActive ? "text-orange-500" :
+                isReturnMode ? "text-rose-500" :
+                isQuotationActive ? "text-blue-500" :
+                isPastBillMode ? "text-teal-500" :
+                "text-muted-foreground"
+              )} />
+            )}
             <input
               ref={searchRef}
               type="text"
@@ -7696,7 +7729,6 @@ loadFlags(tenantId || 'global');
                 setShowCustomerDropdown(false);
               } else {
                 updateActiveTab({ customerName: val });
-                applyPartyTier(val, customerPhone);
                 setShowCustomerDropdown(true);
                 setSelectedCustomerIndex(0);
               }
@@ -7765,7 +7797,6 @@ loadFlags(tenantId || 'global');
                 setShowCustomerDropdown(false);
               } else {
                 updateActiveTab({ customerPhone: val });
-                applyPartyTier(customerName, val);
                 setShowCustomerDropdown(true);
                 setSelectedCustomerIndex(0);
               }

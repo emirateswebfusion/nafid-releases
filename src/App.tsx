@@ -37,10 +37,12 @@ import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
-import { useFeatureFlagsStore, type FeatureKey } from './featureFlags';
+import { useFeatureFlagsStore, isAiAssistantAvailable, type FeatureKey } from './featureFlags';
 import { SplashScreen } from './components/SplashScreen';
+import { AiAssistant } from './components/AiAssistant';
 
 function App() {
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
   const [showFinancialReport, setShowFinancialReport] = useState(false);
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
   const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
@@ -535,6 +537,7 @@ function App() {
       setShowCashierSettlement(false);
       setShowComboManager(false);
       setShowFinancialReport(false);
+      setShowAiAssistant(false);
       setRestrictedActivePage('BILLING');
     };
 
@@ -557,13 +560,22 @@ function App() {
       setShowCashierSettlement(false);
       setShowComboManager(false);
       setShowFinancialReport(false);
+      setShowAiAssistant(false);
       setRestrictedActivePage('');
     };
 
     const handleOpenComboManager = () => setShowComboManager(true);
     const handleOpenFinancialReport = () => setShowFinancialReport(true);
+    const handleOpenAiAssistant = () => {
+      if (isAiAssistantAvailable && canOpen('ai_assistant')) {
+        setShowAiAssistant(true);
+      }
+    };
     window.addEventListener('open-billing-page', handleOpenBilling);
     window.addEventListener('open-dashboard', handleOpenDashboard);
+    if (isAiAssistantAvailable) {
+      window.addEventListener('open-ai-assistant', handleOpenAiAssistant);
+    }
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-combo-manager', handleOpenComboManager);
     window.addEventListener('open-financial-report', handleOpenFinancialReport);
@@ -610,6 +622,9 @@ function App() {
       window.removeEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
       window.removeEventListener('open-billing-page', handleOpenBilling);
       window.removeEventListener('open-dashboard', handleOpenDashboard);
+      if (isAiAssistantAvailable) {
+        window.removeEventListener('open-ai-assistant', handleOpenAiAssistant);
+      }
       window.removeEventListener('open-inventory-manager', handleOpenInv);
       window.removeEventListener('open-combo-manager', handleOpenComboManager);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
@@ -781,6 +796,8 @@ function App() {
         <PermissionGuard permission="reports.financial" onBack={() => setShowFinancialReport(false)}>
           <FinancialReport onClose={() => setShowFinancialReport(false)} />
         </PermissionGuard>
+      ) : (showAiAssistant && isAiAssistantAvailable) ? (
+        <AiAssistant onClose={() => setShowAiAssistant(false)} />
       ) : restrictedActivePage === 'BILLING' ? (
         <PermissionGuard permission="sales.create" onBack={() => setRestrictedActivePage('')}>
           <BillingPage />

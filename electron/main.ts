@@ -3123,6 +3123,7 @@ export function syncInvoiceCreditLedger(
 
         // Use the unified CustomerIdentityService for consistent party resolution
         const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+          customer_id: (invoice as any).customer_id,
           name: custName,
           phone: custPhone,
           address: custAddress,
@@ -3167,6 +3168,8 @@ export function syncInvoiceCreditLedger(
           )
           VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(ledger_id) DO UPDATE SET
+            party_id = excluded.party_id,
+            tenant_id = excluded.tenant_id,
             credit_amount = excluded.credit_amount,
             debit_amount = 0,
             description = excluded.description,
@@ -3200,6 +3203,8 @@ export function syncInvoiceCreditLedger(
           )
           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(ledger_id) DO UPDATE SET
+            party_id = excluded.party_id,
+            tenant_id = excluded.tenant_id,
             credit_amount = 0,
             debit_amount = excluded.debit_amount,
             description = excluded.description,
@@ -3264,10 +3269,11 @@ export function syncInvoiceCreditLedger(
     const custAddress = (invoice.customer_address || '').trim() || null;
     const custGstin = (invoice.customer_gstin || '').trim() || null;
 
-    if (!custName && !custPhone) return;
+    if (!custName && !custPhone && !(invoice as any).customer_id) return;
 
     // Use the unified CustomerIdentityService for consistent party resolution
     const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+      customer_id: (invoice as any).customer_id,
       name: custName,
       phone: custPhone,
       address: custAddress,
@@ -3313,11 +3319,14 @@ export function syncInvoiceCreditLedger(
     if (saleEntry) {
       db.prepare(`
         UPDATE party_ledger SET
+          party_id = ?, tenant_id = ?,
           credit_amount = ?, debit_amount = 0, description = ?, transaction_date = ?,
           balance_type = ?, payment_method = 'CREDIT', is_deleted = 0,
           sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE ledger_id = ?
       `).run(
+        party.party_id,
+        tenantId,
         grandTotal,
         saleDescription,
         txDate,
@@ -3334,6 +3343,8 @@ export function syncInvoiceCreditLedger(
         )
         VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'CREDIT', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT(ledger_id) DO UPDATE SET
+          party_id = excluded.party_id,
+          tenant_id = excluded.tenant_id,
           credit_amount = excluded.credit_amount,
           debit_amount = 0,
           description = excluded.description,
@@ -3363,11 +3374,14 @@ export function syncInvoiceCreditLedger(
       if (payEntry) {
         db.prepare(`
           UPDATE party_ledger SET
+            party_id = ?, tenant_id = ?,
             credit_amount = 0, debit_amount = ?, description = ?, transaction_date = ?,
             balance_type = ?, payment_method = 'CASH', is_deleted = 0,
             sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
           WHERE ledger_id = ?
         `).run(
+          party.party_id,
+          tenantId,
           receivedAmount,
           `Payment received for ${invoiceNumber}`,
           txDate,
@@ -3384,6 +3398,8 @@ export function syncInvoiceCreditLedger(
           )
           VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(ledger_id) DO UPDATE SET
+            party_id = excluded.party_id,
+            tenant_id = excluded.tenant_id,
             credit_amount = 0,
             debit_amount = excluded.debit_amount,
             description = excluded.description,

@@ -2027,17 +2027,18 @@ export class CustomerIdentityService {
     db: Database.Database,
     tenantId: string,
     rawData: {
+      customer_id?: string | null;
       name?: string | null;
       phone?: string | null;
       address?: string | null;
       gstin?: string | null;
       notes?: string | null;
       pricing_tier_id?: string | null;
-      credit_limit?: number;
-      credit_period_enabled?: boolean;
-      credit_period_days?: number;
+      credit_limit?: number | string;
+      credit_period_enabled?: boolean | number;
+      credit_period_days?: number | string;
       credit_period_basis?: string;
-      restrict_on_credit_expiry?: boolean;
+      restrict_on_credit_expiry?: boolean | number | string;
     }
   ): { customer_id: string; party_id: string; isNew: boolean } | null {
     if (!db || !tenantId) return null;
@@ -2048,48 +2049,71 @@ export class CustomerIdentityService {
     const gstin = (rawData.gstin || '').trim().toUpperCase() || null;
     const notes = (rawData.notes || '').trim() || null;
     const pricingTierId = rawData.pricing_tier_id || null;
-    const creditLimit = Math.max(0, Number(rawData.credit_limit) || 0);
-    const creditPeriodEnabled = rawData.credit_period_enabled ? 1 : 0;
-    const creditPeriodDays = Math.max(1, parseInt(String(rawData.credit_period_days || 30), 10) || 30);
-    const creditPeriodBasis = rawData.credit_period_basis || 'BILL_BASED';
-    const restrictOnCreditExpiry = (() => {
-      const v = rawData.restrict_on_credit_expiry;
-      if (v === undefined) return 0;
-      const str = String(v);
-      if (str === 'false' || str === '0') return 0;
-      return 1;
-    })();
+    const creditLimit = rawData.credit_limit !== undefined && rawData.credit_limit !== null
+      ? Math.max(0, Number(rawData.credit_limit) || 0)
+      : null;
+    const creditPeriodEnabled = rawData.credit_period_enabled !== undefined && rawData.credit_period_enabled !== null
+      ? (rawData.credit_period_enabled ? 1 : 0)
+      : null;
+    const creditPeriodDays = rawData.credit_period_days !== undefined && rawData.credit_period_days !== null
+      ? Math.max(1, parseInt(String(rawData.credit_period_days || 30), 10) || 30)
+      : null;
+    const creditPeriodBasis = rawData.credit_period_basis || null;
+    const restrictOnCreditExpiry = rawData.restrict_on_credit_expiry !== undefined && rawData.restrict_on_credit_expiry !== null
+      ? (String(rawData.restrict_on_credit_expiry) === 'false' || String(rawData.restrict_on_credit_expiry) === '0' ? 0 : 1)
+      : null;
 
-    if (!name && !phone) return null;
+    if (!name && !phone && !rawData.customer_id) return null;
 
     const phoneClean = (phone || '').replace(/\D/g, '');
-    const displayName = name || phone!;
+    const displayName = name || phone || 'Customer';
     const now = new Date().toISOString();
 
     try {
       // ========== LOOKUP PHASE ==========
       // Look up existingCustomer and existingParty INDEPENDENTLY
-      // Priority: 1) Exact name + phone  2) Phone match (last 10 digits)  3) Exact name
+      // Priority: 1) customer_id  2) Exact name + phone  3) Phone match (last 10 digits)  4) Case-insensitive name
       
       let existingCustomer: any = null;
       let existingParty: any = null;
 
-      // 1. Try exact name + phone match first
-      if (name && phone) {
+      // 0. Try direct customer_id / party_id match first if provided
+      if (rawData.customer_id) {
         existingCustomer = db.prepare(`
           SELECT * FROM customers 
-          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-            AND name = ? AND phone = ?
+          WHERE tenant_id = ? AND customer_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           LIMIT 1
-        `).get(tenantId, name, phone);
+        `).get(tenantId, rawData.customer_id);
 
         existingParty = db.prepare(`
           SELECT * FROM parties 
-          WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-            AND (party_type = 'CUSTOMER' OR party_type IS NULL)
-            AND name = ? AND phone = ?
+          WHERE tenant_id = ? AND party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           LIMIT 1
-        `).get(tenantId, name, phone);
+        `).get(tenantId, rawData.customer_id);
+      }
+
+      // 1. Try exact name + phone match
+      if (name && phone) {
+        if (!existingCustomer) {
+          existingCustomer = db.prepare(`
+            SELECT * FROM customers 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND phone = ?
+            LIMIT 1
+          `).get(tenantId, name, phone);
+        }
+
+        if (!existingParty) {
+          existingParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND phone = ?
+            ORDER BY 
+              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
+              created_at ASC
+            LIMIT 1
+          `).get(tenantId, name, phone);
+        }
       }
 
       // 2. Try phone match (cleaned, last 10 digits)
@@ -2099,7 +2123,7 @@ export class CustomerIdentityService {
           existingCustomer = db.prepare(`
             SELECT * FROM customers 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+              AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
             LIMIT 1
           `).get(tenantId, `%${last10}`);
         }
@@ -2107,20 +2131,22 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
-              AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
+              AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
+            ORDER BY 
+              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
+              created_at ASC
             LIMIT 1
           `).get(tenantId, `%${last10}`);
         }
       }
 
-      // 3. Try exact name match
+      // 3. Try case-insensitive name match
       if (name) {
         if (!existingCustomer) {
           existingCustomer = db.prepare(`
             SELECT * FROM customers 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND LOWER(TRIM(name)) = LOWER(?)
+              AND LOWER(TRIM(name)) = LOWER(TRIM(?))
             ORDER BY 
               CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
               created_at ASC
@@ -2131,9 +2157,9 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
-              AND LOWER(TRIM(name)) = LOWER(?)
+              AND LOWER(TRIM(name)) = LOWER(TRIM(?))
             ORDER BY 
+              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
               CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
               created_at ASC
             LIMIT 1
@@ -2141,12 +2167,40 @@ export class CustomerIdentityService {
         }
       }
 
-      // 4. Fallback check for parties matching idx_parties_tenant_name_phone_customer
-      if (!existingParty) {
+      // 4. Cross-check: If customer found but party not found, search party by customer's phone or name
+      if (existingCustomer && !existingParty) {
+        const cPhone = (existingCustomer.phone || '').trim();
+        const cClean = cPhone.replace(/\D/g, '');
+        const cName = (existingCustomer.name || '').trim();
+        if (cClean.length >= 7) {
+          existingParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
+            ORDER BY 
+              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
+              created_at ASC
+            LIMIT 1
+          `).get(tenantId, `%${cClean.slice(-10)}`);
+        }
+        if (!existingParty && cName) {
+          existingParty = db.prepare(`
+            SELECT * FROM parties 
+            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+            ORDER BY 
+              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
+              created_at ASC
+            LIMIT 1
+          `).get(tenantId, cName);
+        }
+      }
+
+      // 5. Fallback check for parties matching idx_parties_tenant_name_phone_customer
+      if (!existingParty && displayName) {
         existingParty = db.prepare(`
           SELECT * FROM parties 
           WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-            AND (party_type = 'CUSTOMER' OR party_type IS NULL)
             AND name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL))
           LIMIT 1
         `).get(tenantId, displayName, phone, phone);
@@ -2217,7 +2271,7 @@ export class CustomerIdentityService {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, 0, 'PENDING', ?, ?)
           `).run(
             finalCustomerId, tenantId, displayName, phone, address, gstin, notes, pricingTierId,
-            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            creditLimit ?? 0, creditPeriodEnabled ?? 0, creditPeriodDays ?? 30, creditPeriodBasis ?? 'BILL_BASED', restrictOnCreditExpiry ?? 0,
             now, now, now
           );
         } catch (insertCustErr: any) {
@@ -2226,8 +2280,8 @@ export class CustomerIdentityService {
             WHERE tenant_id = ? AND (
               customer_id = ? 
               OR (phone IS NOT NULL AND phone = ?)
-              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
-              OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(?))
+              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?)
+              OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM(?)))
             ) LIMIT 1
           `).get(tenantId, finalCustomerId, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name);
           if (fallbackCust) {
@@ -2295,7 +2349,7 @@ export class CustomerIdentityService {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'RECEIVABLE', 'CUSTOMER', ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
           `).run(
             finalPartyId, tenantId, displayName, phone, address, gstin, notes,
-            pricingTierId, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            pricingTierId, creditLimit ?? 0, creditPeriodEnabled ?? 0, creditPeriodDays ?? 30, creditPeriodBasis ?? 'BILL_BASED', restrictOnCreditExpiry ?? 0,
             now, now
           );
         } catch (insertPartyErr: any) {
@@ -2303,10 +2357,13 @@ export class CustomerIdentityService {
             SELECT party_id FROM parties 
             WHERE tenant_id = ? AND (
               party_id = ? 
-              OR (name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL)))
-              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
-              OR (LOWER(TRIM(name)) = LOWER(?))
+              OR (LOWER(TRIM(name)) = LOWER(TRIM(?)) AND (phone = ? OR (phone IS NULL AND ? IS NULL)))
+              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?)
+              OR (LOWER(TRIM(name)) = LOWER(TRIM(?)))
             )
+            ORDER BY 
+              CASE WHEN is_deleted = 0 THEN 0 ELSE 1 END,
+              created_at ASC
             LIMIT 1
           `).get(tenantId, finalPartyId, displayName, phone, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name);
 
@@ -2316,7 +2373,8 @@ export class CustomerIdentityService {
               db.prepare('UPDATE parties SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE party_id = ?').run(finalPartyId);
             } catch {}
           } else {
-            console.warn('[CustomerIdentityService] Could not insert party but customer exists:', insertPartyErr.message);
+            console.warn('[CustomerIdentityService] Could not insert party and fallback lookup failed:', insertPartyErr.message);
+            throw insertPartyErr;
           }
         }
       }

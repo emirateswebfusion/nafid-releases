@@ -4,7 +4,7 @@ import {
   BookOpen, IndianRupee, TrendingUp, Boxes,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent
+  ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent, Loader2
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
@@ -432,6 +432,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [viewMode, setViewMode] = useState<'bills' | 'analytics'>('bills');
   const [showGraphBanner, setShowGraphBanner] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -521,14 +523,26 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     { value: 'CREDIT' as const, label: 'Credit', icon: BookOpen, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500', iconBg: 'bg-amber-500/15' },
   ];
 
+  // Debounce search input with 0ms instant clear
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setOffset(0);
-      setHasMore(true);
-      loadInvoices(true);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [search, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter]);
+    if (!search.trim()) {
+      setDebouncedSearch('');
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setIsSearching(false);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setOffset(0);
+    setHasMore(true);
+    loadInvoices(true);
+  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter]);
 
   useEffect(() => {
     if (invoiceTypeFilter === 'BILL_OF_SUPPLY' && taxPercentageFilter !== '') {
@@ -618,7 +632,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       try {
         const filters = {
           user_id: userId, tenant_id: tenantId, role,
-          search, payment_method: paymentFilter || undefined,
+          search: debouncedSearch || undefined, payment_method: paymentFilter || undefined,
           invoice_type: effectiveInvoiceType,
           tax_rate_percent: taxPercentageFilter || undefined,
           filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
@@ -1717,14 +1731,30 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             {/* Search + Payment Method Filter Toolbar */}
             <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border bg-card">
               <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                {isSearching ? (
+                  <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary animate-spin pointer-events-none" />
+                ) : (
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                )}
                 <Input
                   type="text"
                   placeholder="Search invoice or customer…"
-                  className="pl-9 h-8 text-xs bg-background border-border font-medium"
+                  className="pl-9 pr-8 h-8 text-xs bg-background border-border font-medium"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setDebouncedSearch('');
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5 text-destructive" />
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-1.5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground shrink-0" />

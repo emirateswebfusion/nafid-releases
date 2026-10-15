@@ -236,6 +236,7 @@ export function CustomersPage({
   const [visibleCount, setVisibleCount] = useState(50);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
+  const partiesRef = useRef<Party[]>([]);
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
@@ -316,18 +317,31 @@ export function CustomersPage({
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
+  const findMatchingPartyForCustomer = (cust: Customer | null | undefined, partyList: Party[]): Party | null => {
+    if (!cust) return null;
+    const custDigits = (cust.phone || '').replace(/\D/g, '');
+    const cleanName = (cust.name || '').trim().toLowerCase();
+
+    return partyList.find(p => {
+      if (!p) return false;
+      if (p.party_id === cust.customer_id) return true;
+      const pDigits = (p.phone || '').replace(/\D/g, '');
+      if (custDigits && pDigits) {
+        if (custDigits === pDigits) return true;
+        if (custDigits.length >= 7 && pDigits.length >= 7 && custDigits.slice(-10) === pDigits.slice(-10)) return true;
+      }
+      if (cleanName && p.name && p.name.trim().toLowerCase() === cleanName) return true;
+      return false;
+    }) || null;
+  };
+
   const handleDeleteCustomerClick = (cust: Customer, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!isOwner) {
       showStatus('Only owners can delete customers', 'error');
       return;
     }
-    const cleanPhone = (cust.phone || '').trim();
-    const cleanName = (cust.name || '').trim().toLowerCase();
-    const pMatch = parties.find(p =>
-      (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone) ||
-      (cleanName && p.name && p.name.trim().toLowerCase() === cleanName)
-    );
+    const pMatch = findMatchingPartyForCustomer(cust, parties);
     setCustomerToDelete(cust);
     setMatchedPartyToDelete(pMatch || null);
     setDeleteModalOpen(true);
@@ -505,17 +519,20 @@ export function CustomersPage({
       setFilterLoading(true);
     }
     try {
-      const [custData, partyData] = await Promise.all([
-        window.electronAPI.dbGetCustomers({
-          tenant_id: tenantId,
-          search: debouncedSearchQuery || undefined,
-          active: filterActive || undefined,
-          credit: filterCredit === 'credit' ? true : filterCredit === 'no-credit' ? false : undefined,
-          pricing_tier_id: filterPricingTier || undefined,
-          overdue: filterOverdue || undefined,
-        }),
-        window.electronAPI.dbGetParties(tenantId).catch(() => []),
-      ]);
+      const custPromise = window.electronAPI.dbGetCustomers({
+        tenant_id: tenantId,
+        search: debouncedSearchQuery || undefined,
+        active: filterActive || undefined,
+        credit: filterCredit === 'credit' ? true : filterCredit === 'no-credit' ? false : undefined,
+        pricing_tier_id: filterPricingTier || undefined,
+        overdue: filterOverdue || undefined,
+      });
+
+      const partyPromise = (isInitialLoad || partiesRef.current.length === 0)
+        ? window.electronAPI.dbGetParties(tenantId).catch(() => [])
+        : Promise.resolve(null);
+
+      const [custData, partyData] = await Promise.all([custPromise, partyPromise]);
 
       const cleanCusts: Customer[] = [];
       if (Array.isArray(custData)) {
@@ -528,7 +545,10 @@ export function CustomersPage({
       }
 
       setCustomers(cleanCusts);
-      setParties(Array.isArray(partyData) ? partyData : []);
+      if (partyData !== null && Array.isArray(partyData)) {
+        setParties(partyData);
+        partiesRef.current = partyData;
+      }
     } catch {
       showStatus('Failed to load customers', 'error');
     } finally {
@@ -612,11 +632,15 @@ export function CustomersPage({
     }).catch(() => {});
   }, [tenantId]);
 
-  // Debounce search query
+  // Debounce search query with 0ms instant clear
   useEffect(() => {
+    if (!searchQuery.trim()) {
+      setDebouncedSearchQuery('');
+      return;
+    }
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-    }, 300);
+    }, 120);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -674,13 +698,8 @@ export function CustomersPage({
     }
     setSelectedCustomer(customer);
 
-    // Match customer to Party by phone or name
-    const cleanPhone = (customer.phone || '').trim();
-    const cleanName = (customer.name || '').trim().toLowerCase();
-    const pMatch = parties.find(p =>
-      (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone) ||
-      (cleanName && p.name && p.name.trim().toLowerCase() === cleanName)
-    );
+    // Match customer to Party by ID, phone (normalized) or name
+    const pMatch = findMatchingPartyForCustomer(customer, parties);
     setMatchedParty(pMatch || null);
 
     setView('detail');
@@ -1314,7 +1333,11 @@ export function CustomersPage({
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setDebouncedSearchQuery('');
+                  }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />

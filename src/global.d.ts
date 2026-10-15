@@ -249,6 +249,8 @@ export interface IElectronAPI {
 
   setPageContext: (payload: { page: string; active: boolean }) => Promise<{ success: boolean; error?: string }>;
   resetFastPollBackoff: () => Promise<{ success: boolean; error?: string }>;
+  aiChat?: (message: string, history?: any[]) => Promise<any>;
+  aiGetOverview?: () => Promise<any>;
 }
 
 declare global {

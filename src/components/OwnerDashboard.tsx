@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3 } from 'lucide-react';
+import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
-import { useFeatureFlagsStore, cashierPageTitle, type FeatureFlags, type FeatureKey } from '../featureFlags';
+import { useFeatureFlagsStore, cashierPageTitle, isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../featureFlags';
 import { hasPermission, isAdminRole, formatRoleName } from '../utils/permissions';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
@@ -155,6 +155,16 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     });
 
     const cards = [
+        ...(isAiAssistantAvailable ? [{
+            id: 'ai-assistant',
+            title: 'AI Business Assistant',
+            desc: 'Chat to analyze sales, inventory, customer credit & insights',
+            icon: Sparkles,
+            color: 'text-indigo-500',
+            bgColor: 'bg-indigo-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-ai-assistant')),
+            shortcut: 'AI',
+        }] : []),
         {
             id: 'billing',
             title: 'Billing',
@@ -339,6 +349,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     ];
 
     const FEATURE_BY_CARD: Record<string, FeatureKey> = {
+        'ai-assistant': 'ai_assistant',
         billing: 'billing',
         cashier: 'cash_settlement',
         inventory: 'inventory',

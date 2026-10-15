@@ -99,6 +99,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at' | 'stock'>('created_at');
   const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'no_barcode'>('all');
   const [filterDate, setFilterDate] = useState('');
@@ -218,7 +220,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   // ── Refs to always hold the latest filter/pagination state ──────────────
   // These allow async callbacks (sync listener, intersection observer) to
   // read current values without suffering from stale closures.
-  const searchQueryRef = useRef(searchQuery);
+  const searchQueryRef = useRef(debouncedSearchQuery);
   const sortByRef = useRef(sortBy);
   const stockFilterRef = useRef(stockFilter);
   const filterDateRef = useRef(filterDate);
@@ -230,7 +232,22 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const viewModeRef = useRef(viewMode);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
+  // Debounce searchQuery -> debouncedSearchQuery with 0ms instant clear
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setDebouncedSearchQuery('');
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setIsSearching(false);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => { searchQueryRef.current = debouncedSearchQuery; }, [debouncedSearchQuery]);
   useEffect(() => { sortByRef.current = sortBy; }, [sortBy]);
   useEffect(() => { stockFilterRef.current = stockFilter; }, [stockFilter]);
   useEffect(() => { filterDateRef.current = filterDate; }, [filterDate]);
@@ -249,17 +266,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   }, [view]);
 
-  // Load products when search or sort or stock filter or viewMode changes (reset)
+  // Load products when debounced search or sort or stock filter or viewMode changes (reset)
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      offsetRef.current = 0;
-      setOffset(0);
-      hasMoreRef.current = true;
-      setHasMore(true);
-      loadProducts(true);
-    }, 300); // debounce search
-    return () => clearTimeout(timeout);
-  }, [searchQuery, sortBy, filterDate, filterDateEnd, stockFilter, viewMode]);
+    offsetRef.current = 0;
+    setOffset(0);
+    hasMoreRef.current = true;
+    setHasMore(true);
+    loadProducts(true);
+  }, [debouncedSearchQuery, sortBy, filterDate, filterDateEnd, stockFilter, viewMode]);
 
   // Sync listener — auto-refresh silently, using refs so current search/
   // filter state is preserved even though this effect runs only once.
@@ -470,7 +484,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         const isGstParam = currentViewMode === 'gst' ? true : currentViewMode === 'estimate' ? false : undefined;
         const currentOffset = reset ? 0 : offsetRef.current;
 
-        const result = await window.electronAPI.dbGetProducts({
+        const productsPromise = window.electronAPI.dbGetProducts({
           tenant_id: tenantId,
           limit: LIMIT,
           offset: currentOffset,
@@ -482,15 +496,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           isGst: isGstParam
         });
 
-        if (reset) {
-          const count = await window.electronAPI.dbGetProductsCount({
-            tenant_id: tenantId,
-            search: currentSearch,
-            filterDate: currentFilterDate,
-            filterDateEnd: currentFilterDateEnd,
-            stockStatus: currentStockFilter,
-            isGst: isGstParam
-          });
+        const countPromise = reset ? window.electronAPI.dbGetProductsCount({
+          tenant_id: tenantId,
+          search: currentSearch,
+          filterDate: currentFilterDate,
+          filterDateEnd: currentFilterDateEnd,
+          stockStatus: currentStockFilter,
+          isGst: isGstParam
+        }) : Promise.resolve(null);
+
+        const [result, count] = await Promise.all([productsPromise, countPromise]);
+
+        if (reset && count !== null) {
           setTotalCount(count);
         }
 
@@ -1740,14 +1757,22 @@ return (
                   autoFocus
                   className="w-full pl-11 pr-11 py-2.5 text-sm bg-background border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-medium text-foreground"
                 />
-                {searchQuery && (
+                {isSearching ? (
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                  </div>
+                ) : searchQuery ? (
                   <button
-                    onClick={() => setSearchQuery('')}
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setDebouncedSearchQuery('');
+                    }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1.5 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4 text-destructive" />
                   </button>
-                )}
+                ) : null}
               </div>
 
               {/* Filter Controls - Horizontal row */}
