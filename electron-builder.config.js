@@ -41,7 +41,7 @@ module.exports = {
   copyright: 'Copyright © 2026 Emirates WebFusion',
   npmRebuild: false,
   directories: {
-    output: 'dist/release',
+    output: 'release',
     buildResources: 'build'
   },
   files: [
