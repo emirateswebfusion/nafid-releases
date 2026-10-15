@@ -76,7 +76,7 @@ interface CartState {
   isQuotationMode: boolean;
   isReturnMode: boolean;
   isScrapMode: boolean;
-  returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL';
+  returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL' | 'CREDIT';
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
   editingInvoiceId: string | null;
@@ -118,7 +118,7 @@ interface CartState {
   setBillerStaff: (id: string | null, name: string | null) => void;
   clearStaff: () => void;
 
-  setReturnRefundMethod: (method: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL') => void;
+  setReturnRefundMethod: (method: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL' | 'CREDIT') => void;
   setQuotationMode: (isQuotationMode: boolean) => void;
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
   setEditingInvoice: (id: string | null, number: string | null, role: UserRole | null) => void;

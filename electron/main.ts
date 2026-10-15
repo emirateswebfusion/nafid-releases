@@ -2069,27 +2069,55 @@ ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
 ipcMain.handle('db:getPricingTiers', (event, tenantId: string) => {
   try {
     const db = getDb();
-    if (!tenantId) return [];
-    return db.prepare('SELECT * FROM pricing_tiers WHERE tenant_id = ? AND is_deleted = 0 ORDER BY sort_order ASC, name COLLATE NOCASE ASC').all(tenantId);
+    const tid = tenantId || 'global';
+    return db.prepare(`
+      SELECT * FROM pricing_tiers
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND is_deleted = 0
+      ORDER BY sort_order ASC, name COLLATE NOCASE ASC
+    `).all(tid);
   } catch (error: any) {
     console.error('[db:getPricingTiers]', error);
-    return { error: 'Operation failed' };
+    return [];
   }
 });
 
 ipcMain.handle('db:addPricingTier', safeHandler((event, t) => {
   try {
     const db = getDb();
-    const nextSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort FROM pricing_tiers WHERE tenant_id = ?').get(t.tenant_id) as any;
+    const tid = t.tenant_id || 'global';
+    const cleanName = String(t.name || '').trim();
+    if (!cleanName) return { success: false, error: 'Name is required' };
+
+    // Check if an existing tier with the same name exists
+    const existing = db.prepare(`
+      SELECT pricing_tier_id, is_deleted FROM pricing_tiers
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND LOWER(TRIM(name)) = LOWER(?)
+    `).get(tid, cleanName) as any;
+
     const isActive = (t.is_active === false || t.is_active === 0 || t.is_active === '0') ? 0 : 1;
+
+    if (existing) {
+      db.prepare(`
+        UPDATE pricing_tiers
+        SET is_active = ?, is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE pricing_tier_id = ?
+      `).run(isActive, existing.pricing_tier_id);
+      return { success: true, pricing_tier_id: existing.pricing_tier_id };
+    }
+
+    const nextSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort FROM pricing_tiers WHERE tenant_id = ? OR tenant_id = \'global\'').get(tid) as any;
+    const tierId = t.pricing_tier_id || crypto.randomUUID();
+
     db.prepare(`
-      INSERT INTO pricing_tiers (pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted, sync_status)
-      VALUES (?, ?, ?, ?, ?, 0, 'PENDING')
-    `).run(t.pricing_tier_id, t.tenant_id, t.name, isActive, t.sort_order ?? (nextSort?.next_sort || 0));
-    return { success: true };
+      INSERT INTO pricing_tiers (pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(tierId, tid, cleanName, isActive, t.sort_order ?? (nextSort?.next_sort || 0));
+    return { success: true, pricing_tier_id: tierId };
   } catch (error: any) {
     console.error('[db:addPricingTier]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error.message || 'Operation failed' };
   }
 }));
 
@@ -2097,11 +2125,12 @@ ipcMain.handle('db:updatePricingTier', safeHandler((event, t) => {
   try {
     const db = getDb();
     const isActive = (t.is_active === false || t.is_active === 0 || t.is_active === '0') ? 0 : 1;
+    const cleanName = String(t.name || '').trim();
     db.prepare(`
       UPDATE pricing_tiers
-      SET name = ?, is_active = ?, sort_order = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      SET name = COALESCE(NULLIF(?, ''), name), is_active = ?, sort_order = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE pricing_tier_id = ?
-    `).run(t.name, isActive, t.sort_order ?? 0, t.pricing_tier_id);
+    `).run(cleanName, isActive, t.sort_order ?? 0, t.pricing_tier_id);
     return { success: true };
   } catch (error: any) {
     console.error('[db:updatePricingTier]', error);
@@ -2178,11 +2207,15 @@ ipcMain.handle('db:setDefaultPricingTier', safeHandler((event, payload: { tenant
 ipcMain.handle('db:getProductPricing', (event, tenantId: string) => {
   try {
     const db = getDb();
-    if (!tenantId) return [];
-    return db.prepare('SELECT * FROM product_pricing WHERE tenant_id = ? AND is_deleted = 0').all(tenantId);
+    const tid = tenantId || 'global';
+    return db.prepare(`
+      SELECT * FROM product_pricing
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND is_deleted = 0
+    `).all(tid);
   } catch (error: any) {
     console.error('[db:getProductPricing]', error);
-    return { error: 'Operation failed' };
+    return [];
   }
 });
 
@@ -2358,7 +2391,8 @@ ipcMain.handle('db:setProductPricing', safeHandler((event, payload: { tenant_id:
     const db = getDb();
     const { tenant_id, product_id, pricing } = payload;
     if (!tenant_id || !product_id || !Array.isArray(pricing)) return { success: false, error: 'Invalid payload' };
-    const findExisting = db.prepare(`SELECT product_pricing_id FROM product_pricing WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+    const tid = tenant_id || 'global';
+    const findExisting = db.prepare(`SELECT product_pricing_id FROM product_pricing WHERE product_id = ? AND pricing_tier_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
     const upsert = db.prepare(`
       INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -2368,19 +2402,19 @@ ipcMain.handle('db:setProductPricing', safeHandler((event, payload: { tenant_id:
         sync_status = 'PENDING',
         updated_at = CURRENT_TIMESTAMP
     `);
-    const clear = db.prepare(`UPDATE product_pricing SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+    const clear = db.prepare(`UPDATE product_pricing SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
     const tx = db.transaction((rows: Array<{ pricing_tier_id: string; price: number | null }>) => {
       for (const item of rows) {
         if (!item?.pricing_tier_id) continue;
         const isEmpty = item.price === null || item.price === undefined || String(item.price).trim() === '';
         if (isEmpty) {
-          clear.run(product_id, item.pricing_tier_id, tenant_id);
+          clear.run(product_id, item.pricing_tier_id, tid);
           continue;
         }
-        const existing = findExisting.get(product_id, item.pricing_tier_id, tenant_id) as any;
+        const existing = findExisting.get(product_id, item.pricing_tier_id, tid) as any;
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const pricingId = (existing?.product_pricing_id && uuidRegex.test(existing.product_pricing_id)) ? existing.product_pricing_id : crypto.randomUUID();
-        upsert.run(pricingId, tenant_id, product_id, item.pricing_tier_id, Number(item.price) || 0);
+        upsert.run(pricingId, tid, product_id, item.pricing_tier_id, Number(item.price) || 0);
       }
     });
     tx(pricing);
@@ -2398,7 +2432,8 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
     const db = getDb();
     const { tenant_id, pricing_tier_id, pricing } = payload;
     if (!tenant_id || !pricing_tier_id || !Array.isArray(pricing)) return { success: false, error: 'Invalid payload' };
-    const findExisting = db.prepare(`SELECT product_pricing_id FROM product_pricing WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+    const tid = tenant_id || 'global';
+    const findExisting = db.prepare(`SELECT product_pricing_id FROM product_pricing WHERE product_id = ? AND pricing_tier_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
     const upsert = db.prepare(`
       INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -2408,7 +2443,7 @@ ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: st
         sync_status = 'PENDING',
         updated_at = CURRENT_TIMESTAMP
     `);
-    const clear = db.prepare(`UPDATE product_pricing SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+    const clear = db.prepare(`UPDATE product_pricing SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
     const tx = db.transaction((rows: Array<{ product_id: string; price: number | null }>) => {
       for (const item of rows) {
         if (!item?.product_id) continue;
@@ -3058,6 +3093,7 @@ export function syncInvoiceCreditLedger(
     payment_method?: string;
     received_amount?: number;
     balance_amount?: number;
+    customer_id?: string | null;
     customer_name?: string | null;
     customer_phone?: string | null;
     customer_address?: string | null;
@@ -3071,209 +3107,116 @@ export function syncInvoiceCreditLedger(
 ) {
   try {
     const tenantId = invoice.tenant_id || 'global';
-    const invoiceNumber = invoice.invoice_number;
+    const invoiceNumber = (invoice.invoice_number || '').trim();
     if (!invoiceNumber) return;
 
-    // References: `${invoiceNumber}` (credit sale entry), `${invoiceNumber}-PAY` (immediate paid entry)
-    const existingEntries = db.prepare(`
-      SELECT * FROM party_ledger 
-      WHERE tenant_id = ? AND (reference_number = ? OR reference_number = ?)
-    `).all(tenantId, invoiceNumber, `${invoiceNumber}-PAY`) as any[];
+    // ── 1. DELETION HANDLING (MUST BE EVALUATED FIRST) ──────────────────────
+    if (isDelete) {
+      console.log(`[syncInvoiceCreditLedger] Soft-deleting ledger entries for invoice: ${invoiceNumber}`);
+      const toDelete = db.prepare(`
+        SELECT ledger_id, party_id FROM party_ledger
+        WHERE (
+          reference_number = ? 
+          OR reference_number = ? 
+          OR reference_number LIKE ? 
+          OR description LIKE ?
+        )
+        AND (is_deleted IS NULL OR is_deleted = 0)
+      `).all(invoiceNumber, `${invoiceNumber}-PAY`, `${invoiceNumber}%`, `%${invoiceNumber}%`) as any[];
 
-    // Parse split_details if present
-    let splitCredit = 0;
-    if ((invoice as any).split_details && (invoice as any).split_details !== 'null') {
-      try {
-        const s = typeof (invoice as any).split_details === 'string'
-          ? JSON.parse((invoice as any).split_details)
-          : (invoice as any).split_details;
-        if (s && typeof s === 'object') {
-          splitCredit = Number(s?.credit) || 0;
-        }
-      } catch {}
-    }
-
-    const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
-    const isSplitCredit = paymentMethodUpper === 'SPLIT' && splitCredit > 0;
-    const isCredit = paymentMethodUpper === 'CREDIT' || isSplitCredit;
-
-    // Check for fully paid CASH transaction
-    const isCash = paymentMethodUpper === 'CASH';
-    const invoiceGrandTotal = Number(invoice.grand_total) || 0;
-    const invoiceReceivedAmount = Math.max(0, Number(invoice.received_amount) || 0);
-    const isFullyPaidCash = isCash && invoiceGrandTotal > 0 && invoiceReceivedAmount >= invoiceGrandTotal - 0.01 && invoiceReceivedAmount <= invoiceGrandTotal + 0.01;
-
-    // If fully paid cash transaction, check setting to show in party ledger
-    if (isFullyPaidCash) {
-      const showFullyPaidCashSetting = db.prepare(`
-        SELECT value FROM settings WHERE tenant_id = ? AND key = ?
-      `).get(tenantId, 'show_fully_paid_cash_in_ledger');
-      
-      const showFullyPaidCash = showFullyPaidCashSetting ? JSON.parse(showFullyPaidCashSetting.value) : false;
-      
-      if (showFullyPaidCash) {
-        // Handle fully paid cash transaction - create ledger entries that cancel out
-        // but show the sale and payment in party ledger
-        const custName = (invoice.customer_name || '').trim();
-        const custPhone = (invoice.customer_phone || '').trim();
-        const custAddress = (invoice.customer_address || '').trim() || null;
-        const custGstin = (invoice.customer_gstin || '').trim() || null;
-
-        if (!custName && !custPhone) return;
-
-        // Use the unified CustomerIdentityService for consistent party resolution
-        const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
-          customer_id: (invoice as any).customer_id,
-          name: custName,
-          phone: custPhone,
-          address: custAddress,
-          gstin: custGstin,
-        });
-
-        if (!identityResult) {
-          console.error('[syncInvoiceCreditLedger] Failed to resolve customer/party identity for fully paid cash');
-          return;
-        }
-
-        const party = { party_id: identityResult.party_id, name: custName || custPhone };
-
-        // Party changed? Clean up entries from previous party
-        const oldPartyIds = new Set<string>();
-        for (const entry of existingEntries) {
-          if (entry.party_id !== party.party_id) {
-            oldPartyIds.add(entry.party_id);
-            db.prepare(`
-              UPDATE party_ledger 
-              SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
-              WHERE ledger_id = ?
-            `).run(entry.ledger_id);
-          }
-        }
-        for (const opId of oldPartyIds) {
-          recalcPartyBalances(db, opId);
-        }
-
-        const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
-        const txDate = invoice.created_at || localTimestamp();
-        const saleDescription = `Cash Sale ${invoiceNumber} - ${custName || party.name || 'Customer'}`;
-
-        // 1. Cash Sale entry (credit) - records the sale
-        const saleLedgerId = deterministicUUID(`cash_sale:${tenantId}:${invoiceNumber}`);
-        db.prepare(`
-          INSERT INTO party_ledger (
-            ledger_id, party_id, tenant_id, transaction_date, description,
-            credit_amount, debit_amount, running_balance, balance_type,
-            payment_method, reference_number, created_by, created_by_name,
-            is_deleted, sync_status, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(ledger_id) DO UPDATE SET
-            party_id = excluded.party_id,
-            tenant_id = excluded.tenant_id,
-            credit_amount = excluded.credit_amount,
-            debit_amount = 0,
-            description = excluded.description,
-            transaction_date = excluded.transaction_date,
-            balance_type = excluded.balance_type,
-            payment_method = 'CASH',
-            is_deleted = 0,
-            sync_status = 'PENDING',
-            updated_at = CURRENT_TIMESTAMP
-        `).run(
-          saleLedgerId,
-          party.party_id,
-          tenantId,
-          txDate,
-          saleDescription,
-          invoiceGrandTotal,
-          balanceType,
-          invoiceNumber,
-          invoice.user_id || 'system',
-          invoice.user_name || 'System'
-        );
-
-        // 2. Immediate Cash payment entry (debit) - records the payment
-        const payLedgerId = deterministicUUID(`cash_pay:${tenantId}:${invoiceNumber}`);
-        db.prepare(`
-          INSERT INTO party_ledger (
-            ledger_id, party_id, tenant_id, transaction_date, description,
-            credit_amount, debit_amount, running_balance, balance_type,
-            payment_method, reference_number, created_by, created_by_name,
-            is_deleted, sync_status, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(ledger_id) DO UPDATE SET
-            party_id = excluded.party_id,
-            tenant_id = excluded.tenant_id,
-            credit_amount = 0,
-            debit_amount = excluded.debit_amount,
-            description = excluded.description,
-            transaction_date = excluded.transaction_date,
-            balance_type = excluded.balance_type,
-            payment_method = 'CASH',
-            is_deleted = 0,
-            sync_status = 'PENDING',
-            updated_at = CURRENT_TIMESTAMP
-        `).run(
-          payLedgerId,
-          party.party_id,
-          tenantId,
-          txDate,
-          `Payment received for ${invoiceNumber}`,
-          invoiceGrandTotal,
-          balanceType,
-          `${invoiceNumber}-PAY`,
-          invoice.user_id || 'system',
-          invoice.user_name || 'System'
-        );
-
-        // Re-sequence running_balance for the party
-        const allEntries = db.prepare(`
-          SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
-          WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-          ORDER BY transaction_date ASC, created_at ASC
-        `).all(party.party_id) as any[];
-
-        let running = 0;
-        for (const row of allEntries) {
-          running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
-          db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
-        }
-
-        recalcPartyBalances(db, party.party_id);
-        return;
-      }
-    }
-
-    // If deleted or neither CREDIT nor SPLIT-with-credit: soft delete any existing ledger entries
-    if (isDelete || !isCredit) {
-      if (existingEntries.length > 0) {
-        const affectedPartyIds = new Set<string>();
-        for (const entry of existingEntries) {
-          affectedPartyIds.add(entry.party_id);
+      if (toDelete.length > 0) {
+        const affectedParties = new Set<string>();
+        for (const row of toDelete) {
+          affectedParties.add(row.party_id);
           db.prepare(`
             UPDATE party_ledger 
             SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
             WHERE ledger_id = ?
-          `).run(entry.ledger_id);
+          `).run(row.ledger_id);
         }
-        for (const pId of affectedPartyIds) {
+
+        for (const pId of affectedParties) {
+          // Re-sequence running_balance for this party
+          const allEntries = db.prepare(`
+            SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+            WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            ORDER BY transaction_date ASC, created_at ASC
+          `).all(pId) as any[];
+
+          let running = 0;
+          for (const row of allEntries) {
+            running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+            db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+          }
+
           recalcPartyBalances(db, pId);
         }
+        console.log(`[syncInvoiceCreditLedger] Soft-deleted ${toDelete.length} entries for ${invoiceNumber}.`);
       }
       return;
     }
 
+    // ── 2. FIND ALL EXISTING ENTRIES FOR THIS INVOICE ───────────────────────
+    // Query without strict tenantId to catch any previous entries created under different tenant tags
+    const existingEntries = db.prepare(`
+      SELECT * FROM party_ledger 
+      WHERE (
+        reference_number = ? 
+        OR reference_number = ? 
+        OR reference_number LIKE ?
+        OR description LIKE ?
+      )
+      AND (is_deleted IS NULL OR is_deleted = 0)
+    `).all(invoiceNumber, `${invoiceNumber}-PAY`, `${invoiceNumber}-%`, `%${invoiceNumber}%`) as any[];
+
+    // ── 3. PARSE PAYMENT METHODS & SPLIT DETAILS ────────────────────────────
+    let splitObj: any = null;
+    if ((invoice as any).split_details && (invoice as any).split_details !== 'null') {
+      try {
+        splitObj = typeof (invoice as any).split_details === 'string'
+          ? JSON.parse((invoice as any).split_details)
+          : (invoice as any).split_details;
+      } catch {}
+    }
+
+    const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
+    const splitCredit = Math.max(0, Number(splitObj?.credit) || 0);
+    const splitCash = Math.max(0, Number(splitObj?.cash) || 0);
+    const splitUpi = Math.max(0, Number(splitObj?.upi) || 0);
+    const splitCard = Math.max(0, Number(splitObj?.card) || 0);
+    const splitBank = Math.max(0, Number(splitObj?.bank_transfer || splitObj?.bank) || 0);
+    const splitCheque = Math.max(0, Number(splitObj?.cheque) || 0);
+
+    const isSplit = paymentMethodUpper === 'SPLIT';
+    const isSplitCredit = isSplit && splitCredit > 0;
+    const isPureCredit = paymentMethodUpper === 'CREDIT';
+    const isCredit = isPureCredit || isSplitCredit;
+
+    const invoiceGrandTotal = Math.max(0, Number(invoice.grand_total) || 0);
+    const invoiceReceivedAmount = Math.max(0, Number(invoice.received_amount) || 0);
+
+    // ── 4. RESOLVE CUSTOMER & PARTY IDENTITY ────────────────────────────────
     const custName = (invoice.customer_name || '').trim();
     const custPhone = (invoice.customer_phone || '').trim();
     const custAddress = (invoice.customer_address || '').trim() || null;
     const custGstin = (invoice.customer_gstin || '').trim() || null;
+    const custId = invoice.customer_id || null;
 
-    if (!custName && !custPhone && !(invoice as any).customer_id) return;
+    if (!custName && !custPhone && !custId) {
+      // If customer identity is missing, soft delete any existing entries for this bill
+      if (existingEntries.length > 0) {
+        const affectedPartyIds = new Set<string>();
+        for (const entry of existingEntries) {
+          affectedPartyIds.add(entry.party_id);
+          db.prepare(`UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(entry.ledger_id);
+        }
+        for (const pId of affectedPartyIds) recalcPartyBalances(db, pId);
+      }
+      return;
+    }
 
-    // Use the unified CustomerIdentityService for consistent party resolution
     const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
-      customer_id: (invoice as any).customer_id,
+      customer_id: custId,
       name: custName,
       phone: custPhone,
       address: custAddress,
@@ -3285,12 +3228,12 @@ export function syncInvoiceCreditLedger(
       return;
     }
 
-    const party = { party_id: identityResult.party_id, name: custName || custPhone };
+    const targetPartyId = identityResult.party_id;
 
     // Party changed? Clean up entries from previous party
     const oldPartyIds = new Set<string>();
     for (const entry of existingEntries) {
-      if (entry.party_id !== party.party_id) {
+      if (entry.party_id !== targetPartyId) {
         oldPartyIds.add(entry.party_id);
         db.prepare(`
           UPDATE party_ledger 
@@ -3303,37 +3246,121 @@ export function syncInvoiceCreditLedger(
       recalcPartyBalances(db, opId);
     }
 
-    const grandTotal = isSplitCredit ? splitCredit : (Number(invoice.grand_total) || 0);
-    const receivedAmount = isSplitCredit ? 0 : Math.max(0, Number(invoice.received_amount) || 0);
+    // ── 5. HANDLE NON-CREDIT INVOICES (CASH, UPI, CARD, ETC.) ───────────────
+    if (!isCredit) {
+      // Check if show_fully_paid_cash_in_ledger is enabled for cash
+      const isCash = paymentMethodUpper === 'CASH';
+      const isFullyPaidCash = isCash && invoiceGrandTotal > 0 && invoiceReceivedAmount >= invoiceGrandTotal - 0.01;
+
+      let showFullyPaidCash = false;
+      if (isFullyPaidCash) {
+        const showSetting = db.prepare(`SELECT value FROM settings WHERE tenant_id = ? AND key = ?`).get(tenantId, 'show_fully_paid_cash_in_ledger');
+        showFullyPaidCash = showSetting ? JSON.parse(showSetting.value) : false;
+      }
+
+      if (!showFullyPaidCash) {
+        // Soft delete all existing entries for this invoice for this party
+        const targetEntries = existingEntries.filter(e => e.party_id === targetPartyId);
+        if (targetEntries.length > 0) {
+          for (const entry of targetEntries) {
+            db.prepare(`
+              UPDATE party_ledger 
+              SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+              WHERE ledger_id = ?
+            `).run(entry.ledger_id);
+          }
+          // Re-sequence and update balance
+          const allEntries = db.prepare(`
+            SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+            WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            ORDER BY transaction_date ASC, created_at ASC
+          `).all(targetPartyId) as any[];
+
+          let running = 0;
+          for (const row of allEntries) {
+            running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+            db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+          }
+          recalcPartyBalances(db, targetPartyId);
+        }
+        return;
+      }
+    }
+
+    // ── 6. SYNC CREDIT / SPLIT-CREDIT / CASH-IN-LEDGER ENTRIES ─────────────
     const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
     const txDate = invoice.created_at || localTimestamp();
-    const saleDescription = isSplitCredit
-      ? `Credit Sale (Split) ${invoiceNumber} - ${custName || party.name || 'Customer'}`
-      : `Credit Sale ${invoiceNumber} - ${custName || party.name || 'Customer'}`;
 
-    const saleEntry = existingEntries.find(e => e.party_id === party.party_id && e.reference_number === invoiceNumber);
-    const payEntry = existingEntries.find(e => e.party_id === party.party_id && e.reference_number === `${invoiceNumber}-PAY`);
+    // Mark ALL existing active entries for this invoice for this party as deleted first
+    // so we can cleanly recreate the exact updated set of sale and payment entries
+    const existingForParty = existingEntries.filter(e => e.party_id === targetPartyId);
+    for (const entry of existingForParty) {
+      db.prepare(`UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(entry.ledger_id);
+    }
 
-    // 1. Credit Sale entry (deterministic UUID guarantees idempotency across devices/sync)
-    const saleLedgerId = saleEntry ? saleEntry.ledger_id : deterministicUUID(`credit_sale:${tenantId}:${invoiceNumber}`);
-    if (saleEntry) {
-      db.prepare(`
-        UPDATE party_ledger SET
-          party_id = ?, tenant_id = ?,
-          credit_amount = ?, debit_amount = 0, description = ?, transaction_date = ?,
-          balance_type = ?, payment_method = 'CREDIT', is_deleted = 0,
-          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-        WHERE ledger_id = ?
-      `).run(
-        party.party_id,
-        tenantId,
-        grandTotal,
-        saleDescription,
-        txDate,
-        balanceType,
-        saleEntry.ledger_id
-      );
-    } else {
+    // A. Construct Sale Description and Breakdown
+    let breakdownParts: string[] = [];
+    if (isSplit) {
+      if (splitCash > 0) breakdownParts.push(`Cash ₹${splitCash}`);
+      if (splitUpi > 0) breakdownParts.push(`UPI ₹${splitUpi}`);
+      if (splitCard > 0) breakdownParts.push(`Card ₹${splitCard}`);
+      if (splitBank > 0) breakdownParts.push(`Bank ₹${splitBank}`);
+      if (splitCheque > 0) breakdownParts.push(`Cheque ₹${splitCheque}`);
+      if (splitCredit > 0) breakdownParts.push(`Credit ₹${splitCredit}`);
+    } else if (isPureCredit) {
+      const creditPortion = Math.max(0, invoiceGrandTotal - invoiceReceivedAmount);
+      if (invoiceReceivedAmount > 0) breakdownParts.push(`Paid ₹${invoiceReceivedAmount}`);
+      breakdownParts.push(`Credit ₹${creditPortion}`);
+    } else if (paymentMethodUpper === 'CASH') {
+      breakdownParts.push(`Cash ₹${invoiceGrandTotal}`);
+    }
+
+    const breakdownText = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
+    const salePrefix = isCredit ? 'Credit Sale' : 'Cash Sale';
+    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ₹${invoiceGrandTotal.toFixed(2)}${breakdownText} - ${custName || 'Customer'}`;
+
+    // 1. Sale Entry (Credit Amount = total invoice amount)
+    const saleLedgerId = deterministicUUID(`credit_sale:${tenantId}:${invoiceNumber}`);
+    db.prepare(`
+      INSERT INTO party_ledger (
+        ledger_id, party_id, tenant_id, transaction_date, description,
+        credit_amount, debit_amount, running_balance, balance_type,
+        payment_method, reference_number, created_by, created_by_name,
+        is_deleted, sync_status, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(ledger_id) DO UPDATE SET
+        party_id = excluded.party_id,
+        tenant_id = excluded.tenant_id,
+        credit_amount = excluded.credit_amount,
+        debit_amount = 0,
+        description = excluded.description,
+        transaction_date = excluded.transaction_date,
+        balance_type = excluded.balance_type,
+        payment_method = excluded.payment_method,
+        is_deleted = 0,
+        sync_status = 'PENDING',
+        updated_at = CURRENT_TIMESTAMP
+    `).run(
+      saleLedgerId,
+      targetPartyId,
+      tenantId,
+      txDate,
+      saleDescription,
+      invoiceGrandTotal,
+      balanceType,
+      isCredit ? 'CREDIT' : paymentMethodUpper,
+      invoiceNumber,
+      invoice.user_id || 'system',
+      invoice.user_name || 'System'
+    );
+
+    // 2. Immediate Payments received at checkout (Debit Amount = payment amounts)
+    const upsertPaymentEntry = (type: string, amount: number, refSuffix: string, method: string) => {
+      if (amount <= 0) return;
+      const payLedgerId = deterministicUUID(`credit_pay_${refSuffix.toLowerCase()}:${tenantId}:${invoiceNumber}`);
+      const payRef = `${invoiceNumber}-${refSuffix}`;
+      const payDesc = `Payment received (${type}) for ${invoiceNumber}`;
       db.prepare(`
         INSERT INTO party_ledger (
           ledger_id, party_id, tenant_id, transaction_date, description,
@@ -3341,97 +3368,52 @@ export function syncInvoiceCreditLedger(
           payment_method, reference_number, created_by, created_by_name,
           is_deleted, sync_status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'CREDIT', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT(ledger_id) DO UPDATE SET
           party_id = excluded.party_id,
           tenant_id = excluded.tenant_id,
-          credit_amount = excluded.credit_amount,
-          debit_amount = 0,
+          credit_amount = 0,
+          debit_amount = excluded.debit_amount,
           description = excluded.description,
           transaction_date = excluded.transaction_date,
           balance_type = excluded.balance_type,
-          payment_method = 'CREDIT',
+          payment_method = excluded.payment_method,
           is_deleted = 0,
           sync_status = 'PENDING',
           updated_at = CURRENT_TIMESTAMP
       `).run(
-        saleLedgerId,
-        party.party_id,
+        payLedgerId,
+        targetPartyId,
         tenantId,
         txDate,
-        saleDescription,
-        grandTotal,
+        payDesc,
+        amount,
         balanceType,
-        invoiceNumber,
+        method,
+        payRef,
         invoice.user_id || 'system',
         invoice.user_name || 'System'
       );
+    };
+
+    if (isSplit) {
+      upsertPaymentEntry('Cash', splitCash, 'CASH', 'CASH');
+      upsertPaymentEntry('UPI', splitUpi, 'UPI', 'UPI');
+      upsertPaymentEntry('Card', splitCard, 'CARD', 'CARD');
+      upsertPaymentEntry('Bank', splitBank, 'BANK', 'BANK_TRANSFER');
+      upsertPaymentEntry('Cheque', splitCheque, 'CHEQUE', 'CHEQUE');
+    } else if (isPureCredit && invoiceReceivedAmount > 0) {
+      upsertPaymentEntry('Cash', invoiceReceivedAmount, 'PAY', 'CASH');
+    } else if (paymentMethodUpper === 'CASH' && invoiceGrandTotal > 0) {
+      upsertPaymentEntry('Cash', invoiceGrandTotal, 'PAY', 'CASH');
     }
 
-    // 2. Immediate Cash payment at checkout (if customer paid partial cash)
-    if (receivedAmount > 0) {
-      const payLedgerId = payEntry ? payEntry.ledger_id : deterministicUUID(`credit_pay:${tenantId}:${invoiceNumber}`);
-      if (payEntry) {
-        db.prepare(`
-          UPDATE party_ledger SET
-            party_id = ?, tenant_id = ?,
-            credit_amount = 0, debit_amount = ?, description = ?, transaction_date = ?,
-            balance_type = ?, payment_method = 'CASH', is_deleted = 0,
-            sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-          WHERE ledger_id = ?
-        `).run(
-          party.party_id,
-          tenantId,
-          receivedAmount,
-          `Payment received for ${invoiceNumber}`,
-          txDate,
-          balanceType,
-          payEntry.ledger_id
-        );
-      } else {
-        db.prepare(`
-          INSERT INTO party_ledger (
-            ledger_id, party_id, tenant_id, transaction_date, description,
-            credit_amount, debit_amount, running_balance, balance_type,
-            payment_method, reference_number, created_by, created_by_name,
-            is_deleted, sync_status, created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, 'CASH', ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(ledger_id) DO UPDATE SET
-            party_id = excluded.party_id,
-            tenant_id = excluded.tenant_id,
-            credit_amount = 0,
-            debit_amount = excluded.debit_amount,
-            description = excluded.description,
-            transaction_date = excluded.transaction_date,
-            balance_type = excluded.balance_type,
-            payment_method = 'CASH',
-            is_deleted = 0,
-            sync_status = 'PENDING',
-            updated_at = CURRENT_TIMESTAMP
-        `).run(
-          payLedgerId,
-          party.party_id,
-          tenantId,
-          txDate,
-          `Payment received for ${invoiceNumber}`,
-          receivedAmount,
-          balanceType,
-          `${invoiceNumber}-PAY`,
-          invoice.user_id || 'system',
-          invoice.user_name || 'System'
-        );
-      }
-    } else if (payEntry) {
-      db.prepare(`UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(payEntry.ledger_id);
-    }
-
-    // Re-sequence running_balance for the party
+    // 3. Re-sequence running_balance for the party
     const allEntries = db.prepare(`
       SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
       WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY transaction_date ASC, created_at ASC
-    `).all(party.party_id) as any[];
+    `).all(targetPartyId) as any[];
 
     let running = 0;
     for (const row of allEntries) {
@@ -3439,7 +3421,7 @@ export function syncInvoiceCreditLedger(
       db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
     }
 
-    recalcPartyBalances(db, party.party_id);
+    recalcPartyBalances(db, targetPartyId);
   } catch (err: any) {
     console.error('[syncInvoiceCreditLedger] Error:', err);
   }
@@ -3451,12 +3433,15 @@ export function syncReturnLedger(
     tenant_id: string;
     return_number: string;
     return_id?: string;
+    invoice_id?: string | null;
+    invoice_number?: string | null;
+    customer_id?: string | null;
     customer_name?: string | null;
     customer_phone?: string | null;
     customer_address?: string | null;
     customer_gstin?: string | null;
     grand_total: number;
-    refund_method: string; // 'CASH' | 'ADJUST_BILL' | 'CARD' | 'UPI' | etc.
+    refund_method: string; // 'CREDIT' | 'CASH' | 'ADJUST_BILL' | 'STORE_CREDIT' | 'CARD' | 'UPI' | etc.
     adjusted_invoice_number?: string | null;
     amount?: number; // For ADJUST_BILL, the amount being adjusted
     user_id?: string;
@@ -3474,10 +3459,11 @@ export function syncReturnLedger(
     const custAddress = (params.customer_address || '').trim() || null;
     const custGstin = (params.customer_gstin || '').trim() || null;
 
-    if (!custName && !custPhone) return;
+    if (!custName && !custPhone && !params.customer_id) return;
 
     // Use the unified CustomerIdentityService for consistent party resolution
     const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+      customer_id: params.customer_id || undefined,
       name: custName,
       phone: custPhone,
       address: custAddress,
@@ -3504,20 +3490,26 @@ export function syncReturnLedger(
     const refundMethod = (params.refund_method || '').toUpperCase();
     const isCashRefund = refundMethod === 'CASH';
     const isAdjustBill = refundMethod === 'ADJUST_BILL';
+    const isCreditRefund = refundMethod === 'CREDIT' || refundMethod === 'STORE_CREDIT';
     const isOtherRefund = ['CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE'].includes(refundMethod);
-    const adjustmentAmount = params.amount || (isCashRefund || isOtherRefund ? params.grand_total : 0);
+    const adjustmentAmount = Math.max(0, Number(params.amount ?? params.grand_total) || 0);
 
-    if (adjustmentAmount <= 0 && !isCashRefund && !isOtherRefund && !isAdjustBill) return;
+    if (adjustmentAmount <= 0) return;
 
     const balanceType = 'GST'; // Returns typically affect GST balance
     const txDate = params.created_at || localTimestamp();
-    let description = `Return ${returnNumber} - ${custName || party.name || 'Customer'}`;
+    const refText = params.invoice_number ? ` (Ref: ${params.invoice_number})` : '';
+    let description = `Return ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
     if (isCashRefund) {
-      description = `Return refund ${returnNumber} - ${custName || party.name || 'Customer'}`;
+      description = `Return refund (Cash) ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
     } else if (isAdjustBill) {
-      description = `Return credit adjusted ${returnNumber} → ${params.adjusted_invoice_number} - ${custName || party.name || 'Customer'}`;
+      description = params.adjusted_invoice_number
+        ? `Return credit adjusted ${returnNumber} → ${params.adjusted_invoice_number}${refText} - ${custName || party.name || 'Customer'}`
+        : `Sales Return ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
+    } else if (isCreditRefund) {
+      description = `Sales Return ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
     } else if (isOtherRefund) {
-      description = `Return refund (${refundMethod}) ${returnNumber} - ${custName || party.name || 'Customer'}`;
+      description = `Return refund (${refundMethod}) ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
     }
 
     const debitAmount = adjustmentAmount;
@@ -3622,6 +3614,80 @@ export function backfillCreditInvoices(db: any) {
       }
       console.log(`[DB] Credit invoices backfill completed.`);
     }
+
+    // Backfill any returns against credit invoices (or store credit returns) that are missing from party_ledger
+    try {
+      const unlinkedReturns = db.prepare(`
+        SELECT r.*, i.invoice_number as orig_invoice_number, i.payment_method as orig_payment_method, i.split_details as orig_split_details, i.customer_id as orig_customer_id, i.customer_name as orig_customer_name, i.customer_phone as orig_customer_phone, i.customer_address as orig_customer_address, i.customer_gstin as orig_customer_gstin
+        FROM returns r
+        LEFT JOIN invoices i ON i.invoice_id = r.invoice_id
+        WHERE (
+          UPPER(COALESCE(i.payment_method, '')) = 'CREDIT'
+          OR (UPPER(COALESCE(i.payment_method, '')) = 'SPLIT' AND i.split_details LIKE '%"credit":%' AND i.split_details NOT LIKE '%"credit":0%')
+          OR UPPER(COALESCE(r.refund_method, '')) IN ('CREDIT', 'STORE_CREDIT', 'ADJUST_BILL')
+        )
+          AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+          AND NOT EXISTS (
+            SELECT 1 FROM party_ledger pl
+            WHERE pl.reference_number = r.return_number
+              AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+          )
+      `).all() as any[];
+
+      if (unlinkedReturns.length > 0) {
+        console.log(`[DB] Backfilling ${unlinkedReturns.length} returns into party ledger...`);
+        for (const ret of unlinkedReturns) {
+          syncReturnLedger(db, {
+            tenant_id: ret.tenant_id || 'global',
+            return_number: ret.return_number,
+            return_id: ret.return_id,
+            invoice_id: ret.invoice_id || null,
+            invoice_number: ret.orig_invoice_number || null,
+            customer_id: ret.orig_customer_id || null,
+            customer_name: ret.customer_name || ret.orig_customer_name || null,
+            customer_phone: ret.customer_phone || ret.orig_customer_phone || null,
+            customer_address: ret.customer_address || ret.orig_customer_address || null,
+            customer_gstin: ret.orig_customer_gstin || null,
+            grand_total: Number(ret.grand_total) || 0,
+            refund_method: ret.refund_method || 'CREDIT',
+            amount: Number(ret.grand_total) || 0,
+            user_id: ret.user_id,
+            created_at: ret.created_at,
+          });
+        }
+        console.log(`[DB] Returns backfill completed.`);
+      }
+    } catch (e) {
+      console.error('[DB] Failed to backfill credit returns:', e);
+    }
+
+    // Clean up any lingering active ledger entries belonging to soft-deleted invoices
+    try {
+      const staleEntries = db.prepare(`
+        SELECT pl.ledger_id, pl.party_id FROM party_ledger pl
+        JOIN invoices i ON (
+          i.invoice_number = pl.reference_number 
+          OR pl.reference_number = i.invoice_number || '-PAY'
+          OR pl.reference_number LIKE i.invoice_number || '-%'
+          OR pl.description LIKE '%' || i.invoice_number || '%'
+        )
+        WHERE i.is_deleted = 1 AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+      `).all() as any[];
+
+      if (staleEntries.length > 0) {
+        console.log(`[DB] Cleaning up ${staleEntries.length} stale ledger entries for soft-deleted invoices...`);
+        const affectedParties = new Set<string>();
+        for (const row of staleEntries) {
+          affectedParties.add(row.party_id);
+          db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(row.ledger_id);
+        }
+        for (const pId of affectedParties) {
+          recalcPartyBalances(db, pId);
+        }
+      }
+    } catch (e) {
+      console.error('[DB] Failed to clean stale deleted invoice ledger entries in backfill:', e);
+    }
   } catch (err: any) {
     console.error('[DB] Failed to backfill credit invoices:', err);
   }
@@ -3672,6 +3738,37 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string, includeDeleted = fa
         recalcPartyBalances(db, partyId);
       }
     } catch {}
+
+    // Clean up any ledger entries where the invoice was deleted (is_deleted = 1)
+    try {
+      const deletedInvoiceEntries = db.prepare(`
+        SELECT pl.ledger_id FROM party_ledger pl
+        WHERE pl.party_id = ?
+          AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+          AND (
+            EXISTS (
+              SELECT 1 FROM invoices i 
+              WHERE i.is_deleted = 1 
+                AND (
+                  i.invoice_number = pl.reference_number 
+                  OR pl.reference_number = i.invoice_number || '-PAY'
+                  OR pl.reference_number LIKE i.invoice_number || '-%'
+                  OR pl.description LIKE '%' || i.invoice_number || '%'
+                )
+            )
+          )
+      `).all(partyId) as any[];
+
+      if (deletedInvoiceEntries.length > 0) {
+        console.log(`[db:getPartyLedger] Cleaning up ${deletedInvoiceEntries.length} entries for deleted invoices`);
+        for (const entry of deletedInvoiceEntries) {
+          db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(entry.ledger_id);
+        }
+        recalcPartyBalances(db, partyId);
+      }
+    } catch (e) {
+      console.error('[db:getPartyLedger] Error cleaning deleted invoice ledger entries:', e);
+    }
     try { recalcPartyBalances(db, partyId); } catch (e) {}
     const sql = includeDeleted
       ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC`
@@ -5375,7 +5472,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   }
   const { items, ...invoice } = payload;
   const db = getDb();
-  const existingInv = db.prepare(`SELECT invoice_number, invoice_type, tenant_id, payment_method, received_amount, actual_refund_paid, balance_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
+  const existingInv = db.prepare(`SELECT * FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
   if (!existingInv) {
     return { success: false, error: 'Invoice not found' };
   }
@@ -5510,6 +5607,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       payment_method: invoice.payment_method,
       received_amount: finalReceivedAmount,
       balance_amount: finalBalanceAmount,
+      customer_id: customerId || (payload as any).customer_id || (invoice as any).customer_id || existingInv.customer_id,
       customer_name: invoice.customer_name,
       customer_phone: invoice.customer_phone,
       customer_address: invoice.customer_address,
@@ -5557,7 +5655,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
 }) => {
   try {
     const db = getDb();
-    const existingInv = db.prepare(`SELECT tenant_id, payment_method, received_amount, grand_total, split_details, created_at, invoice_number, invoice_type, customer_name, customer_phone, customer_address, customer_gstin FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
+    const existingInv = db.prepare(`SELECT * FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
     if (!existingInv) {
       return { success: false, error: 'Invoice not found' };
     }
@@ -5613,6 +5711,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       payment_method: payload.payment_method,
       received_amount: payload.received_amount,
       balance_amount: payload.balance_amount,
+      customer_id: existingInv.customer_id,
       customer_name: existingInv.customer_name,
       customer_phone: existingInv.customer_phone,
       customer_address: existingInv.customer_address,
@@ -5703,7 +5802,36 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
       stockStmt.run(item.quantity, item.product_id);
     }
 
-    if (returnData.refund_method === 'CASH' && Number(returnData.grand_total) > 0) {
+    let origInv: any = null;
+    if (returnData.invoice_id) {
+      origInv = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(returnData.invoice_id);
+    }
+    const origPm = (origInv?.payment_method || '').toUpperCase();
+    let origSplitCredit = 0;
+    if (origInv?.split_details) {
+      try {
+        const s = typeof origInv.split_details === 'string' ? JSON.parse(origInv.split_details) : origInv.split_details;
+        origSplitCredit = Number(s?.credit) || 0;
+      } catch {}
+    }
+    const isOrigCredit = Boolean(
+      origInv && (
+        origPm === 'CREDIT' ||
+        origSplitCredit > 0 ||
+        (Number(origInv.balance_amount) > 0 && origPm !== 'CASH')
+      )
+    );
+
+    // If original invoice was a credit bill, reduce its balance_amount by the returned amount
+    if (isOrigCredit && origInv) {
+      const currentBal = Number(origInv.balance_amount) || (origPm === 'CREDIT' ? Math.max(0, Number(origInv.grand_total) - (Number(origInv.received_amount) || 0)) : origSplitCredit);
+      const newBal = Math.max(0, currentBal - Number(returnData.grand_total));
+      db.prepare("UPDATE invoices SET balance_amount = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(newBal, origInv.invoice_id);
+    }
+
+    const refMethod = (returnData.refund_method || (isOrigCredit ? 'CREDIT' : 'ADJUST_BILL')).toUpperCase();
+
+    if (refMethod === 'CASH' && Number(returnData.grand_total) > 0) {
       const todayDate = localDate();
       const drawer = getOpenCashDrawer(db, returnData.tenant_id, todayDate);
       if (drawer) {
@@ -5729,36 +5857,36 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
           `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
         }
       }
-      // Sync party ledger for cash refund
+    }
+
+    // Sync party ledger whenever:
+    // 1. Original bill was a credit invoice (return reduces customer's balance), OR
+    // 2. Refund method is CREDIT, STORE_CREDIT, or ADJUST_BILL (customer gets account credit), OR
+    // 3. Customer has an account / identity and refund was made
+    const shouldSyncLedger = isOrigCredit || ['CREDIT', 'STORE_CREDIT', 'ADJUST_BILL'].includes(refMethod) || (
+      Boolean(returnData.customer_name || returnData.customer_phone || origInv?.customer_id) &&
+      ['CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CASH'].includes(refMethod) &&
+      Number(returnData.grand_total) > 0
+    );
+
+    if (shouldSyncLedger && Number(returnData.grand_total) > 0) {
       syncReturnLedger(db, {
-        tenant_id: returnData.tenant_id || 'global',
+        tenant_id: returnData.tenant_id || origInv?.tenant_id || 'global',
         return_number: returnData.return_number,
         return_id: returnData.return_id,
-        customer_name: returnData.customer_name,
-        customer_phone: returnData.customer_phone,
-        customer_address: returnData.customer_address || null,
-        customer_gstin: null,
-        grand_total: returnData.grand_total,
-        refund_method: 'CASH',
+        invoice_id: returnData.invoice_id || null,
+        invoice_number: origInv?.invoice_number || null,
+        customer_id: origInv?.customer_id || null,
+        customer_name: returnData.customer_name || origInv?.customer_name || null,
+        customer_phone: returnData.customer_phone || origInv?.customer_phone || null,
+        customer_address: returnData.customer_address || origInv?.customer_address || null,
+        customer_gstin: origInv?.customer_gstin || null,
+        grand_total: Number(returnData.grand_total) || 0,
+        refund_method: refMethod,
+        amount: Number(returnData.grand_total) || 0,
         user_id: returnData.user_id,
         user_name: returnData.user_name || returnData.user_id,
-        created_at: localTimestamp(),
-      });
-    } else if (['CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE'].includes((returnData.refund_method || '').toUpperCase()) && Number(returnData.grand_total) > 0) {
-      // Sync party ledger for non-cash refunds
-      syncReturnLedger(db, {
-        tenant_id: returnData.tenant_id || 'global',
-        return_number: returnData.return_number,
-        return_id: returnData.return_id,
-        customer_name: returnData.customer_name,
-        customer_phone: returnData.customer_phone,
-        customer_address: returnData.customer_address || null,
-        customer_gstin: null,
-        grand_total: returnData.grand_total,
-        refund_method: returnData.refund_method || 'CASH',
-        user_id: returnData.user_id,
-        user_name: returnData.user_name || returnData.user_id,
-        created_at: localTimestamp(),
+        created_at: now,
       });
     }
   });
@@ -5967,12 +6095,54 @@ ipcMain.handle('db:deleteReturn', (event, return_id: string) => {
   try {
     const db = getDb();
     const transaction = db.transaction(() => {
+      const returnRow = db.prepare('SELECT * FROM returns WHERE return_id = ?').get(return_id) as any;
+      if (!returnRow) return;
+
       const items = db.prepare('SELECT product_id, quantity FROM return_items WHERE return_id = ?').all(return_id) as any[];
       for (const item of items) {
         db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?').run(item.quantity, item.product_id);
       }
+
+      // Restore original invoice balance_amount if it was a credit bill
+      if (returnRow.invoice_id) {
+        const origInv = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(returnRow.invoice_id) as any;
+        if (origInv) {
+          const origPm = (origInv.payment_method || '').toUpperCase();
+          let origSplitCredit = 0;
+          if (origInv.split_details) {
+            try {
+              const s = typeof origInv.split_details === 'string' ? JSON.parse(origInv.split_details) : origInv.split_details;
+              origSplitCredit = Number(s?.credit) || 0;
+            } catch {}
+          }
+          const isOrigCredit = origPm === 'CREDIT' || origSplitCredit > 0 || (Number(origInv.balance_amount) > 0 && origPm !== 'CASH');
+          if (isOrigCredit) {
+            const restoredBalance = (Number(origInv.balance_amount) || 0) + (Number(returnRow.grand_total) || 0);
+            db.prepare("UPDATE invoices SET balance_amount = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(restoredBalance, origInv.invoice_id);
+          }
+        }
+      }
+
+      // Soft delete party ledger entries for this return
+      const ledgerRows = db.prepare(`
+        SELECT ledger_id, party_id FROM party_ledger
+        WHERE reference_number = ?
+           OR reference_number LIKE ? || '-%'
+           OR description LIKE '%' || ? || '%'
+      `).all(returnRow.return_number, returnRow.return_number, returnRow.return_number) as any[];
+
+      const affectedParties = new Set<string>();
+      for (const row of ledgerRows) {
+        affectedParties.add(row.party_id);
+        db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(row.ledger_id);
+      }
+
       db.prepare('DELETE FROM return_items WHERE return_id = ?').run(return_id);
       db.prepare('DELETE FROM returns WHERE return_id = ?').run(return_id);
+
+      for (const pId of affectedParties) {
+        recalcPartyBalances(db, pId);
+      }
     });
     transaction();
     return { success: true };
@@ -9320,6 +9490,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         payment_method: payment_method,
         received_amount: storedReceivedAmount,
         balance_amount: 0, // Fully settled
+        customer_id: invoice.customer_id,
         customer_name: invoice.customer_name,
         customer_phone: invoice.customer_phone,
         customer_address: invoice.customer_address,
@@ -10229,13 +10400,13 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id, phone
 ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
   try {
     const db = getDb();
-    const existingInv = db.prepare(`SELECT tenant_id, payment_method, received_amount, grand_total, split_details, created_at, invoice_number FROM invoices WHERE invoice_id = ?`).get(invoice_id) as any;
+    const existingInv = db.prepare(`SELECT * FROM invoices WHERE invoice_id = ?`).get(invoice_id) as any;
     const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
 
     db.transaction(() => {
       const inv = db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
 
-      // A conversion copy never moved stock â€” do NOT restore it (would double stock).
+      // A conversion copy never moved stock — do NOT restore it (would double stock).
       // The superseded BoS owns the deduction.
       const isConversionCopy = !!(inv && inv.converted_from_invoice_id);
 
@@ -10274,6 +10445,17 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
       }
 
       db.prepare("UPDATE invoices SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
+
+      // Soft-delete party_ledger entries immediately within transaction
+      if (existingInv && existingInv.invoice_number) {
+        const invNum = String(existingInv.invoice_number).trim();
+        db.prepare(`
+          UPDATE party_ledger 
+          SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+          WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
+            AND (is_deleted IS NULL OR is_deleted = 0)
+        `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
+      }
     })();
 
     if (existingInv) {

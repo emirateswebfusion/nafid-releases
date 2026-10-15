@@ -152,7 +152,9 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
   const syncedIds: string[] = [];
 
   let sql = `INSERT INTO ${tableName} (${allCols.join(', ')}) VALUES (${allCols.map(c => `@${c}`).join(', ')})`;
-  if (pkCols.length > 0 && updateCols.length > 0) {
+  if (tableName === 'product_pricing') {
+    sql += ` ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
+  } else if (pkCols.length > 0 && updateCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
   } else if (pkCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO NOTHING`;
@@ -259,8 +261,49 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
         }
       }
 
-      stmt.run(paramObj);
-      if (itemId) syncedIds.push(itemId);
+      if (tableName === 'pricing_tiers' && rawRow.name) {
+        const cleanName = String(rawRow.name).trim();
+        const existingTier = db.prepare(`
+          SELECT pricing_tier_id FROM pricing_tiers
+          WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+            AND LOWER(TRIM(name)) = LOWER(?)
+          LIMIT 1
+        `).get(rawRow.tenant_id || 'global', cleanName) as any;
+
+        if (existingTier && existingTier.pricing_tier_id !== rawRow.pricing_tier_id) {
+          try {
+            db.prepare(`
+              UPDATE pricing_tiers SET
+                name = ?,
+                is_active = ?,
+                sort_order = ?,
+                is_default = ?,
+                is_deleted = ?,
+                sync_status = 'SYNCED',
+                updated_at = CURRENT_TIMESTAMP
+              WHERE pricing_tier_id = ?
+            `).run(
+              cleanName,
+              rawRow.is_active ? 1 : 0,
+              rawRow.sort_order ?? 0,
+              rawRow.is_default ? 1 : 0,
+              rawRow.is_deleted ? 1 : 0,
+              existingTier.pricing_tier_id
+            );
+            if (itemId) syncedIds.push(itemId);
+            continue;
+          } catch (e: any) {
+            console.warn('[LocalHostServer] Error updating existing pricing tier by name:', e.message);
+          }
+        }
+      }
+
+      try {
+        stmt.run(paramObj);
+        if (itemId) syncedIds.push(itemId);
+      } catch (runErr: any) {
+        console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, runErr.message);
+      }
 
       if (tableName === 'invoices' && Array.isArray(rawRow.items)) {
         for (const line of rawRow.items) {

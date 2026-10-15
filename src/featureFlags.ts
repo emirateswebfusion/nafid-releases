@@ -31,7 +31,7 @@ export interface FeatureDef {
   desc: string;
 }
 
-export const isAiAssistantAvailable = !import.meta.env.PROD || import.meta.env.VITE_ENABLE_AI_ASSISTANT === 'true';
+export const isAiAssistantAvailable = true;
 
 export const FEATURE_LIST: FeatureDef[] = [
   { key: 'billing', label: 'Billing', desc: 'Create new invoices and manage sales' },
@@ -84,7 +84,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   sales_staff: false,
   sales_history: true,
   loyalty: true,
-  ai_assistant: false,
+  ai_assistant: isAiAssistantAvailable,
 };
 
 export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {

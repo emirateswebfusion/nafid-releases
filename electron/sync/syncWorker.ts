@@ -1312,6 +1312,15 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
           'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
         ];
         let latestPulledTs: string | null = null;
+        let hasMissingCatalogCursor = false;
+        const catalogTables = ['pricing_tiers', 'product_pricing', 'product_grades', 'products', 'settings'];
+        for (const t of catalogTables) {
+          if (!getMeta(cursorKey(tenant_id, t))) {
+            hasMissingCatalogCursor = true;
+            break;
+          }
+        }
+
         for (const t of syncCheckTables) {
           const ts = getMeta(cursorKey(tenant_id, t));
           if (ts) {
@@ -1320,7 +1329,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
             }
           }
         }
-        if (latestPulledTs) {
+        if (latestPulledTs && !hasMissingCatalogCursor) {
           const statusCheck = await checkCloudStatus(jwt_token, tenant_id, latestPulledTs);
           if (statusCheck.success && !statusCheck.hasChanges) {
             console.log(`[SyncWorker] ⚡ Cloud check-status: 0 changes detected since ${latestPulledTs}. Skipping pull phase.`);
@@ -1486,17 +1495,18 @@ async function syncGrades(token: string, tenantId: string) {
 // ── Pricing Tiers Sync (Edge → Cloud) ────────────────────────────────────────
 async function syncPricingTiers(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM pricing_tiers WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM pricing_tiers WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} pricing tiers to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`UPDATE pricing_tiers SET sync_status = 'SYNCED' WHERE pricing_tier_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE pricing_tiers SET sync_status = 'SYNCED', tenant_id = ? WHERE pricing_tier_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const tiers = batch.map((t: any) => ({
       ...t,
+      tenant_id: tenantId,
       is_active: !!t.is_active,
       is_default: !!t.is_default,
       is_deleted: !!t.is_deleted,
@@ -1510,7 +1520,7 @@ async function syncPricingTiers(token: string, tenantId: string) {
       `Pricing tiers batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(tenantId, id); });
       tx(synced);
     }
   }
@@ -1519,17 +1529,17 @@ async function syncPricingTiers(token: string, tenantId: string) {
 // ── Product Pricing Sync (Edge → Cloud) ──────────────────────────────────────
 async function syncProductPricing(token: string, tenantId: string) {
   const db = getDb();
-  let pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  let pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
 
   // Sanitize any non-UUID product_pricing_id before pushing
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const fixIdStmt = db.prepare(`UPDATE product_pricing SET product_pricing_id = ? WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+  const fixIdStmt = db.prepare(`UPDATE product_pricing SET product_pricing_id = ?, tenant_id = ? WHERE product_id = ? AND pricing_tier_id = ?`);
   for (const pp of pending) {
     if (!pp.product_pricing_id || !uuidRegex.test(pp.product_pricing_id)) {
       const newUuid = crypto.randomUUID();
-      fixIdStmt.run(newUuid, pp.product_id, pp.pricing_tier_id, tenantId);
+      fixIdStmt.run(newUuid, tenantId, pp.product_id, pp.pricing_tier_id);
       pp.product_pricing_id = newUuid;
     }
   }
@@ -1538,14 +1548,15 @@ async function syncProductPricing(token: string, tenantId: string) {
 
   const updateStmt = db.prepare(`
     UPDATE product_pricing
-    SET sync_status = 'SYNCED'
-    WHERE tenant_id = ? AND (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
+    SET sync_status = 'SYNCED', tenant_id = ?
+    WHERE (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
   `);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const pricing = batch.map((pp: any) => ({
       ...pp,
+      tenant_id: tenantId,
       is_deleted: !!pp.is_deleted,
     }));
 
@@ -2016,6 +2027,16 @@ async function pullGrades(token: string, tenantId: string): Promise<boolean> {
 async function pullPricingTiers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
+  const findByName = db.prepare(`
+    SELECT pricing_tier_id FROM pricing_tiers
+    WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+      AND LOWER(TRIM(name)) = LOWER(?)
+    LIMIT 1
+  `);
+  const updateTierId = db.prepare(`UPDATE pricing_tiers SET pricing_tier_id = ?, tenant_id = ? WHERE pricing_tier_id = ?`);
+  const remapProductPricing = db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
+  const remapParties = db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
+
   const upsert = db.prepare(`
     INSERT INTO pricing_tiers (
       pricing_tier_id, tenant_id, name, is_active, sort_order, is_default, is_deleted,
@@ -2025,6 +2046,7 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
       'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(pricing_tier_id) DO UPDATE SET
+      tenant_id = excluded.tenant_id,
       name = excluded.name,
       is_active = excluded.is_active,
       sort_order = excluded.sort_order,
@@ -2047,10 +2069,22 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
       const tx = db.transaction((tiers: any[]) => {
         for (const t of tiers) {
           try {
+            const cleanName = String(t.name || '').trim();
+            const existing = findByName.get(tenantId, cleanName) as { pricing_tier_id: string } | undefined;
+            if (existing && existing.pricing_tier_id !== t.pricing_tier_id) {
+              try {
+                remapProductPricing.run(t.pricing_tier_id, existing.pricing_tier_id);
+                remapParties.run(t.pricing_tier_id, existing.pricing_tier_id);
+                updateTierId.run(t.pricing_tier_id, tenantId, existing.pricing_tier_id);
+              } catch (remapErr: any) {
+                console.warn('[SyncWorker] Error remapping tier ID:', remapErr.message);
+              }
+            }
+
             upsert.run({
               pricing_tier_id: t.pricing_tier_id,
               tenant_id: tenantId,
-              name: t.name,
+              name: cleanName,
               is_active: t.is_active ? 1 : 0,
               sort_order: t.sort_order ?? 0,
               is_default: t.is_default ? 1 : 0,
@@ -2080,6 +2114,8 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
 async function pullProductPricing(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
+  const findConflictingId = db.prepare(`SELECT product_id, pricing_tier_id FROM product_pricing WHERE product_pricing_id = ?`);
+
   const upsert = db.prepare(`
     INSERT INTO product_pricing (
       product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted,
@@ -2090,6 +2126,7 @@ async function pullProductPricing(token: string, tenantId: string): Promise<bool
     )
     ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET
       product_pricing_id = excluded.product_pricing_id,
+      tenant_id = excluded.tenant_id,
       price = excluded.price,
       is_deleted = excluded.is_deleted,
       created_at = COALESCE(product_pricing.created_at, excluded.created_at),
@@ -2109,8 +2146,14 @@ async function pullProductPricing(token: string, tenantId: string): Promise<bool
       const tx = db.transaction((pricing: any[]) => {
         for (const pp of pricing) {
           try {
+            const conflict = findConflictingId.get(pp.product_pricing_id) as any;
+            let targetPricingId = pp.product_pricing_id;
+            if (conflict && (conflict.product_id !== pp.product_id || conflict.pricing_tier_id !== pp.pricing_tier_id)) {
+              targetPricingId = crypto.randomUUID();
+            }
+
             upsert.run({
-              product_pricing_id: pp.product_pricing_id,
+              product_pricing_id: targetPricingId,
               tenant_id: tenantId,
               product_id: pp.product_id,
               pricing_tier_id: pp.pricing_tier_id,
@@ -2495,6 +2538,17 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                     db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?').run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
                   }
                 }
+              }
+
+              // If this invoice is soft-deleted, ensure any local party ledger entries are also soft-deleted
+              if (isDeletedPull && currentInv.invoice_number) {
+                const invNum = String(currentInv.invoice_number).trim();
+                db.prepare(`
+                  UPDATE party_ledger
+                  SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+                  WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
+                    AND (is_deleted IS NULL OR is_deleted = 0)
+                `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
               }
 
               success = true;

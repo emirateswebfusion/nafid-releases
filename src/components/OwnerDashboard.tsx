@@ -155,16 +155,6 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     });
 
     const cards = [
-        ...(isAiAssistantAvailable ? [{
-            id: 'ai-assistant',
-            title: 'AI Business Assistant',
-            desc: 'Chat to analyze sales, inventory, customer credit & insights',
-            icon: Sparkles,
-            color: 'text-indigo-500',
-            bgColor: 'bg-indigo-500/10',
-            action: () => window.dispatchEvent(new CustomEvent('open-ai-assistant')),
-            shortcut: 'AI',
-        }] : []),
         {
             id: 'billing',
             title: 'Billing',
@@ -196,6 +186,17 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             action: () => window.dispatchEvent(new CustomEvent('open-inventory-manager')),
             perm: 'products.view'
         },
+        ...(isAiAssistantAvailable ? [{
+            id: 'ai-assistant',
+            title: 'AI Business Assistant',
+            desc: 'Chat to analyze sales, inventory, customer credit & insights',
+            icon: Sparkles,
+            color: 'text-indigo-500',
+            bgColor: 'bg-indigo-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-ai-assistant')),
+            shortcut: 'AI',
+            badge: 'NEW',
+        }] : []),
         {
             id: 'grades',
             title: 'Categories & Grades',
@@ -371,7 +372,9 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
     const visibleCards = cards.filter(c => {
         // 1. Feature Flag check
-        if (featureFlags) {
+        if (c.id === 'ai-assistant') {
+            if (!isAiAssistantAvailable || (featureFlags && featureFlags.ai_assistant === false)) return false;
+        } else if (featureFlags) {
             if (c.id === 'cashier' && !featureFlags.cash_settlement) return false;
             const f = FEATURE_BY_CARD[c.id];
             if (f && !featureFlags[f]) return false;
@@ -547,11 +550,19 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                     )}>
                                         <card.icon className="w-6 h-6" />
                                     </div>
-                                    {card.shortcut && (
-                                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-border">
-                                            {card.shortcut}
-                                        </span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        {(card as any).badge && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full shadow-2xs">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                {(card as any).badge}
+                                            </span>
+                                        )}
+                                        {card.shortcut && (
+                                            <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-border">
+                                                {card.shortcut}
+                                            </span>
+                                        )}
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="flex-1 flex flex-col pt-4">
                                     <CardTitle className="text-xl mb-2 group-hover:text-primary transition-colors">{card.title}</CardTitle>

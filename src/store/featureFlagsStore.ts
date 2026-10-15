@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags } from '../featureFlags';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, isAiAssistantAvailable, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags } from '../featureFlags';
 
 interface FeatureFlagsState {
   flags: FeatureFlags | null;
@@ -42,6 +42,9 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>()((set, get) => ({
           for (const def of FEATURE_LIST) {
             const v = (stored as Record<string, unknown>)[def.key];
             if (typeof v === 'boolean') loadedFlags[def.key] = v;
+          }
+          if (isAiAssistantAvailable && typeof (stored as Record<string, unknown>)['ai_assistant'] !== 'boolean') {
+            loadedFlags.ai_assistant = true;
           }
           loadedFlags = sanitizeFeatureFlags(loadedFlags);
           cacheStored = true;

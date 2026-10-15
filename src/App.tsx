@@ -329,7 +329,12 @@ function App() {
   }, [isAuthenticated, loadFlags]);
 
   useEffect(() => {
-    const canOpen = (key: FeatureKey) => Boolean(featureFlagsRef.current?.[key]);
+    const canOpen = (key: FeatureKey) => {
+      if (key === 'ai_assistant') {
+        return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
+      }
+      return Boolean(featureFlagsRef.current?.[key]);
+    };
     const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
     const handleOpenStockReport = () => { if (canOpen('stock_report')) setShowStockReport(true); };
     const handleOpenHistory = () => { if (canOpen('sales_history')) setShowSalesHistory(true); };

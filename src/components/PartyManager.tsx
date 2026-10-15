@@ -353,11 +353,16 @@ export function PartyManager({
       const candidateTerms: string[] = [];
 
       if (entry.reference_number?.trim()) {
-        candidateTerms.push(entry.reference_number.trim());
+        const ref = entry.reference_number.trim();
+        candidateTerms.push(ref);
+        const baseRef = ref.replace(/-(PAY|CASH|UPI|CARD|BANK|CHEQUE)$/i, '');
+        if (baseRef !== ref && !candidateTerms.includes(baseRef)) {
+          candidateTerms.push(baseRef);
+        }
       }
 
       const fullText = `${entry.description || ''} ${entry.reference_number || ''}`;
-      const matches = fullText.match(/(?:#|INV-|BOS-|PB-|SCRAP-|RET-|Bill\s*#?|Invoice\s*#?|Estimate\s*#?)([A-Za-z0-9\-_]+)/gi);
+      const matches = fullText.match(/(?:#|INV-|BOS-|PB-|SCRAP-|RET-|RTN-|Bill\s*#?|Invoice\s*#?|Estimate\s*#?)([A-Za-z0-9\-_]+)/gi);
       if (matches) {
         matches.forEach(m => {
           const cleaned = m.replace(/^(?:#|Bill\s*#?|Invoice\s*#?|Estimate\s*#?)/i, '').trim();
@@ -381,6 +386,18 @@ export function PartyManager({
             foundInvoice = match;
             break;
           }
+        }
+        if (!foundInvoice && window.electronAPI?.dbGetReturnInvoiceByNumber && (term.toUpperCase().startsWith('RTN-') || term.toUpperCase().startsWith('RET-'))) {
+          try {
+            const ret = await window.electronAPI.dbGetReturnInvoiceByNumber({ tenant_id: tId, return_number: term });
+            if (ret && ret.invoice_id) {
+              const res = await window.electronAPI.dbGetInvoices({ search: ret.invoice_id, tenant_id: tId });
+              if (Array.isArray(res) && res.length > 0) {
+                foundInvoice = res.find((inv: any) => inv.invoice_id === ret.invoice_id) || res[0];
+                break;
+              }
+            }
+          } catch {}
         }
         if (!foundInvoice) {
           try {
@@ -406,7 +423,10 @@ export function PartyManager({
               if (!isPartyMatch) return false;
               const invTotal = Number(inv.grand_total) || 0;
               return Math.abs(invTotal - entryAmt) < 0.01 ||
-                (entry.reference_number && String(inv.invoice_number).includes(entry.reference_number));
+                (entry.reference_number && (
+                  String(inv.invoice_number).includes(entry.reference_number) ||
+                  entry.reference_number.startsWith(String(inv.invoice_number))
+                ));
             });
             if (match) {
               foundInvoice = match;

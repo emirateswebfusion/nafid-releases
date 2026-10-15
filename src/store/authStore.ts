@@ -415,6 +415,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   logout: async () => {
     if (window.electronAPI) await window.electronAPI.authClearToken();
     localStorage.removeItem(BROWSER_AUTH_KEY);
+    try {
+      localStorage.removeItem('nafid_pos_ai_conversations_v3');
+      localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
+      localStorage.removeItem('nafid_pos_ai_conversations');
+    } catch {}
     useCartStore.getState().clearCart();
     set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null });
   },

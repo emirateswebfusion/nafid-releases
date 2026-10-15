@@ -1,208 +1,416 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Sparkles,
-  Send,
-  Bot,
-  User,
+  Plus,
+  ArrowUp,
   Trash2,
-  Printer,
+  Copy,
+  Check,
+  Volume2,
+  VolumeX,
+  FileSpreadsheet,
+  PanelLeftClose,
+  PanelLeft,
+  X,
+  Wifi,
+  WifiOff,
+  BarChart3,
+  RefreshCw,
   TrendingUp,
   Package,
   Users,
-  ArrowRight,
-  RefreshCw,
-  Copy,
-  Check,
-  Mic,
-  MicOff,
-  ChevronDown,
-  ChevronUp,
-  BarChart3,
   DollarSign,
-  ArrowLeft,
-  X
+  Pencil,
+  RotateCcw
 } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { CustomDialog } from './ui/CustomDialog';
+import { FloatToast, type ToastMessage } from './ui/FloatToast';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid
+} from 'recharts';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   data?: any;
-  chartData?: any;
+  chartData?: {
+    title?: string;
+    labelKey: string;
+    dataKey: string;
+    items: Array<Record<string, any>>;
+  };
   suggestedPrompts?: string[];
   timestamp: string;
 }
 
-interface OverviewStats {
-  todaySales?: { total_sales: number; total_invoices: number };
-  monthSales?: { total_sales: number; total_invoices: number };
-  customerReceivables?: { total_outstanding: number; total_debtors: number };
-  lowStockStats?: { low_stock_count: number; out_of_stock_count: number };
-  todayExpenses?: { total_expenses: number };
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: number;
+  messages: ChatMessage[];
 }
-
-const DEFAULT_SUGGESTIONS = [
-  {
-    category: '📊 Sales & Revenue',
-    icon: TrendingUp,
-    color: 'emerald',
-    prompts: [
-      "What is today's sales?",
-      "What is this month's total sales?",
-      "Compare this month's sales with last month",
-    ]
-  },
-  {
-    category: '📦 Inventory & Stock',
-    icon: Package,
-    color: 'blue',
-    prompts: [
-      'Show low stock items',
-      'What are the top 5 best selling products?',
-    ]
-  },
-  {
-    category: '👥 Customers & Credit',
-    icon: Users,
-    color: 'amber',
-    prompts: [
-      'Which customers have credit balance above ₹5,000?',
-      'What is total customer receivables outstanding?',
-    ]
-  },
-  {
-    category: '💸 Expenses & Purchases',
-    icon: DollarSign,
-    color: 'rose',
-    prompts: [
-      'What are the total expenses this month?',
-      'Show this month\'s purchase bills',
-    ]
-  }
-];
 
 function formatINR(val: number | undefined): string {
   return '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function humanizeKey(key: string): string {
+  if (!key) return '';
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function getAiConversationsStorageKey(tenantId: string | null | undefined, userId: string | null | undefined): string {
+  const t = (tenantId || 'global').trim();
+  const u = (userId || 'user').trim();
+  return `nafid_ai_convs_${t}_${u}`;
+}
+
+function getAiActiveConvIdStorageKey(tenantId: string | null | undefined, userId: string | null | undefined): string {
+  const t = (tenantId || 'global').trim();
+  const u = (userId || 'user').trim();
+  return `nafid_ai_active_conv_${t}_${u}`;
+}
+
+// 100% Genuine Nafid Business Intelligence System Queries
+const BENTO_CARDS_EN = [
+  {
+    icon: TrendingUp,
+    title: "Today's Sales & Bills",
+    description: "View total revenue, invoices count, and average bill value today",
+    prompt: "What is today's sales and bill count?"
+  },
+  {
+    icon: Package,
+    title: "Low Stock Alerts",
+    description: "List inventory products that have reached or dropped below reorder level",
+    prompt: "Show low stock items below reorder level"
+  },
+  {
+    icon: Users,
+    title: "Customer Credit & Debtors",
+    description: "Find credit customers with pending balances above ₹5,000",
+    prompt: "Which customers have credit balance above ₹5,000?"
+  },
+  {
+    icon: DollarSign,
+    title: "Monthly Revenue & Growth",
+    description: "Calculate this month's total sales turnover and compare with last month",
+    prompt: "What is this month's total sales revenue?"
+  }
+];
+
+const BENTO_CARDS_ML = [
+  {
+    icon: TrendingUp,
+    title: "ഇന്നത്തെ സെയിൽസ് & ബില്ലുകൾ",
+    description: "ഇന്നത്തെ ആകെ സെയിൽസ് തുകയും ബില്ലുകളുടെ എണ്ണവും പരിശോധിക്കുക",
+    prompt: "ഇന്നത്തെ മൊത്തം സെയിൽസ് എത്രയാണ്?"
+  },
+  {
+    icon: Package,
+    title: "സ്റ്റോക്ക് മുന്നറിയിപ്പ്",
+    description: "റീ-ഓർഡർ ലെവലിൽ എത്തിയതും തീരാറായതുമായ ഉൽപ്പന്നങ്ങൾ കാണിക്കുക",
+    prompt: "സ്റ്റോക്ക് തീരാറായ ഉൽപ്പന്നങ്ങൾ കാണിക്കുക"
+  },
+  {
+    icon: Users,
+    title: "കസ്റ്റമർ കുടിശ്ശിക (കടം)",
+    description: "₹5,000-ൽ കൂടുതൽ ബാക്കി കടമുള്ള കസ്റ്റമേഴ്സിന്റെ വിവരങ്ങൾ",
+    prompt: "₹5,000-ൽ കൂടുതൽ കടം ബാക്കിയുള്ള കസ്റ്റമേഴ്സ് ആരെല്ലാം?"
+  },
+  {
+    icon: DollarSign,
+    title: "പ്രതിമാസ സെയിൽസ് വിവരങ്ങൾ",
+    description: "ഈ മാസത്തെ മൊത്തം സെയിൽസ് വരുമാനം ഒറ്റനോട്ടത്തിൽ അറിയുക",
+    prompt: "ഈ മാസത്തെ ആകെ സെയിൽസ് വിവരങ്ങൾ കാണിക്കുക"
+  }
+];
+
 export function AiAssistant({ onClose }: { onClose?: () => void }) {
-  const { tenantId } = useAuthStore();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+  const { tenantId, userId } = useAuthStore();
+
+  const convStorageKey = useMemo(() => getAiConversationsStorageKey(tenantId, userId), [tenantId, userId]);
+  const activeIdStorageKey = useMemo(() => getAiActiveConvIdStorageKey(tenantId, userId), [tenantId, userId]);
+
+  const loadConversationsFromStorage = useCallback((): Conversation[] => {
     try {
-      const saved = localStorage.getItem('nafid_ai_chat_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+      const saved = localStorage.getItem(convStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const withMessages = parsed.filter((c: Conversation) => c.messages && c.messages.length > 0);
+          const emptyChats = parsed.filter((c: Conversation) => !c.messages || c.messages.length === 0);
+          if (emptyChats.length > 0) {
+            return [emptyChats[0], ...withMessages];
+          }
+          if (withMessages.length > 0) {
+            return withMessages;
+          }
+        }
+      }
+    } catch {}
+    const initialId = 'conv-' + Date.now();
+    return [
+      {
+        id: initialId,
+        title: 'New chat',
+        createdAt: Date.now(),
+        messages: []
+      }
+    ];
+  }, [convStorageKey]);
+
+  const [conversations, setConversations] = useState<Conversation[]>(loadConversationsFromStorage);
+
+  const [activeConvId, setActiveConvId] = useState<string>(() => {
+    try {
+      const savedId = localStorage.getItem(activeIdStorageKey);
+      if (savedId) return savedId;
+    } catch {}
+    return conversations[0]?.id || 'conv-1';
   });
+
+  // Whenever switching account (user or tenant), reload only this account's conversations
+  useEffect(() => {
+    // Purge legacy un-scoped chat storage to eliminate cross-account leakage
+    try {
+      localStorage.removeItem('nafid_pos_ai_conversations_v3');
+      localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
+      localStorage.removeItem('nafid_pos_ai_conversations');
+    } catch {}
+
+    const loaded = loadConversationsFromStorage();
+    setConversations(loaded);
+    try {
+      const savedActiveId = localStorage.getItem(activeIdStorageKey);
+      if (savedActiveId && loaded.some((c) => c.id === savedActiveId)) {
+        setActiveConvId(savedActiveId);
+      } else {
+        setActiveConvId(loaded[0]?.id || 'conv-1');
+      }
+    } catch {
+      setActiveConvId(loaded[0]?.id || 'conv-1');
+    }
+  }, [convStorageKey, activeIdStorageKey, loadConversationsFromStorage]);
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [showOverview, setShowOverview] = useState(false);
-  const [overview, setOverview] = useState<OverviewStats | null>(null);
-  const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [languageMode, setLanguageMode] = useState<'en' | 'ml'>('en');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [showPromptMenu, setShowPromptMenu] = useState(false);
+
+  // Custom dialogue and toast states
+  const [convToDelete, setConvToDelete] = useState<Conversation | null>(null);
+  const [convToRename, setConvToRename] = useState<{ id: string; title: string } | null>(null);
+  const [renameTitleInput, setRenameTitleInput] = useState('');
+  const [showClearAllDialog, setShowClearAllDialog] = useState(false);
+  const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Persist conversations strictly scoped to active tenant & user account
   useEffect(() => {
     try {
-      localStorage.setItem('nafid_ai_chat_history', JSON.stringify(messages));
+      localStorage.setItem(convStorageKey, JSON.stringify(conversations));
+      localStorage.setItem(activeIdStorageKey, activeConvId);
     } catch {}
-  }, [messages]);
+  }, [conversations, activeConvId, convStorageKey, activeIdStorageKey]);
+
+  const activeConversation = useMemo(() => {
+    const found = conversations.find((c) => c.id === activeConvId);
+    return found || conversations[0];
+  }, [conversations, activeConvId]);
+
+  const messages = activeConversation?.messages || [];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Load Executive Stats
-  const loadOverview = async () => {
-    try {
-      const res = await fetchApi('/api/ai-assistant/overview');
-      if (res) {
-        setOverview(res);
-        setIsOfflineMode(false);
-        return;
-      }
-    } catch {
-      // Fallback to local SQLite via Electron
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 140)}px`;
     }
-
-    if (window.electronAPI && tenantId) {
-      setIsOfflineMode(true);
-      try {
-        const stats = await window.electronAPI.dbGetDashboardStats(tenantId);
-        const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId });
-        const customers = await window.electronAPI.dbGetCustomers({ tenant_id: tenantId });
-
-        const lowStock = (products || []).filter((p: any) => Number(p.current_stock) <= Number(p.reorder_level || 0));
-        const outStock = (products || []).filter((p: any) => Number(p.current_stock) <= 0);
-        const creditCust = (customers || []).filter((c: any) => Number(c.current_balance || c.credit_balance || 0) > 0);
-        const totalCredit = creditCust.reduce((acc: number, c: any) => acc + Number(c.current_balance || c.credit_balance || 0), 0);
-
-        setOverview({
-          todaySales: { total_sales: stats.totalSales || 0, total_invoices: stats.invoiceCount || 0 },
-          monthSales: { total_sales: stats.totalSales || 0, total_invoices: stats.invoiceCount || 0 },
-          customerReceivables: { total_outstanding: totalCredit, total_debtors: creditCust.length },
-          lowStockStats: { low_stock_count: lowStock.length, out_of_stock_count: outStock.length },
-          todayExpenses: { total_expenses: 0 }
-        });
-      } catch (err) {
-        console.error('Local stats error:', err);
-      }
-    }
-  };
+  }, [input]);
 
   useEffect(() => {
-    loadOverview();
-  }, [tenantId]);
-
-  // Speech Recognition
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'ml-IN';
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          setInput(prev => (prev ? `${prev} ${transcript}` : transcript));
-        }
-        setIsListening(false);
-      };
-
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
-      recognitionRef.current = recognition;
-    }
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        handleCreateNewChat();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  const toggleVoiceInput = () => {
-    if (!speechSupported || !recognitionRef.current) return;
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error('Speech recognition error:', err);
+
+
+  const handleCreateNewChat = () => {
+    // If the active conversation is already empty, do not create another one
+    if (activeConversation && activeConversation.messages.length === 0) {
+      if (textareaRef.current) textareaRef.current.focus();
+      return;
+    }
+
+    // Check if there is already an empty conversation in the list
+    const existingEmpty = conversations.find((c) => c.messages.length === 0);
+    if (existingEmpty) {
+      setActiveConvId(existingEmpty.id);
+      setInput('');
+      if (textareaRef.current) textareaRef.current.focus();
+      return;
+    }
+
+    const newId = 'conv-' + Date.now();
+    const newConv: Conversation = {
+      id: newId,
+      title: 'New chat',
+      createdAt: Date.now(),
+      messages: []
+    };
+    setConversations((prev) => [newConv, ...prev]);
+    setActiveConvId(newId);
+    setInput('');
+    if (textareaRef.current) textareaRef.current.focus();
+  };
+
+  // Ensure at most ONE empty chat exists on mount
+  useEffect(() => {
+    setConversations((prev) => {
+      const withMessages = prev.filter((c) => c.messages && c.messages.length > 0);
+      const emptyChats = prev.filter((c) => !c.messages || c.messages.length === 0);
+      if (emptyChats.length > 1) {
+        const keptEmpty = emptyChats.find((c) => c.id === activeConvId) || emptyChats[0];
+        return [keptEmpty, ...withMessages];
       }
+      return prev;
+    });
+  }, []);
+
+  const handleDeleteConversationClick = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    if (conv.messages && conv.messages.length > 0) {
+      setConvToDelete(conv);
+    } else {
+      executeDeleteConversation(conv.id);
     }
   };
 
-  // Local Offline Analytics Engine for POS when Server is not reachable
+  const executeDeleteConversation = (id: string) => {
+    setConversations((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+      if (filtered.length === 0) {
+        const freshId = 'conv-' + Date.now();
+        const fresh: Conversation = {
+          id: freshId,
+          title: 'New chat',
+          createdAt: Date.now(),
+          messages: []
+        };
+        setActiveConvId(freshId);
+        return [fresh];
+      }
+      if (activeConvId === id) {
+        setActiveConvId(filtered[0].id);
+      }
+      return filtered;
+    });
+    setConvToDelete(null);
+    setToastMessage({ text: 'Conversation deleted', type: 'info' });
+  };
+
+  const handleRenameConversationClick = (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    setConvToRename({ id: conv.id, title: conv.title || 'New chat' });
+    setRenameTitleInput(conv.title || 'New chat');
+  };
+
+  const executeRenameConversation = () => {
+    if (!convToRename) return;
+    const newTitle = renameTitleInput.trim() || 'New chat';
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convToRename.id ? { ...c, title: newTitle } : c))
+    );
+    setConvToRename(null);
+    setToastMessage({ text: 'Conversation renamed successfully', type: 'success' });
+  };
+
+  const executeClearAllConversations = () => {
+    const freshId = 'conv-' + Date.now();
+    const fresh: Conversation = {
+      id: freshId,
+      title: 'New chat',
+      createdAt: Date.now(),
+      messages: []
+    };
+    setConversations([fresh]);
+    setActiveConvId(freshId);
+    setShowClearAllDialog(false);
+    setToastMessage({ text: 'All conversations cleared', type: 'info' });
+  };
+
+  const handleSpeak = (id: string, text: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (speakingId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const cleanText = text
+      .replace(/[#*`_~|]/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = /[\u0D00-\u0D7F]/.test(text) ? 'ml-IN' : 'en-IN';
+    utterance.rate = 1.0;
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+
+    setSpeakingId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCopyTableCSV = (tableMarkdown: string) => {
+    const lines = tableMarkdown.trim().split('\n');
+    const csvRows = lines
+      .filter((l) => l.trim().startsWith('|') && !l.includes('---'))
+      .map((l) => {
+        const cells = l.split('|').map((c) => c.trim()).filter((_, i, arr) => i !== 0 && i !== arr.length - 1);
+        return cells.map((c) => `"${c.replace(/"/g, '""')}"`).join(',');
+      });
+    navigator.clipboard.writeText(csvRows.join('\n'));
+    setToastMessage({ text: 'Table copied to clipboard as CSV format', type: 'success' });
+  };
+
+  // Local Offline Analytics for POS
   const handleOfflineQuery = async (queryText: string): Promise<any> => {
     if (!window.electronAPI || !tenantId) throw new Error('No local database available');
 
@@ -210,7 +418,6 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     const isMal = /[\u0D00-\u0D7F]/.test(queryText);
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // 1. Low Stock Query
     if (text.includes('സ്റ്റോക്ക്') || text.includes('stock') || text.includes('തീരാറായ') || text.includes('reorder') || text.includes('low')) {
       const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId });
       const low = (products || []).filter((p: any) => Number(p.current_stock) <= Number(p.reorder_level || 0));
@@ -221,9 +428,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
           content: isMal
             ? '🎉 **അഭിനന്ദനങ്ങൾ!** നിലവിൽ റീ-ഓർഡർ ലെവലിന് താഴെയുള്ള ഉൽപ്പന്നങ്ങൾ ഒന്നുമില്ല. സ്റ്റോക്ക് സുരക്ഷിതമാണ്.'
             : '🎉 **All good!** No products are currently below reorder level. Inventory is healthy.',
-          suggestedPrompts: isMal
-            ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ']
-            : ["What is today's sales?", 'Top selling products']
+          suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ'] : ["What is today's sales?", 'Top selling products']
         };
       }
 
@@ -233,24 +438,16 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
 
       low.slice(0, 15).forEach((p: any) => {
         const isZero = Number(p.current_stock) <= 0;
-        const status = isMal
-          ? (isZero ? '🔴 തീർന്നു' : '🟡 കുറവ്')
-          : (isZero ? '🔴 Out of Stock' : '🟡 Low Stock');
+        const status = isMal ? (isZero ? '🔴 തീർന്നു' : '🟡 കുറവ്') : (isZero ? '🔴 Out of Stock' : '🟡 Low Stock');
         md += `| **${p.name}** | ${p.category || 'General'} | **${p.current_stock}** | ${p.reorder_level || 0} | ${status} |\n`;
       });
-      return {
-        content: md,
-        suggestedPrompts: isMal
-          ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', '₹5,000 ക്രെഡിറ്റ് ഉള്ളവർ']
-          : ["What is today's sales?", 'Credit balance above ₹5,000']
-      };
+      return { content: md, suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ["What is today's sales?"] };
     }
 
-    // 2. Customer Credit Query
-    if (text.includes('ക്രെഡിറ്റ്') || text.includes('credit') || text.includes('ബാക്കി') || text.includes('balance') || text.includes('കടം') || text.includes('receivable')) {
+    if (text.includes('ക്രെഡിറ്റ്') || text.includes('credit') || text.includes('ബാക്കി') || text.includes('balance') || text.includes('കടം') || text.includes('കുടിശ്ശിക') || text.includes('receivable') || text.includes('debtor')) {
       const customers = await window.electronAPI.dbGetCustomers({ tenant_id: tenantId });
-      const amtMatch = text.match(/\b(\d+)\b/);
-      const minAmount = amtMatch ? parseInt(amtMatch[1], 10) : 0;
+      const amtMatch = text.match(/(?:₹|rs\.?|inr)?\s*(\d[\d,]*)/i);
+      const minAmount = amtMatch && amtMatch[1] ? parseInt(amtMatch[1].replace(/,/g, ''), 10) : 0;
 
       const debtors = (customers || []).filter((c: any) => Number(c.current_balance || c.credit_balance || 0) > minAmount)
         .sort((a: any, b: any) => Number(b.current_balance || b.credit_balance || 0) - Number(a.current_balance || a.credit_balance || 0));
@@ -259,31 +456,149 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
 
       if (debtors.length === 0) {
         return {
-          content: isMal
-            ? `നിർദ്ദേശിച്ച തുകയിൽ (${minAmount > 0 ? formatINR(minAmount) : '0'}) കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ഇല്ല.`
-            : `No customers found with outstanding credit balance above ${minAmount > 0 ? formatINR(minAmount) : '₹0'}.`,
-          suggestedPrompts: isMal
-            ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ളവ']
-            : ["What is today's sales?", 'Show low stock items']
+          content: isMal ? `നിർദ്ദേശിച്ച തുകയിൽ കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ഇല്ല.` : `No customers found with outstanding credit balance.`,
         };
       }
 
       let md = isMal
-        ? `### 👥 കസ്റ്റമർ കുടിശ്ശിക റിപ്പോർട്ട് (ലോക്കൽ ഡാറ്റ)\n\nആകെ കുടിശ്ശിക: **${formatINR(totalOut)}** (${debtors.length} കസ്റ്റമർമാർ)\n\n| കസ്റ്റമർ | ഫോൺ | ബാലൻസ് |\n| :--- | :---: | :---: |\n`
-        : `### 👥 Customer Credit & Receivables (Local POS Database)\n\nTotal Outstanding: **${formatINR(totalOut)}** across **${debtors.length}** customers.\n\n| Customer Name | Phone | Balance |\n| :--- | :---: | :---: |\n`;
+        ? `### 👥 കസ്റ്റമർ കുടിശ്ശിക റിപ്പോർട്ട്\n\nആകെ കുടിശ്ശിക: **${formatINR(totalOut)}** (${debtors.length} കസ്റ്റമർമാർ)\n\n| കസ്റ്റമർ | ഫോൺ | ബാലൻസ് |\n| :--- | :---: | :---: |\n`
+        : `### 👥 Customer Credit & Receivables\n\nTotal Outstanding: **${formatINR(totalOut)}** across **${debtors.length}** customers.\n\n| Customer Name | Phone | Balance |\n| :--- | :---: | :---: |\n`;
 
       debtors.slice(0, 10).forEach((c: any) => {
         md += `| **${c.name}** | ${c.phone || '—'} | **${formatINR(c.current_balance || c.credit_balance)}** |\n`;
       });
+      return { content: md, suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ["What is today's sales?"] };
+    }
+
+    const isTopSelling =
+      text.includes('വിറ്റ') ||
+      text.includes('വിറ്റുപോയ') ||
+      text.includes('best selling') ||
+      text.includes('top selling') ||
+      text.includes('best seller') ||
+      text.includes('most sold') ||
+      text.includes('fast moving') ||
+      text.includes('highest selling') ||
+      text.includes('top products') ||
+      text.includes('best products') ||
+      text.includes('top items') ||
+      /\btop\s+(\d+\s+)?(best\s+)?(selling|products?|items?)/i.test(text) ||
+      /\bbest\s+(\d+\s+)?(selling|products?|items?|sellers?)/i.test(text);
+
+    if (isTopSelling && window.electronAPI.dbGetProductSalesSummary) {
+      const numMatch = text.match(/\b(\d+)\b/);
+      const limit = numMatch ? parseInt(numMatch[1], 10) : 5;
+      const salesSummary = await window.electronAPI.dbGetProductSalesSummary({ tenant_id: tenantId });
+      const sorted = (salesSummary || [])
+        .sort((a: any, b: any) => Number(b.total_qty || 0) - Number(a.total_qty || 0))
+        .slice(0, limit);
+
+      if (sorted.length === 0) {
+        return {
+          content: isMal
+            ? `വിറ്റഴിഞ്ഞ ഉൽപ്പന്നങ്ങളുടെ വിവരങ്ങൾ ലഭ്യമല്ല.`
+            : `No product sales recorded yet in local POS.`,
+          suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ["What is today's sales?"]
+        };
+      }
+
+      let md = isMal
+        ? `### 🏆 ഏറ്റവും കൂടുതൽ വിറ്റുപോയ ഉൽപ്പന്നങ്ങൾ (ലോക്കൽ POS)\n\n| റാങ്ക് | ഉൽപ്പന്നം | വിറ്റ അളവ് |\n| :---: | :--- | :---: |\n`
+        : `### 🏆 Top ${limit} Best Selling Products (Local POS)\n\n| Rank | Product Name | Qty Sold |\n| :---: | :--- | :---: |\n`;
+
+      sorted.forEach((p: any, idx: number) => {
+        md += `| **#${idx + 1}** | **${p.name}** | **${p.total_qty || 0}** |\n`;
+      });
+
       return {
         content: md,
-        suggestedPrompts: isMal
-          ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ളവ']
-          : ["What is today's sales?", 'Show low stock items']
+        chartData: {
+          title: isMal ? 'കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ' : 'Top Selling Products by Quantity',
+          labelKey: 'name',
+          dataKey: 'total_qty',
+          items: sorted,
+        },
+        suggestedPrompts: isMal ? ['സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ', 'ഇന്നത്തെ സെയിൽസ്'] : ['Show low stock items', "What is today's sales?"]
       };
     }
 
-    // 3. Sales Inquiries
+    if (text.includes('scrap') || text.includes('സ്ക്രാപ്പ്')) {
+      const allTx = (await (window.electronAPI as any)?.dbGetScrapTransactions?.({ tenant_id: tenantId })) || [];
+      const isMonth = text.includes('month') || text.includes('മാസം') || text.includes('മാസത്തെ');
+      const isYesterday = text.includes('yesterday') || text.includes('ഇന്നലെ');
+      const now = new Date();
+      const thisMonthPrefix = now.toISOString().slice(0, 7);
+      const yesterdayDate = new Date();
+      yesterdayDate.setDate(now.getDate() - 1);
+      const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+      let targetDateFilter = todayStr;
+      let rangeLabel = isMal ? 'ഇന്ന്' : 'Today';
+
+      if (isMonth) {
+        rangeLabel = isMal ? 'ഈ മാസം' : 'This Month';
+      } else if (isYesterday) {
+        targetDateFilter = yesterdayStr;
+        rangeLabel = isMal ? 'ഇന്നലെ' : 'Yesterday';
+      }
+
+      const filteredTx = (Array.isArray(allTx) ? allTx : []).filter((tx: any) => {
+        const txDate = (tx.transaction_date || tx.created_at || '').slice(0, 10);
+        if (isMonth) {
+          return txDate.startsWith(thisMonthPrefix);
+        }
+        return txDate === targetDateFilter;
+      });
+
+      const totalAmount = filteredTx.reduce((sum: number, tx: any) => sum + (Number(tx.total_amount) || 0), 0);
+      const totalQty = filteredTx.reduce((sum: number, tx: any) => sum + (Number(tx.quantity) || 0), 0);
+      const distinctInvoices = new Set(filteredTx.map((tx: any) => tx.scrap_invoice_number).filter(Boolean)).size;
+
+      const catMap = new Map<string, { category_name: string; total_qty: number; total_amount: number; unit: string }>();
+      filteredTx.forEach((tx: any) => {
+        const catName = tx.scrap_category_name || 'General Scrap';
+        const unit = tx.unit || 'Kg';
+        const existing = catMap.get(catName) || { category_name: catName, total_qty: 0, total_amount: 0, unit };
+        existing.total_qty += Number(tx.quantity) || 0;
+        existing.total_amount += Number(tx.total_amount) || 0;
+        catMap.set(catName, existing);
+      });
+      const categories = Array.from(catMap.values());
+
+      if (filteredTx.length === 0) {
+        return {
+          content: isMal
+            ? `**${rangeLabel}** സ്ക്രാപ്പ് ഇടപാടുകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.`
+            : `No scrap transactions or invoices recorded for **${rangeLabel}** (Local POS Database).`,
+          suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ["What is today's sales?", 'Show low stock items']
+        };
+      }
+
+      let md = isMal
+        ? `### ♻️ സ്ക്രാപ്പ് ഇടപാടുകൾ (${rangeLabel}) — ലോക്കൽ POS\n\n* **ആകെ സ്ക്രാപ്പ് തുക:** **${formatINR(totalAmount)}**\n* **ആകെ ഭാരം / അളവ്:** **${totalQty.toFixed(2)}**\n* **സ്ക്രാപ്പ് ബില്ലുകൾ:** **${distinctInvoices || filteredTx.length} എണ്ണം**\n\n`
+        : `### ♻️ Scrap Report (${rangeLabel}) — Local POS\n\n* **Total Scrap Amount:** **${formatINR(totalAmount)}**\n* **Total Quantity / Weight:** **${totalQty.toFixed(2)}**\n* **Scrap Invoices:** **${distinctInvoices || filteredTx.length} invoices**\n\n`;
+
+      if (categories.length > 0) {
+        md += isMal
+          ? `| സ്ക്രാപ്പ് ഇനം | അളവ് | ആകെ തുക |\n| :--- | :---: | :---: |\n`
+          : `| Scrap Category | Quantity | Total Amount |\n| :--- | :---: | :---: |\n`;
+        categories.forEach((c) => {
+          md += `| **${c.category_name}** | ${c.total_qty.toFixed(2)} ${c.unit} | **${formatINR(c.total_amount)}** |\n`;
+        });
+      }
+
+      return {
+        content: md,
+        chartData: categories.length > 0 ? {
+          title: isMal ? 'സ്ക്രാപ്പ് ഇനങ്ങളുടെ തുക' : 'Scrap Amount by Category',
+          labelKey: 'category_name',
+          dataKey: 'total_amount',
+          items: categories,
+        } : undefined,
+        suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ["What is today's sales?", 'Show low stock items']
+      };
+    }
+
     const invoices = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId, filterDate: todayStr, filterDateEnd: todayStr });
     const totalSales = (invoices || []).reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0), 0);
     const count = (invoices || []).length;
@@ -293,17 +608,16 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
       ? `### 📊 ഇന്നത്തെ സെയിൽസ് (ലോക്കൽ POS ഡാറ്റ)\n\n* **മൊത്തം സെയിൽസ് തുക:** **${formatINR(totalSales)}**\n* **ബില്ലുകളുടെ എണ്ണം:** **${count} എണ്ണം**\n* **ശരാശരി ബിൽ മൂല്യം:** **${formatINR(avg)}**\n\n`
       : `### 📊 Today's Sales (Local POS Database)\n\n* **Total Sales Amount:** **${formatINR(totalSales)}**\n* **Total Invoices:** **${count} invoices**\n* **Average Ticket Value:** **${formatINR(avg)}**\n\n`;
 
-    return {
-      content: md,
-      suggestedPrompts: isMal
-        ? ['സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ', '₹5,000-ൽ കൂടുതൽ ക്രെഡിറ്റ് ഉള്ളവർ']
-        : ['Show low stock items', 'Customers with credit above ₹5,000']
-    };
+    return { content: md, suggestedPrompts: isMal ? ['സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ['Show low stock items'] };
   };
 
   const handleSend = async (textToSend?: string) => {
     const q = (textToSend || input).trim();
     if (!q || isLoading) return;
+
+    if (/[\u0D00-\u0D7F]/.test(q)) {
+      setLanguageMode('ml');
+    }
 
     const userMsg: ChatMessage = {
       id: 'msg-' + Date.now() + '-user',
@@ -312,14 +626,29 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id === activeConvId) {
+          const isInitial = c.messages.length === 0 || c.title === 'New chat' || c.title === 'Getting started with AI';
+          const newTitle = isInitial ? (q.length > 28 ? q.slice(0, 28) + '...' : q) : c.title;
+          return {
+            ...c,
+            title: newTitle,
+            messages: [...c.messages, userMsg],
+          };
+        }
+        return c;
+      })
+    );
+
     setInput('');
+    setShowPromptMenu(false);
     setIsLoading(true);
 
     try {
       let res: any;
       try {
-        const historyPayload = messages.slice(-6).map(m => ({
+        const historyPayload = messages.slice(-6).map((m) => ({
           role: m.role,
           content: m.content,
         }));
@@ -329,7 +658,6 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
         });
         setIsOfflineMode(false);
       } catch {
-        // Network / server unavailable: use high-speed offline SQLite analytics
         res = await handleOfflineQuery(q);
         setIsOfflineMode(true);
       }
@@ -344,42 +672,50 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id === activeConvId) {
+            return {
+              ...c,
+              messages: [...c.messages, assistantMsg],
+            };
+          }
+          return c;
+        })
+      );
     } catch (err: any) {
       console.error('Chat error:', err);
       const isMal = /[\u0D00-\u0D7F]/.test(q);
       const errMsg: ChatMessage = {
         id: 'msg-' + Date.now() + '-error',
         role: 'assistant',
-        content: isMal
-          ? `ഡാറ്റ പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${err.message || 'Error'}.`
-          : `Failed to retrieve data: ${err.message || 'Error'}. Please try again.`,
+        content: isMal ? `ഡാറ്റ പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${err.message || 'Error'}.` : `Failed to retrieve data: ${err.message || 'Error'}.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestedPrompts: isMal
-          ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ']
-          : ["What is today's sales?", 'Show low stock items']
       };
-      setMessages(prev => [...prev, errMsg]);
+
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id === activeConvId) {
+            return {
+              ...c,
+              messages: [...c.messages, errMsg],
+            };
+          }
+          return c;
+        })
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleClearChat = () => {
-    if (messages.length === 0) return;
-    if (window.confirm('Are you sure you want to clear the chat history?')) {
-      setMessages([]);
-      localStorage.removeItem('nafid_ai_chat_history');
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
-  const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  // Markdown Parser
   const renderFormattedContent = (content: string) => {
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
@@ -387,37 +723,94 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
 
     const flushTable = () => {
       if (tableBuffer.length === 0) return;
-      const rows = tableBuffer.map(r =>
-        r.split('|').map(c => c.trim()).filter((_, idx, arr) => idx !== 0 && idx !== arr.length - 1)
+      const fullTableString = tableBuffer.join('\n');
+      const rows = tableBuffer.map((r) =>
+        r.split('|').map((c) => c.trim()).filter((_, idx, arr) => idx !== 0 && idx !== arr.length - 1)
       );
 
       const headers = rows[0] || [];
+      const alignRow = rows[1] || [];
       const bodyRows = rows.slice(2);
 
+      // Determine column alignments so headers and cells align properly
+      const colAlignments = headers.map((h, i) => {
+        const alignCell = (alignRow[i] || '').trim();
+        if (alignCell.startsWith(':') && alignCell.endsWith(':')) return 'center';
+        if (alignCell.endsWith(':')) return 'right';
+        if (alignCell.startsWith(':')) return 'left';
+        // Auto-detect based on body cells or header name
+        let hasNumberOrCurrency = false;
+        for (const r of bodyRows) {
+          const val = (r[i] || '').replace(/\*+/g, '').trim();
+          if (/^[₹$]?\s*[\d,]+(\.\d+)?(\s*[a-zA-Z/%]+)?$/.test(val)) {
+            hasNumberOrCurrency = true;
+            break;
+          }
+        }
+        if (hasNumberOrCurrency || /amount|total|price|rate|cost|balance|due|qty|quantity/i.test(h)) {
+          return 'right';
+        }
+        return 'left';
+      });
+
       elements.push(
-        <div key={`table-${elements.length}`} className="my-3 overflow-x-auto rounded-xl border border-border shadow-xs">
-          <table className="w-full text-xs md:text-sm text-left border-collapse">
-            <thead className="bg-muted/80 text-foreground font-bold border-b border-border">
-              <tr>
-                {headers.map((h, i) => (
-                  <th key={i} className="px-3.5 py-2 whitespace-nowrap">
-                    {parseInlineFormatting(h)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60 bg-card">
-              {bodyRows.map((row, rIdx) => (
-                <tr key={rIdx} className={clsx(rIdx % 2 === 0 ? 'bg-card' : 'bg-muted/20', 'hover:bg-muted/40 transition-colors')}>
-                  {row.map((cell, cIdx) => (
-                    <td key={cIdx} className="px-3.5 py-2 whitespace-nowrap">
-                      {parseInlineFormatting(cell)}
-                    </td>
+        <div key={`table-${elements.length}`} className="my-3 rounded-xl border border-gray-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900 shadow-xs w-full">
+          <div className="flex items-center justify-between px-3.5 py-2 border-b border-gray-100 dark:border-zinc-800 bg-gray-50/60 dark:bg-zinc-800/40">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Table Data</span>
+            </div>
+            <button
+              onClick={() => handleCopyTableCSV(fullTableString)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors px-2 py-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+              title="Copy as CSV"
+            >
+              <Copy className="w-3 h-3" />
+              <span>Copy CSV</span>
+            </button>
+          </div>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/80 dark:bg-zinc-800/60 border-b border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-300 font-semibold">
+                  {headers.map((h, i) => (
+                    <th
+                      key={i}
+                      className={clsx(
+                        "px-3.5 py-2.5 whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-gray-500",
+                        colAlignments[i] === 'right' ? 'text-right' : colAlignments[i] === 'center' ? 'text-center' : 'text-left'
+                      )}
+                    >
+                      {parseInlineFormatting(h)}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                {bodyRows.map((row, rIdx) => (
+                  <tr key={rIdx} className={clsx(rIdx % 2 === 0 ? 'bg-white dark:bg-zinc-900' : 'bg-gray-50/30 dark:bg-zinc-800/20', 'hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition-colors')}>
+                    {row.map((cell, cIdx) => {
+                      const isRight = colAlignments[cIdx] === 'right';
+                      const isCenter = colAlignments[cIdx] === 'center';
+                      return (
+                        <td
+                          key={cIdx}
+                          className={clsx(
+                            'px-3.5 py-2.5 whitespace-nowrap text-gray-800 dark:text-gray-200 font-medium',
+                            isRight && 'tabular-nums font-mono text-right',
+                            isCenter && 'text-center',
+                            !isRight && !isCenter && 'text-left'
+                          )}
+                        >
+                          {parseInlineFormatting(cell)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       );
       tableBuffer = [];
@@ -425,7 +818,6 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
 
     lines.forEach((line, index) => {
       const trimmed = line.trim();
-
       if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
         tableBuffer.push(trimmed);
         return;
@@ -435,28 +827,23 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
 
       if (trimmed.startsWith('### ')) {
         elements.push(
-          <h3 key={index} className="text-base md:text-lg font-bold text-foreground mt-3 mb-1.5 flex items-center gap-1.5">
-            {parseInlineFormatting(trimmed.replace('### ', ''))}
-          </h3>
-        );
-      } else if (trimmed.startsWith('#### ')) {
-        elements.push(
-          <h4 key={index} className="text-sm md:text-base font-semibold text-foreground/90 mt-2 mb-1">
-            {parseInlineFormatting(trimmed.replace('#### ', ''))}
-          </h4>
+          <div key={index} className="mt-4 mb-2 flex items-center gap-2">
+            <span className="w-1 h-3.5 rounded-full bg-emerald-600" />
+            <h3 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">{parseInlineFormatting(trimmed.replace('### ', ''))}</h3>
+          </div>
         );
       } else if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
         elements.push(
-          <div key={index} className="flex items-start gap-2 my-1 pl-1 text-sm text-foreground/90 leading-relaxed">
-            <span className="text-primary font-bold">•</span>
+          <div key={index} className="flex items-start gap-2.5 my-1.5 pl-1 text-xs md:text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-2 shrink-0" />
             <span>{parseInlineFormatting(trimmed.substring(2))}</span>
           </div>
         );
       } else if (trimmed === '') {
-        elements.push(<div key={index} className="h-2" />);
+        elements.push(<div key={index} className="h-1.5" />);
       } else {
         elements.push(
-          <p key={index} className="text-sm text-foreground/90 my-1 leading-relaxed">
+          <p key={index} className="text-xs md:text-sm text-gray-700 dark:text-gray-300 my-1 leading-relaxed">
             {parseInlineFormatting(trimmed)}
           </p>
         );
@@ -468,379 +855,552 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
   };
 
   const parseInlineFormatting = (text: string): React.ReactNode => {
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+        return <strong key={i} className="font-semibold text-gray-900 dark:text-gray-100">{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith('*') && part.endsWith('*')) {
-        return <em key={i} className="italic text-muted-foreground">{part.slice(1, -1)}</em>;
+        return <em key={i} className="italic text-gray-500">{part.slice(1, -1)}</em>;
+      }
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={i} className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 font-mono text-[11px] text-emerald-600 dark:text-emerald-400 border border-gray-200 dark:border-zinc-700">{part.slice(1, -1)}</code>;
       }
       return part;
     });
   };
 
+  const bentoCards = languageMode === 'ml' ? BENTO_CARDS_ML : BENTO_CARDS_EN;
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background text-foreground animate-in fade-in select-text">
-      {/* ── Top Header ──────────────────────────────────────────────────────── */}
-      <header className="shrink-0 border-b border-border/80 bg-card/90 backdrop-blur-md px-4 py-3 flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-              title="Back to Dashboard"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          )}
-
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-indigo-500 flex items-center justify-center shadow-md shadow-primary/20 text-white">
-            <Sparkles className="w-5 h-5 animate-pulse" />
+    <div className="h-full w-full min-w-0 flex bg-[#fbfbfb] dark:bg-zinc-950 text-gray-900 dark:text-gray-100 overflow-hidden font-sans select-text">
+      {/* ── Left Sidebar ────────────────────────────────────────────────────── */}
+      <aside
+        className={clsx(
+          "shrink-0 border-r border-gray-200/80 dark:border-zinc-800 bg-[#f9fafb] dark:bg-zinc-900/60 transition-all duration-300 flex flex-col z-30",
+          sidebarOpen ? "w-64" : "w-0 overflow-hidden border-r-0"
+        )}
+      >
+        <div className="p-4 flex items-center justify-between border-b border-gray-200/50 dark:border-zinc-800/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#00a870] flex items-center justify-center text-white shadow-2xs">
+              <span className="text-base font-black leading-none select-none">✱</span>
+            </div>
+            <span className="font-bold text-sm tracking-tight text-gray-900 dark:text-gray-100">
+              AI Workspace
+            </span>
           </div>
 
-          <div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-3">
+          <button
+            onClick={handleCreateNewChat}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-750 hover:border-gray-300 transition-all shadow-2xs text-xs font-semibold cursor-pointer group"
+          >
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-foreground text-base md:text-lg flex items-center gap-2">
-                Nafid AI Copilot
-              </h1>
-              <span className={clsx(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border",
-                isOfflineMode
-                  ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                  : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-              )}>
-                <span className={clsx("w-1.5 h-1.5 rounded-full", isOfflineMode ? "bg-amber-500" : "bg-emerald-500 animate-ping")} />
-                {isOfflineMode ? 'Local SQLite' : 'Live Cloud'}
-              </span>
+              <Plus className="w-4 h-4 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100" />
+              <span>New chat</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Smart Business AI Assistant • Supports Malayalam & English queries
-            </p>
+            <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-zinc-600">
+              Ctrl K
+            </kbd>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+          <div className="flex items-center justify-between px-2 pb-1.5 pt-1 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider select-none">
+            <span>Your conversations</span>
+            {conversations.length > 0 && conversations.some(c => c.messages && c.messages.length > 0) && (
+              <button
+                onClick={() => setShowClearAllDialog(true)}
+                className="hover:text-rose-500 transition-colors p-0.5 rounded cursor-pointer normal-case font-semibold text-[10px]"
+                title="Clear all conversations"
+              >
+                Clear all
+              </button>
+            )}
           </div>
+
+          {conversations.map((conv) => {
+            const isActive = conv.id === activeConvId;
+            return (
+              <div
+                key={conv.id}
+                onClick={() => setActiveConvId(conv.id)}
+                className={clsx(
+                  "group relative w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer text-left",
+                  isActive
+                    ? "bg-gray-200/70 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 font-semibold"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-zinc-800/50 hover:text-gray-900 dark:hover:text-gray-200"
+                )}
+              >
+                <span className="truncate pr-2">{conv.title || 'Untitled chat'}</span>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => handleRenameConversationClick(e, conv)}
+                    className="p-1 hover:text-gray-900 dark:hover:text-gray-100 text-gray-400 rounded transition-colors cursor-pointer"
+                    title="Rename conversation"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteConversationClick(e, conv)}
+                    className="p-1 hover:text-rose-600 text-gray-400 rounded transition-colors cursor-pointer"
+                    title="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowOverview(!showOverview)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-border bg-card hover:bg-muted transition-all text-foreground cursor-pointer shadow-2xs"
-            title="Toggle Live Executive Snapshot"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-primary" />
-            <span className="hidden sm:inline">Overview</span>
-            {showOverview ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            title="Print chat report"
-          >
-            <Printer className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={handleClearChat}
-            disabled={messages.length === 0}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            title="Clear Chat History"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Clear Chat</span>
-          </button>
-
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-              title="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* ── Collapsible Live Overview Bar ───────────────────────────────────── */}
-      {showOverview && (
-        <div className="shrink-0 bg-muted/40 border-b border-border/80 p-3 sm:px-6 transition-all duration-300 animate-in slide-in-from-top-2">
-          <div className="max-w-5xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">Today's Sales</span>
-              <span className="text-base sm:text-lg font-bold text-emerald-500">
-                {formatINR(overview?.todaySales?.total_sales)}
-              </span>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                {overview?.todaySales?.total_invoices || 0} Invoices
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">This Month's Sales</span>
-              <span className="text-base sm:text-lg font-bold text-blue-500">
-                {formatINR(overview?.monthSales?.total_sales)}
-              </span>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                {overview?.monthSales?.total_invoices || 0} Invoices
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">Customer Receivables</span>
-              <span className="text-base sm:text-lg font-bold text-amber-500">
-                {formatINR(overview?.customerReceivables?.total_outstanding)}
-              </span>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                {overview?.customerReceivables?.total_debtors || 0} Customers
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">Low Stock Alert</span>
-              <span className={clsx(
-                "text-base sm:text-lg font-bold",
-                (overview?.lowStockStats?.low_stock_count || 0) > 0 ? "text-rose-500" : "text-foreground"
-              )}>
-                {overview?.lowStockStats?.low_stock_count || 0} Items
-              </span>
-              <span className="text-[10px] text-muted-foreground block mt-0.5">
-                {overview?.lowStockStats?.out_of_stock_count || 0} Out of Stock
-              </span>
-            </div>
+        <div className="p-3 border-t border-gray-200/60 dark:border-zinc-800/60 flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <span className={clsx("w-2 h-2 rounded-full", isOfflineMode ? "bg-amber-500" : "bg-emerald-500")} />
+            <span className="text-[11px] font-medium">{isOfflineMode ? 'Local SQLite' : 'Live Cloud'}</span>
           </div>
+          <button
+            onClick={() => setLanguageMode((prev) => (prev === 'en' ? 'ml' : 'en'))}
+            className="text-[11px] font-mono uppercase px-2 py-0.5 rounded border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer"
+          >
+            {languageMode === 'en' ? 'EN' : 'മലയാളം'}
+          </button>
         </div>
-      )}
+      </aside>
 
-      {/* ── Main Chat Stream ────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-8 space-y-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+      {/* ── Main Area ──────────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden relative bg-white dark:bg-zinc-950 w-full">
+        <header className="shrink-0 h-12 flex items-center justify-between px-4 sm:px-6 border-b border-gray-100 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xs z-10 w-full">
+          <div className="flex items-center gap-2 min-w-0">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Open sidebar"
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+            )}
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">
+              {activeConversation?.title || 'AI Workspace'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="hidden md:flex p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* ── Content View (Dynamic ChatGPT-style Responsive View) ─────────── */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 flex flex-col min-w-0 w-full">
           {messages.length === 0 ? (
-            <div className="py-8 text-center space-y-6">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-primary/20 to-indigo-500/20 text-primary mx-auto flex items-center justify-center border border-primary/20 shadow-inner">
-                <Bot className="w-8 h-8" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="text-xl md:text-2xl font-bold text-foreground">
-                  How can I help you today?
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-                  Ask questions to analyze real-time sales, inventory, customer credit, and generate reports from your Nafid software.
-                </p>
+            <div className="my-auto py-8 flex flex-col items-center text-center animate-in fade-in-50 duration-400 w-full max-w-3xl lg:max-w-4xl mx-auto">
+              <div className="w-14 h-14 rounded-2xl bg-[#00a870] flex items-center justify-center text-white shadow-sm mb-5">
+                <span className="text-2xl font-black leading-none select-none">✱</span>
               </div>
 
-              {/* Suggestions Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
-                {DEFAULT_SUGGESTIONS.map((cat, idx) => {
-                  const Icon = cat.icon;
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight mb-2">
+                What can I help with?
+              </h1>
+
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8">
+                {languageMode === 'en'
+                  ? "Query real-time sales, inventory alerts, customer debt, and expenses."
+                  : "സെയിൽസ്, സ്റ്റോക്ക്, കസ്റ്റമർ കടം എന്നിവ ചോദിക്കാം."}
+              </p>
+
+              {/* 100% Genuine Nafid Business Intelligence System Bento Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full text-left">
+                {bentoCards.map((card, idx) => {
+                  const Icon = card.icon;
                   return (
-                    <div
+                    <button
                       key={idx}
-                      className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-all space-y-2.5"
+                      onClick={() => handleSend(card.prompt)}
+                      className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-200/90 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700 hover:shadow-xs transition-all text-left flex flex-col justify-between cursor-pointer group min-h-[96px]"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className={clsx(
-                          "w-7 h-7 rounded-lg flex items-center justify-center",
-                          cat.color === 'emerald' && "bg-emerald-500/10 text-emerald-500",
-                          cat.color === 'blue' && "bg-blue-500/10 text-blue-500",
-                          cat.color === 'amber' && "bg-amber-500/10 text-amber-500",
-                          cat.color === 'rose' && "bg-rose-500/10 text-rose-500",
-                        )}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <span className="text-xs font-bold text-foreground">{cat.category}</span>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400 group-hover:text-emerald-600 transition-colors" />
+                        <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                          {card.title}
+                        </span>
                       </div>
-                      <div className="space-y-1.5">
-                        {cat.prompts.map((p, pIdx) => (
-                          <button
-                            key={pIdx}
-                            onClick={() => handleSend(p)}
-                            className="w-full text-left text-xs text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-muted/60 transition-colors flex items-center justify-between group cursor-pointer"
-                          >
-                            <span>{p}</span>
-                            <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-normal line-clamp-2">
+                        {card.description}
+                      </p>
+                    </button>
                   );
                 })}
               </div>
             </div>
           ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={clsx(
-                  "flex gap-3",
-                  msg.role === 'user' ? "justify-end" : "justify-start"
-                )}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-1">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                )}
-
-                <div className={clsx(
-                  "max-w-[88%] md:max-w-[80%] rounded-2xl px-4 py-3 shadow-xs space-y-2",
-                  msg.role === 'user'
-                    ? "bg-primary text-primary-foreground ml-auto rounded-tr-xs"
-                    : "bg-card border border-border/80 text-foreground rounded-tl-xs"
-                )}>
-                  <div className="text-sm">
-                    {msg.role === 'user' ? (
-                      <p className="whitespace-pre-wrap font-medium">{msg.content}</p>
-                    ) : (
-                      <div className="space-y-1">
-                        {renderFormattedContent(msg.content)}
-                      </div>
+            <div className="w-full flex-1 flex flex-col space-y-6 pb-6 min-w-0 max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto">
+              {messages.map((msg) => {
+                const isUser = msg.role === 'user';
+                return (
+                  <div
+                    key={msg.id}
+                    className={clsx(
+                      "w-full flex animate-in fade-in-30 duration-300 min-w-0",
+                      isUser ? "justify-end" : "justify-start"
                     )}
-                  </div>
+                  >
+                    {/* NO USER ICON / NO ASSISTANT ICON */}
+                    <div
+                      className={clsx(
+                        "space-y-2 transition-all min-w-0",
+                        isUser
+                          ? "max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-2xl px-5 py-3.5 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 text-sm font-normal shadow-2xs"
+                          : "w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl text-gray-900 dark:text-gray-100 text-sm leading-relaxed"
+                      )}
+                    >
+                      {isUser ? (
+                        <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.content}</p>
+                      ) : (
+                        <div className="space-y-2 w-full min-w-0">
+                          {renderFormattedContent(msg.content)}
+                        </div>
+                      )}
 
-                  {msg.chartData && msg.chartData.items && msg.chartData.items.length > 0 && (
-                    <div className="mt-3 p-3 bg-muted/40 rounded-xl border border-border">
-                      <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                        <BarChart3 className="w-3.5 h-3.5 text-primary" />
-                        {msg.chartData.title || 'Sales Trend'}
-                      </div>
-                      <div className="h-44 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={msg.chartData.items}>
-                            <XAxis dataKey={msg.chartData.labelKey} tick={{ fontSize: 10 }} interval={0} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '0.75rem', fontSize: '11px' }} />
-                            <Bar dataKey={msg.chartData.dataKey} fill="currentColor" className="text-primary fill-primary rounded-t-sm" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
+                      {!isUser && msg.chartData && msg.chartData.items && msg.chartData.items.length > 0 && (
+                        <div className="my-3 p-4 bg-gray-50 dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 w-full">
+                          <div className="text-xs font-bold text-gray-900 dark:text-gray-100 mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{msg.chartData.title || 'Analytics Breakdown'}</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-gray-400 uppercase">
+                              {msg.chartData.items.length} Points
+                            </span>
+                          </div>
+                          <div className="h-52 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={msg.chartData.items} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+                                <XAxis
+                                  dataKey={msg.chartData.labelKey}
+                                  tick={{ fontSize: 10, fill: 'currentColor' }}
+                                  className="text-gray-400 font-medium"
+                                  interval={0}
+                                />
+                                <YAxis
+                                  tick={{ fontSize: 10, fill: 'currentColor' }}
+                                  className="text-gray-400 font-mono"
+                                  tickFormatter={(val) => {
+                                    if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
+                                    if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+                                    if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
+                                    return `₹${val}`;
+                                  }}
+                                />
+                                <Tooltip
+                                  cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                  contentStyle={{
+                                    backgroundColor: '#18181b',
+                                    borderColor: '#27272a',
+                                    borderRadius: '0.75rem',
+                                    fontSize: '11px',
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                                    padding: '8px 12px',
+                                    color: '#f4f4f5',
+                                  }}
+                                  itemStyle={{ color: '#00a870', fontWeight: 600, fontSize: '12px' }}
+                                  labelStyle={{ color: '#a1a1aa', fontWeight: 700, marginBottom: '4px', fontSize: '11px' }}
+                                  formatter={(value: any, name: any) => {
+                                    const rawName = String(name || msg.chartData?.dataKey || '');
+                                    const label = humanizeKey(rawName);
+                                    const num = Number(value) || 0;
+                                    const isCurrency = /amount|total|sales|price|cost|rate|revenue|balance|due/i.test(rawName);
+                                    const valStr = isCurrency ? formatINR(num) : num.toLocaleString('en-IN');
+                                    return [valStr, label];
+                                  }}
+                                />
+                                <Bar
+                                  dataKey={msg.chartData.dataKey}
+                                  name={humanizeKey(msg.chartData.dataKey)}
+                                  fill="#00a870"
+                                  radius={[6, 6, 0, 0]}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
 
-                  {msg.suggestedPrompts && msg.suggestedPrompts.length > 0 && (
-                    <div className="pt-2 mt-2 border-t border-border/50">
-                      <span className="text-[11px] font-semibold text-muted-foreground block mb-1.5">
-                        Suggested follow-ups:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {msg.suggestedPrompts.map((s, idx) => (
+                      {!isUser && msg.suggestedPrompts && msg.suggestedPrompts.length > 0 && (
+                        <div className="pt-2 flex flex-wrap gap-1.5">
+                          {msg.suggestedPrompts.map((s, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => handleSend(s)}
+                              className="px-3 py-1 rounded-full text-xs font-medium bg-gray-50 dark:bg-zinc-900 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-zinc-800 transition-colors cursor-pointer"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {!isUser && (
+                        <div className="flex items-center gap-3 pt-2 text-[11px] text-gray-400">
                           <button
-                            key={idx}
-                            onClick={() => handleSend(s)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-muted/70 hover:bg-muted text-foreground border border-border/60 transition-colors cursor-pointer flex items-center gap-1"
+                            onClick={() => handleCopy(msg.id, msg.content)}
+                            className="hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Copy response"
                           >
-                            <span>{s}</span>
-                            <ArrowRight className="w-2.5 h-2.5 text-primary" />
+                            {copiedId === msg.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-600 font-medium">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy</span>
+                              </>
+                            )}
                           </button>
-                        ))}
-                      </div>
+
+                          <button
+                            onClick={() => handleSpeak(msg.id, msg.content)}
+                            className={clsx(
+                              "flex items-center gap-1 cursor-pointer transition-colors",
+                              speakingId === msg.id ? "text-emerald-600 font-medium" : "hover:text-gray-700 dark:hover:text-gray-200"
+                            )}
+                            title="Read aloud"
+                          >
+                            {speakingId === msg.id ? (
+                              <>
+                                <VolumeX className="w-3.5 h-3.5 animate-pulse text-emerald-600" />
+                                <span className="text-emerald-600">Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3.5 h-3.5" />
+                                <span>Listen</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1 text-[10px] opacity-70">
-                    <span>{msg.timestamp}</span>
-                    {msg.role === 'assistant' && (
-                      <button
-                        onClick={() => handleCopy(msg.id, msg.content)}
-                        className="hover:opacity-100 flex items-center gap-1 cursor-pointer transition-opacity"
-                        title="Copy text"
-                      >
-                        {copiedId === msg.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                        <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
-                      </button>
-                    )}
                   </div>
-                </div>
+                );
+              })}
 
-                {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-xl bg-muted border border-border text-foreground flex items-center justify-center shrink-0 mt-1">
-                    <User className="w-4 h-4" />
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-
-          {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-1 animate-pulse">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="bg-card border border-border/80 rounded-2xl rounded-tl-xs px-4 py-3 shadow-xs flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">Analyzing business data...</span>
-                <div className="flex gap-1 items-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" />
+              {isLoading && (
+                <div className="flex items-center gap-2 text-xs text-gray-400 animate-pulse pt-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-bounce" />
+                  <span className="ml-1 text-[11px]">Computing SQL analytics...</span>
                 </div>
-              </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
-      </div>
 
-      {/* ── Bottom Input & Action Bar ───────────────────────────────────────── */}
-      <footer className="shrink-0 border-t border-border/80 bg-card/90 backdrop-blur-md px-4 py-3 md:px-8">
-        <div className="max-w-4xl mx-auto space-y-2">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
-            {["Today's Sales", "This Month's Sales", "Compare with Last Month", "Low Stock Alert", "Credit Above ₹5,000"].map((chip, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(chip)}
-                className="shrink-0 px-2.5 py-1 rounded-full bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/60 transition-colors cursor-pointer text-[11px]"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="flex items-center gap-2 bg-background border border-border rounded-2xl p-1.5 shadow-xs focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all"
+        {/* ── Bottom Floating Input Deck ─────────────────────────────────────── */}
+        <footer className="shrink-0 p-3 sm:p-4 md:pb-6 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xs w-full">
+          <div
+            className={clsx(
+              "w-full mx-auto space-y-2 transition-all duration-300 min-w-0",
+              messages.length === 0
+                ? "max-w-3xl lg:max-w-4xl"
+                : "max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
+            )}
           >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question (e.g. What is today's sales? or Show low stock items)..."
-              disabled={isLoading}
-              className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none disabled:opacity-50"
-            />
-
-            {speechSupported && (
-              <button
-                type="button"
-                onClick={toggleVoiceInput}
-                className={clsx(
-                  "p-2 rounded-xl transition-colors cursor-pointer",
-                  isListening
-                    ? "bg-rose-500 text-white animate-pulse"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
-                title={isListening ? "Listening... Click to stop" : "Speak in Malayalam or English"}
-              >
-                {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-              </button>
+            {showPromptMenu && (
+              <div className="p-2 mb-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-lg space-y-1 animate-in fade-in-50 zoom-in-95">
+                <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Nafid System Inquiries
+                </div>
+                {[
+                  "What is today's sales and bill count?",
+                  "What is this month's total sales revenue?",
+                  "Compare this month's sales with last month",
+                  "Show low stock items below reorder level",
+                  "Which items are completely out of stock?",
+                  "Which customers have credit balance above ₹5,000?",
+                  "What is total customer receivables outstanding?",
+                  "What are the total shop expenses recorded this month?"
+                ].map((p, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(p)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             )}
 
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs active:scale-95"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl p-3 shadow-xs focus-within:border-gray-300 dark:focus-within:border-zinc-700 focus-within:shadow-md transition-all w-full"
             >
-              {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </button>
-          </form>
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  languageMode === 'en'
+                    ? "Ask about sales, stock alerts, customer credit, or expenses..."
+                    : "സെയിൽസ്, സ്റ്റോക്ക്, കസ്റ്റമർ കടം എന്നിവ ചോദിക്കാം..."
+                }
+                disabled={isLoading}
+                className="w-full bg-transparent px-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none resize-none min-h-[36px] max-h-[140px] leading-relaxed disabled:opacity-50"
+              />
 
-          <p className="text-[10px] text-center text-muted-foreground">
-            Nafid AI Copilot acts on live POS & database analytics. Zero math hallucination guaranteed.
-          </p>
+              <div className="flex items-center justify-between pt-2 px-1">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowPromptMenu(!showPromptMenu)}
+                    className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                    title="System Inquiries"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+
+
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-gray-400 font-medium select-none">
+                    AI Assistant
+                  </span>
+
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    className="w-8 h-8 rounded-xl bg-gray-300 dark:bg-zinc-700 text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-900 hover:text-white dark:hover:bg-zinc-100 dark:hover:text-zinc-900 flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title="Send (Enter)"
+                  >
+                    {isLoading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <p className="text-[11px] text-center text-gray-400 dark:text-zinc-500 select-none">
+              {languageMode === 'en'
+                ? "NAFID AI can make mistakes. Verify important business and financial info."
+                : "പ്രധാന ബിസിനസ്സ് കണക്കുകളും വിവരങ്ങളും ആവശ്യമെങ്കിൽ പരിശോധിച്ച് ഉറപ്പുവരുത്തുക."}
+            </p>
+          </div>
+        </footer>
+      </div>
+
+      {/* ── Custom Dialogs & Toasts ────────────────────────────────────────── */}
+      <CustomDialog
+        isOpen={!!convToDelete}
+        onClose={() => setConvToDelete(null)}
+        onConfirm={() => {
+          if (convToDelete) executeDeleteConversation(convToDelete.id);
+        }}
+        title="Delete conversation?"
+        description={
+          <div className="space-y-1">
+            <p>
+              Are you sure you want to delete <strong className="text-gray-900 dark:text-gray-100 font-semibold">{convToDelete?.title || 'this chat'}</strong>?
+            </p>
+            <p className="text-gray-500 dark:text-gray-400 text-[11px]">
+              This will remove all {convToDelete?.messages?.length || 0} messages in this conversation. This action cannot be undone.
+            </p>
+          </div>
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        icon={Trash2}
+      />
+
+      <CustomDialog
+        isOpen={showClearAllDialog}
+        onClose={() => setShowClearAllDialog(false)}
+        onConfirm={executeClearAllConversations}
+        title="Clear all conversations?"
+        description="Are you sure you want to delete all saved conversations? A clean new chat session will be started. This action cannot be undone."
+        confirmText="Clear All"
+        cancelText="Cancel"
+        variant="danger"
+        icon={Trash2}
+      />
+
+      <CustomDialog
+        isOpen={!!convToRename}
+        onClose={() => setConvToRename(null)}
+        onConfirm={executeRenameConversation}
+        title="Rename conversation"
+        confirmText="Save"
+        cancelText="Cancel"
+        variant="info"
+        icon={Pencil}
+      >
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+            Conversation Title
+          </label>
+          <input
+            type="text"
+            value={renameTitleInput}
+            onChange={(e) => setRenameTitleInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                executeRenameConversation();
+              }
+            }}
+            autoFocus
+            className="w-full px-3.5 py-2 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-gray-900 dark:text-gray-100 focus:outline-hidden focus:ring-2 focus:ring-[#00a870]"
+            placeholder="Enter title..."
+          />
         </div>
-      </footer>
+      </CustomDialog>
+
+      <FloatToast
+        message={toastMessage}
+        onClose={() => setToastMessage(null)}
+      />
     </div>
   );
 }

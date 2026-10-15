@@ -2091,6 +2091,45 @@ export function BillingPage() {
         if (Array.isArray(res)) setPartiesForTier(res);
       })
       .catch(console.error);
+
+    const unsubSync = window.electronAPI?.onSyncDataUpdated?.(() => {
+      const tid = tenantId || 'global';
+      Promise.all([
+        window.electronAPI.dbGetPricingTiers(tid),
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'mrp_sort_order' })
+      ])
+        .then(([res, mrpSortRes]: [any, any]) => {
+          if (Array.isArray(res)) {
+            const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
+            const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
+            const sortedWithMrp = sortTiersWithMrp(active, mrpSortOrder);
+            setPricingTiers(sortedWithMrp);
+            const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
+            if (defaultTier) {
+              setSelectedTierId(prev => prev || defaultTier.pricing_tier_id);
+            }
+          }
+        })
+        .catch(console.error);
+
+      window.electronAPI.dbGetProductPricing(tid)
+        .then((rows: any) => {
+          if (Array.isArray(rows)) {
+            const map: Record<string, Record<string, number>> = {};
+            for (const r of rows) {
+              if (!map[r.product_id]) map[r.product_id] = {};
+              map[r.product_id][r.pricing_tier_id] = Number(r.price) || 0;
+            }
+            setProductPricingMap(map);
+            setProductPricingMapLoaded(true);
+          }
+        })
+        .catch(console.error);
+    });
+
+    return () => {
+      if (typeof unsubSync === 'function') unsubSync();
+    };
   }, [tenantId]);
 
   // Listen for settings updates to immediately refresh Computer Code display and tab bill numbers
@@ -3849,10 +3888,11 @@ loadFlags(tenantId || 'global');
     setEditingProductId(item.product_id);
     let prodDetails: any = null;
     let productPricingRows: any[] = [];
-    if (window.electronAPI && tenantId) {
+    if (window.electronAPI) {
+      const tid = tenantId || 'global';
       const [productResult, pricingResult] = await Promise.allSettled([
-        window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] }),
-        window.electronAPI.dbGetProductPricing(tenantId),
+        window.electronAPI.dbGetProductsByIds({ tenant_id: tid, product_ids: [item.product_id] }),
+        window.electronAPI.dbGetProductPricing(tid),
       ]);
       if (productResult.status === 'fulfilled' && Array.isArray(productResult.value) && productResult.value.length > 0) {
         prodDetails = productResult.value[0];
@@ -4327,6 +4367,17 @@ loadFlags(tenantId || 'global');
       clearCart();
       await reserveReturnNumberForTab();
       setReturnMode(true);
+
+      const invPm = (inv.payment_method || '').toUpperCase();
+      let invSplitCredit = 0;
+      if (inv.split_details) {
+        try {
+          const s = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+          invSplitCredit = Number(s?.credit) || 0;
+        } catch {}
+      }
+      const isCreditInv = invPm === 'CREDIT' || invSplitCredit > 0 || (Number(inv.balance_amount) > 0 && invPm !== 'CASH');
+      setReturnRefundMethod(isCreditInv ? 'CREDIT' : 'ADJUST_BILL');
 
       // Enrich with catalog product details if available
       const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
@@ -9984,12 +10035,12 @@ loadFlags(tenantId || 'global');
               <div className="flex flex-col gap-2">
                 <div className="grid grid-cols-6 gap-1.5">
                   {[
+                    { value: 'CREDIT' as const, label: 'Credit Balance', icon: CreditCard, activeBg: 'bg-amber-500/10', activeText: 'text-amber-600 dark:text-amber-400', activeBorder: 'border-amber-500', activeIconBg: 'bg-amber-500/15' },
                     { value: 'ADJUST_BILL' as const, label: 'Adjust Bill', icon: ArrowLeftRight, activeBg: 'bg-rose-500/10', activeText: 'text-rose-600 dark:text-rose-400', activeBorder: 'border-rose-500', activeIconBg: 'bg-rose-500/15' },
                     { value: 'CASH' as const, label: 'Cash', icon: Banknote, activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
                     { value: 'UPI' as const, label: 'UPI', icon: Smartphone, activeBg: 'bg-violet-500/10', activeText: 'text-violet-600 dark:text-violet-400', activeBorder: 'border-violet-500', activeIconBg: 'bg-violet-500/15' },
                     { value: 'CARD' as const, label: 'Card', icon: Wallet, activeBg: 'bg-blue-500/10', activeText: 'text-blue-600 dark:text-blue-400', activeBorder: 'border-blue-500', activeIconBg: 'bg-blue-500/15' },
-                    { value: 'BANK_TRANSFER' as const, label: 'Bank Transfer', icon: Building, activeBg: 'bg-sky-500/10', activeText: 'text-sky-600 dark:text-sky-400', activeBorder: 'border-sky-500', activeIconBg: 'bg-sky-500/15' },
-                    { value: 'STORE_CREDIT' as const, label: 'Store Credit', icon: Gift, activeBg: 'bg-amber-500/10', activeText: 'text-amber-600 dark:text-amber-400', activeBorder: 'border-amber-500', activeIconBg: 'bg-amber-500/15' },
+                    { value: 'STORE_CREDIT' as const, label: 'Store Credit', icon: Gift, activeBg: 'bg-purple-500/10', activeText: 'text-purple-600 dark:text-purple-400', activeBorder: 'border-purple-500', activeIconBg: 'bg-purple-500/15' },
                   ].map(opt => {
                     const isActive = returnRefundMethod === opt.value;
                     return (
@@ -10016,7 +10067,29 @@ loadFlags(tenantId || 'global');
                 </div>
                 {selectedReturnInvoice && (
                   <div className="flex items-center justify-between px-3 py-2 bg-rose-500/5 border border-rose-500/10 rounded-xl mt-1">
-                    <span className="text-xs text-muted-foreground">Original Invoice: <span className="font-bold text-foreground">{selectedReturnInvoice.invoice_number}</span></span>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-muted-foreground">Original Invoice: <span className="font-bold text-foreground">{selectedReturnInvoice.invoice_number}</span></span>
+                      {(() => {
+                        const pm = (selectedReturnInvoice.payment_method || '').toUpperCase();
+                        let splitCredit = 0;
+                        if (selectedReturnInvoice.split_details) {
+                          try {
+                            const s = typeof selectedReturnInvoice.split_details === 'string' ? JSON.parse(selectedReturnInvoice.split_details) : selectedReturnInvoice.split_details;
+                            splitCredit = Number(s?.credit) || 0;
+                          } catch {}
+                        }
+                        const isCredit = pm === 'CREDIT' || splitCredit > 0 || (Number(selectedReturnInvoice.balance_amount) > 0 && pm !== 'CASH');
+                        if (isCredit) {
+                          const due = Number(selectedReturnInvoice.balance_amount || selectedReturnInvoice.grand_total) || 0;
+                          return (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                              Credit Bill · Balance Due: ₹{due.toFixed(2)}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                     <span className="text-xs font-bold text-rose-600 dark:text-rose-400">{selectedReturnInvoice.customer_name || 'Walk-in'}</span>
                   </div>
                 )}

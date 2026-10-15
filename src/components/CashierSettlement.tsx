@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
+import { CustomDialog, type DialogVariant } from './ui/CustomDialog';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
 import { Skeleton } from './ui/Skeleton';
@@ -566,10 +567,15 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [isDeletingTx, setIsDeletingTx] = useState(false);
   const [reopenConfirmDrawer, setReopenConfirmDrawer] = useState<any | null>(null);
   const [isReopeningDrawer, setIsReopeningDrawer] = useState(false);
+  const [alertDialog, setAlertDialog] = useState<{ title: string; message: string; variant?: DialogVariant } | null>(null);
 
   const initiateReopenDrawer = (targetDrawer: any) => {
     if (!isOwner) {
-      alert('Access Denied: Only Store Owner can reopen a closed register.');
+      setAlertDialog({
+        title: 'Access Denied',
+        message: 'Only Store Owner can reopen a closed register.',
+        variant: 'warning'
+      });
       return;
     }
     setReopenConfirmDrawer(typeof targetDrawer === 'string' ? { drawer_id: targetDrawer } : targetDrawer);
@@ -594,11 +600,19 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           if (Array.isArray(hist)) setHistory(hist);
         }
       } else {
-        alert(res.error || 'Failed to reopen cash drawer');
+        setAlertDialog({
+          title: 'Action Failed',
+          message: res.error || 'Failed to reopen cash drawer',
+          variant: 'danger'
+        });
       }
     } catch (err: any) {
       console.error('Reopen drawer error:', err);
-      alert('Failed to reopen cash drawer: ' + (err.message || err));
+      setAlertDialog({
+        title: 'System Error',
+        message: 'Failed to reopen cash drawer: ' + (err.message || err),
+        variant: 'danger'
+      });
     } finally {
       setIsReopeningDrawer(false);
     }
@@ -606,7 +620,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const initiateDeleteTransaction = (tx: any) => {
     if (!isOwner) {
-      alert('Access Denied: Only Store Owner can delete register transactions.');
+      setAlertDialog({
+        title: 'Access Denied',
+        message: 'Only Store Owner can delete register transactions.',
+        variant: 'warning'
+      });
       return;
     }
     setDeleteConfirmTx(tx);
@@ -633,11 +651,19 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           loadDaySettlements(expandedDay);
         }
       } else {
-        alert(res.error || 'Failed to delete transaction');
+        setAlertDialog({
+          title: 'Action Failed',
+          message: res.error || 'Failed to delete transaction',
+          variant: 'danger'
+        });
       }
     } catch (err: any) {
       console.error('Delete transaction error:', err);
-      alert('Failed to delete transaction: ' + (err.message || err));
+      setAlertDialog({
+        title: 'System Error',
+        message: 'Failed to delete transaction: ' + (err.message || err),
+        variant: 'danger'
+      });
     } finally {
       setIsDeletingTx(false);
     }
@@ -3711,6 +3737,17 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
         </div>
       </Modal>
+
+      <CustomDialog
+        isOpen={!!alertDialog}
+        onClose={() => setAlertDialog(null)}
+        title={alertDialog?.title || 'Notice'}
+        description={alertDialog?.message}
+        hideCancel
+        confirmText="OK"
+        onConfirm={() => setAlertDialog(null)}
+        variant={alertDialog?.variant || 'warning'}
+      />
 
       <FloatToast message={reprintSuccess ? 'Invoice reprinted successfully!' : null} onClose={() => setReprintSuccess(false)} />
     </div>

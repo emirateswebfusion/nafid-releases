@@ -202,7 +202,16 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     return () => clearTimeout(t);
   }, [statusMessage]);
 
-  useEffect(() => { loadData(true); }, []);
+  useEffect(() => {
+    loadData(true);
+    if (!window.electronAPI?.onSyncDataUpdated) return;
+    const unsub = window.electronAPI.onSyncDataUpdated(() => {
+      loadData(false);
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [tenantId]);
 
   const loadData = async (showFullLoading = true) => {
     if (!window.electronAPI) {

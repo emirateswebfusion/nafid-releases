@@ -28,7 +28,7 @@ export interface TabSnapshot {
   isQuotationMode: boolean;
   isReturnMode: boolean;
   isScrapMode: boolean;
-  returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL';
+  returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL' | 'CREDIT';
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
   editingInvoiceId: string | null;
