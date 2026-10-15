@@ -6,7 +6,7 @@ import {
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare,
-  Zap, Wrench
+  Zap, Wrench, Wallet, Layers
 } from 'lucide-react';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
@@ -215,6 +215,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
   const [autoWhatsAppSend, setAutoWhatsAppSend] = useState<boolean>(() => localStorage.getItem('auto_whatsapp_send') === 'true');
   const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
+  const [activeWhatsAppTab, setActiveWhatsAppTab] = useState<'qr' | 'settings'>('qr');
   const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
@@ -1110,9 +1111,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       const pGst = allSettings['enable_party_gst_balance'];
       const pEst = allSettings['enable_party_estimate_balance'];
-      let finalPartyGst = pGst !== null && pGst !== undefined ? Boolean(pGst) : true;
-      let finalPartyEst = pEst !== null && pEst !== undefined ? Boolean(pEst) : true;
-      if (!finalPartyGst && !finalPartyEst) finalPartyGst = true;
+      const isPartyFirstRun = pGst === undefined && pEst === undefined;
+      const finalPartyGst = isPartyFirstRun ? true : Boolean(pGst);
+      const finalPartyEst = isPartyFirstRun ? true : Boolean(pEst);
       setEnablePartyGst(finalPartyGst);
       setEnablePartyEstimate(finalPartyEst);
 
@@ -2182,12 +2183,44 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         );
       case 'whatsapp':
+      case 'whatsapp_device':
+      case 'whatsapp_settings':
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Top Sub-tabs */}
+            <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
+              {[
+                { id: 'qr', label: 'QR', icon: QrCode },
+                { id: 'settings', label: 'Settings', icon: Settings },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isTabActive = activeWhatsAppTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveWhatsAppTab(tab.id as 'qr' | 'settings')}
+                    className={clsx(
+                      "flex items-center justify-center gap-2 py-2 px-5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                      isTabActive
+                        ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold scale-100"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    <Icon className="w-4 h-4 shrink-0 text-current" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Content card matching other sections */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm">
               <WhatsAppSettings
                 tenantId={tenantId}
                 autoSendEnabled={autoWhatsAppSend}
+                activeTab={activeWhatsAppTab}
+                onTabChange={setActiveWhatsAppTab}
                 onAutoSendChange={(val) => {
                   setAutoWhatsAppSend(val);
                   localStorage.setItem('auto_whatsapp_send', val ? 'true' : 'false');
@@ -4048,62 +4081,155 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                 </div>
 
-                <div className="space-y-3.5">
-                  {/* GST Balance Toggle */}
-                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                    <div className="flex-1 min-w-0">
-                      <label className="text-xs font-bold text-foreground block">Track GST Balance in Ledger</label>
-                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate GST tax invoice balance for ledger accounts</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (enablePartyGst && !enablePartyEstimate) {
-                          setMessage({ type: 'error', text: 'Cannot turn off both GST and Estimate balance tracking. At least one must remain active.' });
-                          return;
-                        }
-                        setEnablePartyGst(!enablePartyGst);
-                      }}
-                      className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enablePartyGst ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                      title={enablePartyGst ? 'Enabled' : 'Disabled'}
-                    >
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enablePartyGst ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
+                {(() => {
+                  const currentMode: 'BOTH' | 'GST_ONLY' | 'ESTIMATE_ONLY' | 'SINGLE' =
+                    enablePartyGst && enablePartyEstimate ? 'BOTH' :
+                    enablePartyGst && !enablePartyEstimate ? 'GST_ONLY' :
+                    !enablePartyGst && enablePartyEstimate ? 'ESTIMATE_ONLY' : 'SINGLE';
 
-                  {/* Estimate Balance Toggle */}
-                  <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                    <div className="flex-1 min-w-0">
-                      <label className="text-xs font-bold text-foreground block">Track Estimate Balance in Ledger</label>
-                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate Estimate / Non-GST invoice balance for ledger accounts</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (enablePartyEstimate && !enablePartyGst) {
-                          setMessage({ type: 'error', text: 'Cannot turn off both GST and Estimate balance tracking. At least one must remain active.' });
-                          return;
-                        }
-                        setEnablePartyEstimate(!enablePartyEstimate);
-                      }}
-                      className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enablePartyEstimate ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                      title={enablePartyEstimate ? 'Enabled' : 'Disabled'}
-                    >
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enablePartyEstimate ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {/* Option 1: Both (Separate GST & Estimate) */}
+                      <div
+                        onClick={() => {
+                          setEnablePartyGst(true);
+                          setEnablePartyEstimate(true);
+                        }}
+                        className={clsx(
+                          'p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between text-left relative group',
+                          currentMode === 'BOTH'
+                            ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm'
+                            : 'border-border/80 bg-muted/20 hover:border-border hover:bg-muted/40'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-primary">
+                              <Layers className="w-4 h-4" /> Separate Both
+                            </span>
+                            {currentMode === 'BOTH' && (
+                              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-black shadow-xs">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-black text-foreground">Separate GST &amp; Estimate Balances</h4>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Maintains separate GST and Estimate ledgers. In transactions, choose which balance to adjust against. Both are shown with distinct colors.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">GST Balance: Active</span>
+                          <span className="px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">Estimate: Active</span>
+                        </div>
+                      </div>
 
-                  {(!enablePartyGst || !enablePartyEstimate) && (
-                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300 font-medium leading-relaxed">
-                      <Info className="w-4 h-4 shrink-0 text-amber-500" />
-                      <span>
-                        {enablePartyGst
-                          ? 'Estimate Balance is turned OFF. Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'
-                          : 'GST Balance is turned OFF. Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'}
-                      </span>
+                      {/* Option 2: GST Balance Only */}
+                      <div
+                        onClick={() => {
+                          setEnablePartyGst(true);
+                          setEnablePartyEstimate(false);
+                        }}
+                        className={clsx(
+                          'p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between text-left relative group',
+                          currentMode === 'GST_ONLY'
+                            ? 'border-sky-500 bg-sky-500/5 dark:bg-sky-500/10 shadow-sm'
+                            : 'border-border/80 bg-muted/20 hover:border-border hover:bg-muted/40'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                              <FileText className="w-4 h-4" /> GST Only
+                            </span>
+                            {currentMode === 'GST_ONLY' && (
+                              <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-black text-foreground">GST Balance Only</h4>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Party ledgers track GST tax balance. Estimate balance is turned off and <strong>never shown anywhere</strong> in the app.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">GST Balance: Active</span>
+                          <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">Estimate: Hidden Everywhere</span>
+                        </div>
+                      </div>
+
+                      {/* Option 3: Estimate Balance Only */}
+                      <div
+                        onClick={() => {
+                          setEnablePartyGst(false);
+                          setEnablePartyEstimate(true);
+                        }}
+                        className={clsx(
+                          'p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between text-left relative group',
+                          currentMode === 'ESTIMATE_ONLY'
+                            ? 'border-violet-500 bg-violet-500/5 dark:bg-violet-500/10 shadow-sm'
+                            : 'border-border/80 bg-muted/20 hover:border-border hover:bg-muted/40'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-violet-600 dark:text-violet-400">
+                              <TrendingUp className="w-4 h-4" /> Estimate Only
+                            </span>
+                            {currentMode === 'ESTIMATE_ONLY' && (
+                              <span className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-black text-foreground">Estimate Balance Only</h4>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Party ledgers track Estimate / Non-GST balance. GST balance is turned off and <strong>never shown anywhere</strong> in the app.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">Estimate Balance: Active</span>
+                          <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">GST: Hidden Everywhere</span>
+                        </div>
+                      </div>
+
+                      {/* Option 4: Single General Balance */}
+                      <div
+                        onClick={() => {
+                          setEnablePartyGst(false);
+                          setEnablePartyEstimate(false);
+                        }}
+                        className={clsx(
+                          'p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between text-left relative group',
+                          currentMode === 'SINGLE'
+                            ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm'
+                            : 'border-border/80 bg-muted/20 hover:border-border hover:bg-muted/40'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                              <Wallet className="w-4 h-4" /> General
+                            </span>
+                            {currentMode === 'SINGLE' && (
+                              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-black shadow-xs">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-black text-foreground">Single General Balance</h4>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Traditional unified ledger. Combines all bills into one balance without GST or Estimate labels anywhere.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-muted text-foreground border border-border">Combined Single Balance</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

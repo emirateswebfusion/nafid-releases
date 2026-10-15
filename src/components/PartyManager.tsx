@@ -13,7 +13,7 @@ import {
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
   Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
-  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload, ArrowUpDown, ArrowUp, ArrowDown, Clock, AlertTriangle,
+  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload, ArrowUpDown, ArrowUp, ArrowDown, Clock, AlertTriangle, FileDown,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -24,10 +24,12 @@ import { Modal } from './ui/Modal';
 import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
+import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getAppTimeFormat, parseUTCDate, formatBillDateTime, generateReceiptText } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
-import { formatWhatsAppLedgerTxMessage } from '../utils/whatsappBillHelper';
+import { formatWhatsAppLedgerTxMessage, formatWhatsAppStatementMessage } from '../utils/whatsappBillHelper';
+import { calculateLedgerStatement, generatePartyLedgerHtml, type LedgerEntryData } from '../utils/partyLedgerPdfGenerator';
 
 interface Party {
   party_id: string;
@@ -36,8 +38,11 @@ interface Party {
   address: string;
   gstin: string;
   balance: number;
+  current_balance?: number;
   gst_balance?: number;
   estimate_balance?: number;
+  current_gst_balance?: number;
+  current_estimate_balance?: number;
   balance_type: 'RECEIVABLE' | 'PAYABLE';
   party_type?: 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM' | string;
   custom_category?: string | null;
@@ -61,22 +66,7 @@ interface Party {
   connect_code?: string | null;
 }
 
-interface LedgerEntry {
-  ledger_id: string;
-  party_id: string;
-  transaction_date: string;
-  description: string;
-  credit_amount: number;
-  debit_amount: number;
-  running_balance: number;
-  balance_type?: 'GST' | 'ESTIMATE';
-  payment_method?: string;
-  reference_number: string;
-  created_by: string;
-  created_by_name: string;
-  created_at: string;
-  updated_at: string;
-}
+type LedgerEntry = LedgerEntryData;
 
 type View = 'list' | 'ledger' | 'party_form' | 'tx_form';
 
@@ -144,19 +134,37 @@ export function PartyManager({
   onBackToCustomers?: () => void;
 }) {
   useCloseOnEscape(onClose);
-  const { tenantId, userId, userName, role } = useAuthStore();
+  const { tenantId, userId, userName, role, shopName } = useAuthStore();
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
   const tLabels = useTerminologyStore(state => state.labels);
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
+  const [enablePartyGst, setEnablePartyGst] = useState(true);
+  const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
+
   const getPartyBalance = useCallback((p: any): number => {
     if (!p) return 0;
+    if (enablePartyGst && !enablePartyEstimate) {
+      if (p.current_gst_balance !== undefined && p.current_gst_balance !== null && !isNaN(Number(p.current_gst_balance))) {
+        return Number(p.current_gst_balance);
+      }
+      if (p.gst_balance !== undefined && p.gst_balance !== null && !isNaN(Number(p.gst_balance))) {
+        return Number(p.gst_balance);
+      }
+    } else if (!enablePartyGst && enablePartyEstimate) {
+      if (p.current_estimate_balance !== undefined && p.current_estimate_balance !== null && !isNaN(Number(p.current_estimate_balance))) {
+        return Number(p.current_estimate_balance);
+      }
+      if (p.estimate_balance !== undefined && p.estimate_balance !== null && !isNaN(Number(p.estimate_balance))) {
+        return Number(p.estimate_balance);
+      }
+    }
     if (p.current_balance !== undefined && p.current_balance !== null && !isNaN(Number(p.current_balance))) {
       return Number(p.current_balance);
     }
     return Number(p.balance || 0);
-  }, []);
+  }, [enablePartyGst, enablePartyEstimate]);
 
   const listScrollRef = useRef<HTMLDivElement>(null);
   const lastInteractedPartyId = useRef<string | null>(null);
@@ -295,26 +303,119 @@ export function PartyManager({
     }
   };
 
-  // ── Merge Duplicates Handlers ──────────────────────────────────────────────
+  // ── Party Ledger & Statement State ──────────────────────────────────────────────
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [dateSortOrder, setDateSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
+  const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isSendingWhatsAppPdf, setIsSendingWhatsAppPdf] = useState(false);
+  const [shopDetails, setShopDetails] = useState<{
+    shopName: string;
+    shopAddress?: string;
+    shopPhone?: string;
+    shopEmail?: string;
+    shopGstin?: string;
+    shopState?: string;
+  }>({ shopName: '' });
+
+  const [ledgerBalanceFilter, setLedgerBalanceFilter] = useState<'ALL' | 'GST' | 'ESTIMATE'>('ALL');
+
+  const gstBalance = useMemo(() => {
+    return ledger
+      .filter(e => (e.balance_type || 'GST') === 'GST')
+      .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
+  }, [ledger]);
+
+  const estimateBalance = useMemo(() => {
+    return ledger
+      .filter(e => e.balance_type === 'ESTIMATE')
+      .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
+  }, [ledger]);
+
+  const gstEntriesCount = useMemo(() => {
+    return ledger.filter(e => (e.balance_type || 'GST') === 'GST').length;
+  }, [ledger]);
+
+  const estimateEntriesCount = useMemo(() => {
+    return ledger.filter(e => e.balance_type === 'ESTIMATE').length;
+  }, [ledger]);
+
+  // Single source of truth calculation for filtered ledger, opening balance & reconciliation
+  const statementData = useMemo(() => {
+    if (!selectedParty) return null;
+    return calculateLedgerStatement(
+      ledger,
+      { startDate: ledgerStartDate, endDate: ledgerEndDate },
+      selectedParty,
+      tLabels,
+      getStoreTimezone()
+    );
+  }, [ledger, ledgerStartDate, ledgerEndDate, selectedParty, tLabels]);
+
+  const isPeriodFiltered = Boolean(ledgerStartDate || ledgerEndDate);
+  const activeGstBal = useMemo(() => {
+    if (isPeriodFiltered && statementData) {
+      return (statementData.entries || [])
+        .filter(e => (e.balance_type || 'GST') === 'GST')
+        .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
+    }
+    return gstBalance;
+  }, [isPeriodFiltered, statementData, gstBalance]);
+
+  const activeEstimateBal = useMemo(() => {
+    if (isPeriodFiltered && statementData) {
+      return (statementData.entries || [])
+        .filter(e => e.balance_type === 'ESTIMATE')
+        .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
+    }
+    return estimateBalance;
+  }, [isPeriodFiltered, statementData, estimateBalance]);
 
   const displayLedger = useMemo(() => {
-    return dateSortOrder === 'desc' ? [...ledger].reverse() : [...ledger];
-  }, [ledger, dateSortOrder]);
+    let list = statementData ? statementData.entries : ledger;
+    if (enablePartyGst && !enablePartyEstimate) {
+      list = list.filter(e => (e.balance_type || 'GST') === 'GST');
+    } else if (!enablePartyGst && enablePartyEstimate) {
+      list = list.filter(e => e.balance_type === 'ESTIMATE');
+    } else if (enablePartyGst && enablePartyEstimate && ledgerBalanceFilter !== 'ALL') {
+      list = list.filter(e => (e.balance_type || 'GST') === ledgerBalanceFilter);
+    }
+    const sortedAsc = [...list].sort((a, b) => {
+      const timeA = new Date(a.transaction_date).getTime();
+      const timeB = new Date(b.transaction_date).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const catA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const catB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return catA - catB;
+    });
+
+    const isFilteredByMode = (enablePartyGst && !enablePartyEstimate) || (!enablePartyGst && enablePartyEstimate) || (enablePartyGst && enablePartyEstimate && ledgerBalanceFilter !== 'ALL');
+    let running = (statementData && ledgerStartDate && !isFilteredByMode) ? statementData.openingBalance : 0;
+    const withRunning = sortedAsc.map(entry => {
+      running += (Number(entry.credit_amount) || 0) - (Number(entry.debit_amount) || 0);
+      return {
+        ...entry,
+        contextRunningBalance: !isFilteredByMode ? entry.running_balance : running,
+      };
+    });
+
+    return dateSortOrder === 'desc' ? withRunning.reverse() : withRunning;
+  }, [statementData, ledger, dateSortOrder, enablePartyGst, enablePartyEstimate, ledgerBalanceFilter, ledgerStartDate]);
 
   const totalCreditSum = useMemo(() => {
-    return ledger.reduce((sum, entry) => sum + (Number(entry.credit_amount) || 0), 0);
-  }, [ledger]);
+    return displayLedger.reduce((sum, entry) => sum + (Number(entry.credit_amount) || 0), 0);
+  }, [displayLedger]);
 
   const totalDebitSum = useMemo(() => {
-    return ledger.reduce((sum, entry) => sum + (Number(entry.debit_amount) || 0), 0);
-  }, [ledger]);
+    return displayLedger.reduce((sum, entry) => sum + (Number(entry.debit_amount) || 0), 0);
+  }, [displayLedger]);
 
   const [editingTx, setEditingTx] = useState<LedgerEntry | null>(null);
   const [isSavingTx, setIsSavingTx] = useState(false);
-  const [ledgerWhatsappMode, setLedgerWhatsappMode] = useState<string>('ALL_PARTIES_ALL_TX');
+  const [ledgerWhatsappEnabled, setLedgerWhatsappEnabled] = useState<boolean>(true);
+  const [ledgerWhatsappIncludeShop, setLedgerWhatsappIncludeShop] = useState<boolean>(false);
   const [txForm, setTxForm] = useState({
     amount: '', transaction_type: 'CREDIT' as 'CREDIT' | 'DEBIT',
     description: '', transaction_date: '', reference_number: '',
@@ -330,9 +431,6 @@ export function PartyManager({
   const [deletePartyModalOpen, setDeletePartyModalOpen] = useState(false);
   const [partyToDelete, setPartyToDelete] = useState<Party | null>(null);
   const [deletePartySaving, setDeletePartySaving] = useState(false);
-
-  const [enablePartyGst, setEnablePartyGst] = useState(true);
-  const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
 
   // Bill viewing states
   const [viewingBillModal, setViewingBillModal] = useState<boolean>(false);
@@ -567,18 +665,35 @@ export function PartyManager({
   const loadPartySettings = useCallback(async () => {
     if (!tenantId || !window.electronAPI) return;
     try {
-      const [gstVal, estVal, waModeVal] = await Promise.all([
+      const [gstVal, estVal, waEnabledVal, waIncShopVal] = await Promise.all([
         window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_gst_balance' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_estimate_balance' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'ledger_whatsapp_mode' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'ledger_whatsapp_enabled' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'ledger_whatsapp_include_shop' }),
       ]);
-      let g = gstVal !== null && gstVal !== undefined ? Boolean(gstVal) : true;
-      let e = estVal !== null && estVal !== undefined ? Boolean(estVal) : true;
-      if (!g && !e) g = true;
+      const isPartyFirstRun = gstVal === undefined && estVal === undefined;
+      const g = isPartyFirstRun ? true : Boolean(gstVal);
+      const e = isPartyFirstRun ? true : Boolean(estVal);
       setEnablePartyGst(g);
       setEnablePartyEstimate(e);
-      if (waModeVal && typeof waModeVal === 'string') {
-        setLedgerWhatsappMode(waModeVal);
+      if (waEnabledVal !== null && waEnabledVal !== undefined) {
+        setLedgerWhatsappEnabled(Boolean(waEnabledVal));
+      }
+      if (waIncShopVal !== null && waIncShopVal !== undefined) {
+        setLedgerWhatsappIncludeShop(Boolean(waIncShopVal));
+      }
+      if (window.electronAPI.settingsGetAll) {
+        const all = await window.electronAPI.settingsGetAll({ tenant_id: tenantId || 'global' });
+        if (all) {
+          setShopDetails({
+            shopName: all['shop_name'] || '',
+            shopAddress: all['shop_address'] || '',
+            shopPhone: all['shop_phone'] || '',
+            shopEmail: all['shop_email'] || '',
+            shopGstin: all['shop_gstin'] || '',
+            shopState: all['shop_state'] || '',
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to load party balance settings', err);
@@ -659,21 +774,17 @@ export function PartyManager({
 
   const openTxForm = (transactionType: 'CREDIT' | 'DEBIT' = 'CREDIT') => {
     setEditingTx(null);
-    const defaultBalanceType = enablePartyGst ? 'GST' : 'ESTIMATE';
+    let defaultBalanceType: 'GST' | 'ESTIMATE' = enablePartyGst ? 'GST' : 'ESTIMATE';
+    if (ledgerBalanceFilter === 'ESTIMATE' && enablePartyEstimate) {
+      defaultBalanceType = 'ESTIMATE';
+    } else if (ledgerBalanceFilter === 'GST' && enablePartyGst) {
+      defaultBalanceType = 'GST';
+    }
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    let shouldSendWa = false;
     const hasPhone = Boolean(selectedParty?.phone && selectedParty.phone.trim());
-    if (ledgerWhatsappMode === 'ALL_PARTIES_ALL_TX') {
-      shouldSendWa = hasPhone;
-    } else if (ledgerWhatsappMode === 'SELECTED_PARTIES_ALL_TX') {
-      const isPartyEnabled = selectedParty?.whatsapp_alerts_enabled !== 0 && selectedParty?.whatsapp_alerts_enabled !== false;
-      shouldSendWa = isPartyEnabled && hasPhone;
-    } else if (ledgerWhatsappMode === 'SELECTED_TRANSACTIONS') {
-      shouldSendWa = hasPhone;
-    } else {
-      shouldSendWa = false;
-    }
+    const isPartyAlertEnabled = selectedParty?.whatsapp_alerts_enabled !== 0 && selectedParty?.whatsapp_alerts_enabled !== false;
+    const shouldSendWa = Boolean(ledgerWhatsappEnabled && isPartyAlertEnabled && hasPhone);
 
     setTxForm({
       amount: '',
@@ -743,8 +854,26 @@ export function PartyManager({
         const entries = Array.isArray(data) ? data : [];
         setLedger(entries);
         const latestBal = entries.length > 0 ? Number(entries[entries.length - 1].running_balance) || 0 : 0;
-        setSelectedParty(prev => prev ? { ...prev, balance: latestBal, current_balance: latestBal } : prev);
-        setParties(prev => prev.map(p => p.party_id === partyId ? { ...p, balance: latestBal, current_balance: latestBal } : p));
+        const gBal = entries.filter(e => (e.balance_type || 'GST') === 'GST').reduce((s, e) => s + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
+        const eBal = entries.filter(e => e.balance_type === 'ESTIMATE').reduce((s, e) => s + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
+        setSelectedParty(prev => prev ? {
+          ...prev,
+          balance: latestBal,
+          current_balance: latestBal,
+          gst_balance: gBal,
+          current_gst_balance: gBal,
+          estimate_balance: eBal,
+          current_estimate_balance: eBal,
+        } : prev);
+        setParties(prev => prev.map(p => p.party_id === partyId ? {
+          ...p,
+          balance: latestBal,
+          current_balance: latestBal,
+          gst_balance: gBal,
+          current_gst_balance: gBal,
+          estimate_balance: eBal,
+          current_estimate_balance: eBal,
+        } : p));
       }
     } catch {
       showStatus('Failed to load ledger', 'error');
@@ -950,6 +1079,7 @@ export function PartyManager({
       const runningBal = Number(entry.running_balance) || 0;
       const ob = runningBal - (Number(entry.credit_amount) || 0) + (Number(entry.debit_amount) || 0);
 
+      const effectiveShopName = shopDetails.shopName || shopName || '';
       const waMsg = formatWhatsAppLedgerTxMessage({
         openingBalance: ob,
         amount: amt,
@@ -957,6 +1087,8 @@ export function PartyManager({
         paymentMethod: entry.payment_method || 'CASH',
         transactionType: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
         partyName: selectedParty.name,
+        shopName: effectiveShopName,
+        includeShopName: ledgerWhatsappIncludeShop,
       });
 
       const res = await window.electronAPI.whatsappSendInvoice({
@@ -974,6 +1106,145 @@ export function PartyManager({
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!selectedParty || !statementData) return;
+    setIsExportingPdf(true);
+    try {
+      let effectiveLedgerForPdf = ledger;
+      if (enablePartyGst && !enablePartyEstimate) {
+        effectiveLedgerForPdf = ledger.filter(e => (e.balance_type || 'GST') === 'GST');
+      } else if (!enablePartyGst && enablePartyEstimate) {
+        effectiveLedgerForPdf = ledger.filter(e => e.balance_type === 'ESTIMATE');
+      } else if (enablePartyGst && enablePartyEstimate && ledgerBalanceFilter !== 'ALL') {
+        effectiveLedgerForPdf = ledger.filter(e => (e.balance_type || 'GST') === ledgerBalanceFilter);
+      }
+      const partyWithLedger = { ...selectedParty, ledger: effectiveLedgerForPdf };
+      const effectiveShopName = shopDetails.shopName || shopName || 'STORE';
+      const htmlContent = generatePartyLedgerHtml({
+        shopName: effectiveShopName,
+        shopAddress: shopDetails.shopAddress || undefined,
+        shopPhone: shopDetails.shopPhone || undefined,
+        shopEmail: shopDetails.shopEmail || undefined,
+        shopGstin: shopDetails.shopGstin || undefined,
+        shopState: shopDetails.shopState || undefined,
+        party: partyWithLedger,
+        filter: { startDate: ledgerStartDate, endDate: ledgerEndDate },
+        terminology: tLabels,
+        timezone: getStoreTimezone(),
+        showBalanceType: enablePartyGst && enablePartyEstimate,
+      });
+
+      const pClean = selectedParty.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const startTag = ledgerStartDate || 'Beginning';
+      const endTag = ledgerEndDate || 'Current';
+      const defaultFilename = `Statement_${pClean}_${startTag}_to_${endTag}.pdf`;
+
+      if (window.electronAPI?.exportA4Pdf) {
+        const res = await window.electronAPI.exportA4Pdf(
+          tenantId || 'global',
+          htmlContent,
+          defaultFilename,
+          { displayHeaderFooter: true }
+        );
+        if (res?.success) {
+          if (!res.canceled) {
+            showStatus(`Statement PDF downloaded successfully!`, 'success');
+          }
+        } else if (res?.error) {
+          showStatus(`PDF export error: ${res.error}`, 'error');
+        }
+      } else {
+        const pw = window.open('', '_blank');
+        if (pw) {
+          pw.document.write(htmlContent);
+          pw.document.title = defaultFilename.replace('.pdf', '');
+          pw.document.close();
+          setTimeout(() => pw.print(), 500);
+        }
+      }
+    } catch (err: any) {
+      console.error('Download PDF error:', err);
+      showStatus('Failed to generate PDF: ' + (err?.message || 'Unknown error'), 'error');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleSendWhatsAppPdf = async () => {
+    if (!selectedParty || !statementData) return;
+    const phone = (selectedParty.phone || '').trim();
+    if (!phone) {
+      showStatus('WhatsApp alert not sent: Party phone number is missing', 'error');
+      return;
+    }
+    setIsSendingWhatsAppPdf(true);
+    try {
+      let effectiveLedgerForPdf = ledger;
+      if (enablePartyGst && !enablePartyEstimate) {
+        effectiveLedgerForPdf = ledger.filter(e => (e.balance_type || 'GST') === 'GST');
+      } else if (!enablePartyGst && enablePartyEstimate) {
+        effectiveLedgerForPdf = ledger.filter(e => e.balance_type === 'ESTIMATE');
+      } else if (enablePartyGst && enablePartyEstimate && ledgerBalanceFilter !== 'ALL') {
+        effectiveLedgerForPdf = ledger.filter(e => (e.balance_type || 'GST') === ledgerBalanceFilter);
+      }
+      const partyWithLedger = { ...selectedParty, ledger: effectiveLedgerForPdf };
+      const effectiveShopName = shopDetails.shopName || shopName || 'STORE';
+      const htmlContent = generatePartyLedgerHtml({
+        shopName: effectiveShopName,
+        shopAddress: shopDetails.shopAddress || undefined,
+        shopPhone: shopDetails.shopPhone || undefined,
+        shopEmail: shopDetails.shopEmail || undefined,
+        shopGstin: shopDetails.shopGstin || undefined,
+        shopState: shopDetails.shopState || undefined,
+        party: partyWithLedger,
+        filter: { startDate: ledgerStartDate, endDate: ledgerEndDate },
+        terminology: tLabels,
+        timezone: getStoreTimezone(),
+        showBalanceType: enablePartyGst && enablePartyEstimate,
+      });
+
+      const pClean = selectedParty.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const startTag = ledgerStartDate || 'Beginning';
+      const endTag = ledgerEndDate || 'Current';
+      const defaultFilename = `Statement_${pClean}_${startTag}_to_${endTag}.pdf`;
+
+      const summaryMsg = formatWhatsAppStatementMessage({
+        shopName: effectiveShopName,
+        partyName: selectedParty.name,
+        partyType: selectedParty.party_type || 'Customer',
+        phone: selectedParty.phone,
+        balance: statementData.closingBalance,
+        balanceLabel: statementData.closingBalance > 0 ? tLabels.receivable : statementData.closingBalance < 0 ? tLabels.payable : 'Settled',
+        totalDebit: statementData.periodDebit,
+        totalCredit: statementData.periodCredit,
+        entryCount: statementData.entryCount,
+        lastDate: statementData.periodLabel,
+      });
+
+      if (window.electronAPI?.whatsappSendInvoice) {
+        const res = await window.electronAPI.whatsappSendInvoice({
+          phone,
+          message: summaryMsg,
+          htmlContent,
+          fileName: defaultFilename,
+        });
+        if (res?.success) {
+          showStatus(`Statement PDF sent to ${selectedParty.name} via WhatsApp!`, 'success');
+        } else {
+          showStatus(`WhatsApp Alert Failed: ${res?.error || 'Could not send WhatsApp message'}`, 'error');
+        }
+      } else {
+        const waUrl = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(summaryMsg)}`;
+        window.open(waUrl, '_blank');
+        showStatus('Opened WhatsApp chat with statement summary', 'success');
+      }
+    } catch (err: any) {
+      showStatus('WhatsApp Alert Failed: ' + (err?.message || 'Connection error'), 'error');
+    } finally {
+      setIsSendingWhatsAppPdf(false);
+    }
+  };
+
   const handleSaveTx = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedParty) return;
@@ -983,7 +1254,13 @@ export function PartyManager({
     const parsedAmount = parseFloat(txForm.amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) { showStatus('Enter a valid positive amount', 'error'); return; }
 
-    const effectiveBalanceType = !enablePartyGst ? 'ESTIMATE' : !enablePartyEstimate ? 'GST' : txForm.balance_type;
+    const effectiveBalanceType = (!enablePartyGst && enablePartyEstimate)
+      ? 'ESTIMATE'
+      : (enablePartyGst && !enablePartyEstimate)
+      ? 'GST'
+      : (!enablePartyGst && !enablePartyEstimate)
+      ? 'GST'
+      : txForm.balance_type;
 
     setIsSavingTx(true);
     try {
@@ -1030,17 +1307,8 @@ export function PartyManager({
         }
 
         // WhatsApp notification handling
-        let shouldSendWa = false;
-        if (ledgerWhatsappMode === 'ALL_PARTIES_ALL_TX') {
-          shouldSendWa = txForm.send_whatsapp !== false;
-        } else if (ledgerWhatsappMode === 'SELECTED_PARTIES_ALL_TX') {
-          const isPartyEnabled = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
-          shouldSendWa = isPartyEnabled && txForm.send_whatsapp !== false;
-        } else if (ledgerWhatsappMode === 'SELECTED_TRANSACTIONS') {
-          shouldSendWa = Boolean(txForm.send_whatsapp);
-        } else if (ledgerWhatsappMode === 'DISABLED') {
-          shouldSendWa = false;
-        }
+        const isPartyAlertEnabled = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
+        const shouldSendWa = Boolean(ledgerWhatsappEnabled && isPartyAlertEnabled && txForm.send_whatsapp);
 
         if (shouldSendWa) {
           const partyPhone = (selectedParty.phone || '').trim();
@@ -1052,6 +1320,7 @@ export function PartyManager({
               const creditAmt = txForm.transaction_type === 'CREDIT' ? parsedAmount : 0;
               const debitAmt = txForm.transaction_type === 'DEBIT' ? parsedAmount : 0;
               const nb = ob + creditAmt - debitAmt;
+              const effectiveShopName = shopDetails.shopName || shopName || '';
 
               const waMsg = formatWhatsAppLedgerTxMessage({
                 openingBalance: ob,
@@ -1060,6 +1329,8 @@ export function PartyManager({
                 paymentMethod: txForm.payment_method,
                 transactionType: txForm.transaction_type,
                 partyName: selectedParty.name,
+                shopName: effectiveShopName,
+                includeShopName: ledgerWhatsappIncludeShop,
               });
 
               if (window.electronAPI?.whatsappSendInvoice) {
@@ -1242,33 +1513,53 @@ export function PartyManager({
               </div>
             )}
 
-          {/* Title */}
+          {/* Title / Breadcrumb */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list'
-                  ? 'Ledger'
-                  : view === 'party_form'
-                  ? (editingParty ? 'Edit Party' : 'New Party')
-                  : view === 'ledger' && selectedParty
-                  ? selectedParty.name
-                  : editingTx
-                  ? 'Edit Transaction'
-                  : 'New Transaction'}
-              </h1>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            </div>
-            <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-              {view === 'list'
-                ? `${parties.length} ${parties.length === 1 ? 'party' : 'parties'} · Track balances & payments`
-                : view === 'ledger' && selectedParty
-                ? selectedParty.phone
-                  ? `📞 ${selectedParty.phone}  ·  ${ledger.length} entries`
-                  : `${ledger.length} ledger entries`
-                : view === 'party_form'
-                ? 'Fill in the details below'
-                : `Recording for ${selectedParty?.name}`}
-            </p>
+            {view === 'ledger' && selectedParty ? (
+              <div className="flex items-center gap-2.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => { setView('list'); loadParties(); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/80 hover:bg-muted text-xs font-bold text-muted-foreground hover:text-foreground transition-all active:scale-95 cursor-pointer shrink-0 border border-border"
+                  title="Back to Party Directory"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Parties</span>
+                </button>
+                <span className="text-muted-foreground/30 font-bold shrink-0">/</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-sm font-black text-foreground truncate">{selectedParty.name}</h1>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5 truncate">
+                    Ledger Statement &amp; Balance Sheet
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm font-bold text-foreground truncate">
+                    {view === 'list'
+                      ? 'Ledger'
+                      : view === 'party_form'
+                      ? (editingParty ? 'Edit Party' : 'New Party')
+                      : editingTx
+                      ? 'Edit Transaction'
+                      : 'New Transaction'}
+                  </h1>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+                  {view === 'list'
+                    ? `${parties.length} ${parties.length === 1 ? 'party' : 'parties'} · Track balances &amp; payments`
+                    : view === 'party_form'
+                    ? 'Fill in party details below'
+                    : `Recording transaction for ${selectedParty?.name || 'Party'}`}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Right actions */}
@@ -1681,6 +1972,23 @@ export function PartyManager({
                             )}>
                               ₹{Math.abs(balance).toFixed(2)}
                             </span>
+                            {enablePartyGst && enablePartyEstimate && (
+                              <div className="flex items-center justify-end gap-1.5 text-[9px] font-bold font-mono mt-0.5">
+                                <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: ₹{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
+                                <span className="text-muted-foreground/30">•</span>
+                                <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: ₹{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
+                              </div>
+                            )}
+                            {enablePartyGst && !enablePartyEstimate && (
+                              <div className="flex items-center justify-end text-[9px] font-bold font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                                GST Balance
+                              </div>
+                            )}
+                            {!enablePartyGst && enablePartyEstimate && (
+                              <div className="flex items-center justify-end text-[9px] font-bold font-mono text-violet-600 dark:text-violet-400 mt-0.5">
+                                Estimate Balance
+                              </div>
+                            )}
                             <span className={clsx(
                               "inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border mt-0.5",
                               isReceivable ? "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400" :
@@ -1733,6 +2041,7 @@ export function PartyManager({
                               <button
                                 onClick={() => {
                                   setSelectedParty(party);
+                                  setLedgerBalanceFilter('ALL');
                                   setView('ledger');
                                   loadLedger(party.party_id);
                                 }}
@@ -1807,6 +2116,7 @@ export function PartyManager({
                           savedScrollTop.current = listScrollRef.current.scrollTop;
                         }
                         setSelectedParty(party);
+                        setLedgerBalanceFilter('ALL');
                         setView('ledger');
                         loadLedger(party.party_id);
                       }}
@@ -1903,6 +2213,23 @@ export function PartyManager({
                         )}>
                           ₹{Math.abs(balance).toFixed(2)}
                         </p>
+                        {enablePartyGst && enablePartyEstimate && (
+                          <div className="flex items-center justify-end gap-1 text-[9px] font-bold font-mono mt-1">
+                            <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: ₹{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
+                            <span className="text-muted-foreground/30">•</span>
+                            <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: ₹{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {enablePartyGst && !enablePartyEstimate && (
+                          <div className="flex items-center justify-end text-[9px] font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
+                            GST Balance
+                          </div>
+                        )}
+                        {!enablePartyGst && enablePartyEstimate && (
+                          <div className="flex items-center justify-end text-[9px] font-bold font-mono text-violet-600 dark:text-violet-400 mt-1">
+                            Estimate Balance
+                          </div>
+                        )}
                         <span className={clsx(
                           'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border',
                           isReceivable ? 'bg-red-500/10 dark:bg-red-500/20 border-red-500/20 text-red-500 dark:text-red-400' :
@@ -2517,22 +2844,25 @@ export function PartyManager({
                   {editingParty ? '3' : '4'}. WhatsApp Alerts
                 </span>
               </div>
-              <label className="flex items-start gap-3.5 p-4 rounded-2xl bg-muted/30 border border-border/80 hover:bg-muted/50 transition-colors cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={partyForm.whatsapp_alerts_enabled}
-                  onChange={e => setPartyForm(f => ({ ...f, whatsapp_alerts_enabled: e.target.checked }))}
-                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border"
-                />
-                <div className="flex-1">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/80 hover:bg-muted/50 transition-colors">
+                <div className="space-y-0.5 pr-3">
                   <span className="text-xs font-bold text-foreground block">
                     Enable WhatsApp Transaction Alerts for this Party
                   </span>
-                  <span className="text-[11px] text-muted-foreground mt-0.5 block leading-relaxed">
+                  <span className="text-[11px] text-muted-foreground block leading-relaxed">
                     When active, ledger transactions recorded for this party will send an automated text message showing Opening Balance, Paid/Received Amount, and Balance.
                   </span>
                 </div>
-              </label>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
+                  <input
+                    type="checkbox"
+                    checked={partyForm.whatsapp_alerts_enabled}
+                    onChange={e => setPartyForm(f => ({ ...f, whatsapp_alerts_enabled: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
+                </label>
+              </div>
             </section>
           </div>
 
@@ -2559,61 +2889,34 @@ export function PartyManager({
       {view === 'ledger' && selectedParty && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
 
-          {/* ── Party Banner & Controls Header ── */}
-          <div
-            className="shrink-0 px-5 py-4 border-b border-border space-y-3"
-            style={{
-              background: isDark
-                ? `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)}, 25%, 13%) 0%, hsl(${nameToHue(selectedParty.name)}, 15%, 17%) 100%)`
-                : `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)}, 60%, 96%) 0%, hsl(${nameToHue(selectedParty.name)}, 40%, 98%) 100%)`
-            }}
-          >
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              {/* Left: Avatar & Info */}
-              <div className="flex items-center gap-4 min-w-0">
+          {/* ── Redesigned Party Banner ── */}
+          <div className="shrink-0 px-6 py-4 border-b border-border bg-card/40 backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-6 flex-wrap">
+              {/* Left Column: Party Profile & Identity */}
+              <div className="flex items-start gap-4 min-w-0">
+                {/* Avatar with subtle styling */}
                 <div
-                  className="w-13 h-13 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-md shrink-0 select-none"
-                  style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},65%,50%), hsl(${nameToHue(selectedParty.name)},65%,40%))` }}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-base shadow-xs shrink-0 select-none bg-gradient-to-br from-primary/90 to-primary/60 border border-primary/20"
                 >
                   {getInitials(selectedParty.name)}
                 </div>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base font-black text-foreground truncate">{selectedParty.name}</h2>
-                    {selectedParty.phone && (
-                      <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg">
-                        <Phone className="w-3 h-3" /> {selectedParty.phone}
-                      </span>
-                    )}
-                    {selectedParty.phone && (
-                      <span className={clsx(
-                        "flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg border",
-                        selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                          : "bg-muted/50 text-muted-foreground border-border"
-                      )}>
-                        <WhatsAppIcon className="w-3 h-3 text-emerald-500 fill-current" />
-                        <span>{selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false ? 'WA Alerts On' : 'WA Alerts Off'}</span>
-                      </span>
-                    )}
-                    {selectedParty.gstin && (
-                      <span className="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded-lg">
-                        <FileText className="w-3 h-3" /> {selectedParty.gstin}
-                      </span>
-                    )}
-                    {selectedParty.address && (
-                      <span className="hidden md:flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
-                        <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
-                      </span>
-                    )}
+                <div className="min-w-0 space-y-1.5">
+                  {/* Row 1: Name, Type Tag, Connection Status */}
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h2 className="text-base font-bold text-foreground tracking-tight truncate">{selectedParty.name}</h2>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-muted/80 text-muted-foreground border border-border">
+                      {selectedParty.custom_category || (selectedParty.party_type === 'CUSTOMER' ? 'Customer' : 'Supplier')}
+                    </span>
                     {selectedParty.connection_status === 'CONNECTED' ? (
-                      <span className="flex items-center gap-1 text-xs font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg shadow-xs">
-                        🟢 Connected Ledger
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Connected Ledger
                       </span>
                     ) : selectedParty.connection_status === 'PENDING' ? (
-                      <span className="flex items-center gap-1 text-xs font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-lg">
-                        🟡 Connection Pending
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        Connection Pending
                       </span>
                     ) : (
                       <button
@@ -2622,91 +2925,393 @@ export function PartyManager({
                           setSearchResult(null);
                           setShowConnectModal(true);
                         }}
-                        className="flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 px-2.5 py-0.5 rounded-lg transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 border border-primary/20 hover:bg-primary/15 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
                       >
                         <Link className="w-3 h-3" /> Connect Ledger
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground font-medium mt-1">
-                    {ledger.length} {ledger.length === 1 ? 'entry' : 'entries'} · Last updated {selectedParty.last_transaction_date ? formatDate(selectedParty.last_transaction_date) : '—'}
-                  </p>
+
+                  {/* Row 2: Phone, GSTIN, Address */}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                    {selectedParty.phone && (
+                      <span className="inline-flex items-center gap-1.5 font-medium text-foreground/80">
+                        <Phone className="w-3 h-3 text-muted-foreground" />
+                        <span>{selectedParty.phone}</span>
+                      </span>
+                    )}
+                    {selectedParty.gstin && (
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded border border-border">
+                        <FileText className="w-3 h-3" />
+                        <span>{selectedParty.gstin}</span>
+                      </span>
+                    )}
+                    {selectedParty.address && (
+                      <span className="hidden md:inline-flex items-center gap-1 text-muted-foreground truncate max-w-[240px]" title={selectedParty.address}>
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span>{selectedParty.address}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Row 3: WA Alert Toggle & Meta stats */}
+                  <div className="flex items-center gap-3 text-xs flex-wrap pt-0.5">
+                    {selectedParty.phone && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const currentVal = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
+                          const nextVal = !currentVal;
+                          try {
+                            if (window.electronAPI?.dbUpdateParty) {
+                              await window.electronAPI.dbUpdateParty({
+                                party_id: selectedParty.party_id,
+                                name: selectedParty.name,
+                                phone: selectedParty.phone || null,
+                                address: selectedParty.address || null,
+                                gstin: selectedParty.gstin || null,
+                                party_type: selectedParty.party_type,
+                                custom_category: selectedParty.custom_category || null,
+                                notes: selectedParty.notes || null,
+                                pricing_tier_id: selectedParty.pricing_tier_id || null,
+                                credit_limit: selectedParty.credit_limit || 0,
+                                credit_period_enabled: selectedParty.credit_period_enabled,
+                                credit_period_days: selectedParty.credit_period_days || 30,
+                                credit_period_basis: selectedParty.credit_period_basis,
+                                restrict_on_credit_expiry: selectedParty.restrict_on_credit_expiry,
+                                whatsapp_alerts_enabled: nextVal,
+                              });
+                              setSelectedParty(prev => prev ? { ...prev, whatsapp_alerts_enabled: nextVal } : prev);
+                              setParties(prev => prev.map(p => p.party_id === selectedParty.party_id ? { ...p, whatsapp_alerts_enabled: nextVal } : p));
+                              showStatus(`WhatsApp alerts ${nextVal ? 'enabled' : 'disabled'} for ${selectedParty.name}`, 'success');
+                            }
+                          } catch (err) {
+                            showStatus('Failed to update party WhatsApp alert setting', 'error');
+                          }
+                        }}
+                        className={clsx(
+                          "inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-all cursor-pointer select-none",
+                          selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false
+                            ? "bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                            : "bg-muted/40 hover:bg-muted text-muted-foreground border-border hover:text-foreground"
+                        )}
+                        title="Click to toggle WhatsApp alerts for this party"
+                      >
+                        <WhatsAppIcon className="w-3 h-3 fill-current" />
+                        <span>WA Alerts: {selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false ? 'ON' : 'OFF'}</span>
+                      </button>
+                    )}
+
+                    <span className="text-[11px] text-muted-foreground">
+                      {ledger.length} {ledger.length === 1 ? 'entry' : 'entries'}
+                      {selectedParty.last_transaction_date ? ` · Last: ${formatDate(selectedParty.last_transaction_date)}` : ''}
+                    </span>
+
+                    {selectedParty.credit_limit != null && selectedParty.credit_limit > 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Limit: <span className="font-mono font-medium">₹{selectedParty.credit_limit.toLocaleString()}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Right: FIRST Icons (View Switcher), THEN Total Amount Box */}
-              <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                {/* 1. Date Sort Toggle Button (FIRST), THEN View Switcher Grid/Table Button (SECOND) */}
-                <div className="flex items-center gap-2 flex-wrap select-none">
-                  {/* Date Sort Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => setDateSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs hover:bg-muted text-xs font-bold transition-all cursor-pointer text-foreground"
-                    title={dateSortOrder === 'desc' ? "Current: Newest First (Click to sort Oldest First)" : "Current: Oldest First (Click to sort Newest First)"}
-                  >
-                    <ArrowUpDown className="w-3.5 h-3.5 text-primary" />
-                    <span>{dateSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
-                  </button>
-
-                  {/* View Switcher buttons */}
-                  <div className="flex items-center p-1 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs">
-                    <button
-                      type="button"
-                      onClick={() => setLedgerLayoutMode('table')}
-                      className={clsx(
-                        "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
-                        ledgerLayoutMode === 'table'
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                      title="Statement Table View"
-                    >
-                      <Table className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLedgerLayoutMode('cards')}
-                      className={clsx(
-                        "p-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center cursor-pointer",
-                        ledgerLayoutMode === 'cards'
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                      title="Cards View"
-                    >
-                      <LayoutList className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. Total Amount Box (Then Amount Box) */}
+              {/* Right Column: Financial Balance Cards */}
+              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
                 {(() => {
-                  const selBal = getPartyBalance(selectedParty);
-                  return (
-                    <div className={clsx(
-                      'flex items-center gap-2.5 px-3.5 py-2 rounded-2xl shadow-xs border',
-                      selBal > 0
-                        ? 'bg-rose-500 text-white border-rose-600'
-                        : selBal < 0
-                        ? 'bg-emerald-600 text-white border-emerald-700'
-                        : 'bg-muted text-muted-foreground border-border'
-                    )}>
-                      <div className="p-1.5 rounded-xl bg-black/10 dark:bg-white/20 shrink-0">
-                        <Wallet className="w-4 h-4 text-white" />
+                  const currentTotalBal = getPartyBalance(selectedParty);
+                  const isPeriodFiltered = Boolean(ledgerStartDate || ledgerEndDate);
+                  const activeBal = (isPeriodFiltered && statementData) ? statementData.closingBalance : currentTotalBal;
+                  const showBoth = enablePartyGst && enablePartyEstimate;
+                  const showOnlyGst = enablePartyGst && !enablePartyEstimate;
+                  const showOnlyEstimate = !enablePartyGst && enablePartyEstimate;
+
+                  if (showBoth) {
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* GST Balance Card */}
+                        <button
+                          type="button"
+                          onClick={() => setLedgerBalanceFilter(prev => prev === 'GST' ? 'ALL' : 'GST')}
+                          className={clsx(
+                            'group flex flex-col justify-center px-3.5 py-2 rounded-xl border transition-all cursor-pointer text-left select-none min-w-[125px]',
+                            ledgerBalanceFilter === 'GST'
+                              ? 'bg-sky-500/10 border-sky-500/40 ring-1 ring-sky-500/30'
+                              : 'bg-card/70 border-border hover:border-sky-500/30 hover:bg-sky-500/5'
+                          )}
+                          title="Click to filter transactions by GST Balance"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-sky-500" /> GST
+                            </span>
+                            <span className={clsx(
+                              "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
+                              activeGstBal > 0 ? "bg-rose-500/10 text-rose-500" : activeGstBal < 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                            )}>
+                              {activeGstBal > 0 ? tLabels.receivable : activeGstBal < 0 ? tLabels.payable : 'Settled'}
+                            </span>
+                          </div>
+                          <p className="text-sm font-black font-mono tracking-tight text-foreground">
+                            ₹{Math.abs(activeGstBal).toFixed(2)}
+                          </p>
+                        </button>
+
+                        {/* Estimate Balance Card */}
+                        <button
+                          type="button"
+                          onClick={() => setLedgerBalanceFilter(prev => prev === 'ESTIMATE' ? 'ALL' : 'ESTIMATE')}
+                          className={clsx(
+                            'group flex flex-col justify-center px-3.5 py-2 rounded-xl border transition-all cursor-pointer text-left select-none min-w-[125px]',
+                            ledgerBalanceFilter === 'ESTIMATE'
+                              ? 'bg-violet-500/10 border-violet-500/40 ring-1 ring-violet-500/30'
+                              : 'bg-card/70 border-border hover:border-violet-500/30 hover:bg-violet-500/5'
+                          )}
+                          title="Click to filter transactions by Estimate Balance"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3 text-violet-500" /> Estimate
+                            </span>
+                            <span className={clsx(
+                              "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
+                              activeEstimateBal > 0 ? "bg-rose-500/10 text-rose-500" : activeEstimateBal < 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                            )}>
+                              {activeEstimateBal > 0 ? tLabels.receivable : activeEstimateBal < 0 ? tLabels.payable : 'Settled'}
+                            </span>
+                          </div>
+                          <p className="text-sm font-black font-mono tracking-tight text-foreground">
+                            ₹{Math.abs(activeEstimateBal).toFixed(2)}
+                          </p>
+                        </button>
+
+                        {/* Net Total Balance Card */}
+                        <button
+                          type="button"
+                          onClick={() => setLedgerBalanceFilter('ALL')}
+                          className={clsx(
+                            'flex flex-col justify-center px-4 py-2 rounded-xl border transition-all cursor-pointer text-left select-none min-w-[145px]',
+                            ledgerBalanceFilter === 'ALL' ? 'ring-1 ring-border shadow-xs' : '',
+                            activeBal > 0
+                              ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                              : activeBal < 0
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-muted/50 border-border text-muted-foreground'
+                          )}
+                          title="Click to show All Transactions"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 opacity-80">
+                              <Wallet className="w-3 h-3" /> Net Total
+                            </span>
+                            <span className={clsx(
+                              "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
+                              activeBal > 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-300" : activeBal < 0 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                            )}>
+                              {activeBal > 0 ? tLabels.receivable : activeBal < 0 ? tLabels.payable : 'Settled'}
+                            </span>
+                          </div>
+                          <p className="text-base font-black font-mono tracking-tight">
+                            ₹{Math.abs(activeBal).toFixed(2)}
+                          </p>
+                        </button>
                       </div>
-                      <div>
-                        <p className="text-base font-black leading-none font-mono">
-                          ₹{Math.abs(selBal).toFixed(2)}
-                        </p>
-                        <p className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-90">
-                          {selBal > 0 ? tLabels.receivable : selBal < 0 ? tLabels.payable : 'Settled'}
+                    );
+                  }
+
+                  // If ONLY ONE is on ("if one then view one")
+                  const singleBal = showOnlyEstimate ? activeEstimateBal : (showOnlyGst ? activeGstBal : activeBal);
+                  const singleLabel = showOnlyEstimate ? 'Estimate' : (showOnlyGst ? 'GST' : 'Net Total');
+                  const SingleIcon = showOnlyEstimate ? TrendingUp : (showOnlyGst ? FileText : Wallet);
+
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div className={clsx(
+                        'flex flex-col justify-center px-4 py-2 rounded-xl border select-none min-w-[150px]',
+                        singleBal > 0
+                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                          : singleBal < 0
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-muted/50 border-border text-muted-foreground'
+                      )}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 opacity-80">
+                            <SingleIcon className="w-3 h-3" /> {singleLabel}
+                          </span>
+                          <span className={clsx(
+                            "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
+                            singleBal > 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-300" : singleBal < 0 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                          )}>
+                            {singleBal > 0 ? tLabels.receivable : singleBal < 0 ? tLabels.payable : 'Settled'}
+                          </span>
+                        </div>
+                        <p className="text-base font-black font-mono tracking-tight">
+                          ₹{Math.abs(singleBal).toFixed(2)}
                         </p>
                       </div>
                     </div>
                   );
                 })()}
               </div>
+            </div>
+          </div>
+
+          {/* ── Ledger Toolbar (Date Range Filter & PDF Download) ── */}
+          <div className="shrink-0 px-5 py-2.5 bg-card/60 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            {/* Left: Date Range Filter + Adjust Against Filter Tabs + Reset */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <DateRangeFilter
+                startDate={ledgerStartDate}
+                endDate={ledgerEndDate}
+                onChange={(start, end) => {
+                  setLedgerStartDate(start);
+                  setLedgerEndDate(end);
+                }}
+              />
+
+              {/* Adjust Against Filter Tabs when on 2 */}
+              {enablePartyGst && enablePartyEstimate && (
+                <div className="flex items-center p-0.5 rounded-xl bg-background/80 backdrop-blur-md border border-border shadow-xs text-xs font-bold select-none">
+                  <button
+                    type="button"
+                    onClick={() => setLedgerBalanceFilter('ALL')}
+                    className={clsx(
+                      "px-2.5 py-1 rounded-lg transition-all cursor-pointer",
+                      ledgerBalanceFilter === 'ALL'
+                        ? "bg-primary text-primary-foreground shadow-xs font-black"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    All ({ledger.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerBalanceFilter('GST')}
+                    className={clsx(
+                      "px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1",
+                      ledgerBalanceFilter === 'GST'
+                        ? "bg-sky-600 text-white shadow-xs font-black"
+                        : "text-muted-foreground hover:text-sky-600 dark:hover:text-sky-400"
+                    )}
+                  >
+                    <FileText className="w-3 h-3" />
+                    GST ({gstEntriesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerBalanceFilter('ESTIMATE')}
+                    className={clsx(
+                      "px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1",
+                      ledgerBalanceFilter === 'ESTIMATE'
+                        ? "bg-violet-600 text-white shadow-xs font-black"
+                        : "text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400"
+                    )}
+                  >
+                    <TrendingUp className="w-3 h-3" />
+                    Estimate ({estimateEntriesCount})
+                  </button>
+                </div>
+              )}
+
+              {(ledgerStartDate || ledgerEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLedgerStartDate('');
+                    setLedgerEndDate('');
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-xs font-bold border border-border transition-all cursor-pointer"
+                  title="Clear date filter (Show All Entries)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Clear Filter</span>
+                </button>
+              )}
+
+              {statementData && (
+                <span className="text-xs font-semibold text-muted-foreground hidden sm:inline-block">
+                  {statementData.entryCount} {statementData.entryCount === 1 ? 'entry' : 'entries'} in period
+                  {ledgerStartDate || ledgerEndDate ? ` (${statementData.periodLabel})` : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Right: Sort, View Switcher, Download PDF & WhatsApp Statement */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Date Sort Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setDateSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border text-xs font-semibold transition-all cursor-pointer text-foreground shadow-xs"
+                title={dateSortOrder === 'desc' ? 'Current: Newest First (Click to sort Oldest First)' : 'Current: Oldest First (Click to sort Newest First)'}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>{dateSortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+              </button>
+
+              {/* View Switcher buttons */}
+              <div className="flex items-center p-0.5 rounded-lg bg-background border border-border shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setLedgerLayoutMode('table')}
+                  className={clsx(
+                    'p-1.5 rounded text-xs font-bold transition-all flex items-center justify-center cursor-pointer',
+                    ledgerLayoutMode === 'table'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="Statement Table View"
+                >
+                  <Table className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerLayoutMode('cards')}
+                  className={clsx(
+                    'p-1.5 rounded text-xs font-bold transition-all flex items-center justify-center cursor-pointer',
+                    ledgerLayoutMode === 'cards'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="Cards View"
+                >
+                  <LayoutList className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Download PDF Button */}
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isExportingPdf || ledgerLoading}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Download Party Ledger Statement as PDF"
+              >
+                {isExportingPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5" />
+                )}
+                <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
+              </button>
+
+              {/* Send Statement on WhatsApp */}
+              {selectedParty.phone && (
+                <button
+                  type="button"
+                  onClick={handleSendWhatsAppPdf}
+                  disabled={isSendingWhatsAppPdf || ledgerLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  title="Share Statement PDF directly to WhatsApp"
+                >
+                  {isSendingWhatsAppPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <WhatsAppIcon className="w-3.5 h-3.5 fill-current text-white" />
+                  )}
+                  <span className="hidden md:inline">{isSendingWhatsAppPdf ? 'Sending...' : 'WhatsApp PDF'}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2789,6 +3394,45 @@ export function PartyManager({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
+                    {/* Opening Balance Row if period filtered or opening balance exists */}
+                    {statementData && (ledgerStartDate || statementData.openingBalance !== 0) && (
+                      <tr className="bg-muted/40 font-bold border-b-2 border-border/70 select-none">
+                        <td className="py-2.5 px-4 font-semibold text-muted-foreground text-[11px] whitespace-nowrap">
+                          {statementData.startDateFormatted || 'Initial'}
+                        </td>
+                        <td className="py-2.5 px-4 font-mono font-bold text-muted-foreground whitespace-nowrap">
+                          —
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <p className="font-bold text-muted-foreground text-xs italic">
+                            Opening Balance {statementData.startDateFormatted ? `(as of ${statementData.startDateFormatted})` : ''}
+                          </p>
+                        </td>
+                        <td className="py-2.5 px-4 font-medium text-muted-foreground text-[11px] whitespace-nowrap">
+                          —
+                        </td>
+                        <td className="py-2.5 px-4 text-right text-muted-foreground font-mono text-xs">
+                          —
+                        </td>
+                        <td className="py-2.5 px-4 text-right text-muted-foreground font-mono text-xs">
+                          —
+                        </td>
+                        <td className="py-2.5 px-4 text-right">
+                          <span className={clsx(
+                            "font-mono font-black text-sm block",
+                            statementData.openingBalance > 0 ? "text-rose-600 dark:text-rose-400" :
+                            statementData.openingBalance < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                            "text-muted-foreground"
+                          )}>
+                            ₹{Math.abs(statementData.openingBalance).toFixed(2)}
+                          </span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                            {statementData.openingBalance > 0 ? tLabels.receivable : statementData.openingBalance < 0 ? tLabels.payable : 'Settled'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-center"></td>
+                      </tr>
+                    )}
                     {displayLedger.map((entry) => {
                       return (
                         <tr
@@ -2815,9 +3459,24 @@ export function PartyManager({
 
                           {/* Particulars */}
                           <td className="py-3 px-4">
-                            <p className="font-bold text-foreground text-xs leading-snug group-hover:text-primary transition-colors">
-                              {entry.description}
-                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-foreground text-xs leading-snug group-hover:text-primary transition-colors">
+                                {entry.description}
+                              </p>
+                              {enablePartyGst && enablePartyEstimate && (
+                                entry.balance_type === 'ESTIMATE' ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 shrink-0">
+                                    <TrendingUp className="w-2.5 h-2.5" />
+                                    Estimate
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 shrink-0">
+                                    <FileText className="w-2.5 h-2.5" />
+                                    GST
+                                  </span>
+                                )
+                              )}
+                            </div>
                           </td>
 
                           {/* Payment Method */}
@@ -2844,17 +3503,24 @@ export function PartyManager({
 
                           {/* Running Balance */}
                           <td className="py-3 px-4 text-right">
-                            <span className={clsx(
-                              "font-mono font-black text-sm block",
-                              entry.running_balance > 0 ? "text-rose-600 dark:text-rose-400" :
-                              entry.running_balance < 0 ? "text-emerald-600 dark:text-emerald-400" :
-                              "text-muted-foreground"
-                            )}>
-                              ₹{Math.abs(entry.running_balance).toFixed(2)}
-                            </span>
-                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
-                              {entry.running_balance > 0 ? tLabels.receivable : entry.running_balance < 0 ? tLabels.payable : 'Settled'}
-                            </span>
+                            {(() => {
+                              const runBal = (entry as any).contextRunningBalance !== undefined ? (entry as any).contextRunningBalance : entry.running_balance;
+                              return (
+                                <>
+                                  <span className={clsx(
+                                    "font-mono font-black text-sm block",
+                                    runBal > 0 ? "text-rose-600 dark:text-rose-400" :
+                                    runBal < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                                    "text-muted-foreground"
+                                  )}>
+                                    ₹{Math.abs(runBal).toFixed(2)}
+                                  </span>
+                                  <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                                    {runBal > 0 ? tLabels.receivable : runBal < 0 ? tLabels.payable : 'Settled'}
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </td>
 
                           {/* Actions */}
@@ -2888,7 +3554,7 @@ export function PartyManager({
                                       description: entry.description,
                                       transaction_date: toLocalInputValue(entry.transaction_date),
                                       reference_number: entry.reference_number || '',
-                                      balance_type: entry.balance_type || 'GST',
+                                      balance_type: (entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST'),
                                       payment_method: (entry.payment_method as any) || 'CASH',
                                       send_whatsapp: false,
                                     });
@@ -2919,21 +3585,37 @@ export function PartyManager({
 
                   {/* Standard Ledger Summary Footer */}
                   <tfoot>
-                    <tr className="bg-muted/90 text-foreground font-black border-t-2 border-border text-xs select-none">
-                      <td colSpan={4} className="py-3.5 px-4 font-extrabold uppercase tracking-wider text-right">
-                        Statement Totals ({ledger.length} {ledger.length === 1 ? 'entry' : 'entries'}):
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border-l border-r border-border/40">
-                        ₹{totalCreditSum.toFixed(2)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-r border-border/40">
-                        ₹{totalDebitSum.toFixed(2)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-sm">
-                        ₹{Math.abs(totalCreditSum - totalDebitSum).toFixed(2)}
-                      </td>
-                      <td></td>
-                    </tr>
+                    {(() => {
+                      const entryCount = statementData ? statementData.entryCount : ledger.length;
+                      const closingBal = statementData ? statementData.closingBalance : (totalCreditSum - totalDebitSum);
+                      return (
+                        <tr className="bg-muted/90 text-foreground font-black border-t-2 border-border text-xs select-none">
+                          <td colSpan={4} className="py-3.5 px-4 font-extrabold uppercase tracking-wider text-right">
+                            Statement Totals ({entryCount} {entryCount === 1 ? 'entry' : 'entries'}):
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-mono text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border-l border-r border-border/40">
+                            ₹{totalCreditSum.toFixed(2)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-r border-border/40">
+                            ₹{totalDebitSum.toFixed(2)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <span className={clsx(
+                              "font-mono font-black text-sm block",
+                              closingBal > 0 ? "text-rose-600 dark:text-rose-400" :
+                              closingBal < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                              "text-foreground"
+                            )}>
+                              ₹{Math.abs(closingBal).toFixed(2)}
+                            </span>
+                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                              {closingBal > 0 ? tLabels.receivable : closingBal < 0 ? tLabels.payable : 'Settled'}
+                            </span>
+                          </td>
+                          <td></td>
+                        </tr>
+                      );
+                    })()}
                   </tfoot>
                 </table>
               </div>
@@ -2953,13 +3635,26 @@ export function PartyManager({
                       )}
                     >
                       <div className="flex-1 min-w-0">
-                        {entry.reference_number && (
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          {entry.reference_number && (
                             <span className="text-[10px] font-mono font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
                               #{entry.reference_number}
                             </span>
-                          </div>
-                        )}
+                          )}
+                          {enablePartyGst && enablePartyEstimate && (
+                            entry.balance_type === 'ESTIMATE' ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 shrink-0">
+                                <TrendingUp className="w-2.5 h-2.5" />
+                                Estimate
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 shrink-0">
+                                <FileText className="w-2.5 h-2.5" />
+                                GST
+                              </span>
+                            )
+                          )}
+                        </div>
                         <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{entry.description}</p>
                         <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground font-medium flex-wrap">
                           <span>{formatDateTime(entry.transaction_date)}</span>
@@ -2984,7 +3679,7 @@ export function PartyManager({
                           {isCreditSale ? '+' : '−'}₹{amount.toFixed(2)}
                         </p>
                         <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                          Bal: ₹{Math.abs(entry.running_balance).toFixed(2)}
+                          Bal: ₹{Math.abs((entry as any).contextRunningBalance !== undefined ? (entry as any).contextRunningBalance : entry.running_balance).toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -3068,8 +3763,8 @@ export function PartyManager({
                 </div>
               </div>
 
-              {/* Balance type selector */}
-              {enablePartyGst && enablePartyEstimate && (
+              {/* Balance type selector: if on 2 then view 2, if one then view one */}
+              {(enablePartyGst && enablePartyEstimate) ? (
                 <div className="mb-5">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
                   <div className="grid grid-cols-2 gap-3 max-w-sm">
@@ -3099,7 +3794,23 @@ export function PartyManager({
                     </button>
                   </div>
                 </div>
-              )}
+              ) : (!enablePartyGst && enablePartyEstimate) ? (
+                <div className="mb-5">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-700 dark:text-violet-400 text-xs font-bold">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>Adjusting Against: <strong>Estimate Balance</strong></span>
+                  </div>
+                </div>
+              ) : (enablePartyGst && !enablePartyEstimate) ? (
+                <div className="mb-5">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-400 text-xs font-bold">
+                    <FileText className="w-4 h-4" />
+                    <span>Adjusting Against: <strong>GST Balance</strong></span>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Amount + Date */}
               <div className="grid grid-cols-2 gap-4 mb-4">
@@ -3192,59 +3903,72 @@ export function PartyManager({
               </div>
 
               {/* WhatsApp Notification Card */}
-              {ledgerWhatsappMode !== 'DISABLED' && (
+              {ledgerWhatsappEnabled && (
                 <div className="mt-5 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <WhatsAppIcon className="w-4 h-4 text-emerald-500 fill-current" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-black text-foreground block">
+                          Send WhatsApp Alert to Party
+                        </span>
+                        <span className="text-[11px] text-muted-foreground block">
+                          Instant delivery upon saving this transaction
+                        </span>
+                      </div>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
                       <input
                         type="checkbox"
                         checked={txForm.send_whatsapp}
                         onChange={e => setTxForm(f => ({ ...f, send_whatsapp: e.target.checked }))}
-                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-border"
+                        className="sr-only peer"
                       />
-                      <span className="text-xs font-black text-foreground flex items-center gap-1.5">
-                        <WhatsAppIcon className="w-4 h-4 text-emerald-500 fill-current" />
-                        Send WhatsApp Alert to Party
-                      </span>
+                      <div className="w-11 h-6 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
                     </label>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                      {ledgerWhatsappMode === 'ALL_PARTIES_ALL_TX' ? 'Case 1: Auto (All Parties)' : ledgerWhatsappMode === 'SELECTED_PARTIES_ALL_TX' ? 'Case 2: Selected Parties' : 'Case 3: Selective Tx'}
-                    </span>
                   </div>
 
                   {selectedParty?.phone ? (
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Party Mobile: <strong className="text-foreground font-mono">+{selectedParty.phone}</strong></span>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-emerald-500/15">
+                      <span>Recipient: <strong className="text-foreground font-mono">+{selectedParty.phone}</strong></span>
                       {selectedParty.whatsapp_alerts_enabled === 0 || selectedParty.whatsapp_alerts_enabled === false ? (
-                        <span className="text-amber-500 font-semibold text-[10px]">⚠️ Party profile has WhatsApp alerts disabled</span>
-                      ) : null}
+                        <span className="text-amber-500 font-semibold text-[10px]">⚠️ Party profile has WhatsApp alerts turned off</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">Ready to send</span>
+                      )}
                     </div>
                   ) : (
                     <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
-                      <span>Party has no phone number. WhatsApp notification will be skipped.</span>
+                      <span>Party has no phone number. WhatsApp message cannot be sent.</span>
                     </div>
                   )}
 
                   {txForm.send_whatsapp && (
                     <div className="p-3 rounded-xl bg-card border border-border font-mono text-xs text-foreground leading-relaxed shadow-inner space-y-1">
-                      <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center justify-between">
-                        <span>Message Preview:</span>
-                        <span className="text-[9px] font-mono text-emerald-600">Standard</span>
-                      </div>
-                      <div className="whitespace-pre-line text-emerald-700 dark:text-emerald-400 font-bold bg-muted/40 p-2 rounded-lg">
+                      <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-muted-foreground mb-1 block">
+                        Message Preview:
+                      </span>
+                      <div className="whitespace-pre text-emerald-700 dark:text-emerald-400 font-bold bg-muted/40 p-2.5 rounded-lg text-xs leading-relaxed overflow-x-auto">
                         {(() => {
                           const ob = getPartyBalance(selectedParty);
                           const amt = parseFloat(txForm.amount) || 0;
                           const credit = txForm.transaction_type === 'CREDIT' ? amt : 0;
                           const debit = txForm.transaction_type === 'DEBIT' ? amt : 0;
                           const nb = ob + credit - debit;
+                          const effectiveShopName = shopDetails.shopName || shopName || '';
                           return formatWhatsAppLedgerTxMessage({
                             openingBalance: ob,
                             amount: amt,
                             newBalance: nb,
                             paymentMethod: txForm.payment_method,
                             transactionType: txForm.transaction_type,
+                            partyName: selectedParty.name,
+                            shopName: effectiveShopName,
+                            includeShopName: ledgerWhatsappIncludeShop,
                           });
                         })()}
                       </div>

@@ -5775,8 +5775,14 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
     }
     const now = localTimestamp();
     db.prepare(`
-      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, customer_address, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+      INSERT INTO returns (
+        return_id, invoice_id, tenant_id, user_id, return_number,
+        customer_name, customer_phone, customer_address,
+        subtotal, tax_total, grand_total, reason,
+        refund_method, adjusted_invoice_number, adjusted_amount,
+        sync_status, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
     `).run(
       returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
       returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,
@@ -5899,7 +5905,7 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
     return { success: true };
   } catch (error: any) {
     console.error('[db:createReturn]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error?.message || 'Operation failed' };
   }
 }));
 
@@ -9811,9 +9817,14 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
   }
 });
 
-ipcMain.handle('db:cashier:getDayTransactions', (event, { tenant_id, business_date }: { tenant_id: string; business_date: string }) => {
+ipcMain.handle('db:cashier:getDayTransactions', (event, { tenant_id, business_date, from_date, to_date }: { tenant_id: string; business_date?: string; from_date?: string; to_date?: string }) => {
   try {
     const db = getDb();
+    if (from_date && to_date) {
+      const cleanFrom = from_date.split('T')[0].split(' ')[0];
+      const cleanTo = to_date.split('T')[0].split(' ')[0];
+      return db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND substr(transaction_date, 1, 10) >= ? AND substr(transaction_date, 1, 10) <= ? ORDER BY transaction_date DESC`).all(tenant_id, cleanFrom, cleanTo);
+    }
     const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
     const drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as any[];

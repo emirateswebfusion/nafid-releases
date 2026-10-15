@@ -292,7 +292,13 @@ export const useCartStore = create<CartState>()(
       clearScrapDeduction: () => set({ scrapDeduction: 0, scrapInvoiceNumber: '' }),
       setReturnDeduction: (amount, returnInvoiceNumber) => set({ returnDeduction: amount, returnInvoiceNumber }),
       clearReturnDeduction: () => set({ returnDeduction: 0, returnInvoiceNumber: '' }),
-      setReturnMode: (isReturnMode) => set({ isReturnMode }),
+      setReturnMode: (isReturnMode) =>
+        set((state) => ({
+          isReturnMode,
+          items: isReturnMode
+            ? state.items.filter(i => i.isReturnItem)
+            : state.items.filter(i => !i.isReturnItem),
+        })),
       setReturnRefundMethod: (returnRefundMethod) => set({ returnRefundMethod }),
       setQuotationMode: (isQuotationMode) => {
         set({ isQuotationMode });
@@ -332,6 +338,7 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   let serviceTotal = 0;
 
   items.forEach(item => {
+    if (item.isReturnItem) return;
     if (item.isServiceItem) {
       serviceTotal += Number(item.offer_price ?? item.base_price) || 0;
       return;

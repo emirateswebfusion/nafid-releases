@@ -1038,7 +1038,6 @@ export function BillingPage() {
   const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [isPastBillMode, setIsPastBillMode] = useState(false);
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
-  const [selectedPastBill, setSelectedPastBill] = useState<any | null>(null);
   const getNumericPart = (s: string) => (s.match(/\d+/g) || []).join('');
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
   const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
@@ -1353,11 +1352,29 @@ export function BillingPage() {
       return;
     }
     if (prevReturnMode.current && !isReturnMode) {
-      items.filter(i => i.isReturnItem).forEach(i => removeItem(i.product_id));
+      useCartStore.setState(s => ({
+        items: s.items.filter(i => !i.isReturnItem)
+      }));
+      updateActiveTab({
+        customerName: '',
+        customerPhone: '',
+        customerGstin: '',
+        customerAddress: '',
+        customerId: '',
+        receivedAmount: 0,
+        actualRefundPaid: 0,
+        reservedReturnNumber: '',
+      });
       setSelectedReturnInvoice(null);
+      reserveInvoiceNumberForTab();
+      syncActiveSnapshot();
     } else if (!prevReturnMode.current && isReturnMode) {
-      items.filter(i => !i.isReturnItem).forEach(i => removeItem(i.product_id));
+      useCartStore.setState(s => ({
+        items: s.items.filter(i => i.isReturnItem)
+      }));
       clearReturnDeduction();
+      reserveReturnNumberForTab();
+      syncActiveSnapshot();
     }
     prevReturnMode.current = isReturnMode;
   }, [isReturnMode, activeTabId]);
@@ -1865,8 +1882,28 @@ export function BillingPage() {
         useTabStore.setState({ activeTabId: activeTab.id });
       }
       if (activeTab.snapshot) {
+        const isRet = Boolean(activeTab.snapshot.isReturnMode);
+        const rawItems = activeTab.snapshot.items || [];
+        const hasReturnItems = rawItems.some((i: any) => i.isReturnItem);
+        const sanitizedItems = isRet
+          ? rawItems.filter((i: any) => i.isReturnItem)
+          : rawItems.filter((i: any) => !i.isReturnItem);
+
+        if (!isRet && (hasReturnItems || activeTab.reservedReturnNumber)) {
+          updateActiveTab({
+            customerName: '',
+            customerPhone: '',
+            customerGstin: '',
+            customerAddress: '',
+            customerId: '',
+            receivedAmount: 0,
+            actualRefundPaid: 0,
+            reservedReturnNumber: '',
+          });
+        }
+
         useCartStore.setState({
-          items: activeTab.snapshot.items || [],
+          items: sanitizedItems,
           invoiceType: activeTab.snapshot.invoiceType || 'BILL_OF_SUPPLY',
           discountType: activeTab.snapshot.discountType || 'FIXED',
           discountValue: activeTab.snapshot.discountValue || 0,
@@ -2406,6 +2443,19 @@ loadFlags(tenantId || 'global');
       }
       if (localStorage.getItem('pendingNewQuotation') === 'true' || localStorage.getItem('editQuotationData') || localStorage.getItem('editBillData')) {
         return;
+      }
+      const wasReturn = useCartStore.getState().isReturnMode || Boolean(currentActiveTab?.snapshot?.isReturnMode);
+      if (wasReturn) {
+        useTabStore.getState().updateActiveTab({
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          customerId: '',
+          receivedAmount: 0,
+          actualRefundPaid: 0,
+          reservedReturnNumber: '',
+        });
       }
       useCartStore.getState().setReturnMode(false);
       useCartStore.getState().setQuotationMode(false);
@@ -3141,9 +3191,11 @@ loadFlags(tenantId || 'global');
           }
         }
 
-        if (!useTabStore.getState().activeTabId) {
+        const currentCartItems = useCartStore.getState().items;
+        const currentEditingId = useCartStore.getState().editingInvoiceId;
+        if (!useTabStore.getState().activeTabId || (currentCartItems.length > 0 && currentEditingId !== invoice.invoice_id)) {
           tabCounter.current++;
-          addTab(undefined, `Bill ${tabCounter.current}`);
+          addTab(undefined, invoice.invoice_number || `Bill ${tabCounter.current}`);
         }
 
         // Enrich items with product data (barcode, brand, tax rate, uom, hsn, pricing, etc.)
@@ -4652,22 +4704,41 @@ loadFlags(tenantId || 'global');
 
   // Past bill selection: load selected invoice into cart for editing
   const handleSelectPastBill = async (invoice: any) => {
-    if (!window.electronAPI) return;
+    if (!invoice || !window.electronAPI) return;
     try {
-      const items = await window.electronAPI.dbGetInvoiceItems(invoice.invoice_id);
+      let invId = invoice.invoice_id || invoice.id;
+      let fullInvoice = invoice;
+
+      if (!invId && invoice.invoice_number) {
+        const fetched = await window.electronAPI.dbGetInvoices({ search: invoice.invoice_number, tenant_id: invoice.tenant_id || tenantId });
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          const matched = fetched.find((i: any) => i.invoice_number === invoice.invoice_number) || fetched[0];
+          invId = matched.invoice_id;
+          fullInvoice = matched;
+        }
+      }
+
+      if (!invId) {
+        setHardwareError('Invoice ID not found');
+        return;
+      }
+
+      const items = await window.electronAPI.dbGetInvoiceItems(invId);
       if (!Array.isArray(items) || items.length === 0) {
         setHardwareError('Invoice has no items');
         return;
       }
       localStorage.setItem('editBillData', JSON.stringify({
-        invoice,
+        invoice: fullInvoice,
         items,
         originalRole: authRole,
       }));
       setSearchQuery('');
       setPastBillResults([]);
       setIsPastBillMode(false);
-      window.dispatchEvent(new CustomEvent('open-edit-bill'));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-edit-bill'));
+      }, 50);
     } catch (e) {
       setHardwareError('Failed to fetch invoice');
       console.error(e);
@@ -6562,6 +6633,7 @@ loadFlags(tenantId || 'global');
         return_number: returnNumber,
         customer_name: selectedReturnInvoice.customer_name || customerName || undefined,
         customer_phone: selectedReturnInvoice.customer_phone || customerPhone || undefined,
+        customer_address: (selectedReturnInvoice as any)?.customer_address || customerAddress || undefined,
         subtotal: returnSubtotal,
         tax_total: returnTaxTotal,
         grand_total: returnSubtotal + returnTaxTotal,
@@ -6632,24 +6704,64 @@ loadFlags(tenantId || 'global');
         }
       }
 
+      // Refresh parties list so party balances update immediately
+      window.electronAPI.dbGetParties(tid)
+        .then((res: any) => {
+          if (Array.isArray(res)) setPartiesForTier(res);
+        })
+        .catch(console.error);
+
+      // Notify other views (cashier settlement, history)
+      try {
+        window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { return_number: returnNumber } }));
+      } catch (e) { /* ignore */ }
+
       setReturnProcessed(true);
       setReturnSuccessToast(saveOnly ? `Return ${returnNumber} saved successfully!` : `Return ${returnNumber} processed & receipt printed!`);
       setTimeout(async () => {
         setReturnProcessed(false);
+        const tabsCount = useTabStore.getState().tabs.length;
+        const currentActiveId = activeTabId;
         const stayInReturn = uiConfig.stayInReturnModeAfterPrint ?? false;
+
         setSelectedReturnInvoice(null);
         clearCart();
+        if (returnRefundMethod !== 'ADJUST_BILL') {
+          clearReturnDeduction();
+        }
         setReturnSuccessToast(null);
 
-        if (stayInReturn) {
-          setReturnMode(true);
-          await reserveReturnNumberForTab(true);
-        } else {
+        // Always clear customer and payment state for the completed return
+        updateActiveTab({
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          customerId: '',
+          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
+          receivedAmount: 0,
+          actualRefundPaid: 0,
+          reservedReturnNumber: '',
+        });
+
+        if (tabsCount > 1 && !stayInReturn) {
           setReturnMode(false);
-          await reserveInvoiceNumberForTab(true);
+          closeTab(currentActiveId);
+        } else {
+          if (stayInReturn) {
+            setReturnMode(true);
+            await reserveReturnNumberForTab(true);
+          } else {
+            setReturnMode(false);
+            await reserveInvoiceNumberForTab(true);
+            const tab = getActiveTab();
+            if (tab?.reservedInvoiceNumber) {
+              updateActiveTab({ title: tab.reservedInvoiceNumber });
+            }
+          }
+          syncActiveSnapshot();
         }
-        syncActiveSnapshot();
-      }, 3500);
+      }, 1800);
     } catch (e) {
       console.error('Return processing failed', e);
       setHardwareError('Return processing failed. Please try again.');
@@ -7102,6 +7214,18 @@ loadFlags(tenantId || 'global');
     },
     'F1': () => {
       // Normal Billing Mode
+      if (isReturnMode) {
+        updateActiveTab({
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          customerId: '',
+          receivedAmount: 0,
+          actualRefundPaid: 0,
+          reservedReturnNumber: '',
+        });
+      }
       setIsScrapMode(false);
       setReturnMode(false);
       setQuotationMode(false);
@@ -7149,12 +7273,28 @@ loadFlags(tenantId || 'global');
       // Return Mode
       if (featureFlags && featureFlags.returns === false) return;
       const next = !isReturnMode;
-      if (next) await reserveReturnNumberForTab();
-      setReturnMode(next);
-      if (next && isScrapMode) setIsScrapMode(false);
-      if (next && isQuotationMode) setQuotationMode(false);
-      if (next && isPastBillMode) setIsPastBillMode(false);
-      if (!next) { setSelectedReturnInvoice(null); }
+      if (next) {
+        await reserveReturnNumberForTab();
+        setReturnMode(true);
+        if (isScrapMode) setIsScrapMode(false);
+        if (isQuotationMode) setQuotationMode(false);
+        if (isPastBillMode) setIsPastBillMode(false);
+      } else {
+        updateActiveTab({
+          customerName: '',
+          customerPhone: '',
+          customerGstin: '',
+          customerAddress: '',
+          customerId: '',
+          receivedAmount: 0,
+          actualRefundPaid: 0,
+          reservedReturnNumber: '',
+        });
+        setReturnMode(false);
+        setSelectedReturnInvoice(null);
+        await reserveInvoiceNumberForTab();
+      }
+      syncActiveSnapshot();
       setTimeout(() => searchRef.current?.focus(), 100);
     },
     'F4': () => {
@@ -7407,32 +7547,10 @@ loadFlags(tenantId || 'global');
                 <button
                   key={inv.invoice_id || inv.invoice_number}
                   data-search-index={i}
-                  onClick={async () => {
-                    if (window.electronAPI) {
-                      try {
-                        const fetched = await window.electronAPI.dbGetInvoices({ search: inv.invoice_number || inv.invoice_id, tenant_id: inv.tenant_id });
-                        if (Array.isArray(fetched) && fetched.length > 0) {
-                          const fullInv = fetched[0];
-                          const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: inv.tenant_id || 'global', product_ids: (fullInv.items || []).map((it: any) => it.product_id) });
-                          const prodMap = new Map((products || []).map((p: any) => [p.product_id, p]));
-                          const fullItems = (fullInv.items || []).map((it: any) => {
-                            const p = prodMap.get(it.product_id);
-                            return { ...it, ...p, name: it.product_name || p?.name || 'Item', base_price: it.unit_price || p?.base_price || 0, is_gst_applicable: p?.is_gst_applicable ?? it.is_gst_applicable };
-                          });
-                          setSelectedPastBill({ ...fullInv, items: fullItems });
-                        } else {
-                          setSelectedPastBill(inv);
-                        }
-                      } catch (e) {
-                        console.error("Failed to load full past bill details:", e);
-                        setSelectedPastBill(inv);
-                      }
-                    } else {
-                      setSelectedPastBill(inv);
-                    }
-                    setSearchQuery('');
-                    setPastBillResults([]);
+                  onClick={() => {
+                    handleSelectPastBill(inv);
                   }}
+                  onMouseEnter={() => setSelectedIndex(i)}
                   className={clsx(
                     "w-full text-left px-4 py-3 transition-all duration-150 flex items-center justify-between cursor-pointer group border-l-4",
                     selectedIndex === i
@@ -8720,11 +8838,43 @@ loadFlags(tenantId || 'global');
         </div>
 
         <div className="flex items-center gap-2">
-          {isHeaderButtonVisible(uiConfig, 'showClearCart') && items.length > 0 && (
+          {isHeaderButtonVisible(uiConfig, 'showClearCart') && (
+            items.length > 0 ||
+            Boolean(customerName?.trim()) ||
+            Boolean(customerPhone?.trim()) ||
+            Boolean(customerAddress?.trim()) ||
+            Boolean(customerGstin?.trim()) ||
+            Boolean(activeTab?.customerId) ||
+            Boolean(activeTab?.description?.trim()) ||
+            (discountValue && Number(discountValue) > 0) ||
+            Boolean(localDiscText?.trim()) ||
+            (activeTab?.snapshot?.discountValue && Number(activeTab.snapshot.discountValue) > 0) ||
+            Boolean(storeScrapDeduction) ||
+            Boolean(storeReturnDeduction) ||
+            Boolean(activeTab?.transporterName?.trim()) ||
+            Boolean(activeTab?.vehicleNumber?.trim()) ||
+            Boolean(activeTab?.transporterDocNo?.trim()) ||
+            Boolean(activeTab?.ewayBillNo?.trim()) ||
+            Boolean(activeTab?.shippingName?.trim()) ||
+            Boolean(activeTab?.shippingAddress?.trim()) ||
+            Boolean(activeTab?.shippingGstin?.trim()) ||
+            Boolean(activeTab?.manualTotalOverride) ||
+            Boolean(activeTab?.receivedAmount && Number(activeTab.receivedAmount) > 0) ||
+            Boolean(editingActive) ||
+            Boolean(loyaltyCustomerData?.customerId) ||
+            Boolean(pointsToRedeem && pointsToRedeem > 0)
+          ) && (
             <button
               onClick={async () => {
                 const tab = getActiveTab();
                 clearCart();
+                setDiscount(0, 'FIXED');
+                setActiveDiscField(null);
+                setLocalDiscText('');
+                setShowCustomerDropdown(false);
+                setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
+                setShowLoyaltyRedemption(false);
+                setPointsToRedeem(0);
                 let normalInvoiceNumber = '';
                 if (window.electronAPI) {
                   try {
@@ -8739,16 +8889,33 @@ loadFlags(tenantId || 'global');
                 }
                 const fallbackTitle = normalInvoiceNumber || tab?.reservedScrapInvoiceNumber || '';
                 updateActiveTab({ 
+                  customerId: '',
                   customerName: '', 
                   customerPhone: '', 
                   customerGstin: '', 
                   customerAddress: '', 
+                  description: '',
+                  transporterName: '',
+                  vehicleNumber: '',
+                  transporterDocNo: '',
+                  transporterDocDate: '',
+                  ewayBillNo: '',
+                  ewayBillDate: '',
+                  shippingName: '',
+                  shippingAddress: '',
+                  shippingGstin: '',
+                  manualTotalOverride: null,
                   paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
                   receivedAmount: 0, 
                   reservedInvoiceNumber: normalInvoiceNumber,
                   title: fallbackTitle 
                 });
                 syncActiveSnapshot();
+                if (uiConfig.entryFocusOrder === 'customer-first') {
+                  customerNameInputRef.current?.focus();
+                } else {
+                  searchRef.current?.focus();
+                }
               }}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
               title="Clear Cart"
@@ -8876,12 +9043,28 @@ loadFlags(tenantId || 'global');
           <button
             onClick={async () => {
               const next = !isReturnMode;
-              if (next) await reserveReturnNumberForTab();
-              setReturnMode(next);
-              if (next && isScrapMode) setIsScrapMode(false);
-              if (next && isQuotationMode) setQuotationMode(false);
-              if (next && isPastBillMode) setIsPastBillMode(false);
-              if (!next) { setSelectedReturnInvoice(null); }
+              if (next) {
+                await reserveReturnNumberForTab();
+                setReturnMode(true);
+                if (isScrapMode) setIsScrapMode(false);
+                if (isQuotationMode) setQuotationMode(false);
+                if (isPastBillMode) setIsPastBillMode(false);
+              } else {
+                updateActiveTab({
+                  customerName: '',
+                  customerPhone: '',
+                  customerGstin: '',
+                  customerAddress: '',
+                  customerId: '',
+                  receivedAmount: 0,
+                  actualRefundPaid: 0,
+                  reservedReturnNumber: '',
+                });
+                setReturnMode(false);
+                setSelectedReturnInvoice(null);
+                await reserveInvoiceNumberForTab();
+              }
+              syncActiveSnapshot();
               setTimeout(() => searchRef.current?.focus(), 100);
             }}
             className={clsx(
@@ -9132,6 +9315,7 @@ loadFlags(tenantId || 'global');
                 }
 
                 if (item.isReturnItem) {
+                  if (!isReturnMode) return null;
                   const rate = Number(item.originalUnitPrice) || 0;
                   const rawRate = Number(item.rawUnitPrice) || rate;
                   const qtyText = Number(item.quantity) || 0;

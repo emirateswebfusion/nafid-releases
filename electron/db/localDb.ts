@@ -536,6 +536,7 @@ export function initDb() {
         return_number TEXT NOT NULL,
         customer_name TEXT,
         customer_phone TEXT,
+        customer_address TEXT,
         subtotal REAL NOT NULL DEFAULT 0,
         tax_total REAL NOT NULL DEFAULT 0,
         grand_total REAL NOT NULL DEFAULT 0,
@@ -920,7 +921,7 @@ export function initDb() {
         'current_points_balance', 'pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     returns: [
-        'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',
+        'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone', 'customer_address',
         'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at',
         'refund_method', 'adjusted_invoice_number', 'adjusted_amount'
     ],
@@ -1696,6 +1697,10 @@ export function initDb() {
     if (!retCols.includes('adjusted_invoice_number')) {
       console.log('[DB Migration] Adding adjusted_invoice_number to returns...');
       db.exec("ALTER TABLE returns ADD COLUMN adjusted_invoice_number TEXT");
+    }
+    if (!retCols.includes('customer_address')) {
+      console.log('[DB Migration] Adding customer_address to returns...');
+      db.exec("ALTER TABLE returns ADD COLUMN customer_address TEXT");
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add adjustment columns to returns:', e.message);

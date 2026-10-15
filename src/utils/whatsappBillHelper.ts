@@ -118,6 +118,7 @@ export interface WhatsAppLedgerTxDetails {
   transactionType?: 'CREDIT' | 'DEBIT';
   partyName?: string;
   shopName?: string;
+  includeShopName?: boolean;
 }
 
 export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): string {
@@ -141,5 +142,19 @@ export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): st
   const amt = formatAmt(data.amount);
   const bal = formatAmt(data.newBalance);
 
-  return `OB -Rs = ${ob}/-\n${methodName} =Rs = ${amt}/-\nBal = ${bal}/-`;
+  // Column alignment so numbers align uniformly
+  // Example:
+  // OB      ₹ 0/-
+  // Bank    ₹ 15000/-
+  // Bal     ₹ 15000/-
+  const labelWidth = Math.max('OB'.length, methodName.length, 'Bal'.length);
+  const padLabel = (lbl: string) => lbl + ' '.repeat(Math.max(1, labelWidth - lbl.length + 2));
+
+  let message = `${padLabel('OB')}₹ ${ob}/-\n${padLabel(methodName)}₹ ${amt}/-\n${padLabel('Bal')}₹ ${bal}/-`;
+
+  if (data.includeShopName && data.shopName && data.shopName.trim()) {
+    message += `\n\n— *${data.shopName.trim()}*`;
+  }
+
+  return message;
 }

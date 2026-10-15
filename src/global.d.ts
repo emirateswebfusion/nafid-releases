@@ -81,7 +81,6 @@ export interface IElectronAPI {
   onCloudStateChanged?: (callback: (state: any) => void) => () => void;
   drainPendingCloudQueue?: () => Promise<{ success: boolean; error?: string }>;
   updateCloudAccessConfig?: (config: any) => Promise<{ success: boolean; error?: string }>;
-  exportA4Pdf?: (tenant_id: string, html: string, filename: string) => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;
   settingsGetAll?: (payload: { tenant_id: string }) => Promise<Record<string, any>>;
@@ -99,7 +98,7 @@ export interface IElectronAPI {
   getA4Html: () => Promise<string>;
   printReady: (contentHeightPx?: number) => Promise<{ success: boolean; error?: string }>;
   printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
-  exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
+  exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
 
   // WhatsApp APIs
   whatsappGetStatus: () => Promise<{ status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }>;
@@ -191,7 +190,7 @@ export interface IElectronAPI {
   dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<any[]>;
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => Promise<any[]>;
-  dbCashierGetDayTransactions?: (params: { tenant_id: string; business_date: string }) => Promise<any[]>;
+  dbCashierGetDayTransactions?: (params: { tenant_id: string; business_date?: string; from_date?: string; to_date?: string }) => Promise<any[]>;
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbCashierGetCategories: (params: { tenant_id: string }) => Promise<any[]>;
   dbCashierAddCategory: (params: { tenant_id: string; name: string; type: string }) => Promise<{ success: boolean; error?: string }>;

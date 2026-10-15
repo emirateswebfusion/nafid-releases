@@ -96,7 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: (contentHeightPx?: number) => ipcRenderer.invoke('hardware:printReady', contentHeightPx),
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
-  exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename }),
+  exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename, ...(pdfOptions || {}) }),
 
 // WhatsApp APIs
   whatsappGetStatus: () => ipcRenderer.invoke('whatsapp:getStatus'),
@@ -239,7 +239,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierDeleteTransaction: (params: { tenant_id: string; transaction_id: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:deleteTransaction', params),
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getHistory', params),
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDaySettlements', params),
-  dbCashierGetDayTransactions: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDayTransactions', params),
+  dbCashierGetDayTransactions: (params: { tenant_id: string; business_date?: string; from_date?: string; to_date?: string }) => ipcRenderer.invoke('db:cashier:getDayTransactions', params),
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getAuditLog', params),
   dbCashierGetCategories: (params: { tenant_id: string; type?: 'CASH_IN' | 'CASH_OUT' }) => ipcRenderer.invoke('db:cashier:getCategories', params),
   dbCashierAddCategory: (params: { tenant_id: string; name: string; type: 'CASH_IN' | 'CASH_OUT' }) => ipcRenderer.invoke('db:cashier:addCategory', params),

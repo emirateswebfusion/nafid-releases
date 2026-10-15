@@ -187,7 +187,7 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename }: { tenant_id: string; htmlContent: string; defaultFilename?: string }) => {
+  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename, displayHeaderFooter, headerTemplate, footerTemplate }: { tenant_id: string; htmlContent: string; defaultFilename?: string; displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => {
     try {
       const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
       const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
@@ -224,13 +224,29 @@ export function initPrinter() {
 
         ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
           try {
-            const data = await printWindow.webContents.printToPDF({
+            const pdfOpts: any = {
               printBackground: true,
               pageSize: 'A4',
               landscape: false,
               preferCSSPageSize: false,
               margins: { marginType: 'none' },
-            });
+            };
+            if (displayHeaderFooter) {
+              pdfOpts.displayHeaderFooter = true;
+              pdfOpts.headerTemplate = headerTemplate || '<div></div>';
+              pdfOpts.footerTemplate = footerTemplate || `
+                <div style="font-size: 8px; width: 100%; text-align: right; padding-right: 12mm; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                  Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+                </div>`;
+              pdfOpts.margins = {
+                marginType: 'custom',
+                top: 0.3,
+                bottom: 0.45,
+                left: 0.3,
+                right: 0.3,
+              };
+            }
+            const data = await printWindow.webContents.printToPDF(pdfOpts);
             clearTimeout(timer);
             if (!printWindow.isDestroyed()) printWindow.close();
             resolve(data);

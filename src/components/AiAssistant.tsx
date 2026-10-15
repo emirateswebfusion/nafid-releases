@@ -433,8 +433,8 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
       }
 
       let md = isMal
-        ? `### ⚠️ സ്റ്റോക്ക് മുന്നറിയിപ്പ് (ലോക്കൽ ഡാറ്റാബേസ്)\n\nറീ-ഓർഡർ ലെവലിൽ എത്തിയ **${low.length}** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി (ഇതിൽ **${out.length}** എണ്ണം തീർന്നുപോയി):\n\n| ഉൽപ്പന്നം | കാറ്റഗറി | സ്റ്റോക്ക് | റീ-ഓർഡർ | സ്റ്റാറ്റസ് |\n| :--- | :--- | :---: | :---: | :---: |\n`
-        : `### ⚠️ Low Stock Alert (Local POS Database)\n\nFound **${low.length}** products at or below reorder level (**${out.length}** completely out of stock):\n\n| Product | Category | Current Stock | Reorder Level | Status |\n| :--- | :--- | :---: | :---: | :---: |\n`;
+        ? `### ⚠️ സ്റ്റോക്ക് മുന്നറിയിപ്പ്\n\nറീ-ഓർഡർ ലെവലിൽ എത്തിയ **${low.length}** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി (ഇതിൽ **${out.length}** എണ്ണം തീർന്നുപോയി):\n\n| ഉൽപ്പന്നം | കാറ്റഗറി | സ്റ്റോക്ക് | റീ-ഓർഡർ | സ്റ്റാറ്റസ് |\n| :--- | :--- | :---: | :---: | :---: |\n`
+        : `### ⚠️ Low Stock Alert\n\nFound **${low.length}** products at or below reorder level (**${out.length}** completely out of stock):\n\n| Product | Category | Current Stock | Reorder Level | Status |\n| :--- | :--- | :---: | :---: | :---: |\n`;
 
       low.slice(0, 15).forEach((p: any) => {
         const isZero = Number(p.current_stock) <= 0;
@@ -444,28 +444,181 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
       return { content: md, suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ["What is today's sales?"] };
     }
 
-    if (text.includes('ക്രെഡിറ്റ്') || text.includes('credit') || text.includes('ബാക്കി') || text.includes('balance') || text.includes('കടം') || text.includes('കുടിശ്ശിക') || text.includes('receivable') || text.includes('debtor')) {
-      const customers = await window.electronAPI.dbGetCustomers({ tenant_id: tenantId });
+    const isCreditOrLedger =
+      text.includes('ക്രെഡിറ്റ്') ||
+      text.includes('credit') ||
+      text.includes('ബാക്കി') ||
+      text.includes('balance') ||
+      text.includes('കടം') ||
+      text.includes('കുടിശ്ശിക') ||
+      text.includes('receivable') ||
+      text.includes('debtor') ||
+      text.includes('ledger') ||
+      text.includes('ലെഡ്ജർ') ||
+      text.includes('statement') ||
+      text.includes('സ്റ്റേറ്റ്മെന്റ്');
+
+    if (isCreditOrLedger) {
+      // Extract candidate party name / phone
+      const candidateTerm = text
+        .replace(/['’]s\b/gi, ' ')
+        .replace(/\b(what\s+is|what's|how\s+much|show\s+me|show|check|get|find|tell\s+me|tell|view|display|please)\b/gi, ' ')
+        .replace(/\b(credit\s+balance|credit\s+amount|balance\s+amount|pending\s+amount|due\s+amount|outstanding\s+amount)\b/gi, ' ')
+        .replace(/\b(balance|credit|ledger|statement|account|due|receivables?|debtors?|outstanding|pending|amount|customer|party)\b/gi, ' ')
+        .replace(/\b(total|all|overall|list|summary|report|status|overview|details?|who|someone|anyone|everyone|every|full|complete|aggregate|sum|count|highest|top|maximum|max|minimum|min|many|much|owes?|money|people|persons?|accounts?|users?|clients?)\b/gi, ' ')
+        .replace(/\b(above|below|more\s+than|greater\s+than|less\s+than|over)\b/gi, ' ')
+        .replace(/[₹$]|inr|rs\.?/gi, ' ')
+        .replace(/(?:ന്റെ|യുടെ|ടെ|ൽ|ല്)\b/g, ' ')
+        .replace(/(?:മൊത്തം|ആകെ|എല്ലാ|എല്ലാവരുടെയും|ലിസ്റ്റ്|പട്ടിക|വിവരം|വിവരങ്ങൾ|സംഗ്രഹം)/g, ' ')
+        .replace(/(?:എത്രയാണ്|എത്ര|ആണ്|കാണിക്കൂ|തരുമോ|നോക്കൂ|റിപ്പോർട്ട്|ബാലൻസ്|ബാക്കി|തുക|ക്രെഡിറ്റ്|കടം|കുടിശ്ശിക|ലെഡ്ജർ|സ്റ്റേറ്റ്മെന്റ്|കസ്റ്റമർ|കസ്റ്റമേഴ്സ്|പാർട്ടി)/g, ' ')
+        .replace(/[?.,!:\-_/\\#@*]/g, ' ')
+        .trim();
+
+      const isGenericWord = [
+        'total', 'all', 'overall', 'list', 'summary', 'report', 'status', 'overview', 'details', 'detail',
+        'who', 'someone', 'anyone', 'everyone', 'every', 'full', 'complete', 'aggregate', 'sum', 'count',
+        'highest', 'top', 'maximum', 'max', 'minimum', 'min', 'many', 'much', 'owes', 'owe', 'money',
+        'people', 'persons', 'person', 'accounts', 'account', 'users', 'user', 'clients', 'client',
+        'customers', 'customer', 'parties', 'party', 'debtors', 'debtor', 'receivables', 'receivable',
+        'credit', 'balance', 'amount', 'outstanding', 'pending', 'due',
+        'മൊത്തം', 'ആകെ', 'എല്ലാ', 'എല്ലാവരുടെയും', 'ലിസ്റ്റ്', 'പട്ടിക', 'വിവരം', 'വിവരങ്ങൾ', 'സംഗ്രഹം',
+        'ബാക്കി', 'തുക', 'കടം', 'കുടിശ്ശിക', 'ലെഡ്ജർ', 'സ്റ്റേറ്റ്മെന്റ്', 'കസ്റ്റമർ', 'കസ്റ്റമേഴ്സ്', 'പാർട്ടി'
+      ].includes(candidateTerm.toLowerCase());
+
+      const isSpecificPartySearch =
+        candidateTerm.length >= 2 &&
+        !isGenericWord &&
+        (/[a-zA-Z\u0D00-\u0D7F]/.test(candidateTerm) || /^\d{7,15}$/.test(candidateTerm));
+
+      if (isSpecificPartySearch) {
+        // Look up parties & customers
+        const partiesPromise = window.electronAPI?.dbGetParties ? window.electronAPI.dbGetParties(tenantId).catch(() => []) : Promise.resolve([]);
+        const customersPromise = window.electronAPI?.dbGetCustomers ? window.electronAPI.dbGetCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+        const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
+
+        const qLower = candidateTerm.toLowerCase();
+        const matchedParties = (partiesList || []).filter((p: any) =>
+          p.name?.toLowerCase().includes(qLower) || (p.phone && String(p.phone).includes(candidateTerm))
+        );
+
+        const matchedCusts = (custList || []).filter((c: any) =>
+          c.name?.toLowerCase().includes(qLower) || (c.phone && String(c.phone).includes(candidateTerm))
+        );
+
+        if (matchedParties.length > 0 || matchedCusts.length > 0) {
+          const target = matchedParties[0] || matchedCusts[0];
+          const rawBal = Number(target.current_balance ?? target.balance ?? target.credit_balance ?? 0);
+          const absBal = Math.abs(rawBal);
+
+          let balanceDesc = '';
+          if (rawBal > 0) {
+            balanceDesc = isMal ? 'പിരിഞ്ഞു കിട്ടാനുള്ളത് (Pending Cash In / Receivable)' : 'Pending Cash In (Receivable / Customer owes you)';
+          } else if (rawBal < 0) {
+            balanceDesc = isMal ? 'നൽകാനുള്ളത് (Pending Cash Out / Payable)' : 'Pending Cash Out (Payable / Advance)';
+          } else {
+            balanceDesc = isMal ? 'കുടിശ്ശികയില്ല (Nil Balance)' : 'Settled (Nil Balance)';
+          }
+
+          let md = isMal
+            ? `### 📒 ലെഡ്ജർ വിവരങ്ങൾ: **${target.name}**\n\n`
+            : `### 📒 Ledger Account: **${target.name}**\n\n`;
+
+          md += isMal
+            ? `* **ഫോൺ നമ്പർ:** ${target.phone || 'ലഭ്യമല്ല'}\n* **നിലവിലെ ബാലൻസ്:** **${formatINR(absBal)}** (${balanceDesc})\n`
+            : `* **Phone Number:** ${target.phone || 'N/A'}\n* **Current Balance:** **${formatINR(absBal)}** (${balanceDesc})\n`;
+
+          if (target.credit_limit && Number(target.credit_limit) > 0) {
+            md += isMal ? `* **ക്രെഡിറ്റ് ലിമിറ്റ്:** ${formatINR(Number(target.credit_limit))}\n` : `* **Credit Limit:** ${formatINR(Number(target.credit_limit))}\n`;
+          }
+
+          // Fetch ledger transactions if party_id exists
+          if (target.party_id && window.electronAPI?.dbGetPartyLedger) {
+            try {
+              const ledgerEntries = await window.electronAPI.dbGetPartyLedger(target.party_id);
+              if (ledgerEntries && ledgerEntries.length > 0) {
+                md += isMal ? `\n#### സമീപകാല ഇടപാടുകൾ (Recent Ledger Entries):\n\n` : `\n#### Recent Transactions:\n\n`;
+                md += isMal
+                  ? `| തീയതി | വിവരണം | നൽകിയത് (Debit) | കിട്ടിയത് (Credit) | റണ്ണിംഗ് ബാലൻസ് |\n| :---: | :--- | :---: | :---: | :---: |\n`
+                  : `| Date | Description | Debit (-) | Credit (+) | Running Balance |\n| :---: | :--- | :---: | :---: | :---: |\n`;
+
+                ledgerEntries.slice(0, 10).forEach((entry: any) => {
+                  const d = entry.transaction_date ? String(entry.transaction_date).split('T')[0] : '—';
+                  const dr = entry.debit_amount > 0 ? formatINR(entry.debit_amount) : '—';
+                  const cr = entry.credit_amount > 0 ? formatINR(entry.credit_amount) : '—';
+                  const rb = formatINR(Math.abs(Number(entry.running_balance || 0)));
+                  md += `| ${d} | ${entry.description || 'ഇടപാട്'} | ${dr} | ${cr} | **${rb}** |\n`;
+                });
+              } else {
+                md += isMal ? `\n*സമീപകാല ലെഡ്ജർ ഇടപാടുകൾ രേഖപ്പെടുത്തിയിട്ടില്ല.*` : `\n*No recent ledger entries found.*`;
+              }
+            } catch (err) {
+              console.warn('[AI Assistant] Error fetching offline ledger:', err);
+            }
+          }
+
+          const otherMatches = [...matchedParties.slice(1), ...matchedCusts.filter((c: any) => c.name !== target.name)];
+          if (otherMatches.length > 0) {
+            const othersList = otherMatches.slice(0, 3).map((o: any) => `${o.name} (${formatINR(Math.abs(Number(o.current_balance ?? o.balance ?? o.credit_balance ?? 0)))})`).join(', ');
+            md += isMal ? `\n\n*(മറ്റ് സമാനമായ അക്കൗണ്ടുകൾ: ${othersList})*` : `\n\n*(Other matching accounts: ${othersList})*`;
+          }
+
+          return {
+            content: md,
+            suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ["What is today's sales?", 'Show low stock items']
+          };
+        } else {
+          return {
+            content: isMal
+              ? `"${candidateTerm}" എന്ന പേരിൽ കസ്റ്റമറെയോ പാർട്ടിയെയോ കണ്ടെത്താനായില്ല. ദയവായി പേരോ ഫോൺ നമ്പറോ പരിശോധിക്കുക.`
+              : `Could not find any customer or party matching "${candidateTerm}". Please check the spelling or phone number.`,
+            suggestedPrompts: isMal ? ['₹5,000-ൽ കൂടുതൽ ക്രെഡിറ്റ് ഉള്ളവർ', 'ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ['Credit balance above ₹5,000', "What is today's sales?"]
+          };
+        }
+      }
+
+      // General Credit / Receivables Summary (Combining Parties + Customers)
       const amtMatch = text.match(/(?:₹|rs\.?|inr)?\s*(\d[\d,]*)/i);
       const minAmount = amtMatch && amtMatch[1] ? parseInt(amtMatch[1].replace(/,/g, ''), 10) : 0;
 
-      const debtors = (customers || []).filter((c: any) => Number(c.current_balance || c.credit_balance || 0) > minAmount)
-        .sort((a: any, b: any) => Number(b.current_balance || b.credit_balance || 0) - Number(a.current_balance || a.credit_balance || 0));
+      const partiesPromise = window.electronAPI?.dbGetParties ? window.electronAPI.dbGetParties(tenantId).catch(() => []) : Promise.resolve([]);
+      const customersPromise = window.electronAPI?.dbGetCustomers ? window.electronAPI.dbGetCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+      const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
-      const totalOut = debtors.reduce((acc: number, c: any) => acc + Number(c.current_balance || c.credit_balance || 0), 0);
+      const seenKeys = new Set<string>();
+      const combinedDebtors: any[] = [];
 
-      if (debtors.length === 0) {
+      [...(partiesList || []), ...(custList || [])].forEach((p: any) => {
+        const bal = Number(p.current_balance ?? p.balance ?? p.credit_balance ?? 0);
+        if (bal > minAmount) {
+          const key = (p.party_id || p.customer_id || p.phone || p.name || '').toLowerCase();
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            combinedDebtors.push({
+              name: p.name,
+              phone: p.phone,
+              balance: bal,
+            });
+          }
+        }
+      });
+
+      combinedDebtors.sort((a, b) => b.balance - a.balance);
+      const totalOut = combinedDebtors.reduce((acc, c) => acc + c.balance, 0);
+
+      if (combinedDebtors.length === 0) {
         return {
-          content: isMal ? `നിർദ്ദേശിച്ച തുകയിൽ കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ഇല്ല.` : `No customers found with outstanding credit balance.`,
+          content: isMal
+            ? (minAmount > 0 ? `₹${minAmount.toLocaleString()}-ൽ കൂടുതൽ കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ഇല്ല.` : `കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ആരും ഇല്ല.`)
+            : (minAmount > 0 ? `No customers or parties found with outstanding credit above ₹${minAmount.toLocaleString()}.` : `No customers found with outstanding credit balance.`),
         };
       }
 
       let md = isMal
-        ? `### 👥 കസ്റ്റമർ കുടിശ്ശിക റിപ്പോർട്ട്\n\nആകെ കുടിശ്ശിക: **${formatINR(totalOut)}** (${debtors.length} കസ്റ്റമർമാർ)\n\n| കസ്റ്റമർ | ഫോൺ | ബാലൻസ് |\n| :--- | :---: | :---: |\n`
-        : `### 👥 Customer Credit & Receivables\n\nTotal Outstanding: **${formatINR(totalOut)}** across **${debtors.length}** customers.\n\n| Customer Name | Phone | Balance |\n| :--- | :---: | :---: |\n`;
+        ? `### 👥 കസ്റ്റമർ കുടിശ്ശിക റിപ്പോർട്ട്\n\nആകെ കുടിശ്ശിക: **${formatINR(totalOut)}** (${combinedDebtors.length} അക്കൗണ്ടുകൾ)\n\n| കസ്റ്റമർ / പാർട്ടി | ഫോൺ | കുടിശ്ശിക |\n| :--- | :---: | :---: |\n`
+        : `### 👥 Customer Credit & Receivables\n\nTotal Outstanding: **${formatINR(totalOut)}** across **${combinedDebtors.length}** accounts.\n\n| Customer / Party | Phone | Balance |\n| :--- | :---: | :---: |\n`;
 
-      debtors.slice(0, 10).forEach((c: any) => {
-        md += `| **${c.name}** | ${c.phone || '—'} | **${formatINR(c.current_balance || c.credit_balance)}** |\n`;
+      combinedDebtors.slice(0, 15).forEach((c: any) => {
+        md += `| **${c.name}** | ${c.phone || '—'} | **${formatINR(c.balance)}** |\n`;
       });
       return { content: md, suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ["What is today's sales?"] };
     }
@@ -497,14 +650,14 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
         return {
           content: isMal
             ? `വിറ്റഴിഞ്ഞ ഉൽപ്പന്നങ്ങളുടെ വിവരങ്ങൾ ലഭ്യമല്ല.`
-            : `No product sales recorded yet in local POS.`,
+            : `No product sales recorded yet.`,
           suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?'] : ["What is today's sales?"]
         };
       }
 
       let md = isMal
-        ? `### 🏆 ഏറ്റവും കൂടുതൽ വിറ്റുപോയ ഉൽപ്പന്നങ്ങൾ (ലോക്കൽ POS)\n\n| റാങ്ക് | ഉൽപ്പന്നം | വിറ്റ അളവ് |\n| :---: | :--- | :---: |\n`
-        : `### 🏆 Top ${limit} Best Selling Products (Local POS)\n\n| Rank | Product Name | Qty Sold |\n| :---: | :--- | :---: |\n`;
+        ? `### 🏆 ഏറ്റവും കൂടുതൽ വിറ്റുപോയ ഉൽപ്പന്നങ്ങൾ\n\n| റാങ്ക് | ഉൽപ്പന്നം | വിറ്റ അളവ് |\n| :---: | :--- | :---: |\n`
+        : `### 🏆 Top ${limit} Best Selling Products\n\n| Rank | Product Name | Qty Sold |\n| :---: | :--- | :---: |\n`;
 
       sorted.forEach((p: any, idx: number) => {
         md += `| **#${idx + 1}** | **${p.name}** | **${p.total_qty || 0}** |\n`;
@@ -569,14 +722,14 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
         return {
           content: isMal
             ? `**${rangeLabel}** സ്ക്രാപ്പ് ഇടപാടുകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.`
-            : `No scrap transactions or invoices recorded for **${rangeLabel}** (Local POS Database).`,
+            : `No scrap transactions or invoices recorded for **${rangeLabel}**.`,
           suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ["What is today's sales?", 'Show low stock items']
         };
       }
 
       let md = isMal
-        ? `### ♻️ സ്ക്രാപ്പ് ഇടപാടുകൾ (${rangeLabel}) — ലോക്കൽ POS\n\n* **ആകെ സ്ക്രാപ്പ് തുക:** **${formatINR(totalAmount)}**\n* **ആകെ ഭാരം / അളവ്:** **${totalQty.toFixed(2)}**\n* **സ്ക്രാപ്പ് ബില്ലുകൾ:** **${distinctInvoices || filteredTx.length} എണ്ണം**\n\n`
-        : `### ♻️ Scrap Report (${rangeLabel}) — Local POS\n\n* **Total Scrap Amount:** **${formatINR(totalAmount)}**\n* **Total Quantity / Weight:** **${totalQty.toFixed(2)}**\n* **Scrap Invoices:** **${distinctInvoices || filteredTx.length} invoices**\n\n`;
+        ? `### ♻️ സ്ക്രാപ്പ് റിപ്പോർട്ട് (${rangeLabel})\n\n* **ആകെ സ്ക്രാപ്പ് തുക:** **${formatINR(totalAmount)}**\n* **ആകെ ഭാരം / അളവ്:** **${totalQty.toFixed(2)}**\n* **സ്ക്രാപ്പ് ബില്ലുകൾ:** **${distinctInvoices || filteredTx.length} എണ്ണം**\n\n`
+        : `### ♻️ Scrap Report (${rangeLabel})\n\n* **Total Scrap Amount:** **${formatINR(totalAmount)}**\n* **Total Quantity / Weight:** **${totalQty.toFixed(2)}**\n* **Scrap Invoices:** **${distinctInvoices || filteredTx.length} invoices**\n\n`;
 
       if (categories.length > 0) {
         md += isMal
@@ -599,16 +752,286 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
       };
     }
 
-    const invoices = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId, filterDate: todayStr, filterDateEnd: todayStr });
-    const totalSales = (invoices || []).reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0), 0);
-    const count = (invoices || []).length;
-    const avg = count > 0 ? totalSales / count : 0;
+    // Fallback: Check if user typed a specific party name directly
+    if (text.length >= 2 && !text.includes('sale') && !text.includes('സെയിൽ') && !text.includes('today') && !text.includes('ഇന്ന്')) {
+      const partiesList = window.electronAPI?.dbGetParties ? await window.electronAPI.dbGetParties(tenantId).catch(() => []) : [];
+      const matchedParty = (partiesList || []).find((p: any) =>
+        p.name?.toLowerCase().includes(text.toLowerCase()) || (p.phone && String(p.phone).includes(text))
+      );
+      if (matchedParty) {
+        const rawBal = Number(matchedParty.current_balance ?? matchedParty.balance ?? matchedParty.credit_balance ?? 0);
+        const absBal = Math.abs(rawBal);
+        const balDesc = rawBal > 0
+          ? (isMal ? 'പിരിഞ്ഞു കിട്ടാനുള്ളത് (Receivable)' : 'Pending Cash In (Receivable)')
+          : rawBal < 0
+          ? (isMal ? 'നൽകാനുള്ളത് (Payable)' : 'Pending Cash Out (Payable)')
+          : (isMal ? 'കുടിശ്ശികയില്ല' : 'Settled (Nil)');
 
+        let md = `### 📒 ${matchedParty.name}\n\n* **Phone:** ${matchedParty.phone || '—'}\n* **Balance:** **${formatINR(absBal)}** (${balDesc})\n`;
+        return { content: md, suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ["What is today's sales?", 'Show low stock items'] };
+      }
+    }
+
+    // Helper to get invoice summary for date range
+    const getSummary = async (fromDate: string, toDate: string) => {
+      if (window.electronAPI.dbGetInvoicesSummary) {
+        try {
+          const res = await window.electronAPI.dbGetInvoicesSummary({
+            tenant_id: tenantId,
+            filterDate: fromDate,
+            filterDateEnd: toDate,
+          });
+          if (res) return res;
+        } catch {}
+      }
+      const invs = await window.electronAPI.dbGetInvoices({
+        tenant_id: tenantId,
+        filterDate: fromDate,
+        filterDateEnd: toDate,
+      }).catch(() => []);
+      const totalSales = (invs || []).reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0), 0);
+      const totalInvoices = (invs || []).length;
+      const totalTax = (invs || []).reduce((acc: number, inv: any) => acc + Number(inv.tax_total || 0), 0);
+      const totalDiscount = (invs || []).reduce((acc: number, inv: any) => acc + Number(inv.discount_total || 0), 0);
+      const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
+      return { totalSales, totalInvoices, totalTax, totalDiscount, avgOrder };
+    };
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(now.getDate() - 1);
+    const yesterdayStr = `${yesterdayDate.getFullYear()}-${pad(yesterdayDate.getMonth() + 1)}-${pad(yesterdayDate.getDate())}`;
+
+    const firstDayThisMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+
+    const firstDayLastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDayLastMonthDate = new Date(now.getFullYear(), now.getMonth(), 0);
+    const firstDayLastMonth = `${firstDayLastMonthDate.getFullYear()}-${pad(firstDayLastMonthDate.getMonth() + 1)}-${pad(firstDayLastMonthDate.getDate())}`;
+    const lastDayLastMonth = `${lastDayLastMonthDate.getFullYear()}-${pad(lastDayLastMonthDate.getMonth() + 1)}-${pad(lastDayLastMonthDate.getDate())}`;
+
+    // 0. Expenses / Cash Transactions (e.g. "What are the total shop expenses recorded this month?", "expenses", "ചെലവുകൾ")
+    const isExpense =
+      text.includes('ചെല') ||
+      text.includes('ചില') ||
+      text.includes('expense') ||
+      text.includes('expenses') ||
+      text.includes('cash out');
+
+    if (isExpense) {
+      const isExpenseThisMonth =
+        (text.includes('month') || text.includes('മാസം') || text.includes('മാസത്തെ')) &&
+        !text.includes('last') &&
+        !text.includes('കഴിഞ്ഞ');
+      const isExpenseLastMonth =
+        text.includes('last month') ||
+        text.includes('കഴിഞ്ഞ മാസം') ||
+        text.includes('കഴിഞ്ഞ മാസത്തെ');
+      const isExpenseYesterday =
+        text.includes('yesterday') ||
+        text.includes('ഇന്നലെ') ||
+        text.includes('ഇന്നലത്തെ');
+
+      let expFromDate = todayStr;
+      let expToDate = todayStr;
+      let expLabel = isMal ? 'ഇന്ന് (Today)' : 'Today';
+
+      if (isExpenseThisMonth) {
+        expFromDate = firstDayThisMonth;
+        expToDate = todayStr;
+        expLabel = isMal ? 'ഈ മാസം (This Month)' : 'This Month';
+      } else if (isExpenseLastMonth) {
+        expFromDate = firstDayLastMonth;
+        expToDate = lastDayLastMonth;
+        expLabel = isMal ? 'കഴിഞ്ഞ മാസം (Last Month)' : 'Last Month';
+      } else if (isExpenseYesterday) {
+        expFromDate = yesterdayStr;
+        expToDate = yesterdayStr;
+        expLabel = isMal ? 'ഇന്നലെ (Yesterday)' : 'Yesterday';
+      }
+
+      let expList: any[] = [];
+      if (window.electronAPI?.dbCashierGetDayTransactions) {
+        try {
+          if (expFromDate === todayStr && expToDate === todayStr) {
+            expList = await window.electronAPI.dbCashierGetDayTransactions({ tenant_id: tenantId, business_date: todayStr });
+          } else {
+            expList = await window.electronAPI.dbCashierGetDayTransactions({ tenant_id: tenantId, from_date: expFromDate, to_date: expToDate });
+            if (!Array.isArray(expList) || expList.length === 0) {
+              const fallback = await window.electronAPI.dbCashierGetDayTransactions({ tenant_id: tenantId, business_date: todayStr }).catch(() => []);
+              if (Array.isArray(fallback)) expList = fallback;
+            }
+          }
+        } catch {}
+      }
+
+      const cashOuts = (expList || []).filter((tx: any) => {
+        if (tx.type !== 'CASH_OUT') return false;
+        const d = String(tx.transaction_date || tx.created_at || '').slice(0, 10);
+        if (!d) return true;
+        return d >= expFromDate && d <= expToDate;
+      });
+
+      if (cashOuts.length === 0) {
+        let emptyMd = isMal
+          ? `### 💸 ചെലവ് സംഗ്രഹം — ${expLabel}\n\n*${expLabel} കാലയളവിൽ ചെലവുകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല (₹0.00).*`
+          : `### 💸 Expenses Summary — ${expLabel}\n\n*No shop expenses recorded for ${expLabel} (₹0.00).*`;
+        return {
+          content: emptyMd,
+          suggestedPrompts: isMal
+            ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'ഈ മാസത്തെ സെയിൽസ് കാണിക്കൂ']
+            : ["What is today's sales?", "What is this month's total sales revenue?"]
+        };
+      }
+
+      const totalExp = cashOuts.reduce((acc: number, tx: any) => acc + Number(tx.amount || 0), 0);
+
+      const byCategory: { [cat: string]: { count: number; total: number } } = {};
+      cashOuts.forEach((tx: any) => {
+        const cat = tx.category || (isMal ? 'മറ്റ് ചെലവുകൾ' : 'General Expense');
+        if (!byCategory[cat]) byCategory[cat] = { count: 0, total: 0 };
+        byCategory[cat].count += 1;
+        byCategory[cat].total += Number(tx.amount || 0);
+      });
+
+      let md = isMal
+        ? `### 💸 ചെലവ് സംഗ്രഹം — ${expLabel}\n\n* **മൊത്തം ചെലവുകൾ:** **${formatINR(totalExp)}** (${cashOuts.length} എൻട്രികൾ)\n`
+        : `### 💸 Expenses Summary — ${expLabel}\n\n* **Total Expenses:** **${formatINR(totalExp)}** (${cashOuts.length} entries)\n`;
+
+      const catEntries = Object.entries(byCategory);
+      if (catEntries.length > 0) {
+        md += isMal
+          ? `\n#### 📂 കാറ്റഗറി തിരിച്ചുള്ള ചെലവുകൾ:\n| കാറ്റഗറി | എൻട്രികൾ | തുക |\n| :--- | :---: | :---: |\n`
+          : `\n#### 📂 Category Breakdown:\n| Category | Entries | Amount |\n| :--- | :---: | :---: |\n`;
+        catEntries.forEach(([cat, data]) => {
+          md += `| ${cat} | ${data.count} | **${formatINR(data.total)}** |\n`;
+        });
+      }
+
+      return {
+        content: md,
+        suggestedPrompts: isMal
+          ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'ഈ മാസത്തെ സെയിൽസ് കാണിക്കൂ', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ']
+          : ["What is today's sales?", "What is this month's total sales revenue?", 'Show low stock items']
+      };
+    }
+
+    // 1. Sales Comparison (e.g. "Compare this month's sales with last month", "sales comparison")
+    const isCompareQuery =
+      text.includes('compare') ||
+      text.includes('താരതമ്യം') ||
+      text.includes('comparison') ||
+      text.includes(' vs ') ||
+      text.includes('versus') ||
+      (text.includes('last month') && (text.includes('this month') || text.includes('sales'))) ||
+      (text.includes('കഴിഞ്ഞ') && text.includes('ഈ മാസം'));
+
+    if (isCompareQuery) {
+      const p1 = await getSummary(firstDayThisMonth, todayStr);
+      const p2 = await getSummary(firstDayLastMonth, lastDayLastMonth);
+
+      const diffSales = p1.totalSales - p2.totalSales;
+      const isGrowth = diffSales >= 0;
+      const diffFormatted = formatINR(Math.abs(diffSales));
+      const percentChange = p2.totalSales > 0
+        ? ((diffSales / p2.totalSales) * 100).toFixed(1)
+        : (p1.totalSales > 0 ? '+100' : '0');
+      const diffInvoices = p1.totalInvoices - p2.totalInvoices;
+      const p1Label = isMal ? 'ഈ മാസം (This Month)' : 'This Month';
+      const p2Label = isMal ? 'കഴിഞ്ഞ മാസം (Last Month)' : 'Last Month';
+      const directionWord = isGrowth
+        ? (isMal ? 'വർധനവ് (Increase 📈)' : 'Growth (+ 📈)')
+        : (isMal ? 'കുറവ് (Decrease 📉)' : 'Decline (- 📉)');
+
+      let md = isMal
+        ? `### ⚖️ സെയിൽസ് താരതമ്യ റിപ്പോർട്ട്\n\n**${p1Label}** ഉം **${p2Label}** ഉം തമ്മിലുള്ള വിൽപ്പന താരതമ്യം:\n\n| വിവരണം | ${p1Label} | ${p2Label} | വ്യത്യാസം |\n| :--- | :---: | :---: | :---: |\n| **സെയിൽസ് തുക** | **${formatINR(p1.totalSales)}** | **${formatINR(p2.totalSales)}** | **${isGrowth ? '+' : '-'}${diffFormatted} (${directionWord})** |\n| **ബില്ലുകളുടെ എണ്ണം** | ${p1.totalInvoices} | ${p2.totalInvoices} | ${diffInvoices >= 0 ? '+' : ''}${diffInvoices} |\n| **ശരാശരി ബിൽ മൂല്യം** | ${formatINR(p1.avgOrder)} | ${formatINR(p2.avgOrder)} | — |\n\n💡 **സംഗ്രഹം:** കഴിഞ്ഞ മാസത്തെ അപേക്ഷിച്ച് ഈ മാസം **${Math.abs(Number(percentChange))}% ${directionWord}** രേഖപ്പെടുത്തിയിട്ടുണ്ട്.\n`
+        : `### ⚖️ Sales Comparison Report\n\nComparative performance between **${p1Label}** and **${p2Label}**:\n\n| Metric | ${p1Label} | ${p2Label} | Variance |\n| :--- | :---: | :---: | :---: |\n| **Total Sales** | **${formatINR(p1.totalSales)}** | **${formatINR(p2.totalSales)}** | **${isGrowth ? '+' : '-'}${diffFormatted} (${directionWord})** |\n| **Invoices Count** | ${p1.totalInvoices} invoices | ${p2.totalInvoices} invoices | ${diffInvoices >= 0 ? '+' : ''}${diffInvoices} |\n| **Average Ticket** | ${formatINR(p1.avgOrder)} | ${formatINR(p2.avgOrder)} | — |\n\n💡 **Summary:** Revenue shows a **${Math.abs(Number(percentChange))}% ${directionWord}** compared to last month.\n`;
+
+      return {
+        content: md,
+        suggestedPrompts: isMal ? ['കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ', 'സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ['Top selling products', 'Show low stock items']
+      };
+    }
+
+    // 2. Last Month's Sales
+    const isLastMonth =
+      text.includes('last month') ||
+      text.includes('കഴിഞ്ഞ മാസം') ||
+      text.includes('കഴിഞ്ഞ മാസത്തെ');
+
+    if (isLastMonth) {
+      const summary = await getSummary(firstDayLastMonth, lastDayLastMonth);
+      const label = isMal ? 'കഴിഞ്ഞ മാസം (Last Month)' : 'Last Month';
+
+      let md = isMal
+        ? `### 📊 സെയിൽസ് റിപ്പോർട്ട് — ${label}\n\n* **മൊത്തം സെയിൽസ് തുക:** **${formatINR(summary.totalSales)}**\n* **ആകെ ബില്ലുകളുടെ എണ്ണം:** **${summary.totalInvoices} എണ്ണം**\n* **ശരാശരി ബിൽ മൂല്യം:** **${formatINR(summary.avgOrder)}**\n`
+        : `### 📊 Sales Report — ${label}\n\n* **Total Sales Revenue:** **${formatINR(summary.totalSales)}**\n* **Total Invoices Count:** **${summary.totalInvoices} invoices**\n* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n`;
+
+      if (summary.totalTax > 0) {
+        md += isMal ? `* **ടാക്സ് (GST):** ${formatINR(summary.totalTax)}\n` : `* **Total Tax Collected:** ${formatINR(summary.totalTax)}\n`;
+      }
+
+      return {
+        content: md,
+        suggestedPrompts: isMal ? ['ഈ മാസത്തെ സെയിൽസ് കാണിക്കൂ', 'കഴിഞ്ഞ മാസവുമായി താരതമ്യം ചെയ്യൂ'] : ['Show this month\'s sales', 'Compare this month\'s sales with last month']
+      };
+    }
+
+    // 3. This Month's Sales (e.g. "What is this month's total sales revenue?", "this month sales", "revenue this month")
+    const isThisMonth =
+      (text.includes('month') || text.includes('മാസം') || text.includes('മാസത്തെ')) &&
+      !text.includes('last') &&
+      !text.includes('കഴിഞ്ഞ');
+
+    if (isThisMonth) {
+      const summary = await getSummary(firstDayThisMonth, todayStr);
+      const label = isMal ? 'ഈ മാസം (This Month)' : 'This Month';
+
+      let md = isMal
+        ? `### 📊 സെയിൽസ് റിപ്പോർട്ട് — ${label}\n\n* **മൊത്തം സെയിൽസ് തുക:** **${formatINR(summary.totalSales)}**\n* **ആകെ ബില്ലുകളുടെ എണ്ണം:** **${summary.totalInvoices} എണ്ണം**\n* **ശരാശരി ബിൽ മൂല്യം:** **${formatINR(summary.avgOrder)}**\n`
+        : `### 📊 Sales Report — ${label}\n\n* **Total Sales Revenue:** **${formatINR(summary.totalSales)}**\n* **Total Invoices Count:** **${summary.totalInvoices} invoices**\n* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n`;
+
+      if (summary.totalTax > 0) {
+        md += isMal ? `* **ടാക്സ് (GST):** ${formatINR(summary.totalTax)}\n` : `* **Total Tax Collected:** ${formatINR(summary.totalTax)}\n`;
+      }
+      if (summary.totalDiscount > 0) {
+        md += isMal ? `* **നൽകിയ ഡിസ്കൗണ്ട്:** ${formatINR(summary.totalDiscount)}\n` : `* **Total Discounts Given:** ${formatINR(summary.totalDiscount)}\n`;
+      }
+
+      return {
+        content: md,
+        suggestedPrompts: isMal ? ['കഴിഞ്ഞ മാസവുമായി താരതമ്യം ചെയ്യൂ', 'കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ'] : ['Compare this month\'s sales with last month', 'Top selling products']
+      };
+    }
+
+    // 4. Yesterday's Sales
+    const isYesterday =
+      text.includes('yesterday') ||
+      text.includes('ഇന്നലെ') ||
+      text.includes('ഇന്നലത്തെ');
+
+    if (isYesterday) {
+      const summary = await getSummary(yesterdayStr, yesterdayStr);
+      const label = isMal ? 'ഇന്നലെ (Yesterday)' : 'Yesterday';
+
+      let md = isMal
+        ? `### 📊 സെയിൽസ് റിപ്പോർട്ട് — ${label}\n\n* **മൊത്തം സെയിൽസ് തുക:** **${formatINR(summary.totalSales)}**\n* **ബില്ലുകളുടെ എണ്ണം:** **${summary.totalInvoices} എണ്ണം**\n* **ശരാശരി ബിൽ മൂല്യം:** **${formatINR(summary.avgOrder)}**\n`
+        : `### 📊 Sales Report — ${label}\n\n* **Total Sales Amount:** **${formatINR(summary.totalSales)}**\n* **Total Invoices:** **${summary.totalInvoices} invoices**\n* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n`;
+
+      return {
+        content: md,
+        suggestedPrompts: isMal ? ['ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?', 'ഈ മാസത്തെ സെയിൽസ്'] : ["What is today's sales?", "What is this month's total sales revenue?"]
+      };
+    }
+
+    // 6. Today's Sales (Default / Explicit today query)
+    const summary = await getSummary(todayStr, todayStr);
     let md = isMal
-      ? `### 📊 ഇന്നത്തെ സെയിൽസ് (ലോക്കൽ POS ഡാറ്റ)\n\n* **മൊത്തം സെയിൽസ് തുക:** **${formatINR(totalSales)}**\n* **ബില്ലുകളുടെ എണ്ണം:** **${count} എണ്ണം**\n* **ശരാശരി ബിൽ മൂല്യം:** **${formatINR(avg)}**\n\n`
-      : `### 📊 Today's Sales (Local POS Database)\n\n* **Total Sales Amount:** **${formatINR(totalSales)}**\n* **Total Invoices:** **${count} invoices**\n* **Average Ticket Value:** **${formatINR(avg)}**\n\n`;
+      ? `### 📊 ഇന്നത്തെ സെയിൽസ്\n\n* **മൊത്തം സെയിൽസ് തുക:** **${formatINR(summary.totalSales)}**\n* **ബില്ലുകളുടെ എണ്ണം:** **${summary.totalInvoices} എണ്ണം**\n* **ശരാശരി ബിൽ മൂല്യം:** **${formatINR(summary.avgOrder)}**\n\n`
+      : `### 📊 Today's Sales\n\n* **Total Sales Amount:** **${formatINR(summary.totalSales)}**\n* **Total Invoices:** **${summary.totalInvoices} invoices**\n* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n\n`;
 
-    return { content: md, suggestedPrompts: isMal ? ['സ്റ്റോക്ക് കുറവുള്ള ഉൽപ്പന്നങ്ങൾ'] : ['Show low stock items'] };
+    return { content: md, suggestedPrompts: isMal ? ['ഈ മാസത്തെ സെയിൽസ് കാണിക്കൂ', 'കഴിഞ്ഞ മാസവുമായി താരതമ്യം ചെയ്യൂ'] : ["What is this month's total sales revenue?", 'Compare this month\'s sales with last month'] };
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -1269,7 +1692,8 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
                 e.preventDefault();
                 handleSend();
               }}
-              className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl sm:rounded-3xl p-3 shadow-xs focus-within:border-gray-300 dark:focus-within:border-zinc-700 focus-within:shadow-md transition-all w-full"
+              style={{ border: 'none', outline: 'none', boxShadow: 'none' }}
+              className="no-focus-ring bg-white dark:bg-zinc-900 border-0 outline-none ring-0 focus-within:ring-0 focus-within:outline-none focus-within:border-0 rounded-2xl sm:rounded-3xl p-3 shadow-xs transition-all w-full"
             >
               <textarea
                 ref={textareaRef}
@@ -1283,7 +1707,8 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
                     : "സെയിൽസ്, സ്റ്റോക്ക്, കസ്റ്റമർ കടം എന്നിവ ചോദിക്കാം..."
                 }
                 disabled={isLoading}
-                className="w-full bg-transparent px-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none resize-none min-h-[36px] max-h-[140px] leading-relaxed disabled:opacity-50"
+                style={{ border: 'none', outline: 'none', boxShadow: 'none' }}
+                className="no-focus-ring w-full bg-transparent px-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 border-0 border-none outline-none ring-0 focus:border-0 focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none focus:shadow-none resize-none min-h-[36px] max-h-[140px] leading-relaxed disabled:opacity-50"
               />
 
               <div className="flex items-center justify-between pt-2 px-1">

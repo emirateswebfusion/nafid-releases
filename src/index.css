@@ -110,15 +110,27 @@
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  input[type="text"]:focus,
-  input[type="number"]:focus,
-  input[type="email"]:focus,
-  input[type="password"]:focus,
-  input[type="search"]:focus,
-  select:focus,
-  textarea:focus {
+  input[type="text"]:focus:not(.no-focus-ring),
+  input[type="number"]:focus:not(.no-focus-ring),
+  input[type="email"]:focus:not(.no-focus-ring),
+  input[type="password"]:focus:not(.no-focus-ring),
+  input[type="search"]:focus:not(.no-focus-ring),
+  select:focus:not(.no-focus-ring),
+  textarea:focus:not(.no-focus-ring) {
     border-color: var(--primary) !important;
     box-shadow: 0 0 0 4px var(--input-focus-ring) !important;
+  }
+
+  .no-focus-ring,
+  .no-focus-ring:focus,
+  .no-focus-ring:focus-visible,
+  .no-focus-ring:focus-within {
+    border: none !important;
+    border-width: 0 !important;
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
   }
 
   /* Search bar: keep dynamic mode color on focus */

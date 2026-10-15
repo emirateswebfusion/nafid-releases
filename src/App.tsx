@@ -237,8 +237,9 @@ function App() {
     return () => clearTimeout(timer);
   }, [syncComplete]);
 
-  // Trigger initial sync once on first login â€” progress events will activate the bar
+  // Trigger initial sync once on first login — progress events will activate the bar
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/print')) return;
     if (isAuthenticated && !isCloudSyncPaused && !syncChecked && window.electronAPI) {
       console.log('[App] System authenticated. Starting cloud sync in background...');
       window.electronAPI.runInitialSync().then(() => {
@@ -734,8 +735,34 @@ function App() {
           <QuotationManager onClose={() => setShowQuotationManager(false)} />
         </PermissionGuard>
       ) : showReturnManager ? (
-        <PermissionGuard permission="sales.refund" onBack={() => setShowReturnManager(false)}>
-          <ReturnManager onClose={() => setShowReturnManager(false)} />
+        <PermissionGuard permission="sales.refund" onBack={() => {
+          setShowReturnManager(false);
+          useCartStore.getState().setReturnMode(false);
+          useTabStore.getState().updateActiveTab({
+            customerName: '',
+            customerPhone: '',
+            customerGstin: '',
+            customerAddress: '',
+            customerId: '',
+            receivedAmount: 0,
+            actualRefundPaid: 0,
+            reservedReturnNumber: '',
+          });
+        }}>
+          <ReturnManager onClose={() => {
+            setShowReturnManager(false);
+            useCartStore.getState().setReturnMode(false);
+            useTabStore.getState().updateActiveTab({
+              customerName: '',
+              customerPhone: '',
+              customerGstin: '',
+              customerAddress: '',
+              customerId: '',
+              receivedAmount: 0,
+              actualRefundPaid: 0,
+              reservedReturnNumber: '',
+            });
+          }} />
         </PermissionGuard>
       ) : showWarrantyManager ? (
         <PermissionGuard permission="warranties.view" onBack={() => setShowWarrantyManager(false)}>

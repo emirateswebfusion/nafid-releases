@@ -976,9 +976,14 @@ export async function triggerUrgentCashSync(): Promise<void> {
 }
 
 export async function runInitialSync(sender?: WebContents) {
+  const config = getAuthConfig();
+  if (!config || isJwtExpired(config.jwt_token)) {
+    console.warn('[SyncWorker] runInitialSync skipped: Auth token is missing or expired. Cloud sync paused.');
+    clearAuthAndNotify();
+    return { success: false, error: 'Auth token expired or missing' };
+  }
   console.log('[SyncWorker] Running explicit initial sync...');
   isSyncActive = true;
-  const config = getAuthConfig();
   if (config?.tenant_id) {
     try {
       getDb().prepare(`DELETE FROM sync_meta WHERE key = ?`).run(cursorKey(config.tenant_id, 'cash_drawer'));
@@ -4300,10 +4305,11 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   const upsertReturn = db.prepare(`
-    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, return_date, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
-    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @subtotal, @tax_total, @grand_total, @reason, @return_date, @refund_method, @adjusted_invoice_number, @adjusted_amount, 'SYNCED', @created_at, @updated_at)
+    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, customer_address, subtotal, tax_total, grand_total, reason, return_date, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
+    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @customer_address, @subtotal, @tax_total, @grand_total, @reason, @return_date, @refund_method, @adjusted_invoice_number, @adjusted_amount, 'SYNCED', @created_at, @updated_at)
     ON CONFLICT(return_id) DO UPDATE SET
       customer_name = excluded.customer_name, customer_phone = excluded.customer_phone,
+      customer_address = excluded.customer_address,
       subtotal = excluded.subtotal, tax_total = excluded.tax_total, grand_total = excluded.grand_total,
       reason = excluded.reason, return_date = excluded.return_date,
       refund_method = excluded.refund_method, adjusted_invoice_number = excluded.adjusted_invoice_number,
@@ -4336,6 +4342,7 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
               return_id: r.return_id, invoice_id: r.invoice_id, tenant_id: tenantId,
               user_id: r.user_id || null, return_number: r.return_number,
               customer_name: r.customer_name || null, customer_phone: r.customer_phone || null,
+              customer_address: r.customer_address || null,
               subtotal: r.subtotal, tax_total: r.tax_total ?? 0, grand_total: r.grand_total,
               reason: r.reason || null, return_date: toSqliteDate(r.return_date),
               refund_method: r.refund_method || r.payment_method || null,
