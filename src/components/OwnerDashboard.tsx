@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3, Sparkles } from 'lucide-react';
+import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3, Sparkles, Globe, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -186,6 +186,17 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             action: () => window.dispatchEvent(new CustomEvent('open-inventory-manager')),
             perm: 'products.view'
         },
+        {
+            id: 'ecommerce',
+            title: 'E-Commerce Portal',
+            desc: 'FusionCart online vendor portal, catalog sync & orders',
+            icon: Globe,
+            color: 'text-emerald-500',
+            bgColor: 'bg-emerald-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-ecommerce-portal')),
+            perm: 'products.view',
+            badge: 'ONLINE'
+        },
         ...(isAiAssistantAvailable ? [{
             id: 'ai-assistant',
             title: 'AI Business Assistant',
@@ -354,6 +365,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         billing: 'billing',
         cashier: 'cash_settlement',
         inventory: 'inventory',
+        ecommerce: 'ecommerce',
         'combo-offers': 'combo_offers',
         grades: 'categories_grades',
         'pricing-tiers': 'pricing_tiers',

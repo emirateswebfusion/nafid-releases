@@ -70,9 +70,9 @@ function isTokenExpired(token: string): boolean {
 function parsePermissionsFromToken(token: string): string[] {
   const payload = decodeJwtPayload(token);
   if (!payload) return [];
-  if (Array.isArray(payload.permissions)) return payload.permissions;
   const r = (payload.role || '').toUpperCase();
   if (r === 'ADMIN' || r === 'OWNER' || r === 'SUPER_ADMIN') return ['*'];
+  if (Array.isArray(payload.permissions) && payload.permissions.length > 0) return payload.permissions;
   return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
 }
 
@@ -126,7 +126,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           }
           const permissions = roleVal === 'ADMIN'
             ? ['*']
-            : (Array.isArray(offlineSession.permissions) ? offlineSession.permissions : convertLegacyRestrictedPageToPermissions(offlineSession.restricted_page));
+            : (Array.isArray(offlineSession.permissions) && offlineSession.permissions.length > 0 ? offlineSession.permissions : convertLegacyRestrictedPageToPermissions(offlineSession.restricted_page));
           set({
             isAuthenticated: true,
             token: null,
@@ -245,7 +245,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       const permissions = roleVal === 'ADMIN'
         ? ['*']
-        : (Array.isArray(user.permissions) ? user.permissions : convertLegacyRestrictedPageToPermissions(user.restricted_page));
+        : (Array.isArray(user.permissions) && user.permissions.length > 0 ? user.permissions : convertLegacyRestrictedPageToPermissions(user.restricted_page));
       let resolvedShopName = email;
       try {
         const local = await window.electronAPI?.settingsGet({ tenant_id: user.tenant_id || 'global', key: 'shop_name' });

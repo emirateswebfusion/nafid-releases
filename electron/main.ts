@@ -459,9 +459,9 @@ function setupCSP() {
 
   const directives = [
     "default-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https:",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https://fonts.gstatic.com https:",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -482,6 +482,17 @@ function setupCSP() {
 
   if (isDev) {
     directives.push("script-src 'self' 'unsafe-inline'");
+    const devUrl = process.env.ELECTRON_DEV_SERVER_URL;
+    if (devUrl) {
+      try {
+        const devOrigin = new URL(devUrl).origin;
+        if (!allowedConnect.includes(devOrigin)) allowedConnect.push(devOrigin);
+        const wsOrigin = devOrigin.replace(/^http/, 'ws');
+        if (!allowedConnect.includes(wsOrigin)) allowedConnect.push(wsOrigin);
+      } catch {}
+    }
+    if (!allowedConnect.includes('ws:')) allowedConnect.push('ws:');
+    if (!allowedConnect.includes('wss:')) allowedConnect.push('wss:');
   } else {
     directives.push("script-src 'self'");
   }
@@ -1217,14 +1228,15 @@ function buildProductSearchConditions(search: string, tablePrefix: string = 'p.'
   const buildSingleFieldGroup = (val: string) => {
     const valNoSpace = val.replace(/\s+/g, '');
     const valClean = val.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const cleanPattern = valClean.length > 0 ? `%${valClean}%` : `%${val}%`;
     const sql = `(${p}name LIKE ? OR REPLACE(${p}name, ' ', '') LIKE ? OR CLEAN_STR(${p}name) LIKE ? OR ${p}sku_barcode LIKE ? OR REPLACE(${p}sku_barcode, ' ', '') LIKE ? OR CLEAN_STR(${p}sku_barcode) LIKE ? OR ${p}item_code LIKE ? OR REPLACE(${p}item_code, ' ', '') LIKE ? OR CLEAN_STR(${p}item_code) LIKE ? OR ${p}brand_manufacturer LIKE ? OR REPLACE(${p}brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(${p}brand_manufacturer) LIKE ? OR ${p}category LIKE ? OR REPLACE(${p}category, ' ', '') LIKE ? OR CLEAN_STR(${p}category) LIKE ? OR ${p}hsn_sac_code LIKE ? OR CLEAN_STR(${p}hsn_sac_code) LIKE ?)`;
     const params = [
-      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
-      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
-      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
-      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
-      `%${val}%`, `%${valNoSpace}%`, `%${valClean}%`,
-      `%${val}%`, `%${valClean}%`,
+      `%${val}%`, `%${valNoSpace}%`, cleanPattern,
+      `%${val}%`, `%${valNoSpace}%`, cleanPattern,
+      `%${val}%`, `%${valNoSpace}%`, cleanPattern,
+      `%${val}%`, `%${valNoSpace}%`, cleanPattern,
+      `%${val}%`, `%${valNoSpace}%`, cleanPattern,
+      `%${val}%`, cleanPattern,
     ];
     return { sql, params };
   };
@@ -1271,7 +1283,9 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
                WHEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL) IS NOT NULL
                THEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL)
                ELSE 0
-          END as paper_stock
+          END as paper_stock,
+          COALESCE(CAST(JSON_EXTRACT(p.domain_attributes, '$.gst_purchase_price') AS REAL), pb_latest.purchase_price, CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_purchase_price') AS REAL)) as gst_purchase_price,
+          COALESCE(CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_mrp') AS REAL), pb_latest.selling_price, CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_base_price') AS REAL)) as paper_mrp
         FROM products p 
         LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
         LEFT JOIN (
@@ -1286,10 +1300,20 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
           WHERE tenant_id = ?
           GROUP BY product_id
         ) inv_paper ON p.product_id = inv_paper.product_id
+        LEFT JOIN (
+          SELECT pbi.product_id, pbi.purchase_price, pbi.selling_price
+          FROM purchase_bill_items pbi
+          INNER JOIN (
+            SELECT product_id, MAX(rowid) as max_rowid
+            FROM purchase_bill_items
+            WHERE skip_stock_update = 1 AND tenant_id = ?
+            GROUP BY product_id
+          ) latest ON pbi.rowid = latest.max_rowid
+        ) pb_latest ON p.product_id = pb_latest.product_id
         WHERE p.tenant_id = ? AND p.is_deleted = 0 
         ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC
-      `).all(tenantId, tenantId, tenantId);
-      console.log(`[db:getProducts] Full list query â†’ ${rows.length} rows returned for tenant ${tenantId}`);
+      `).all(tenantId, tenantId, tenantId, tenantId);
+      console.log(`[db:getProducts] Full list query → ${rows.length} rows returned for tenant ${tenantId}`);
       return rows;
     }
 
@@ -1301,7 +1325,9 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
              WHEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL) IS NOT NULL
              THEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL)
              ELSE 0
-        END as paper_stock
+        END as paper_stock,
+        COALESCE(CAST(JSON_EXTRACT(p.domain_attributes, '$.gst_purchase_price') AS REAL), pb_latest.purchase_price, CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_purchase_price') AS REAL)) as gst_purchase_price,
+        COALESCE(CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_mrp') AS REAL), pb_latest.selling_price, CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_base_price') AS REAL)) as paper_mrp
       FROM products p 
       LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
       LEFT JOIN (
@@ -1316,9 +1342,19 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
         WHERE tenant_id = ?
         GROUP BY product_id
       ) inv_paper ON p.product_id = inv_paper.product_id
+      LEFT JOIN (
+        SELECT pbi.product_id, pbi.purchase_price, pbi.selling_price
+        FROM purchase_bill_items pbi
+        INNER JOIN (
+          SELECT product_id, MAX(rowid) as max_rowid
+          FROM purchase_bill_items
+          WHERE skip_stock_update = 1 AND tenant_id = ?
+          GROUP BY product_id
+        ) latest ON pbi.rowid = latest.max_rowid
+      ) pb_latest ON p.product_id = pb_latest.product_id
       WHERE p.tenant_id = ? AND p.is_deleted = 0
     `;
-    const params: any[] = [tenantId, tenantId, tenantId];
+    const params: any[] = [tenantId, tenantId, tenantId, tenantId];
 
     if (isGst !== undefined) {
        query += ' AND p.is_gst_applicable = ?';
@@ -1340,8 +1376,14 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (barcode) {
        const cleanBarcode = String(barcode).trim();
        const cleanBarcodeNoSpace = cleanBarcode.replace(/\s+/g, '');
-       query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ?)';
-        params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
+       const cleanBarcodeClean = cleanBarcode.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+       if (cleanBarcodeClean.length > 0) {
+         query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR CLEAN_STR(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ? OR CLEAN_STR(p.item_code) = ?)';
+         params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcodeClean, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcodeClean);
+       } else {
+         query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ?)';
+         params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
+       }
      } else if (search) {
         const cond = buildProductSearchConditions(search, 'p.');
         query += ` AND ${cond.sql}`;
@@ -2254,9 +2296,10 @@ ipcMain.handle('db:getComboOffers', (event, { tenant_id, search, only_active }: 
     if (search) {
       const cleanS = String(search).trim();
       const s = `%${cleanS}%`;
-      const sClean = `%${cleanS.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')}%`;
+      const sClean = cleanS.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+      const cleanPattern = sClean.length > 0 ? `%${sClean}%` : s;
       query += ` AND (co.name LIKE ? OR co.sku_barcode LIKE ? OR co.description LIKE ? OR CLEAN_STR(co.name) LIKE ? OR CLEAN_STR(co.sku_barcode) LIKE ? OR CLEAN_STR(co.description) LIKE ?)`;
-      params.push(s, s, s, `%${sClean}%`, `%${sClean}%`, `%${sClean}%`);
+      params.push(s, s, s, cleanPattern, cleanPattern, cleanPattern);
     }
 
     query += ` ORDER BY co.name COLLATE NOCASE ASC`;
@@ -2808,11 +2851,11 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
       if (cust) {
         db.prepare(`
           UPDATE customers 
-          SET name = COALESCE(?, name),
-              phone = COALESCE(?, phone),
-              address = COALESCE(?, address),
-              gstin = COALESCE(?, gstin),
-              notes = COALESCE(?, notes),
+          SET name = ?,
+              phone = ?,
+              address = ?,
+              gstin = ?,
+              notes = ?,
               credit_limit = COALESCE(?, credit_limit),
               credit_period_enabled = COALESCE(?, credit_period_enabled),
               credit_period_days = COALESCE(?, credit_period_days),
@@ -2822,7 +2865,7 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
               sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
           WHERE customer_id = ? AND tenant_id = ?
         `).run(
-          p.name || null,
+          p.name,
           p.phone || null,
           p.address || null,
           p.gstin !== undefined ? (p.gstin ? p.gstin.trim().toUpperCase() : null) : null,
@@ -2843,7 +2886,7 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateParty]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error.message || 'Operation failed' };
   }
 }));
 
@@ -5389,7 +5432,7 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
     const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
     const totalTax = row ? Number(row.totalTax) || 0 : 0;
-    const totalDiscount = row ? Number(row.discount_total) || 0 : 0;
+    const totalDiscount = row ? Number(row.totalDiscount ?? row.discount_total) || 0 : 0;
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
 
     return { totalSales, totalInvoices, totalTax, totalDiscount, avgOrder };
@@ -5435,6 +5478,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   invoice_id: string;
   tenant_id: string;
   role?: string;
+  permissions?: string[];
+  user_id?: string;
   subtotal: number;
   tax_total: number;
   discount_total: number;
@@ -5465,10 +5510,28 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     isServiceItem?: boolean;
   }>;
 }) => {
-  // Only ADMIN or SUPER_ADMIN can update invoices
+  // Permission check: allow ADMIN role OR staff with sales.edit permission
   const normalizedRole = (payload.role || '').toUpperCase();
-  if (!['ADMIN', 'SUPER_ADMIN', 'OWNER', 'ADMINISTRATOR'].includes(normalizedRole)) {
-    return { success: false, error: 'Only administrators can edit past bills' };
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'ADMINISTRATOR'].includes(normalizedRole);
+  const perms = Array.isArray(payload.permissions) ? payload.permissions : [];
+  const hasEditPerm = perms.includes('*') || perms.includes('sales.edit');
+
+  let hasDbPerm = false;
+  if (!isAdmin && !hasEditPerm && payload.user_id) {
+    try {
+      const db = getDb();
+      const u = db.prepare('SELECT role, permissions FROM users WHERE user_id = ?').get(payload.user_id) as any;
+      if (u) {
+        const uRole = (u.role || '').toUpperCase();
+        if (['ADMIN', 'SUPER_ADMIN', 'OWNER', 'ADMINISTRATOR'].includes(uRole)) hasDbPerm = true;
+        const uPerms = JSON.parse(u.permissions || '[]');
+        if (Array.isArray(uPerms) && (uPerms.includes('*') || uPerms.includes('sales.edit'))) hasDbPerm = true;
+      }
+    } catch {}
+  }
+
+  if (!isAdmin && !hasEditPerm && !hasDbPerm) {
+    return { success: false, error: 'You do not have permission to edit bills' };
   }
   const { items, ...invoice } = payload;
   const db = getDb();
@@ -6792,6 +6855,485 @@ ipcMain.handle('sync:setPageContext', async (_event, payload: { page: string; ac
   }
 });
 
+// ── E-Commerce / FusionCart Integration Handlers ─────────────────────────
+import { FusionCartBridge } from './services/fusionCartBridge.js';
+const fusionCartBridge = new FusionCartBridge();
+
+ipcMain.removeHandler('ecommerce:getSettings');
+ipcMain.handle('ecommerce:getSettings', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+    let row = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) as any;
+    if (!row) {
+      db.prepare(`
+        INSERT INTO ecommerce_settings (tenant_id, fusioncart_url, registration_status)
+        VALUES (?, 'http://localhost:5050/api', 'NOT_REQUESTED')
+      `).run(tid);
+      row = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid);
+    }
+    return { success: true, settings: row };
+  } catch (err: any) {
+    console.error('[ecommerce:getSettings]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:saveSettings');
+ipcMain.handle('ecommerce:saveSettings', (event, { tenant_id, settings }: { tenant_id: string; settings: any }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+    db.prepare(`
+      INSERT INTO ecommerce_settings (
+        tenant_id, fusioncart_url, store_name, store_slug, store_description,
+        contact_email, contact_phone, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_id) DO UPDATE SET
+        fusioncart_url = excluded.fusioncart_url,
+        store_name = excluded.store_name,
+        store_slug = excluded.store_slug,
+        store_description = excluded.store_description,
+        contact_email = excluded.contact_email,
+        contact_phone = excluded.contact_phone,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(
+      tid,
+      settings.fusioncart_url || 'http://localhost:5050/api',
+      settings.store_name || null,
+      settings.store_slug || null,
+      settings.store_description || null,
+      settings.contact_email || null,
+      settings.contact_phone || null
+    );
+
+    fusionCartBridge.setBaseUrl(settings.fusioncart_url || 'http://localhost:5050/api');
+
+    const updated = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid);
+    return { success: true, settings: updated };
+  } catch (err: any) {
+    console.error('[ecommerce:saveSettings]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:testConnection');
+ipcMain.handle('ecommerce:testConnection', async (event, { url }: { url?: string }) => {
+  try {
+    if (url) fusionCartBridge.setBaseUrl(url);
+    const result = await fusionCartBridge.testConnection();
+    return result;
+  } catch (err: any) {
+    return { connected: false, message: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:registerVendor');
+ipcMain.handle('ecommerce:registerVendor', async (event, { tenant_id, data }: { tenant_id: string; data: any }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+
+    // Verify shop ownership / tenant
+    const currentSettings = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) as any;
+    if (currentSettings?.fusioncart_url) {
+      fusionCartBridge.setBaseUrl(currentSettings.fusioncart_url);
+    }
+
+    const regResult = await fusionCartBridge.registerVendor({
+      store_name: data.store_name,
+      slug: data.store_slug,
+      description: data.store_description,
+      city: data.city,
+      address: data.address,
+      pincode: data.pincode,
+      name: data.contact_name || data.name,
+      email: data.contact_email || data.email,
+      phone: data.contact_phone || data.phone,
+    });
+
+    if (!regResult.success) {
+      // Record failure log
+      db.prepare(`
+        INSERT INTO ecommerce_sync_logs (log_id, tenant_id, event_type, status, details)
+        VALUES (?, ?, 'REGISTER', 'FAILED', ?)
+      `).run(crypto.randomUUID(), tid, JSON.stringify({ error: regResult.error }));
+
+      db.prepare(`
+        UPDATE ecommerce_settings 
+        SET last_sync_status = 'FAILED', last_sync_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ?
+      `).run(tid);
+
+      return { success: false, error: regResult.error };
+    }
+
+    const store = regResult.store;
+    const storeId = store.id || null;
+    const vendorId = store.vendor_id || store.vendor?.id || null;
+    const regStatus = store.is_approved === 1 ? 'APPROVED' : 'PENDING';
+
+    db.prepare(`
+      UPDATE ecommerce_settings SET
+        store_id = ?,
+        vendor_id = ?,
+        store_name = ?,
+        store_slug = ?,
+        registration_status = ?,
+        last_sync_status = 'SUCCESS',
+        last_sync_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ?
+    `).run(storeId, vendorId, store.store_name || data.store_name, store.slug || data.store_slug, regStatus, tid);
+
+    db.prepare(`
+      INSERT INTO ecommerce_sync_logs (log_id, tenant_id, event_type, status, details)
+      VALUES (?, ?, 'REGISTER', 'SUCCESS', ?)
+    `).run(crypto.randomUUID(), tid, JSON.stringify({ storeId, vendorId, regStatus }));
+
+    const updatedSettings = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid);
+    return { success: true, settings: updatedSettings };
+  } catch (err: any) {
+    console.error('[ecommerce:registerVendor]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:refreshStatus');
+ipcMain.handle('ecommerce:refreshStatus', async (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+    const settings = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) as any;
+    if (!settings || (!settings.store_id && !settings.store_slug)) {
+      return { success: true, settings };
+    }
+
+    if (settings.fusioncart_url) {
+      fusionCartBridge.setBaseUrl(settings.fusioncart_url);
+    }
+
+    const target = settings.store_id || settings.store_slug;
+    const res = await fusionCartBridge.getStore(target);
+    if (!res.success) {
+      db.prepare(`
+        UPDATE ecommerce_settings SET
+          registration_status = 'CONNECTION_ERROR',
+          last_sync_status = 'FAILED',
+          last_sync_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ?
+      `).run(tid);
+      return { success: false, error: res.error, settings: db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) };
+    }
+
+    const store = res.store;
+    let newStatus = 'PENDING';
+    if (store.status === 0) {
+      newStatus = 'SUSPENDED';
+    } else if (store.is_approved === 1) {
+      newStatus = 'ACTIVE';
+    } else if (store.is_approved === -1) {
+      newStatus = 'REJECTED';
+    }
+
+    db.prepare(`
+      UPDATE ecommerce_settings SET
+        store_id = ?,
+        vendor_id = ?,
+        store_name = ?,
+        store_slug = ?,
+        registration_status = ?,
+        last_sync_status = 'SUCCESS',
+        last_sync_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ?
+    `).run(
+      store.id || settings.store_id,
+      store.vendor_id || store.vendor?.id || settings.vendor_id,
+      store.store_name || settings.store_name,
+      store.slug || settings.store_slug,
+      newStatus,
+      tid
+    );
+
+    const updated = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid);
+    return { success: true, settings: updated, store };
+  } catch (err: any) {
+    console.error('[ecommerce:refreshStatus]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:getProducts');
+ipcMain.handle('ecommerce:getProducts', (event, { tenant_id, search, filter }: { tenant_id: string; search?: string; filter?: string }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+
+    let query = `
+      SELECT 
+        p.product_id,
+        p.tenant_id,
+        p.name,
+        p.sku_barcode,
+        p.category,
+        p.base_price,
+        p.current_stock,
+        p.uom,
+        m.id as mapping_id,
+        m.fusioncart_product_id,
+        COALESCE(m.is_online_enabled, 0) as is_online_enabled,
+        m.online_title_override,
+        m.online_description_override,
+        m.online_price_override,
+        COALESCE(m.sync_status, 'UNSYNCED') as sync_status,
+        m.last_error,
+        m.last_synced_at
+      FROM products p
+      LEFT JOIN ecommerce_product_mappings m 
+        ON p.product_id = m.product_id AND m.tenant_id = p.tenant_id
+      WHERE (p.tenant_id = ? OR p.tenant_id IS NULL)
+        AND p.is_deleted = 0
+    `;
+
+    const params: any[] = [tid];
+
+    if (search && search.trim()) {
+      query += ` AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.category LIKE ?)`;
+      const term = `%${search.trim()}%`;
+      params.push(term, term, term);
+    }
+
+    if (filter === 'online') {
+      query += ` AND m.is_online_enabled = 1`;
+    } else if (filter === 'offline') {
+      query += ` AND (m.is_online_enabled = 0 OR m.is_online_enabled IS NULL)`;
+    } else if (filter === 'failed') {
+      query += ` AND m.sync_status = 'FAILED'`;
+    }
+
+    query += ` ORDER BY m.is_online_enabled DESC, p.name ASC LIMIT 300`;
+
+    const products = db.prepare(query).all(...params);
+    return { success: true, products };
+  } catch (err: any) {
+    console.error('[ecommerce:getProducts]', err);
+    return { success: false, error: err.message, products: [] };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:updateMapping');
+ipcMain.handle('ecommerce:updateMapping', (event, {
+  tenant_id,
+  product_id,
+  is_online_enabled,
+  online_title_override,
+  online_description_override,
+  online_price_override,
+}: {
+  tenant_id: string;
+  product_id: string;
+  is_online_enabled?: boolean;
+  online_title_override?: string | null;
+  online_description_override?: string | null;
+  online_price_override?: number | null;
+}) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+
+    let existing = db.prepare('SELECT * FROM ecommerce_product_mappings WHERE tenant_id = ? AND product_id = ?').get(tid, product_id) as any;
+    if (!existing) {
+      const mappingId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO ecommerce_product_mappings (
+          id, tenant_id, product_id, is_online_enabled,
+          online_title_override, online_description_override, online_price_override,
+          sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(
+        mappingId,
+        tid,
+        product_id,
+        is_online_enabled ? 1 : 0,
+        online_title_override ?? null,
+        online_description_override ?? null,
+        online_price_override ?? null
+      );
+      existing = db.prepare('SELECT * FROM ecommerce_product_mappings WHERE id = ?').get(mappingId);
+    } else {
+      const newEnabled = is_online_enabled !== undefined ? (is_online_enabled ? 1 : 0) : existing.is_online_enabled;
+      const newTitle = online_title_override !== undefined ? online_title_override : existing.online_title_override;
+      const newDesc = online_description_override !== undefined ? online_description_override : existing.online_description_override;
+      const newPrice = online_price_override !== undefined ? online_price_override : existing.online_price_override;
+
+      db.prepare(`
+        UPDATE ecommerce_product_mappings SET
+          is_online_enabled = ?,
+          online_title_override = ?,
+          online_description_override = ?,
+          online_price_override = ?,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ? AND product_id = ?
+      `).run(newEnabled, newTitle, newDesc, newPrice, tid, product_id);
+
+      existing = db.prepare('SELECT * FROM ecommerce_product_mappings WHERE tenant_id = ? AND product_id = ?').get(tid, product_id);
+    }
+
+    return { success: true, mapping: existing };
+  } catch (err: any) {
+    console.error('[ecommerce:updateMapping]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:syncProduct');
+ipcMain.handle('ecommerce:syncProduct', async (event, { tenant_id, product_id }: { tenant_id: string; product_id: string }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+
+    const settings = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) as any;
+    if (!settings || !settings.store_id) {
+      return { success: false, error: 'Shop is not registered or approved on FusionCart yet.' };
+    }
+
+    if (settings.fusioncart_url) {
+      fusionCartBridge.setBaseUrl(settings.fusioncart_url);
+    }
+
+    const prod = db.prepare('SELECT * FROM products WHERE product_id = ? AND (tenant_id = ? OR tenant_id IS NULL)').get(product_id, tid) as any;
+    if (!prod) {
+      return { success: false, error: 'Product not found in POS database.' };
+    }
+
+    const mapping = db.prepare('SELECT * FROM ecommerce_product_mappings WHERE tenant_id = ? AND product_id = ?').get(tid, product_id) as any;
+    const isOnline = mapping ? Boolean(mapping.is_online_enabled) : true;
+    const price = mapping?.online_price_override ? Number(mapping.online_price_override) : Number(prod.base_price);
+    const title = mapping?.online_title_override?.trim() || prod.name;
+    const desc = mapping?.online_description_override?.trim() || `<p>${prod.name}</p>`;
+
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '') + `-${prod.sku_barcode || prod.product_id.slice(0, 6)}`;
+
+    const payload = {
+      name: title,
+      slug,
+      short_description: title,
+      description: desc,
+      type: 'physical',
+      price: price,
+      sale_price: price,
+      quantity: Math.max(0, Math.floor(prod.current_stock || 0)),
+      sku: prod.sku_barcode || `SKU-${prod.product_id.slice(0, 8)}`,
+      store_id: Number(settings.store_id),
+      status: isOnline ? 1 : 0,
+      is_approved: 1,
+      stock_status: (prod.current_stock > 0 ? 'in_stock' : 'out_of_stock') as 'in_stock' | 'out_of_stock',
+    };
+
+    const res = await fusionCartBridge.syncProduct(mapping?.fusioncart_product_id || null, payload);
+
+    if (!res.success) {
+      db.prepare(`
+        INSERT INTO ecommerce_product_mappings (
+          id, tenant_id, product_id, sync_status, last_error, updated_at
+        ) VALUES (?, ?, ?, 'FAILED', ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, product_id) DO UPDATE SET
+          sync_status = 'FAILED',
+          last_error = excluded.last_error,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(crypto.randomUUID(), tid, product_id, res.error);
+
+      return { success: false, error: res.error };
+    }
+
+    const remoteProd = res.product;
+    const remoteId = remoteProd?.id || mapping?.fusioncart_product_id;
+
+    db.prepare(`
+      INSERT INTO ecommerce_product_mappings (
+        id, tenant_id, product_id, fusioncart_product_id, is_online_enabled,
+        sync_status, last_error, last_synced_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'SYNCED', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_id, product_id) DO UPDATE SET
+        fusioncart_product_id = excluded.fusioncart_product_id,
+        is_online_enabled = excluded.is_online_enabled,
+        sync_status = 'SYNCED',
+        last_error = NULL,
+        last_synced_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(crypto.randomUUID(), tid, product_id, remoteId, isOnline ? 1 : 0);
+
+    return { success: true, remoteId };
+  } catch (err: any) {
+    console.error('[ecommerce:syncProduct]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:unpublishProduct');
+ipcMain.handle('ecommerce:unpublishProduct', async (event, { tenant_id, product_id }: { tenant_id: string; product_id: string }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+
+    const settings = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) as any;
+    if (settings?.fusioncart_url) {
+      fusionCartBridge.setBaseUrl(settings.fusioncart_url);
+    }
+
+    const mapping = db.prepare('SELECT * FROM ecommerce_product_mappings WHERE tenant_id = ? AND product_id = ?').get(tid, product_id) as any;
+    if (mapping?.fusioncart_product_id) {
+      await fusionCartBridge.unpublishProduct(mapping.fusioncart_product_id);
+    }
+
+    db.prepare(`
+      UPDATE ecommerce_product_mappings SET
+        is_online_enabled = 0,
+        sync_status = 'SYNCED',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ? AND product_id = ?
+    `).run(tid, product_id);
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[ecommerce:unpublishProduct]', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.removeHandler('ecommerce:getOrders');
+ipcMain.handle('ecommerce:getOrders', async (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const tid = tenant_id || 'global';
+
+    const settings = db.prepare('SELECT * FROM ecommerce_settings WHERE tenant_id = ?').get(tid) as any;
+    if (!settings || !settings.store_id) {
+      return { success: true, orders: [] };
+    }
+
+    if (settings.fusioncart_url) {
+      fusionCartBridge.setBaseUrl(settings.fusioncart_url);
+    }
+
+    const res = await fusionCartBridge.getOrders(Number(settings.store_id));
+    if (!res.success) {
+      return { success: false, error: res.error, orders: [] };
+    }
+
+    return { success: true, orders: res.orders || [] };
+  } catch (err: any) {
+    console.error('[ecommerce:getOrders]', err);
+    return { success: false, error: err.message, orders: [] };
+  }
+});
+
+
 ipcMain.handle('sync:resetFastPollBackoff', async () => {
   try {
     const { resetFastPollBackoff } = await import('./sync/syncWorker.js');
@@ -7838,22 +8380,36 @@ ipcMain.handle('db:getProductSuppliers', (event, tenantId: string) => {
 });
 
 // â”€â”€ Product Sales Summary (GST qty vs BoS qty sold per product) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id }: { tenant_id: string }) => {
+ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id, fromDate, toDate }: { tenant_id: string; fromDate?: string; toDate?: string }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
+
+    let dateClause = '';
+    const params: any[] = [tenant_id];
+
+    if (fromDate) {
+      const cleanStart = parseCleanDate(fromDate);
+      const cleanEnd = toDate ? parseCleanDate(toDate) : cleanStart;
+      const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenant_id);
+      dateClause = ' AND (i.created_at >= ? AND i.created_at <= ?)';
+      params.push(startUtc, endUtc);
+    }
+
     return db.prepare(`
       SELECT ii.product_id,
              ii.name,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END), 0) as gst_qty,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL THEN ii.quantity ELSE 0 END), 0) as bos_qty,
-             COALESCE(SUM(ii.quantity), 0) as total_qty
+             COALESCE(SUM(ii.quantity), 0) as total_qty,
+             COALESCE(SUM(ii.total), 0) as total_revenue
       FROM invoice_items ii
       JOIN invoices i ON ii.invoice_id = i.invoice_id
       WHERE ii.tenant_id = ? AND i.invoice_type IN ('GST', 'BILL_OF_SUPPLY') AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+        ${dateClause}
       GROUP BY ii.product_id, ii.name
-      ORDER BY ii.name COLLATE NOCASE ASC
-    `).all(tenant_id);
+      ORDER BY total_revenue DESC, total_qty DESC
+    `).all(...params);
   } catch (error: any) {
     console.error('[db:getProductSalesSummary]', error);
     return [];
@@ -8464,24 +9020,42 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
         for (const item of items) {
           const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-          const skipStock = item.skip_stock_update ?? 0;
+          const hasEstimate = billType === 'GST' ? db.prepare(`
+            SELECT 1 FROM purchase_bill_items pbi
+            JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+            WHERE pb.bill_type = 'ESTIMATE' AND pbi.product_id = ? AND pb.tenant_id = ?
+            LIMIT 1
+          `).get(item.product_id, bill.tenant_id) : null;
+          const skipStock = (billType === 'GST' && (item.skip_stock_update === 1 || Boolean(hasEstimate))) ? 1 : (item.skip_stock_update ?? 0);
           stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null, skipStock);
           const actualPurchasePrice = billType === 'GST' && isGst === 1
             ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
             : item.purchase_price;
-          // Update stock for Estimates, and for GST bills only if they are not dummy (not shared/skipped)
-          if (billType === 'ESTIMATE' || (billType === 'GST' && !item.skip_stock_update)) {
+          // Update stock for Estimates, and for GST bills only if they are not dummy / paper (not shared/skipped)
+          if (billType === 'ESTIMATE' || (billType === 'GST' && skipStock === 0)) {
             updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
+            if (item.selling_price != null) {
+              updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
+            }
+            if (item.offer_price != null) {
+              updateOfferPrice.run(item.offer_price, item.product_id, bill.tenant_id);
+            }
           } else {
-            updatePurchasePriceOnly.run(actualPurchasePrice, item.product_id, bill.tenant_id);
+            // Paper GST bill: update domain_attributes with paper_purchase_price and paper_mrp
+            const prodRow = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?').get(item.product_id) as any;
+            if (prodRow) {
+              let da: Record<string, any> = {};
+              try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch {}
+              da.gst_purchase_price = item.purchase_price;
+              da.paper_purchase_price = item.purchase_price;
+              if (item.selling_price != null) {
+                da.paper_mrp = item.selling_price;
+                da.paper_base_price = item.selling_price;
+              }
+              db.prepare(`UPDATE products SET domain_attributes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`).run(JSON.stringify(da), item.product_id, bill.tenant_id);
+            }
           }
-        if (item.selling_price != null) {
-          updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
         }
-        if (item.offer_price != null) {
-          updateOfferPrice.run(item.offer_price, item.product_id, bill.tenant_id);
-        }
-      }
 
       // If CREDIT payment and supplier is a known party, create ledger entry
       if (paymentType === 'CREDIT' && bill.supplier_id) {
@@ -8611,31 +9185,34 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
     const paymentType = payload.payment_type || 'CASH';
     const result = db.transaction(() => {
       const { items, ...bill } = payload;
+      // Revert stock of previous items before deleting them.
+      // Must query oldBill and oldItems BEFORE updating purchase_bills
+      const oldBill = db.prepare('SELECT bill_number, bill_type FROM purchase_bills WHERE purchase_bill_id = ?').get(bill.purchase_bill_id) as any;
+      const oldBillType = oldBill?.bill_type || 'GST';
+      const oldItems = db.prepare('SELECT product_id, quantity, skip_stock_update FROM purchase_bill_items WHERE purchase_bill_id = ?').all(bill.purchase_bill_id) as any[];
+
       db.prepare(`
         UPDATE purchase_bills SET supplier_id = ?, supplier_name = ?, bill_date = ?, invoice_number = ?, notes = ?, total_amount = ?, bill_type = ?, payment_type = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE purchase_bill_id = ?
       `).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
 
-      // Revert stock of previous items before deleting them.
-      // Only ESTIMATE bills update inventory stock â€” check stored bill_type before reverting.
-      const oldBill = db.prepare('SELECT bill_number, bill_type FROM purchase_bills WHERE purchase_bill_id = ?').get(bill.purchase_bill_id) as any;
-      const oldBillType = oldBill?.bill_type || 'GST';
-      const oldBillNum = oldBill?.bill_number;
-      const oldItems = db.prepare('SELECT product_id, quantity FROM purchase_bill_items WHERE purchase_bill_id = ?').all(bill.purchase_bill_id) as any[];
       const decreaseStock = db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
       if (oldBillType === 'ESTIMATE') {
         for (const item of oldItems) {
           decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
         }
       } else {
-        // For old GST bills, only revert stock if this item was NOT dummy (meaning no Estimate existed with same bill number)
+        // For old GST bills, only revert stock if this item was NOT dummy (meaning no skip_stock_update and no Estimate exists for this product)
         for (const item of oldItems) {
-          const hasEstimate = oldBillNum ? db.prepare(`
+          if (item.skip_stock_update === 1) {
+            continue; // Was dummy / paper stock, never added to physical shop stock
+          }
+          const hasEstimate = db.prepare(`
             SELECT 1 FROM purchase_bill_items pbi
             JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
-            WHERE pb.bill_number = ? AND pb.bill_type = 'ESTIMATE' AND pbi.product_id = ? AND pb.tenant_id = ?
+            WHERE pb.bill_type = 'ESTIMATE' AND pbi.product_id = ? AND pb.tenant_id = ?
             LIMIT 1
-          `).get(oldBillNum, item.product_id, bill.tenant_id) : null;
+          `).get(item.product_id, bill.tenant_id);
           if (!hasEstimate) {
             decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
           }
@@ -8655,22 +9232,41 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
       const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-        const skipStock = item.skip_stock_update ?? 0;
+        const hasEstimate = billType === 'GST' ? db.prepare(`
+          SELECT 1 FROM purchase_bill_items pbi
+          JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+          WHERE pb.bill_type = 'ESTIMATE' AND pbi.product_id = ? AND pb.tenant_id = ?
+          LIMIT 1
+        `).get(item.product_id, bill.tenant_id) : null;
+        const skipStock = (billType === 'GST' && (item.skip_stock_update === 1 || Boolean(hasEstimate))) ? 1 : (item.skip_stock_update ?? 0);
+
         stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null, skipStock);
         const actualPurchasePrice = billType === 'GST' && isGst === 1
           ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
           : item.purchase_price;
-        // Update stock for Estimates, and for GST bills only if they are not dummy (not shared/skipped)
-        if (billType === 'ESTIMATE' || (billType === 'GST' && !item.skip_stock_update)) {
+        // Update stock for Estimates, and for GST bills only if they are not dummy / paper (not shared/skipped)
+        if (billType === 'ESTIMATE' || (billType === 'GST' && skipStock === 0)) {
           updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
+          if (item.selling_price != null) {
+            updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
+          }
+          if (item.offer_price != null) {
+            updateOfferPrice.run(item.offer_price, item.product_id, bill.tenant_id);
+          }
         } else {
-          updatePurchasePriceOnly.run(actualPurchasePrice, item.product_id, bill.tenant_id);
-        }
-        if (item.selling_price != null) {
-          updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
-        }
-        if (item.offer_price != null) {
-          updateOfferPrice.run(item.offer_price, item.product_id, bill.tenant_id);
+          // Paper GST bill: update domain_attributes with paper_purchase_price and paper_mrp
+          const prodRow = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?').get(item.product_id) as any;
+          if (prodRow) {
+            let da: Record<string, any> = {};
+            try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch {}
+            da.gst_purchase_price = item.purchase_price;
+            da.paper_purchase_price = item.purchase_price;
+            if (item.selling_price != null) {
+              da.paper_mrp = item.selling_price;
+              da.paper_base_price = item.selling_price;
+            }
+            db.prepare(`UPDATE products SET domain_attributes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`).run(JSON.stringify(da), item.product_id, bill.tenant_id);
+          }
         }
       }
 
@@ -8768,8 +9364,9 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search, limit,
 
     let query = `
       SELECT p.*, 
-        COALESCE((SELECT SUM(pbi.quantity) FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND pb.bill_type = 'GST'), 0) as gst_purchase_quantity,
-        COALESCE((SELECT AVG(pbi.purchase_price) FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND pb.bill_type = 'GST'), 0) as gst_purchase_price
+        COALESCE((SELECT SUM(pbi.quantity) FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1)), 0) as gst_purchase_quantity,
+        COALESCE((SELECT pbi.purchase_price FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1) ORDER BY pbi.rowid DESC LIMIT 1), 0) as gst_purchase_price,
+        COALESCE((SELECT pbi.selling_price FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1) ORDER BY pbi.rowid DESC LIMIT 1), 0) as paper_mrp
       FROM products p 
       WHERE p.tenant_id = ? AND p.is_deleted = 0
     `;
@@ -10269,8 +10866,8 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
     if (matchedParty) {
       db.prepare(`
         UPDATE parties 
-        SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
-            gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
+        SET name = ?, phone = ?, address = ?,
+            gstin = ?, notes = ?,
             credit_limit = COALESCE(?, credit_limit),
             credit_period_enabled = COALESCE(?, credit_period_enabled),
             credit_period_days = COALESCE(?, credit_period_days),
@@ -10298,7 +10895,7 @@ ipcMain.handle('db:updateCustomer', (event, c: any) => {
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateCustomer]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error.message || 'Operation failed' };
   }
 });
 

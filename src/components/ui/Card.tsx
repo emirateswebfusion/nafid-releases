@@ -4,28 +4,28 @@ import { twMerge } from 'tailwind-merge';
 
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={twMerge(clsx('rounded-3xl border border-border bg-card text-card-foreground shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300', className))} {...props} />
+    <div ref={ref} className={twMerge(clsx('rounded-2xl border border-border/80 bg-card text-card-foreground shadow-[0_1px_3px_rgba(0,0,0,0.04),0_6px_18px_-4px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_20px_-2px_rgba(0,0,0,0.06)] hover:border-primary/30 transition-all duration-200 relative', className))} {...props} />
   )
 );
 Card.displayName = 'Card';
 
 export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={twMerge(clsx('flex flex-col space-y-1.5 p-6', className))} {...props} />
+    <div ref={ref} className={twMerge(clsx('flex flex-col space-y-1.5 p-5', className))} {...props} />
   )
 );
 CardHeader.displayName = 'CardHeader';
 
 export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={twMerge(clsx('font-semibold leading-none tracking-tight', className))} {...props} />
+    <h3 ref={ref} className={twMerge(clsx('font-bold leading-tight tracking-tight text-foreground text-sm md:text-base', className))} {...props} />
   )
 );
 CardTitle.displayName = 'CardTitle';
 
 export const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={twMerge(clsx('text-sm text-muted-foreground', className))} {...props} />
+    <p ref={ref} className={twMerge(clsx('text-xs text-muted-foreground leading-relaxed', className))} {...props} />
   )
 );
 CardDescription.displayName = 'CardDescription';

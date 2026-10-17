@@ -1,0 +1,1005 @@
+======================================================================
+🤖 NAFID POS OFFLINE AI ASSISTANT — LIVE SYSTEM OUTPUT TEST
+======================================================================
+
+----------------------------------------------------------------------
+[Q 1] User Question: "What are today's total sales?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_TODAY]
+
+💬 System Actual Response:
+
+### 📊 Today's Sales Summary (Today)
+
+* **Total Sales Revenue:** **₹0.00**
+* **Total Invoices Generated:** **0 invoices**
+* **Average Ticket Value:** **₹0.00**
+
+#### 💳 Payment Breakdown:
+* **Cash:** ₹0.00 | **UPI:** ₹0.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+
+
+----------------------------------------------------------------------
+[Q 2] User Question: "What are the total sales for this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — This Month
+
+* **Total Sales Revenue:** **₹33,040.00**
+* **Total Invoices Count:** **8 invoices**
+* **Average Ticket Value:** **₹4,130.00**
+* **Average Daily Sales:** **₹2,065.00** (over 16 days)
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹2,145.00** |
+| 📱 UPI | **₹50.00** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹30,845.00** |
+
+
+----------------------------------------------------------------------
+[Q 3] User Question: "How much sales did we make yesterday?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — Yesterday
+
+* **Total Sales Revenue:** **₹1,200.00**
+* **Total Invoices Count:** **1 invoices**
+* **Average Ticket Value:** **₹1,200.00**
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹0.00** |
+| 📱 UPI | **₹0.00** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹1,200.00** |
+
+
+----------------------------------------------------------------------
+[Q 4] User Question: "What are the total sales for this year?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — This Year
+
+* **Total Sales Revenue:** **₹78,802.15**
+* **Total Invoices Count:** **118 invoices**
+* **Average Ticket Value:** **₹667.81**
+* **Average Daily Sales:** **₹272.67** (over 289 days)
+* **Tax (GST) Collected:** ₹1,760.64
+* **Discounts Given:** ₹3,123.50
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹40,430.60** |
+| 📱 UPI | **₹7,296.55** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹30,845.00** |
+
+
+----------------------------------------------------------------------
+[Q 5] User Question: "Which day had the highest sales this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_HIGHEST_DAY]
+
+💬 System Actual Response:
+
+### 🏆 Highest Sales Day (This Month)
+
+* **Date:** **2026-10-08**
+* **Sales Revenue:** **₹16,880.00**
+* **Invoices Count:** **2 invoices**
+
+
+----------------------------------------------------------------------
+[Q 6] User Question: "How many bills were generated today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_INVOICE_COUNT]
+
+💬 System Actual Response:
+
+### 🧾 Invoice Count — Today
+
+* **Total Invoices Generated:** **0 bills**
+* **Total Revenue:** **₹0.00**
+* **Average Ticket Value:** **₹0.00**
+
+
+----------------------------------------------------------------------
+[Q 7] User Question: "What is the average daily sales for this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_AVERAGE_DAILY]
+
+💬 System Actual Response:
+
+### 📅 Average Daily Sales — This Month
+
+* **Average Daily Sales Revenue:** **₹2,065.00**
+* **Average Invoices per Day:** **0.5 bills/day**
+* **Period Total Sales:** ₹33,040.00 over 16 calendar days
+
+
+----------------------------------------------------------------------
+[Q 8] User Question: "Show today's cash sales and credit sales separately."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 💳 Sales by Payment Method — Today
+
+Total Sales Revenue: **₹0.00**
+
+| Payment Method | Amount | Share |
+| :--- | :---: | :---: |
+| 💵 Cash | **₹0.00** | 0% |
+| 📱 UPI | **₹0.00** | 0% |
+| 💳 Card | **₹0.00** | 0% |
+| 📒 Credit | **₹0.00** | 0% |
+| 🏦 Bank / Cheque | **₹0.00** | 0% |
+
+
+----------------------------------------------------------------------
+[Q 9] User Question: "Compare today's sales with yesterday's sales."
+----------------------------------------------------------------------
+👉 Intent Detected: [COMPARE_SALES]
+
+💬 System Actual Response:
+
+### ⚖️ Sales Comparison Report
+
+Comparative analysis between **Today** and **Yesterday**:
+
+| Metric | Today | Yesterday | Variance |
+| :--- | :---: | :---: | :---: |
+| **Total Sales** | **₹0.00** | **₹1,200.00** | **-₹1,200.00 (Decline (- 📉))** |
+| **Invoices Count** | 0 invoices | 1 invoices | -1 |
+| **Average Ticket** | ₹0.00 | ₹1,200.00 | — |
+
+💡 **Summary:** Sales revenue shows a **100% Decline (- 📉)** compared to Yesterday.
+
+
+----------------------------------------------------------------------
+[Q 10] User Question: "Compare this month's sales with last month's sales."
+----------------------------------------------------------------------
+👉 Intent Detected: [COMPARE_SALES]
+
+💬 System Actual Response:
+
+### ⚖️ Sales Comparison Report
+
+Comparative analysis between **This Month** and **Last Month**:
+
+| Metric | This Month | Last Month | Variance |
+| :--- | :---: | :---: | :---: |
+| **Total Sales** | **₹33,040.00** | **₹14,182.00** | **+₹18,858.00 (Growth (+ 📈))** |
+| **Invoices Count** | 8 invoices | 25 invoices | -17 |
+| **Average Ticket** | ₹4,130.00 | ₹567.28 | — |
+
+💡 **Summary:** Sales revenue shows a **133% Growth (+ 📈)** compared to Last Month.
+
+
+----------------------------------------------------------------------
+[Q 11] User Question: "Show sales for the last 7 days."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — Last 7 Days
+
+* **Total Sales Revenue:** **₹2,665.00**
+* **Total Invoices Count:** **3 invoices**
+* **Average Ticket Value:** **₹888.33**
+* **Average Daily Sales:** **₹380.71** (over 7 days)
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹1,465.00** |
+| 📱 UPI | **₹0.00** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹1,200.00** |
+
+
+----------------------------------------------------------------------
+[Q 12] User Question: "Show sales for the last 30 days."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — Last 30 Days
+
+* **Total Sales Revenue:** **₹33,040.00**
+* **Total Invoices Count:** **9 invoices**
+* **Average Ticket Value:** **₹3,671.11**
+* **Average Daily Sales:** **₹1,101.33** (over 30 days)
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹2,145.00** |
+| 📱 UPI | **₹50.00** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹30,845.00** |
+
+
+----------------------------------------------------------------------
+[Q 13] User Question: "Show this year's sales so far."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — This Year
+
+* **Total Sales Revenue:** **₹78,802.15**
+* **Total Invoices Count:** **118 invoices**
+* **Average Ticket Value:** **₹667.81**
+* **Average Daily Sales:** **₹272.67** (over 289 days)
+* **Tax (GST) Collected:** ₹1,760.64
+* **Discounts Given:** ₹3,123.50
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹40,430.60** |
+| 📱 UPI | **₹7,296.55** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹30,845.00** |
+
+
+----------------------------------------------------------------------
+[Q 14] User Question: "Show financial-year sales."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_TODAY]
+
+💬 System Actual Response:
+
+### 📊 Today's Sales Summary (Today)
+
+* **Total Sales Revenue:** **₹0.00**
+* **Total Invoices Generated:** **0 invoices**
+* **Average Ticket Value:** **₹0.00**
+
+#### 💳 Payment Breakdown:
+* **Cash:** ₹0.00 | **UPI:** ₹0.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+
+
+----------------------------------------------------------------------
+[Q 15] User Question: "Which day had the lowest sales this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [TOP_SELLING_PRODUCTS]
+
+💬 System Actual Response:
+
+### 🏆 Top 5 Best Selling Products — This Month
+
+| Rank | Product Name | Qty Sold | Revenue |
+| :---: | :--- | :---: | :---: |
+| **#1** | **MIXI CODE** | **4** | ₹600.00 |
+| **#2** | **MIXI PREETHI POPULAR** | **3** | ₹17,000.00 |
+| **#3** | **Car Toy (GST)** | **2** | ₹1,000.00 |
+| **#4** | **CHAIR CUM LADDER** | **1** | ₹5,000.00 |
+| **#5** | **hhh** | **1** | ₹4,545.00 |
+
+
+----------------------------------------------------------------------
+[Q 16] User Question: "How many invoices were created today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_INVOICE_COUNT]
+
+💬 System Actual Response:
+
+### 🧾 Invoice Count — Today
+
+* **Total Invoices Generated:** **0 bills**
+* **Total Revenue:** **₹0.00**
+* **Average Ticket Value:** **₹0.00**
+
+
+----------------------------------------------------------------------
+[Q 17] User Question: "What is the average ticket value today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_AVERAGE_TICKET]
+
+💬 System Actual Response:
+
+### 🏷️ Average Ticket Value — Today
+
+* **Average Bill Amount:** **₹0.00**
+* **Total Revenue:** ₹0.00
+* **Invoices Count:** 0 bills
+
+
+----------------------------------------------------------------------
+[Q 18] User Question: "What is the average number of bills per day this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_AVERAGE_DAILY]
+
+💬 System Actual Response:
+
+### 📅 Average Daily Sales — This Month
+
+* **Average Daily Sales Revenue:** **₹2,065.00**
+* **Average Invoices per Day:** **0.5 bills/day**
+* **Period Total Sales:** ₹33,040.00 over 16 calendar days
+
+
+----------------------------------------------------------------------
+[Q 19] User Question: "How many unique customers purchased today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_UNIQUE_CUSTOMERS]
+
+💬 System Actual Response:
+
+### 👥 Purchasing Customers Count — Today
+
+* **Unique Identified Customers:** **0 unique customers**
+* **Walk-in / Unregistered Sales:** **0 invoices**
+* **Total Invoices Generated:** 0 bills
+
+
+----------------------------------------------------------------------
+[Q 20] User Question: "What was the highest-value invoice this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_INVOICE_EXTREMES]
+
+💬 System Actual Response:
+
+### 💎 Invoice Value Extremes (This Month)
+
+* **Highest-Value Invoice:** **₹16,600.00** (Bill #WJFU-005 — HAROON)
+* **Lowest-Value Invoice:** **₹280.00** (Bill #YKFS-002 — Walk-in)
+* **Total Analyzed Invoices:** 8 bills
+
+
+----------------------------------------------------------------------
+[Q 21] User Question: "Show today's cash sales."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 💵 Cash Sales — Today
+
+* **Cash Received:** **₹0.00** (0% of total revenue)
+* **Total Revenue:** ₹0.00
+
+
+----------------------------------------------------------------------
+[Q 22] User Question: "How much was paid through UPI this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 📱 UPI Sales — This Month
+
+* **UPI Payments Received:** **₹50.00** (Total: ₹33,040.00)
+
+
+----------------------------------------------------------------------
+[Q 23] User Question: "Show invoices paid using multiple payment methods today."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 💳 Sales by Payment Method — Today
+
+Total Sales Revenue: **₹0.00**
+
+| Payment Method | Amount | Share |
+| :--- | :---: | :---: |
+| 💵 Cash | **₹0.00** | 0% |
+| 📱 UPI | **₹0.00** | 0% |
+| 💳 Card | **₹0.00** | 0% |
+| 📒 Credit | **₹0.00** | 0% |
+| 🏦 Bank / Cheque | **₹0.00** | 0% |
+
+
+----------------------------------------------------------------------
+[Q 24] User Question: "How much money is still outstanding from credit invoices?"
+----------------------------------------------------------------------
+👉 Intent Detected: [RESOLVED]
+
+💬 System Actual Response:
+
+Could not find any customer or party matching "is still   from   invoices".
+
+
+----------------------------------------------------------------------
+[Q 25] User Question: "What are our gross sales today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — Today
+
+* **Gross Sales (Before Discounts):** **₹0.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹0.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 0 bills
+
+
+----------------------------------------------------------------------
+[Q 26] User Question: "What are our net sales today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — Today
+
+* **Gross Sales (Before Discounts):** **₹0.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹0.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 0 bills
+
+
+----------------------------------------------------------------------
+[Q 27] User Question: "How much discount was given this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — This Month
+
+* **Gross Sales (Before Discounts):** **₹33,040.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹33,040.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 8 bills
+
+
+----------------------------------------------------------------------
+[Q 28] User Question: "How much sales return was recorded this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — This Month
+
+* **Gross Sales (Before Discounts):** **₹33,040.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹33,040.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 8 bills
+
+
+----------------------------------------------------------------------
+[Q 29] User Question: "How much tax was collected on sales this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — This Month
+
+* **Gross Sales (Before Discounts):** **₹33,040.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹33,040.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 8 bills
+
+
+----------------------------------------------------------------------
+[Q 30] User Question: "Show sales by invoice type this month."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_INVOICE_TYPES]
+
+💬 System Actual Response:
+
+### 📑 Sales by Invoice Type — This Month
+
+| Invoice Type | Count | Total Sales |
+| :--- | :---: | :---: |
+| **GST Invoices** | **0 bills** | **₹0.00** |
+| **Bill of Supply (BoS)** | **8 bills** | **₹33,040.00** |
+| **Total** | **8 bills** | **₹33,040.00** |
+
+
+----------------------------------------------------------------------
+[Q 31] User Question: "How many invoices were cancelled this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CANCELLED_INVOICES]
+
+💬 System Actual Response:
+
+### 🚫 Cancelled / Voided Invoices
+
+* **Cancelled Invoices Today:** **0 bills**
+
+
+----------------------------------------------------------------------
+[Q 32] User Question: "Show sales excluding cancelled invoices."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CANCELLED_INVOICES]
+
+💬 System Actual Response:
+
+### 🚫 Cancelled / Voided Invoices
+
+* **Cancelled Invoices Today:** **0 bills**
+
+
+----------------------------------------------------------------------
+[Q 33] User Question: "Check whether converted bills are counted twice."
+----------------------------------------------------------------------
+👉 Intent Detected: [DIAGNOSTIC_DEDUPLICATION_CHECK]
+
+💬 System Actual Response:
+
+### 🛡️ Data Integrity Diagnostic: Converted Bills Deduplication
+
+* **Total Invoices Audited:** **118 records**
+* **Converted Quotes / Hold Bills:** **1 records**
+* **Duplicate Counting Detected:** **0 (Clean ✅)**
+
+💡 Converted bills carrying `converted_to_invoice_id` are strictly filtered out by the reporting and aggregation engine. No converted bill is counted twice in sales or revenue summaries.
+
+
+----------------------------------------------------------------------
+[Q 34] User Question: "Which products sold the most this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [TOP_SELLING_PRODUCTS]
+
+💬 System Actual Response:
+
+### 🏆 Top 5 Best Selling Products — This Month
+
+| Rank | Product Name | Qty Sold | Revenue |
+| :---: | :--- | :---: | :---: |
+| **#1** | **MIXI CODE** | **4** | ₹600.00 |
+| **#2** | **MIXI PREETHI POPULAR** | **3** | ₹17,000.00 |
+| **#3** | **Car Toy (GST)** | **2** | ₹1,000.00 |
+| **#4** | **CHAIR CUM LADDER** | **1** | ₹5,000.00 |
+| **#5** | **hhh** | **1** | ₹4,545.00 |
+
+
+----------------------------------------------------------------------
+[Q 35] User Question: "Which product generated the highest sales revenue this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PERIOD]
+
+💬 System Actual Response:
+
+### 📈 Sales Report — This Month
+
+* **Total Sales Revenue:** **₹33,040.00**
+* **Total Invoices Count:** **8 invoices**
+* **Average Ticket Value:** **₹4,130.00**
+* **Average Daily Sales:** **₹2,065.00** (over 16 days)
+
+#### 💳 Sales by Payment Method:
+| Payment Method | Total Amount |
+| :--- | :---: |
+| 💵 Cash | **₹2,145.00** |
+| 📱 UPI | **₹50.00** |
+| 💳 Card | **₹0.00** |
+| 📒 Credit | **₹30,845.00** |
+
+
+----------------------------------------------------------------------
+[Q 36] User Question: "Which customers purchased the most this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CUSTOMER_LEVEL]
+
+💬 System Actual Response:
+
+### 👑 Top Purchasing Customers — This Month
+
+| Customer Name | Phone | Bills | Total Purchases |
+| :--- | :---: | :---: | :---: |
+| **HAROON** | 8281063063 | 1 | **₹16,600.00** |
+| **ALCO ALUMINIUM PRODUCTS** | 9605144888 | 1 | **₹10,545.00** |
+| **suhaib** | 8078075855 | 3 | **₹2,665.00** |
+| **ss power tools** | 9874564571 | 1 | **₹2,500.00** |
+| **ss powertools** | 9874561230 | 1 | **₹450.00** |
+
+
+----------------------------------------------------------------------
+[Q 37] User Question: "Show sales by biller today."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_BILLER_STAFF]
+
+💬 System Actual Response:
+
+### 👨‍💼 Sales by Biller / Cashier — Today
+
+| Biller / Cashier | Invoices | Total Revenue |
+| :--- | :---: | :---: |
+
+
+----------------------------------------------------------------------
+[Q 38] User Question: "Compare this month's sales with last month."
+----------------------------------------------------------------------
+👉 Intent Detected: [COMPARE_SALES]
+
+💬 System Actual Response:
+
+### ⚖️ Sales Comparison Report
+
+Comparative analysis between **This Month** and **Last Month**:
+
+| Metric | This Month | Last Month | Variance |
+| :--- | :---: | :---: | :---: |
+| **Total Sales** | **₹33,040.00** | **₹14,182.00** | **+₹18,858.00 (Growth (+ 📈))** |
+| **Invoices Count** | 8 invoices | 25 invoices | -17 |
+| **Average Ticket** | ₹4,130.00 | ₹567.28 | — |
+
+💡 **Summary:** Sales revenue shows a **133% Growth (+ 📈)** compared to Last Month.
+
+
+----------------------------------------------------------------------
+[Q 39] User Question: "Show the daily sales trend for this month."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_DAILY_TREND]
+
+💬 System Actual Response:
+
+### 📈 Daily Sales Trend — This Month
+
+* **Best Performing Day:** **2026-10-08** (₹16,880.00)
+* **Lowest Performing Day:** **2026-10-12** (₹565.00)
+
+| Date | Invoices | Total Sales |
+| :---: | :---: | :---: |
+| 2026-10-07 | 3 | **₹13,495.00** |
+| 2026-10-08 | 2 | **₹16,880.00** |
+| 2026-10-12 | 1 | **₹565.00** |
+| 2026-10-14 | 1 | **₹900.00** |
+| 2026-10-15 | 1 | **₹1,200.00** |
+
+
+----------------------------------------------------------------------
+[Q 40] User Question: "Show the top 5 best-selling products today."
+----------------------------------------------------------------------
+👉 Intent Detected: [RESOLVED]
+
+💬 System Actual Response:
+
+No product sales recorded yet for Today.
+
+
+----------------------------------------------------------------------
+[Q 41] User Question: "Show the top 10 best-selling products this month."
+----------------------------------------------------------------------
+👉 Intent Detected: [TOP_SELLING_PRODUCTS]
+
+💬 System Actual Response:
+
+### 🏆 Top 10 Best Selling Products — This Month
+
+| Rank | Product Name | Qty Sold | Revenue |
+| :---: | :--- | :---: | :---: |
+| **#1** | **MIXI CODE** | **4** | ₹600.00 |
+| **#2** | **MIXI PREETHI POPULAR** | **3** | ₹17,000.00 |
+| **#3** | **Car Toy (GST)** | **2** | ₹1,000.00 |
+| **#4** | **CHAIR CUM LADDER** | **1** | ₹5,000.00 |
+| **#5** | **hhh** | **1** | ₹4,545.00 |
+| **#6** | **MIXI PREETHI CROWN** | **1** | ₹2,500.00 |
+| **#7** | **Knife** | **1** | ₹1,200.00 |
+| **#8** | **Mixi Crown Pro (GST)** | **1** | ₹900.00 |
+| **#9** | **ULTIX CHIRATTAPUTTU** | **1** | ₹280.00 |
+| **#10** | **13-14 kg kalam** | **1** | ₹15.00 |
+
+
+----------------------------------------------------------------------
+[Q 42] User Question: "Which customer spent the most money this month?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CUSTOMER_LEVEL]
+
+💬 System Actual Response:
+
+### 👑 Top Purchasing Customers — This Month
+
+| Customer Name | Phone | Bills | Total Purchases |
+| :--- | :---: | :---: | :---: |
+| **HAROON** | 8281063063 | 1 | **₹16,600.00** |
+| **ALCO ALUMINIUM PRODUCTS** | 9605144888 | 1 | **₹10,545.00** |
+| **suhaib** | 8078075855 | 3 | **₹2,665.00** |
+| **ss power tools** | 9874564571 | 1 | **₹2,500.00** |
+| **ss powertools** | 9874561230 | 1 | **₹450.00** |
+
+
+----------------------------------------------------------------------
+[Q 43] User Question: "Show today's sales breakdown by cash, card, UPI, and other payment methods."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 💵 Cash Sales — Today
+
+* **Cash Received:** **₹0.00** (0% of total revenue)
+* **Total Revenue:** ₹0.00
+
+
+----------------------------------------------------------------------
+[Q 44] User Question: "How much credit sales were recorded today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 📒 Credit Sales — Today
+
+* **Credit Invoiced:** **₹0.00** (0% of total revenue)
+* **Total Revenue:** ₹0.00
+
+
+----------------------------------------------------------------------
+[Q 45] User Question: "Show all sales returns recorded today."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — Today
+
+* **Gross Sales (Before Discounts):** **₹0.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹0.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 0 bills
+
+
+----------------------------------------------------------------------
+[Q 46] User Question: "Show all invoices with discounts greater than ₹500."
+----------------------------------------------------------------------
+👉 Intent Detected: [RESOLVED]
+
+💬 System Actual Response:
+
+### 🧾 Invoices Above ₹500 (This Month)
+
+Found **6 invoices** totaling **₹32,310.00**:
+
+| Invoice # | Customer | Date | Amount |
+| :--- | :--- | :---: | :---: |
+| **POS1-002** | suhaib | 2026-10-15 | **₹1,200.00** |
+| **POS1-001** | suhaib | 2026-10-14 | **₹900.00** |
+| **M8DG-001** | suhaib | 2026-10-12 | **₹565.00** |
+| **WJFU-005** | HAROON | 2026-10-08 | **₹16,600.00** |
+| **WJFU-004** | ALCO ALUMINIUM PRODUCTS | 2026-10-07 | **₹10,545.00** |
+| **WJFU-002** | ss power tools | 2026-10-07 | **₹2,500.00** |
+
+
+----------------------------------------------------------------------
+[Q 47] User Question: "Compare gross sales and net sales this month."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_GROSS_NET]
+
+💬 System Actual Response:
+
+### 📊 Gross vs Net Sales & Deductions — This Month
+
+* **Gross Sales (Before Discounts):** **₹33,040.00**
+* **Total Discounts Given:** **₹0.00**
+* **Net Sales Revenue (Final Invoiced):** **₹33,040.00**
+* **Total Tax (GST) Collected:** **₹0.00**
+* **Invoices Count:** 8 bills
+
+
+----------------------------------------------------------------------
+[Q 48] User Question: "Show sales by biller for this month."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_BILLER_STAFF]
+
+💬 System Actual Response:
+
+### 👨‍💼 Sales by Biller / Cashier — This Month
+
+| Biller / Cashier | Invoices | Total Revenue |
+| :--- | :---: | :---: |
+| **Suhaib** | 8 bills | **₹33,040.00** |
+
+
+----------------------------------------------------------------------
+[Q 49] User Question: "Which biller generated the highest sales today?"
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_BILLER_STAFF]
+
+💬 System Actual Response:
+
+### 👨‍💼 Sales by Biller / Cashier — Today
+
+| Biller / Cashier | Invoices | Total Revenue |
+| :--- | :---: | :---: |
+
+
+----------------------------------------------------------------------
+[Q 50] User Question: "Show all invoices generated for a specific customer this month."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CUSTOMER_LEVEL]
+
+💬 System Actual Response:
+
+### 👑 Top Purchasing Customers — This Month
+
+| Customer Name | Phone | Bills | Total Purchases |
+| :--- | :---: | :---: | :---: |
+| **HAROON** | 8281063063 | 1 | **₹16,600.00** |
+| **ALCO ALUMINIUM PRODUCTS** | 9605144888 | 1 | **₹10,545.00** |
+| **suhaib** | 8078075855 | 3 | **₹2,665.00** |
+| **ss power tools** | 9874564571 | 1 | **₹2,500.00** |
+| **ss powertools** | 9874561230 | 1 | **₹450.00** |
+
+
+----------------------------------------------------------------------
+[Q 51] User Question: "Show all cancelled invoices today."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CANCELLED_INVOICES]
+
+💬 System Actual Response:
+
+### 🚫 Cancelled / Voided Invoices
+
+* **Cancelled Invoices Today:** **0 bills**
+
+
+----------------------------------------------------------------------
+[Q 52] User Question: "Show sales excluding draft, hold, and cancelled invoices."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_CANCELLED_INVOICES]
+
+💬 System Actual Response:
+
+### 🚫 Cancelled / Voided Invoices
+
+* **Cancelled Invoices Today:** **0 bills**
+
+
+----------------------------------------------------------------------
+[Q 53] User Question: "Are any invoices being counted more than once in the sales report?"
+----------------------------------------------------------------------
+👉 Intent Detected: [DIAGNOSTIC_DEDUPLICATION_CHECK]
+
+💬 System Actual Response:
+
+### 🛡️ Data Integrity Diagnostic: Converted Bills Deduplication
+
+* **Total Invoices Audited:** **118 records**
+* **Converted Quotes / Hold Bills:** **1 records**
+* **Duplicate Counting Detected:** **0 (Clean ✅)**
+
+💡 Converted bills carrying `converted_to_invoice_id` are strictly filtered out by the reporting and aggregation engine. No converted bill is counted twice in sales or revenue summaries.
+
+
+----------------------------------------------------------------------
+[Q 54] User Question: "Show the number of unique invoices and total invoice value for each payment method."
+----------------------------------------------------------------------
+👉 Intent Detected: [SALES_PAYMENT_METHODS]
+
+💬 System Actual Response:
+
+### 💳 Sales by Payment Method — Today
+
+Total Sales Revenue: **₹0.00**
+
+| Payment Method | Amount | Share |
+| :--- | :---: | :---: |
+| 💵 Cash | **₹0.00** | 0% |
+| 📱 UPI | **₹0.00** | 0% |
+| 💳 Card | **₹0.00** | 0% |
+| 📒 Credit | **₹0.00** | 0% |
+| 🏦 Bank / Cheque | **₹0.00** | 0% |
+
+
+----------------------------------------------------------------------
+[Q 55] User Question: "Identify invoices where payment allocations do not match the invoice total."
+----------------------------------------------------------------------
+👉 Intent Detected: [DIAGNOSTIC_PAYMENT_RECONCILIATION]
+
+💬 System Actual Response:
+
+### ⚖️ Payment Allocation Reconciliation Report
+
+* **Total Invoices Audited:** **117 invoices**
+* **Allocation Mismatches Found:** **0 (100% Reconciled ✅)**
+
+All payment allocations across cash, card, UPI, credit, and split-payment records match their invoice grand totals perfectly.
+
+
+----------------------------------------------------------------------
+[Q 56] User Question: "Can you answer today's sales question without an internet connection?"
+----------------------------------------------------------------------
+👉 Intent Detected: [AI_CAPABILITIES_EXPLANATION]
+
+💬 System Actual Response:
+
+### 🌐 100% Offline Architecture
+
+**Yes, Nafid POS answers all queries completely offline without an internet connection.**
+
+* Built on local SQLite database execution and deterministic intent parsing.
+* Zero external server latency, zero cloud API dependencies, and 100% data privacy.
+
+
+----------------------------------------------------------------------
+[Q 57] User Question: "Can you distinguish between zero sales and a database query error?"
+----------------------------------------------------------------------
+👉 Intent Detected: [AI_CAPABILITIES_EXPLANATION]
+
+💬 System Actual Response:
+
+### 🔍 Diagnostic Accuracy
+
+The engine cleanly distinguishes between genuine zero-sales periods (empty valid result set) and query/syntax exceptions.
+
+
+----------------------------------------------------------------------
+[Q 58] User Question: "If the same question is asked twice without any data changes, will the result remain the same?"
+----------------------------------------------------------------------
+👉 Intent Detected: [AI_CAPABILITIES_EXPLANATION]
+
+💬 System Actual Response:
+
+### ⚙️ Deterministic AI Architecture Verification
+
+**Yes, the results will remain 100% identical.**
+
+* **Zero Hallucination / Zero Randomness:** Nafid POS utilizes an offline deterministic query and calculation pipeline rather than a non-deterministic generative LLM.
+* **Direct Local Relational Aggregation:** Every metric is computed strictly from verified SQLite records and POS financial rules.
+* As long as database records remain unchanged, executing the same question repeatedly produces the exact same verified financial numbers every time.
+
+
+----------------------------------------------------------------------
+[Q 59] User Question: "Who are the top credit customers?"
+----------------------------------------------------------------------
+👉 Intent Detected: [CUSTOMER_CREDIT_LIST]
+
+💬 System Actual Response:
+
+### 👥 Customer Credit & Receivables Summary
+
+* **Total Outstanding Balance:** **₹21,685.50**
+* **Total Accounts:** **4 accounts**
+
+| Customer / Party | Phone | Balance |
+| :--- | :---: | :---: |
+| **suhaib** | 8078075855 | **₹15,200.00** |
+| **HAROON** | 8281063063 | **₹6,358.50** |
+| **ss powertools** | 9874561230 | **₹120.00** |
+| **ALCO ALUMINIUM PRODUCTS** | 9605144888 | **₹7.00** |
+
+
+----------------------------------------------------------------------
+[Q 60] User Question: "Who is the top credit customer?"
+----------------------------------------------------------------------
+👉 Intent Detected: [CUSTOMER_CREDIT_LIST]
+
+💬 System Actual Response:
+
+### 👤 Top Credit Customer
+
+The customer with the highest outstanding credit balance is **suhaib**:
+
+* **Customer / Party:** **suhaib**
+* **Phone:** 8078075855
+* **Outstanding Balance:** **₹15,200.00**
+
+
+======================================================================
+🏁 ALL QUERIES PROCESSED DIRECTLY BY NAFID POS OFFLINE AI ENGINE
+======================================================================

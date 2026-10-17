@@ -114,8 +114,8 @@ export interface IElectronAPI {
   onSyncDataUpdated: (callback: () => void) => (() => void);
   onSyncCycleComplete: (callback: () => void) => (() => void);
   onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => (() => void);
-  onSyncProgress: (callback: (progress: SyncProgress) => void) => void;
-  onTokenExpired: (callback: () => void) => void;
+  onSyncProgress: (callback: (progress: SyncProgress) => void) => (() => void) | void;
+  onTokenExpired: (callback: () => void) => (() => void) | void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
   dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string }) => Promise<{ success: boolean; results?: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[]; error?: string }>;
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
@@ -160,7 +160,7 @@ export interface IElectronAPI {
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;
   dbGetProductBillQuantities: (tenant_id: string) => Promise<{ product_id: string; gst_qty: number; estimate_qty: number }[]>;
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => Promise<{ success: boolean; error?: string }>;
-  dbGetProductSalesSummary: (payload: { tenant_id: string }) => Promise<{ product_id: string; name: string; gst_qty: number; bos_qty: number; total_qty: number }[]>;
+  dbGetProductSalesSummary: (payload: { tenant_id: string; fromDate?: string; toDate?: string }) => Promise<{ product_id: string; name: string; gst_qty: number; bos_qty: number; total_qty: number; total_revenue?: number }[]>;
   dbGetBosConvertibleInvoices: (tenant_id: string) => Promise<{ invoice_id: string; convertible: number }[]>;
 
   // Quotations
@@ -250,7 +250,20 @@ export interface IElectronAPI {
   resetFastPollBackoff: () => Promise<{ success: boolean; error?: string }>;
   aiChat?: (message: string, history?: any[]) => Promise<any>;
   aiGetOverview?: () => Promise<any>;
+
+  // E-Commerce / FusionCart Integration
+  ecommerceGetSettings: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: any; error?: string }>;
+  ecommerceSaveSettings: (payload: { tenant_id: string; settings: any }) => Promise<{ success: boolean; settings?: any; error?: string }>;
+  ecommerceTestConnection: (payload: { url?: string }) => Promise<{ connected: boolean; message?: string }>;
+  ecommerceRegisterVendor: (payload: { tenant_id: string; data: any }) => Promise<{ success: boolean; settings?: any; error?: string }>;
+  ecommerceRefreshStatus: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: any; store?: any; error?: string }>;
+  ecommerceGetProducts: (payload: { tenant_id: string; search?: string; filter?: string }) => Promise<{ success: boolean; products: any[]; error?: string }>;
+  ecommerceUpdateMapping: (payload: any) => Promise<{ success: boolean; mapping?: any; error?: string }>;
+  ecommerceSyncProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; remoteId?: number; error?: string }>;
+  ecommerceUnpublishProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; error?: string }>;
+  ecommerceGetOrders: (payload: { tenant_id: string }) => Promise<{ success: boolean; orders: any[]; error?: string }>;
 }
+
 
 declare global {
   interface Window {

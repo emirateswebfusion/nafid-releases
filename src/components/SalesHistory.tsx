@@ -24,8 +24,8 @@ import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
+import { isAdminRole, hasPermission } from '../utils/permissions';
 import { getStoreTimezone } from '../utils/timezoneHelper';
-import { isAdminRole } from '../utils/permissions';
 
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -376,10 +376,10 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
           if (summary.refund) {
             return (
               <>
-                <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(summary.amount)}
+                <div className="text-sm font-black text-rose-600 dark:text-rose-400">
+                  -{formatCurrency(summary.amount)}
                 </div>
-                <div className="text-[10px] text-emerald-500 font-semibold mt-0.5">
+                <div className="text-[10px] text-rose-500 font-semibold mt-0.5">
                   Refund
                 </div>
                 {Math.abs(summary.refundDifference) > 0.005 && (
@@ -1167,6 +1167,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const handleEditBill = async () => {
+    const { role, permissions } = useAuthStore.getState();
+    if (!hasPermission({ role, permissions }, 'sales.edit')) {
+      showToast('Permission Denied: You do not have permission to edit bills', 'error');
+      return;
+    }
     if (!window.electronAPI || !selectedInvoice) return;
     let currentItems = items;
     if (!currentItems.length) {
@@ -1190,6 +1195,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const handleDeleteInvoice = async () => {
+    const { role, permissions } = useAuthStore.getState();
+    if (!hasPermission({ role, permissions }, 'sales.delete')) {
+      showToast('Permission Denied: You do not have permission to delete bills', 'error');
+      return;
+    }
     if (!window.electronAPI || !selectedInvoice) return;
     setDeleteSaving(true);
     try {
@@ -2091,43 +2101,45 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             {/* Action Buttons */}
             <div className="flex items-center justify-end p-2.5 sm:p-3 bg-muted/30 border border-border rounded-2xl">
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {isAdminRole(useAuthStore.getState().role) && (
-                  <>
-                    <button onClick={handleEditBill}
-                      className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Edit Bill</span>
-                    </button>
-                    <button onClick={() => setDeleteConfirmOpen(true)}
-                      className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>Delete</span>
-                    </button>
-                    <button onClick={async () => {
-                      if (!canReturn) return;
-                      // Store invoice ref and close — BillingPage will open in return mode
-                      localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
-                      // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
-                      if (isAdminRole(useAuthStore.getState().role)) {
-                        useCartStore.getState().setRole('BILLER');
-                      }
-                      closeDrawer();
-                      onClose();
-                      setTimeout(() => window.dispatchEvent(new CustomEvent('open-return-mode')), 100);
-                    }}
-                      disabled={!canReturn}
-                      title={canReturn ? undefined : 'All items in this bill have already been returned'}
-                      className={clsx('flex items-center justify-center gap-1.5 px-2.5 h-8 rounded-xl transition-all text-xs font-bold border cursor-pointer active:scale-95 whitespace-nowrap',
-                        canReturn
-                          ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 border-red-500/20'
-                          : 'bg-muted/40 text-muted-foreground/50 border-border/60 cursor-not-allowed')}
-                    >
-                      <Package className="w-3.5 h-3.5 shrink-0" />
-                      <span>{canReturn ? 'Return' : 'Returned'}</span>
-                    </button>
-                  </>
+                {hasPermission(useAuthStore.getState(), 'sales.edit') && (
+                  <button onClick={handleEditBill}
+                    className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Edit Bill</span>
+                  </button>
+                )}
+                {hasPermission(useAuthStore.getState(), 'sales.delete') && (
+                  <button onClick={() => setDeleteConfirmOpen(true)}
+                    className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Delete</span>
+                  </button>
+                )}
+                {(isAdminRole(useAuthStore.getState().role) || hasPermission(useAuthStore.getState(), 'sales.refund')) && (
+                  <button onClick={async () => {
+                    if (!canReturn) return;
+                    // Store invoice ref and close — BillingPage will open in return mode
+                    localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
+                    // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
+                    if (isAdminRole(useAuthStore.getState().role)) {
+                      useCartStore.getState().setRole('BILLER');
+                    }
+                    closeDrawer();
+                    onClose();
+                    setTimeout(() => window.dispatchEvent(new CustomEvent('open-return-mode')), 100);
+                  }}
+                    disabled={!canReturn}
+                    title={canReturn ? undefined : 'All items in this bill have already been returned'}
+                    className={clsx('flex items-center justify-center gap-1.5 px-2.5 h-8 rounded-xl transition-all text-xs font-bold border cursor-pointer active:scale-95 whitespace-nowrap',
+                      canReturn
+                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 border-red-500/20'
+                        : 'bg-muted/40 text-muted-foreground/50 border-border/60 cursor-not-allowed')}
+                  >
+                    <Package className="w-3.5 h-3.5 shrink-0" />
+                    <span>{canReturn ? 'Return' : 'Returned'}</span>
+                  </button>
                 )}
                 {selectedInvoice.payment_method === 'PENDING' && (
                   <button onClick={openCollectPayment}
@@ -2525,9 +2537,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Grand Total</span>
                         <span className="text-sm font-bold text-foreground">{formatCurrency(preDeductionTotal)}</span>
                       </div>
-                      <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border-t border-emerald-500/20">
-                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Refund Amount</span>
-                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(refundAmount)}</span>
+                      <div className="flex items-center justify-between px-4 py-3 bg-rose-500/10 border-t border-rose-500/20">
+                        <span className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest">Refund Amount</span>
+                        <span className="text-lg font-black text-rose-600 dark:text-rose-400">-{formatCurrency(refundAmount)}</span>
                       </div>
                       {(() => {
                         const actualPaid = Number(selectedInvoice.actual_refund_paid) || 0;

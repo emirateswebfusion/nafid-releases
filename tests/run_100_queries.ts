@@ -1,0 +1,122 @@
+import { OfflineAiIntentParser, resolveDateRange } from '../src/services/offlineAiService';
+
+const queries = [
+  "What are today's total sales?",
+  "What are the total sales for this month?",
+  "How much sales did we make yesterday?",
+  "What are the total sales for this year?",
+  "Which day had the highest sales this month?",
+  "How many bills were generated today?",
+  "What is the average daily sales for this month?",
+  "Show today's cash sales and credit sales separately.",
+  "Compare today's sales with yesterday's sales.",
+  "Compare this month's sales with last month's sales.",
+  "Show sales for the last 7 days.",
+  "Show sales for the last 30 days.",
+  "Show sales between 01/10/2026 and 15/10/2026.",
+  "Show this year's sales so far.",
+  "Show financial-year sales.",
+  "Which day had the lowest sales this month?",
+  "How many invoices were created today?",
+  "What is the average ticket value today?",
+  "What is the average number of bills per day this month?",
+  "How many unique customers purchased today?",
+  "What was the highest-value invoice this month?",
+  "Show today's cash sales.",
+  "How much was paid through UPI this month?",
+  "Show invoices paid using multiple payment methods today.",
+  "How much money is still outstanding from credit invoices?",
+  "What are our gross sales today?",
+  "What are our net sales today?",
+  "How much discount was given this month?",
+  "How much sales return was recorded this month?",
+  "How much tax was collected on sales this month?",
+  "Show sales by invoice type this month.",
+  "How many invoices were cancelled this month?",
+  "Show sales excluding cancelled invoices.",
+  "Check whether converted bills are counted twice.",
+  "Which products sold the most this month?",
+  "Which product generated the highest sales revenue this month?",
+  "Show sales for a specific product this month.",
+  "Which customers purchased the most this month?",
+  "Show sales by biller today.",
+  "What is today's sales?",
+  "How much business did we do today?",
+  "Compare this month's sales with last month.",
+  "How much sales did we make today?",
+  "Show today's sales in a detailed report.",
+  "Show the daily sales trend for this month.",
+  "Show monthly sales for the current year.",
+  "Which month had the highest sales this year?",
+  "Which month had the lowest sales this year?",
+  "What percentage did sales increase or decrease this month?",
+  "Show the top 5 best-selling products today.",
+  "Show the top 10 best-selling products this month.",
+  "Which product generated the lowest sales revenue this month?",
+  "Show the total quantity of products sold today.",
+  "Show sales grouped by product category.",
+  "Show sales grouped by customer.",
+  "Which customer spent the most money this month?",
+  "How many bills were paid in full today?",
+  "How many bills are partially paid today?",
+  "How many unpaid bills do we have?",
+  "Show today's sales breakdown by cash, card, UPI, and other payment methods.",
+  "How much cash was collected from sales today?",
+  "How much credit sales were recorded today?",
+  "How much payment was collected against previous credit bills today?",
+  "Show all sales returns recorded today.",
+  "Show all invoices with discounts greater than ₹500.",
+  "Show the total discount amount for each invoice today.",
+  "Compare gross sales and net sales this month.",
+  "Show sales by biller for this month.",
+  "Which biller generated the highest sales today?",
+  "Show sales by cash register today.",
+  "Compare sales between different registers.",
+  "Show sales for a specific customer between two dates.",
+  "Show all invoices generated for a specific customer this month.",
+  "Show all cancelled invoices today.",
+  "Show the total amount of cancelled invoices this month.",
+  "Show sales excluding draft, hold, and cancelled invoices.",
+  "Are any invoices being counted more than once in the sales report?",
+  "Explain how today's total sales were calculated.",
+  "Which database records were used to calculate this month's sales?",
+  "Why does the sales report show zero when invoices exist?",
+  "Show sales for a date range with no transactions.",
+  "Show sales for an invalid date range.",
+  "What are today's total sales? Run the same query again.",
+  "Show sales for the current business day using the configured timezone.",
+  "Show yesterday's sales using the configured business timezone.",
+  "Compare sales for the same number of elapsed days this month and last month.",
+  "Show sales for the current financial year and the previous financial year.",
+  "Show sales for each day of the current month, including days with zero sales.",
+  "Show the average daily sales excluding days when the shop was closed.",
+  "How much revenue did each product contribute to total sales this month?",
+  "Show the number of unique invoices and total invoice value for each payment method.",
+  "Identify invoices where payment allocations do not match the invoice total.",
+  "Show the total sales amount before discounts and after discounts.",
+  "How much tax was included in today's sales?",
+  "Show the sales quantity and revenue for each product sold today.",
+  "Which customers have not purchased anything in the last 30 days?",
+  "Show the sales history of a specific customer for the last 30 days.",
+  "Can you answer today's sales question without an internet connection?",
+  "Can you distinguish between zero sales and a database query error?",
+  "If the same question is asked twice without any data changes, will the result remain the same?"
+];
+
+console.log('=== RUNNING 100 QUERIES THROUGH NAFID OFFLINE AI INTENT PARSER ===\n');
+
+let unknownCount = 0;
+queries.forEach((q, idx) => {
+  const result = OfflineAiIntentParser.parse(q);
+  console.log(`${idx + 1}. Q: "${q}"`);
+  console.log(`   👉 Intent: [${result.intent}] | Params: ${JSON.stringify(result.params)}`);
+  if (result.intent === 'UNKNOWN') {
+    unknownCount++;
+  }
+});
+
+console.log(`\n================================`);
+console.log(`Total Queries Tested: ${queries.length}`);
+console.log(`Recognized Intents: ${queries.length - unknownCount}`);
+console.log(`Unknown Intents: ${unknownCount}`);
+console.log(`================================`);

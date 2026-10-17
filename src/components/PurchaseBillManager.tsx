@@ -48,6 +48,7 @@ interface PurchaseBillItem {
   hsn_sac_code: string;
   sku_barcode?: string;
   item_code?: string;
+  skip_stock_update?: number;
 }
 
 interface Product {
@@ -96,7 +97,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'GST' | 'ESTIMATE'>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'GST' | 'ESTIMATE' | 'PAPER'>('ALL');
   const [filterInvoice, setFilterInvoice] = useState<'ALL' | 'WITH' | 'WITHOUT'>('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -112,10 +113,22 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
 
+  const [billSummaries, setBillSummaries] = useState<Record<string, {
+    totalQty: number;
+    cgst: number;
+    sgst: number;
+    taxableAmount: number;
+    itemsCount: number;
+    hasPaper?: boolean;
+    isAllPaper?: boolean;
+  }>>({});
+
   // derived — apply type, invoice, and date filters on top of the server-side search results
   const filteredBills = useMemo(() => {
     let res = bills;
-    if (filterType !== 'ALL') {
+    if (filterType === 'PAPER') {
+      res = res.filter(b => billSummaries[b.purchase_bill_id]?.hasPaper);
+    } else if (filterType !== 'ALL') {
       res = res.filter(b => b.bill_type === filterType);
     }
     if (filterInvoice === 'WITH') {
@@ -134,7 +147,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       res = res.filter(b => new Date(b.bill_date) <= to);
     }
     return res;
-  }, [bills, filterType, filterInvoice, dateFrom, dateTo]);
+  }, [bills, filterType, filterInvoice, dateFrom, dateTo, billSummaries]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [supplierName, setSupplierName] = useState('');
@@ -154,13 +167,6 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [billType, setBillType] = useState<'GST' | 'ESTIMATE'>('GST');
   const [gstHasItems, setGstHasItems] = useState(false);
   const [estHasItems, setEstHasItems] = useState(false);
-  const [billSummaries, setBillSummaries] = useState<Record<string, {
-    totalQty: number;
-    cgst: number;
-    sgst: number;
-    taxableAmount: number;
-    itemsCount: number;
-  }>>({});
 
   // ── Party Create Dialog ──
   const [showPartyCreateForm, setShowPartyCreateForm] = useState(false);
@@ -236,12 +242,16 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         estBills.forEach((bill, idx) => {
           const items: any[] = (estResults[idx] as any)?.value || [];
           if (Array.isArray(items)) {
+            const hasPaper = items.some(i => i.skip_stock_update === 1);
+            const isAllPaper = items.length > 0 && items.every(i => i.skip_stock_update === 1);
             summaries[bill.purchase_bill_id] = {
               totalQty: items.reduce((a, i) => a + Number(i.quantity), 0),
               cgst: 0,
               sgst: 0,
               taxableAmount: bill.total_amount,
               itemsCount: items.length,
+              hasPaper,
+              isAllPaper,
             };
           }
         });
@@ -263,12 +273,16 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           }
           return acc;
         }, 0);
+        const hasPaper = items.some(i => i.skip_stock_update === 1);
+        const isAllPaper = items.length > 0 && items.every(i => i.skip_stock_update === 1);
         summaries[bill.purchase_bill_id] = {
           totalQty: items.reduce((a, i) => a + Number(i.quantity), 0),
           cgst: totalGst / 2,
           sgst: totalGst / 2,
           taxableAmount: bill.total_amount - totalGst,
           itemsCount: items.length,
+          hasPaper,
+          isAllPaper,
         };
       }
     });
@@ -281,12 +295,16 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       estBills.forEach((bill, idx) => {
         const items: any[] = (estResults[idx] as any)?.value || [];
         if (Array.isArray(items)) {
+          const hasPaper = items.some(i => i.skip_stock_update === 1);
+          const isAllPaper = items.length > 0 && items.every(i => i.skip_stock_update === 1);
           summaries[bill.purchase_bill_id] = {
             totalQty: items.reduce((a, i) => a + Number(i.quantity), 0),
             cgst: 0,
             sgst: 0,
             taxableAmount: bill.total_amount,
             itemsCount: items.length,
+            hasPaper,
+            isAllPaper,
           };
         }
       });
@@ -746,8 +764,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             <div className="flex items-center gap-3 flex-wrap">
               {/* Type Filter */}
               <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none">
-                {(['ALL', 'GST', 'ESTIMATE'] as const).map(type => {
-                  const count = type === 'ALL' ? bills.length : bills.filter(b => b.bill_type === type).length;
+                {(['ALL', 'GST', 'ESTIMATE', 'PAPER'] as const).map(type => {
+                  const count = type === 'ALL'
+                    ? bills.length
+                    : type === 'PAPER'
+                    ? bills.filter(b => billSummaries[b.purchase_bill_id]?.hasPaper).length
+                    : bills.filter(b => b.bill_type === type).length;
                   const active = filterType === type;
                   return (
                     <button
@@ -761,7 +783,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                           : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       )}
                     >
-                      {type === 'ALL' ? 'All Type' : type === 'GST' ? 'GST Only' : 'Estimate Only'}
+                      {type === 'ALL' ? 'All Type' : type === 'GST' ? 'GST Only' : type === 'ESTIMATE' ? 'Estimate Only' : '📄 Paper Only'}
                       {!loading && (
                         <span className={clsx(
                           "text-[10px] px-1.5 py-0.5 rounded-md font-black min-w-[18px] text-center ml-1.5",
@@ -850,7 +872,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
                   <Receipt className="w-16 h-16 mb-4 opacity-40" />
                   <p className="font-semibold text-foreground text-lg">
-                    {filterType === 'ALL' ? 'No purchase bills found' : `No ${filterType === 'GST' ? 'GST' : 'Estimate'} bills found`}
+                    {filterType === 'ALL'
+                      ? 'No purchase bills found'
+                      : filterType === 'PAPER'
+                      ? 'No paper purchase bills found'
+                      : `No ${filterType === 'GST' ? 'GST' : 'Estimate'} bills found`}
                   </p>
                   <p className="text-sm mt-1">
                     {filterType !== 'ALL' ? `Try switching to "All" to see all bills` : 'Click "New Purchase Bill" to record a purchase entry'}
@@ -881,6 +907,16 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                                   : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                               )}>
                                 {bill.bill_type}
+                              </span>
+                            )}
+                            {billSummaries[bill.purchase_bill_id]?.isAllPaper && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 shrink-0">
+                                📄 Paper
+                              </span>
+                            )}
+                            {!billSummaries[bill.purchase_bill_id]?.isAllPaper && billSummaries[bill.purchase_bill_id]?.hasPaper && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 shrink-0">
+                                📄 Has Paper
                               </span>
                             )}
                             {bill.payment_type && bill.payment_type !== 'CASH' && (
@@ -1385,7 +1421,18 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                               {idx + 1}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-bold text-foreground truncate">{item.product_name || item.name}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-foreground truncate">{item.product_name || item.name}</p>
+                                {item.skip_stock_update === 1 ? (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 shrink-0">
+                                    📄 Paper
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                                    📦 Real
+                                  </span>
+                                )}
+                              </div>
                               {(item.sku_barcode || item.hsn_sac_code) && (
                                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                   {item.sku_barcode && (
@@ -1928,7 +1975,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setNewProductUom('Pcs');
     setNewProductPurchasePrice(item.purchase_price || '');
     setNewProductBasePrice(item.selling_price || '');
-    setNewProductStock('');
+    setNewProductStock(item.quantity ? String(item.quantity) : '1');
     setNewProductReorderLevel('');
     setNewProductHsn(item.hsn_sac_code || '');
     setNewProductTaxRate(item.tax_rate_percent ?? 18);
@@ -1961,7 +2008,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           if (!item.purchase_price || Number(item.purchase_price) <= 0) setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : '');
           if (!item.selling_price || Number(item.selling_price) <= 0) setNewProductBasePrice(p.base_price != null ? String(p.base_price) : '');
           const currentStock = p.current_stock != null ? Number(p.current_stock) : 0;
-          setNewProductStock(currentStock !== 0 ? String(currentStock) : '');
           setOriginalProductStock(currentStock);
           setNewProductReorderLevel(p.reorder_level != null ? String(p.reorder_level) : '');
           setNewProductHsn(p.hsn_sac_code || '');
@@ -2027,6 +2073,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 is_gst_applicable: item.is_gst_applicable,
                 tax_rate_percent: item.tax_rate_percent,
                 hsn_sac_code: item.hsn_sac_code,
+                skip_stock_update: item.skip_stock_update !== undefined && item.skip_stock_update !== null
+                  ? Number(item.skip_stock_update)
+                  : 0,
               }));
               setBillItems(mapped);
               if (mapped.length > 0) onItemsLoaded?.();
@@ -2186,66 +2235,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   }, [productSearch, tenantId]);
 
   const addProductToBill = async (product: Product) => {
-    const isGstBill = type === 'GST';
-    const isProductGst = product.is_gst_applicable !== 0;
-
-    if ((isGstBill && !isProductGst) || (!isGstBill && isProductGst)) {
-      // Scenario B: Product type mismatch. Must save separately as a new product.
-      let barcode = '';
-      if (window.electronAPI && tenantId) {
-        try {
-          const gen = await window.electronAPI.dbGenerateBarcode({ 
-            tenant_id: tenantId, 
-            item_code: product.item_code || undefined 
-          });
-          if (gen?.success && gen?.barcode) {
-            barcode = gen.barcode;
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      if (!barcode) {
-        barcode = '999' + Date.now().toString().slice(-9);
-      }
-
-      const cleanName = product.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '');
-      const newName = cleanName + (isGstBill ? ' (GST)' : ' (EST)');
-      const newProductId = uuidv4();
-
-      if (billItems.some(i => i.name === newName)) return;
-
-      setBillItems(prev => [...prev, {
-        product_id: newProductId,
-        name: newName,
-        quantity: '1',
-        purchase_price: String(product.gst_purchase_price || product.purchase_price || 0),
-        selling_price: String(product.base_price || 0),
-        offer_price: product.offer_price != null && Number(product.offer_price) > 0 ? String(product.offer_price) : '',
-        stock: '0',
-        is_gst_applicable: isGstBill ? 1 : 0,
-        tax_rate_percent: isGstBill ? (product.tax_rate_percent ?? 18) : 0,
-        hsn_sac_code: isGstBill ? (product.hsn_sac_code || '') : '',
-        is_new_product_clone: true,
-        clone_metadata: {
-          barcode: barcode,
-          item_code: (product.item_code || '').toUpperCase(),
-          brand_manufacturer: product.brand_manufacturer || '',
-          category: product.category || '',
-          uom: product.uom || 'Pcs',
-          reorder_level: product.reorder_level || 0,
-          original_product_id: product.product_id,
-          original_product_name: product.name,
-          original_product_is_gst: product.is_gst_applicable !== 0,
-        }
-      }]);
-
-      setProductSearch('');
-      setProducts([]);
-      setTimeout(() => { hsnInputRefs.current[hsnInputRefs.current.length - 1]?.focus(); }, 0);
-      return;
-    }
-
     if (billItems.some(i => i.product_id === product.product_id)) return;
 
     const isPaperProduct = (() => {
@@ -2253,9 +2242,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         const da = typeof product.domain_attributes === 'string'
           ? JSON.parse(product.domain_attributes || '{}')
           : (product.domain_attributes || {});
-        return da.gst_type === 'PAPER' || Number(da.paper_stock || 0) > 0;
+        return da.gst_type === 'PAPER' || Number(da.paper_stock || 0) > 0 || (Number(product.current_stock || 0) <= 0 && Number((product as any).paper_stock || 0) > 0);
       } catch { return false; }
     })();
+
+    const isSharedWithOther = (getOtherSectionItems?.() ?? []).some(i => i.product_id === product.product_id);
 
     setBillItems(prev => [...prev, {
       product_id: product.product_id,
@@ -2269,10 +2260,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       ),
       offer_price: product.offer_price != null && Number(product.offer_price) > 0 ? String(product.offer_price) : '',
       stock: product.current_stock != null ? String(product.current_stock) : '',
-      is_gst_applicable: product.is_gst_applicable,
-      tax_rate_percent: product.tax_rate_percent,
-      hsn_sac_code: product.hsn_sac_code,
-      skip_stock_update: isPaperProduct ? 1 : 0,
+      is_gst_applicable: type === 'GST' ? (product.is_gst_applicable ?? 1) : 0,
+      tax_rate_percent: type === 'GST' ? (product.tax_rate_percent ?? 18) : 0,
+      hsn_sac_code: product.hsn_sac_code || '',
+      skip_stock_update: type === 'GST' ? (isPaperProduct || isSharedWithOther ? 1 : 0) : 0,
     }]);
     setProductSearch('');
     setProducts([]);
@@ -2524,11 +2515,22 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       const rawPcs = Number(newProductPcs) || 0;
       // Use original stock to avoid double stock entry when purchase bill is saved
       const stockToPreserve = originalProductStock ?? 0;
-      const domainAttrsObj: Record<string, any> = {};
+      let domainAttrsObj: Record<string, any> = {};
+      try {
+        const existingProduct = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [editingProductItemId] });
+        if (Array.isArray(existingProduct) && existingProduct[0]?.domain_attributes) {
+          domainAttrsObj = typeof existingProduct[0].domain_attributes === 'string'
+            ? JSON.parse(existingProduct[0].domain_attributes)
+            : existingProduct[0].domain_attributes;
+        }
+      } catch {}
       if (isWeightBilling && rawPcs > 0) {
         domainAttrsObj.pcs_per_kg = stockToPreserve > 0 ? rawPcs / stockToPreserve : rawPcs;
         domainAttrsObj.pcs_stock = rawPcs;
         domainAttrsObj.pcs = rawPcs;
+      }
+      if (type === 'GST') {
+        domainAttrsObj.gst_type = newProductIsDummy ? 'PAPER' : 'REAL';
       }
       const res = await window.electronAPI.dbUpdateProduct({
         product_id: editingProductItemId,
@@ -2550,7 +2552,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
         offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
         billing_type: billingType,
-        domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
+        domain_attributes: JSON.stringify(domainAttrsObj),
         grade_id: selectedGrade?.grade_id || null,
         pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       });
@@ -2571,6 +2573,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             ? {
                 ...i,
                 name: newProductName.trim(),
+                quantity: (newProductStock && Number(newProductStock) > 0) ? String(newProductStock) : i.quantity,
                 purchase_price: String(purchasePrice),
                 selling_price: String(basePrice),
                 offer_price: newProductOfferPrice && Number(newProductOfferPrice) > 0 ? String(newProductOfferPrice) : '',
@@ -2612,6 +2615,17 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       domainAttrsObj.pcs_stock = rawPcs;
       domainAttrsObj.pcs = rawPcs;
     }
+    if (type === 'GST') {
+      domainAttrsObj.gst_type = newProductIsDummy ? 'PAPER' : 'REAL';
+      if (purchasePrice > 0) {
+        domainAttrsObj.gst_purchase_price = purchasePrice;
+        domainAttrsObj.paper_purchase_price = purchasePrice;
+      }
+      if (basePrice > 0) {
+        domainAttrsObj.paper_mrp = basePrice;
+        domainAttrsObj.paper_base_price = basePrice;
+      }
+    }
     const res = await window.electronAPI.dbAddProduct({
       product_id: productId,
       tenant_id: tenantId,
@@ -2632,7 +2646,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
       offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
       billing_type: billingType,
-      domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
+      domain_attributes: JSON.stringify(domainAttrsObj),
       grade_id: selectedGrade?.grade_id || null,
       pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       is_deleted: 0,
@@ -2651,15 +2665,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           pricing: tierRows,
         });
       }
-      const defaultQty = '1';
+      const initialQty = (newProductStock && Number(newProductStock) > 0) ? String(newProductStock) : '1';
       setBillItems(prev => [...prev, {
         product_id: productId,
         name: newProductName.trim(),
-        quantity: defaultQty,
+        quantity: initialQty,
         purchase_price: String(purchasePrice),
         selling_price: String(basePrice),
         offer_price: newProductOfferPrice && Number(newProductOfferPrice) > 0 ? String(newProductOfferPrice) : '',
-        stock: newProductStock || '',
+        stock: '0',
         is_gst_applicable: type === 'GST' ? 1 : 0,
         tax_rate_percent: type === 'GST' ? newProductTaxRate : 0,
         hsn_sac_code: type === 'GST' ? newProductHsn : '',
@@ -2708,56 +2722,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const otherProductIds = new Set(otherItems.map(i => i.product_id));
 
     if (window.electronAPI) {
-      // First, save any cloned products to the database as new products
-      for (const item of billItems) {
-        if (item.is_new_product_clone && item.clone_metadata) {
-          const meta = item.clone_metadata;
-          const purchasePrice = Number(item.purchase_price) || 0;
-          const basePrice = Number(item.selling_price) || purchasePrice;
-          
-          await window.electronAPI.dbAddProduct({
-            product_id: item.product_id,
-            tenant_id: tenantId,
-            name: item.name.trim(),
-            sku_barcode: meta.barcode,
-            item_code: meta.item_code,
-            category: meta.category,
-            brand_manufacturer: meta.brand_manufacturer,
-            uom: meta.uom,
-            purchase_price: purchasePrice,
-            base_price: basePrice,
-            current_stock: 0,
-            reorder_level: Number(meta.reorder_level) || 0,
-            is_gst_applicable: item.is_gst_applicable ?? (type === 'GST' ? 1 : 0),
-            tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
-            hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
-            discount_percent: null,
-            discount_flat: null,
-            offer_price: item.offer_price ? Number(item.offer_price) : null,
-            billing_type: 'PIECE',
-            grade_id: null,
-            pricing_mode: 'FIXED_PRICE',
-            is_deleted: 0,
-            sync_status: 'PENDING',
-          });
-
-          // Rename original product in database to also have its matching type suffix (e.g. "tape" -> "tape (GST)")
-          if (meta.original_product_id && meta.original_product_name) {
-            const origId = meta.original_product_id;
-            const origName = meta.original_product_name;
-            const cleanOrigName = origName.replace(/\s*\((GST|EST|Estimate)\)$/i, '');
-            const origNewName = cleanOrigName + (meta.original_product_is_gst ? ' (GST)' : ' (EST)');
-            
-            if (origName !== origNewName) {
-              await window.electronAPI.dbUpdateProductName({
-                tenant_id: tenantId,
-                product_id: origId,
-                name: origNewName,
-              });
-            }
-          }
-        }
-      }
 
       let finalBillNumber = billNumber;
       if (!editingData && window.electronAPI && tenantId) {
@@ -2800,7 +2764,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           is_gst_applicable: item.is_gst_applicable ?? (type === 'GST' ? 1 : 0),
           tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
           hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
-          skip_stock_update: type === 'GST' ? (item.skip_stock_update ?? (otherProductIds.has(item.product_id) ? 1 : 0)) : 0,
+          skip_stock_update: type === 'GST' ? ((otherProductIds.has(item.product_id) || item.skip_stock_update === 1) ? 1 : 0) : 0,
         })),
       };
 
@@ -2836,68 +2800,18 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
-    is_new_product_clone?: boolean;
-    clone_metadata?: any;
+    skip_stock_update?: number;
   }) => {
     const isGstBill = type === 'GST';
-    const isItemGst = item.is_gst_applicable !== 0;
-
-    if ((isGstBill && !isItemGst) || (!isGstBill && isItemGst)) {
-      // Scenario B: Product type mismatch inside share action. Must save separately as a new product.
-      let barcode = '';
-      if (window.electronAPI && tenantId) {
-        try {
-          const gen = await window.electronAPI.dbGenerateBarcode({ 
-            tenant_id: tenantId 
-          });
-          if (gen?.success && gen?.barcode) {
-            barcode = gen.barcode;
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      if (!barcode) {
-        barcode = '999' + Date.now().toString().slice(-9);
-      }
-
-      const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '');
-      const newName = cleanName + (isGstBill ? ' (GST)' : ' (EST)');
-      const newProductId = uuidv4();
-
-      setBillItems(prev => {
-        if (prev.some(i => i.name === newName)) return prev;
-        return [...prev, {
-          product_id: newProductId,
-          name: newName,
-          quantity: item.quantity || '1',
-          purchase_price: item.purchase_price || '0',
-          selling_price: item.selling_price || '0',
-          offer_price: item.offer_price || '',
-          stock: '0',
-          is_gst_applicable: isGstBill ? 1 : 0,
-          tax_rate_percent: isGstBill ? (item.tax_rate_percent ?? 18) : 0,
-          hsn_sac_code: isGstBill ? (item.hsn_sac_code || '') : '',
-          is_new_product_clone: true,
-          clone_metadata: {
-            barcode: barcode,
-            item_code: '',
-            brand_manufacturer: '',
-            category: '',
-            uom: 'Pcs',
-            reorder_level: 0,
-            original_product_id: item.product_id,
-            original_product_name: item.name,
-            original_product_is_gst: isItemGst,
-          }
-        }];
-      });
-    } else {
-      setBillItems(prev => {
-        if (prev.some(i => i.product_id === item.product_id)) return prev;
-        return [...prev, { ...item }];
-      });
-    }
+    setBillItems(prev => {
+      if (prev.some(i => i.product_id === item.product_id)) return prev;
+      return [...prev, {
+        ...item,
+        is_gst_applicable: isGstBill ? (item.is_gst_applicable ?? 1) : 0,
+        tax_rate_percent: isGstBill ? (item.tax_rate_percent ?? 18) : 0,
+        skip_stock_update: isGstBill ? 1 : 0,
+      }];
+    });
   };
 
   useImperativeHandle(ref, () => ({
@@ -3332,7 +3246,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         {[
                           { label: 'Purchase Price', field: 'purchasePrice', prefix: '₹' },
                           { label: 'MRP *', field: 'basePrice', prefix: '₹' },
-                          { label: 'Current Stock', field: 'stock' },
+                          { label: editingProductItemId ? 'Bill Qty' : 'Purchase Qty', field: 'stock' },
                           { label: 'Low Stock Alert', field: 'reorderLevel' },
                         ].map(({ label, field, prefix }) => (
                           <div key={field} className="flex-1 min-w-0">
@@ -3350,6 +3264,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                   else if (field === 'stock') setNewProductStock(val);
                                   else setNewProductReorderLevel(val);
                                 }}
+                                placeholder={field === 'stock' ? '1' : undefined}
                                 className={clsx(
                                   'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
                                   prefix && 'pl-8',
@@ -3357,6 +3272,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                 )}
                               />
                             </div>
+                            {field === 'stock' && editingProductItemId && originalProductStock !== null && (
+                              <span className="block text-[10px] text-muted-foreground font-semibold mt-1">Shop stock: {originalProductStock}</span>
+                            )}
                           </div>
                         ))}
                         <div className="flex-1 min-w-0">
@@ -3604,7 +3522,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                     <button type="button" data-enter-submit onClick={() => handleCreateAndAddProduct()} disabled={!newProductName.trim()}
                       className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                       <Save className="w-3.5 h-3.5" />
-                      {editingProductItemId ? 'Update Product' : 'Add to Inventory'}
+                      {editingProductItemId ? 'Update Product' : 'Add to Bill'}
                     </button>
                   </div>
                 </div>
@@ -3738,7 +3656,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   const gstAmt = hasGst ? taxableAmt * (taxRate / 100) : 0;
                   const itemTotal = taxableAmt + gstAmt;
                   // Dummy = paper stock / tax record only (no stock add); Real = stock-in.
-                  const isDummy = enableRealPaperStock && (item.skip_stock_update ?? ((getOtherSectionItems?.() ?? []).some(i => i.product_id === item.product_id) ? 1 : 0)) === 1;
+                  const isOtherSectionPresent = (getOtherSectionItems?.() ?? []).some(i => i.product_id === item.product_id);
+                  const isDummy = enableRealPaperStock && (isOtherSectionPresent || item.skip_stock_update === 1);
                   return (
                     <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                       <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">

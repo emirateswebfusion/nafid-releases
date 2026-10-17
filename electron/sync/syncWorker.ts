@@ -81,9 +81,17 @@ const isGstApplicableProduct = (gstFlag: unknown, hsnCode: unknown): boolean => 
 };
 let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
 let isSyncActive = false;
+let authExpiredNotified = false;
+
+export function resetAuthExpiredNotification() {
+  authExpiredNotified = false;
+}
 
 export function setSyncActive(active: boolean) {
   isSyncActive = active;
+  if (active) {
+    authExpiredNotified = false;
+  }
   console.log(`[SyncWorker] Sync active state changed to: ${active}`);
 }
 
@@ -608,10 +616,13 @@ async function clearAuthAndNotify() {
     clearTimeout(syncCycleTimerId);
     syncCycleTimerId = null;
   }
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win) {
-    console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Pausing cloud sync loop and notifying UI (local POS remains active).');
-    win.webContents.send('auth:token-expired');
+  if (!authExpiredNotified) {
+    authExpiredNotified = true;
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win && !win.isDestroyed()) {
+      console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Pausing cloud sync loop and notifying UI (local POS remains active).');
+      win.webContents.send('auth:token-expired');
+    }
   }
 }
 
@@ -982,6 +993,7 @@ export async function runInitialSync(sender?: WebContents) {
     clearAuthAndNotify();
     return { success: false, error: 'Auth token expired or missing' };
   }
+  authExpiredNotified = false;
   console.log('[SyncWorker] Running explicit initial sync...');
   isSyncActive = true;
   if (config?.tenant_id) {
@@ -1288,26 +1300,47 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       try {
         notifyProgress(1, sender, 0, totalRecords); await syncGrades(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(1.1, sender, undefined, totalRecords); await syncPricingTiers(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(1.2, sender, undefined, totalRecords); await syncProductPricing(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(2, sender, undefined, totalRecords); await syncProducts(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(3, sender, undefined, totalRecords); await syncInvoices(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(4, sender, undefined, totalRecords); await syncSettings(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(5, sender, undefined, totalRecords); await syncParties(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(5.1, sender, undefined, totalRecords); await pushCustomers(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(5.2, sender, undefined, totalRecords); await pushLoyaltyTransactions(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(6, sender, undefined, totalRecords); await syncPartyLedger(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(7, sender, undefined, totalRecords); await syncScrapCategories(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(8, sender, undefined, totalRecords); await syncScrapTransactions(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(9, sender, undefined, totalRecords); await syncPurchaseBills(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(10, sender, undefined, totalRecords); await syncCashDrawer(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(11.1, sender, undefined, totalRecords); await syncCashierAuditLog(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12, sender, undefined, totalRecords); await syncCashCategories(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.1, sender, undefined, totalRecords); await syncReturns(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests
         const syncCheckTables = [
           'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
@@ -1417,6 +1450,7 @@ async function pushBatch<T>(
   bodyKey: string,
   label: string,
 ): Promise<string[]> {
+  if (!isSyncActive) return [];
   if (batch.length === 0) return [];
 
   const MAX_RETRIES = 3;
@@ -1847,6 +1881,7 @@ async function pullPaginated(opts: {
   onProgress?: (fetched: number) => void;
   processPage: (rows: any[]) => number;
 }): Promise<{ count: number; reconciled: number; failed: boolean; hasChanged: boolean }> {
+  if (!isSyncActive) return { count: 0, reconciled: 0, failed: true, hasChanged: false };
   const pageSize = opts.pageSize ?? PULL_PAGE_SIZE;
   const tsColumn = opts.tsColumn ?? 'updated_at';
   const since = replaySince(getMeta(cursorKey(opts.tenantId, opts.table)));
@@ -1859,6 +1894,7 @@ async function pullPaginated(opts: {
   const fetchedRowSignatures: string[] = [];
 
   const fetchPage = async (offsetVal: number): Promise<any[] | null> => {
+    if (!isSyncActive) return null;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offsetVal) });
     if (since) params.set('since', since);
     for (let attempt = 1; attempt <= PULL_MAX_RETRIES; attempt++) {
@@ -2789,56 +2825,12 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
 async function pullParties(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  // Upsert by business key for CUSTOMER-type parties using the partial unique index
-  // For CUSTOMER parties: unique on (tenant_id, name, phone) WHERE party_type = 'CUSTOMER' AND is_deleted = 0
-  // For other party types (SUPPLIER, STAFF, CUSTOM): fall back to party_id
-  const upsertCustomerParty = db.prepare(`
+  const upsertParty = db.prepare(`
     INSERT INTO parties (
-      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, is_deleted,
+      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry, whatsapp_alerts_enabled, is_deleted,
       sync_status, created_at, updated_at
     ) VALUES (
-      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @party_type, @custom_category, @notes, @last_transaction_date, @pricing_tier_id, @credit_limit, @is_deleted,
-      'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(tenant_id, name, phone) WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0) DO UPDATE SET
-      party_id = excluded.party_id,
-      address = excluded.address,
-      gstin = excluded.gstin,
-      balance = CASE
-        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        THEN (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        ELSE excluded.balance
-      END,
-      gst_balance = CASE
-        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        ELSE excluded.gst_balance
-      END,
-      estimate_balance = CASE
-        WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        ELSE excluded.estimate_balance
-      END,
-      balance_type = excluded.balance_type,
-      party_type = excluded.party_type,
-      custom_category = excluded.custom_category,
-      notes = excluded.notes,
-      last_transaction_date = COALESCE(excluded.last_transaction_date, parties.last_transaction_date),
-      pricing_tier_id = excluded.pricing_tier_id,
-      credit_limit = excluded.credit_limit,
-      is_deleted = excluded.is_deleted,
-      created_at = COALESCE(parties.created_at, excluded.created_at),
-      updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE parties.sync_status != 'PENDING' OR excluded.updated_at >= parties.updated_at OR parties.updated_at IS NULL
-  `);
-
-  const upsertOtherParty = db.prepare(`
-    INSERT INTO parties (
-      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, is_deleted,
-      sync_status, created_at, updated_at
-    ) VALUES (
-      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @party_type, @custom_category, @notes, @last_transaction_date, @pricing_tier_id, @credit_limit, @is_deleted,
+      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @party_type, @custom_category, @notes, @last_transaction_date, @pricing_tier_id, @credit_limit, @credit_period_enabled, @credit_period_days, @credit_period_basis, @restrict_on_credit_expiry, @whatsapp_alerts_enabled, @is_deleted,
       'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(party_id) DO UPDATE SET
@@ -2868,11 +2860,32 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
       last_transaction_date = COALESCE(excluded.last_transaction_date, parties.last_transaction_date),
       pricing_tier_id = excluded.pricing_tier_id,
       credit_limit = excluded.credit_limit,
+      credit_period_enabled = excluded.credit_period_enabled,
+      credit_period_days = excluded.credit_period_days,
+      credit_period_basis = excluded.credit_period_basis,
+      restrict_on_credit_expiry = excluded.restrict_on_credit_expiry,
+      whatsapp_alerts_enabled = excluded.whatsapp_alerts_enabled,
       is_deleted = excluded.is_deleted,
       created_at = COALESCE(parties.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
     WHERE parties.sync_status != 'PENDING' OR excluded.updated_at >= parties.updated_at OR parties.updated_at IS NULL
+  `);
+
+  const findCustomerPartyDuplicate = db.prepare(`
+    SELECT party_id FROM parties
+    WHERE tenant_id = ? AND party_id != ? AND party_type = 'CUSTOMER'
+      AND name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL))
+      AND (is_deleted IS NULL OR is_deleted = 0)
+    LIMIT 1
+  `);
+
+  const reassignPartyLedger = db.prepare(`
+    UPDATE party_ledger SET party_id = ?, sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?
+  `);
+
+  const softDeleteParty = db.prepare(`
+    UPDATE parties SET is_deleted = 1, sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?
   `);
 
   const result = await pullPaginated({
@@ -2888,14 +2901,23 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
           try {
             const isCustomer = (p.party_type || 'CUSTOMER').toUpperCase() === 'CUSTOMER';
             const hasPhone = p.phone && p.phone.trim() !== '';
-            // Use business key upsert for CUSTOMER parties with phone
-            // For CUSTOMER parties without phone or non-CUSTOMER parties, use party_id
-            const stmt = (isCustomer && hasPhone) ? upsertCustomerParty : upsertOtherParty;
-            stmt.run({
+            const phoneVal = hasPhone ? p.phone.trim() : null;
+            const tId = p.tenant_id || tenantId;
+
+            if (isCustomer) {
+              const dupParty: any = findCustomerPartyDuplicate.get(tId, p.party_id, p.name, phoneVal, phoneVal);
+              if (dupParty) {
+                // Reassign any local ledger entries to incoming canonical party_id and soft delete duplicate
+                reassignPartyLedger.run(p.party_id, dupParty.party_id, tId);
+                softDeleteParty.run(dupParty.party_id, tId);
+              }
+            }
+
+            upsertParty.run({
               party_id: p.party_id,
-              tenant_id: tenantId,
+              tenant_id: tId,
               name: p.name,
-              phone: hasPhone ? p.phone.trim() : null,
+              phone: phoneVal,
               address: p.address || null,
               gstin: p.gstin || null,
               balance: p.balance ?? 0,
@@ -2908,6 +2930,11 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
               last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
               pricing_tier_id: p.pricing_tier_id || null,
               credit_limit: Number(p.credit_limit) || 0,
+              credit_period_enabled: p.credit_period_enabled ? 1 : 0,
+              credit_period_days: Math.max(1, parseInt(p.credit_period_days, 10) || 30),
+              credit_period_basis: p.credit_period_basis || 'BILL_BASED',
+              restrict_on_credit_expiry: p.restrict_on_credit_expiry !== false && (p.restrict_on_credit_expiry as any) !== 0 ? 1 : 0,
+              whatsapp_alerts_enabled: p.whatsapp_alerts_enabled !== 0 && p.whatsapp_alerts_enabled !== false ? 1 : 0,
               is_deleted: parseIsDeleted(p.is_deleted),
               created_at: toSqliteDate(p.created_at),
               updated_at: toSqliteDate(p.updated_at),

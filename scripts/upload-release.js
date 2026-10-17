@@ -116,8 +116,27 @@ function uploadFileWithProgress(uploadUrl, filePath, contentType) {
   });
 }
 
+function getReleaseNotes(version) {
+  const notesPath = path.join(__dirname, '../RELEASE_NOTES.md');
+  if (!fs.existsSync(notesPath)) return `Release v${version}`;
+  const content = fs.readFileSync(notesPath, 'utf8').replace(/\r\n/g, '\n');
+  const cleanVer = version.replace(/^v/, '');
+  const sections = content.split(/^# /m);
+  for (const s of sections) {
+    const firstLine = s.split('\n')[0] || '';
+    if (firstLine.includes(cleanVer)) {
+      const body = s.slice(firstLine.length).trim();
+      if (body) return body;
+    }
+  }
+  return `Release v${version}`;
+}
+
 async function run() {
   console.log(`Checking release for tag ${tag}...`);
+  const releaseBody = getReleaseNotes(pkg.version);
+  console.log(`Release notes loaded:\n${releaseBody}\n`);
+
   let res = await request(`https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`);
 
   if (res.status === 404) {
@@ -129,9 +148,17 @@ async function run() {
       tag_name: tag,
       target_commitish: 'main',
       name: tag,
-      body: `Release ${tag}`,
+      body: releaseBody,
       draft: false,
       prerelease: false
+    }));
+  } else if (res.status === 200) {
+    console.log(`Release ${tag} exists. Syncing release notes...`);
+    await request(`https://api.github.com/repos/${owner}/${repo}/releases/${res.body.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' }
+    }, JSON.stringify({
+      body: releaseBody
     }));
   }
 

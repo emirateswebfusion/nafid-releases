@@ -11,15 +11,35 @@ function localTimestamp(d: Date | string | number = new Date()): string {
   return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
 }
 
-function parsePermissionList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((permission): permission is string => typeof permission === 'string' && permission !== '*');
-  if (typeof value !== 'string' || !value.trim()) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((permission): permission is string => typeof permission === 'string' && permission !== '*') : [];
-  } catch {
-    return [];
+function parsePermissionList(value: unknown, restrictedPage?: unknown): string[] {
+  let perms: string[] = [];
+  if (Array.isArray(value)) perms = value.filter((permission): permission is string => typeof permission === 'string' && permission !== '*');
+  else if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) perms = parsed.filter((permission): permission is string => typeof permission === 'string' && permission !== '*');
+    } catch {
+      perms = [];
+    }
   }
+
+  if (perms.length === 0 && typeof restrictedPage === 'string' && restrictedPage.trim()) {
+    const list = restrictedPage.split(',').map(s => s.trim().toUpperCase());
+    if (!list.includes('BILLING')) {
+      perms.push('sales.view', 'sales.view_gst', 'sales.view_estimate', 'sales.create', 'sales.create_gst', 'sales.create_estimate', 'sales.edit', 'sales.delete', 'sales.discount', 'sales.refund', 'sales.reprint');
+    }
+    if (!list.includes('INVENTORY')) perms.push('products.view', 'products.view_gst', 'products.view_estimate', 'products.create', 'products.create_gst', 'products.create_estimate', 'products.edit', 'products.stock_adjust');
+    if (!list.includes('CUSTOMERS')) perms.push('customers.view', 'customers.create', 'customers.edit', 'customers.ledger');
+    if (!list.includes('PURCHASES')) perms.push('purchases.view', 'purchases.view_gst', 'purchases.view_estimate', 'purchases.create', 'purchases.edit');
+    if (!list.includes('CASH_REGISTER')) perms.push('cash_register.view', 'cash_register.cash_in', 'cash_register.cash_out', 'cash_register.settlement');
+    if (!list.includes('QUOTATIONS')) perms.push('quotations.view', 'quotations.create', 'quotations.edit');
+    if (!list.includes('SCRAP')) perms.push('scrap.view', 'scrap.create', 'scrap.edit');
+    if (!list.includes('WARRANTY')) perms.push('warranties.view', 'warranties.create', 'warranties.edit');
+    if (!list.includes('REPORTS')) perms.push('reports.view', 'reports.financial', 'reports.export');
+    if (!list.includes('SETTINGS')) perms.push('settings.view', 'settings.edit');
+  }
+
+  return perms;
 }
 
 let db: Database.Database;
@@ -798,6 +818,50 @@ export function initDb() {
         value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS ecommerce_settings (
+        tenant_id TEXT PRIMARY KEY,
+        fusioncart_url TEXT DEFAULT 'http://localhost:5050/api',
+        store_id INTEGER,
+        vendor_id INTEGER,
+        store_name TEXT,
+        store_slug TEXT,
+        store_description TEXT,
+        contact_email TEXT,
+        contact_phone TEXT,
+        registration_status TEXT DEFAULT 'NOT_REQUESTED',
+        rejection_reason TEXT,
+        last_sync_at DATETIME,
+        last_sync_status TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS ecommerce_product_mappings (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        fusioncart_product_id INTEGER,
+        is_online_enabled INTEGER DEFAULT 0,
+        online_title_override TEXT,
+        online_description_override TEXT,
+        online_price_override REAL,
+        sync_status TEXT DEFAULT 'PENDING',
+        last_error TEXT,
+        last_synced_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, product_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ecommerce_sync_logs (
+        log_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        details TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indexes (created after all tables to avoid forward references)
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_tenant_product ON invoice_items(tenant_id, product_id);
@@ -810,6 +874,8 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_purchase_bills_tenant_supplier ON purchase_bills(tenant_id, supplier_name);
     CREATE INDEX IF NOT EXISTS idx_product_pricing_tenant_product ON product_pricing(tenant_id, product_id, is_deleted);
     CREATE INDEX IF NOT EXISTS idx_pricing_tiers_tenant ON pricing_tiers(tenant_id, is_deleted);
+    CREATE INDEX IF NOT EXISTS idx_ecommerce_product_mappings_tenant_product ON ecommerce_product_mappings(tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_ecommerce_sync_logs_tenant ON ecommerce_sync_logs(tenant_id, created_at);
 
     -- Performance indexes for customer list & detail queries
     CREATE INDEX IF NOT EXISTS idx_customers_tenant_deleted ON customers(tenant_id, is_deleted);
@@ -1011,6 +1077,38 @@ export function initDb() {
     db.exec("UPDATE products SET sku_barcode = NULL WHERE trim(sku_barcode) = ''");
   } catch (e: any) {
     console.warn('[DB Migration] Failed to sanitize empty sku_barcodes:', e.message);
+  }
+
+  // Self-healing migration for paper purchase price and paper MRP
+  try {
+    const stalePaperProducts = db.prepare(`
+      SELECT pbi.product_id, pbi.purchase_price, pbi.selling_price, p.domain_attributes
+      FROM purchase_bill_items pbi
+      JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+      JOIN products p ON pbi.product_id = p.product_id
+      WHERE (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1)
+      ORDER BY pbi.rowid ASC
+    `).all() as any[];
+    for (const row of stalePaperProducts) {
+      let da: Record<string, any> = {};
+      try { da = JSON.parse(row.domain_attributes || '{}'); } catch {}
+      let changed = false;
+      if (row.purchase_price > 0 && !da.gst_purchase_price) {
+        da.gst_purchase_price = row.purchase_price;
+        da.paper_purchase_price = row.purchase_price;
+        changed = true;
+      }
+      if (row.selling_price > 0 && !da.paper_mrp) {
+        da.paper_mrp = row.selling_price;
+        da.paper_base_price = row.selling_price;
+        changed = true;
+      }
+      if (changed) {
+        db.prepare(`UPDATE products SET domain_attributes = ? WHERE product_id = ?`).run(JSON.stringify(da), row.product_id);
+      }
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to sync paper domain attributes:', e.message);
   }
 
   // Repair historical incomplete quotations that have non-zero total but 0 items due to legacy sync
@@ -2218,47 +2316,33 @@ export class CustomerIdentityService {
       // ========== PROCESS CUSTOMER ==========
       if (existingCustomer) {
         try {
+          const custHasRealName = existingCustomer.name && !['customer', 'walk-in', 'walk in', 'default'].includes(existingCustomer.name.trim().toLowerCase());
+          const finalCustName = custHasRealName ? existingCustomer.name : (displayName || existingCustomer.name);
+          const finalCustPhone = (existingCustomer.phone && existingCustomer.phone.trim() !== '') ? existingCustomer.phone : (phone || null);
+          const finalCustAddress = (existingCustomer.address && existingCustomer.address.trim() !== '') ? existingCustomer.address : (address || null);
+          const finalCustGstin = (existingCustomer.gstin && existingCustomer.gstin.trim() !== '') ? existingCustomer.gstin : (gstin || null);
+          const finalCustNotes = (existingCustomer.notes && existingCustomer.notes.trim() !== '') ? existingCustomer.notes : (notes || null);
+
           db.prepare(`
             UPDATE customers
-            SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
-                gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
-                pricing_tier_id = COALESCE(?, pricing_tier_id),
-                credit_limit = COALESCE(?, credit_limit),
-                credit_period_enabled = COALESCE(?, credit_period_enabled),
-                credit_period_days = COALESCE(?, credit_period_days),
-                credit_period_basis = COALESCE(?, credit_period_basis),
-                restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
+            SET name = ?, phone = ?, address = ?,
+                gstin = ?, notes = ?,
                 is_deleted = 0,
                 last_purchase_date = ?,
-                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE customer_id = ?
           `).run(
-            displayName, phone, address, gstin, notes, pricingTierId,
-            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
+            finalCustName, finalCustPhone, finalCustAddress, finalCustGstin, finalCustNotes,
             now, existingCustomer.customer_id
           );
         } catch (_) {
-          db.prepare(`
-            UPDATE customers
-            SET name = ?, address = COALESCE(?, address),
-                gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
-                pricing_tier_id = COALESCE(?, pricing_tier_id),
-                credit_limit = COALESCE(?, credit_limit),
-                credit_period_enabled = COALESCE(?, credit_period_enabled),
-                credit_period_days = COALESCE(?, credit_period_days),
-                credit_period_basis = COALESCE(?, credit_period_basis),
-                restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
-                is_deleted = 0,
-                last_purchase_date = ?,
-                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE customer_id = ?
-          `).run(
-            displayName, address, gstin, notes, pricingTierId,
-            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
-            now, existingCustomer.customer_id
-          );
+          try {
+            db.prepare(`
+              UPDATE customers
+              SET last_purchase_date = ?, is_deleted = 0, updated_at = CURRENT_TIMESTAMP
+              WHERE customer_id = ?
+            `).run(now, existingCustomer.customer_id);
+          } catch {}
         }
       } else {
         const customerSeedKey = phoneClean.length >= 7
@@ -2301,41 +2385,36 @@ export class CustomerIdentityService {
       // ========== PROCESS PARTY ==========
       if (existingParty) {
         try {
-          db.prepare(`
-            UPDATE parties
-            SET name = ?, phone = COALESCE(?, phone), address = COALESCE(?, address),
-                gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
-                pricing_tier_id = COALESCE(?, pricing_tier_id),
-                credit_limit = COALESCE(?, credit_limit),
-                credit_period_enabled = COALESCE(?, credit_period_enabled),
-                credit_period_days = COALESCE(?, credit_period_days),
-                credit_period_basis = COALESCE(?, credit_period_basis),
-                restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
-                is_deleted = 0,
-                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE party_id = ?
-          `).run(
-            displayName, phone, address, gstin, notes, pricingTierId,
-            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
-            existingParty.party_id
-          );
+          const partyHasRealName = existingParty.name && !['customer', 'walk-in', 'walk in', 'default'].includes(existingParty.name.trim().toLowerCase());
+          const finalPartyName = partyHasRealName ? existingParty.name : (displayName || existingParty.name);
+          const finalPartyPhone = (existingParty.phone && existingParty.phone.trim() !== '') ? existingParty.phone : (phone || null);
+          const finalPartyAddress = (existingParty.address && existingParty.address.trim() !== '') ? existingParty.address : (address || null);
+          const finalPartyGstin = (existingParty.gstin && existingParty.gstin.trim() !== '') ? existingParty.gstin : (gstin || null);
+          const finalPartyNotes = (existingParty.notes && existingParty.notes.trim() !== '') ? existingParty.notes : (notes || null);
+
+          const wasDeleted = existingParty.is_deleted === 1;
+          const phoneChanged = !existingParty.phone && finalPartyPhone;
+          const addrChanged = !existingParty.address && finalPartyAddress;
+          const gstinChanged = !existingParty.gstin && finalPartyGstin;
+          const nameChanged = !partyHasRealName && finalPartyName !== existingParty.name;
+
+          if (wasDeleted || phoneChanged || addrChanged || gstinChanged || nameChanged) {
+            db.prepare(`
+              UPDATE parties
+              SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?,
+                  is_deleted = 0,
+                  sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE party_id = ?
+            `).run(
+              finalPartyName, finalPartyPhone, finalPartyAddress, finalPartyGstin, finalPartyNotes,
+              existingParty.party_id
+            );
+          }
         } catch (_) {
-          db.prepare(`
-            UPDATE parties
-            SET address = COALESCE(?, address), gstin = COALESCE(?, gstin), notes = COALESCE(?, notes),
-                pricing_tier_id = COALESCE(?, pricing_tier_id), credit_limit = COALESCE(?, credit_limit),
-                credit_period_enabled = COALESCE(?, credit_period_enabled), credit_period_days = COALESCE(?, credit_period_days),
-                credit_period_basis = COALESCE(?, credit_period_basis), restrict_on_credit_expiry = COALESCE(?, restrict_on_credit_expiry),
-                is_deleted = 0,
-                sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE party_id = ?
-          `).run(
-            address, gstin, notes, pricingTierId,
-            creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry,
-            existingParty.party_id
-          );
+          try {
+            db.prepare('UPDATE parties SET is_deleted = 0 WHERE party_id = ?').run(existingParty.party_id);
+          } catch {}
         }
       } else {
         const partySeedKey = phoneClean.length >= 7
@@ -2879,8 +2958,47 @@ function hashStaffPin(pin: string, tenantId: string): string {
 
 export function dbGetStaff(params: { tenant_id: string; search?: string; status?: string }) {
   const tenantId = params.tenant_id;
+
+  // Auto-reconcile: link any unlinked staff rows by matching email
+  try {
+    db.prepare(`
+      UPDATE staff SET user_id = (
+        SELECT u.user_id FROM users u 
+        WHERE LOWER(u.email) = LOWER(staff.email) AND (u.tenant_id = staff.tenant_id OR staff.tenant_id = 'global')
+        LIMIT 1
+      )
+      WHERE user_id IS NULL AND email IS NOT NULL AND (tenant_id = ? OR ? = 'global')
+    `).run(tenantId, tenantId);
+
+    // Auto-backfill: any user in users table that doesn't have a corresponding staff record
+    const unlinkedUsers = db.prepare(`
+      SELECT u.user_id, u.tenant_id, u.name, u.email, u.role
+      FROM users u
+      LEFT JOIN staff s ON s.user_id = u.user_id AND (s.tenant_id = u.tenant_id OR s.tenant_id = 'global')
+      WHERE s.staff_id IS NULL AND (u.tenant_id = ? OR ? = 'global')
+    `).all(tenantId, tenantId) as any[];
+
+    if (unlinkedUsers.length > 0) {
+      const insertStaffStmt = db.prepare(`
+        INSERT OR IGNORE INTO staff (
+          staff_id, tenant_id, staff_code, name, phone, email, role_designation, user_id, status, sync_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'ACTIVE', 'SYNCED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+      for (const u of unlinkedUsers) {
+        const countRow = db.prepare('SELECT COUNT(*) as cnt FROM staff WHERE tenant_id = ?').get(u.tenant_id) as any;
+        const nextSeq = (countRow?.cnt || 0) + 1;
+        const staffCode = `STF-${String(nextSeq).padStart(4, '0')}`;
+        const roleDesig = ['ADMIN', 'OWNER', 'ADMINISTRATOR'].includes((u.role || '').toUpperCase()) ? 'ADMIN' : 'STAFF';
+        insertStaffStmt.run(crypto.randomUUID(), u.tenant_id, staffCode, u.name || u.email, u.email, roleDesig, u.user_id);
+      }
+    }
+  } catch (reconcileErr) {
+    console.warn('[dbGetStaff] Auto-reconcile error:', reconcileErr);
+  }
+
   let sql = `
     SELECT s.*, u.email as user_email, u.role as user_role, u.permissions as user_permissions,
+      u.restricted_page as user_restricted_page,
       u.login_enabled as user_login_enabled,
       (
         SELECT COALESCE(running_balance, 0)
@@ -2891,9 +3009,9 @@ export function dbGetStaff(params: { tenant_id: string; search?: string; status?
       ) as current_balance
     FROM staff s
     LEFT JOIN users u ON s.user_id = u.user_id
-    WHERE s.tenant_id = ? AND s.is_deleted = 0
+    WHERE (s.tenant_id = ? OR ? = 'global') AND s.is_deleted = 0
   `;
-  const sqlParams: any[] = [tenantId];
+  const sqlParams: any[] = [tenantId, tenantId];
 
   if (params.status && params.status !== 'ALL') {
     sql += ` AND s.status = ?`;
@@ -2909,7 +3027,7 @@ export function dbGetStaff(params: { tenant_id: string; search?: string; status?
   const rows = db.prepare(sql).all(...sqlParams);
   return rows.map((r: any) => ({
     ...r,
-    permissions: parsePermissionList(r.user_permissions),
+    permissions: parsePermissionList(r.user_permissions, r.user_restricted_page),
     has_pin: Boolean(r.biller_pin_hash),
     biller_pin_hash: undefined,
   }));
@@ -3348,7 +3466,7 @@ export function localAuthenticateUser(email: string, password: string): {
       name: user.name,
       email: user.email,
       role: user.role,
-      permissions: parsePermissionList(user.permissions),
+      permissions: parsePermissionList(user.permissions, user.restricted_page),
       login_enabled: user.login_enabled !== 0,
       restricted_page: user.restricted_page,
     }

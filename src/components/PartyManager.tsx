@@ -911,6 +911,33 @@ export function PartyManager({
     }
   }, [initialPartyIdOrQuery, parties]);
 
+  const [editReturnView, setEditReturnView] = useState<'list' | 'ledger'>('list');
+
+  const startEditingParty = (party: Party, returnTo: 'list' | 'ledger' = 'list') => {
+    setEditReturnView(returnTo);
+    setEditingParty(party);
+    setPartyForm({
+      name: party.name,
+      phone: party.phone || '',
+      address: party.address || '',
+      gstin: party.gstin || '',
+      opening_balance: '',
+      balance_type: party.balance_type,
+      party_type: (party.party_type as any) || 'CUSTOMER',
+      custom_category: party.custom_category || '',
+      notes: party.notes || '',
+      pricing_tier_id: party.pricing_tier_id || '',
+      credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
+      credit_period_enabled: Boolean(party.credit_period_enabled),
+      credit_period_days: String(party.credit_period_days || 30),
+      credit_period_basis: party.credit_period_basis || 'BILL_BASED',
+      restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
+      whatsapp_alerts_enabled: party.whatsapp_alerts_enabled !== 0 && party.whatsapp_alerts_enabled !== false,
+      connect_code: (party as any).connect_code || '',
+    });
+    setView('party_form');
+  };
+
   const resetPartyForm = () => {
     setPartyForm({
       name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE',
@@ -973,7 +1000,7 @@ export function PartyManager({
           return;
         }
 
-        await window.electronAPI.dbUpdateParty({
+        const updatedFields = {
           party_id: editingParty.party_id,
           name: trimmedName,
           phone: partyForm.phone.trim() || null,
@@ -989,10 +1016,38 @@ export function PartyManager({
           credit_period_basis: partyForm.credit_period_basis,
           restrict_on_credit_expiry: partyForm.restrict_on_credit_expiry,
           whatsapp_alerts_enabled: partyForm.whatsapp_alerts_enabled,
-        });
+        };
+
+        const res = await window.electronAPI.dbUpdateParty(updatedFields);
+        if (res && res.success === false) {
+          showStatus(res.error || 'Failed to update party', 'error');
+          setIsSavingParty(false);
+          return;
+        }
+
+        const statePartyUpdate: Partial<Party> = {
+          name: trimmedName,
+          phone: partyForm.phone.trim() || '',
+          address: partyForm.address.trim() || '',
+          gstin: partyForm.gstin.trim() || '',
+          party_type: partyForm.party_type,
+          custom_category: partyForm.party_type === 'CUSTOM' ? (partyForm.custom_category.trim() || null) : null,
+          notes: partyForm.notes.trim() || '',
+          pricing_tier_id: partyForm.pricing_tier_id || null,
+          credit_limit: parsedCreditLimit,
+          credit_period_enabled: partyForm.credit_period_enabled,
+          credit_period_days: parsedCreditPeriodDays,
+          credit_period_basis: partyForm.credit_period_basis,
+          restrict_on_credit_expiry: partyForm.restrict_on_credit_expiry,
+          whatsapp_alerts_enabled: partyForm.whatsapp_alerts_enabled,
+        };
+
+        // Immediately update React states for instant consistency
+        setSelectedParty(prev => (prev && prev.party_id === editingParty.party_id) ? { ...prev, ...statePartyUpdate } : prev);
+        setParties(prev => prev.map(p => p.party_id === editingParty.party_id ? { ...p, ...statePartyUpdate } : p));
         showStatus('Party updated successfully', 'success');
       } else {
-        await window.electronAPI.dbAddParty({
+        const res = await window.electronAPI.dbAddParty({
           party_id: uuidv4(),
           tenant_id: tenantId,
           name: partyForm.name.trim(),
@@ -1014,6 +1069,11 @@ export function PartyManager({
           created_by: userId,
           created_by_name: userName || undefined,
         });
+        if (res && res.success === false) {
+          showStatus(res.error || 'Failed to create party', 'error');
+          setIsSavingParty(false);
+          return;
+        }
         showStatus('Party created successfully', 'success');
       }
       if (partyForm.party_type === 'CUSTOM' && partyForm.custom_category.trim()) {
@@ -1030,11 +1090,16 @@ export function PartyManager({
       }
 
       await loadParties();
-      setView('list');
+      if (editReturnView === 'ledger' && selectedParty) {
+        setView('ledger');
+      } else {
+        setView('list');
+      }
+      setEditReturnView('list');
       resetPartyForm();
       setIsCustomCategoryNew(false);
-    } catch {
-      showStatus('Operation failed', 'error');
+    } catch (err: any) {
+      showStatus(err?.message || 'Operation failed', 'error');
     } finally {
       setIsSavingParty(false);
     }
@@ -1597,7 +1662,7 @@ export function PartyManager({
             )}
 
             <RedCrossButton
-              onClick={onBackToCustomers ? onBackToCustomers : (view === 'list' ? onClose : view === 'ledger' ? () => { setView('list'); loadParties(); } : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); })}
+              onClick={onBackToCustomers ? onBackToCustomers : (view === 'list' ? onClose : view === 'ledger' ? () => { setView('list'); loadParties(); } : () => { setView(view === 'party_form' ? (editReturnView === 'ledger' && selectedParty ? 'ledger' : 'list') : 'ledger'); resetPartyForm(); })}
               title="Close"
             />
           </div>
@@ -2052,25 +2117,7 @@ export function PartyManager({
                               </button>
                               {isOwner && (
                                 <button
-                                  onClick={() => {
-                                    setEditingParty(party);
-                                    setPartyForm({
-                                      name: party.name, phone: party.phone || '', address: party.address || '',
-                                      gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type,
-                                      party_type: (party.party_type as any) || 'CUSTOMER',
-                                      custom_category: party.custom_category || '',
-                                      notes: party.notes || '',
-                                      pricing_tier_id: party.pricing_tier_id || '',
-                                      credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
-                                      credit_period_enabled: Boolean(party.credit_period_enabled),
-                                      credit_period_days: String(party.credit_period_days || 30),
-                                      credit_period_basis: party.credit_period_basis || 'BILL_BASED',
-                                      restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
-                                      whatsapp_alerts_enabled: party.whatsapp_alerts_enabled !== 0 && party.whatsapp_alerts_enabled !== false,
-                                      connect_code: (party as any).connect_code || '',
-                                    });
-                                    setView('party_form');
-                                  }}
+                                  onClick={() => startEditingParty(party, 'list')}
                                   className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                                   title="Edit"
                                 >
@@ -2258,23 +2305,7 @@ export function PartyManager({
                               if (listScrollRef.current) {
                                 savedScrollTop.current = listScrollRef.current.scrollTop;
                               }
-                              setEditingParty(party);
-                              setPartyForm({
-                                name: party.name, phone: party.phone || '', address: party.address || '',
-                                gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type,
-                                party_type: (party.party_type as 'CUSTOMER' | 'SUPPLIER' | 'STAFF' | 'CUSTOM') || 'CUSTOMER',
-                                custom_category: party.custom_category || '',
-                                notes: party.notes || '',
-                                pricing_tier_id: party.pricing_tier_id || '',
-                                credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
-                                credit_period_enabled: Boolean(party.credit_period_enabled),
-                                credit_period_days: String(party.credit_period_days || 30),
-                                credit_period_basis: party.credit_period_basis || 'BILL_BASED',
-                                restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
-                                whatsapp_alerts_enabled: party.whatsapp_alerts_enabled !== 0 && party.whatsapp_alerts_enabled !== false,
-                                connect_code: (party as any).connect_code || '',
-                              });
-                              setView('party_form');
+                              startEditingParty(party, 'list');
                             }}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
                             title="Edit"
@@ -2870,6 +2901,21 @@ export function PartyManager({
           <div className="shrink-0 border-t border-border bg-card px-5 py-3">
             <div className="flex items-center justify-end gap-2">
               <button
+                type="button"
+                onClick={() => {
+                  if (editReturnView === 'ledger' && selectedParty) {
+                    setView('ledger');
+                  } else {
+                    setView('list');
+                  }
+                  resetPartyForm();
+                  setEditReturnView('list');
+                }}
+                className="px-4 py-2 border border-border hover:bg-muted text-muted-foreground rounded-xl text-sm font-semibold transition-all active:scale-95 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
                 type="submit"
                 data-enter-submit
                 disabled={isSavingParty}
@@ -2908,6 +2954,17 @@ export function PartyManager({
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-muted/80 text-muted-foreground border border-border">
                       {selectedParty.custom_category || (selectedParty.party_type === 'CUSTOMER' ? 'Customer' : 'Supplier')}
                     </span>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => startEditingParty(selectedParty, 'ledger')}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 border border-primary/20 hover:bg-primary/15 px-2.5 py-0.5 rounded-md transition-all active:scale-95 cursor-pointer shadow-xs"
+                        title="Edit Party Details"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit Party</span>
+                      </button>
+                    )}
                     {selectedParty.connection_status === 'CONNECTED' ? (
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

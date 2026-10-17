@@ -40,6 +40,7 @@ import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 import { useFeatureFlagsStore, isAiAssistantAvailable, type FeatureKey } from './featureFlags';
 import { SplashScreen } from './components/SplashScreen';
 import { AiAssistant } from './components/AiAssistant';
+import { EcommercePortal } from './components/EcommercePortal';
 
 function App() {
   const [showAiAssistant, setShowAiAssistant] = useState(false);
@@ -123,6 +124,7 @@ function App() {
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [showCustomersPage, setShowCustomersPage] = useState(false);
+  const [showEcommercePortal, setShowEcommercePortal] = useState(false);
   const [cameFromCustomers, setCameFromCustomers] = useState(false);
   const [customerTarget, setCustomerTarget] = useState<string | undefined>(undefined);
   const [showPaymentsPage, setShowPaymentsPage] = useState(false);
@@ -251,10 +253,10 @@ function App() {
     }
   }, [isAuthenticated, isCloudSyncPaused, syncChecked]);
 
-  // Listen to real sync progress from electron â€” handles ALL syncs (initial + periodic)
+  // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
   useEffect(() => {
     if (!window.electronAPI?.onSyncProgress) return;
-    window.electronAPI.onSyncProgress((progress) => {
+    const cleanup = window.electronAPI.onSyncProgress((progress) => {
       setSyncProgress({
         percent: progress.percent ?? 0,
         label: progress.label ?? 'Syncing...',
@@ -264,6 +266,9 @@ function App() {
       setIsSyncing(true);
       setSyncComplete(false);
     });
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
   }, []);
 
   // Listen to sync cycle complete to mark sync as done
@@ -352,6 +357,7 @@ function App() {
     const handleOpenPurchaseBillManager = () => { if (canOpen('purchase_bills')) setShowPurchaseBillManager(true); };
     const handleOpenCustomersPage = () => { if (canOpen('customers')) setShowCustomersPage(true); };
     const handleOpenPaymentsPage = () => { if (canOpen('payments')) setShowPaymentsPage(true); };
+    const handleOpenEcommerce = () => { if (canOpen('ecommerce')) setShowEcommercePortal(true); };
     const handleOpenNewQuotation = () => {
       if (!canOpen('quotations')) return;
       useCartStore.getState().setRole('BILLER');
@@ -599,6 +605,7 @@ function App() {
     window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
     window.addEventListener('open-customers-page', handleOpenCustomersPage);
     window.addEventListener('open-payments-page', handleOpenPaymentsPage);
+    window.addEventListener('open-ecommerce-portal', handleOpenEcommerce);
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
     window.addEventListener('open-new-quotation', handleOpenNewQuotation);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
@@ -606,12 +613,16 @@ function App() {
     window.addEventListener('edit-scrap-invoice', handleOpenScrapEdit);
     window.addEventListener('open-edit-bill', handleOpenEditBill);
 
+    let unsubscribeTokenExpired: (() => void) | undefined;
     let unsubscribeScale: (() => void) | undefined;
     if (window.electronAPI) {
-      window.electronAPI.onTokenExpired(() => {
+      const unsub = window.electronAPI.onTokenExpired?.(() => {
         console.warn('[App] Cloud session expired or unauthorized. Showing session expired modal...');
         setShowSessionExpiredModal(true);
       });
+      if (typeof unsub === 'function') {
+        unsubscribeTokenExpired = unsub;
+      }
 
       unsubscribeScale = window.electronAPI.onScaleWeight((weight) => {
         useScaleStore.getState().setLiveWeight(weight);
@@ -622,6 +633,9 @@ function App() {
     window.addEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
 
     return () => {
+      if (unsubscribeTokenExpired) {
+        unsubscribeTokenExpired();
+      }
       if (unsubscribeScale) {
         unsubscribeScale();
       }
@@ -647,6 +661,7 @@ function App() {
       window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
       window.removeEventListener('open-customers-page', handleOpenCustomersPage);
       window.removeEventListener('open-payments-page', handleOpenPaymentsPage);
+      window.removeEventListener('open-ecommerce-portal', handleOpenEcommerce);
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
       window.removeEventListener('open-new-quotation', handleOpenNewQuotation);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
@@ -827,6 +842,10 @@ function App() {
       ) : showFinancialReport ? (
         <PermissionGuard permission="reports.financial" onBack={() => setShowFinancialReport(false)}>
           <FinancialReport onClose={() => setShowFinancialReport(false)} />
+        </PermissionGuard>
+      ) : showEcommercePortal ? (
+        <PermissionGuard permission="products.view" onBack={() => setShowEcommercePortal(false)}>
+          <EcommercePortal onClose={() => setShowEcommercePortal(false)} />
         </PermissionGuard>
       ) : (showAiAssistant && isAiAssistantAvailable) ? (
         <AiAssistant onClose={() => setShowAiAssistant(false)} />

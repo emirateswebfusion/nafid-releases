@@ -21,6 +21,7 @@ export type FeatureKey =
   | 'sales_staff'
   | 'sales_history'
   | 'loyalty'
+  | 'ecommerce'
   | 'ai_assistant';
 
 export type FeatureFlags = Record<FeatureKey, boolean>;
@@ -38,6 +39,7 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'cash_settlement', label: 'Cash Settlement', desc: 'Settle pending bills, manage cash drawer, and day-end closing' },
   { key: 'cash_register', label: 'Cash Register', desc: 'Quick cash-in / cash-out panel on the billing page' },
   { key: 'inventory', label: 'Inventory Manager', desc: 'Manage products, stock levels, and pricing' },
+  { key: 'ecommerce', label: 'E-Commerce Admin & Vendor Portal', desc: 'Manage online products, sync stock, and process FusionCart online orders' },
   { key: 'combo_offers', label: 'Combo Offers', desc: 'Create and manage product bundles and combo offers' },
   { key: 'categories_grades', label: 'Categories & Grades', desc: 'Configure category classifications, grade rules, purchase price, and MRP' },
   { key: 'pricing_tiers', label: 'Pricing Tiers', desc: 'Create dynamic price tiers (Retail, Wholesale…) and set per-tier prices' },
@@ -66,6 +68,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   cash_settlement: true,
   cash_register: true,
   inventory: true,
+  ecommerce: false,
   combo_offers: true,
   categories_grades: true,
   pricing_tiers: true,

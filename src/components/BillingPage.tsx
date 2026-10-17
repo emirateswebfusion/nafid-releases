@@ -25,7 +25,7 @@ import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore, type FeatureFlags } from '../featureFlags';
-import { sortProductsBySearchPriority } from '../utils/productSort';
+import { sortProductsBySearchPriority, cleanSearchText } from '../utils/productSort';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
@@ -2530,14 +2530,19 @@ loadFlags(tenantId || 'global');
         const sortedProds = sortProductsBySearchPriority(rawProducts, trimmed);
 
         const filteredProds = sortedProds.filter(p => {
-          const isPaperProduct = (() => {
+          const isPaperOnlyProduct = (() => {
             try {
               const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-              return Boolean(da && da.gst_type === 'PAPER');
+              const isMarkedPaper = Boolean(da && da.gst_type === 'PAPER');
+              const hasRealStock = Number(p.current_stock || 0) > 0;
+              const hasRealPricing = (Number(p.base_price || 0) > 0) || (Number(p.purchase_price || 0) > 0);
+              // A product is only paper-only if it is marked PAPER and has neither real stock nor real shop pricing.
+              // If it has real shop pricing or real stock, it is a real product in the shop (even if currently Out of Stock).
+              return isMarkedPaper && !hasRealStock && !hasRealPricing;
             } catch { return false; }
           })();
 
-          if (isPaperProduct) {
+          if (isPaperOnlyProduct) {
             if (!enableRealPaperStock) return false;
             if (invoiceType === 'GST' && !showPaperInGstSetting) {
               return false;
@@ -2549,20 +2554,54 @@ loadFlags(tenantId || 'global');
 
           const q = trimmed.toLowerCase();
           if (!q) return false;
-          
-          // Split query into words for word-based matching (any order)
+          const qNoSpace = q.replace(/\s+/g, '');
+          const qClean = cleanSearchText(q);
           const qWords = q.split(/\s+/).filter(w => w.length > 0);
-          
-          const barcode = String(p.sku_barcode || '').toLowerCase();
-          const code = String(p.item_code || '').toLowerCase();
-          const name = String(p.name || '').toLowerCase();
-          const brand = String(p.brand_manufacturer || '').toLowerCase();
-          const cat = String(p.category || '').toLowerCase();
-          const hsn = String(p.hsn_sac_code || '').toLowerCase();
 
-          // Check if ALL query words exist across product fields (any order)
-          const matchFields = [barcode, code, name, brand, cat, hsn];
-          return qWords.every(word => matchFields.some(field => field.includes(word)));
+          const rawFields = [
+            String(p.sku_barcode || '').toLowerCase(),
+            String(p.item_code || '').toLowerCase(),
+            String(p.name || '').toLowerCase(),
+            String(p.brand_manufacturer || '').toLowerCase(),
+            String(p.category || '').toLowerCase(),
+            String(p.hsn_sac_code || '').toLowerCase(),
+          ];
+
+          const fieldsData = rawFields.map(val => ({
+            raw: val,
+            noSpace: val.replace(/\s+/g, ''),
+            clean: cleanSearchText(val),
+          }));
+
+          const combinedRaw = rawFields.join(' ');
+          const combinedNoSpace = combinedRaw.replace(/\s+/g, '');
+          const combinedClean = cleanSearchText(combinedRaw);
+
+          // 1. Direct full query matches (raw, no-space, or special-char-clean)
+          if (
+            combinedRaw.includes(q) ||
+            (qNoSpace.length > 0 && combinedNoSpace.includes(qNoSpace)) ||
+            (qClean.length > 0 && combinedClean.includes(qClean))
+          ) {
+            return true;
+          }
+
+          // 2. All query words match across product fields
+          const isWordMatch = (w: string) => {
+            const wLower = w.toLowerCase();
+            const wNoSpace = wLower.replace(/\s+/g, '');
+            const wClean = cleanSearchText(wLower);
+            return fieldsData.some(f =>
+              f.raw.includes(wLower) ||
+              (wNoSpace.length > 0 && f.noSpace.includes(wNoSpace)) ||
+              (wClean.length > 0 && f.clean.includes(wClean))
+            ) ||
+            combinedRaw.includes(wLower) ||
+            (wNoSpace.length > 0 && combinedNoSpace.includes(wNoSpace)) ||
+            (wClean.length > 0 && combinedClean.includes(wClean));
+          };
+
+          return qWords.length > 0 && qWords.every(isWordMatch);
         });
 
         const deduped: any[] = [];
@@ -4211,6 +4250,9 @@ loadFlags(tenantId || 'global');
       domainAttrsObj.pcs_stock = rawPcs;
       domainAttrsObj.pcs = rawPcs;
     }
+    if (isGstProduct) {
+      domainAttrsObj.gst_type = newProductIsDummy ? 'PAPER' : 'REAL';
+    }
 
     const res = await window.electronAPI.dbAddProduct({
       product_id: productId,
@@ -4232,7 +4274,7 @@ loadFlags(tenantId || 'global');
       discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
       offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
       billing_type: billingType,
-      domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
+      domain_attributes: JSON.stringify(domainAttrsObj),
       grade_id: selectedGrade?.grade_id || null,
       pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       is_deleted: 0,
@@ -6318,6 +6360,8 @@ loadFlags(tenantId || 'global');
       if (isEditing) {
         result = await window.electronAPI.dbUpdateInvoice({
           invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
+          permissions: useAuthStore.getState().permissions || [],
+          user_id: userId || undefined,
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,

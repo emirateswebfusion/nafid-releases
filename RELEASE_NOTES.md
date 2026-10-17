@@ -1,3 +1,13 @@
+# Nafid POS v2.0.2 Release Notes
+
+## What's Changed
+- **What's New in App Appearance**: Added user-friendly feature highlights directly inside Settings under Appearance.
+- **Enhanced Product Search**: Upgraded product search with intelligent multi-keyword matching, space insensitivity, and character normalization across names, codes, barcodes, and categories.
+- **Clear Real vs Paper Stock Presentation**: Refined inventory and billing views to display physical shop stock clearly alongside purchase paper stock.
+- **WhatsApp Ledger & Receipt Formatting**: Streamlined transaction message alignment and optional store branding for customer ledger updates.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.2.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.1...v2.0.2
+
 # Vendora v1.7.15 Release Notes
 
 ## What's Changed

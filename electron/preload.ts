@@ -156,10 +156,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('sync:cloud-state-changed', listener);
   },
   onSyncProgress: (callback: (progress: { percent: number; label: string; recordsSynced: number; totalRecords: number }) => void) => {
-    ipcRenderer.on('sync:progress', (_event, progress) => callback(progress));
+    const listener = (_event: any, progress: any) => callback(progress);
+    ipcRenderer.on('sync:progress', listener);
+    return () => ipcRenderer.removeListener('sync:progress', listener);
   },
   onTokenExpired: (callback: () => void) => {
-    ipcRenderer.on('auth:token-expired', () => callback());
+    const listener = () => callback();
+    ipcRenderer.on('auth:token-expired', listener);
+    return () => ipcRenderer.removeListener('auth:token-expired', listener);
   },
   dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string }) => ipcRenderer.invoke('db:convertBosToGst', payload),
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
@@ -180,7 +184,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetProductBillQuantities: (tenant_id: string) => ipcRenderer.invoke('db:getProductBillQuantities', tenant_id),
   dbGetProductSuppliers: (tenant_id: string) => ipcRenderer.invoke('db:getProductSuppliers', tenant_id),
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => ipcRenderer.invoke('db:updateProductGstFlag', payload),
-  dbGetProductSalesSummary: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getProductSalesSummary', payload),
+  dbGetProductSalesSummary: (payload: { tenant_id: string; fromDate?: string; toDate?: string }) => ipcRenderer.invoke('db:getProductSalesSummary', payload),
   dbGetBosConvertibleInvoices: (tenant_id: string) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id),
 
   // Quotations
@@ -302,4 +306,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncGetPending: (payload: { tenant_id: string }) => ipcRenderer.invoke('sync:getPending', payload),
   setPageContext: (payload: { page: string; active: boolean }) => ipcRenderer.invoke('sync:setPageContext', payload),
   resetFastPollBackoff: () => ipcRenderer.invoke('sync:resetFastPollBackoff'),
+
+  // E-Commerce / FusionCart Integration
+  ecommerceGetSettings: (payload: { tenant_id: string }) => ipcRenderer.invoke('ecommerce:getSettings', payload),
+  ecommerceSaveSettings: (payload: { tenant_id: string; settings: any }) => ipcRenderer.invoke('ecommerce:saveSettings', payload),
+  ecommerceTestConnection: (payload: { url?: string }) => ipcRenderer.invoke('ecommerce:testConnection', payload),
+  ecommerceRegisterVendor: (payload: { tenant_id: string; data: any }) => ipcRenderer.invoke('ecommerce:registerVendor', payload),
+  ecommerceRefreshStatus: (payload: { tenant_id: string }) => ipcRenderer.invoke('ecommerce:refreshStatus', payload),
+  ecommerceGetProducts: (payload: { tenant_id: string; search?: string; filter?: string }) => ipcRenderer.invoke('ecommerce:getProducts', payload),
+  ecommerceUpdateMapping: (payload: any) => ipcRenderer.invoke('ecommerce:updateMapping', payload),
+  ecommerceSyncProduct: (payload: { tenant_id: string; product_id: string }) => ipcRenderer.invoke('ecommerce:syncProduct', payload),
+  ecommerceUnpublishProduct: (payload: { tenant_id: string; product_id: string }) => ipcRenderer.invoke('ecommerce:unpublishProduct', payload),
+  ecommerceGetOrders: (payload: { tenant_id: string }) => ipcRenderer.invoke('ecommerce:getOrders', payload),
 });

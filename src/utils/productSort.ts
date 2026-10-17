@@ -10,7 +10,16 @@ function getWords(query: string): string[] {
 function allWordsMatch(text: string, words: string[]): boolean {
   if (words.length === 0) return false;
   const lowerText = text.toLowerCase();
-  return words.every(word => lowerText.includes(word));
+  const textNoSpace = lowerText.replace(/\s+/g, '');
+  const textClean = cleanSearchText(lowerText);
+  return words.every(word => {
+    const w = word.toLowerCase();
+    const wNoSpace = w.replace(/\s+/g, '');
+    const wClean = cleanSearchText(w);
+    return lowerText.includes(w) ||
+      (wNoSpace.length > 0 && textNoSpace.includes(wNoSpace)) ||
+      (wClean.length > 0 && textClean.includes(wClean));
+  });
 }
 
 export function sortProductsBySearchPriority<T extends { sku_barcode?: string; item_code?: string; name?: string; brand_manufacturer?: string }>(products: T[], searchQuery: string): T[] {
@@ -68,6 +77,11 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
       (qClean.length > 0 && (allWordsMatch(barcodeClean, qWords) || allWordsMatch(codeClean, qWords)))
     )) {
       return { tier: 3.5, numVal: 999999999, name };
+    }
+
+    // Tier 3.9: Exact Product Name match (exact, no-space, or special-char-clean)
+    if (name === q || (qNoSpace.length > 0 && nameNoSpace === qNoSpace) || (qClean.length > 0 && nameClean === qClean)) {
+      return { tier: 3.9, numVal: 999999999, name };
     }
 
     // Tier 4: Product Name starts with query (normalized, no-space, or clean)

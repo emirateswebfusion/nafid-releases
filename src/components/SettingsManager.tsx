@@ -6,7 +6,7 @@ import {
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare,
-  Zap, Wrench, Wallet, Layers
+  Zap, Wrench, Wallet, Layers, Sparkles
 } from 'lucide-react';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
@@ -3723,7 +3723,67 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <p className="text-xs text-foreground font-semibold leading-relaxed">The quick brown fox jumps over the lazy dog.</p>
                   <p className="text-[10px] text-muted-foreground/70 mt-1">This is how your receipts, invoices, and product labels will appear.</p>
                 </div>
-                <button type="button" onClick={() => setFontScale(100)} disabled={fontScale === 100} className="px-4 py-2.5 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm">Reset to Default</button>
+                <div className="pt-2">
+                  <button type="button" onClick={() => setFontScale(100)} disabled={fontScale === 100} className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm">Reset to Default</button>
+                </div>
+
+                {/* What's New in App Highlights (User-Facing Information) */}
+                <div className="mt-6 pt-5 border-t border-border/70 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-black text-foreground uppercase tracking-wider">What's New in Nafid</span>
+                        <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{appVersion}</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest bg-muted/40 px-2 py-0.5 rounded-md">Highlights</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                        <p className="font-bold text-foreground">Smarter & Faster Search</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
+                        Search products effortlessly across item codes, barcodes, names, and categories with automatic spacing and character matching.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                        <p className="font-bold text-foreground">Clear Real vs Paper Stock</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
+                        Easily distinguish your actual physical shop stock from purchase-invoiced paper stock in inventory and billing.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                        <p className="font-bold text-foreground">Clean WhatsApp Receipts & Ledgers</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
+                        Send beautifully formatted digital receipts and customer ledger summaries directly to WhatsApp with one click.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+                        <p className="font-bold text-foreground">Seamless Invoice Conversion</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
+                        Quickly convert regular bills to GST invoices with automatic profit percentage adjustments right from Sales History.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 

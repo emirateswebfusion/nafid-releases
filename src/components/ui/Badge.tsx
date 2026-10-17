@@ -2,19 +2,21 @@ import * as React from 'react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-export const Badge = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'secondary' | 'destructive' | 'outline' }>(
+export const Badge = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }>(
   ({ className, variant = 'default', ...props }, ref) => {
     return (
       <div
         ref={ref}
         className={twMerge(
           clsx(
-            'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+            'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold transition-colors select-none tracking-tight',
             {
-              'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80': variant === 'default',
-              'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80': variant === 'secondary',
-              'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80': variant === 'destructive',
-              'text-foreground': variant === 'outline',
+              'border-primary/25 bg-primary/10 text-primary': variant === 'default',
+              'border-border/60 bg-secondary/80 text-secondary-foreground': variant === 'secondary',
+              'border-destructive/25 bg-destructive/10 text-destructive': variant === 'destructive',
+              'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400': variant === 'success',
+              'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400': variant === 'warning',
+              'border-border/80 bg-background/50 text-muted-foreground': variant === 'outline',
             },
             className
           )

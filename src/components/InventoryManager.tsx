@@ -50,6 +50,8 @@ interface Product {
   created_at?: string;
   updated_at?: string;
   paper_stock?: number;
+  gst_purchase_price?: number;
+  paper_mrp?: number;
 }
 
 const isGstProduct = (product: Pick<Product, 'is_gst_applicable' | 'hsn_sac_code'>) =>
@@ -741,12 +743,22 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       base_price: gradeRate !== null && product.pricing_mode === 'GRADE_RATE' ? gradeRate : (product.base_price || ''),
       current_stock: product.current_stock ?? '',
       gst_purchase_quantity: product.paper_stock !== undefined && product.paper_stock !== null ? String(product.paper_stock) : '',
-      gst_purchase_price: (product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null ? String((product as any).gst_purchase_price) : '',
+      gst_purchase_price: (product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null && (product as any).gst_purchase_price !== ''
+        ? String((product as any).gst_purchase_price)
+        : (() => {
+            try {
+              const da = JSON.parse(product.domain_attributes || '{}');
+              return da.gst_purchase_price !== undefined && da.gst_purchase_price !== null ? String(da.gst_purchase_price) : (da.paper_purchase_price !== undefined && da.paper_purchase_price !== null ? String(da.paper_purchase_price) : '');
+            } catch { return ''; }
+          })(),
       reorder_level: product.reorder_level ?? '',
       is_gst_applicable: isGstProduct(product),
       gst_type: (() => {
         try {
+          if (Number(product.current_stock || 0) > 0) return 'REAL' as 'REAL' | 'PAPER';
           const da = JSON.parse(product.domain_attributes || '{}');
+          if (da.gst_type === 'PAPER') return 'PAPER';
+          if (Number(product.current_stock || 0) <= 0 && Number(product.paper_stock || 0) > 0) return 'PAPER';
           return (da.gst_type === 'PAPER' ? 'PAPER' : 'REAL') as 'REAL' | 'PAPER';
         } catch { return 'REAL' as 'REAL' | 'PAPER'; }
       })(),
@@ -758,7 +770,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           const pcsVal = da.pcs !== undefined ? da.pcs : (da.pcs_stock !== undefined ? da.pcs_stock : '');
           da.pcs = pcsVal;
           da.pcs_stock = pcsVal;
-          da.paper_mrp = da.paper_mrp !== undefined ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : '');
+          const paperMrpVal = (product as any).paper_mrp !== undefined && (product as any).paper_mrp !== null && (product as any).paper_mrp !== ''
+            ? (product as any).paper_mrp
+            : (da.paper_mrp !== undefined && da.paper_mrp !== null ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : ''));
+          da.paper_mrp = paperMrpVal !== '' ? String(paperMrpVal) : '';
           return da;
         } catch { return {}; }
       })(),
@@ -790,6 +805,46 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           }
         })
         .catch(console.error);
+
+      // Async fallback: if paper purchase price or paper MRP is missing or empty,
+      // load it directly from purchase bill records
+      const daParsed = (() => { try { return JSON.parse(product.domain_attributes || '{}'); } catch { return {}; } })();
+      const curPur = (product as any).gst_purchase_price ?? daParsed.gst_purchase_price ?? daParsed.paper_purchase_price ?? '';
+      const curMrp = (product as any).paper_mrp ?? daParsed.paper_mrp ?? daParsed.paper_base_price ?? '';
+
+      if ((!curPur || !curMrp) && window.electronAPI.dbGetPurchaseBillProducts) {
+        window.electronAPI.dbGetPurchaseBillProducts({
+          tenant_id: tenantId || 'global',
+          search: product.name,
+          limit: 10
+        }).then((billProds: any[]) => {
+          if (Array.isArray(billProds)) {
+            const match = billProds.find(bp => bp.product_id === product.product_id);
+            if (match) {
+              setFormData(prev => {
+                const prevDa = { ...prev.domain_attributes };
+                let changed = false;
+                let newPur = prev.gst_purchase_price;
+                if ((!newPur || Number(newPur) <= 0) && Number(match.gst_purchase_price) > 0) {
+                  newPur = String(match.gst_purchase_price);
+                  prevDa.gst_purchase_price = match.gst_purchase_price;
+                  prevDa.paper_purchase_price = match.gst_purchase_price;
+                  changed = true;
+                }
+                if ((!prevDa.paper_mrp || Number(prevDa.paper_mrp) <= 0) && Number(match.paper_mrp) > 0) {
+                  prevDa.paper_mrp = String(match.paper_mrp);
+                  prevDa.paper_base_price = match.paper_mrp;
+                  changed = true;
+                }
+                if (changed) {
+                  return { ...prev, gst_purchase_price: newPur, domain_attributes: prevDa };
+                }
+                return prev;
+              });
+            }
+          }
+        }).catch(console.error);
+      }
     }
     setView('edit');
   };
@@ -1417,7 +1472,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             'Brand': p.brand_manufacturer || '',
             'UOM': p.uom || '',
             'Purchase Price': displayPurchasePrice || 0,
+            'Paper Purchase': Number((p as any).gst_purchase_price || 0),
             'MRP': displayMrp || 0,
+            'Paper MRP': Number((p as any).paper_mrp || 0),
           };
 
           // Dynamically add tier columns with their names
@@ -1428,7 +1485,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
           row['Discount Percentage'] = p.discount_percent || 0;
           row['Offer Price'] = p.offer_price || 0;
-          row['Current Stock'] = p.current_stock || 0;
+          row['Real Stock'] = p.current_stock || 0;
+          row['Paper Stock'] = p.paper_stock || 0;
           row['Added Date'] = p.created_at || '';
 
           return row;
@@ -1529,9 +1587,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           da.paper_stock = Number(formData.gst_purchase_quantity) || 0;
         }
 
-        const isPaperChosen = (hasPaperData && !hasRealData) ||
-                              (Number(formData.current_stock) <= 0 && Number(da.paper_stock || 0) > 0) ||
-                              (formData.show_gst_purchase && (formData.gst_purchase_is_dummy || Number(formData.gst_purchase_quantity) > 0));
+        if (formData.gst_purchase_price !== '' && formData.gst_purchase_price !== null && formData.gst_purchase_price !== undefined) {
+          da.gst_purchase_price = Number(formData.gst_purchase_price) || 0;
+          da.paper_purchase_price = da.gst_purchase_price;
+        }
+
+        const hasRealStockOrPricing = hasRealData || (formData.base_price !== '' && Number(formData.base_price) > 0) || Number(formData.current_stock || 0) > 0;
+        const isPaperChosen = !hasRealStockOrPricing && (
+          (formData.gst_type === 'PAPER') ||
+          (hasPaperData && !hasRealData) ||
+          (Number(formData.current_stock) <= 0 && Number(da.paper_stock || 0) > 0) ||
+          (formData.show_gst_purchase && (formData.gst_purchase_is_dummy || Number(formData.gst_purchase_quantity) > 0))
+        );
 
         da.gst_type = isPaperChosen ? 'PAPER' : 'REAL';
         if (da.paper_mrp !== undefined && da.paper_mrp !== '' && da.paper_mrp !== null) {
@@ -1899,7 +1966,7 @@ return (
         <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
           {/* Table Header - Fixed at Top */}
           <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none shrink-0">
-            <div className="col-span-4 text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2.5">
+            <div className="col-span-3 text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2.5">
               <input
                 type="checkbox"
                 checked={isAllSelected}
@@ -1915,7 +1982,8 @@ return (
             <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">Purchase</div>
             <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">MRP</div>
             <div className="col-span-1 text-right text-xs font-black text-emerald-500 uppercase tracking-widest">Final</div>
-            <div className="col-span-3 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Stock</div>
+            <div className="col-span-2 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Real Stock</div>
+            <div className="col-span-2 text-center text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">Paper Stock</div>
             <div className="col-span-2 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Actions</div>
           </div>
 
@@ -1924,7 +1992,7 @@ return (
             {isFetching && offset === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={`skel-${i}`} className="grid grid-cols-12 gap-3 px-6 py-4 items-center">
-                  <div className="col-span-4">
+                  <div className="col-span-3">
                     <div className="flex items-center gap-2">
                       <div className="space-y-2 w-full">
                         <Skeleton className="h-4 w-3/4" />
@@ -1939,10 +2007,13 @@ return (
                   <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                   <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                   <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-12" /></div>
-                  <div className="col-span-3 flex justify-center gap-2">
+                  <div className="col-span-2 flex justify-center gap-2">
                     <Skeleton className="h-6 w-6 rounded-full" />
                     <Skeleton className="h-5 w-16" />
                     <Skeleton className="h-6 w-6 rounded-full" />
+                  </div>
+                  <div className="col-span-2 flex justify-center">
+                    <Skeleton className="h-5 w-16 rounded-full" />
                   </div>
                   <div className="col-span-2 flex justify-center gap-2">
                     <Skeleton className="h-8 w-8 rounded-lg" />
@@ -1996,6 +2067,9 @@ return (
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
 
+                  const paperPurPrice = Number((p as any).gst_purchase_price || da.gst_purchase_price || da.paper_purchase_price || 0);
+                  const paperMrpPrice = Number((p as any).paper_mrp || da.paper_mrp || da.paper_base_price || 0);
+
                   const isGstFlag = isGstProduct(p);
 
                   return (
@@ -2008,7 +2082,7 @@ return (
                         highlightedProductId === p.product_id && "ring-2 ring-primary/60 bg-primary/5 dark:bg-primary/10 shadow-sm"
                       )}
                     >
-                      <div className="col-span-4">
+                      <div className="col-span-3">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <input
                             type="checkbox"
@@ -2019,34 +2093,12 @@ return (
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <ScrollText text={p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')} className="flex-1 text-foreground font-bold text-sm min-w-0" />
-                              {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
-                                <span className={clsx(
-                                  "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none shrink-0",
-                                  p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
-                                    ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30"
-                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                                )}>
-                                  {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
-                                </span>
-                              )}
                             </div>
                             <p className="text-muted-foreground text-xs font-mono mt-0.5 truncate">
                               {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
                               {p.sku_barcode}
                             </p>
                             <div className="flex gap-1.5 mt-1 flex-wrap items-center">
-                              {showProductGstBadge && (
-                                <span className={clsx(
-                                  "text-[9px] px-1.5 py-0.5 rounded font-extrabold border select-none leading-none shrink-0",
-                                  isGstFlag
-                                    ? (enableRealPaperStock && da.gst_type === 'PAPER'
-                                        ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30"
-                                        : "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30")
-                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                                )}>
-                                  {isGstFlag ? (enableRealPaperStock ? (da.gst_type === 'PAPER' ? 'Paper' : 'Real') : 'GST') : 'Estimate'}
-                                </span>
-                              )}
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                               {showPriceTiersInInventory && allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
@@ -2062,10 +2114,15 @@ return (
                           </div>
                         </div>
                       </div>
-                      <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold flex flex-col items-end">
+                      <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold flex flex-col items-end justify-center">
                         <span>₹{displayPurchasePrice.toFixed(2)}</span>
                         {appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined && (
                           <span className="text-[9px] text-indigo-500 font-semibold leading-tight mt-0.5">Grade Purchase</span>
+                        )}
+                        {paperPurPrice > 0 && (
+                          <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper Purchase Price">
+                            Paper: ₹{paperPurPrice.toFixed(2)}
+                          </span>
                         )}
                       </div>
                       <div className="col-span-1 flex flex-col items-end justify-center text-right">
@@ -2077,45 +2134,36 @@ return (
                             Grade Rate: ₹{gradeRate}
                           </span>
                         )}
+                        {paperMrpPrice > 0 && (
+                          <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper MRP">
+                            Paper: ₹{paperMrpPrice.toFixed(2)}
+                          </span>
+                        )}
                       </div>
                       <div className="col-span-1 text-right text-emerald-500 font-bold text-sm">
                         {finalPrice !== null ? `₹${finalPrice.toFixed(2)}` : '-'}
                       </div>
 
-                      {/* Stock with +/- */}
-                      <div className="col-span-3 flex items-center justify-center gap-1">
+                      {/* Real Stock with +/- */}
+                      <div className="col-span-2 flex items-center justify-center gap-1">
                         <button 
                           onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom)) openAdjustDialog(p, 'reduce'); else applyStockAdjust(p, -1); }} 
                           disabled={adjustingStockId === p.product_id}
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-destructive transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
+                          title="Reduce Real Stock"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[72px]', isLowStock ? 'text-amber-500' : (p.current_stock <= 0 && Number(p.paper_stock || 0) <= 0) ? 'text-red-500' : 'text-foreground')}>
+                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[62px]', isLowStock ? 'text-amber-500' : p.current_stock <= 0 ? 'text-red-500' : 'text-foreground')}>
                           {adjustingStockId === p.product_id ? (
                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                           ) : (
                              <>
-                               {p.current_stock > 0 ? (
-                                 <span>{formattedStock}</span>
-                               ) : Number(p.paper_stock || 0) > 0 ? (
-                                 <span className="text-purple-600 dark:text-purple-400 font-bold">{p.paper_stock} {p.uom}</span>
-                               ) : (
-                                 <span>0 {p.uom}</span>
-                               )}
+                               <span>{formattedStock}</span>
                                {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
-                               {enableRealPaperStock && p.paper_stock !== undefined && (showZeroPaperStock ? true : Number(p.paper_stock || 0) > 0) && (
-                                 <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold mt-0.5" title="Paper Stock from Dummy GST purchases">
-                                   Paper: {p.paper_stock}
-                                 </span>
-                               )}
-                               {p.current_stock <= 0 && Number(p.paper_stock || 0) <= 0 ? (
+                               {p.current_stock <= 0 ? (
                                  <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-bold mt-0.5">
                                    <AlertCircle className="w-2.5 h-2.5" /> Out of Stock
-                                 </span>
-                               ) : p.current_stock <= 0 && Number(p.paper_stock || 0) > 0 ? (
-                                 <span className="flex items-center gap-0.5 text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-0.5">
-                                   <Package className="w-2.5 h-2.5" /> Paper Only
                                  </span>
                                ) : isLowStock ? (
                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">
@@ -2129,9 +2177,24 @@ return (
                           onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom)) openAdjustDialog(p, 'add'); else applyStockAdjust(p, 1); }} 
                           disabled={adjustingStockId === p.product_id}
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-emerald-500 transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
+                          title="Add Real Stock"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
+                      </div>
+
+                      {/* Paper Stock */}
+                      <div className="col-span-2 flex flex-col items-center justify-center text-center">
+                        {Number(p.paper_stock || 0) > 0 ? (
+                          <span className="text-xs font-black text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/25 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs" title="Paper Stock from Dummy GST purchases">
+                            <Package className="w-3 h-3" />
+                            {p.paper_stock} {p.uom}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-muted-foreground/35">
+                            0 {p.uom}
+                          </span>
+                        )}
                       </div>
 
                       {/* Actions */}
