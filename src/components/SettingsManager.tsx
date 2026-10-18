@@ -6,10 +6,14 @@ import {
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare,
-  Zap, Wrench, Wallet, Layers, Sparkles
+  Zap, Wrench, Wallet, Layers, Bell, AlertOctagon, LayoutGrid
 } from 'lucide-react';
+import { DashboardCardCustomizer } from './DashboardCardCustomizer';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
+import { StaffDataMaskingSettings } from './StaffDataMaskingSettings';
+import { EmergencyPurgeSettings } from './EmergencyPurgeSettings';
+import { DesignSettings } from './DesignSettings';
 import { useBillingUIStore, DEFAULT_BILLING_UI_CONFIG, DEFAULT_HEADER_BUTTON_CONFIG, type BillingUIConfig } from '../store/billingUIStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -27,6 +31,22 @@ import { PaperPreviewModal } from './PaperPreviewModal';
 import { WhatsAppSettings } from './WhatsAppSettings';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { isAdminRole } from '../utils/permissions';
+import {
+  type StaffDataMaskingConfig,
+  STAFF_DATA_MASKING_KEY,
+  DEFAULT_STAFF_DATA_MASKING_CONFIG,
+  parseStaffDataMaskingConfig
+} from '../utils/staffDataMasking';
+import {
+  type EmergencyPanicConfig,
+  EMERGENCY_PANIC_CONFIG_KEY,
+  DEFAULT_EMERGENCY_PANIC_CONFIG,
+  parseEmergencyPanicConfig
+} from '../utils/emergencyPurge';
+import {
+  type ShopClosingOverviewConfig,
+  DEFAULT_SHOP_CLOSING_CONFIG
+} from '../utils/shopClosingHelper';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
@@ -118,8 +138,10 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     category: 'Application',
     icon: Settings,
     items: [
+      { id: 'design', label: 'Theme & Typography', icon: Palette },
       { id: 'terminology', label: 'Ledger Terminology', icon: BookOpen },
-      { id: 'billing_ui', label: 'Billing Page Customizer', icon: Palette },
+      { id: 'billing_ui', label: 'Billing Page Customizer', icon: LayoutGrid },
+      { id: 'dashboard_cards', label: 'Dashboard Cards Order', icon: Layers },
       { id: 'system', label: 'App Preferences', icon: Settings },
     ],
   },
@@ -128,6 +150,14 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     icon: Wifi,
     items: [
       { id: 'network', label: 'Network & Sync Mode', icon: Wifi, ownerOnly: true },
+    ],
+  },
+  {
+    category: 'Security & Privacy',
+    icon: Shield,
+    items: [
+      { id: 'emergency_purge', label: 'Emergency Reset & Kill Switch', icon: AlertOctagon, ownerOnly: true },
+      { id: 'staff_masking', label: 'Staff Privacy & Data Masking', icon: EyeOff, ownerOnly: true },
     ],
   },
   {
@@ -215,8 +245,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
   const [autoWhatsAppSend, setAutoWhatsAppSend] = useState<boolean>(() => localStorage.getItem('auto_whatsapp_send') === 'true');
   const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
-  const [activeWhatsAppTab, setActiveWhatsAppTab] = useState<'qr' | 'settings'>('qr');
-  const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
+  const [activeWhatsAppTab, setActiveWhatsAppTab] = useState<'qr' | 'settings' | 'closing'>('qr');
+  const [whatsNewLang, setWhatsNewLang] = useState<'ml' | 'en'>(() => (localStorage.getItem('nafid_whats_new_lang') as 'ml' | 'en') || 'ml');
+  const { fontScale, increaseFontScale, decreaseFontScale, setFontScale, primaryColor, fontFamily } = useThemeStore();
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
@@ -284,6 +315,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showPaperOnlyProducts, setShowPaperOnlyProducts] = useState(true);
   const [enableConvertToGst, setEnableConvertToGst] = useState(true);
   const [billingUIConfig, setBillingUIConfig] = useState<BillingUIConfig>(() => useBillingUIStore.getState().config);
+  const [staffDataMaskingConfig, setStaffDataMaskingConfig] = useState<StaffDataMaskingConfig>(DEFAULT_STAFF_DATA_MASKING_CONFIG);
+  const [emergencyPanicConfig, setEmergencyPanicConfig] = useState<EmergencyPanicConfig>(DEFAULT_EMERGENCY_PANIC_CONFIG);
+  const [shopClosingConfig, setShopClosingConfig] = useState<ShopClosingOverviewConfig>(DEFAULT_SHOP_CLOSING_CONFIG);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -292,6 +326,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [b2cPrefix, setB2cPrefix] = useState('');
   const [b2cStartNumber, setB2cStartNumber] = useState<number | string>(1);
   const [gstProfitPercentage, setGstProfitPercentage] = useState<number>(30);
+  const [gstConversionTaxInclusive, setGstConversionTaxInclusive] = useState<boolean>(false);
   const [returnPrefix, setReturnPrefix] = useState('');
   const [returnStartNumber, setReturnStartNumber] = useState<number | string>(1);
   const [scrapPrefix, setScrapPrefix] = useState('');
@@ -573,6 +608,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     billSettings: overrides.billSettings !== undefined ? overrides.billSettings : billSettings,
     scrapBillSettings: overrides.scrapBillSettings !== undefined ? overrides.scrapBillSettings : scrapBillSettings,
     gstProfitPercentage: overrides.gstProfitPercentage !== undefined ? overrides.gstProfitPercentage : gstProfitPercentage,
+    gstConversionTaxInclusive: overrides.gstConversionTaxInclusive !== undefined ? overrides.gstConversionTaxInclusive : gstConversionTaxInclusive,
     returnPrefix: overrides.returnPrefix !== undefined ? overrides.returnPrefix : returnPrefix,
     returnStartNumber: overrides.returnStartNumber !== undefined ? overrides.returnStartNumber : returnStartNumber,
     scrapPrefix: overrides.scrapPrefix !== undefined ? overrides.scrapPrefix : scrapPrefix,
@@ -601,6 +637,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     showPriceTiersInInventory: overrides.showPriceTiersInInventory !== undefined ? overrides.showPriceTiersInInventory : showPriceTiersInInventory,
     enableConvertToGst: overrides.enableConvertToGst !== undefined ? overrides.enableConvertToGst : enableConvertToGst,
     billingUIConfig: JSON.stringify(overrides.billingUIConfig !== undefined ? overrides.billingUIConfig : billingUIConfig),
+    staffDataMaskingConfig: JSON.stringify(overrides.staffDataMaskingConfig !== undefined ? overrides.staffDataMaskingConfig : staffDataMaskingConfig),
+    emergencyPanicConfig: JSON.stringify(overrides.emergencyPanicConfig !== undefined ? overrides.emergencyPanicConfig : emergencyPanicConfig),
+    shopClosingConfig: JSON.stringify(overrides.shopClosingConfig !== undefined ? overrides.shopClosingConfig : shopClosingConfig),
     features: JSON.stringify(overrides.featureFlags !== undefined ? overrides.featureFlags : featureFlags)
   });
 
@@ -609,7 +648,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -700,9 +739,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'shop_phone', 'shop_email', 'shop_website', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
           'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view', 'show_product_gst_badge', 'show_price_tiers_in_inventory',
-          'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
+          'time_format', 'store_timezone', 'gst_profit_percentage', 'gst_conversion_tax_inclusive', 'feature_flags',
           'enable_party_gst_balance', 'enable_party_estimate_balance',
           'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate', 'show_zero_paper_stock', 'show_paper_only_products', 'enable_convert_to_gst', 'billing_ui_config',
+          STAFF_DATA_MASKING_KEY, EMERGENCY_PANIC_CONFIG_KEY,
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'purchase_bill_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -841,12 +881,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const autoBarcode = allSettings['auto_print_barcode'];
       if (autoBarcode !== null && autoBarcode !== undefined) finalAutoBarcode = Boolean(autoBarcode);
 
-      let finalLoyaltyEnabled = false;
+      let finalLoyaltyEnabled = Boolean(finalFlags?.loyalty);
       let finalLoyaltyEarningRate = 100;
       let finalLoyaltyRedemptionRate = 1;
       const loyaltyCfg = allSettings['loyalty_config'];
       if (loyaltyCfg && typeof loyaltyCfg === 'object') {
-        finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled);
+        if (loyaltyCfg.enabled !== undefined) {
+          finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled) || Boolean(finalFlags?.loyalty);
+        }
         if (loyaltyCfg.earningRate) finalLoyaltyEarningRate = Number(loyaltyCfg.earningRate) || 100;
         if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate) || 1;
       }
@@ -968,6 +1010,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const gstProfitPct = allSettings['gst_profit_percentage'];
       if (gstProfitPct !== null && gstProfitPct !== undefined) finalGstProfit = Number(gstProfitPct) || 30;
 
+      let finalGstTaxInclusive = false;
+      const gstTaxInc = allSettings['gst_conversion_tax_inclusive'];
+      if (gstTaxInc !== null && gstTaxInc !== undefined) finalGstTaxInclusive = Boolean(gstTaxInc);
+
       let finalReturnPrefix = '';
       let finalReturnStart: number | string = 1;
       const returnCfg = allSettings['return_counter'];
@@ -1064,6 +1110,26 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         setBillingUIConfig(mergedCfg);
         useBillingUIStore.getState().updateConfig(mergedCfg);
       }
+      const rawMasking = allSettings[STAFF_DATA_MASKING_KEY];
+      const finalStaffDataMasking = rawMasking ? parseStaffDataMaskingConfig(rawMasking) : DEFAULT_STAFF_DATA_MASKING_CONFIG;
+      setStaffDataMaskingConfig(finalStaffDataMasking);
+
+      const rawPanic = allSettings[EMERGENCY_PANIC_CONFIG_KEY];
+      const finalEmergencyPanic = rawPanic ? parseEmergencyPanicConfig(rawPanic) : DEFAULT_EMERGENCY_PANIC_CONFIG;
+      setEmergencyPanicConfig(finalEmergencyPanic);
+
+      let finalShopClosing = DEFAULT_SHOP_CLOSING_CONFIG;
+      if (window.electronAPI?.shopClosingGetConfig) {
+        try {
+          const res = await window.electronAPI.shopClosingGetConfig({ tenant_id: currentTenant });
+          if (res && res.success && res.config) {
+            finalShopClosing = { ...DEFAULT_SHOP_CLOSING_CONFIG, ...res.config };
+          }
+        } catch (e) {
+          console.warn('[SettingsManager] Failed to load shop closing config:', e);
+        }
+      }
+      setShopClosingConfig(finalShopClosing);
       setAutoPrintBarcode(finalAutoBarcode);
       setLoyaltyEnabled(finalLoyaltyEnabled);
       setLoyaltyEarningRate(finalLoyaltyEarningRate);
@@ -1091,6 +1157,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setTerminalCode(finalTermCode);
       setInvoiceStartNumber(finalInvoiceStart);
       setGstProfitPercentage(finalGstProfit);
+      setGstConversionTaxInclusive(finalGstTaxInclusive);
       setReturnPrefix(finalReturnPrefix);
       setReturnStartNumber(finalReturnStart);
       setScrapPrefix(finalScrapPrefix);
@@ -1186,6 +1253,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         billSettings: finalBillSettings,
         scrapBillSettings: finalScrapBillSettings,
         gstProfitPercentage: finalGstProfit,
+        gstConversionTaxInclusive: finalGstTaxInclusive,
         returnPrefix: finalReturnPrefix,
         returnStartNumber: finalReturnStart,
         scrapPrefix: finalScrapPrefix,
@@ -1211,6 +1279,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         showProductGstBadge: finalProductGstBadge,
         showPriceTiersInInventory: finalPriceTiers,
         enableConvertToGst: finalConvertGst,
+        staffDataMaskingConfig: finalStaffDataMasking,
+        emergencyPanicConfig: finalEmergencyPanic,
+        shopClosingConfig: finalShopClosing,
         featureFlags: finalFlags
       });
 
@@ -1322,7 +1393,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         type: receiptPrinter.type || 'usb',
         deviceName: receiptPrinter.deviceName || defaultSystemPrinter,
         port: Number(receiptPrinter.port) || 9100,
-        receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8
+        receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8,
+        leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0
       };
 
       // User-entered starting numbers take priority — do NOT use Math.max() here,
@@ -1391,13 +1463,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...sanitizedFlags } }), name: 'feature_flags' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive', value: gstConversionTaxInclusive }), name: 'gst_conversion_tax_inclusive' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_open_cash_drawer', value: autoOpenCashDrawer }), name: 'auto_open_cash_drawer' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled', value: billSettings.quotationGstEnabled !== false }), name: 'quotation_gst_enabled' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'default_opening_balance', value: defaultOpeningBalance === '' ? 0 : (Number(defaultOpeningBalance) || 0) }), name: 'default_opening_balance' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
@@ -1427,6 +1500,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_only_products', value: showPaperOnlyProducts }), name: 'show_paper_only_products' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst', value: enableConvertToGst }), name: 'enable_convert_to_gst' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY, value: JSON.stringify(staffDataMaskingConfig) }), name: 'staff_data_masking' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY, value: { ...emergencyPanicConfig, updated_at: new Date().toISOString() } }), name: 'emergency_panic_config' },
+        ...(window.electronAPI?.shopClosingSaveConfig ? [{
+          promise: window.electronAPI.shopClosingSaveConfig({
+            tenant_id: tenantId || 'global',
+            config: shopClosingConfig,
+            user_role: role,
+          }),
+          name: 'shop_closing_config'
+        }] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
@@ -1492,6 +1575,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           billing_ui: 'Billing Page Customizer settings',
           system: 'App preferences',
           features: 'Feature module settings',
+          staff_masking: 'Staff privacy & data masking settings',
+          emergency_purge: 'Emergency reset & kill switch settings',
+          whatsapp: 'WhatsApp integration & closing settings',
+          whatsapp_device: 'WhatsApp integration & closing settings',
+          whatsapp_settings: 'WhatsApp integration & closing settings',
         };
         const label = sectionLabels[activeSection] || 'Settings';
         setMessage({
@@ -1544,6 +1632,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         billSettings,
         scrapBillSettings,
         gstProfitPercentage,
+        gstConversionTaxInclusive,
         returnPrefix: computedReturnPrefix,
         returnStartNumber: finalReturnCounter,
         scrapPrefix: computedScrapPrefix,
@@ -1570,6 +1659,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         showPriceTiersInInventory,
         enableConvertToGst,
         billingUIConfig,
+        staffDataMaskingConfig,
+        emergencyPanicConfig,
+        shopClosingConfig,
         featureFlags
       });
       setSaveRevision(v => v + 1);
@@ -1701,6 +1793,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     ].filter(t => !t.ownerOnly || isAdminRole(role));
 
     switch (sectionId) {
+      case 'emergency_purge':
+        return (
+          <EmergencyPurgeSettings
+            config={emergencyPanicConfig}
+            onChange={setEmergencyPanicConfig}
+          />
+        );
+      case 'staff_masking':
+        return (
+          <StaffDataMaskingSettings
+            config={staffDataMaskingConfig}
+            onChange={setStaffDataMaskingConfig}
+          />
+        );
+      case 'design':
+        return <DesignSettings />;
       case 'terminology':
         return <LedgerTerminologySettings />;
       case 'billing_ui':
@@ -1712,6 +1820,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               useBillingUIStore.getState().updateConfig(newCfg);
             }}
           />
+        );
+      case 'dashboard_cards':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300 w-full pb-12">
+            <DashboardCardCustomizer />
+          </div>
         );
       case 'store':
         return (
@@ -1861,6 +1975,48 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         </div>
                       </div>
                       <p className="text-[10px] text-muted-foreground/70 mt-1">GST sale price = GST purchase price + this % margin. Used when converting Bill of Supply invoices to GST Invoices.</p>
+                    </div>
+
+                    <div className="space-y-2 col-span-2 pt-2 border-t border-border/50">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">
+                        Default GST Conversion Pricing Mode
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setGstConversionTaxInclusive(false)}
+                          className={clsx(
+                            'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer',
+                            !gstConversionTaxInclusive
+                              ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold shadow-sm'
+                              : 'bg-background border-border text-muted-foreground hover:border-border/80 hover:text-foreground'
+                          )}
+                        >
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            Tax Exclusive (+ GST)
+                          </span>
+                          <span className="text-[10px] opacity-75 mt-0.5 leading-normal">
+                            Sale price + GST on top. (Grand Total = Base + GST).
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGstConversionTaxInclusive(true)}
+                          className={clsx(
+                            'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer',
+                            gstConversionTaxInclusive
+                              ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold shadow-sm'
+                              : 'bg-background border-border text-muted-foreground hover:border-border/80 hover:text-foreground'
+                          )}
+                        >
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            Tax Inclusive (MRP / Included)
+                          </span>
+                          <span className="text-[10px] opacity-75 mt-0.5 leading-normal">
+                            Sale price already includes GST. Grand Total stays identical to BOS invoice.
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2168,7 +2324,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                           <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
-                            <input type="number" min="0.5" step="0.5" value={loyaltyRedemptionRate}
+                            <input type="number" min="0.01" step="0.01" value={loyaltyRedemptionRate}
                               onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
                               className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
                           </div>
@@ -2190,8 +2346,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             {/* Top Sub-tabs */}
             <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
               {[
-                { id: 'qr', label: 'QR', icon: QrCode },
-                { id: 'settings', label: 'Settings', icon: Settings },
+                { id: 'qr', label: 'Device / QR', icon: QrCode },
+                { id: 'settings', label: 'Automations & Bills', icon: Settings },
+                { id: 'closing', label: 'Shop Closing Overview', icon: Store },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isTabActive = activeWhatsAppTab === tab.id;
@@ -2199,7 +2356,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveWhatsAppTab(tab.id as 'qr' | 'settings')}
+                    onClick={() => setActiveWhatsAppTab(tab.id as 'qr' | 'settings' | 'closing')}
                     className={clsx(
                       "flex items-center justify-center gap-2 py-2 px-5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                       isTabActive
@@ -2221,6 +2378,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 autoSendEnabled={autoWhatsAppSend}
                 activeTab={activeWhatsAppTab}
                 onTabChange={setActiveWhatsAppTab}
+                closingConfig={shopClosingConfig}
+                onClosingConfigChange={setShopClosingConfig}
                 onAutoSendChange={(val) => {
                   setAutoWhatsAppSend(val);
                   localStorage.setItem('auto_whatsapp_send', val ? 'true' : 'false');
@@ -2353,6 +2512,28 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         )}
                       </div>
                       <p className="text-[10px] text-muted-foreground/70 mt-1">Standard thermal roll sizes are 58mm (5.8cm) and 80mm (8.0cm).</p>
+                    </div>
+
+                    <div className="col-span-2 space-y-2 pt-2 border-t border-border/60">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider block">Left Margin Offset (mm) [Optional]</label>
+                        <span className="text-[10px] text-muted-foreground/70 font-mono">Default: 0mm</span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <Input
+                          type="number"
+                          value={receiptPrinter.leftMarginOffsetMm ?? 0}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Number(e.target.value);
+                            setReceiptPrinter({ ...receiptPrinter, leftMarginOffsetMm: isNaN(val) ? 0 : val });
+                          }}
+                          placeholder="0"
+                          className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono w-32"
+                        />
+                        <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+                          For POS80 / thermal printers shifted rightwards, enter a negative offset (e.g. <span className="font-mono font-bold text-foreground">-10</span> or <span className="font-mono font-bold text-foreground">-15</span>) to pull the print back to the left without affecting other printers.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2725,37 +2906,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </p>
                 </div>
               )}
-
-              {/* Card Footer: Dedicated Save Button */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-purple-500/15">
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground w-full sm:w-auto">
-                  {hasChanges ? (
-                    <span className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                      Unsaved changes pending
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5 text-emerald-500 dark:text-emerald-400 font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Paper stock settings saved
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className={clsx(
-                    "w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer shadow-sm border",
-                    hasChanges
-                      ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-500 shadow-purple-600/30 ring-2 ring-purple-500/20 animate-pulse"
-                      : "bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 border-purple-500/30"
-                  )}
-                >
-                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Save className="w-3.5 h-3.5 shrink-0" />}
-                  <span>{saving ? 'Saving...' : 'Save Paper Stock Settings'}</span>
-                </button>
-              </div>
             </div>
           </div>
         );
@@ -3685,6 +3835,24 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.sales_staff ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
+
+                {/* Staff Credit Billing & Ledger Toggle */}
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-foreground block">Show Staff in Customer Search & Credit Ledger</label>
+                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                      Show staff in billing customer search. Credit sales to staff automatically update their staff ledger without creating duplicate customer parties.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { const v = !featureFlags?.staff_credit_billing; useFeatureFlagsStore.getState().setFlag('staff_credit_billing', v); }}
+                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags?.staff_credit_billing ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
+                    title={featureFlags?.staff_credit_billing ? 'Enabled' : 'Disabled'}
+                  >
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.staff_credit_billing ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -3727,60 +3895,366 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <button type="button" onClick={() => setFontScale(100)} disabled={fontScale === 100} className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm">Reset to Default</button>
                 </div>
 
+                {/* Theme & Typography Studio Quick Access */}
+                <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-primary-foreground shadow-xs shrink-0"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      <Palette className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-foreground">Theme & Typography Studio</span>
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full font-mono">{primaryColor}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Active Font: <span className="font-semibold text-foreground">{fontFamily}</span> • Calibrate system brand accents, fonts, and live previews
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('design')}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:opacity-95 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0"
+                  >
+                    <Palette className="w-3.5 h-3.5" />
+                    <span>Open Studio</span>
+                  </button>
+                </div>
+
                 {/* What's New in App Highlights (User-Facing Information) */}
                 <div className="mt-6 pt-5 border-t border-border/70 space-y-3.5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Bell className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <span className="text-xs font-black text-foreground uppercase tracking-wider">What's New in Nafid</span>
-                        <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{appVersion}</span>
+                        <span className={clsx("text-xs font-black text-foreground uppercase tracking-wider", whatsNewLang === 'ml' && "font-malayalam font-bold text-sm tracking-normal")}>
+                          {whatsNewLang === 'ml' ? "പുതിയ വിശേഷങ്ങൾ" : "What's New in Nafid"}
+                        </span>
+                        <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full font-mono">{appVersion}</span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest bg-muted/40 px-2 py-0.5 rounded-md">Highlights</span>
+
+                    <div className="flex items-center gap-2">
+                      {/* Language Switcher */}
+                      <div className="flex items-center bg-muted/60 p-0.5 rounded-xl border border-border/70 shadow-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWhatsNewLang('ml');
+                            try { localStorage.setItem('nafid_whats_new_lang', 'ml'); } catch (_) {}
+                          }}
+                          className={clsx(
+                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer font-malayalam",
+                            whatsNewLang === 'ml'
+                              ? "bg-primary text-primary-foreground shadow-xs font-black"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Globe className="w-3 h-3" />
+                          മലയാളം
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWhatsNewLang('en');
+                            try { localStorage.setItem('nafid_whats_new_lang', 'en'); } catch (_) {}
+                          }}
+                          className={clsx(
+                            "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer",
+                            whatsNewLang === 'en'
+                              ? "bg-primary text-primary-foreground shadow-xs font-black"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          English
+                        </button>
+                      </div>
+
+                      <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest bg-muted/40 px-2 py-0.5 rounded-md hidden sm:inline-block">
+                        {whatsNewLang === 'ml' ? 'സവിശേഷതകൾ' : 'Highlights'}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                        <p className="font-bold text-foreground">Smarter & Faster Search</p>
+                  <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs", whatsNewLang === 'ml' && "font-malayalam")}>
+                    {/* Digital Warranty Certificates (Bill Number & Brand) */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-violet-500/40 hover:bg-violet-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'വാറന്റി കാർഡുകൾ (Bill No & Brand)' : 'Warranty Cards (Bill No & Brand)'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'വാറന്റി' : 'Warranty'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold pl-4 -mt-0.5">A4 Certificates & Brand Tracking</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഉല്പന്നങ്ങൾക്ക് ബിൽ നമ്പറും ബ്രാൻഡും (Brand) രേഖപ്പെടുത്തി കൃത്യമായ A4 വാറന്റി കാർഡുകൾ നൽകാം. ബിൽ നമ്പർ വഴിയോ ബ്രാൻഡ് വഴിയോ വാറന്റികൾ തത്സമയം സെർച്ച് ചെയ്യാനും തൽക്ഷണം ക്ലൗഡിലേക്ക് സിങ്ക് ചെയ്യാനും സാധിക്കും.'
+                            : 'Issue and print official A4 warranty certificates with dedicated Bill Number and Brand fields. Search warranties instantly by bill number, brand, or customer phone with real-time cloud synchronization.'}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
-                        Search products effortlessly across item codes, barcodes, names, and categories with automatic spacing and character matching.
-                      </p>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                        <p className="font-bold text-foreground">Clear Real vs Paper Stock</p>
+                    {/* Customer Loyalty Points & Instant Redemption */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-amber-500/40 hover:bg-amber-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'കസ്റ്റമർ ലോയൽറ്റി & റിഡംപ്ഷൻ' : 'Customer Loyalty & Redemption'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'ലോയൽറ്റി' : 'Loyalty'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold pl-4 -mt-0.5">Real-Time Points & Instant Bill Discounts</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഓരോ പർച്ചേസിലും കസ്റ്റമർമാർക്ക് പോയിന്റുകൾ നൽകാം (₹X = 1 Pt). ബില്ലിംഗിൽ കസ്റ്റമറെ സെലക്ട് ചെയ്യുമ്പോൾ ഫോൺ നമ്പറിന് തൊട്ടടുത്ത് തന്നെ പോയിന്റ് ബാലൻസ് കാണാം. "Redeem" അല്ലെങ്കിൽ "Max" ബട്ടൺ ക്ലിക്ക് ചെയ്ത് പോയിന്റുകൾ തത്സമയം പണമാക്കി ബിൽ തുകയിൽ നിന്ന് കുറയ്ക്കാം. കസ്റ്റമർ പേജിൽ ഹിസ്റ്ററിയും പോയിന്റ് അഡ്ജസ്റ്റ്മെന്റും ലഭ്യമാണ്.'
+                            : 'Award customer loyalty points on purchases (₹X = 1 Pt). When selecting a customer during billing, their points balance appears right beside the phone number. Redeem points for instant discounts using the "Redeem" or quick "Max" button, with audit history and manual adjustment tools.'}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
-                        Easily distinguish your actual physical shop stock from purchase-invoiced paper stock in inventory and billing.
-                      </p>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-                        <p className="font-bold text-foreground">Clean WhatsApp Receipts & Ledgers</p>
+                    {/* Dashboard Card Reordering & Customizer */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-indigo-500/40 hover:bg-indigo-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ഡാഷ്‌ബോർഡ് കാർഡ് റീ-ഓർഡർ' : 'Dashboard Card Reorder'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'കസ്റ്റമൈസേഷൻ' : 'Customization'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Drag & Drop Card Sequence</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഓണർക്കും സ്റ്റാഫിനും സ്വന്തം ഇഷ്ടപ്രകാരം POS ഡാഷ്‌ബോർഡിലെ കാർഡുകൾ (Billing, Cashier, Inventory...) ഡ്രാഗ് ചെയ്തും ആരോ ബട്ടണുകൾ വഴിയും റീ-ഓർഡർ ചെയ്യാം. കസ്റ്റം റീസെറ്റ് ഡയലോഗും ലഭ്യമാണ്.'
+                            : 'Owners and staff can dynamically reorder POS dashboard cards (Billing, Cashier, Inventory...) via drag-and-drop or position arrows, with user profile sync and a custom reset dialog.'}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
-                        Send beautifully formatted digital receipts and customer ledger summaries directly to WhatsApp with one click.
-                      </p>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1 hover:border-primary/30 transition-all">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
-                        <p className="font-bold text-foreground">Seamless Invoice Conversion</p>
+                    {/* Theme & Typography Architecture */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-primary/40 hover:bg-primary/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-primary shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'തീം, കളർ & ടൈപ്പോഗ്രാഫി' : 'Theme & Typography Studio'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'കസ്റ്റമൈസേഷൻ' : 'Design Studio'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Colors, Fonts & Admin Surface Tones</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ബ്രാൻഡ് കളർ, ഫോണ്ട് സ്റ്റാക്കുകൾ, റീഡിംഗ് സൈസ് എന്നിവ മാറ്റാം. അഡ്മിന് ലൈറ്റ്-ഡാർക്ക് തീമുകളുടെ ബേസ് കളർ (Zero-Blue ന്യൂട്രൽ സിങ്ക്, വാം പേപ്പർ, ഒഎൽഇഡി പിച്ച് ബ്ലാക്ക്) അല്ലെങ്കിൽ കസ്റ്റം കളർ നൽകാം.'
+                            : 'Calibrate primary brand colors, typography font stacks, and reading density. Admins can customize non-bluish Light and Dark theme base surfaces (Neutral Zinc, Warm Paper, Pitch Black OLED) or custom HEX colors.'}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pl-4">
-                        Quickly convert regular bills to GST invoices with automatic profit percentage adjustments right from Sales History.
-                      </p>
+                    </div>
+
+                    {/* 1. Automated Shop Closing Reports */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ഷോപ്പ് ക്ലോസിംഗ് റിപ്പോർട്ട്' : 'Automated Shop Closing'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'വാട്സാപ്പ്' : 'WhatsApp'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Automated WhatsApp Report</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ദിവസേന കടയടയ്ക്കുമ്പോൾ ക്യാഷ് കൗണ്ട്, ബില്ലർ തിരിച്ചുള്ള സെയിൽസ്, ക്രെഡിറ്റ് പിരിവ്, ചിലവുകൾ എന്നിവ അടങ്ങിയ കൃത്യമായ സംഗ്രഹം ഓട്ടോമാറ്റിക്കായി വാട്സാപ്പിൽ ലഭിക്കുന്നു.'
+                            : 'End-of-day closing summaries sent automatically to WhatsApp with cash reconciliation, multi-biller sales, credit collections, and expense totals.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 2. Emergency Reset & Panic Shield */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-rose-500/40 hover:bg-rose-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'എമർജൻസി പാനിക് ഷീൽഡ്' : 'Emergency Panic Shield'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'സുരക്ഷ' : 'Security'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Kill Switch & Audit Protection</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'പെട്ടെന്നുള്ള പരിശോധനകളിലും ഓഡിറ്റുകളിലും രഹസ്യ പാനിക് ക്ലിക്കിലൂടെയോ ഹോട്ട്കീ വഴിയോ ഡാറ്റ സുരക്ഷിതമായി ലോക്ക് ചെയ്യാനും അടിയന്തരമായി മായ്ക്കാനും സാധിക്കും.'
+                            : 'Covert kill-switch panic triggers and selective database purge safeguards with passcode protection to protect confidential records during urgent audits.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 3. Staff Data Masking */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-amber-500/40 hover:bg-amber-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'സ്റ്റാഫ് ഡാറ്റ മാസ്കിംഗ്' : 'Staff Data Masking'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'പ്രൈവസി' : 'Privacy'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Purchase Cost & Profit Privacy</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ബില്ലിംഗ് ക്യാഷ്യർമാരിൽ നിന്നും സാധനങ്ങളുടെ വാങ്ങൽ വില (Purchase Price), ലാഭവിഹിതം (Profit Margin), മൊത്തം വിറ്റുവരവ് കണക്കുകൾ എന്നിവ പൂർണ്ണമായും മറച്ചുവെക്കാം.'
+                            : 'Shield store profits and supplier costs by masking wholesale purchase prices, profit margins, and total revenue figures from cashier staff accounts.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 4. Digital Ads & Promo Screen */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-purple-500/40 hover:bg-purple-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ഡിജിറ്റൽ പരസ്യ ബോർഡ്' : 'Digital Ads Manager'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'മാർക്കറ്റിംഗ്' : 'Marketing'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Customer Display Promotions</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഷോപ്പിലെ ഓഫറുകൾ, വിശേഷാൽ ഡിസ്കൗണ്ടുകൾ, അറിയിപ്പുകൾ എന്നിവ കസ്റ്റമർ ഡിസ്പ്ലേ സ്ക്രീനുകളിലും മൊബൈൽ പോർട്ടലിലും മനോഹരമായ ബാനറുകളായി പ്രദർശിപ്പിക്കാം.'
+                            : 'Create, schedule, and showcase custom promotional marketing banners, seasonal discount announcements, and customer-facing screen campaigns.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 5. Offline AI Assistant & Analytics */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-cyan-500/40 hover:bg-cyan-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-cyan-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ഓഫ്‌ലൈൻ AI അസിസ്റ്റന്റ്' : 'Offline AI Intelligence'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'AI ഓഫ്‌ലൈൻ' : 'AI Offline'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Zero-Internet Natural Queries</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഇന്റർനെറ്റ് ഇല്ലാതെ തന്നെ പഴയ ബില്ലുകൾ കണ്ടെത്താനും, കച്ചവട കണക്കുകളും സ്റ്റോക്ക് വിവരങ്ങളും ലളിതമായ ചോദ്യങ്ങളിലൂടെ നേരിട്ട് ചോദിച്ചറിയാനും സാധിക്കുന്നു.'
+                            : 'Audit sales history, search customer bills, and query inventory trends using conversational natural language with zero cloud latency.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 6. Dynamic Tiered Pricing & PDF Ledgers */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'പ്രൈസിംഗ് ടയർ & PDF ലെഡ്ജർ' : 'Tiered Pricing & Ledgers'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'അക്കൗണ്ട്സ്' : 'Accounts'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Wholesale Tiers & Statements</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'റീട്ടെയിൽ, ഹോൾസെയിൽ, VIP കസ്റ്റമർമാർക്ക് പ്രത്യേക വിലകൾ ഓട്ടോമാറ്റിക്കായി നൽകാനും, അക്കൗണ്ട് ഇടപാടുകളുടെ വ്യക്തമായ PDF ലെഡ്ജർ സ്റ്റേറ്റ്മെന്റ് പ്രിന്റ് ചെയ്യാനും സാധിക്കും.'
+                            : 'Automatically apply wholesale or VIP pricing tiers to customer carts and export beautifully formatted PDF account ledger statements.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 7. Thermal Printer Alignment & Left Margin Offset */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-teal-500/40 hover:bg-teal-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'തെർമൽ പ്രിന്റർ അലൈൻമെന്റ് & ഓഫ്സെറ്റ്' : 'Thermal Printer Alignment & Offset'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'ഹാർഡ്‌വെയർ' : 'Hardware'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">POS80 & 80mm Margin Calibration</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'POSPrinter POS80 ഉൾപ്പെടെയുള്ള 80mm തെർമൽ പ്രിന്ററുകളിൽ വിൻഡോസ് ഡ്രൈവർ കാരണം പ്രിന്റ് ഒരു വശത്തേക്ക് മാറിപ്പോകുന്ന പ്രശ്നം പരിഹരിക്കാൻ Left Margin Offset ക്രമീകരണവും കൃത്യമായ പേജ് ഫോർമാറ്റിംഗും ലഭ്യമാക്കി.'
+                            : 'Added precision left-margin offset calibration and continuous roll layout fixes for 80mm thermal receipt printers (including POSPrinter POS80) to eliminate rightward shifts without affecting other printers.'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4613,22 +5087,19 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className={clsx(
-              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm border",
-              hasChanges
-                ? "text-primary-foreground bg-primary hover:bg-primary/90 border-primary shadow-primary/20 ring-2 ring-primary/20 animate-pulse"
-                : "text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/70 border-border/60"
-            )}
-            title={hasChanges ? "Save Changes (Unsaved Changes Pending)" : "Save Settings"}
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0 text-current" />}
-            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
-            <span className="sm:hidden">{saving ? 'Saving...' : 'Save'}</span>
-          </button>
+          {(hasChanges || saving) && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md border text-primary-foreground bg-primary hover:bg-primary/90 border-primary shadow-primary/25 ring-2 ring-primary/20 animate-in fade-in zoom-in-95 duration-200"
+              title="Save Changes (Unsaved Changes Pending)"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0 text-current" />}
+              <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
+              <span className="sm:hidden">{saving ? 'Saving...' : 'Save'}</span>
+            </button>
+          )}
           <button onClick={onClose}
             className="p-2.5 text-destructive hover:bg-destructive/10 border border-destructive/30 shadow-sm rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Close">
@@ -4731,6 +5202,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-2 max-w-2xl text-center leading-relaxed font-medium">
+                  {activeItem.id === 'design' && 'Calibrate system brand accent colors, interface font stacks, and touchscreen reading density.'}
                   {activeItem.id === 'store' && 'Manage your shop profile, GST registration, invoice counters, and features.'}
                   {activeItem.id === 'terminology' && 'Customise how Receivable, Payable, Received, and Paid terms are displayed across ledgers and reports.'}
                   {activeItem.id === 'hardware' && 'Configure receipt printers, barcode label printers, scales, and hardware connections.'}
@@ -4738,9 +5210,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   {activeItem.id === 'printing' && 'Select paper formats for normal print (BOS/Estimate) and customize invoice & thermal template styles.'}
                   {activeItem.id === 'print_options' && 'Configure bill content checklists, T&C instructions, BOS tax rate, receipt typography, and label codes.'}
                   {activeItem.id === 'billing_ui' && 'Rearrange POS billing columns, customize theme colors, adjust touchscreen target density, and tailor layout for cashiers.'}
+                  {activeItem.id === 'dashboard_cards' && 'Rearrange the display sequence of POS dashboard module cards according to your preferred workflow.'}
                   {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
                   {activeItem.id === 'network' && 'Configure Cloud API sync, Local Wi-Fi direct connections, and hybrid store networks.'}
                   {activeItem.id === 'features' && 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.'}
+                  {activeItem.id === 'emergency_purge' && 'Configure on-site panic hotkeys, multi-click gestures, and remote cloud wipe signals.'}
+                  {activeItem.id === 'staff_masking' && 'Mask aggregate stock valuations and customize sales history visibility and revenue display for staff.'}
                 </p>
               </div>
             )}

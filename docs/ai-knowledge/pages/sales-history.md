@@ -455,3 +455,13 @@ The following 12 realistic question examples cover English, Malayalam, and Mangl
 - **Capability:** `CLARIFICATION_REQUIRED`
 - **Execution Type:** Interactive Clarification Prompt.
 - **AI Response:** *"Would you like to see today's bills, yesterday's bills, or search for a specific customer or bill number?"*
+
+### 13. Highest / Lowest Sales Month
+- **English:** "Which month I had the highest sales?" / "What was our best sales month?" / "Which month had the lowest sales?"
+- **Malayalam:** "ഏറ്റവും കൂടുതൽ സെയിൽസ് നടന്ന മാസം ഏതാണ്?" / "കൂടുതൽ വിൽപ്പനയുള്ള മാസം ഏതാണ്?"
+- **Manglish:** "Ethu masathilaanu highest sales?" / "Highest sales ulla maasam ethu?"
+- **Capability:** `SALES_HIGHEST_MONTH`
+- **Execution Type:** Read-Only Database Aggregation (`dbGetInvoices` grouped by `YYYY-MM` across all time or year filter).
+- **Required Parameters:** `isLowest?: boolean`, `year?: string`.
+- **Expected Result:** Summary of winning month with total sales, invoices count, average ticket value, full monthly breakdown table, and Recharts bar chart data.
+

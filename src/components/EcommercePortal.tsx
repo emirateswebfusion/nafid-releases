@@ -36,7 +36,6 @@ import {
   CheckCheck,
   Copy,
   ShieldCheck,
-  Sparkles,
   Server,
   Wifi,
   WifiOff,
@@ -470,14 +469,6 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
               <h1 className="text-sm font-bold text-foreground tracking-tight flex items-center gap-1.5">
                 <span>FusionCart Marketplace Hub</span>
               </h1>
-              <span className={clsx(
-                "rounded-md px-1.5 py-0.5 text-[10px] font-bold border uppercase tracking-wider",
-                isVendorApproved
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-              )}>
-                {isVendorApproved ? 'Verified Store' : regStatus === 'PENDING' ? 'Under Review' : 'Setup Required'}
-              </span>
             </div>
             <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
               <span>Store: <strong className="text-foreground">{shopName || 'Retail Hub'}</strong></span>
@@ -680,7 +671,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
                       </div>
                     </div>
                     <div className="text-2xl sm:text-3xl font-black text-foreground tracking-tight font-mono flex items-baseline gap-1">
-                      <span className="text-xs font-semibold text-muted-foreground">AED</span>
+                      <span className="text-xs font-semibold text-muted-foreground">INR</span>
                       <span>{summary.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium mt-1.5 pt-1.5 border-t border-border/40">
@@ -1396,19 +1387,19 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
 
                                 {/* POS Counter Price */}
                                 <td className="px-3 py-2 text-right font-mono font-medium text-foreground">
-                                  AED {Number(prod.base_price).toFixed(2)}
+                                  INR {Number(prod.base_price).toFixed(2)}
                                 </td>
 
                                 {/* Online Price Override */}
                                 <td className="px-3 py-2 text-right font-mono">
                                   {prod.online_price_override !== null && prod.online_price_override !== undefined ? (
                                     <div className="font-bold text-emerald-600 dark:text-emerald-400">
-                                      AED {Number(prod.online_price_override).toFixed(2)}
+                                      INR {Number(prod.online_price_override).toFixed(2)}
                                       <span className="block text-[9px] font-sans text-muted-foreground font-normal">Custom Override</span>
                                     </div>
                                   ) : (
                                     <span className="text-muted-foreground/60 text-[11px]">
-                                      AED {Number(prod.base_price).toFixed(2)} <span className="text-[10px] italic">(POS)</span>
+                                      INR {Number(prod.base_price).toFixed(2)} <span className="text-[10px] italic">(POS)</span>
                                     </span>
                                   )}
                                 </td>
@@ -1558,7 +1549,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
                           <th className="px-3 py-2">Order Date</th>
                           <th className="px-3 py-2">Customer Destination</th>
                           <th className="px-3 py-2 text-center">Items</th>
-                          <th className="px-3 py-2 text-right">Total (AED)</th>
+                          <th className="px-3 py-2 text-right">Total (INR)</th>
                           <th className="px-3 py-2 text-center">Payment Status</th>
                           <th className="px-3 py-2 text-center">Fulfillment</th>
                           <th className="px-3 py-2 text-right">Action</th>
@@ -1607,7 +1598,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
                               </td>
 
                               <td className="px-3 py-2 text-right font-mono font-black text-foreground">
-                                AED {Number(order.total || order.amount).toFixed(2)}
+                                INR {Number(order.total || order.amount).toFixed(2)}
                               </td>
 
                               <td className="px-3 py-2 text-center">
@@ -1824,17 +1815,17 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
               </div>
 
               <div>
-                <label className="font-semibold block mb-1 text-foreground">Online Price Override (AED)</label>
+                <label className="font-semibold block mb-1 text-foreground">Online Price Override (INR)</label>
                 <input
                   type="number"
                   step="0.01"
-                  placeholder={`POS Counter Price: AED ${Number(editingProduct.base_price).toFixed(2)}`}
+                  placeholder={`POS Counter Price: INR ${Number(editingProduct.base_price).toFixed(2)}`}
                   defaultValue={editingProduct.online_price_override !== null && editingProduct.online_price_override !== undefined ? editingProduct.online_price_override : ''}
                   id="modal-online-price"
                   className="w-full px-3.5 py-2 rounded-xl border border-border/80 bg-background font-mono text-xs text-foreground focus:outline-none focus:border-primary shadow-2xs"
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Leave blank to inherit POS billing price (AED {Number(editingProduct.base_price).toFixed(2)}).
+                  Leave blank to inherit POS billing price (INR {Number(editingProduct.base_price).toFixed(2)}).
                 </p>
               </div>
 
@@ -1949,11 +1940,11 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
                       <div>
                         <div className="font-bold text-foreground">{p.name}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">
-                          Qty: {p.pivot?.quantity || 1} × AED {Number(p.pivot?.single_price || 0).toFixed(2)}
+                          Qty: {p.pivot?.quantity || 1} × INR {Number(p.pivot?.single_price || 0).toFixed(2)}
                         </div>
                       </div>
                       <div className="font-mono font-bold text-foreground">
-                        AED {Number(p.pivot?.subtotal || 0).toFixed(2)}
+                        INR {Number(p.pivot?.subtotal || 0).toFixed(2)}
                       </div>
                     </div>
                   ))}
@@ -1964,7 +1955,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
               <div className="pt-2 border-t border-border/60 flex items-center justify-between">
                 <span className="font-bold text-foreground text-sm">Total Paid</span>
                 <span className="font-mono font-black text-foreground text-base">
-                  AED {Number(selectedOrder.total || selectedOrder.amount).toFixed(2)}
+                  INR {Number(selectedOrder.total || selectedOrder.amount).toFixed(2)}
                 </span>
               </div>
             </div>

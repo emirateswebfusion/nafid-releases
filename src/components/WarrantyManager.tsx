@@ -14,16 +14,19 @@ import { FloatToast } from './ui/FloatToast';
 
 interface Warranty {
   warranty_id: string;
-  invoice_id: string;
+  invoice_id?: string;
+  invoice_item_id?: string;
+  bill_number?: string;
+  brand?: string;
   customer_name: string;
-  customer_phone: string;
+  customer_phone?: string;
   product_name: string;
-  product_details: string;
+  product_details?: string;
   purchase_date: string;
   warranty_period_days: number;
   expiry_date: string;
-  notes: string;
-  created_at: string;
+  notes?: string;
+  created_at?: string;
 }
 
 export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
@@ -39,6 +42,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
+    bill_number: '',
+    brand: '',
     product_name: '',
     product_details: '',
     purchase_date: new Date().toLocaleDateString('en-CA'),
@@ -77,13 +82,25 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
         warranty_id: uuidv4(),
         tenant_id: tenantId,
         ...form,
+        bill_number: form.bill_number.trim() || null,
+        brand: form.brand.trim() || null,
         warranty_period_days: Number(form.warranty_period_days),
         expiry_date: expiryDate,
       });
       if (res.success) {
         setStatusMessage({ text: 'Warranty saved!', type: 'success' });
         setShowCreate(false);
-        setForm({ customer_name: '', customer_phone: '', product_name: '', product_details: '', purchase_date: new Date().toLocaleDateString('en-CA'), warranty_period_days: 365, notes: '' });
+        setForm({
+          customer_name: '',
+          customer_phone: '',
+          bill_number: '',
+          brand: '',
+          product_name: '',
+          product_details: '',
+          purchase_date: new Date().toLocaleDateString('en-CA'),
+          warranty_period_days: 365,
+          notes: '',
+        });
         loadWarranties();
       } else {
         setStatusMessage({ text: res.error || 'Failed', type: 'error' });
@@ -200,12 +217,16 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     const qClean = cleanText(search);
     return (
       w.customer_name.toLowerCase().includes(q) ||
-      w.customer_phone.toLowerCase().includes(q) ||
+      (w.customer_phone && w.customer_phone.toLowerCase().includes(q)) ||
       w.product_name.toLowerCase().includes(q) ||
+      (w.brand && w.brand.toLowerCase().includes(q)) ||
+      (w.bill_number && w.bill_number.toLowerCase().includes(q)) ||
       (qClean.length > 0 && (
         cleanText(w.customer_name).includes(qClean) ||
-        cleanText(w.customer_phone).includes(qClean) ||
-        cleanText(w.product_name).includes(qClean)
+        cleanText(w.customer_phone || '').includes(qClean) ||
+        cleanText(w.product_name).includes(qClean) ||
+        cleanText(w.brand || '').includes(qClean) ||
+        cleanText(w.bill_number || '').includes(qClean)
       ))
     );
   });
@@ -313,12 +334,18 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                           </div>
                           <div>
                             <p className="text-foreground font-bold text-sm">{w.customer_name}</p>
-                            <p className="text-muted-foreground text-xs mt-0.5">{w.customer_phone || ''}</p>
+                            <p className="text-muted-foreground text-xs mt-0.5">
+                              {w.customer_phone || ''}
+                              {w.bill_number ? `${w.customer_phone ? ' • ' : ''}Bill #${w.bill_number}` : ''}
+                            </p>
                           </div>
                         </div>
                       </div>
                       <div className="col-span-3">
-                        <p className="text-foreground font-semibold text-sm">{w.product_name}</p>
+                        <p className="text-foreground font-semibold text-sm">
+                          {w.brand && <span className="text-primary font-bold mr-1.5">{w.brand}</span>}
+                          {w.product_name}
+                        </p>
                         {w.product_details && <p className="text-muted-foreground text-xs mt-0.5">{w.product_details}</p>}
                       </div>
                       <div className="col-span-2 text-center text-muted-foreground text-xs font-semibold">{formatDate(w.purchase_date)}</div>
@@ -364,14 +391,18 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                 </div>
                 <span className="text-xs font-black text-blue-500 uppercase tracking-wider">1. Customer Details</span>
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Customer Name *</label>
-                  <input type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Enter customer name" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Customer Phone</label>
-                  <input type="text" value={form.customer_phone} onChange={e => setForm(p => ({ ...p, customer_phone: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.customer_phone} onChange={e => setForm(p => ({ ...p, customer_phone: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Enter phone number" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Bill Number</label>
+                  <input type="text" value={form.bill_number} onChange={e => setForm(p => ({ ...p, bill_number: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="e.g. INV-1002" />
                 </div>
               </div>
             </section>
@@ -383,14 +414,18 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                 </div>
                 <span className="text-xs font-black text-indigo-500 uppercase tracking-wider">2. Product Details</span>
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Product Name *</label>
-                  <input type="text" value={form.product_name} onChange={e => setForm(p => ({ ...p, product_name: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.product_name} onChange={e => setForm(p => ({ ...p, product_name: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="e.g. Vacuum Flask" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand</label>
+                  <input type="text" value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="e.g. Milton" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Product Details</label>
-                  <input type="text" value={form.product_details} onChange={e => setForm(p => ({ ...p, product_details: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.product_details} onChange={e => setForm(p => ({ ...p, product_details: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Model, serial, or specs" />
                 </div>
               </div>
             </section>
@@ -448,13 +483,15 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               <table>
                 <tbody>
                   <tr><td className="label">Customer Name</td><td>{selectedWarranty.customer_name}</td></tr>
-                <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '—'}</td></tr>
-                <tr><td className="label">Product</td><td>{selectedWarranty.product_name}</td></tr>
-                <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '—'}</td></tr>
-                <tr><td className="label">Purchase Date</td><td>{formatDate(selectedWarranty.purchase_date)}</td></tr>
-                <tr><td className="label">Warranty Period</td><td>{selectedWarranty.warranty_period_days} Days</td></tr>
-                <tr><td className="label">Expiry Date</td><td>{formatDate(selectedWarranty.expiry_date)}</td></tr>
-                <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '—'}</td></tr>
+                  <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '—'}</td></tr>
+                  <tr><td className="label">Bill Number</td><td>{selectedWarranty.bill_number || '—'}</td></tr>
+                  <tr><td className="label">Brand</td><td>{selectedWarranty.brand || '—'}</td></tr>
+                  <tr><td className="label">Product</td><td>{selectedWarranty.product_name}</td></tr>
+                  <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '—'}</td></tr>
+                  <tr><td className="label">Purchase Date</td><td>{formatDate(selectedWarranty.purchase_date)}</td></tr>
+                  <tr><td className="label">Warranty Period</td><td>{selectedWarranty.warranty_period_days} Days</td></tr>
+                  <tr><td className="label">Expiry Date</td><td>{formatDate(selectedWarranty.expiry_date)}</td></tr>
+                  <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '—'}</td></tr>
                 </tbody>
               </table>
             </div>

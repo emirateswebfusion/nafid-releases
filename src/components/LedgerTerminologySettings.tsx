@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTerminologyStore, TERMINOLOGY_PRESETS, type TerminologyPreset, DEFAULT_CUSTOM_LABELS } from '../store/terminologyStore';
-import { BookOpen, Check, Sparkles, HelpCircle, ArrowUpRight, ArrowDownLeft, Wallet, Info } from 'lucide-react';
+import { BookOpen, Check, Eye, HelpCircle, ArrowUpRight, ArrowDownLeft, Wallet, Info } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from './ui/Input';
 
@@ -22,9 +22,6 @@ export const LedgerTerminologySettings: React.FC = () => {
                 <h3 className="text-base font-extrabold text-foreground uppercase tracking-wider">
                   Ledger Terminology Style
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] border border-emerald-500/30 uppercase tracking-widest">
-                  NEW FEATURE
-                </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1 max-w-2xl leading-relaxed">
                 Choose the terminology that best fits your business. Replace complex accounting terms like <span className="font-bold text-foreground">Receivable & Payable</span> with easy everyday words like <span className="font-bold text-emerald-600 dark:text-emerald-400">You'll Get & You'll Give</span>.
@@ -204,7 +201,7 @@ export const LedgerTerminologySettings: React.FC = () => {
       <div className="p-6 rounded-2xl bg-card border border-border space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-500" />
+            <Eye className="w-4 h-4 text-primary" />
             <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
               Live Preview — How it looks in your Ledgers
             </h4>

@@ -1,11 +1,17 @@
 # Nafid POS v2.0.2 Release Notes
 
 ## What's Changed
-- **What's New in App Appearance**: Added user-friendly feature highlights directly inside Settings under Appearance.
-- **Enhanced Product Search**: Upgraded product search with intelligent multi-keyword matching, space insensitivity, and character normalization across names, codes, barcodes, and categories.
-- **Clear Real vs Paper Stock Presentation**: Refined inventory and billing views to display physical shop stock clearly alongside purchase paper stock.
-- **WhatsApp Ledger & Receipt Formatting**: Streamlined transaction message alignment and optional store branding for customer ledger updates.
-- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.2.exe` with updated auto-update block map.
+- **Digital Warranty Certificates & Brand Tracking**: Issue, track, and print official A4 warranty certificates with dedicated **Bill Number** and **Brand** fields alongside customer and product specifications. Features instant edge-to-cloud sync, search by bill number or brand, and clean warranty card printouts.
+- **Dynamic POS Dashboard Card Reordering & Customizer**: Store owners and staff can dynamically reorganize POS dashboard module cards (Billing, Cashier Settlement, Inventory, E-Commerce, etc.) using live drag-and-drop or position arrows. Features user-profile persistence, responsive touch & mouse support, and a dedicated Restore Defaults confirmation dialog with live sequence preview.
+- **Theme, Typography & Admin Surface Studio**: Complete design studio in Settings. Calibrate primary brand accent colors, curated typography font stacks (Geist, Outfit, Space Grotesk, DM Sans, Plus Jakarta Sans), and UI reading density. Store Administrators can now customize base surface colors for Light and Dark modes (including Zero-Blue Neutral Zinc, Warm Cream/Sand, Pitch Black OLED, or custom HEX) replacing default white and bluish/navy tones.
+- **Automated WhatsApp Shop Closing Reports**: End-of-day business closing summaries sent automatically to WhatsApp with cash count reconciliation, multi-biller sales, credit collections, and expense totals.
+- **Emergency Reset & Panic Shield**: Covert kill switch panic triggers and selective database purge safeguards with passcode protection to protect sensitive data during urgent audits.
+- **Staff Data Masking & Role Privacy**: Granular financial privacy shielding wholesale purchase prices, profit margins, and revenue totals from cashier and non-admin staff across billing, stock, and sales.
+- **Digital Advertisements & Promo Manager**: Create, schedule, and showcase store promotional marketing banners, seasonal discount announcements, and customer-facing screen campaigns.
+- **Offline AI Assistant & Analytics**: Conversational AI running 100% locally without cloud latency for instant sales audits, customer invoice searches, and stock intelligence.
+- **Dynamic Tiered Pricing & Party PDF Ledgers**: Automatically apply wholesale, retail, or custom pricing tiers at billing checkout and generate formatted PDF party ledger statements.
+- **Thermal Printer Left Margin Offset & POS80 Alignment**: Added precision left-margin offset calibration and continuous roll layout fixes for 80mm thermal receipt printers (including POSPrinter POS80 and similar models) to eliminate rightward shifts and driver unprintable margin offsets without affecting other printers.
+- **What's New in App Settings**: Refreshed user-facing feature highlights directly inside Settings under Appearance.
 - **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.1...v2.0.2
 
 # Vendora v1.7.15 Release Notes

@@ -109,6 +109,8 @@ export function initDb() {
 
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
+  db.pragma('synchronous = NORMAL');
 
   // Register string cleaner function for special-character insensitive searches
   try {
@@ -426,6 +428,8 @@ export function initDb() {
         tenant_id TEXT NOT NULL,
         invoice_id TEXT,
         invoice_item_id TEXT,
+        bill_number TEXT,
+        brand TEXT,
         customer_name TEXT NOT NULL,
         customer_phone TEXT,
         product_name TEXT NOT NULL,
@@ -862,7 +866,27 @@ export function initDb() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS shop_closing_reports (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'global',
+        business_date TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        terminal_code TEXT,
+        recipient_phone TEXT NOT NULL,
+        summary_data TEXT,
+        checklist_config TEXT,
+        message_text TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        whatsapp_message_id TEXT,
+        error_message TEXT,
+        retry_count INTEGER DEFAULT 0,
+        sent_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indexes (created after all tables to avoid forward references)
+    CREATE INDEX IF NOT EXISTS idx_shop_closing_reports_date ON shop_closing_reports(tenant_id, business_date, trigger_type);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_tenant_product ON invoice_items(tenant_id, product_id);
     CREATE INDEX IF NOT EXISTS idx_products_tenant_deleted ON products(tenant_id, is_deleted);
@@ -961,7 +985,7 @@ export function initDb() {
         'item_id', 'quotation_id', 'tenant_id', 'product_id', 'name', 'quantity', 'weight', 'rate', 'amount', 'hsn_code', 'uom', 'tax_rate_percent', 'discount_amount', 'discount_percent', 'taxable_amount', 'cgst_amount', 'sgst_amount', 'igst_amount', 'sync_status', 'created_at'
     ],
     warranties: [
-        'warranty_id', 'tenant_id', 'invoice_id', 'invoice_item_id', 'customer_name', 'customer_phone', 'product_name', 'product_details', 'purchase_date', 'warranty_period_days', 'expiry_date', 'notes', 'sync_status', 'created_at', 'updated_at'
+        'warranty_id', 'tenant_id', 'invoice_id', 'invoice_item_id', 'bill_number', 'brand', 'customer_name', 'customer_phone', 'product_name', 'product_details', 'purchase_date', 'warranty_period_days', 'expiry_date', 'notes', 'sync_status', 'created_at', 'updated_at'
     ],
     purchase_bills: [
         'purchase_bill_id', 'tenant_id', 'bill_number', 'supplier_id', 'supplier_name', 'bill_date', 'invoice_number', 'notes', 'total_amount', 'bill_type', 'sync_status', 'created_at', 'updated_at'
@@ -1883,6 +1907,20 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add columns to invoice_items:', e.message);
   }
 
+  try {
+    const wCols = db.prepare(`PRAGMA table_info(warranties)`).all().map((c: any) => c.name);
+    if (!wCols.includes('bill_number')) {
+      console.log('[DB Migration] Adding bill_number to warranties...');
+      db.exec("ALTER TABLE warranties ADD COLUMN bill_number TEXT");
+    }
+    if (!wCols.includes('brand')) {
+      console.log('[DB Migration] Adding brand to warranties...');
+      db.exec("ALTER TABLE warranties ADD COLUMN brand TEXT");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add columns to warranties:', e.message);
+  }
+
   // Migration: allow temp (billing-only) items — invoice_items & return_items must not
   // FK-reference products, because temp items are sold without creating a products row.
   try {
@@ -2013,6 +2051,33 @@ export function initDb() {
 
   // Auto-deduplicate customer and party records to keep balances clean and prevent duplicates
   autoDeduplicateCustomersAndParties(db);
+
+  // Ensure shop_closing_reports table exists
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS shop_closing_reports (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'global',
+        business_date TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        terminal_code TEXT,
+        recipient_phone TEXT NOT NULL,
+        summary_data TEXT,
+        checklist_config TEXT,
+        message_text TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        whatsapp_message_id TEXT,
+        error_message TEXT,
+        retry_count INTEGER DEFAULT 0,
+        sent_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_shop_closing_reports_date ON shop_closing_reports(tenant_id, business_date, trigger_type);
+    `);
+  } catch (e: any) {
+    console.error('[DB Migration] shop_closing_reports table ensure error:', e.message);
+  }
 }
 
 export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
@@ -2097,6 +2162,31 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       `);
     } catch (e: any) {
       console.warn('[DB Migration] Fix legacy held invoice numbers error:', e.message);
+    }
+
+    // Migration: Clean up erroneous paper prices on Real products in domain_attributes
+    try {
+      const realProds = d.prepare(`
+        SELECT product_id, domain_attributes 
+        FROM products 
+        WHERE domain_attributes LIKE '%"gst_type":"REAL"%' 
+          AND (domain_attributes LIKE '%paper_purchase_price%' OR domain_attributes LIKE '%paper_mrp%' OR domain_attributes LIKE '%gst_purchase_price%')
+      `).all() as { product_id: string; domain_attributes: string }[];
+
+      for (const prod of realProds) {
+        try {
+          const da = JSON.parse(prod.domain_attributes || '{}');
+          if (da.gst_type === 'REAL' && (!da.paper_stock || Number(da.paper_stock) <= 0)) {
+            delete da.paper_purchase_price;
+            delete da.paper_mrp;
+            delete da.paper_base_price;
+            delete da.gst_purchase_price;
+            d.prepare(`UPDATE products SET domain_attributes = ?, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(JSON.stringify(da), prod.product_id);
+          }
+        } catch {}
+      }
+    } catch (e: any) {
+      console.warn('[DB Migration] Clean real product paper attributes error:', e.message);
     }
   } catch (e: any) {
     console.warn('[DB Migration] Auto-ensure columns error:', e.message);
@@ -2210,10 +2300,9 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND phone = ?
-            ORDER BY 
-              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
-              created_at ASC
+            ORDER BY created_at ASC
             LIMIT 1
           `).get(tenantId, name, phone);
         }
@@ -2234,10 +2323,9 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
               AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
-            ORDER BY 
-              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
-              created_at ASC
+            ORDER BY created_at ASC
             LIMIT 1
           `).get(tenantId, `%${last10}`);
         }
@@ -2260,9 +2348,9 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?))
             ORDER BY 
-              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
               CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
               created_at ASC
             LIMIT 1
@@ -2279,10 +2367,9 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
               AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
-            ORDER BY 
-              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
-              created_at ASC
+            ORDER BY created_at ASC
             LIMIT 1
           `).get(tenantId, `%${cClean.slice(-10)}`);
         }
@@ -2290,10 +2377,9 @@ export class CustomerIdentityService {
           existingParty = db.prepare(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?))
-            ORDER BY 
-              CASE WHEN party_type = 'CUSTOMER' OR party_type IS NULL THEN 0 ELSE 1 END,
-              created_at ASC
+            ORDER BY created_at ASC
             LIMIT 1
           `).get(tenantId, cName);
         }
@@ -2304,6 +2390,7 @@ export class CustomerIdentityService {
         existingParty = db.prepare(`
           SELECT * FROM parties 
           WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+            AND (party_type = 'CUSTOMER' OR party_type IS NULL)
             AND name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL))
           LIMIT 1
         `).get(tenantId, displayName, phone, phone);
@@ -3183,7 +3270,7 @@ export function dbGetStaffLedger(params: { tenant_id: string; staff_id: string }
 export function dbAddStaffTransaction(params: {
   tenant_id: string;
   staff_id: string;
-  type: 'ADVANCE' | 'SALARY_PAYMENT' | 'BONUS' | 'DEDUCTION' | 'SALARY_ACCRUAL' | 'ADJUSTMENT';
+  type: 'ADVANCE' | 'SALARY_PAYMENT' | 'BONUS' | 'DEDUCTION' | 'SALARY_ACCRUAL' | 'ADJUSTMENT' | 'STAFF_PURCHASE';
   amount: number;
   payment_method?: string;
   payment_source_id?: string;
@@ -3267,6 +3354,10 @@ export function dbAddStaffTransaction(params: {
       creditAmt = amount;
       desc = `Deduction${notes ? ': ' + notes : ''}`;
       break;
+    case 'STAFF_PURCHASE':
+      creditAmt = amount;
+      desc = `Staff Purchase - Bill #${reference_number || 'CREDIT'}${notes ? ': ' + notes : ''}`;
+      break;
     case 'ADJUSTMENT':
       if (amount >= 0) { debitAmt = amount; desc = `Balance Adjustment (+)${notes ? ': ' + notes : ''}`; }
       else { creditAmt = Math.abs(amount); desc = `Balance Adjustment (-)${notes ? ': ' + notes : ''}`; }
@@ -3300,6 +3391,24 @@ export function dbAddStaffTransaction(params: {
     ledger_id: ledgerId,
     new_balance: newBal
   };
+}
+
+export function recalcStaffLedgerBalances(dbInstance: any, tenantId: string, staffId: string) {
+  const targetDb = dbInstance || db;
+  const rows = targetDb.prepare(`
+    SELECT ledger_id, debit_amount, credit_amount 
+    FROM staff_ledger 
+    WHERE staff_id = ? AND (tenant_id = ? OR tenant_id = 'global')
+    ORDER BY transaction_date ASC, created_at ASC, ledger_id ASC
+  `).all(staffId, tenantId) as any[];
+
+  let running = 0;
+  for (const r of rows) {
+    const debit = Number(r.debit_amount || 0);
+    const credit = Number(r.credit_amount || 0);
+    running = Math.round((running + debit - credit) * 100) / 100;
+    targetDb.prepare(`UPDATE staff_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, r.ledger_id);
+  }
 }
 
 export function dbGetStaffAttendance(params: { tenant_id: string; staff_id?: string; date?: string; month?: string }) {
@@ -3472,6 +3581,120 @@ export function localAuthenticateUser(email: string, password: string): {
     }
   };
 }
+
+export function dbEmergencyPurgeLocalData(wipeMode: 'ALL_DATA' | 'SALES_AND_CASH_ONLY' = 'ALL_DATA'): { success: boolean; clearedTables: string[]; error?: string } {
+  const d = getDb();
+  if (!d) return { success: false, clearedTables: [], error: 'Database not initialized' };
+
+  const salesAndCashTables = [
+    'invoices',
+    'invoice_items',
+    'returns',
+    'return_items',
+    'quotations',
+    'quotation_items',
+    'purchase_bills',
+    'purchase_bill_items',
+    'parties',
+    'party_ledger',
+    'cash_drawer',
+    'cash_transactions',
+    'cashier_audit_log',
+    'cash_categories',
+    'scrap_transactions',
+    'scrap_categories',
+    'warranties',
+    'customers',
+    'loyalty_transactions',
+    'payment_source_transactions',
+    'staff_salaries',
+    'staff_transactions',
+    'staff_ledger',
+    'shop_closing_reports',
+    'ecommerce_sync_logs',
+  ];
+
+  const fullWipeExtraTables = [
+    'products',
+    'product_grades',
+    'pricing_tiers',
+    'product_pricing',
+    'combo_offers',
+    'combo_items',
+    'staff',
+    'staff_attendance',
+    'payment_sources',
+    'ecommerce_settings',
+    'ecommerce_product_mappings',
+    'sync_meta',
+    'users',
+    'settings',
+  ];
+
+  const targetTables = wipeMode === 'SALES_AND_CASH_ONLY'
+    ? salesAndCashTables
+    : [...salesAndCashTables, ...fullWipeExtraTables];
+
+  const cleared: string[] = [];
+
+  const purgeTx = d.transaction(() => {
+    d.pragma('foreign_keys = OFF');
+    for (const table of targetTables) {
+      try {
+        const tableCheck = d.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+        if (tableCheck) {
+          d.exec(`DELETE FROM ${table};`);
+          cleared.push(table);
+        }
+      } catch (err) {
+        console.warn(`[EmergencyPurge] Table delete warning for ${table}:`, err);
+      }
+    }
+    try {
+      d.exec("DELETE FROM sqlite_sequence WHERE name IN ('" + targetTables.join("','") + "');");
+    } catch {}
+    d.pragma('foreign_keys = ON');
+  });
+
+  try {
+    purgeTx();
+    console.log(`[EmergencyPurge] Purged ${cleared.length} tables in mode: ${wipeMode}`);
+
+    try {
+      d.pragma('wal_checkpoint(TRUNCATE)');
+      d.exec('VACUUM;');
+    } catch (vacErr) {
+      console.warn('[EmergencyPurge] VACUUM warning:', vacErr);
+    }
+
+    try {
+      const appData = app.getPath('appData');
+      const candidates = [
+        path.join(appData, 'nafid', 'vendora_v2.db'),
+        path.join(appData, 'nafid', 'vendora.db'),
+        path.join(appData, 'com.nafid', 'vendora_v2.db'),
+        path.join(appData, 'vendora', 'vendora_v2.db'),
+        path.join(appData, 'Vendora', 'vendora_v2.db'),
+        path.join(appData, 'Nafid', 'vendora.db'),
+      ];
+      for (const cand of candidates) {
+        if (fs.existsSync(cand)) {
+          try { fs.unlinkSync(cand); } catch {}
+          if (fs.existsSync(`${cand}-wal`)) try { fs.unlinkSync(`${cand}-wal`); } catch {}
+          if (fs.existsSync(`${cand}-shm`)) try { fs.unlinkSync(`${cand}-shm`); } catch {}
+        }
+      }
+    } catch (candErr) {
+      console.warn('[EmergencyPurge] Candidate cleanup warning:', candErr);
+    }
+
+    return { success: true, clearedTables: cleared };
+  } catch (err: any) {
+    console.error('[EmergencyPurge] Fatal error purging local DB:', err);
+    return { success: false, clearedTables: cleared, error: err?.message || 'Purge failed' };
+  }
+}
+
 
 
 

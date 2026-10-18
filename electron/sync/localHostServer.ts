@@ -1,10 +1,25 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
 
 function localTimestamp(d: Date | string | number = new Date()): string {
   const dateObj = d instanceof Date ? d : new Date(d);
   return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
+}
+
+function toNormalizedUtc(str: string | null | undefined): string | null {
+  if (!str) return null;
+  const clean = String(str).trim();
+  if (!clean) return null;
+  try {
+    const d = new Date(clean.includes('Z') || clean.includes('+') ? clean : clean.replace(' ', 'T') + 'Z');
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+    }
+  } catch {}
+  return clean.slice(0, 19).replace('T', ' ');
 }
 
 function parseCleanDate(dStr: any): string {
@@ -56,6 +71,7 @@ const ALLOWED_TABLES = new Set([
 
 function parseJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
+    req.setEncoding('utf-8');
     let data = '';
     req.on('data', chunk => { data += chunk; });
     req.on('end', () => {
@@ -74,7 +90,7 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: any) {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control',
     'Access-Control-Allow-Private-Network': 'true',
   });
   res.end(JSON.stringify(payload));
@@ -279,7 +295,7 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
                 sort_order = ?,
                 is_default = ?,
                 is_deleted = ?,
-                sync_status = 'SYNCED',
+                sync_status = 'PENDING',
                 updated_at = CURRENT_TIMESTAMP
               WHERE pricing_tier_id = ?
             `).run(
@@ -290,6 +306,12 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
               rawRow.is_deleted ? 1 : 0,
               existingTier.pricing_tier_id
             );
+            try {
+              db.prepare(`DELETE FROM product_pricing WHERE pricing_tier_id = ? AND product_id IN (SELECT product_id FROM product_pricing WHERE pricing_tier_id = ?)`).run(rawRow.pricing_tier_id, existingTier.pricing_tier_id);
+              db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
+              db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
+              db.prepare(`UPDATE customers SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
+            } catch {}
             if (itemId) syncedIds.push(itemId);
             continue;
           } catch (e: any) {
@@ -298,31 +320,112 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
         }
       }
 
-      try {
-        stmt.run(paramObj);
-        if (itemId) syncedIds.push(itemId);
-      } catch (runErr: any) {
-        console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, runErr.message);
+      if (tableName === 'invoices') {
+        let retryCount = 0;
+        let success = false;
+        while (retryCount < 3 && !success) {
+          try {
+            stmt.run(paramObj);
+            if (itemId) syncedIds.push(itemId);
+            success = true;
+          } catch (runErr: any) {
+            if (runErr.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number') || runErr.message?.includes('UNIQUE constraint failed: invoices.invoice_number')) {
+              const suffix = String(paramObj.invoice_id || Math.random().toString(36).substring(2, 6)).substring(0, 4).toUpperCase();
+              paramObj.invoice_number = `${paramObj.invoice_number}-C${suffix}`;
+              retryCount++;
+            } else {
+              console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, runErr.message);
+              break;
+            }
+          }
+        }
+      } else {
+        try {
+          stmt.run(paramObj);
+          if (itemId) syncedIds.push(itemId);
+        } catch (runErr: any) {
+          console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, runErr.message);
+        }
       }
 
-      if (tableName === 'invoices' && Array.isArray(rawRow.items)) {
-        for (const line of rawRow.items) {
-          if (!line.invoice_id) line.invoice_id = rawRow.invoice_id;
-          if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
-        }
-        upsertTableRows(db, 'invoice_items', rawRow.items);
+      if (tableName === 'invoices') {
         const isDeleted = rawRow.is_deleted === true || rawRow.is_deleted === 1 || rawRow.is_deleted === '1' || rawRow.is_deleted === 'true';
         const isConversionCopy = !!(rawRow.converted_from_invoice_id || rawRow.converted_from_invoice_number);
 
-        if (isNewInvoice && !isDeleted && !isConversionCopy) {
+        if (Array.isArray(rawRow.items)) {
+          try {
+            db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(rawRow.invoice_id);
+          } catch {}
+
           for (const line of rawRow.items) {
-            if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
+            if (!line.invoice_id) line.invoice_id = rawRow.invoice_id;
+            if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
+            if (!line.item_id) line.item_id = crypto.randomUUID();
+          }
+          upsertTableRows(db, 'invoice_items', rawRow.items);
+        }
+
+        if (isNewInvoice && !isDeleted && !isConversionCopy) {
+          if (Array.isArray(rawRow.items)) {
+            for (const line of rawRow.items) {
+              if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
+                try {
+                  db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)`).run(Number(line.quantity), line.product_id);
+                } catch {}
+              }
+            }
+          }
+
+          // Adjust cash drawer for cash payment on Master PC
+          const pm = (rawRow.payment_method || '').toUpperCase();
+          const grand = Math.max(0, Number(rawRow.grand_total) || 0);
+          const retD = Math.max(0, Number(rawRow.return_deduction) || 0);
+          const scrapD = Math.max(0, Number(rawRow.scrap_deduction) || 0);
+          const netPayable = Math.max(0, grand - retD - scrapD);
+          let cashAmt = 0;
+          if (pm === 'CASH') {
+            const rec = Number(rawRow.received_amount);
+            cashAmt = rec > 0 && rec < netPayable ? rec : netPayable;
+          } else if (pm === 'SPLIT' && rawRow.split_details) {
+            try {
+              const sd = typeof rawRow.split_details === 'string' ? JSON.parse(rawRow.split_details) : rawRow.split_details;
+              cashAmt = Math.max(0, Number(sd?.cash) || 0);
+            } catch {}
+          }
+
+          if (cashAmt > 0) {
+            try {
+              const todayDate = parseCleanDate(rawRow.created_at || null);
+              const drawer = db.prepare(`
+                SELECT drawer_id, opening_balance, cash_sales, cash_in, current_cash, expected_closing
+                FROM cash_drawer
+                WHERE status = 'OPEN' AND (business_date = ? OR business_date LIKE ?)
+                ORDER BY created_at DESC LIMIT 1
+              `).get(todayDate, `${todayDate}%`) as any;
+              if (drawer) {
+                const newSales = Number(drawer.cash_sales || 0) + cashAmt;
+                const newCurrent = Number(drawer.current_cash || 0) + cashAmt;
+                const newExp = Number(drawer.expected_closing || 0) + cashAmt;
+                db.prepare(`
+                  UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+                  WHERE drawer_id = ?
+                `).run(newSales, newCurrent, newExp, drawer.drawer_id);
+              }
+            } catch (cdErr: any) {
+              console.warn('[LocalHostServer] Could not update cash drawer for LAN invoice:', cdErr.message);
+            }
+          }
+        } else if (!isNewInvoice && isDeleted && Array.isArray(rawRow.items)) {
+          // Restore product stock if an invoice is deleted
+          for (const line of rawRow.items) {
+            if (line.product_id && Number(line.quantity) > 0) {
               try {
-                db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)`).run(Number(line.quantity), line.product_id);
+                db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(Number(line.quantity), line.product_id);
               } catch {}
             }
           }
         }
+
         if (rawRow.scrap_invoice_number && Number(rawRow.scrap_deduction) > 0 && !isDeleted) {
           try {
             db.prepare(`UPDATE scrap_transactions SET payment_status = 'SETTLED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_invoice_number = ?`).run(rawRow.scrap_invoice_number);
@@ -428,10 +531,10 @@ export function startLocalHostServer(port: number = 3888) {
 
         // Key counter per terminal prefix & series to keep sequence counters isolated across computers
         const terminalCounterKey = `terminal_counter_${series || 'normal'}_${prefix}`;
-        const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', terminalCounterKey);
+        const row: any = db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').get(terminalCounterKey);
         
         let counter = 1;
-        if (row) {
+        if (row && row.value) {
           try {
             const parsed = JSON.parse(row.value);
             counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
@@ -441,11 +544,10 @@ export function startLocalHostServer(port: number = 3888) {
         } else {
           // Fallback to global configKey counter if no terminal-specific counter exists yet
           const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
-          const globalRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
-          if (globalRow) {
+          const globalRow: any = db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').get(configKey);
+          if (globalRow && globalRow.value) {
             try {
               const gParsed = JSON.parse(globalRow.value);
-              // Only adopt global counter if prefix matches
               if (!gParsed.prefix || gParsed.prefix === prefix) {
                 counter = typeof gParsed.counter === 'number' && gParsed.counter > 0 ? gParsed.counter : 1;
               }
@@ -453,10 +555,10 @@ export function startLocalHostServer(port: number = 3888) {
           }
         }
 
-        const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1');
+        const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE invoice_number = ? LIMIT 1');
         let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
 
-        while (checkStmt.get('global', candidate)) {
+        while (checkStmt.get(candidate)) {
           counter++;
           candidate = `${prefix}${String(counter).padStart(3, '0')}`;
         }
@@ -476,26 +578,25 @@ export function startLocalHostServer(port: number = 3888) {
 
       if (pathname === '/api/returns/next-number' && req.method === 'GET') {
         const reqPrefix = url.searchParams.get('prefix');
-        const confRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'return_counter');
+        const confRow: any = db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').get('return_counter');
         let prefix = 'RTN-';
         let counter = 1;
         if (reqPrefix) {
           prefix = reqPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || 'RTN-';
-        } else if (confRow) {
+        } else if (confRow && confRow.value) {
           try {
             const cfg = JSON.parse(confRow.value);
             prefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : 'RTN-';
             counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
           } catch {}
         }
-        const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
-        let maxUsed = 0;
-        for (const r of usedRows) {
-          const usedNum = parseInt(String(r.return_number).slice(prefix.length), 10);
-          if (!isNaN(usedNum) && usedNum > maxUsed) maxUsed = usedNum;
+        const checkReturnStmt = db.prepare('SELECT 1 FROM returns WHERE return_number = ? LIMIT 1');
+        let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+        while (checkReturnStmt.get(candidate)) {
+          counter++;
+          candidate = `${prefix}${String(counter).padStart(3, '0')}`;
         }
-        const nextCounter = Math.max(counter, maxUsed + 1);
-        const returnNumber = `${prefix}${String(nextCounter).padStart(3, '0')}`;
+        const nextConfig = { prefix, counter: counter + 1 };
         db.prepare(`
           INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
           VALUES ('global', 'return_counter', ?, 'LOCAL', CURRENT_TIMESTAMP)
@@ -503,9 +604,166 @@ export function startLocalHostServer(port: number = 3888) {
             value = EXCLUDED.value,
             sync_status = 'LOCAL',
             updated_at = CURRENT_TIMESTAMP
-        `).run(JSON.stringify({ prefix, counter: nextCounter + 1 }));
+        `).run(JSON.stringify(nextConfig));
 
-        return sendJson(res, 200, { returnNumber });
+        return sendJson(res, 200, { returnNumber: candidate });
+      }
+
+      // ── Ultra-Fast Sync Status Check for LAN ──────────────────────────────
+      if (pathname === '/api/sync/check-status' && req.method === 'GET') {
+        const rawSince = url.searchParams.get('since');
+        const checkTables = [
+          'product_grades', 'pricing_tiers', 'product_pricing', 'products',
+          'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
+          'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
+          'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
+          'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
+        ];
+
+        let maxUpdatedAt: string | null = null;
+        for (const t of checkTables) {
+          try {
+            const meta = getTableMeta(db, t);
+            if (!meta) continue;
+            const tsCol = meta.allCols.includes('updated_at') ? 'updated_at' : (meta.allCols.includes('created_at') ? 'created_at' : null);
+            if (!tsCol) continue;
+            const row: any = db.prepare(`SELECT MAX(${tsCol}) as max_ts FROM ${t}`).get();
+            if (row && row.max_ts) {
+              const rowTs = String(row.max_ts).trim();
+              if (!maxUpdatedAt || rowTs > maxUpdatedAt) {
+                maxUpdatedAt = rowTs;
+              }
+            }
+          } catch {}
+        }
+
+        let hasChanges = true;
+        if (rawSince && maxUpdatedAt) {
+          const sinceUtc = toNormalizedUtc(rawSince);
+          const maxUtc = toNormalizedUtc(maxUpdatedAt);
+          if (sinceUtc && maxUtc) {
+            hasChanges = maxUtc > sinceUtc;
+          }
+        }
+
+        return sendJson(res, 200, {
+          success: true,
+          hasChanges,
+          maxUpdatedAt: maxUpdatedAt ? new Date(maxUpdatedAt).toISOString() : new Date().toISOString(),
+          since: rawSince
+        });
+      }
+
+      // ── Unified Delta Pull for LAN (1 Request for All Tables) ─────────────
+      if (pathname === '/api/sync/delta-pull' && req.method === 'POST') {
+        const body = await parseJsonBody(req);
+        const sinceMap: Record<string, string | null> = body.since || {};
+        const resultData: Record<string, any[]> = {};
+
+        const fetchDeltaRows = (tName: string, tsCol = 'updated_at', customWhere = '', attachItems = false) => {
+          const rawSince = sinceMap[tName];
+          let q = `SELECT * FROM ${tName}`;
+          const whereParts: string[] = [];
+          const qParams: any[] = [];
+
+          if (customWhere) {
+            whereParts.push(customWhere);
+          }
+
+          if (rawSince) {
+            const cleanUtc = toNormalizedUtc(rawSince);
+            if (cleanUtc) {
+              whereParts.push(`replace(substr(${tsCol}, 1, 19), 'T', ' ') > ?`);
+              qParams.push(cleanUtc);
+            }
+          }
+
+          if (whereParts.length > 0) {
+            q += ` WHERE ${whereParts.join(' AND ')}`;
+          }
+
+          q += ` ORDER BY ${tsCol} DESC LIMIT 2000`;
+
+          try {
+            const rows = db.prepare(q).all(...qParams) as any[];
+            if (attachItems && rows.length > 0) {
+              if (tName === 'invoices') {
+                for (const inv of rows) {
+                  inv.items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).all(inv.invoice_id);
+                }
+              } else if (tName === 'purchase_bills') {
+                for (const bill of rows) {
+                  bill.items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ?`).all(bill.purchase_bill_id);
+                }
+              } else if (tName === 'returns') {
+                for (const ret of rows) {
+                  ret.items = db.prepare(`SELECT * FROM return_items WHERE return_id = ?`).all(ret.return_id);
+                }
+              } else if (tName === 'quotations') {
+                for (const qu of rows) {
+                  qu.items = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`).all(qu.quotation_id);
+                }
+              }
+            }
+            return rows;
+          } catch (err: any) {
+            console.error(`[LocalHostServer] Delta-pull error for ${tName}:`, err.message);
+            return [];
+          }
+        };
+
+        resultData.product_grades = fetchDeltaRows('product_grades', 'updated_at');
+        resultData.pricing_tiers = fetchDeltaRows('pricing_tiers', 'updated_at');
+        resultData.product_pricing = fetchDeltaRows('product_pricing', 'updated_at');
+        resultData.products = fetchDeltaRows('products', 'updated_at');
+        resultData.settings = fetchDeltaRows('settings', 'updated_at', `key NOT IN ('terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config', 'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter', 'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config', 'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name')`);
+        resultData.parties = fetchDeltaRows('parties', 'updated_at');
+        resultData.party_ledger = fetchDeltaRows('party_ledger', 'created_at');
+        resultData.customers = fetchDeltaRows('customers', 'updated_at');
+        resultData.loyalty_transactions = fetchDeltaRows('loyalty_transactions', 'created_at');
+        resultData.scrap_categories = fetchDeltaRows('scrap_categories', 'updated_at');
+        resultData.scrap_transactions = fetchDeltaRows('scrap_transactions', 'created_at');
+        resultData.purchase_bills = fetchDeltaRows('purchase_bills', 'updated_at', '', true);
+        resultData.cash_drawer = fetchDeltaRows('cash_drawer', 'updated_at');
+        resultData.cash_transactions = fetchDeltaRows('cash_transactions', 'created_at');
+        resultData.cashier_audit_log = fetchDeltaRows('cashier_audit_log', 'created_at');
+        resultData.cash_categories = fetchDeltaRows('cash_categories', 'updated_at');
+        resultData.returns = fetchDeltaRows('returns', 'created_at', '', true);
+        resultData.payment_sources = fetchDeltaRows('payment_sources', 'updated_at');
+        resultData.payment_source_transactions = fetchDeltaRows('payment_source_transactions', 'created_at');
+        resultData.combo_offers = fetchDeltaRows('combo_offers', 'updated_at');
+        resultData.quotations = fetchDeltaRows('quotations', 'updated_at', '', true);
+        resultData.invoices = fetchDeltaRows('invoices', 'created_at', `invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`, true);
+
+        return sendJson(res, 200, { success: true, data: resultData });
+      }
+
+      // ── Lightweight Pending Bills for Cash Settlement ─────────────────────
+      if (pathname === '/api/sync/pending-bills-lightweight' && req.method === 'GET') {
+        const rawSince = url.searchParams.get('since');
+        const lastId = url.searchParams.get('last_id');
+        let q = `
+          SELECT invoice_id, tenant_id, invoice_number, customer_name, grand_total, payment_method, user_id, created_at, updated_at
+          FROM invoices
+          WHERE payment_method = 'PENDING'
+            AND (is_deleted IS NULL OR is_deleted = 0)
+        `;
+        const qParams: any[] = [];
+        if (rawSince) {
+          const sinceUtc = toNormalizedUtc(rawSince);
+          if (sinceUtc) {
+            if (lastId) {
+              q += ` AND (replace(substr(created_at, 1, 19), 'T', ' ') > ? OR (replace(substr(created_at, 1, 19), 'T', ' ') = ? AND invoice_id > ?))`;
+              qParams.push(sinceUtc, sinceUtc, lastId);
+            } else {
+              q += ` AND (replace(substr(created_at, 1, 19), 'T', ' ') > ?)`;
+              qParams.push(sinceUtc);
+            }
+          }
+        }
+        q += ` ORDER BY created_at ASC, invoice_id ASC LIMIT 50`;
+        const rows = db.prepare(q).all(...qParams) as any[];
+        return sendJson(res, 200, { success: true, count: rows.length, bills: rows });
       }
 
       // ── Generic & Explicit Sync Endpoints for LAN ────────────────────────
@@ -547,52 +805,10 @@ export function startLocalHostServer(port: number = 3888) {
           const meta = getTableMeta(db, tableName);
           let query = `SELECT * FROM ${tableName}`;
           const params: any[] = [];
-
-          let sinceCandidates: string[] = [];
-          if (rawSince) {
-            const set = new Set<string>();
-            const clean = rawSince.trim();
-            set.add(clean);
-            set.add(clean.replace('T', ' ').replace('Z', '').split('.')[0]);
-            set.add(clean.replace(' ', 'T').split('.')[0]);
-
-            try {
-              const d = new Date(clean.includes('Z') || clean.includes('+') ? clean : clean.replace(' ', 'T') + 'Z');
-              if (!isNaN(d.getTime())) {
-                const pad = (n: number) => String(n).padStart(2, '0');
-                // UTC Space format (matches SQLite CURRENT_TIMESTAMP: "YYYY-MM-DD HH:MM:SS")
-                const utcSpace = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-                set.add(utcSpace);
-                set.add(d.toISOString());
-                set.add(d.toISOString().slice(0, 19).replace('T', ' '));
-
-                // Local Space format
-                const localSpace = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                set.add(localSpace);
-              }
-            } catch {}
-
-            sinceCandidates = Array.from(set).filter(Boolean);
-          }
-
-          const buildSinceCond = (colName: string): string => {
-            if (sinceCandidates.length === 0) return '';
-            const clauses = sinceCandidates.map(() => `${colName} > ?`);
-            params.push(...sinceCandidates);
-            return `(${clauses.join(' OR ')})`;
-          };
+          const whereClauses: string[] = [];
 
           if (tableName === 'invoices') {
-            query += ` WHERE invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`;
-            if (sinceCandidates.length > 0) {
-              const uCond = buildSinceCond('updated_at');
-              const cCond = buildSinceCond('created_at');
-              query += ` AND (${uCond} OR ${cCond})`;
-            }
-          } else if (tableName === 'products') {
-            if (sinceCandidates.length > 0 && meta?.allCols.includes('updated_at')) {
-              query += ` WHERE ${buildSinceCond('updated_at')}`;
-            }
+            whereClauses.push(`invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`);
           } else if (tableName === 'settings') {
             const excludedKeys = [
               'terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
@@ -601,23 +817,30 @@ export function startLocalHostServer(port: number = 3888) {
               'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name'
             ];
             const placeholders = excludedKeys.map(() => '?').join(',');
-            query += ` WHERE key NOT IN (${placeholders})`;
+            whereClauses.push(`key NOT IN (${placeholders})`);
             params.push(...excludedKeys);
-            if (sinceCandidates.length > 0 && meta?.allCols.includes('updated_at')) {
-              query += ` AND ${buildSinceCond('updated_at')}`;
+          }
+
+          if (rawSince && meta) {
+            const cleanUtc = toNormalizedUtc(rawSince);
+            if (cleanUtc) {
+              const hasUpdated = meta.allCols.includes('updated_at');
+              const hasCreated = meta.allCols.includes('created_at');
+              if (hasUpdated && hasCreated) {
+                whereClauses.push(`(replace(substr(updated_at, 1, 19), 'T', ' ') > ? OR replace(substr(created_at, 1, 19), 'T', ' ') > ?)`);
+                params.push(cleanUtc, cleanUtc);
+              } else if (hasUpdated) {
+                whereClauses.push(`replace(substr(updated_at, 1, 19), 'T', ' ') > ?`);
+                params.push(cleanUtc);
+              } else if (hasCreated) {
+                whereClauses.push(`replace(substr(created_at, 1, 19), 'T', ' ') > ?`);
+                params.push(cleanUtc);
+              }
             }
-          } else if (sinceCandidates.length > 0 && meta) {
-            const hasUpdated = meta.allCols.includes('updated_at');
-            const hasCreated = meta.allCols.includes('created_at');
-            if (hasUpdated && hasCreated) {
-              const uCond = buildSinceCond('updated_at');
-              const cCond = buildSinceCond('created_at');
-              query += ` WHERE (${uCond} OR ${cCond})`;
-            } else if (hasUpdated) {
-              query += ` WHERE ${buildSinceCond('updated_at')}`;
-            } else if (hasCreated) {
-              query += ` WHERE ${buildSinceCond('created_at')}`;
-            }
+          }
+
+          if (whereClauses.length > 0) {
+            query += ` WHERE ${whereClauses.join(' AND ')}`;
           }
 
           const orderCol = meta?.allCols.includes('created_at') ? 'created_at' : (meta?.allCols.includes('updated_at') ? 'updated_at' : null);

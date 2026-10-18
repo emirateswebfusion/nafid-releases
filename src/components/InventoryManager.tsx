@@ -743,14 +743,17 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       base_price: gradeRate !== null && product.pricing_mode === 'GRADE_RATE' ? gradeRate : (product.base_price || ''),
       current_stock: product.current_stock ?? '',
       gst_purchase_quantity: product.paper_stock !== undefined && product.paper_stock !== null ? String(product.paper_stock) : '',
-      gst_purchase_price: (product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null && (product as any).gst_purchase_price !== ''
-        ? String((product as any).gst_purchase_price)
-        : (() => {
-            try {
-              const da = JSON.parse(product.domain_attributes || '{}');
-              return da.gst_purchase_price !== undefined && da.gst_purchase_price !== null ? String(da.gst_purchase_price) : (da.paper_purchase_price !== undefined && da.paper_purchase_price !== null ? String(da.paper_purchase_price) : '');
-            } catch { return ''; }
-          })(),
+      gst_purchase_price: (() => {
+        try {
+          const da = JSON.parse(product.domain_attributes || '{}');
+          const isPaper = da.gst_type === 'PAPER' || Number(product.paper_stock || da.paper_stock || 0) > 0;
+          if (!isPaper) return '';
+          if ((product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null && (product as any).gst_purchase_price !== '') {
+            return String((product as any).gst_purchase_price);
+          }
+          return da.paper_purchase_price !== undefined && da.paper_purchase_price !== null ? String(da.paper_purchase_price) : (da.gst_purchase_price !== undefined && da.gst_purchase_price !== null ? String(da.gst_purchase_price) : '');
+        } catch { return ''; }
+      })(),
       reorder_level: product.reorder_level ?? '',
       is_gst_applicable: isGstProduct(product),
       gst_type: (() => {
@@ -770,10 +773,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           const pcsVal = da.pcs !== undefined ? da.pcs : (da.pcs_stock !== undefined ? da.pcs_stock : '');
           da.pcs = pcsVal;
           da.pcs_stock = pcsVal;
-          const paperMrpVal = (product as any).paper_mrp !== undefined && (product as any).paper_mrp !== null && (product as any).paper_mrp !== ''
-            ? (product as any).paper_mrp
-            : (da.paper_mrp !== undefined && da.paper_mrp !== null ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : ''));
-          da.paper_mrp = paperMrpVal !== '' ? String(paperMrpVal) : '';
+          const isPaper = da.gst_type === 'PAPER' || Number(product.paper_stock || da.paper_stock || 0) > 0;
+          if (!isPaper) {
+            delete da.paper_mrp;
+            delete da.paper_base_price;
+            delete da.paper_purchase_price;
+            delete da.gst_purchase_price;
+          } else {
+            const paperMrpVal = (product as any).paper_mrp !== undefined && (product as any).paper_mrp !== null && (product as any).paper_mrp !== ''
+              ? (product as any).paper_mrp
+              : (da.paper_mrp !== undefined && da.paper_mrp !== null ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : ''));
+            da.paper_mrp = paperMrpVal !== '' ? String(paperMrpVal) : '';
+          }
           return da;
         } catch { return {}; }
       })(),
@@ -809,10 +820,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       // Async fallback: if paper purchase price or paper MRP is missing or empty,
       // load it directly from purchase bill records
       const daParsed = (() => { try { return JSON.parse(product.domain_attributes || '{}'); } catch { return {}; } })();
+      const isProductPaper = daParsed.gst_type === 'PAPER' || Number(product.paper_stock || daParsed.paper_stock || 0) > 0;
       const curPur = (product as any).gst_purchase_price ?? daParsed.gst_purchase_price ?? daParsed.paper_purchase_price ?? '';
       const curMrp = (product as any).paper_mrp ?? daParsed.paper_mrp ?? daParsed.paper_base_price ?? '';
 
-      if ((!curPur || !curMrp) && window.electronAPI.dbGetPurchaseBillProducts) {
+      if (isProductPaper && (!curPur || !curMrp) && window.electronAPI.dbGetPurchaseBillProducts) {
         window.electronAPI.dbGetPurchaseBillProducts({
           tenant_id: tenantId || 'global',
           search: product.name,
@@ -1326,13 +1338,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         localStorage.removeItem('printBarcodeSp');
         localStorage.removeItem('printBarcodeSpType');
       }
-      localStorage.setItem('printBarcodeName', formData.name);
+      const cleanName = (formData.name || '').replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
+      localStorage.setItem('printBarcodeName', cleanName);
 
       const res = await window.electronAPI.printBarcode(
         tenantId || 'global', 
         formData.sku_barcode, 
         printPrice ? effectiveMrp : undefined, 
-        formData.name, 
+        cleanName, 
         Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
         printPrice ? spType : undefined
@@ -1392,13 +1405,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         localStorage.removeItem('printBarcodeSp');
         localStorage.removeItem('printBarcodeSpType');
       }
-      localStorage.setItem('printBarcodeName', p.name);
+      const cleanName = (p.name || '').replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
+      localStorage.setItem('printBarcodeName', cleanName);
 
       const res = await window.electronAPI.printBarcode(
         tenantId || 'global', 
         p.sku_barcode, 
         printPrice ? effectiveMrp : undefined, 
-        p.name, 
+        cleanName, 
         Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
         printPrice ? spType : undefined
@@ -1554,6 +1568,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       }
     }
 
+    const userEnteredStock = Number(formData.current_stock) || 0;
+    const userEnteredPaperStock = formData.gst_purchase_quantity !== '' && formData.gst_purchase_quantity !== null
+      ? (Number(formData.gst_purchase_quantity) || 0)
+      : (Number(formData.domain_attributes?.paper_stock) || 0);
+
     const payload = {
       ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T') }),
       ...formData,
@@ -1561,17 +1580,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
       base_price: Number(formData.base_price) || 0,
-      current_stock: (view === 'add' && formData.show_gst_purchase)
-        ? 0
-        : (Number(formData.current_stock) || 0),
+      current_stock: userEnteredStock,
+      paper_stock: userEnteredPaperStock,
       reorder_level: Number(formData.reorder_level) || 0,
       is_gst_applicable: formData.is_gst_applicable || String(formData.hsn_sac_code || '').trim() !== '' ? 1 : 0,
       domain_attributes: (() => {
         const da = { ...formData.domain_attributes };
         const rawPcs = Number(da?.pcs !== undefined ? da.pcs : da?.pcs_stock) || 0;
-        const rawStock = (view === 'add' && formData.show_gst_purchase)
-          ? 0
-          : (Number(formData.current_stock) || 0);
+        const rawStock = userEnteredStock;
         if (rawPcs > 0) {
           da.pcs_per_kg = rawStock > 0 ? rawPcs / rawStock : rawPcs;
         } else {
@@ -1654,20 +1670,17 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               is_gst_applicable: payload.is_gst_applicable,
               tax_rate_percent: payload.tax_rate_percent,
               hsn_sac_code: payload.hsn_sac_code,
-              skip_stock_update: formData.gst_purchase_is_dummy ? 1 : 0,
+              skip_stock_update: 1, // Paper purchase bills must have skip_stock_update = 1 so real stock is not modified
             }],
           });
         }
 
         if (view === 'edit') {
           // Optimistic update for edit
-          setProducts(prev => prev.map(p => p.product_id === payload.product_id ? { ...p, ...payload } as Product : p));
+          setProducts(prev => prev.map(p => p.product_id === payload.product_id ? { ...p, ...payload, current_stock: userEnteredStock, paper_stock: userEnteredPaperStock } as Product : p));
         } else {
           // Optimistic update for add
-          const finalStock = formData.show_gst_purchase
-            ? (formData.gst_purchase_is_dummy ? 0 : (Number(formData.gst_purchase_quantity) || 0))
-            : (Number(formData.current_stock) || 0);
-          setProducts(prev => [{ ...payload, current_stock: finalStock } as Product, ...prev]);
+          setProducts(prev => [{ ...payload, current_stock: userEnteredStock, paper_stock: userEnteredPaperStock } as Product, ...prev]);
           setTotalCount(prev => prev !== null ? prev + 1 : null);
         }
 
@@ -1706,6 +1719,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         }
 
         setView('list');
+        loadProducts(true);
       } else if (!formData.sku_barcode && res.error?.includes('sku_barcode') && retries > 0) {
         setLoading(false);
         setFormData(prev => ({ ...prev, sku_barcode: '' }));
@@ -2067,8 +2081,15 @@ return (
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
 
-                  const paperPurPrice = Number((p as any).gst_purchase_price || da.gst_purchase_price || da.paper_purchase_price || 0);
-                  const paperMrpPrice = Number((p as any).paper_mrp || da.paper_mrp || da.paper_base_price || 0);
+                  const hasPaperStock = Number(p.paper_stock || da.paper_stock || 0) > 0;
+                  const isPaperProduct = Boolean(enableRealPaperStock) && (da.gst_type === 'PAPER' || hasPaperStock);
+
+                  const paperPurPrice = isPaperProduct
+                    ? Number(da.paper_purchase_price || (da.gst_type === 'PAPER' ? ((p as any).gst_purchase_price || da.gst_purchase_price) : 0) || (p as any).paper_purchase_price || 0)
+                    : 0;
+                  const paperMrpPrice = isPaperProduct
+                    ? Number((p as any).paper_mrp || da.paper_mrp || da.paper_base_price || 0)
+                    : 0;
 
                   const isGstFlag = isGstProduct(p);
 
@@ -2185,16 +2206,19 @@ return (
 
                       {/* Paper Stock */}
                       <div className="col-span-2 flex flex-col items-center justify-center text-center">
-                        {Number(p.paper_stock || 0) > 0 ? (
-                          <span className="text-xs font-black text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/25 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs" title="Paper Stock from Dummy GST purchases">
-                            <Package className="w-3 h-3" />
-                            {p.paper_stock} {p.uom}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-semibold text-muted-foreground/35">
-                            0 {p.uom}
-                          </span>
-                        )}
+                        {(() => {
+                          const displayPaperStock = Number(p.paper_stock !== undefined && p.paper_stock !== null ? p.paper_stock : (da.paper_stock || 0));
+                          return displayPaperStock > 0 ? (
+                            <span className="text-xs font-black text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/25 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs" title="Paper Stock from Dummy GST purchases">
+                              <Package className="w-3 h-3" />
+                              {displayPaperStock} {p.uom}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-semibold text-muted-foreground/35">
+                              0 {p.uom}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {/* Actions */}

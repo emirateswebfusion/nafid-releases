@@ -8,9 +8,10 @@ import dns from 'node:dns';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
-import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser, autoDeduplicateCustomersAndParties, CustomerIdentityService } from './db/localDb';
+import { dbGetStaff, dbSaveStaff, dbVerifyBillerPin, dbGetStaffLedger, dbAddStaffTransaction, recalcStaffLedgerBalances, dbGetStaffAttendance, dbSaveStaffAttendance, localSaveUser, localAuthenticateUser, autoDeduplicateCustomersAndParties, CustomerIdentityService, dbEmergencyPurgeLocalData } from './db/localDb';
 import { calculateCashierSettlement } from './utils/cashierSettlement';
 import { initWhatsAppIpc } from './whatsapp/whatsappService';
+import { initShopClosingIpc, sendShopClosingReport } from './whatsapp/shopClosingReportService';
 
 
 // Initialize and configure structured logging
@@ -345,7 +346,7 @@ import { initDb, getDb, upsertCustomerRecord } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
 import { initBarcodeScanner } from './hardware/barcodeScanner.js';
-import { initSyncWorker, setSyncActive, triggerUrgentInvoiceSync, triggerUrgentCashSync, triggerUrgentQuotationSync } from './sync/syncWorker.js';
+import { initSyncWorker, setSyncActive, triggerUrgentInvoiceSync, triggerUrgentCashSync, triggerUrgentQuotationSync, triggerUrgentWarrantySync } from './sync/syncWorker.js';
 
 // In CommonJS (which tsc is outputting), __dirname and __filename are already available.
 // We don't need the fileURLToPath logic.
@@ -684,6 +685,11 @@ app.whenReady().then(async () => {
     initWeighingScale(mainWindow);
     initPrinter();
     initWhatsAppIpc();
+    initShopClosingIpc({
+      reconcileCashDrawerFn: reconcileCashDrawer,
+      getStoreTimezoneSettingFn: getStoreTimezoneSetting,
+      getDbFn: getDb,
+    });
     initSyncWorker();
   }
 
@@ -1027,7 +1033,21 @@ ipcMain.handle('auth:saveOfflineSession', (event, payload) => {
     const configPath = getConfigPath();
     if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
     if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
-    setSyncActive(false);
+
+    // Keep sync worker alive if terminal is configured for LAN or HYBRID peer sync
+    try {
+      const db = getDb();
+      const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' LIMIT 1`).get() as { value: string } | undefined;
+      const netConfig = row?.value ? (typeof row.value === 'string' ? JSON.parse(row.value) : row.value) : null;
+      const isLanActive = netConfig && (netConfig.syncMode === 'LAN' || netConfig.syncMode === 'HYBRID');
+      if (isLanActive) {
+        setSyncActive(true);
+      } else {
+        setSyncActive(false);
+      }
+    } catch {
+      setSyncActive(false);
+    }
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to save offline session' };
@@ -1087,6 +1107,49 @@ ipcMain.handle('auth:clearToken', () => {
     return { success: true };
   } catch {
     return { success: false, error: 'Failed to clear token' };
+  }
+});
+
+ipcMain.removeHandler('emergency:purgeLocal');
+ipcMain.handle('emergency:purgeLocal', async (_event, payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string }) => {
+  try {
+    const wipeMode = payload?.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA';
+    console.warn(`[EmergencyWipe] 🚨 Initiating emergency local purge! Mode: ${wipeMode}, Reason: ${payload?.reason || 'USER_TRIGGERED'}`);
+
+    const purgeResult = dbEmergencyPurgeLocalData(wipeMode);
+
+    try {
+      const encPath = getEncryptedPath();
+      if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
+      const p = getConfigPath();
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+      clearOfflineSession();
+    } catch (e) {
+      console.warn('[EmergencyWipe] Credential file unlink warning:', e);
+    }
+
+    try {
+      setSyncActive(false);
+    } catch {}
+
+    try {
+      await session.defaultSession.clearStorageData();
+    } catch (sessErr) {
+      console.warn('[EmergencyWipe] Clear storage data warning:', sessErr);
+    }
+
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        try {
+          win.webContents.send('emergency:purged', { wipeMode, reason: payload?.reason });
+        } catch {}
+      }
+    }
+
+    return { success: true, clearedTables: purgeResult.clearedTables };
+  } catch (error: any) {
+    console.error('[EmergencyWipe] Purge failed:', error);
+    return { success: false, error: error?.message || 'Emergency purge failed' };
   }
 });
 
@@ -3145,6 +3208,8 @@ export function syncInvoiceCreditLedger(
     user_name?: string;
     split_details?: any;
     created_at?: string;
+    is_staff?: boolean;
+    staff_id?: string | null;
   },
   isDelete = false
 ) {
@@ -3196,6 +3261,22 @@ export function syncInvoiceCreditLedger(
         }
         console.log(`[syncInvoiceCreditLedger] Soft-deleted ${toDelete.length} entries for ${invoiceNumber}.`);
       }
+
+      // Also clean up any staff ledger entries for this invoice
+      const staffTxToDelete = db.prepare(`
+        SELECT transaction_id, staff_id FROM staff_transactions
+        WHERE reference_number = ? AND type = 'STAFF_PURCHASE'
+      `).all(invoiceNumber) as any[];
+
+      if (staffTxToDelete.length > 0) {
+        for (const stx of staffTxToDelete) {
+          db.prepare(`DELETE FROM staff_ledger WHERE transaction_id = ?`).run(stx.transaction_id);
+          db.prepare(`DELETE FROM staff_transactions WHERE transaction_id = ?`).run(stx.transaction_id);
+          recalcStaffLedgerBalances(db, tenantId, stx.staff_id);
+        }
+        console.log(`[syncInvoiceCreditLedger] Deleted staff purchase ledger entries for invoice: ${invoiceNumber}`);
+      }
+
       return;
     }
 
@@ -3237,6 +3318,111 @@ export function syncInvoiceCreditLedger(
 
     const invoiceGrandTotal = Math.max(0, Number(invoice.grand_total) || 0);
     const invoiceReceivedAmount = Math.max(0, Number(invoice.received_amount) || 0);
+
+    // ── 3B. CHECK IF THIS INVOICE IS FOR A STAFF MEMBER ─────────────────────
+    let isStaffCreditBillingEnabled = false;
+    try {
+      const sfRow = db.prepare(`SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'feature_flags' LIMIT 1`).get(tenantId) as any;
+      if (sfRow?.value) {
+        const parsed = typeof sfRow.value === 'string' ? JSON.parse(sfRow.value) : sfRow.value;
+        isStaffCreditBillingEnabled = Boolean(parsed?.staff_credit_billing);
+      }
+    } catch {}
+
+    let targetStaff: any = null;
+    const isExplicitStaff = Boolean(invoice.is_staff || (invoice as any).isStaffCustomer);
+    const staffIdParam = invoice.staff_id || (isExplicitStaff ? invoice.customer_id : null);
+
+    if (staffIdParam) {
+      targetStaff = db.prepare(`SELECT staff_id, name, phone, staff_code FROM staff WHERE staff_id = ? AND is_deleted = 0`).get(staffIdParam);
+    } else if (invoice.customer_id && (isExplicitStaff || isStaffCreditBillingEnabled)) {
+      targetStaff = db.prepare(`SELECT staff_id, name, phone, staff_code FROM staff WHERE staff_id = ? AND is_deleted = 0`).get(invoice.customer_id);
+    }
+
+    if (!targetStaff && (isExplicitStaff || isStaffCreditBillingEnabled) && invoice.customer_phone) {
+      const cleanPh = (invoice.customer_phone || '').replace(/\D/g, '');
+      if (cleanPh.length >= 7) {
+        targetStaff = db.prepare(`SELECT staff_id, name, phone, staff_code FROM staff WHERE is_deleted = 0 AND (phone = ? OR REPLACE(phone, ' ', '') LIKE ?) LIMIT 1`).get(invoice.customer_phone.trim(), `%${cleanPh.slice(-10)}`);
+      }
+    }
+
+    if (targetStaff) {
+      console.log(`[syncInvoiceCreditLedger] Invoice ${invoiceNumber} is for staff "${targetStaff.name}" (${targetStaff.staff_id}). Processing in Staff Ledger.`);
+
+      // Clean up any accidental entries in party_ledger
+      if (existingEntries.length > 0) {
+        const affectedParties = new Set<string>();
+        for (const entry of existingEntries) {
+          affectedParties.add(entry.party_id);
+          db.prepare(`UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(entry.ledger_id);
+        }
+        for (const pId of affectedParties) recalcPartyBalances(db, pId);
+      }
+
+      const creditDue = isSplit ? splitCredit : (isPureCredit ? Math.max(0, invoiceGrandTotal - invoiceReceivedAmount) : 0);
+      const txDate = invoice.created_at || localTimestamp();
+      const nowTimestamp = localTimestamp();
+
+      if (creditDue > 0) {
+        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ₹${invoiceGrandTotal.toFixed(2)})`;
+        const existingStaffTx: any = db.prepare(`
+          SELECT transaction_id FROM staff_transactions 
+          WHERE reference_number = ? AND type = 'STAFF_PURCHASE' LIMIT 1
+        `).get(invoiceNumber);
+
+        if (existingStaffTx) {
+          db.prepare(`
+            UPDATE staff_transactions 
+            SET staff_id = ?, amount = ?, notes = ?, transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+            WHERE transaction_id = ?
+          `).run(targetStaff.staff_id, creditDue, desc, txDate, existingStaffTx.transaction_id);
+
+          db.prepare(`
+            UPDATE staff_ledger
+            SET staff_id = ?, credit_amount = ?, debit_amount = 0, description = ?, transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+            WHERE transaction_id = ?
+          `).run(targetStaff.staff_id, creditDue, desc, txDate, existingStaffTx.transaction_id);
+        } else {
+          const txId = crypto.randomUUID();
+          const ledgerId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO staff_transactions (
+              transaction_id, tenant_id, staff_id, type, amount, payment_method,
+              reference_number, notes, created_by, created_by_name, transaction_date,
+              sync_status, created_at, updated_at
+            ) VALUES (?, ?, ?, 'STAFF_PURCHASE', ?, 'CREDIT', ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+          `).run(
+            txId, tenantId, targetStaff.staff_id, creditDue, invoiceNumber, desc,
+            invoice.user_id || null, invoice.user_name || null, txDate, nowTimestamp, nowTimestamp
+          );
+
+          db.prepare(`
+            INSERT INTO staff_ledger (
+              ledger_id, tenant_id, staff_id, transaction_id, transaction_date,
+              description, debit_amount, credit_amount, running_balance,
+              reference_type, created_by, sync_status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0, 'STAFF_PURCHASE', ?, 'PENDING', ?)
+          `).run(
+            ledgerId, tenantId, targetStaff.staff_id, txId, txDate, desc,
+            creditDue, invoice.user_id || null, nowTimestamp
+          );
+        }
+        recalcStaffLedgerBalances(db, tenantId, targetStaff.staff_id);
+      } else {
+        const staffTxToRemove: any[] = db.prepare(`
+          SELECT transaction_id FROM staff_transactions 
+          WHERE reference_number = ? AND type = 'STAFF_PURCHASE'
+        `).all(invoiceNumber);
+        for (const stx of staffTxToRemove) {
+          db.prepare(`DELETE FROM staff_ledger WHERE transaction_id = ?`).run(stx.transaction_id);
+          db.prepare(`DELETE FROM staff_transactions WHERE transaction_id = ?`).run(stx.transaction_id);
+        }
+        if (staffTxToRemove.length > 0) {
+          recalcStaffLedgerBalances(db, tenantId, targetStaff.staff_id);
+        }
+      }
+      return;
+    }
 
     // ── 4. RESOLVE CUSTOMER & PARTY IDENTITY ────────────────────────────────
     const custName = (invoice.customer_name || '').trim();
@@ -4384,15 +4570,58 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
     const nowTimestamp = localTimestamp();
     checkoutCreatedAt = nowTimestamp;
+
+    // Loyalty Points Processing
+    let custRow: any = null;
+    if (customerId) {
+      custRow = db.prepare('SELECT customer_id, total_points_earned, total_points_redeemed, current_points_balance FROM customers WHERE customer_id = ?').get(customerId);
+    }
+
+    const previousPointsBal = custRow ? (Number(custRow.current_points_balance) || 0) : (Number(invoice.previous_points_balance) || 0);
+    let ptsRedeemed = Math.max(0, Number(invoice.points_redeemed) || 0);
+    if (ptsRedeemed > previousPointsBal) {
+      ptsRedeemed = previousPointsBal;
+    }
+    const ptsRedeemedDiscount = Math.max(0, Number(invoice.points_redeemed_discount) || 0);
+
+    let ptsEarned = Math.max(0, Number(invoice.points_earned) || 0);
+    if (ptsEarned === 0 && customerId && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') {
+      try {
+        const lCfgRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'").get(tenantId)
+          || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'").get();
+        let lCfg: any = null;
+        if (lCfgRow?.value) {
+          lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
+        }
+        const flagsRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'").get(tenantId)
+          || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'").get();
+        let flags: any = null;
+        if (flagsRow?.value) {
+          flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
+        }
+        const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
+        if (isLoyaltyOn) {
+          const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+          ptsEarned = Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / earningRate);
+        }
+      } catch (e) {
+        console.warn('[db:checkout] Failed to evaluate loyalty points on checkout:', e);
+      }
+    }
+
+    const remainingPointsBal = Math.max(0, previousPointsBal - ptsRedeemed + ptsEarned);
+
     const invStmt = db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
-        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, notes, description, settled_at, due_date, created_at, updated_at
+        cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, notes, description, settled_at, due_date,
+        points_earned, points_redeemed, points_redeemed_discount, previous_points_balance, remaining_points_balance,
+        created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -4430,9 +4659,75 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.description || invoice.notes || null,
       (invoice.payment_method && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') ? nowTimestamp : null,
       calculatedDueDate,
+      ptsEarned,
+      ptsRedeemed,
+      ptsRedeemedDiscount,
+      previousPointsBal,
+      remainingPointsBal,
       nowTimestamp,
       nowTimestamp
     );
+
+    // Record Loyalty Transactions & Update Customer Points Balance
+    if (customerId) {
+      let runningPoints = previousPointsBal;
+      if (ptsRedeemed > 0) {
+        const afterRedeem = Math.max(0, runningPoints - ptsRedeemed);
+        const rTxId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO loyalty_transactions (
+            transaction_id, tenant_id, customer_id, invoice_id,
+            transaction_type, points, points_balance_before, points_balance_after,
+            reference_number, description, created_by, sync_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, 'REDEEMED', ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+        `).run(
+          rTxId, tenantId, customerId, invoice.invoice_id,
+          ptsRedeemed, runningPoints, afterRedeem,
+          finalInvoiceNumber,
+          `Redeemed ${ptsRedeemed} points for ₹${ptsRedeemedDiscount.toFixed(2)} discount on invoice ${finalInvoiceNumber}`,
+          invoice.user_id || 'system',
+          nowTimestamp, nowTimestamp
+        );
+        runningPoints = afterRedeem;
+      }
+
+      if (ptsEarned > 0) {
+        const afterEarn = runningPoints + ptsEarned;
+        const eTxId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO loyalty_transactions (
+            transaction_id, tenant_id, customer_id, invoice_id,
+            transaction_type, points, points_balance_before, points_balance_after,
+            reference_number, description, created_by, sync_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, 'EARNED', ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+        `).run(
+          eTxId, tenantId, customerId, invoice.invoice_id,
+          ptsEarned, runningPoints, afterEarn,
+          finalInvoiceNumber,
+          `Earned ${ptsEarned} points on invoice ${finalInvoiceNumber}`,
+          invoice.user_id || 'system',
+          nowTimestamp, nowTimestamp
+        );
+        runningPoints = afterEarn;
+      }
+
+      db.prepare(`
+        UPDATE customers SET
+          total_points_earned = COALESCE(total_points_earned, 0) + ?,
+          total_points_redeemed = COALESCE(total_points_redeemed, 0) + ?,
+          current_points_balance = ?,
+          last_purchase_date = ?,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE customer_id = ?
+      `).run(
+        ptsEarned,
+        ptsRedeemed,
+        runningPoints,
+        nowTimestamp,
+        customerId
+      );
+    }
 
     // 2. Insert items and update stock
     const itemStmt = db.prepare(`
@@ -4548,12 +4843,14 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       }
     }
 
-    // If payment method is CREDIT, sync with parties and party_ledger
+    // If payment method is CREDIT, sync with parties/staff ledger
     syncInvoiceCreditLedger(db, {
       ...invoice,
       invoice_number: finalInvoiceNumber,
       received_amount: invoice.received_amount ?? 0,
       balance_amount: invoice.balance_amount ?? 0,
+      is_staff: Boolean(invoice.is_staff || invoice.isStaffCustomer),
+      staff_id: invoice.staff_id || null,
     });
     // Reset backfill cooldown so the next db:getParties call immediately
     // picks up this newly created credit entry.
@@ -5467,7 +5764,15 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
 ipcMain.handle('db:getInvoiceItems', (event, invoice_id: string) => {
   try {
     const db = getDb();
-    return db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
+    return db.prepare(`
+      SELECT ii.*,
+             COALESCE(NULLIF(TRIM(ii.hsn_sac_code), ''), p.hsn_sac_code, '') AS hsn_sac_code,
+             COALESCE(NULLIF(TRIM(ii.uom), ''), p.uom, 'PCS') AS uom,
+             p.tax_rate_percent AS product_tax_rate_percent
+      FROM invoice_items ii
+      LEFT JOIN products p ON ii.product_id = p.product_id
+      WHERE ii.invoice_id = ?
+    `).all(invoice_id);
   } catch (error: any) {
     console.error('[db:getInvoiceItems]', error);
     return { error: 'Operation failed' };
@@ -5577,6 +5882,11 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
         customer_id = ?, cgst_total = ?, sgst_total = ?, igst_total = ?, supply_type = ?,
         notes = ?, description = ?,
+        points_earned = COALESCE(?, points_earned),
+        points_redeemed = COALESCE(?, points_redeemed),
+        points_redeemed_discount = COALESCE(?, points_redeemed_discount),
+        previous_points_balance = COALESCE(?, previous_points_balance),
+        remaining_points_balance = COALESCE(?, remaining_points_balance),
         sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `).run(
@@ -5595,6 +5905,11 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       (invoice as any).igst_total ?? 0, (invoice as any).supply_type || 'INTRA',
       (invoice as any).notes || (invoice as any).description || null,
       (invoice as any).description || (invoice as any).notes || null,
+      (invoice as any).points_earned ?? null,
+      (invoice as any).points_redeemed ?? null,
+      (invoice as any).points_redeemed_discount ?? null,
+      (invoice as any).previous_points_balance ?? null,
+      (invoice as any).remaining_points_balance ?? null,
       payload.invoice_id
     );
 
@@ -5679,6 +5994,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       user_id: payload.role,
       user_name: payload.role,
       created_at: existingInv.created_at,
+      is_staff: Boolean((payload as any).is_staff || (payload as any).isStaffCustomer || existingInv.is_staff),
+      staff_id: (payload as any).staff_id || null,
     });
     backfillLastRun = 0; // reset so next db:getParties re-scans
   });
@@ -5781,6 +6098,8 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       customer_gstin: existingInv.customer_gstin,
       split_details: payload.split_details ?? existingInv.split_details,
       created_at: existingInv.created_at,
+      is_staff: Boolean(existingInv.is_staff || (payload as any).is_staff),
+      staff_id: (payload as any).staff_id || null,
     });
     backfillLastRun = 0; // reset so next db:getParties re-scans
 
@@ -6291,10 +6610,300 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
   return { success: true, returnNumber: `${prefix}${String(nextCounter).padStart(3, '0')}` };
 }));
 
+ipcMain.handle('db:previewConvertBosToGst', (event, payload: {
+  invoice_ids: string[];
+  tenant_id: string;
+  tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE';
+}) => {
+  try {
+    const db = getDb();
+    const parseSetting = (row: any): any => {
+      if (!row) return null;
+      try { return JSON.parse(row.value); } catch { return row.value; }
+    };
+
+    const profitPctRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'gst_profit_percentage');
+    const profitPercentage = profitPctRow ? Number(parseSetting(profitPctRow) || 0) || 30 : 30;
+    const multiplier = 1 + (profitPercentage / 100);
+
+    const taxInclusiveRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'gst_conversion_tax_inclusive');
+    const isTaxInclusive = payload.tax_mode ? (payload.tax_mode === 'INCLUSIVE') : Boolean(taxInclusiveRow ? parseSetting(taxInclusiveRow) : false);
+
+    let totalBosAmount = 0;
+    let totalTaxableAmount = 0;
+    let totalTaxAmount = 0;
+    let totalConvertedAmount = 0;
+    let hasRealGstAny = false;
+    let hasPaperAny = false;
+    let hasSkippedAny = false;
+
+    const invoices: Array<{
+      invoice_id: string;
+      invoice_number: string;
+      bos_grand_total: number;
+      taxable_amount: number;
+      tax_amount: number;
+      converted_grand_total: number;
+      has_real_gst: boolean;
+      has_paper: boolean;
+      skipped_items: string[];
+    }> = [];
+
+    for (const invoice_id of payload.invoice_ids) {
+      const inv: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(invoice_id);
+      if (!inv) continue;
+      const tid = inv.tenant_id || payload.tenant_id || 'global';
+
+      const items: any[] = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
+      let newSubtotal = 0;
+      let newTotalTax = 0;
+      let hasRealGst = false;
+      let hasPaper = false;
+      const skippedItems: string[] = [];
+      let convertedItemCount = 0;
+
+      for (const item of items) {
+        const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
+        const gstProduct = db.prepare(`
+          SELECT * FROM products 
+          WHERE tenant_id = ? 
+            AND (product_id = ? OR name = ? OR name = ?) 
+            AND is_deleted = 0
+          ORDER BY (CASE WHEN product_id = ? THEN 1 WHEN name LIKE '%(GST)' THEN 2 ELSE 3 END) ASC
+          LIMIT 1
+        `).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as any;
+
+        if (!gstProduct) {
+          skippedItems.push(item.name || item.product_id);
+          continue;
+        }
+
+        const originalQty = Number(item.quantity) || 0;
+
+        const gstStockRows = db.prepare(`
+          SELECT pbi.item_id, pbi.quantity, pbi.purchase_price, pbi.selling_price, pbi.offer_price, pbi.tax_rate_percent
+          FROM purchase_bill_items pbi
+          JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+          WHERE pbi.product_id = ? 
+            AND pb.bill_type = 'GST' 
+            AND pb.tenant_id = ?
+          ORDER BY pbi.created_at ASC
+        `).all(gstProduct.product_id, tid) as any[];
+
+        let da: Record<string, any> = {};
+        try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch {}
+
+        const isRealGstProduct = gstProduct.is_gst_applicable === 1 && da.gst_type !== 'PAPER';
+        const isPaperProduct = !isRealGstProduct && (
+          da.gst_type === 'PAPER' ||
+          (da.paper_mrp !== undefined && da.paper_mrp !== null && Number(da.paper_mrp) > 0) ||
+          (da.paper_purchase_price !== undefined && da.paper_purchase_price !== null && Number(da.paper_purchase_price) > 0) ||
+          (da.gst_purchase_price !== undefined && da.gst_purchase_price !== null && Number(da.gst_purchase_price) > 0) ||
+          (da.paper_stock !== undefined && Number(da.paper_stock) > 0)
+        );
+
+        if (isRealGstProduct) hasRealGst = true;
+        if (isPaperProduct) hasPaper = true;
+
+        if (!isRealGstProduct && !isPaperProduct && gstStockRows.length === 0) {
+          skippedItems.push(item.name || item.product_id);
+          continue;
+        }
+
+        const gstSoldRow = db.prepare(`
+          SELECT COALESCE(SUM(ii.quantity), 0) as total_gst_sold
+          FROM invoice_items ii
+          JOIN invoices i ON ii.invoice_id = i.invoice_id
+          WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ? AND i.invoice_id != ?
+        `).get(gstProduct.product_id, tid, invoice_id) as any;
+        const totalGstSold = gstSoldRow ? Number(gstSoldRow.total_gst_sold) : 0;
+
+        let remainingSold = totalGstSold;
+        const availableGstBatches: { item_id: string; qty: number; purchase_price: number; selling_price: number; offer_price: number; tax_rate_percent: number }[] = [];
+
+        for (const batch of gstStockRows) {
+          const batchQty = Number(batch.quantity) || 0;
+          const alreadyConsumed = Math.min(batchQty, remainingSold);
+          const availableQty = batchQty - alreadyConsumed;
+          remainingSold = Math.max(0, remainingSold - alreadyConsumed);
+          if (availableQty > 0) {
+            availableGstBatches.push({
+              item_id: batch.item_id,
+              qty: availableQty,
+              purchase_price: Number(batch.purchase_price) || 0,
+              selling_price: Number(batch.selling_price) || 0,
+              offer_price: Number(batch.offer_price) || 0,
+              tax_rate_percent: Number(batch.tax_rate_percent) || 0,
+            });
+          }
+        }
+
+        if (gstStockRows.length === 0 && isPaperProduct && Number(da.paper_stock || 0) > 0) {
+          const paperStock = Number(da.paper_stock) || 0;
+          const availPaper = Math.max(0, paperStock - totalGstSold);
+          if (availPaper > 0) {
+            availableGstBatches.push({
+              item_id: 'manual-paper-stock',
+              qty: availPaper,
+              purchase_price: Number(da.paper_purchase_price || da.gst_purchase_price || 0),
+              selling_price: Number(da.paper_mrp || da.paper_base_price || 0),
+              offer_price: Number(da.paper_offer_price || da.paper_offer || 0),
+              tax_rate_percent: Number(gstProduct.tax_rate_percent) || 0,
+            });
+          }
+        } else if (isRealGstProduct && gstStockRows.length === 0) {
+          const realStock = Math.max(0, Number(gstProduct.current_stock) || 0);
+          const availReal = Math.max(0, realStock + originalQty - totalGstSold);
+          if (availReal > 0) {
+            availableGstBatches.push({
+              item_id: 'real-gst-stock',
+              qty: availReal,
+              purchase_price: Number(gstProduct.purchase_price) || 0,
+              selling_price: Number(gstProduct.base_price) || 0,
+              offer_price: Number(gstProduct.offer_price) || 0,
+              tax_rate_percent: Number(gstProduct.tax_rate_percent) || 0,
+            });
+          }
+        }
+
+        const totalAvailableGstStock = availableGstBatches.reduce((sum, b) => sum + b.qty, 0);
+        const qtyToConvert = isRealGstProduct ? originalQty : Math.min(originalQty, totalAvailableGstStock);
+
+        if (qtyToConvert <= 0) {
+          skippedItems.push(item.name || item.product_id);
+          continue;
+        }
+
+        let newUnitPrice = 0;
+        let batchTaxRate = 0;
+
+        if (isRealGstProduct) {
+          newUnitPrice = Number(item.unit_price) || 0;
+          batchTaxRate = Number(item.tax_rate) || Number(gstProduct.tax_rate_percent) || 0;
+        } else {
+          let paperSellingPrice = 0;
+          let paperPurchasePrice = 0;
+
+          for (const batch of availableGstBatches) {
+            if (batch.offer_price > 0 && !paperSellingPrice) {
+              paperSellingPrice = batch.offer_price;
+              if (batch.tax_rate_percent > 0) batchTaxRate = batch.tax_rate_percent;
+            } else if (batch.selling_price > 0 && !paperSellingPrice) {
+              paperSellingPrice = batch.selling_price;
+              if (batch.tax_rate_percent > 0) batchTaxRate = batch.tax_rate_percent;
+            }
+            if (batch.purchase_price > 0 && !paperPurchasePrice) {
+              paperPurchasePrice = batch.purchase_price;
+              if (batch.tax_rate_percent > 0 && !batchTaxRate) batchTaxRate = batch.tax_rate_percent;
+            }
+          }
+
+          if (!paperSellingPrice || paperSellingPrice <= 0) {
+            if (da.paper_offer_price && Number(da.paper_offer_price) > 0) paperSellingPrice = Number(da.paper_offer_price);
+            else if (da.paper_offer && Number(da.paper_offer) > 0) paperSellingPrice = Number(da.paper_offer);
+            else if (da.paper_mrp && Number(da.paper_mrp) > 0) paperSellingPrice = Number(da.paper_mrp);
+            else if (da.paper_base_price && Number(da.paper_base_price) > 0) paperSellingPrice = Number(da.paper_base_price);
+          }
+
+          if (!paperPurchasePrice || paperPurchasePrice <= 0) {
+            paperPurchasePrice = Number(da.paper_purchase_price || da.gst_purchase_price || gstProduct.purchase_price) || 0;
+          }
+
+          if (paperSellingPrice > 0) {
+            newUnitPrice = paperSellingPrice;
+          } else if (paperPurchasePrice > 0) {
+            newUnitPrice = Math.round(paperPurchasePrice * multiplier * 100) / 100;
+          } else {
+            newUnitPrice = Number(item.unit_price) || 0;
+          }
+        }
+
+        if (!newUnitPrice || newUnitPrice <= 0) {
+          newUnitPrice = Number(item.unit_price) || 0;
+        }
+
+        const taxRate = Number(gstProduct.tax_rate_percent) || batchTaxRate || Number(item.tax_rate) || 0;
+        let itemTaxable = 0;
+        let itemTax = 0;
+        let itemTotal = 0;
+
+        if (isTaxInclusive && taxRate > 0) {
+          itemTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
+          itemTaxable = Math.round((itemTotal / (1 + taxRate / 100)) * 100) / 100;
+          itemTax = Math.round((itemTotal - itemTaxable) * 100) / 100;
+        } else {
+          itemTaxable = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
+          itemTax = Math.round(itemTaxable * (taxRate / 100) * 100) / 100;
+          itemTotal = Math.round((itemTaxable + itemTax) * 100) / 100;
+        }
+
+        newSubtotal += itemTaxable;
+        newTotalTax += itemTax;
+        convertedItemCount++;
+
+        if (qtyToConvert < originalQty) {
+          skippedItems.push(`${item.name} (partial)`);
+        }
+      }
+
+      newSubtotal = Math.round(newSubtotal * 100) / 100;
+      newTotalTax = Math.round(newTotalTax * 100) / 100;
+
+      let newDiscountTotal = 0;
+      if (inv.discount_type === 'PERCENTAGE' && Number(inv.discount_value) > 0) {
+        newDiscountTotal = Math.round(newSubtotal * (Number(inv.discount_value) / 100) * 100) / 100;
+      } else if (inv.discount_type === 'FIXED' && Number(inv.discount_value) > 0) {
+        newDiscountTotal = Math.min(Number(inv.discount_value), newSubtotal);
+      }
+
+      const taxableAmount = newSubtotal - newDiscountTotal;
+      const effectiveTaxRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
+      const adjustedTax = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
+      const convertedGrandTotal = convertedItemCount > 0 ? Math.round((taxableAmount + adjustedTax) * 100) / 100 : Number(inv.grand_total) || 0;
+
+      totalBosAmount += Number(inv.grand_total) || 0;
+      totalTaxableAmount += taxableAmount;
+      totalTaxAmount += adjustedTax;
+      totalConvertedAmount += convertedGrandTotal;
+      if (hasRealGst) hasRealGstAny = true;
+      if (hasPaper) hasPaperAny = true;
+      if (skippedItems.length > 0) hasSkippedAny = true;
+
+      invoices.push({
+        invoice_id: inv.invoice_id,
+        invoice_number: inv.invoice_number,
+        bos_grand_total: Number(inv.grand_total) || 0,
+        taxable_amount: taxableAmount,
+        tax_amount: adjustedTax,
+        converted_grand_total: convertedGrandTotal,
+        has_real_gst: hasRealGst,
+        has_paper: hasPaper,
+        skipped_items: skippedItems,
+      });
+    }
+
+    return {
+      success: true,
+      invoices,
+      total_bos_amount: Math.round(totalBosAmount * 100) / 100,
+      total_taxable_amount: Math.round(totalTaxableAmount * 100) / 100,
+      total_tax_amount: Math.round(totalTaxAmount * 100) / 100,
+      total_converted_amount: Math.round(totalConvertedAmount * 100) / 100,
+      has_real_gst: hasRealGstAny,
+      has_paper: hasPaperAny,
+      has_skipped: hasSkippedAny,
+    };
+  } catch (error: any) {
+    console.error('[db:previewConvertBosToGst]', error);
+    return { success: false, error: error.message || 'Failed to preview conversion' };
+  }
+});
+
 ipcMain.handle('db:convertBosToGst', (event, payload: {
   invoice_ids: string[];
   tenant_id: string;
   user_id: string;
+  tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE';
 }) => {
   try {
     console.log('[convertBosToGst] Starting conversion for', payload.invoice_ids.length, 'invoices');
@@ -6315,12 +6924,16 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
     const profitPercentage = profitPctRow ? Number(parseSetting(profitPctRow) || 0) || 30 : 30;
     const multiplier = 1 + (profitPercentage / 100);
 
+    // Get tax inclusive setting
+    const taxInclusiveRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'gst_conversion_tax_inclusive');
+    const isTaxInclusive = payload.tax_mode ? (payload.tax_mode === 'INCLUSIVE') : Boolean(taxInclusiveRow ? parseSetting(taxInclusiveRow) : false);
+
     const results: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string }[] = [];
 
     for (const invoice_id of payload.invoice_ids) {
       // Look up invoice number first so it's available even if the transaction fails
       let invoiceNumber = '';
-      const invLookup: any = db.prepare('SELECT invoice_number, invoice_type FROM invoices WHERE invoice_id = ? AND tenant_id = ?').get(invoice_id, payload.tenant_id);
+      const invLookup: any = db.prepare('SELECT invoice_number, invoice_type FROM invoices WHERE invoice_id = ?').get(invoice_id);
       if (invLookup) {
         invoiceNumber = invLookup.invoice_number;
       }
@@ -6328,15 +6941,17 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
       try {
         const invoice = db.transaction(() => {
           // Get the invoice
-          const inv: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?').get(invoice_id, payload.tenant_id);
+          const inv: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(invoice_id);
           if (!inv) throw new Error('Invoice not found');
           if (inv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
           if (inv.converted_to_invoice_id) throw new Error('Invoice is already converted');
 
+          const tid = inv.tenant_id || payload.tenant_id || 'global';
           const oldInvoiceNumber = inv.invoice_number;
 
           // Check if three invoice series is enabled
-          const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
+          const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tid, 'three_invoice_series')
+            || db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
           const tripleSeries = tripleSeriesRow ? parseSetting(tripleSeriesRow) : null;
 
           let configKey = 'invoice_counter_config';
@@ -6346,21 +6961,22 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
           } else {
             // Fallback to old dual series check
-            const dualSeriesRow2: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
+            const dualSeriesRow2: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tid, 'dual_invoice_series')
+              || db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
             const dualSeries2 = dualSeriesRow2 ? parseSetting(dualSeriesRow2) : null;
             if (dualSeries2 && dualSeries2.enabled) {
               configKey = 'gst_invoice_counter_config';
             }
           }
 
-          const { invoiceNumber: newInvoiceNumber } = getGuaranteedNextInvoiceNumber(db, payload.tenant_id, configKey);
+          const { invoiceNumber: newInvoiceNumber } = getGuaranteedNextInvoiceNumber(db, tid, configKey);
 
           // Get invoice items
           const items: any[] = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
 
           let newSubtotal = 0;
           let newTotalTax = 0;
-          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; bosUnitPrice: number; bosTax: number; bosTotal: number; qtyFromPaper: number; paperConsumed: { item_id: string; qty: number }[] }[] = [];
+          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; taxRate: number; bosUnitPrice: number; bosTax: number; bosTotal: number; qtyFromPaper: number; paperConsumed: { item_id: string; qty: number }[]; hsn_sac_code?: string | null; uom?: string | null }[] = [];
           const skippedItems: string[] = [];
 
           for (const item of items) {
@@ -6368,123 +6984,194 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             const gstProduct = db.prepare(`
               SELECT * FROM products 
               WHERE tenant_id = ? 
-                AND (name = ? OR name = ?) 
+                AND (product_id = ? OR name = ? OR name = ?) 
                 AND is_deleted = 0
-              ORDER BY (CASE WHEN name LIKE '%(GST)' THEN 1 ELSE 2 END) ASC
+              ORDER BY (CASE WHEN product_id = ? THEN 1 WHEN name LIKE '%(GST)' THEN 2 ELSE 3 END) ASC
               LIMIT 1
-            `).get(payload.tenant_id, cleanName + ' (GST)', cleanName) as any;
+            `).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as any;
 
-            if (!gstProduct || gstProduct.is_gst_applicable === 0) {
-              skippedItems.push(`${item.name || item.product_id} (Estimate-only product skipped)`);
+            if (!gstProduct) {
+              skippedItems.push(`${item.name || item.product_id} (Product not found)`);
               continue;
             }
 
             const originalQty = Number(item.quantity) || 0;
 
-            // ─── Compute available paper stock WITH rates from purchase bills (FIFO) ───
-            const paperStockRows = db.prepare(`
-              SELECT pbi.item_id, pbi.quantity, pbi.purchase_price, pbi.selling_price, pbi.offer_price
+            // ─── Compute available GST stock WITH rates from all GST purchase bills (FIFO) ───
+            // Includes both Real GST purchases (skip_stock_update = 0) and Paper GST purchases (skip_stock_update = 1)
+            const gstStockRows = db.prepare(`
+              SELECT pbi.item_id, pbi.quantity, pbi.purchase_price, pbi.selling_price, pbi.offer_price, pbi.tax_rate_percent
               FROM purchase_bill_items pbi
               JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
               WHERE pbi.product_id = ? 
                 AND pb.bill_type = 'GST' 
-                AND pbi.skip_stock_update = 1 
                 AND pb.tenant_id = ?
               ORDER BY pbi.created_at ASC
-            `).all(gstProduct.product_id, payload.tenant_id) as any[];
+            `).all(gstProduct.product_id, tid) as any[];
 
-            const paperSoldRow = db.prepare(`
-              SELECT COALESCE(SUM(ii.qty_from_paper_stock), 0) as total_paper_sold
+            let da: Record<string, any> = {};
+            try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch {}
+
+            // A product is Real GST if is_gst_applicable is 1 and its gst_type is not explicitly PAPER
+            const isRealGstProduct = gstProduct.is_gst_applicable === 1 && da.gst_type !== 'PAPER';
+
+            const isPaperProduct = !isRealGstProduct && (
+              da.gst_type === 'PAPER' ||
+              (da.paper_mrp !== undefined && da.paper_mrp !== null && Number(da.paper_mrp) > 0) ||
+              (da.paper_purchase_price !== undefined && da.paper_purchase_price !== null && Number(da.paper_purchase_price) > 0) ||
+              (da.gst_purchase_price !== undefined && da.gst_purchase_price !== null && Number(da.gst_purchase_price) > 0) ||
+              (da.paper_stock !== undefined && Number(da.paper_stock) > 0)
+            );
+
+            // ─── Rule 3: Skip estimate (not paper) products from bill conversion ───
+            if (!isRealGstProduct && !isPaperProduct && gstStockRows.length === 0) {
+              skippedItems.push(`${item.name || item.product_id} (Estimate non-paper product skipped)`);
+              continue;
+            }
+
+            // Total GST quantity already sold on existing GST invoices
+            const gstSoldRow = db.prepare(`
+              SELECT COALESCE(SUM(ii.quantity), 0) as total_gst_sold
               FROM invoice_items ii
               JOIN invoices i ON ii.invoice_id = i.invoice_id
-              WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ?
-            `).get(gstProduct.product_id, payload.tenant_id) as any;
-            const totalPaperSold = paperSoldRow ? Number(paperSoldRow.total_paper_sold) : 0;
+              WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ? AND i.invoice_id != ?
+            `).get(gstProduct.product_id, tid, invoice_id) as any;
+            const totalGstSold = gstSoldRow ? Number(gstSoldRow.total_gst_sold) : 0;
 
             // Calculate remaining qty per purchase bill item (FIFO consumption)
-            let remainingToSell = totalPaperSold;
-            const availablePaperBatches: { item_id: string; qty: number; purchase_price: number; selling_price: number; offer_price: number }[] = [];
+            let remainingSold = totalGstSold;
+            const availableGstBatches: { item_id: string; qty: number; purchase_price: number; selling_price: number; offer_price: number; tax_rate_percent: number }[] = [];
 
-            for (const batch of paperStockRows) {
+            for (const batch of gstStockRows) {
               const batchQty = Number(batch.quantity) || 0;
-              const alreadyConsumed = Math.min(batchQty, remainingToSell);
+              const alreadyConsumed = Math.min(batchQty, remainingSold);
               const availableQty = batchQty - alreadyConsumed;
-              remainingToSell = Math.max(0, remainingToSell - batchQty);
+              remainingSold = Math.max(0, remainingSold - alreadyConsumed);
               
               if (availableQty > 0) {
-                availablePaperBatches.push({
+                availableGstBatches.push({
                   item_id: batch.item_id,
                   qty: availableQty,
                   purchase_price: Number(batch.purchase_price) || 0,
                   selling_price: Number(batch.selling_price) || 0,
                   offer_price: Number(batch.offer_price) || 0,
+                  tax_rate_percent: Number(batch.tax_rate_percent) || 0,
                 });
               }
             }
 
-            const totalAvailablePaper = availablePaperBatches.reduce((sum, b) => sum + b.qty, 0);
-            const qtyToConvert = Math.min(originalQty, totalAvailablePaper);
+            // If manual paper stock is defined in product domain_attributes without purchase bill
+            if (gstStockRows.length === 0 && isPaperProduct && Number(da.paper_stock || 0) > 0) {
+              const paperStock = Number(da.paper_stock) || 0;
+              const availPaper = Math.max(0, paperStock - totalGstSold);
+              if (availPaper > 0) {
+                availableGstBatches.push({
+                  item_id: 'manual-paper-stock',
+                  qty: availPaper,
+                  purchase_price: Number(da.paper_purchase_price || da.gst_purchase_price || 0),
+                  selling_price: Number(da.paper_mrp || da.paper_base_price || 0),
+                  offer_price: Number(da.paper_offer_price || da.paper_offer || 0),
+                  tax_rate_percent: Number(gstProduct.tax_rate_percent) || 0,
+                });
+              }
+            } else if (isRealGstProduct && gstStockRows.length === 0) {
+              const realStock = Math.max(0, Number(gstProduct.current_stock) || 0);
+              const availReal = Math.max(0, realStock + originalQty - totalGstSold);
+              if (availReal > 0) {
+                availableGstBatches.push({
+                  item_id: 'real-gst-stock',
+                  qty: availReal,
+                  purchase_price: Number(gstProduct.purchase_price) || 0,
+                  selling_price: Number(gstProduct.base_price) || 0,
+                  offer_price: Number(gstProduct.offer_price) || 0,
+                  tax_rate_percent: Number(gstProduct.tax_rate_percent) || 0,
+                });
+              }
+            }
+
+            const totalAvailableGstStock = availableGstBatches.reduce((sum, b) => sum + b.qty, 0);
+            const qtyToConvert = isRealGstProduct ? originalQty : Math.min(originalQty, totalAvailableGstStock);
 
             if (qtyToConvert <= 0) {
-              skippedItems.push(`${item.name || item.product_id} (No available paper stock - 0 of ${originalQty} converted)`);
+              skippedItems.push(`${item.name || item.product_id} (0 of ${originalQty} converted - no GST stock available)`);
               continue;
             }
 
-            // ─── Determine unit price: prefer paper stock rates, fallback to profit % ───
+            // ─── Determine Unit Price based on user specifications: ───
             let newUnitPrice = 0;
-            let paperConsumed: { item_id: string; qty: number }[] = [];
-            let remainingQty = qtyToConvert;
+            let batchTaxRate = 0;
 
-            for (const batch of availablePaperBatches) {
-              if (remainingQty <= 0) break;
-              const take = Math.min(batch.qty, remainingQty);
-              
-              // Use paper stock rate priority: offer_price > selling_price > purchase_price * (1 + profit%)
-              const batchPrice = batch.offer_price > 0 ? batch.offer_price
-                : batch.selling_price > 0 ? batch.selling_price
-                : batch.purchase_price > 0 ? Math.round(batch.purchase_price * multiplier * 100) / 100
-                : 0;
-              
-              if (batchPrice > 0) {
-                newUnitPrice = batchPrice;
-                paperConsumed.push({ item_id: batch.item_id, qty: take });
-                remainingQty -= take;
-                break;
+            if (isRealGstProduct) {
+              // ─── Rule 1: Real GST product -> same BOS price (no any changes) ───
+              newUnitPrice = Number(item.unit_price) || 0;
+              batchTaxRate = Number(item.tax_rate) || Number(gstProduct.tax_rate_percent) || 0;
+            } else {
+              // ─── Rule 2: Paper details available -> use paper MRP/offer; if not available -> use settings percentage on purchase price ───
+              let paperSellingPrice = 0;
+              let paperPurchasePrice = 0;
+
+              for (const batch of availableGstBatches) {
+                if (batch.offer_price > 0 && !paperSellingPrice) {
+                  paperSellingPrice = batch.offer_price;
+                  if (batch.tax_rate_percent > 0) batchTaxRate = batch.tax_rate_percent;
+                } else if (batch.selling_price > 0 && !paperSellingPrice) {
+                  paperSellingPrice = batch.selling_price;
+                  if (batch.tax_rate_percent > 0) batchTaxRate = batch.tax_rate_percent;
+                }
+                if (batch.purchase_price > 0 && !paperPurchasePrice) {
+                  paperPurchasePrice = batch.purchase_price;
+                  if (batch.tax_rate_percent > 0 && !batchTaxRate) batchTaxRate = batch.tax_rate_percent;
+                }
               }
-              remainingQty -= take;
-              paperConsumed.push({ item_id: batch.item_id, qty: take });
+
+              if (!paperSellingPrice || paperSellingPrice <= 0) {
+                if (da.paper_offer_price && Number(da.paper_offer_price) > 0) {
+                  paperSellingPrice = Number(da.paper_offer_price);
+                } else if (da.paper_offer && Number(da.paper_offer) > 0) {
+                  paperSellingPrice = Number(da.paper_offer);
+                } else if (da.paper_mrp && Number(da.paper_mrp) > 0) {
+                  paperSellingPrice = Number(da.paper_mrp);
+                } else if (da.paper_base_price && Number(da.paper_base_price) > 0) {
+                  paperSellingPrice = Number(da.paper_base_price);
+                }
+              }
+
+              if (!paperPurchasePrice || paperPurchasePrice <= 0) {
+                paperPurchasePrice = Number(da.paper_purchase_price || da.gst_purchase_price || gstProduct.purchase_price) || 0;
+              }
+
+              if (paperSellingPrice > 0) {
+                newUnitPrice = paperSellingPrice;
+              } else if (paperPurchasePrice > 0) {
+                newUnitPrice = Math.round(paperPurchasePrice * multiplier * 100) / 100;
+              } else {
+                newUnitPrice = Number(item.unit_price) || 0;
+              }
             }
 
-            // Fallback: no paper stock with valid rates → use profit % on catalog base_price
             if (!newUnitPrice || newUnitPrice <= 0) {
-              newUnitPrice = gstProduct.offer_price && Number(gstProduct.offer_price) > 0
-                ? Number(gstProduct.offer_price)
-                : Math.round(Number(gstProduct.base_price) * multiplier * 100) / 100;
-              
-              // Still consume paper stock (FIFO) even if rates not usable
-              remainingQty = qtyToConvert;
-              paperConsumed = [];
-              for (const batch of availablePaperBatches) {
-                if (remainingQty <= 0) break;
-                const take = Math.min(batch.qty, remainingQty);
-                paperConsumed.push({ item_id: batch.item_id, qty: take });
-                remainingQty -= take;
-              }
+              newUnitPrice = Number(item.unit_price) || 0;
             }
 
-            // ─── Decrement paper stock (update purchase_bill_items quantities) ───
-            for (const consumed of paperConsumed) {
-              db.prepare(`
-                UPDATE purchase_bill_items 
-                SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP
-                WHERE item_id = ?
-              `).run(consumed.qty, consumed.item_id);
+            const taxRate = Number(gstProduct.tax_rate_percent) || batchTaxRate || Number(item.tax_rate) || 0;
+            let itemTaxable = 0;
+            let itemTax = 0;
+            let itemTotal = 0;
+            let finalUnitPrice = newUnitPrice;
+
+            if (isTaxInclusive && taxRate > 0) {
+              itemTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
+              itemTaxable = Math.round((itemTotal / (1 + taxRate / 100)) * 100) / 100;
+              itemTax = Math.round((itemTotal - itemTaxable) * 100) / 100;
+              finalUnitPrice = Math.round((newUnitPrice / (1 + taxRate / 100)) * 100) / 100;
+            } else {
+              itemTaxable = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
+              itemTax = Math.round(itemTaxable * (taxRate / 100) * 100) / 100;
+              itemTotal = Math.round((itemTaxable + itemTax) * 100) / 100;
+              finalUnitPrice = newUnitPrice;
             }
 
-            const taxRate = Number(gstProduct.tax_rate_percent) || 0;
-            const newTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
-            newSubtotal += newTotal;
-            const itemTax = Math.round(newTotal * (taxRate / 100) * 100) / 100;
+            newSubtotal += itemTaxable;
             newTotalTax += itemTax;
 
             copyItems.push({
@@ -6494,23 +7181,26 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               name: gstProduct.name,
               quantity: qtyToConvert,
               is_service_item: item.is_service_item ? 1 : 0,
-              newUnitPrice,
-              newTotal,
+              newUnitPrice: finalUnitPrice,
+              newTotal: itemTotal,
               newTaxAmount: itemTax,
+              taxRate: Number(taxRate) || 0,
               bosUnitPrice: Number(item.unit_price) || 0,
               bosTax: Number(item.tax_amount) || 0,
               bosTotal: Number(item.total) || 0,
               qtyFromPaper: qtyToConvert,
-              paperConsumed,
+              paperConsumed: [],
+              hsn_sac_code: gstProduct.hsn_sac_code || item.hsn_sac_code || null,
+              uom: gstProduct.uom || item.uom || 'PCS',
             });
 
             if (qtyToConvert < originalQty) {
-              skippedItems.push(`${item.name || item.product_id} (${qtyToConvert} of ${originalQty} converted due to limited paper stock, balance ${originalQty - qtyToConvert} skipped)`);
+              skippedItems.push(`${item.name || item.product_id} (${qtyToConvert} of ${originalQty} converted, balance ${originalQty - qtyToConvert} skipped - limited GST stock)`);
             }
           }
 
           if (copyItems.length === 0) {
-            throw new Error('No items have available GST paper stock. Conversion failed.');
+            throw new Error(skippedItems.length > 0 ? skippedItems.join('; ') : 'No items have available GST stock. Conversion failed.');
           }
 
           newSubtotal = Math.round(newSubtotal * 100) / 100;
@@ -6537,7 +7227,11 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const convSgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
           const convIgstTotal = isInterStateConv ? adjustedTax : 0;
 
-          // 1. Create the GST invoice as a NEW row (copy) â€” the BoS stays intact.
+          const wasFullyPaid = (Number(inv.balance_amount) || 0) <= 0 && (Number(inv.grand_total) || 0) > 0;
+          const newReceivedAmount = wasFullyPaid ? newGrandTotal : Math.min(Number(inv.received_amount) || 0, newGrandTotal);
+          const newBalanceAmount = Math.max(0, Math.round((newGrandTotal - newReceivedAmount) * 100) / 100);
+
+          // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
           //    No stock movement: stock was already deducted when the BoS was sold.
           db.prepare(`
             INSERT INTO invoices (
@@ -6562,8 +7256,8 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             inv.discount_value || 0,
             newGrandTotal,
             inv.payment_method || 'CASH',
-            Number(inv.received_amount) || 0,
-            Number(inv.balance_amount) || 0,
+            newReceivedAmount,
+            newBalanceAmount,
             inv.customer_name || null,
             inv.customer_phone || null,
             inv.customer_gstin || null,
@@ -6577,21 +7271,26 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             convSupplyType
           );
 
-          // 2. Copy the priced items â€” they remember their original BoS values so
+          // 2. Copy the priced items — they remember their original BoS values so
           //    returns refund what the customer actually paid.
           const insertItemStmt = db.prepare(`
             INSERT INTO invoice_items (
               item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item,
               source_item_id, bos_unit_price, bos_tax_amount, bos_total, qty_from_paper_stock,
-              cgst_amount, sgst_amount, igst_amount, supply_type
+              cgst_rate, sgst_rate, igst_rate,
+              cgst_amount, sgst_amount, igst_amount, supply_type,
+              hsn_sac_code, uom
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           for (const ci of copyItems) {
             const itemCgst = isInterStateConv ? 0 : Math.round((ci.newTaxAmount / 2) * 100) / 100;
             const itemSgst = isInterStateConv ? 0 : Math.round((ci.newTaxAmount / 2) * 100) / 100;
             const itemIgst = isInterStateConv ? ci.newTaxAmount : 0;
+            const itemCgstRate = isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
+            const itemSgstRate = isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
+            const itemIgstRate = isInterStateConv ? ci.taxRate : 0;
 
             insertItemStmt.run(
               ci.item_id,
@@ -6609,10 +7308,15 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               ci.bosTax,
               ci.bosTotal,
               ci.qtyFromPaper,
+              itemCgstRate,
+              itemSgstRate,
+              itemIgstRate,
               itemCgst,
               itemSgst,
               itemIgst,
-              convSupplyType
+              convSupplyType,
+              ci.hsn_sac_code || null,
+              ci.uom || 'PCS'
             );
           }
 
@@ -6643,7 +7347,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
         console.log('[convertBosToGst] Converted', invoice_id, 'â†’', invoice.new_number);
       } catch (err: any) {
         console.error('[convertBosToGst] Failed', invoice_id, err.message);
-        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: 'Conversion failed' });
+        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: err?.message || 'Conversion failed' });
       }
     }
 
@@ -7497,18 +8201,18 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     }
 
     const config = readAuthPayload();
-    if (!config) return { success: false, error: 'Not authenticated', offline: true };
-    const token = config.jwt_token;
-    if (!token) return { success: false, error: 'No auth token', offline: true };
-
     const { getSyncEndpoints } = await import('./sync/syncWorker.js');
     const endpoints = getSyncEndpoints();
-    // Cloud API URL â€” set VENDORA_CLOUD_API in .env
+    const isLan = endpoints.primaryRoute === 'LAN';
+    const token = config?.jwt_token || (isLan ? 'lan-local-token' : '');
+    if (!token) return { success: false, error: 'No auth token', offline: true };
+
+    // Primary API URL (either Local Master LAN host http://<ip>:3888 or Cloud API)
     const apiUrl = (endpoints.primaryUrl || process.env.VENDORA_CLOUD_API || '').replace(/\/$/, '');
     const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(1200),
+      signal: AbortSignal.timeout(3000),
     });
 
     if (!response.ok) return { success: false, error: `Server returned ${response.status}`, offline: true };
@@ -8425,24 +9129,40 @@ ipcMain.handle('db:getBosConvertibleInvoices', (event, tenantId: string) => {
       SELECT i.invoice_id,
              EXISTS(
                SELECT 1 FROM invoice_items ii
-               JOIN products p ON ii.product_id = p.product_id
+               LEFT JOIN products p ON ii.product_id = p.product_id
                WHERE ii.invoice_id = i.invoice_id
-                 AND EXISTS(
-                   SELECT 1 FROM products pgst
-                   WHERE pgst.tenant_id = i.tenant_id
-                     AND pgst.is_deleted = 0
-                     AND pgst.is_gst_applicable = 1
-                     AND (
-                       pgst.name = REPLACE(REPLACE(REPLACE(p.name, ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '') || ' (GST)'
-                       OR pgst.name = REPLACE(REPLACE(REPLACE(p.name, ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '')
-                     )
+                 AND (
+                   (p.product_id IS NOT NULL AND p.is_gst_applicable = 1)
+                   OR EXISTS(
+                     SELECT 1 FROM products pgst
+                     WHERE pgst.tenant_id = i.tenant_id
+                       AND pgst.is_deleted = 0
+                       AND pgst.is_gst_applicable = 1
+                       AND (
+                         pgst.product_id = ii.product_id
+                         OR pgst.name = REPLACE(REPLACE(REPLACE(COALESCE(p.name, ii.name), ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '') || ' (GST)'
+                         OR pgst.name = REPLACE(REPLACE(REPLACE(COALESCE(p.name, ii.name), ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '')
+                       )
+                   )
+                   OR EXISTS(
+                     SELECT 1 FROM purchase_bill_items pbi
+                     JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+                     WHERE (pbi.product_id = ii.product_id OR (p.product_id IS NOT NULL AND pbi.product_id = p.product_id))
+                       AND pb.bill_type = 'GST'
+                       AND pb.tenant_id = i.tenant_id
+                   )
+                   OR p.domain_attributes LIKE '%"gst_type":"PAPER"%'
+                   OR p.domain_attributes LIKE '%"paper_mrp"%'
+                   OR p.domain_attributes LIKE '%"paper_purchase_price"%'
+                   OR p.domain_attributes LIKE '%"gst_purchase_price"%'
+                   OR p.domain_attributes LIKE '%"paper_stock"%'
                  )
              ) AS convertible
       FROM invoices i
-      WHERE i.tenant_id = ? AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-    `).all(tenantId);
+      WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR ? = 'global') AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+    `).all(tenantId, tenantId);
   } catch (error: any) {
-    console.error('[db:getBosConvertibleConvertibles]', error);
+    console.error('[db:getBosConvertibleInvoices]', error);
     return [];
   }
 });
@@ -8790,9 +9510,10 @@ ipcMain.handle('db:saveWarranty', safeHandler((event, w) => {
   try {
     const db = getDb();
     db.prepare(`
-      INSERT INTO warranties (warranty_id, tenant_id, invoice_id, invoice_item_id, customer_name, customer_phone, product_name, product_details, purchase_date, warranty_period_days, expiry_date, notes, sync_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-    `).run(w.warranty_id, w.tenant_id, w.invoice_id || null, w.invoice_item_id || null, w.customer_name, w.customer_phone || null, w.product_name, w.product_details || null, w.purchase_date, w.warranty_period_days, w.expiry_date, w.notes || null);
+      INSERT INTO warranties (warranty_id, tenant_id, invoice_id, invoice_item_id, bill_number, brand, customer_name, customer_phone, product_name, product_details, purchase_date, warranty_period_days, expiry_date, notes, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+    `).run(w.warranty_id, w.tenant_id, w.invoice_id || null, w.invoice_item_id || null, w.bill_number || null, w.brand || null, w.customer_name, w.customer_phone || null, w.product_name, w.product_details || null, w.purchase_date, w.warranty_period_days, w.expiry_date, w.notes || null);
+    triggerUrgentWarrantySync().catch(() => {});
     return { success: true };
   } catch (error: any) {
     console.error('[db:saveWarranty]', error);
@@ -8807,8 +9528,8 @@ ipcMain.handle('db:getWarranties', (event, { tenant_id, search }: { tenant_id: s
     let query = 'SELECT * FROM warranties WHERE tenant_id = ?';
     const params: any[] = [tenant_id];
     if (search) {
-      query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR product_name LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR product_name LIKE ? OR brand LIKE ? OR bill_number LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     query += ' ORDER BY created_at DESC LIMIT 200';
     return db.prepare(query).all(...params);
@@ -8822,6 +9543,7 @@ ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
   try {
     const db = getDb();
     db.prepare('DELETE FROM warranties WHERE warranty_id = ?').run(warrantyId);
+    triggerUrgentWarrantySync().catch(() => {});
     return { success: true };
   } catch (error: any) {
     console.error('[db:deleteWarranty]', error);
@@ -9366,7 +10088,7 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search, limit,
       SELECT p.*, 
         COALESCE((SELECT SUM(pbi.quantity) FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1)), 0) as gst_purchase_quantity,
         COALESCE((SELECT pbi.purchase_price FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1) ORDER BY pbi.rowid DESC LIMIT 1), 0) as gst_purchase_price,
-        COALESCE((SELECT pbi.selling_price FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1) ORDER BY pbi.rowid DESC LIMIT 1), 0) as paper_mrp
+        COALESCE((SELECT pbi.selling_price FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND pbi.skip_stock_update = 1 ORDER BY pbi.rowid DESC LIMIT 1), 0) as paper_mrp
       FROM products p 
       WHERE p.tenant_id = ? AND p.is_deleted = 0
     `;
@@ -10243,6 +10965,20 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
+
+    // Non-blocking background trigger for WhatsApp Shop Closing Overview report
+    setImmediate(() => {
+      sendShopClosingReport({
+        db,
+        tenantId: tenant_id,
+        businessDate: business_date,
+        triggerType: 'SETTLEMENT_CLOSE',
+        closedByName: user_name,
+        reconcileCashDrawerFn: reconcileCashDrawer,
+        getStoreTimezoneSettingFn: getStoreTimezoneSetting,
+      }).catch(err => console.error('[Main] Shop closing WhatsApp report background error:', err));
+    });
+
     return { success: true, expected_closing: expected, actual_cash: actual, cash_short, cash_excess };
   } catch (error: any) {
     console.error('[db:cashier:dayClosing]', error);
@@ -11088,19 +11824,142 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
 ipcMain.handle('db:getCustomerLoyaltyTransactions', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
   try {
     const db = getDb();
-    if (!customer_id || !tenant_id) return [];
+    if (!customer_id) return [];
+    const tid = tenant_id || 'global';
     return db.prepare(`
       SELECT lt.*, i.invoice_number
       FROM loyalty_transactions lt
       LEFT JOIN invoices i ON lt.invoice_id = i.invoice_id
-      WHERE lt.customer_id = ? AND lt.tenant_id = ?
+      WHERE lt.customer_id = ? AND (lt.tenant_id = ? OR lt.tenant_id = 'global' OR ? = 'global')
       ORDER BY lt.created_at DESC
-    `).all(customer_id, tenant_id);
+    `).all(customer_id, tid, tid);
   } catch (error: any) {
     console.error('[db:getCustomerLoyaltyTransactions]', error);
     return { error: 'Operation failed' };
   }
 });
+
+ipcMain.handle('db:adjustCustomerLoyaltyPoints', safeHandler((event, payload: {
+  customer_id: string;
+  tenant_id: string;
+  points: number;
+  reason?: string;
+  user_name?: string;
+}) => {
+  const db = getDb();
+  const tid = payload.tenant_id || 'global';
+  const cust: any = db.prepare('SELECT * FROM customers WHERE customer_id = ?').get(payload.customer_id);
+  if (!cust) return { success: false, error: 'Customer not found' };
+
+  const currentBal = Number(cust.current_points_balance) || 0;
+  const delta = Number(payload.points) || 0;
+  if (delta === 0) return { success: false, error: 'Points amount cannot be zero' };
+  if (currentBal + delta < 0) return { success: false, error: 'Customer does not have enough points balance to deduct' };
+
+  const newBal = currentBal + delta;
+  const txId = crypto.randomUUID();
+  const now = localTimestamp();
+
+  const transaction = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO loyalty_transactions (
+        transaction_id, tenant_id, customer_id, invoice_id,
+        transaction_type, points, points_balance_before, points_balance_after,
+        reference_number, description, created_by, sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, NULL, 'ADJUSTED', ?, ?, ?, NULL, ?, ?, 'PENDING', ?, ?)
+    `).run(
+      txId, tid, payload.customer_id,
+      Math.abs(delta), currentBal, newBal,
+      payload.reason || (delta > 0 ? `Manual adjustment (+${delta} pts)` : `Manual adjustment (${delta} pts)`),
+      payload.user_name || 'admin',
+      now, now
+    );
+
+    db.prepare(`
+      UPDATE customers SET
+        total_points_earned = total_points_earned + ?,
+        total_points_redeemed = total_points_redeemed + ?,
+        current_points_balance = ?,
+        sync_status = 'PENDING',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE customer_id = ?
+    `).run(
+      delta > 0 ? delta : 0,
+      delta < 0 ? Math.abs(delta) : 0,
+      newBal,
+      payload.customer_id
+    );
+  });
+
+  transaction();
+  return { success: true, new_balance: newBal, transaction_id: txId };
+}));
+
+ipcMain.handle('db:recalculateCustomerLoyaltyPoints', safeHandler((event, payload: { tenant_id: string }) => {
+  const db = getDb();
+  const tid = payload.tenant_id || 'global';
+  const lCfgRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'").get(tid)
+    || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'").get();
+  let lCfg: any = null;
+  if (lCfgRow?.value) {
+    try {
+      lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
+    } catch {}
+  }
+  const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+
+  const custs: any[] = db.prepare(`SELECT customer_id, phone, name FROM customers WHERE (tenant_id = ? OR tenant_id = 'global' OR ? = 'global') AND (is_deleted IS NULL OR is_deleted = 0)`).all(tid, tid);
+  let updatedCount = 0;
+
+  const transaction = db.transaction(() => {
+    for (const c of custs) {
+      const invRow: any = db.prepare(`
+        SELECT 
+          COALESCE(SUM(points_earned), 0) as totEarned,
+          COALESCE(SUM(points_redeemed), 0) as totRedeemed,
+          MAX(created_at) as lastPurchase
+        FROM invoices
+        WHERE (customer_id = ? OR (customer_phone IS NOT NULL AND customer_phone = ? AND customer_phone != ''))
+          AND (is_deleted IS NULL OR is_deleted = 0)
+          AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))
+      `).get(c.customer_id, c.phone || '');
+
+      let earned = Number(invRow?.totEarned) || 0;
+      const redeemed = Number(invRow?.totRedeemed) || 0;
+
+      // If invoices did not have points_earned stored previously, compute from sales total
+      if (earned === 0 && redeemed === 0) {
+        const salesRow: any = db.prepare(`
+          SELECT COALESCE(SUM(grand_total), 0) as totSales, MAX(created_at) as lastPurchase
+          FROM invoices
+          WHERE (customer_id = ? OR (customer_phone IS NOT NULL AND customer_phone = ? AND customer_phone != ''))
+            AND (is_deleted IS NULL OR is_deleted = 0)
+            AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))
+        `).get(c.customer_id, c.phone || '');
+        const totSales = Number(salesRow?.totSales) || 0;
+        if (totSales > 0) {
+          earned = Math.floor(totSales / earningRate);
+        }
+      }
+
+      const bal = Math.max(0, earned - redeemed);
+      db.prepare(`
+        UPDATE customers SET
+          total_points_earned = ?,
+          total_points_redeemed = ?,
+          current_points_balance = ?,
+          last_purchase_date = COALESCE(?, last_purchase_date),
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE customer_id = ?
+      `).run(earned, redeemed, bal, invRow?.lastPurchase || null, c.customer_id);
+      updatedCount++;
+    }
+  });
+
+  transaction();
+  return { success: true, updatedCount };
+}));
 
 // â”€â”€ Staff Management Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ipcMain.handle('db:getStaff', safeHandler((event, params: any) => {

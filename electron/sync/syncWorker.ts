@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { app, BrowserWindow, safeStorage, type WebContents } from 'electron';
-import { getDb } from '../db/localDb.js';
+import { getDb, dbEmergencyPurgeLocalData } from '../db/localDb.js';
 
 function localTimestamp(d: Date | string | number = new Date()): string {
   const dateObj = d instanceof Date ? d : new Date(d);
@@ -38,6 +38,7 @@ function parseCleanDate(dStr: any): string {
 
 const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
+const getOfflineSessionPath = () => path.join(app.getPath('userData'), 'offline-auth.enc');
 
 function decrypt(data: Buffer): string | null {
   if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
@@ -62,6 +63,31 @@ function readAuthPayload(): any {
   } catch {
     return null;
   }
+}
+
+function readOfflineSessionSafe(): any {
+  try {
+    const offlinePath = getOfflineSessionPath();
+    if (!fs.existsSync(offlinePath)) return null;
+    const decrypted = decrypt(fs.readFileSync(offlinePath));
+    if (!decrypted) return null;
+    return JSON.parse(decrypted);
+  } catch {
+    return null;
+  }
+}
+
+function getTenantIdFromDb(): string | null {
+  try {
+    const db = getDb();
+    const row = db.prepare(`SELECT tenant_id FROM users WHERE tenant_id IS NOT NULL AND tenant_id != '' AND tenant_id != 'global' LIMIT 1`).get() as { tenant_id: string } | undefined;
+    if (row?.tenant_id) return row.tenant_id;
+    const invRow = db.prepare(`SELECT tenant_id FROM invoices WHERE tenant_id IS NOT NULL AND tenant_id != '' AND tenant_id != 'global' LIMIT 1`).get() as { tenant_id: string } | undefined;
+    if (invRow?.tenant_id) return invRow.tenant_id;
+    const settRow = db.prepare(`SELECT tenant_id FROM settings WHERE tenant_id IS NOT NULL AND tenant_id != '' AND tenant_id != 'global' LIMIT 1`).get() as { tenant_id: string } | undefined;
+    if (settRow?.tenant_id) return settRow.tenant_id;
+  } catch {}
+  return null;
 }
 
 const BATCH_SIZE = 20;
@@ -591,26 +617,43 @@ function parseIsDeleted(val: any): number {
 function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
   try {
     const payload = readAuthPayload();
-    if (!payload) return null;
-    const { jwt_token, tenant_id, ...rest } = payload;
-    return jwt_token && tenant_id ? { jwt_token, tenant_id } : null;
+    if (payload?.jwt_token && payload?.tenant_id) {
+      return { jwt_token: payload.jwt_token, tenant_id: payload.tenant_id };
+    }
+    // Fallback for offline login or LAN peer terminal:
+    const offline = readOfflineSessionSafe();
+    const tenantId = offline?.tenant_id || payload?.tenant_id || getTenantIdFromDb();
+    if (tenantId) {
+      return {
+        jwt_token: payload?.jwt_token || 'lan-local-token',
+        tenant_id: tenantId,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
 function isJwtExpired(token: string): boolean {
+  if (!token) return true;
+  if (token === 'lan-local-token') return false;
   try {
     const parts = token.split('.');
-    if (parts.length < 2) return true;
+    if (parts.length < 2) return false;
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
     return payload.exp ? payload.exp * 1000 < Date.now() : false;
   } catch {
-    return true;
+    return false;
   }
 }
 
 async function clearAuthAndNotify() {
+  const endpoints = getSyncEndpoints();
+  if (endpoints.primaryRoute === 'LAN') {
+    console.warn('[SyncWorker] ℹ️ Local LAN mode is active. Preserving sync worker state despite cloud auth error.');
+    return;
+  }
   isSyncActive = false;
   if (syncCycleTimerId) {
     clearTimeout(syncCycleTimerId);
@@ -688,11 +731,12 @@ async function triggerFastLightweightBillPull() {
   if (!isSyncActive || activePageContext !== 'cash_settlement' || fastInvoicePullInProgress || syncInProgress) {
     return;
   }
+  const endpoints = getSyncEndpoints();
   const effective = calculateEffectiveCloudAccess();
-  if (!effective.isCloudAllowed) return;
+  if (endpoints.primaryRoute === 'CLOUD' && !effective.isCloudAllowed) return;
 
   const config = getAuthConfig();
-  if (config && !isJwtExpired(config.jwt_token)) {
+  if (config && (!isJwtExpired(config.jwt_token) || endpoints.primaryRoute === 'LAN')) {
     fastInvoicePullInProgress = true;
     try {
       const res = await pullLightweightPendingBills(config.jwt_token, config.tenant_id);
@@ -783,6 +827,8 @@ export function reloadSyncConfig() {
   for (const k in tableContentHashes) {
     delete tableContentHashes[k];
   }
+  isSyncActive = true;
+  authExpiredNotified = false;
   scheduleNextSyncCycle();
   setTimeout(() => {
     runSyncCycle().catch((e: any) => console.error('[SyncWorker] Immediate sync on reloadSyncConfig error:', e.message));
@@ -799,10 +845,13 @@ export function initSyncWorker() {
   isWorkerInitialized = true;
   console.log('[SyncWorker] ========= Initializing background sync worker... =========');
   const initialAuth = getAuthConfig();
-  if (initialAuth && !isJwtExpired(initialAuth.jwt_token)) {
+  const endpoints = getSyncEndpoints();
+  const isLanClient = endpoints.primaryRoute === 'LAN';
+
+  if (initialAuth && (!isJwtExpired(initialAuth.jwt_token) || isLanClient)) {
     isSyncActive = true;
     const tenantId = initialAuth.tenant_id;
-    console.log(`[SyncWorker] ✅ Valid auth detected on startup. tenant_id=${tenantId}. Background sync ACTIVATED.`);
+    console.log(`[SyncWorker] ✅ Valid auth or LAN mode detected on startup. tenant_id=${tenantId}, route=${endpoints.primaryRoute}. Background sync ACTIVATED.`);
     // Immediately run a full sync in background to populate data on secondary terminals
     setTimeout(async () => {
       try {
@@ -881,7 +930,8 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
-  if (isJwtExpired(jwt_token)) return;
+  const endpoints = getSyncEndpoints();
+  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) {
@@ -891,6 +941,7 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   urgentInvoiceSyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority invoice push/pull running...');
+    await pushCustomers(jwt_token, tenant_id);
     await syncInvoices(jwt_token, tenant_id);
     const updated = await pullInvoices(jwt_token, tenant_id);
     notifyRenderer();
@@ -914,7 +965,8 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
-  if (isJwtExpired(jwt_token)) return;
+  const endpoints = getSyncEndpoints();
+  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) {
@@ -937,6 +989,34 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
   }
 }
 
+let urgentWarrantySyncInProgress = false;
+export async function triggerUrgentWarrantySync(): Promise<void> {
+  if (urgentWarrantySyncInProgress) return;
+  const config = getAuthConfig();
+  if (!config) return;
+  const { jwt_token, tenant_id } = config;
+  const endpoints = getSyncEndpoints();
+  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
+
+  const conn = await checkSyncConnectivity();
+  if (!conn.ok) return;
+
+  urgentWarrantySyncInProgress = true;
+  try {
+    console.log('[SyncWorker] Express priority warranty push/pull running...');
+    await syncWarranties(jwt_token, tenant_id);
+    const updated = await pullWarranties(jwt_token, tenant_id);
+    notifyRenderer();
+    if (updated) {
+      console.log('[SyncWorker] Express priority warranty sync completed: renderer notified.');
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Express warranty sync error:', err.message);
+  } finally {
+    urgentWarrantySyncInProgress = false;
+  }
+}
+
 let fastCashPullInProgress = false;
 const FAST_CASH_PULL_MS = 15000;
 
@@ -953,7 +1033,8 @@ export async function triggerUrgentCashSync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
-  if (isJwtExpired(jwt_token)) return;
+  const endpoints = getSyncEndpoints();
+  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) {
@@ -988,7 +1069,10 @@ export async function triggerUrgentCashSync(): Promise<void> {
 
 export async function runInitialSync(sender?: WebContents) {
   const config = getAuthConfig();
-  if (!config || isJwtExpired(config.jwt_token)) {
+  const endpoints = getSyncEndpoints();
+  const isLanRoute = endpoints.primaryRoute === 'LAN';
+
+  if (!config || (!isLanRoute && isJwtExpired(config.jwt_token))) {
     console.warn('[SyncWorker] runInitialSync skipped: Auth token is missing or expired. Cloud sync paused.');
     clearAuthAndNotify();
     return { success: false, error: 'Auth token expired or missing' };
@@ -1118,7 +1202,7 @@ async function pullLightweightPendingBills(token: string, tenantId: string): Pro
 
 async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ success: boolean; dataUpdated: boolean }> {
   const tables = [
-    'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
+    'product_grades', 'pricing_tiers', 'products', 'product_pricing', 'settings',
     'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
     'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
     'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
@@ -1161,8 +1245,8 @@ async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ succ
     let dataUpdated = false;
     if (data.product_grades?.length) if (await pullGrades(token, tenantId)) dataUpdated = true;
     if (data.pricing_tiers?.length) if (await pullPricingTiers(token, tenantId)) dataUpdated = true;
-    if (data.product_pricing?.length) if (await pullProductPricing(token, tenantId)) dataUpdated = true;
     if (data.products?.length) if (await pullProducts(token, tenantId)) dataUpdated = true;
+    if (data.product_pricing?.length) if (await pullProductPricing(token, tenantId)) dataUpdated = true;
     if (data.settings?.length) if (await pullSettings(token, tenantId)) dataUpdated = true;
     if (data.parties?.length) if (await pullParties(token, tenantId)) dataUpdated = true;
     if (data.party_ledger?.length) if (await pullPartyLedger(token, tenantId)) dataUpdated = true;
@@ -1180,6 +1264,7 @@ async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ succ
     if (data.payment_source_transactions?.length) if (await pullPaymentSourceTransactions(token, tenantId)) dataUpdated = true;
     if (data.combo_offers?.length) if (await pullComboOffers(token, tenantId)) dataUpdated = true;
     if (data.quotations?.length) if (await pullQuotations(token, tenantId)) dataUpdated = true;
+    if (data.warranties?.length) if (await pullWarranties(token, tenantId)) dataUpdated = true;
     if (data.invoices?.length) if (await pullInvoices(token, tenantId)) dataUpdated = true;
     if (data.users?.length) if (await pullUsers(token, tenantId)) dataUpdated = true;
 
@@ -1263,8 +1348,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       const { jwt_token, tenant_id } = config;
 
-      if (isJwtExpired(jwt_token)) {
-        console.warn('[SyncWorker] JWT token has expired. Clearing auth...');
+      if (activeRoute === 'CLOUD' && isJwtExpired(jwt_token)) {
+        console.warn('[SyncWorker] JWT token has expired on Cloud route. Clearing auth...');
         await clearAuthAndNotify();
         return;
       }
@@ -1303,9 +1388,11 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(1.1, sender, undefined, totalRecords); await syncPricingTiers(jwt_token, tenant_id);
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
-        notifyProgress(1.2, sender, undefined, totalRecords); await syncProductPricing(jwt_token, tenant_id);
+        notifyProgress(1.2, sender, undefined, totalRecords); await syncProducts(jwt_token, tenant_id);
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
-        notifyProgress(2, sender, undefined, totalRecords); await syncProducts(jwt_token, tenant_id);
+        notifyProgress(2, sender, undefined, totalRecords); await syncProductPricing(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        notifyProgress(2.9, sender, undefined, totalRecords); await pushCustomers(jwt_token, tenant_id);
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(3, sender, undefined, totalRecords); await syncInvoices(jwt_token, tenant_id);
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
@@ -1341,13 +1428,15 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
+        if (!isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests
         const syncCheckTables = [
           'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
           'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
           'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
           'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
-          'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
+          'payment_source_transactions', 'combo_offers', 'quotations', 'warranties', 'invoices', 'users'
         ];
         let latestPulledTs: string | null = null;
         let hasMissingCatalogCursor = false;
@@ -1387,8 +1476,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
           const pullTasks: { run: () => Promise<boolean> }[] = [
             { run: () => pullGrades(jwt_token, tenant_id) },
             { run: () => pullPricingTiers(jwt_token, tenant_id) },
-            { run: () => pullProductPricing(jwt_token, tenant_id) },
             { run: () => pullProducts(jwt_token, tenant_id) },
+            { run: () => pullProductPricing(jwt_token, tenant_id) },
             { run: () => pullInvoices(jwt_token, tenant_id) },
             { run: () => pullUsers(jwt_token, tenant_id) },
             { run: () => pullSettings(jwt_token, tenant_id) },
@@ -1408,6 +1497,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
             { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
             { run: () => pullComboOffers(jwt_token, tenant_id) },
             { run: () => pullQuotations(jwt_token, tenant_id) },
+            { run: () => pullWarranties(jwt_token, tenant_id) },
           ];
 
           pullProgressCtx = { done: 0, total: pullTasks.length };
@@ -1467,8 +1557,12 @@ async function pushBatch<T>(
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.error(`[SyncWorker] ${label} failed: HTTP 401 (token expired). Clearing auth...`);
-          await clearAuthAndNotify();
+          if (currentActiveRoute === 'CLOUD') {
+            console.error(`[SyncWorker] ${label} failed: HTTP 401 (token expired). Clearing auth...`);
+            await clearAuthAndNotify();
+          } else {
+            console.warn(`[SyncWorker] ${label} received 401 from ${currentActiveRoute}. Skipping auth reset.`);
+          }
           return [];
         }
         let errDetail = '';
@@ -1537,6 +1631,25 @@ async function syncPricingTiers(token: string, tenantId: string) {
   const pending = db.prepare(`SELECT * FROM pricing_tiers WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
+
+  // Sanitize any non-UUID or pseudo-tier pricing_tier_id before pushing
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  for (const t of pending) {
+    if (!t.pricing_tier_id || !uuidRegex.test(t.pricing_tier_id) || t.pricing_tier_id === '__mrp__') {
+      const newUuid = crypto.randomUUID();
+      const oldId = t.pricing_tier_id;
+      try {
+        db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(newUuid, oldId);
+        db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(newUuid, oldId);
+        db.prepare(`UPDATE customers SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(newUuid, oldId);
+        db.prepare(`UPDATE pricing_tiers SET pricing_tier_id = ?, tenant_id = ? WHERE pricing_tier_id = ?`).run(newUuid, tenantId, oldId);
+        t.pricing_tier_id = newUuid;
+      } catch (err: any) {
+        console.warn('[SyncWorker] Error remapping non-UUID pricing tier:', err.message);
+      }
+    }
+  }
+
   console.log(`[SyncWorker] Pushing ${pending.length} pricing tiers to cloud in batches of ${BATCH_SIZE}...`);
 
   const updateStmt = db.prepare(`UPDATE pricing_tiers SET sync_status = 'SYNCED', tenant_id = ? WHERE pricing_tier_id = ?`);
@@ -1906,8 +2019,12 @@ async function pullPaginated(opts: {
         });
         if (!response.ok) {
           if (response.status === 401) {
-            console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...`);
-            await clearAuthAndNotify();
+            if (currentActiveRoute === 'CLOUD') {
+              console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...`);
+              await clearAuthAndNotify();
+            } else {
+              console.warn(`[SyncWorker] Pull ${opts.label} received 401 from ${currentActiveRoute}. Skipping auth reset.`);
+            }
             return null;
           }
           console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP ${response.status}`);
@@ -2077,6 +2194,7 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
   const updateTierId = db.prepare(`UPDATE pricing_tiers SET pricing_tier_id = ?, tenant_id = ? WHERE pricing_tier_id = ?`);
   const remapProductPricing = db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
   const remapParties = db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
+  const remapCustomers = db.prepare(`UPDATE customers SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
 
   const upsert = db.prepare(`
     INSERT INTO pricing_tiers (
@@ -2096,7 +2214,7 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
       created_at = COALESCE(pricing_tiers.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE pricing_tiers.sync_status != 'PENDING'
+    WHERE pricing_tiers.sync_status != 'PENDING' OR excluded.updated_at >= pricing_tiers.updated_at
   `);
 
   const result = await pullPaginated({
@@ -2114,9 +2232,23 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
             const existing = findByName.get(tenantId, cleanName) as { pricing_tier_id: string } | undefined;
             if (existing && existing.pricing_tier_id !== t.pricing_tier_id) {
               try {
+                // Remove duplicates in product_pricing to avoid UNIQUE(product_id, pricing_tier_id) error
+                db.prepare(`
+                  DELETE FROM product_pricing 
+                  WHERE pricing_tier_id = ? AND product_id IN (
+                    SELECT product_id FROM product_pricing WHERE pricing_tier_id = ?
+                  )
+                `).run(existing.pricing_tier_id, t.pricing_tier_id);
                 remapProductPricing.run(t.pricing_tier_id, existing.pricing_tier_id);
                 remapParties.run(t.pricing_tier_id, existing.pricing_tier_id);
-                updateTierId.run(t.pricing_tier_id, tenantId, existing.pricing_tier_id);
+                remapCustomers.run(t.pricing_tier_id, existing.pricing_tier_id);
+
+                const targetExisting = db.prepare('SELECT pricing_tier_id FROM pricing_tiers WHERE pricing_tier_id = ?').get(t.pricing_tier_id);
+                if (targetExisting) {
+                  db.prepare('DELETE FROM pricing_tiers WHERE pricing_tier_id = ?').run(existing.pricing_tier_id);
+                } else {
+                  updateTierId.run(t.pricing_tier_id, tenantId, existing.pricing_tier_id);
+                }
               } catch (remapErr: any) {
                 console.warn('[SyncWorker] Error remapping tier ID:', remapErr.message);
               }
@@ -2209,7 +2341,21 @@ async function pullProductPricing(token: string, tenantId: string): Promise<bool
         }
       });
       tx(rows);
-      return reconcilePending(db, 'product_pricing', 'product_pricing_id', rows);
+      const reconcileStmt = db.prepare(`
+        UPDATE product_pricing 
+        SET sync_status = 'SYNCED' 
+        WHERE sync_status = 'PENDING' 
+          AND (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
+          AND (updated_at <= ? OR updated_at IS NULL)
+      `);
+      let reconciled = 0;
+      for (const r of rows) {
+        try {
+          const res = reconcileStmt.run(r.product_pricing_id, r.product_id, r.pricing_tier_id, toSqliteDate(r.updated_at));
+          if (res.changes > 0) reconciled += res.changes;
+        } catch {}
+      }
+      return reconciled;
     },
   });
 
@@ -2691,8 +2837,10 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
 
     if (!response.ok) {
       if (response.status === 401) {
-        console.error('[SyncWorker] Pull users failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
-        await clearAuthAndNotify();
+        if (currentActiveRoute === 'CLOUD') {
+          console.error('[SyncWorker] Pull users failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
+          await clearAuthAndNotify();
+        }
         return false;
       }
       console.error(`[SyncWorker] Pull users failed: HTTP ${response.status}`);
@@ -2798,8 +2946,10 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
     });
     if (!response.ok) {
       if (response.status === 401) {
-        console.error('[SyncWorker] Push customers failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
-        await clearAuthAndNotify();
+        if (currentActiveRoute === 'CLOUD') {
+          console.error('[SyncWorker] Push customers failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
+          await clearAuthAndNotify();
+        }
       }
       return false;
     }
@@ -2997,8 +3147,10 @@ async function pushLoyaltyTransactions(token: string, tenantId: string): Promise
     });
     if (!response.ok) {
       if (response.status === 401) {
-        console.error('[SyncWorker] Push loyalty transactions failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
-        await clearAuthAndNotify();
+        if (currentActiveRoute === 'CLOUD') {
+          console.error('[SyncWorker] Push loyalty transactions failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
+          await clearAuthAndNotify();
+        }
       }
       return false;
     }
@@ -3337,6 +3489,80 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
   return result.hasChanged && result.count > 0;
 }
 
+// ── Remote Emergency Wipe Handler ─────────────────────────────────────────────
+function checkAndExecuteRemoteEmergencyWipe(commandVal: any) {
+  try {
+    const cmd = typeof commandVal === 'string' ? JSON.parse(commandVal) : commandVal;
+    if (!cmd || cmd.action !== 'PURGE_LOCAL_DB') return;
+
+    const now = Date.now();
+    const triggeredAt = Number(cmd.triggered_at) || 0;
+    // Discard command if older than 24 hours
+    if (now - triggeredAt > 24 * 60 * 60 * 1000) {
+      console.log('[SyncWorker] ℹ️ Stale emergency wipe command ignored (> 24h old)');
+      return;
+    }
+
+    const localTerminalCode = (() => {
+      try {
+        const row = getDb().prepare("SELECT value FROM settings WHERE key = 'terminal_code' LIMIT 1").get() as any;
+        return row?.value || 'POS1';
+      } catch { return 'POS1'; }
+    })();
+
+    if (cmd.target_terminal && cmd.target_terminal !== 'ALL' && cmd.target_terminal !== localTerminalCode) {
+      console.log(`[SyncWorker] ℹ️ Emergency wipe command is targeted to terminal ${cmd.target_terminal}, this device is ${localTerminalCode}`);
+      return;
+    }
+
+    const lastExecutedPath = path.join(app.getPath('userData'), 'last_executed_wipe_id.txt');
+    if (fs.existsSync(lastExecutedPath)) {
+      const lastId = fs.readFileSync(lastExecutedPath, 'utf-8').trim();
+      if (lastId === cmd.command_id) {
+        return; // Already executed
+      }
+    }
+
+    console.warn(`[SyncWorker] 🚨 EMERGENCY REMOTE WIPE COMMAND RECEIVED! Target: ${cmd.target_terminal}, Command ID: ${cmd.command_id}`);
+
+    try {
+      fs.writeFileSync(lastExecutedPath, String(cmd.command_id || Date.now()), 'utf-8');
+    } catch {}
+
+    const wipeMode = cmd.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA';
+    
+    // 1. Purge local SQLite data
+    dbEmergencyPurgeLocalData(wipeMode);
+
+    // 2. Delete credentials
+    try {
+      const encPath = getEncryptedPath();
+      if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
+      const p = getConfigPath();
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+      const offPath = getOfflineSessionPath();
+      if (fs.existsSync(offPath)) fs.unlinkSync(offPath);
+    } catch {}
+
+    isSyncActive = false;
+
+    // 3. Notify all open windows and trigger clean reload
+    const windows = BrowserWindow.getAllWindows();
+    for (const win of windows) {
+      if (!win.isDestroyed()) {
+        try {
+          win.webContents.send('emergency:purged', { wipeMode, reason: 'REMOTE_CLOUD_COMMAND' });
+          setTimeout(() => {
+            if (!win.isDestroyed()) win.webContents.reloadIgnoringCache();
+          }, 800);
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.error('[SyncWorker] Failed to execute remote emergency wipe:', err);
+  }
+}
+
 // ── Pull Settings (Cloud → Edge) ─────────────────────────────────────────────
 async function pullSettings(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
@@ -3351,7 +3577,8 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     'show_zero_paper_stock', 'enable_convert_to_gst', 'show_product_gst_badge',
     'time_format', 'store_timezone', 'bank_name', 'bank_account_number',
     'bank_ifsc', 'bank_branch', 'feature_flags', 'print_format', 'label_code_type',
-    'label_show_shop_name', 'auto_print_barcode', 'show_cash_register'
+    'label_show_shop_name', 'auto_print_barcode', 'show_cash_register', 'staff_data_masking_config',
+    'emergency_wipe_command', 'emergency_panic_config'
   ];
 
   const upsert = db.prepare(`
@@ -3393,6 +3620,10 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
             value: valueToSave,
             updated_at: toSqliteDate(s.updated_at)
           });
+
+          if (s.key === 'emergency_wipe_command' && valueToSave) {
+            checkAndExecuteRemoteEmergencyWipe(valueToSave);
+          }
         }
       });
 
@@ -4129,11 +4360,11 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
   // Upsert customer by primary key (customer_id)
   const upsertCustomer = db.prepare(`
     INSERT INTO customers (
-      customer_id, tenant_id, name, phone, address,
+      customer_id, tenant_id, name, phone, address, pricing_tier_id,
       total_points_earned, total_points_redeemed, current_points_balance,
       last_purchase_date, is_deleted, sync_status, created_at, updated_at
     ) VALUES (
-      @customer_id, @tenant_id, @name, @phone, @address,
+      @customer_id, @tenant_id, @name, @phone, @address, @pricing_tier_id,
       @total_points_earned, @total_points_redeemed, @current_points_balance,
       @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at
     )
@@ -4141,6 +4372,7 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
       name = excluded.name,
       phone = excluded.phone,
       address = excluded.address,
+      pricing_tier_id = excluded.pricing_tier_id,
       total_points_earned = excluded.total_points_earned,
       total_points_redeemed = excluded.total_points_redeemed,
       current_points_balance = excluded.current_points_balance,
@@ -4166,6 +4398,7 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
   const updateCustomerById = db.prepare(`
     UPDATE customers 
     SET name = @name, phone = @phone, address = @address,
+        pricing_tier_id = @pricing_tier_id,
         total_points_earned = @total_points_earned,
         total_points_redeemed = @total_points_redeemed,
         current_points_balance = @current_points_balance,
@@ -4205,6 +4438,7 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
               name: r.name,
               phone: phoneVal,
               address: r.address || null,
+              pricing_tier_id: r.pricing_tier_id || null,
               total_points_earned: r.total_points_earned ?? 0,
               total_points_redeemed: r.total_points_redeemed ?? 0,
               current_points_balance: r.current_points_balance ?? 0,
@@ -4876,6 +5110,124 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
 
   if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} quotations from cloud.`);
+    hasContentChanged = true;
+  }
+  return hasContentChanged;
+}
+
+// ── Warranties Sync (Edge → Cloud) ──────────────────────────────────────────
+async function syncWarranties(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM warranties WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} warranties to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE warranties SET sync_status = 'SYNCED', tenant_id = ? WHERE warranty_id = ?`);
+
+  let totalSynced = 0;
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const warrantiesToPush = batch.map((w: any) => ({
+      ...w,
+      tenant_id: tenantId,
+      bill_number: w.bill_number || null,
+      brand: w.brand || null,
+      warranty_period_days: Number(w.warranty_period_days) || 365,
+    }));
+
+    const synced = await pushBatch(
+      '/api/sync/warranties',
+      token,
+      warrantiesToPush,
+      'warranties',
+      `Warranties batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      totalSynced += synced.length;
+      const tx = db.transaction((ids: string[]) => {
+        for (const id of ids) {
+          updateStmt.run(tenantId, id);
+        }
+      });
+      tx(synced);
+    }
+  }
+  console.log(`[SyncWorker] Pushed ${totalSynced} warranties to cloud.`);
+}
+
+// ── Pull Warranties (Cloud → Edge) ──────────────────────────────────────────
+async function pullWarranties(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+  let hasContentChanged = false;
+
+  const upsertWarranty = db.prepare(`
+    INSERT INTO warranties (
+      warranty_id, tenant_id, invoice_id, invoice_item_id, bill_number, brand,
+      customer_name, customer_phone, product_name, product_details, purchase_date,
+      warranty_period_days, expiry_date, notes, sync_status, created_at, updated_at
+    ) VALUES (
+      @warranty_id, @tenant_id, @invoice_id, @invoice_item_id, @bill_number, @brand,
+      @customer_name, @customer_phone, @product_name, @product_details, @purchase_date,
+      @warranty_period_days, @expiry_date, @notes, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(warranty_id) DO UPDATE SET
+      bill_number = EXCLUDED.bill_number,
+      brand = EXCLUDED.brand,
+      customer_name = EXCLUDED.customer_name,
+      customer_phone = EXCLUDED.customer_phone,
+      product_name = EXCLUDED.product_name,
+      product_details = EXCLUDED.product_details,
+      purchase_date = EXCLUDED.purchase_date,
+      warranty_period_days = EXCLUDED.warranty_period_days,
+      expiry_date = EXCLUDED.expiry_date,
+      notes = EXCLUDED.notes,
+      updated_at = EXCLUDED.updated_at,
+      sync_status = 'SYNCED'
+    WHERE warranties.sync_status != 'PENDING'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'warranties',
+    urlPath: '/api/sync/warranties',
+    label: 'warranties',
+    onProgress: (fetched) => notifyPullProgress('warranties', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((warranties: any[]) => {
+        for (const w of warranties) {
+          try {
+            upsertWarranty.run({
+              warranty_id: String(w.warranty_id),
+              tenant_id: tenantId,
+              invoice_id: w.invoice_id || null,
+              invoice_item_id: w.invoice_item_id || null,
+              bill_number: w.bill_number || null,
+              brand: w.brand || null,
+              customer_name: w.customer_name || '',
+              customer_phone: w.customer_phone || null,
+              product_name: w.product_name || '',
+              product_details: w.product_details || null,
+              purchase_date: toSqliteDate(w.purchase_date),
+              warranty_period_days: Number(w.warranty_period_days) || 365,
+              expiry_date: toSqliteDate(w.expiry_date),
+              notes: w.notes || null,
+              created_at: toSqliteDate(w.created_at),
+              updated_at: toSqliteDate(w.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling warranty:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'warranties', 'warranty_id', rows);
+    },
+  });
+
+  if (result.hasChanged && result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} warranties from cloud.`);
     hasContentChanged = true;
   }
   return hasContentChanged;

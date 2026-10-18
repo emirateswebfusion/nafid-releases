@@ -17,6 +17,17 @@ export interface ReceiptItem {
   pieces_override?: number;
   pieces_per_kg?: number;
   unit?: string;
+  hsn?: string;
+  hsn_code?: string;
+  hsn_sac_code?: string;
+  tax_rate_percent?: number;
+  gst_percent?: number;
+  cgst_rate?: number;
+  sgst_rate?: number;
+  igst_rate?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   isCombo?: boolean;
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
 }

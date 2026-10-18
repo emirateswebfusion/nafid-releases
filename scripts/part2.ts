@@ -709,6 +709,32 @@ export class OfflineAiIntentParser {
       return { intent: 'SALES_UNIQUE_CUSTOMERS', domain: 'SALES', params: { rangeType } };
     }
 
+    // Highest / Lowest Month
+    if (
+      /(which|what) month.*(highest|most|best|peak|maximum|lowest|worst|least) sales?/.test(text) ||
+      /(which|what) month.*(highest|most|best|peak|maximum|lowest|worst|least)/.test(text) ||
+      /(highest|lowest|best|worst|peak|maximum|most) (sales|revenue|sale) month/.test(text) ||
+      /(best|top|peak) month for (sales|revenue|sale)/.test(text) ||
+      /month (with|of) (the )?(highest|lowest|best|worst|peak|maximum|most) (sales|revenue|sale)/.test(text) ||
+      ((text.includes('month') || text.includes('മാസം') || text.includes('masam') || text.includes('masathil')) &&
+        (text.includes('highest sales') || text.includes('highest sale') || text.includes('best sales') || text.includes('most sales') || text.includes('lowest sales') || text.includes('worst sales') || text.includes('least sales')) &&
+        !text.includes('day') && !text.includes('ദിവസം') && !text.includes('daily') && !text.includes('this month') && !text.includes('ee masam')) ||
+      ((text.includes('ഏറ്റവും കൂടുതൽ') || text.includes('ഏറ്റവും കുറഞ്ഞ') || text.includes('കൂടുതൽ വിൽപ്പന') || text.includes('കുറഞ്ഞ വിൽപ്പന')) && (text.includes('സെയിൽസ്') || text.includes('വിൽപ്പന')) && (text.includes('മാസം') || text.includes('month')) && !text.includes('ദിവസം') && !text.includes('day')) ||
+      ((text.includes('ethu') || text.includes('ഏത്') || text.includes('ഏതു')) && (text.includes('masam') || text.includes('masathil') || text.includes('month') || text.includes('മാസം')) && (text.includes('highest') || text.includes('kooduthal') || text.includes('best') || text.includes('കൂടുതൽ') || text.includes('lowest') || text.includes('kuranja') || text.includes('കുറഞ്ഞ')))
+    ) {
+      const isLowest = text.includes('lowest') || text.includes('worst') || text.includes('least') || text.includes('കുറഞ്ഞ') || text.includes('kuranja');
+      let year: string | undefined = undefined;
+      const yearMatch = text.match(/\b(20\d\d)\b/);
+      if (yearMatch) {
+        year = yearMatch[1];
+      } else if (text.includes('this year') || text.includes('ഈ വർഷം')) {
+        year = String(new Date().getFullYear());
+      } else if (text.includes('last year') || text.includes('കഴിഞ്ഞ വർഷം')) {
+        year = String(new Date().getFullYear() - 1);
+      }
+      return { intent: 'SALES_HIGHEST_MONTH', domain: 'SALES', params: { isLowest, year } };
+    }
+
     // Highest Day / Trend
     if (
       text.includes('highest sales day') ||
@@ -782,11 +808,24 @@ export class OfflineAiIntentParser {
       const isRevenue = text.includes('revenue') || text.includes('വരുമാനം');
 
       let rangeType = 'today';
-      if (text.includes('this month') || text.includes('ഈ മാസം') || (text.includes('month') && !text.includes('today'))) rangeType = 'this_month';
+      if (dateExtraction.fromDate && dateExtraction.toDate) rangeType = 'custom';
+      else if (text.includes('this month') || text.includes('ഈ മാസം') || (text.includes('month') && !text.includes('today'))) rangeType = 'this_month';
       else if (text.includes('last month') || text.includes('കഴിഞ്ഞ മാസം')) rangeType = 'last_month';
       else if (text.includes('yesterday') || text.includes('ഇന്നലെ')) rangeType = 'yesterday';
 
-      return { intent: 'TOP_SELLING_PRODUCTS', domain: 'SALES', params: { limit, isLowest, isRevenue, rangeType } };
+      return {
+        intent: 'TOP_SELLING_PRODUCTS',
+        domain: 'SALES',
+        params: {
+          limit,
+          isLowest,
+          isRevenue,
+          rangeType,
+          customFrom: dateExtraction.fromDate,
+          customTo: dateExtraction.toDate,
+          customLabel: dateExtraction.label,
+        },
+      };
     }
 
     // General Sales Periods

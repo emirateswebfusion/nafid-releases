@@ -85,6 +85,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:deep-link', (_event, token) => callback(token));
   },
 
+  // Emergency Purge & Kill Switch
+  dbEmergencyPurge: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string }) => ipcRenderer.invoke('emergency:purgeLocal', payload),
+  onEmergencyPurged: (callback: (data: { wipeMode: string; reason?: string }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('emergency:purged', listener);
+    return () => {
+      ipcRenderer.removeListener('emergency:purged', listener);
+    };
+  },
+
   // Hardware APIs
   printReceipt: (tenant_id: string, data: string) => ipcRenderer.invoke('hardware:printReceipt', { tenant_id, textData: data }),
   openCashDrawer: (tenant_id: string) => ipcRenderer.invoke('hardware:openCashDrawer', tenant_id),
@@ -108,6 +118,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('whatsapp:status-update', listener);
     return () => {
       ipcRenderer.removeListener('whatsapp:status-update', listener);
+    };
+  },
+
+  // Shop Closing Overview WhatsApp APIs
+  shopClosingGetConfig: (params: { tenant_id?: string }) => ipcRenderer.invoke('shopClosing:getConfig', params),
+  shopClosingSaveConfig: (params: { tenant_id?: string; config: any; user_role?: string }) => ipcRenderer.invoke('shopClosing:saveConfig', params),
+  shopClosingGetPreview: (params: { tenant_id?: string; business_date?: string; checklist?: any }) => ipcRenderer.invoke('shopClosing:getPreview', params),
+  shopClosingSendReport: (params: { tenant_id?: string; business_date?: string; trigger_type?: string; force?: boolean; custom_phone?: string; custom_checklist?: any }) => ipcRenderer.invoke('shopClosing:sendReport', params),
+  shopClosingGetHistory: (params: { tenant_id?: string; limit?: number }) => ipcRenderer.invoke('shopClosing:getHistory', params),
+  shopClosingRetry: (params: { report_id: string }) => ipcRenderer.invoke('shopClosing:retry', params),
+  onShopClosingUpdated: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('shopClosing:updated', listener);
+    return () => {
+      ipcRenderer.removeListener('shopClosing:updated', listener);
     };
   },
   
@@ -165,7 +190,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:token-expired', listener);
     return () => ipcRenderer.removeListener('auth:token-expired', listener);
   },
-  dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string }) => ipcRenderer.invoke('db:convertBosToGst', payload),
+  dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => ipcRenderer.invoke('db:convertBosToGst', payload),
+  dbPreviewConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => ipcRenderer.invoke('db:previewConvertBosToGst', payload),
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),
@@ -272,6 +298,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetCustomerInvoices: (args: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => ipcRenderer.invoke('db:getCustomerInvoices', args),
   dbDeleteInvoice: (invoice_id: string) => ipcRenderer.invoke('db:deleteInvoice', invoice_id),
   dbGetCustomerLoyaltyTransactions: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerLoyaltyTransactions', args),
+  dbAdjustCustomerLoyaltyPoints: (args: { customer_id: string; tenant_id: string; points: number; reason?: string; user_name?: string }) => ipcRenderer.invoke('db:adjustCustomerLoyaltyPoints', args),
+  dbRecalculateCustomerLoyaltyPoints: (args: { tenant_id: string }) => ipcRenderer.invoke('db:recalculateCustomerLoyaltyPoints', args),
 
   // Payment Methods (BANK / CARD / UPI sources)
   dbPaymentGetSources: (tenant_id: string) => ipcRenderer.invoke('db:payments:getSources', tenant_id),

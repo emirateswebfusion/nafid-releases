@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   QrCode,
   Smartphone,
@@ -12,13 +12,44 @@ import {
   BookOpen,
   Check,
   Settings,
-  Sparkles
+  RotateCcw,
+  Store,
+  Clock,
+  Send,
+  CheckSquare,
+  Square,
+  History,
+  AlertTriangle,
+  ShieldAlert,
+  Phone,
+  ListChecks,
+  Copy,
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { FloatToast } from './ui/FloatToast';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
+import { useAuthStore } from '../store/authStore';
+import { isAdminRole } from '../utils/permissions';
+import {
+  type ShopClosingOverviewConfig,
+  type ShopClosingChecklist,
+  type ShopClosingSendTiming,
+  DEFAULT_SHOP_CLOSING_CONFIG,
+  DEFAULT_CHECKLIST,
+  ALL_CHECKLIST_SELECTED,
+  ALL_CHECKLIST_CLEARED,
+  CHECKLIST_DEFINITIONS,
+  cleanPhoneNumber,
+  isValidPhoneNumber,
+  getSampleClosingSummary,
+  generateWhatsAppClosingMessage,
+  formatCurrency,
+} from '../utils/shopClosingHelper';
 
 type WhatsAppStatus = 'disconnected' | 'connecting' | 'syncing' | 'connected';
 
@@ -26,9 +57,11 @@ interface WhatsAppSettingsProps {
   tenantId?: string;
   autoSendEnabled: boolean;
   onAutoSendChange: (val: boolean) => void;
-  activeTab?: 'qr' | 'settings' | 'device';
-  defaultTab?: 'device' | 'settings' | 'qr' | string;
-  onTabChange?: (tab: 'qr' | 'settings') => void;
+  activeTab?: 'qr' | 'settings' | 'closing' | string;
+  defaultTab?: 'device' | 'settings' | 'qr' | 'closing' | string;
+  onTabChange?: (tab: 'qr' | 'settings' | 'closing') => void;
+  closingConfig?: ShopClosingOverviewConfig;
+  onClosingConfigChange?: (config: ShopClosingOverviewConfig) => void;
 }
 
 export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
@@ -38,12 +71,31 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   activeTab: controlledTab,
   defaultTab,
   onTabChange,
+  closingConfig: propClosingConfig,
+  onClosingConfigChange,
 }) => {
-  const initialTab = (defaultTab === 'settings' ? 'settings' : 'qr') as 'qr' | 'settings';
-  const [internalTab, setInternalTab] = useState<'qr' | 'settings'>(initialTab);
-  const currentTab = controlledTab || internalTab;
+  const { role, tenantId: storeTenantId, shopName: authShopName } = useAuthStore();
+  const effectiveTenantId = tenantId || storeTenantId || 'global';
+  const isAdmin = isAdminRole(role);
 
-  const handleTabSelect = (tab: 'qr' | 'settings') => {
+  const isControlledClosing = propClosingConfig !== undefined && onClosingConfigChange !== undefined;
+  const [internalClosingConfig, setInternalClosingConfig] = useState<ShopClosingOverviewConfig>(DEFAULT_SHOP_CLOSING_CONFIG);
+  const closingConfig = isControlledClosing ? propClosingConfig : internalClosingConfig;
+
+  const setClosingConfig = (newCfg: ShopClosingOverviewConfig | ((prev: ShopClosingOverviewConfig) => ShopClosingOverviewConfig)) => {
+    if (isControlledClosing) {
+      const next = typeof newCfg === 'function' ? newCfg(propClosingConfig) : newCfg;
+      onClosingConfigChange(next);
+    } else {
+      setInternalClosingConfig(newCfg);
+    }
+  };
+
+  const initialTab = (defaultTab === 'settings' ? 'settings' : defaultTab === 'closing' ? 'closing' : 'qr') as 'qr' | 'settings' | 'closing';
+  const [internalTab, setInternalTab] = useState<'qr' | 'settings' | 'closing'>(initialTab);
+  const currentTab = (controlledTab || internalTab) as 'qr' | 'settings' | 'closing';
+
+  const handleTabSelect = (tab: 'qr' | 'settings' | 'closing') => {
     setInternalTab(tab);
     if (onTabChange) onTabChange(tab);
   };
@@ -55,8 +107,19 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [ledgerAlertsEnabled, setLedgerAlertsEnabled] = useState<boolean>(true);
   const [includeShopName, setIncludeShopName] = useState<boolean>(false);
-  const [shopName, setShopName] = useState<string>('My Store');
+  const [shopName, setShopName] = useState<string>(authShopName || 'My Store');
   const [showConfirmDisconnect, setShowConfirmDisconnect] = useState<boolean>(false);
+
+  // ── Shop Closing Overview State ──────────────────────────────────────────
+  const [loadingClosing, setLoadingClosing] = useState<boolean>(false);
+  const [savingClosing, setSavingClosing] = useState<boolean>(false);
+  const [sendingTest, setSendingTest] = useState<boolean>(false);
+  const [previewText, setPreviewText] = useState<string>('');
+  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
+  const [closingHistory, setClosingHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
 
   useEffect(() => {
     // Initial status check
@@ -96,9 +159,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   useEffect(() => {
     if (window.electronAPI?.settingsGet) {
       Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'ledger_whatsapp_enabled' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'ledger_whatsapp_include_shop' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        window.electronAPI.settingsGet({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_enabled' }),
+        window.electronAPI.settingsGet({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_include_shop' }),
+        window.electronAPI.settingsGet({ tenant_id: effectiveTenantId, key: 'shop_name' }),
       ])
         .then(([enabledVal, includeShopVal, shopVal]) => {
           if (enabledVal !== null && enabledVal !== undefined) {
@@ -113,14 +176,96 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         })
         .catch(console.error);
     }
-  }, [tenantId]);
+  }, [effectiveTenantId]);
+
+  // Load Shop Closing Configuration
+  const loadClosingConfig = useCallback(async () => {
+    if (isControlledClosing) return;
+    if (!window.electronAPI?.shopClosingGetConfig) return;
+    setLoadingClosing(true);
+    try {
+      const cfg = await window.electronAPI.shopClosingGetConfig({ tenant_id: effectiveTenantId });
+      if (cfg) {
+        setClosingConfig({
+          ...DEFAULT_SHOP_CLOSING_CONFIG,
+          ...cfg,
+          checklist: {
+            ...DEFAULT_CHECKLIST,
+            ...(cfg.checklist || {}),
+          },
+        });
+      }
+    } catch (err: any) {
+      console.error('[WhatsAppSettings] loadClosingConfig error:', err);
+    } finally {
+      setLoadingClosing(false);
+    }
+  }, [effectiveTenantId]);
+
+  // Load Shop Closing Delivery History
+  const loadClosingHistory = useCallback(async () => {
+    if (!window.electronAPI?.shopClosingGetHistory) return;
+    setLoadingHistory(true);
+    try {
+      const history = await window.electronAPI.shopClosingGetHistory({ tenant_id: effectiveTenantId, limit: 15 });
+      if (Array.isArray(history)) {
+        setClosingHistory(history);
+      }
+    } catch (err: any) {
+      console.error('[WhatsAppSettings] loadClosingHistory error:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [effectiveTenantId]);
+
+  useEffect(() => {
+    loadClosingConfig();
+    loadClosingHistory();
+
+    if (window.electronAPI?.onShopClosingUpdated) {
+      const unsubscribe = window.electronAPI.onShopClosingUpdated(() => {
+        loadClosingHistory();
+      });
+      return () => {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      };
+    }
+  }, [loadClosingConfig, loadClosingHistory]);
+
+  // Refresh live preview text
+  const refreshPreview = useCallback(async (cfgToUse: ShopClosingOverviewConfig) => {
+    setPreviewLoading(true);
+    try {
+      if (window.electronAPI?.shopClosingGetPreview) {
+        const res = await window.electronAPI.shopClosingGetPreview({
+          tenant_id: effectiveTenantId,
+          checklist: cfgToUse.checklist,
+        });
+        if (res && res.success && res.message) {
+          setPreviewText(res.message);
+          setPreviewLoading(false);
+          return;
+        }
+      }
+    } catch (e) {
+      // Fallback to client sample preview generator
+    }
+    const sample = getSampleClosingSummary(shopName);
+    const msg = generateWhatsAppClosingMessage(sample, cfgToUse.checklist);
+    setPreviewText(msg);
+    setPreviewLoading(false);
+  }, [effectiveTenantId, shopName]);
+
+  useEffect(() => {
+    refreshPreview(closingConfig);
+  }, [closingConfig, refreshPreview]);
 
   const handleToggleLedgerAlerts = async (enabled: boolean) => {
     setLedgerAlertsEnabled(enabled);
     try {
       if (window.electronAPI?.settingsSet) {
         await window.electronAPI.settingsSet({
-          tenant_id: tenantId || 'global',
+          tenant_id: effectiveTenantId,
           key: 'ledger_whatsapp_enabled',
           value: enabled,
         });
@@ -142,7 +287,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     try {
       if (window.electronAPI?.settingsSet) {
         await window.electronAPI.settingsSet({
-          tenant_id: tenantId || 'global',
+          tenant_id: effectiveTenantId,
           key: 'ledger_whatsapp_include_shop',
           value: include,
         });
@@ -190,6 +335,150 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     }
   };
 
+  // ── Shop Closing Overview Handlers ───────────────────────────────────────
+  const handleToggleClosingFeature = (enabled: boolean) => {
+    if (!isAdmin) {
+      setMsg({ text: 'Admin privileges required to change this setting.', type: 'error' });
+      return;
+    }
+    setClosingConfig((prev) => ({ ...prev, enabled }));
+  };
+
+  const handlePhoneChange = (val: string) => {
+    setClosingConfig((prev) => ({ ...prev, ownerPhone: val }));
+  };
+
+  const handleTimingChange = (timing: ShopClosingSendTiming) => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({ ...prev, sendTiming: timing }));
+  };
+
+  const handleScheduledTimeChange = (time: string) => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({ ...prev, scheduledTime: time }));
+  };
+
+  const handleMultiCounterToggle = (include: boolean) => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({ ...prev, includeMultiCounterBreakdown: include }));
+  };
+
+  const handleChecklistToggle = (key: keyof ShopClosingChecklist) => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({
+      ...prev,
+      checklist: {
+        ...prev.checklist,
+        [key]: !prev.checklist[key],
+      },
+    }));
+  };
+
+  const handleSelectAllChecklist = () => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({ ...prev, checklist: ALL_CHECKLIST_SELECTED }));
+  };
+
+  const handleClearAllChecklist = () => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({ ...prev, checklist: ALL_CHECKLIST_CLEARED }));
+  };
+
+  const handleRestoreDefaultChecklist = () => {
+    if (!isAdmin) return;
+    setClosingConfig((prev) => ({ ...prev, checklist: DEFAULT_CHECKLIST }));
+  };
+
+  const handleSaveClosingConfig = async () => {
+    if (!isAdmin) {
+      setMsg({ text: 'Permission denied: Store Admin or Owner access required.', type: 'error' });
+      return;
+    }
+    if (closingConfig.enabled && !isValidPhoneNumber(closingConfig.ownerPhone)) {
+      setMsg({ text: 'Please enter a valid owner WhatsApp phone number before enabling.', type: 'error' });
+      return;
+    }
+
+    setSavingClosing(true);
+    try {
+      if (window.electronAPI?.shopClosingSaveConfig) {
+        const res = await window.electronAPI.shopClosingSaveConfig({
+          tenant_id: effectiveTenantId,
+          config: closingConfig,
+          user_role: role,
+        });
+
+        if (res && res.success) {
+          setMsg({ text: 'Shop Closing Overview settings saved successfully!', type: 'success' });
+          if (res.config) setClosingConfig(res.config);
+        } else {
+          setMsg({ text: res?.error || 'Failed to save settings.', type: 'error' });
+        }
+      }
+    } catch (err: any) {
+      setMsg({ text: err?.message || 'Error saving settings.', type: 'error' });
+    } finally {
+      setSavingClosing(false);
+    }
+  };
+
+  const handleSendTestReport = async () => {
+    if (!isValidPhoneNumber(closingConfig.ownerPhone)) {
+      setMsg({ text: 'Please enter a valid owner WhatsApp phone number first.', type: 'error' });
+      return;
+    }
+    if (status !== 'connected') {
+      setMsg({ text: 'WhatsApp device is not connected. Please scan QR in the QR tab.', type: 'error' });
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      if (window.electronAPI?.shopClosingSendReport) {
+        const res = await window.electronAPI.shopClosingSendReport({
+          tenant_id: effectiveTenantId,
+          trigger_type: 'MANUAL',
+          force: true,
+          custom_phone: closingConfig.ownerPhone,
+          custom_checklist: closingConfig.checklist,
+        });
+
+        if (res && res.success) {
+          setMsg({ text: `Test report dispatched successfully to ${closingConfig.ownerPhone}!`, type: 'success' });
+          loadClosingHistory();
+        } else {
+          setMsg({ text: res?.error || 'Failed to send test report.', type: 'error' });
+        }
+      }
+    } catch (err: any) {
+      setMsg({ text: err?.message || 'Dispatch error occurred.', type: 'error' });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  const handleRetryReport = async (reportId: string) => {
+    setRetryingId(reportId);
+    try {
+      if (window.electronAPI?.shopClosingRetry) {
+        const res = await window.electronAPI.shopClosingRetry({ report_id: reportId });
+        if (res && res.success) {
+          setMsg({ text: 'Report retry sent successfully!', type: 'success' });
+          loadClosingHistory();
+        } else {
+          setMsg({ text: res?.error || 'Retry attempt failed.', type: 'error' });
+        }
+      }
+    } catch (err: any) {
+      setMsg({ text: err?.message || 'Retry error.', type: 'error' });
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const selectedChecklistCount = Object.values(closingConfig.checklist || {}).filter(Boolean).length;
+  const totalChecklistCount = CHECKLIST_DEFINITIONS.length;
+
   return (
     <div className="w-full space-y-6">
       {/* Header bar matching other settings sections */}
@@ -199,12 +488,18 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             <WhatsAppIcon className="w-6 h-6 text-emerald-500 fill-current" />
           </div>
           <div>
-            <h3 className="text-sm font-black uppercase tracking-wider text-foreground">
-              {currentTab === 'qr' ? 'WhatsApp Device Connection' : 'WhatsApp Automation & Alerts'}
+            <h3 className="text-sm font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+              {currentTab === 'qr'
+                ? 'WhatsApp Device Connection'
+                : currentTab === 'closing'
+                ? 'Shop Closing Overview'
+                : 'WhatsApp Automation & Alerts'}
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {currentTab === 'qr'
                 ? 'Scan the QR code to link your shop phone for automated invoice & ledger messaging'
+                : currentTab === 'closing'
+                ? 'Configure automated end-of-day sales, cash reconciliation & multi-counter reports to the shop owner'
                 : 'Configure automated PDF bill dispatch and party ledger transaction alert rules'}
             </p>
           </div>
@@ -236,7 +531,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         </div>
       </div>
 
-      {/* ─── TAB 1: QR CODE / DEVICE CONNECTION (DYNAMIC FULL-WIDTH) ─────────── */}
+      {/* ─── TAB 1: QR CODE / DEVICE CONNECTION ─────────────────────────────── */}
       {currentTab === 'qr' && (
         <div className="w-full space-y-6 animate-in fade-in duration-200">
           {status === 'connected' ? (
@@ -258,7 +553,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     <span>+{phone}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
-                    Invoices, bill PDFs, and party ledger alerts are actively sent from this number.
+                    Invoices, bill PDFs, party ledger alerts, and shop closing reports are actively sent from this number.
                   </p>
                 </div>
 
@@ -288,28 +583,28 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center gap-2.5 text-xs text-foreground/90 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                       <span>Instant High-Res PDF invoice dispatch on checkout</span>
                     </div>
                     <div className="flex items-center gap-2.5 text-xs text-foreground/90 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                       <span>Automated ledger transaction debit/credit notifications</span>
                     </div>
                     <div className="flex items-center gap-2.5 text-xs text-foreground/90 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span>One-click statement sharing directly from Party Ledger</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>Daily Shop Closing &amp; Cash Reconciliation summary to owner</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-card border border-border/60 text-xs text-muted-foreground flex items-center justify-between">
-                  <span>Want to change notification rules?</span>
+                  <span>Want to configure Shop Closing Overview?</span>
                   <button
                     type="button"
-                    onClick={() => handleTabSelect('settings')}
+                    onClick={() => handleTabSelect('closing')}
                     className="text-xs font-bold text-primary hover:underline cursor-pointer"
                   >
-                    Open Settings &rarr;
+                    Open Shop Closing &rarr;
                   </button>
                 </div>
               </div>
@@ -328,14 +623,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   Please keep the app open. This takes only a few seconds.
                 </p>
               </div>
-              <div className="flex items-center justify-center gap-2 text-xs text-blue-500 font-semibold pt-1">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Finalizing connection&hellip;</span>
-              </div>
             </div>
           ) : qrCode ? (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center p-6 md:p-8 rounded-2xl bg-muted/20 border border-border/80 w-full">
-              {/* QR Code Container */}
               <div className="lg:col-span-5 flex flex-col items-center text-center space-y-4">
                 <div className="p-4 bg-white rounded-3xl shadow-lg border border-border/80 inline-block">
                   <img src={qrCode} alt="WhatsApp QR Code" className="w-60 h-60 object-contain mx-auto" />
@@ -352,12 +642,11 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </Button>
               </div>
 
-              {/* Instructions */}
               <div className="lg:col-span-7 space-y-5 text-left">
                 <div className="space-y-1">
                   <h4 className="text-base font-bold text-foreground">Scan with WhatsApp on your Phone</h4>
                   <p className="text-xs text-muted-foreground">
-                    Connect your mobile phone to enable automated PDF bills and instant ledger alerts.
+                    Connect your mobile phone to enable automated PDF bills, ledger alerts, and daily closing overviews.
                   </p>
                 </div>
 
@@ -388,10 +677,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     </div>
                   </div>
                 </div>
-
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  🔒 <strong>Direct &amp; Private:</strong> Messages are sent directly through your phone session. No phone numbers or bill contents are uploaded to third-party marketing servers.
-                </p>
               </div>
             </div>
           ) : (
@@ -402,7 +687,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
               <div className="space-y-1.5 max-w-md">
                 <h4 className="text-base font-bold text-foreground">Link Your WhatsApp Number</h4>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Send high-resolution digital invoice PDFs, credit reminders, and ledger transaction alerts without third-party messaging costs.
+                  Send high-resolution digital invoice PDFs, credit reminders, ledger transaction alerts, and daily shop closing summaries.
                 </p>
               </div>
               <div className="pt-2">
@@ -424,10 +709,9 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         </div>
       )}
 
-      {/* ─── TAB 2: SETTINGS (DYNAMIC FULL-WIDTH 2-COLUMN GRID) ─────────────── */}
+      {/* ─── TAB 2: AUTOMATION & BILLS SETTINGS ─────────────────────────────── */}
       {currentTab === 'settings' && (
         <div className="w-full space-y-6 animate-in fade-in duration-200">
-          {/* Connection status banner if not connected */}
           {status !== 'connected' && (
             <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
               <div className="flex items-center gap-2.5 text-xs">
@@ -446,7 +730,29 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
             </div>
           )}
 
-          {/* Dynamic 2-column layout filling width like other settings */}
+          {/* Quick link banner to Shop Closing Overview */}
+          <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/15 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                <Store className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="text-xs font-bold text-foreground block">Looking for Daily Shop Closing Reports?</span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Automatically send end-of-day sales, cash balances, and counter reports to the shop owner&apos;s WhatsApp.
+                </span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleTabSelect('closing')}
+              className="text-xs font-bold px-4 py-1.5 rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+            >
+              Configure Closing Overview &rarr;
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full items-start">
             {/* Column 1: Automated Bill Options */}
             <div className="p-6 rounded-2xl bg-muted/20 border border-border/80 space-y-5">
@@ -464,7 +770,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </div>
               </div>
 
-              {/* Toggle Auto Send */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/60 hover:border-border transition-colors">
                 <div className="space-y-0.5 pr-4 text-left">
                   <span className="text-xs font-bold text-foreground block">
@@ -485,7 +790,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </label>
               </div>
 
-              {/* What customer receives */}
               <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 space-y-2">
                 <h5 className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                   What does the customer receive?
@@ -528,7 +832,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </span>
               </div>
 
-              {/* Master Toggle: Enable / Disable Ledger Alerts */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/60 hover:border-border transition-colors">
                 <div className="space-y-0.5 pr-4 text-left">
                   <span className="text-xs font-bold text-foreground block">
@@ -551,7 +854,6 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                 </label>
               </div>
 
-              {/* Sub-Option: Include Shop Name */}
               <div
                 className={clsx(
                   'flex items-center justify-between p-4 rounded-xl border transition-all',
@@ -579,23 +881,498 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   <div className="w-11 h-6 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                 </label>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Live Message Preview */}
-              <div className="p-4 rounded-xl bg-card border border-border/60 space-y-2">
-                <span className="text-[11px] font-bold text-foreground block">Message Format Preview:</span>
-                <div className="p-3 rounded-lg bg-background border border-border/80 font-mono text-[11px] text-foreground leading-relaxed whitespace-pre shadow-inner">
-{includeShopName ? `OB    ₹ 0/-
-Bank  ₹ 15000/-
-Bal   ₹ 15000/-
+      {/* ─── TAB 3: SHOP CLOSING OVERVIEW (END TO END) ───────────────────────── */}
+      {currentTab === 'closing' && (
+        <div className="w-full space-y-6 animate-in fade-in duration-200">
+          {/* Admin Guard Notice */}
+          {!isAdmin && (
+            <div className="flex items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
+              <ShieldAlert className="w-5 h-5 shrink-0" />
+              <div className="text-xs leading-relaxed">
+                <strong>Administrator Access Required:</strong> Only the Store Owner or Admin can configure or modify WhatsApp Shop Closing Overview settings.
+              </div>
+            </div>
+          )}
 
-— *${shopName}*` : `OB    ₹ 0/-
-Bank  ₹ 15000/-
-Bal   ₹ 15000/-`}
+          {/* Connection warning if WhatsApp is not connected */}
+          {status !== 'connected' && (
+            <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
+              <div className="flex items-center gap-2.5 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>
+                  <strong>WhatsApp is disconnected:</strong> Scheduled and settlement reports will automatically deliver once WhatsApp is connected in the <strong>QR</strong> tab.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTabSelect('qr')}
+                className="text-xs font-bold underline shrink-0 cursor-pointer"
+              >
+                Connect Now &rarr;
+              </button>
+            </div>
+          )}
+
+          {/* Main Controls Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-start">
+            {/* Left 7 Columns: Settings, Recipient & Checklist */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Card 1: Master Enable & Phone Number */}
+              <div className="p-6 rounded-2xl bg-muted/20 border border-border/80 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                      <Store className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                        Shop Closing Overview Alert
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Daily WhatsApp business summary sent directly to the store owner
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={clsx(
+                      'text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-colors',
+                      closingConfig.enabled
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        : 'bg-muted text-muted-foreground border-border'
+                    )}
+                  >
+                    {closingConfig.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
                 </div>
-                <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
-                  <p>• <strong>Aligned Layout:</strong> Amounts align in a uniform column.</p>
-                  <p>• <strong>Payment Method:</strong> Bank, Cash, UPI, Card, Cheque format dynamically.</p>
+
+                {/* Master Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/60 hover:border-border transition-colors">
+                  <div className="space-y-0.5 pr-4 text-left">
+                    <span className="text-xs font-bold text-foreground block">
+                      Enable Shop Closing WhatsApp Reports
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block leading-snug">
+                      Generate accurate financial summary from local POS transactions and dispatch directly to the owner.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
+                    <input
+                      type="checkbox"
+                      checked={closingConfig.enabled}
+                      disabled={!isAdmin}
+                      onChange={(e) => handleToggleClosingFeature(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className={clsx(
+                      "w-11 h-6 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner",
+                      !isAdmin && "opacity-50 cursor-not-allowed"
+                    )}></div>
+                  </label>
                 </div>
+
+                {/* Owner's Phone Number Input */}
+                <div
+                  className={clsx(
+                    'p-4 rounded-xl bg-card border border-border/60 space-y-2 transition-all',
+                    !closingConfig.enabled && 'opacity-60'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-primary" />
+                      Shop Owner WhatsApp Number
+                    </label>
+                    {closingConfig.ownerPhone && (
+                      <span
+                        className={clsx(
+                          'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                          isValidPhoneNumber(closingConfig.ownerPhone)
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-rose-500/10 text-rose-500'
+                        )}
+                      >
+                        {isValidPhoneNumber(closingConfig.ownerPhone) ? '✓ Valid Number' : '⚠️ Invalid Format'}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="tel"
+                    disabled={!isAdmin || !closingConfig.enabled}
+                    value={closingConfig.ownerPhone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="e.g. +91 9876543210 or +971 50 1234567"
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground leading-normal">
+                    Enter the owner&apos;s mobile number with country code (e.g. <code>+91</code> for India, <code>+971</code> for UAE).
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 2: Dispatch Timing & Triggers */}
+              <div
+                className={clsx(
+                  'p-6 rounded-2xl bg-muted/20 border border-border/80 space-y-4 transition-all',
+                  !closingConfig.enabled && 'opacity-60'
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                      Report Dispatch Timing
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Choose when reports are generated and sent to the owner
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    {
+                      id: 'IMMEDIATELY',
+                      label: 'On Settlement Close',
+                      desc: 'Immediately after Cash Settlement closes',
+                    },
+                    {
+                      id: 'SCHEDULED',
+                      label: 'At Closing Time',
+                      desc: 'At configured daily closing hour',
+                    },
+                    {
+                      id: 'BOTH',
+                      label: 'Both Triggers',
+                      desc: 'On settlement & at scheduled time',
+                    },
+                  ].map((option) => {
+                    const isSelected = closingConfig.sendTiming === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={!isAdmin || !closingConfig.enabled}
+                        onClick={() => handleTimingChange(option.id as ShopClosingSendTiming)}
+                        className={clsx(
+                          'p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-1',
+                          isSelected
+                            ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/20'
+                            : 'bg-card border-border/60 hover:border-border'
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-foreground">{option.label}</span>
+                          <span
+                            className={clsx(
+                              'w-3.5 h-3.5 rounded-full border flex items-center justify-center',
+                              isSelected ? 'border-primary bg-primary text-white' : 'border-muted-foreground/40'
+                            )}
+                          >
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-snug">{option.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Scheduled Time Config */}
+                {(closingConfig.sendTiming === 'SCHEDULED' || closingConfig.sendTiming === 'BOTH') && (
+                  <div className="p-4 rounded-xl bg-card border border-border/60 flex items-center justify-between gap-4 animate-in fade-in duration-150">
+                    <div className="space-y-0.5 text-left">
+                      <span className="text-xs font-bold text-foreground block">Daily Scheduled Closing Time</span>
+                      <span className="text-[10px] text-muted-foreground block">
+                        Using store local timezone. Report checks automatically in the background.
+                      </span>
+                    </div>
+                    <input
+                      type="time"
+                      disabled={!isAdmin || !closingConfig.enabled}
+                      value={closingConfig.scheduledTime}
+                      onChange={(e) => handleScheduledTimeChange(e.target.value)}
+                      className="bg-background border border-border rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-foreground focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* Multi-counter Breakdown Option */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/60">
+                  <div className="space-y-0.5 pr-4 text-left">
+                    <span className="text-xs font-bold text-foreground block flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-primary" />
+                      Consolidate Multi-Counter Performance
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block leading-snug">
+                      When multiple counters/drawers operate, includes individual breakdown for each terminal.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
+                    <input
+                      type="checkbox"
+                      checked={closingConfig.includeMultiCounterBreakdown}
+                      disabled={!isAdmin || !closingConfig.enabled}
+                      onChange={(e) => handleMultiCounterToggle(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Card 3: Customizable Information Checklist */}
+              <div
+                className={clsx(
+                  'p-6 rounded-2xl bg-muted/20 border border-border/80 space-y-4 transition-all',
+                  !closingConfig.enabled && 'opacity-60'
+                )}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+                      <ListChecks className="w-4 h-4 text-primary" />
+                      Information Checklist
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Select which metrics and sections the shop owner receives
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      disabled={!isAdmin || !closingConfig.enabled}
+                      onClick={handleRestoreDefaultChecklist}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-card border border-border/80 hover:bg-muted text-foreground cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3 text-amber-500" />
+                      Defaults
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!isAdmin || !closingConfig.enabled}
+                      onClick={handleSelectAllChecklist}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-card border border-border/80 hover:bg-muted text-foreground cursor-pointer"
+                    >
+                      <CheckSquare className="w-3 h-3 text-emerald-500" />
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!isAdmin || !closingConfig.enabled}
+                      onClick={handleClearAllChecklist}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-card border border-border/80 hover:bg-muted text-foreground cursor-pointer"
+                    >
+                      <Square className="w-3 h-3 text-muted-foreground" />
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Counter Tag */}
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                  <span>Selected Checklist Items:</span>
+                  <span className="font-bold text-foreground font-mono">
+                    {selectedChecklistCount} of {totalChecklistCount} selected
+                  </span>
+                </div>
+
+                {/* Categorized Checklist Items */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {CHECKLIST_DEFINITIONS.map((def) => {
+                    const isChecked = Boolean(closingConfig.checklist?.[def.key]);
+                    return (
+                      <label
+                        key={def.key}
+                        className={clsx(
+                          'flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer select-none',
+                          isChecked
+                            ? 'bg-card border-border/80 shadow-xs'
+                            : 'bg-muted/10 border-border/40 opacity-70'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={!isAdmin || !closingConfig.enabled}
+                          onChange={() => handleChecklistToggle(def.key)}
+                          className="mt-0.5 rounded border-border text-primary focus:ring-primary/20 h-4 w-4 shrink-0"
+                        />
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-bold text-foreground block leading-tight">
+                            {def.label}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block leading-tight">
+                            {def.description}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right 5 Columns: WhatsApp Chat Live Preview & Actions */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Card: Live WhatsApp Preview */}
+              <div className="p-6 rounded-2xl bg-muted/20 border border-border/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <WhatsAppIcon className="w-4 h-4 text-emerald-500 fill-current" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
+                      Live Message Preview
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono">
+                    {previewLoading ? 'Updating...' : 'Real-time Preview'}
+                  </span>
+                </div>
+
+                {/* WhatsApp Chat Bubble Mockup */}
+                <div className="rounded-2xl bg-[#0b141a] dark:bg-[#0b141a] border border-border/80 overflow-hidden shadow-md text-white font-sans">
+                  {/* WhatsApp Top Bar */}
+                  <div className="bg-[#1f2c34] px-4 py-2.5 flex items-center justify-between border-b border-white/5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-xs text-white">
+                        {shopName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-white block leading-tight truncate max-w-[150px]">
+                          {shopName}
+                        </span>
+                        <span className="text-[9px] text-emerald-400 block leading-tight">WhatsApp Business</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-white/50 font-mono">
+                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+
+                  {/* Message Bubble Container */}
+                  <div className="p-4 bg-[radial-gradient(#1f2c34_1px,transparent_1px)] [background-size:16px_16px] bg-[#0b141a] max-h-[460px] overflow-y-auto scrollbar-thin">
+                    <div className="p-3.5 rounded-2xl rounded-tl-sm bg-[#005c4b] text-[#e9edef] text-[11px] leading-relaxed whitespace-pre-wrap font-sans shadow-sm border border-white/5">
+                      {previewText || 'Configuring overview report...'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-2.5 pt-2">
+                  <Button
+                    onClick={handleSendTestReport}
+                    disabled={sendingTest || !closingConfig.ownerPhone || status !== 'connected'}
+                    className="w-full text-xs font-bold py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    {sendingTest ? 'Dispatching Test...' : 'Send Test Report to WhatsApp'}
+                  </Button>
+
+                  {!isControlledClosing && (
+                    <Button
+                      onClick={handleSaveClosingConfig}
+                      disabled={savingClosing || !isAdmin}
+                      variant="outline"
+                      className="w-full text-xs font-bold py-2.5 rounded-xl border-border hover:bg-muted text-foreground cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {savingClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      {savingClosing ? 'Saving Changes...' : 'Save Closing Settings'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Card: Delivery History Log Accordion */}
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/80 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="w-full flex items-center justify-between text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Recent Report Deliveries</span>
+                    {closingHistory.length > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {closingHistory.length}
+                      </span>
+                    )}
+                  </div>
+                  {showHistory ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+
+                {showHistory && (
+                  <div className="space-y-2 pt-2 animate-in fade-in duration-150">
+                    {loadingHistory ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Loading delivery logs...
+                      </div>
+                    ) : closingHistory.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground text-center py-4">
+                        No closing reports sent yet. Trigger a test report or close daily cash settlement to record delivery logs.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-none pr-1">
+                        {closingHistory.map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-3 rounded-xl bg-card border border-border/60 text-xs flex items-center justify-between gap-3"
+                          >
+                            <div className="space-y-0.5 text-left">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={clsx(
+                                    'text-[9px] font-bold px-2 py-0.5 rounded-full',
+                                    item.status === 'SENT'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                      : item.status === 'FAILED'
+                                      ? 'bg-rose-500/10 text-rose-500'
+                                      : 'bg-blue-500/10 text-blue-500'
+                                  )}
+                                >
+                                  {item.status}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {item.trigger_type}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                Date: <strong className="text-foreground">{item.business_date}</strong> &bull; To:{' '}
+                                <span className="font-mono">{item.recipient_phone}</span>
+                              </div>
+                              {item.error_message && (
+                                <p className="text-[10px] text-rose-500 truncate max-w-[200px]">
+                                  {item.error_message}
+                                </p>
+                              )}
+                            </div>
+
+                            {item.status === 'FAILED' && (
+                              <button
+                                type="button"
+                                disabled={retryingId === item.id}
+                                onClick={() => handleRetryReport(item.id)}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-destructive/10 text-destructive hover:bg-destructive/20 cursor-pointer shrink-0 flex items-center gap-1"
+                              >
+                                {retryingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                                Retry
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -618,7 +1395,7 @@ Bal   ₹ 15000/-`}
               <h4 className="text-sm font-bold text-foreground">Disconnect Linked Device?</h4>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Are you sure you want to disconnect WhatsApp number{' '}
-                <span className="font-mono font-bold text-foreground">+{phone}</span>? Automated PDF bills and payment alerts will pause until reconnected.
+                <span className="font-mono font-bold text-foreground">+{phone}</span>? Automated PDF bills, payment alerts, and daily closing overviews will pause until reconnected.
               </p>
             </div>
           </div>

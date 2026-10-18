@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { RedCrossButton } from './ui/RedCrossButton';
+import { WhatsAppIcon } from './ui/WhatsAppIcon';
+import { SuperAdminWhatsAppModal } from './SuperAdminWhatsAppModal';
 
 interface TenantAdmin {
   tenant_id: string;
@@ -74,6 +76,9 @@ export default function SuperDashboard() {
   const [provisionStatus, setProvisionStatus] = useState<'idle' | 'provisioning' | 'success' | 'failed'>('idle');
   const [provisionLogs, setProvisionLogs] = useState<string[]>([]);
   const [provisionProgress, setProvisionProgress] = useState(0);
+
+  // WhatsApp Device Modal state
+  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
 
   // Cloud Access modal state
   const [cloudModalOpen, setCloudModalOpen] = useState(false);
@@ -703,6 +708,15 @@ export default function SuperDashboard() {
                 {checkingAll ? 'Checking Pools...' : 'Sweep DB Health'}
               </button>
               
+              <button
+                onClick={() => setWhatsappModalOpen(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold transition cursor-pointer"
+                title="Manage Super Admin WhatsApp Device for Customer App OTPs"
+              >
+                <WhatsAppIcon className="h-3.5 w-3.5" />
+                WhatsApp OTP Device
+              </button>
+
               <button
                 onClick={handleOpenCreateModal}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 dark:text-zinc-950 font-bold rounded-lg shadow-lg shadow-amber-500/10 transition cursor-pointer text-xs"
@@ -1518,6 +1532,12 @@ export default function SuperDashboard() {
           </div>
         </div>
       )}
+
+      {/* Super Admin WhatsApp Device Pairing Modal */}
+      <SuperAdminWhatsAppModal
+        isOpen={whatsappModalOpen}
+        onClose={() => setWhatsappModalOpen(false)}
+      />
       </main>
     </div>
   );

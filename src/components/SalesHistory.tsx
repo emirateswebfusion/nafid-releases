@@ -4,11 +4,22 @@ import {
   BookOpen, IndianRupee, TrendingUp, Boxes,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent, Loader2
+  ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent, Loader2,
+  Lock, Shield, EyeOff
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
 import { getSalesHistoryAmount } from '../utils/salesHistoryAmount';
+import { 
+  type StaffDataMaskingConfig, 
+  DEFAULT_STAFF_DATA_MASKING_CONFIG, 
+  STAFF_DATA_MASKING_KEY, 
+  parseStaffDataMaskingConfig, 
+  isStaffRole, 
+  shouldApplyStaffMasking, 
+  calculateMaskedSalesRevenue,
+  getStaffSalesDateScope 
+} from '../utils/staffDataMasking';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { Input } from './ui/Input';
@@ -262,25 +273,51 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
         'group cursor-pointer transition-all duration-150 border-b border-border last:border-0',
         isSelected
           ? 'bg-primary/5'
-          : 'hover:bg-muted/30',
+          : isChecked
+            ? 'bg-amber-500/10'
+            : 'hover:bg-muted/30',
         isConvertedBos && 'opacity-55'
       )}
     >
       {/* Invoice # */}
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex items-center gap-2.5">
-          {selectionMode && canConvert && (
-            <div onClick={(e) => { e.stopPropagation(); onCheck?.(); }} className="flex items-center justify-center cursor-pointer shrink-0">
-              <input type="checkbox" checked={isChecked} readOnly
-                className="w-4 h-4 rounded-md border-2 border-border text-primary focus:ring-primary/20 transition-all cursor-pointer"
+          {canConvert ? (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                onCheck?.();
+              }}
+              className="flex items-center justify-center cursor-pointer shrink-0 p-0.5"
+              title={isChecked ? 'Deselect bill' : 'Select bill (turns on Convert to GST)'}
+            >
+              <input
+                type="checkbox"
+                checked={isChecked}
+                readOnly
+                className={clsx(
+                  'w-4 h-4 rounded-md border-2 transition-all cursor-pointer',
+                  isChecked
+                    ? 'border-amber-500 bg-amber-500 text-white'
+                    : 'border-border/80 hover:border-amber-500'
+                )}
               />
             </div>
-          )}
+          ) : (inv.invoice_type === 'BILL_OF_SUPPLY' && !isConvertedBos && selectionMode) ? (
+            <div className="flex items-center justify-center shrink-0 p-0.5" title="Full Estimate Bill (cannot convert to GST)">
+              <input
+                type="checkbox"
+                disabled
+                checked={false}
+                className="w-4 h-4 rounded-md border border-border/40 bg-muted/40 opacity-30 cursor-not-allowed"
+              />
+            </div>
+          ) : null}
           <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
             <Receipt className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-xs font-black text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+            <div className="text-xs font-black text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5 flex-wrap">
               <span>{inv.invoice_number}</span>
               {isConvertedBos && (
                 <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20">
@@ -423,7 +460,8 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
 export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  const { tenantId } = useAuthStore();
+  const { tenantId, role } = useAuthStore();
+  const [maskingConfig, setMaskingConfig] = useState<StaffDataMaskingConfig>(DEFAULT_STAFF_DATA_MASKING_CONFIG);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [canReturn, setCanReturn] = useState(true);
@@ -475,18 +513,48 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
   const [enableConvertToGst, setEnableConvertToGst] = useState(true);
+  const [conversionTaxMode, setConversionTaxMode] = useState<'EXCLUSIVE' | 'INCLUSIVE'>('EXCLUSIVE');
+  const [conversionPreview, setConversionPreview] = useState<{
+    total_bos_amount?: number;
+    total_taxable_amount?: number;
+    total_tax_amount?: number;
+    total_converted_amount?: number;
+    has_real_gst?: boolean;
+    has_paper?: boolean;
+    has_skipped?: boolean;
+    invoices?: {
+      invoice_id: string;
+      invoice_number: string;
+      bos_grand_total: number;
+      taxable_amount?: number;
+      tax_amount?: number;
+      converted_grand_total: number;
+      has_real_gst: boolean;
+      has_paper: boolean;
+      skipped_items: string[];
+    }[];
+  } | null>(null);
+  const [conversionPreviewLoading, setConversionPreviewLoading] = useState(false);
 
   useEffect(() => {
-    const loadConvertSetting = () => {
+    const loadSettings = () => {
       if (window.electronAPI?.settingsGet) {
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst' }).then((v: any) => {
           if (v !== null && v !== undefined) setEnableConvertToGst(Boolean(v));
         }).catch(() => {});
+
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive' }).then((v: any) => {
+          if (v !== null && v !== undefined) setConversionTaxMode(Boolean(v) ? 'INCLUSIVE' : 'EXCLUSIVE');
+        }).catch(() => {});
+
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then((v: any) => {
+          if (v) setMaskingConfig(parseStaffDataMaskingConfig(v));
+        }).catch(() => {});
       }
     };
-    loadConvertSetting();
-    window.addEventListener('settings:updated', loadConvertSetting);
-    return () => window.removeEventListener('settings:updated', loadConvertSetting);
+    loadSettings();
+    window.addEventListener('settings:updated', loadSettings);
+    return () => window.removeEventListener('settings:updated', loadSettings);
   }, [tenantId]);
 
   const handleForceResync = async () => {
@@ -506,14 +574,181 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const convertibleInvoicesInView = useMemo(() =>
-    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && (convertibleMap[i.invoice_id] !== false)),
+    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && Boolean(convertibleMap[i.invoice_id])),
     [invoices, convertibleMap]
   );
 
   const selectedBosInvoices = useMemo(() =>
-    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && (convertibleMap[i.invoice_id] !== false) && selectedInvoiceIds.has(i.invoice_id)),
+    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && Boolean(convertibleMap[i.invoice_id]) && selectedInvoiceIds.has(i.invoice_id)),
     [invoices, selectedInvoiceIds, convertibleMap]
   );
+
+  useEffect(() => {
+    if (!conversionOpen || selectedBosInvoices.length === 0) {
+      setConversionPreview(null);
+      return;
+    }
+    let cancelled = false;
+    setConversionPreviewLoading(true);
+    const tid = tenantId || 'global';
+
+    const runPreview = async () => {
+      // 1. Try IPC preview first
+      if (window.electronAPI?.dbPreviewConvertBosToGst) {
+        try {
+          const res = await window.electronAPI.dbPreviewConvertBosToGst({
+            invoice_ids: selectedBosInvoices.map(i => i.invoice_id),
+            tenant_id: tid,
+            tax_mode: conversionTaxMode,
+          });
+          if (res?.success && res.invoices && res.invoices.length > 0) {
+            if (!cancelled) {
+              setConversionPreview(res);
+              setConversionPreviewLoading(false);
+            }
+            return;
+          }
+        } catch (err) {
+          console.warn('[SalesHistory] IPC previewConvertBosToGst failed or not registered, using client fallback:', err);
+        }
+      }
+
+      // 2. Robust Client-side fallback so preview updates immediately even before app restart
+      try {
+        let totalBos = 0;
+        let totalTaxable = 0;
+        let totalTax = 0;
+        let totalConverted = 0;
+        let hasRealGst = false;
+        let hasPaper = false;
+        const previewInvoices: any[] = [];
+
+        const allProductIds = new Set<string>();
+        const invoiceItemsMap: Record<string, any[]> = {};
+
+        for (const inv of selectedBosInvoices) {
+          if (window.electronAPI?.dbGetInvoiceItems) {
+            const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+            invoiceItemsMap[inv.invoice_id] = Array.isArray(items) ? items : [];
+            for (const itm of invoiceItemsMap[inv.invoice_id]) {
+              if (itm.product_id) allProductIds.add(itm.product_id);
+            }
+          }
+        }
+
+        let productsMap: Record<string, any> = {};
+        if (allProductIds.size > 0 && window.electronAPI?.dbGetProductsByIds) {
+          try {
+            const prods = await window.electronAPI.dbGetProductsByIds({
+              tenant_id: tid,
+              product_ids: Array.from(allProductIds)
+            });
+            if (Array.isArray(prods)) {
+              for (const p of prods) productsMap[p.product_id] = p;
+            }
+          } catch {}
+        }
+
+        for (const inv of selectedBosInvoices) {
+          const items = invoiceItemsMap[inv.invoice_id] || [];
+          let newSubtotal = 0;
+          let newTotalTax = 0;
+          const skippedItems: string[] = [];
+          const isTaxInclusive = conversionTaxMode === 'INCLUSIVE';
+
+          for (const item of items) {
+            const prod = productsMap[item.product_id];
+            let da: any = {};
+            if (prod?.domain_attributes) {
+              try { da = JSON.parse(prod.domain_attributes); } catch {}
+            }
+            const isReal = prod ? (prod.is_gst_applicable === 1 && da.gst_type !== 'PAPER') : false;
+            const isPaper = prod ? (!isReal && (da.gst_type === 'PAPER' || Number(da.paper_mrp || 0) > 0 || Number(da.paper_purchase_price || 0) > 0 || Number(da.gst_purchase_price || 0) > 0 || Number(da.paper_stock || 0) > 0)) : false;
+
+            if (isReal) hasRealGst = true;
+            if (isPaper) hasPaper = true;
+
+            const qty = Number(item.quantity) || 1;
+            const taxRate = Number(prod?.tax_rate_percent || item.tax_rate || 18);
+            let unitPrice = Number(item.unit_price) || 0;
+
+            if (isPaper) {
+              if (Number(da.paper_offer_price || 0) > 0) unitPrice = Number(da.paper_offer_price);
+              else if (Number(da.paper_mrp || 0) > 0) unitPrice = Number(da.paper_mrp);
+            }
+
+            if (!unitPrice) unitPrice = Number(item.unit_price) || 0;
+
+            let itemTaxable = 0;
+            let itemTax = 0;
+            let itemTotal = 0;
+
+            if (isTaxInclusive && taxRate > 0) {
+              itemTotal = Math.round(unitPrice * qty * 100) / 100;
+              itemTaxable = Math.round((itemTotal / (1 + taxRate / 100)) * 100) / 100;
+              itemTax = Math.round((itemTotal - itemTaxable) * 100) / 100;
+            } else {
+              itemTaxable = Math.round(unitPrice * qty * 100) / 100;
+              itemTax = Math.round(itemTaxable * (taxRate / 100) * 100) / 100;
+              itemTotal = Math.round((itemTaxable + itemTax) * 100) / 100;
+            }
+
+            newSubtotal += itemTaxable;
+            newTotalTax += itemTax;
+          }
+
+          let discount = 0;
+          if (inv.discount_type === 'PERCENTAGE' && Number(inv.discount_value) > 0) {
+            discount = Math.round(newSubtotal * (Number(inv.discount_value) / 100) * 100) / 100;
+          } else if (inv.discount_type === 'FIXED' && Number(inv.discount_value) > 0) {
+            discount = Math.min(Number(inv.discount_value), newSubtotal);
+          }
+
+          const taxable = newSubtotal - discount;
+          const effRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
+          const adjTax = Math.round(taxable * effRate * 100) / 100;
+          const convTotal = items.length > 0 ? Math.round((taxable + adjTax) * 100) / 100 : Number(inv.grand_total) || 0;
+
+          totalBos += Number(inv.grand_total) || 0;
+          totalTaxable += taxable;
+          totalTax += adjTax;
+          totalConverted += convTotal;
+
+          previewInvoices.push({
+            invoice_id: inv.invoice_id,
+            invoice_number: inv.invoice_number,
+            bos_grand_total: Number(inv.grand_total) || 0,
+            taxable_amount: taxable,
+            tax_amount: adjTax,
+            converted_grand_total: convTotal,
+            has_real_gst: hasRealGst,
+            has_paper: hasPaper,
+            skipped_items: skippedItems,
+          });
+        }
+
+        if (!cancelled) {
+          setConversionPreview({
+            invoices: previewInvoices,
+            total_bos_amount: Math.round(totalBos * 100) / 100,
+            total_taxable_amount: Math.round(totalTaxable * 100) / 100,
+            total_tax_amount: Math.round(totalTax * 100) / 100,
+            total_converted_amount: Math.round(totalConverted * 100) / 100,
+            has_real_gst: hasRealGst,
+            has_paper: hasPaper,
+            has_skipped: false,
+          });
+        }
+      } catch (e) {
+        console.error('[SalesHistory] Client preview fallback error:', e);
+      } finally {
+        if (!cancelled) setConversionPreviewLoading(false);
+      }
+    };
+
+    runPreview();
+    return () => { cancelled = true; };
+  }, [conversionOpen, conversionTaxMode, selectedBosInvoices, tenantId]);
 
   const COLLECT_PAYMENT_OPTIONS = [
     { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500', iconBg: 'bg-emerald-500/15' },
@@ -542,7 +777,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setOffset(0);
     setHasMore(true);
     loadInvoices(true);
-  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter]);
+  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig]);
 
   useEffect(() => {
     if (invoiceTypeFilter === 'BILL_OF_SUPPLY' && taxPercentageFilter !== '') {
@@ -601,7 +836,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [reprintSuccess]);
 
   useEffect(() => {
-    if (!selectionMode || !window.electronAPI) return;
+    if (!window.electronAPI) return;
     let cancelled = false;
     const { tenantId } = useAuthStore.getState();
     window.electronAPI.dbGetBosConvertibleInvoices(tenantId || 'global')
@@ -613,7 +848,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [selectionMode]);
+  }, [selectionMode, invoices.length]);
 
   const loadInvoices = async (reset = false) => {
     if (!reset && isFetching) return;
@@ -629,13 +864,23 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
         : (invoiceTypeFilter || undefined);
 
+      const isStaffUser = isStaffRole(role);
+      const shouldMaskStaff = shouldApplyStaffMasking(role, maskingConfig);
+      let effectiveFilterDate = filterDate || undefined;
+      let effectiveFilterDateEnd = filterDateEnd || undefined;
+      if (shouldMaskStaff && maskingConfig.sales_history_scope !== 'ALL') {
+        const staffScope = getStaffSalesDateScope(maskingConfig, isStaffUser);
+        if (staffScope.startDate) effectiveFilterDate = staffScope.startDate;
+        if (staffScope.endDate) effectiveFilterDateEnd = staffScope.endDate;
+      }
+
       try {
         const filters = {
           user_id: userId, tenant_id: tenantId, role,
           search: debouncedSearch || undefined, payment_method: paymentFilter || undefined,
           invoice_type: effectiveInvoiceType,
           tax_rate_percent: taxPercentageFilter || undefined,
-          filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
+          filterDate: effectiveFilterDate, filterDateEnd: effectiveFilterDateEnd,
         };
 
         const promises: Promise<any>[] = [
@@ -795,6 +1040,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined,
         billing_type: p?.billing_type || item.billing_type || undefined,
         pieces_per_kg: pcsPerKg,
+        hsn_sac_code: item.hsn_sac_code || p?.hsn_sac_code || undefined,
         unit: p?.uom || item.uom || item.unit || undefined,
         isCombo: isComboItem,
         combo_items: comboItemsParsed,
@@ -840,6 +1086,25 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       return live.length > 0 ? live.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0) / live.length : 0;
     })(),
   };
+
+  const isStaff = isStaffRole(role);
+  const shouldMask = shouldApplyStaffMasking(role, maskingConfig);
+
+  const maskedRevenue = useMemo(() => {
+    return calculateMaskedSalesRevenue(summary.totalSales, maskingConfig, isStaff);
+  }, [summary.totalSales, maskingConfig, isStaff]);
+
+  const maskedAvgOrder = useMemo(() => {
+    if (maskedRevenue.isHidden) return { displayAmount: 0, isHidden: true, isMasked: true };
+    if (maskedRevenue.isMasked && summary.totalInvoices > 0) {
+      return { displayAmount: maskedRevenue.displayAmount / summary.totalInvoices, isHidden: false, isMasked: true };
+    }
+    return { displayAmount: summary.avgOrder, isHidden: false, isMasked: false };
+  }, [maskedRevenue, summary.avgOrder, summary.totalInvoices]);
+
+  const staffDateScope = useMemo(() => {
+    return getStaffSalesDateScope(maskingConfig, isStaff);
+  }, [maskingConfig, isStaff]);
 
 
   const dailySales = useMemo(() => groupByDay(invoices), [invoices]);
@@ -938,6 +1203,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             comboItemsParsed = matchedCombo.items;
           }
           const isComboItem = Boolean(item.combo_id || matchedCombo || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+          const itemCgstR = Number(item.cgst_rate) || 0;
+          const itemSgstR = Number(item.sgst_rate) || 0;
+          const itemIgstR = Number(item.igst_rate) || 0;
+          const rawRate = Number(item.tax_rate) || (itemCgstR + itemSgstR + itemIgstR);
+          let calcRate = rawRate;
+          const iTax = Number(item.tax_amount) || 0;
+          if (!calcRate || calcRate <= 0) {
+            const baseVal = (Number(item.unit_price) * Number(item.quantity)) || (Number(item.total) - iTax);
+            if (baseVal > 0 && iTax > 0) {
+              calcRate = Math.round((iTax / baseVal) * 100 * 10) / 10;
+            }
+          }
+          const itemTaxPct = calcRate > 0 ? calcRate : 0;
+          const hsnVal = item.hsn_sac_code || item.hsn_code || item.hsn || '';
+
           return {
             name: item.name,
             quantity: Number(item.quantity) || 0,
@@ -951,6 +1231,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
             pieces_per_kg: item.pieces_per_kg,
             unit: item.unit,
+            hsn: hsnVal || undefined,
+            hsn_code: hsnVal || undefined,
+            hsn_sac_code: hsnVal || undefined,
+            tax_rate_percent: itemTaxPct || undefined,
+            gst_percent: itemTaxPct || undefined,
+            cgst_rate: itemCgstR || (isInterState ? 0 : itemTaxPct / 2) || undefined,
+            sgst_rate: itemSgstR || (isInterState ? 0 : itemTaxPct / 2) || undefined,
+            igst_rate: itemIgstR || (isInterState ? itemTaxPct : 0) || undefined,
+            cgst_amount: Number(item.cgst_amount) || (isInterState ? 0 : iTax / 2) || undefined,
+            sgst_amount: Number(item.sgst_amount) || (isInterState ? 0 : iTax / 2) || undefined,
+            igst_amount: Number(item.igst_amount) || (isInterState ? iTax : 0) || undefined,
             isCombo: isComboItem,
             combo_items: comboItemsParsed,
           };
@@ -1294,16 +1585,19 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
         : (invoiceTypeFilter || undefined);
 
-      const data = await window.electronAPI.dbGetInvoices({
-        user_id: userId, tenant_id: tenantId, role,
-        limit: 99999, offset: 0,
-        search: search || undefined,
-        payment_method: paymentFilter || undefined,
-        invoice_type: effectiveInvoiceType,
-        tax_rate_percent: taxPercentageFilter || undefined,
-        filterDate: filterDate || undefined,
-        filterDateEnd: filterDateEnd || undefined,
-      });
+      const [data, shopStateVal] = await Promise.all([
+        window.electronAPI.dbGetInvoices({
+          user_id: userId, tenant_id: tenantId, role,
+          limit: 99999, offset: 0,
+          search: search || undefined,
+          payment_method: paymentFilter || undefined,
+          invoice_type: effectiveInvoiceType,
+          tax_rate_percent: taxPercentageFilter || undefined,
+          filterDate: filterDate || undefined,
+          filterDateEnd: filterDateEnd || undefined,
+        }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }).catch(() => '') || '',
+      ]);
 
       if (!Array.isArray(data) || data.length === 0) {
         setExportStatusMsg('No records to export');
@@ -1319,8 +1613,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       };
 
       const getTypeLabel = (inv: any) => {
-        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'B2B';
-        if (inv.invoice_type === 'GST') return 'B2C';
+        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'GST B2B';
+        if (inv.invoice_type === 'GST') return 'GST B2C';
         return 'Bill of Supply';
       };
 
@@ -1328,7 +1622,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       let filename: string;
       let exportedCount = 0;
 
-      const parts: string[] = ['sales'];
+      const parts: string[] = ['sales_gst_report'];
       if (invoiceTypeFilter) parts.push(invoiceTypeFilter.replace('_', '-').toLowerCase());
       if (paymentFilter) parts.push(paymentFilter.toLowerCase());
       if (taxPercentageFilter) parts.push(`${taxPercentageFilter}pct`);
@@ -1337,121 +1631,247 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       parts.push(new Date().toLocaleDateString('en-CA'));
       filename = parts.join('_') + '.csv';
 
-      if (taxPercentageFilter) {
-        // Item-level CSV filtered by tax percentage
-        const targetRate = Number(taxPercentageFilter);
-        const itemHeaders = [
-          'Invoice No.', 'Invoice Date', 'Tax Type', 'Customer Name', 'State',
-          'GSTIN/UID', 'Product Name', 'HSN Code', 'Sales Rate', 'Qty.', 'UOM',
-          'Discount %', 'Discount Amt', 'Taxable Amt', 'Total GST %', 'Total GST Amt',
-          'CGST %', 'CGST', 'SGST %', 'SGST/UTGST', 'IGST %', 'IGST',
-          'CESS %', 'CESS', 'Total Amount'
-        ];
-        const itemRows: string[][] = [];
-        let totalTaxable = 0;
-        let totalGstAmt = 0;
+      const headers = [
+        'Invoice No.',
+        'Invoice Date',
+        'Invoice Time',
+        'Invoice Type',
+        'Customer Name',
+        'Customer Phone',
+        'Customer GSTIN',
+        'Place of Supply / State',
+        'Payment Method',
+        'Product / Item Name',
+        'HSN / SAC Code',
+        'Quantity',
+        'UOM',
+        'Unit Price (₹)',
+        'Discount (₹)',
+        'Taxable Amount (₹)',
+        'Total GST %',
+        'Total GST (₹)',
+        'CGST %',
+        'CGST (₹)',
+        'SGST %',
+        'SGST (₹)',
+        'IGST %',
+        'IGST (₹)',
+        'Item Total (₹)',
+        'Invoice Grand Total (₹)',
+        'Biller Name',
+        'Description / Remarks'
+      ];
 
-        for (const inv of data) {
-          const invoiceDate = parseUTCDate(inv.created_at).toLocaleDateString('en-IN', {
-            day: '2-digit', month: '2-digit', year: 'numeric'
-          }) + ' ' + parseUTCDate(inv.created_at).toLocaleTimeString('en-IN', {
-            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-          });
-          const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
-          if (!Array.isArray(items)) continue;
+      const itemRows: string[][] = [];
+      let totalQtySum = 0;
+      let totalTaxableSum = 0;
+      let totalGstSum = 0;
+      let totalCgstSum = 0;
+      let totalSgstSum = 0;
+      let totalIgstSum = 0;
+      let totalItemSum = 0;
 
+      const targetTaxRate = taxPercentageFilter ? Number(taxPercentageFilter) : null;
+
+      for (const inv of data) {
+        const { date, time } = formatDate(inv.created_at);
+        const typeLabel = getTypeLabel(inv);
+        const isInterState = (inv.supply_type === 'INTER') ||
+          Boolean(shopStateVal && inv.customer_state && (shopStateVal.trim().toUpperCase() !== inv.customer_state.trim().toUpperCase()));
+
+        let items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+        if (!Array.isArray(items)) items = [];
+
+        // If items exist, get any missing HSN codes from products if needed
+        const missingHsnProductIds = items.filter((it: any) => !it.hsn_sac_code && it.product_id).map((it: any) => it.product_id);
+        let fallbackProductMap: Record<string, any> = {};
+        if (missingHsnProductIds.length > 0) {
+          try {
+            const fetched = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: missingHsnProductIds });
+            if (Array.isArray(fetched)) {
+              fetched.forEach((p: any) => { if (p?.product_id) fallbackProductMap[p.product_id] = p; });
+            }
+          } catch {}
+        }
+
+        if (items.length > 0) {
           for (const item of items) {
-            const taxableAmt = Number(item.total) || 0;
-            const gstAmt = Number(item.tax_amount) || 0;
-            const effectiveRate = taxableAmt > 0 ? Math.round((gstAmt / taxableAmt) * 100) : 0;
-            if (effectiveRate !== targetRate) continue;
+            const unitPrice = Number(item.unit_price) || 0;
+            const quantity = Number(item.quantity) || 0;
+            const itemTotal = Number(item.total) || 0;
+            const itemTax = Number(item.tax_amount) || 0;
+            const hsn = item.hsn_sac_code || fallbackProductMap[item.product_id]?.hsn_sac_code || '';
+            const uom = item.uom || fallbackProductMap[item.product_id]?.uom || 'PCS';
 
-            const cgstPct = effectiveRate / 2;
-            const sgstPct = effectiveRate / 2;
-            const cgstAmt = gstAmt / 2;
-            const sgstAmt = gstAmt / 2;
-            const totalAmt = taxableAmt + gstAmt;
+            // Calculate GST rates and taxable amount
+            const itemCgstR = Number(item.cgst_rate) || 0;
+            const itemSgstR = Number(item.sgst_rate) || 0;
+            const itemIgstR = Number(item.igst_rate) || 0;
+            const directRate = (itemCgstR + itemSgstR + itemIgstR) || Number(item.tax_rate) || Number(fallbackProductMap[item.product_id]?.tax_rate_percent) || 0;
 
-            totalTaxable += taxableAmt;
-            totalGstAmt += gstAmt;
+            let taxableAmt = Math.round((itemTotal - itemTax) * 100) / 100;
+            if (taxableAmt <= 0 && unitPrice > 0) {
+              taxableAmt = Math.round(unitPrice * quantity * 100) / 100;
+            }
+
+            let effectiveGstRate = directRate;
+            if (effectiveGstRate <= 0 && taxableAmt > 0 && itemTax > 0) {
+              effectiveGstRate = Math.round((itemTax / taxableAmt) * 100 * 10) / 10;
+            }
+
+            if (targetTaxRate !== null && Math.round(effectiveGstRate) !== Math.round(targetTaxRate)) {
+              continue;
+            }
+
+            let cgstRate = itemCgstR;
+            let sgstRate = itemSgstR;
+            let igstRate = itemIgstR;
+            let cgstAmt = Number(item.cgst_amount) || 0;
+            let sgstAmt = Number(item.sgst_amount) || 0;
+            let igstAmt = Number(item.igst_amount) || 0;
+
+            if (inv.invoice_type === 'GST' || itemTax > 0) {
+              if (isInterState) {
+                if (igstRate <= 0) igstRate = effectiveGstRate;
+                if (igstAmt <= 0) igstAmt = itemTax;
+                cgstRate = 0; sgstRate = 0; cgstAmt = 0; sgstAmt = 0;
+              } else {
+                if (cgstRate <= 0 && effectiveGstRate > 0) cgstRate = Math.round((effectiveGstRate / 2) * 10) / 10;
+                if (sgstRate <= 0 && effectiveGstRate > 0) sgstRate = Math.round((effectiveGstRate / 2) * 10) / 10;
+                if (cgstAmt <= 0 && itemTax > 0) cgstAmt = Math.round((itemTax / 2) * 100) / 100;
+                if (sgstAmt <= 0 && itemTax > 0) sgstAmt = Math.round((itemTax / 2) * 100) / 100;
+                igstRate = 0; igstAmt = 0;
+              }
+            } else {
+              effectiveGstRate = 0;
+              cgstRate = 0; sgstRate = 0; igstRate = 0;
+              cgstAmt = 0; sgstAmt = 0; igstAmt = 0;
+            }
+
+            totalQtySum += quantity;
+            totalTaxableSum += taxableAmt;
+            totalGstSum += itemTax;
+            totalCgstSum += cgstAmt;
+            totalSgstSum += sgstAmt;
+            totalIgstSum += igstAmt;
+            totalItemSum += itemTotal;
 
             itemRows.push([
               escape(inv.invoice_number),
-              escape(invoiceDate),
-              escape(inv.invoice_type === 'GST' ? 'GST' : 'BILL_OF_SUPPLY'),
-              escape(inv.customer_name || 'Cash'),
-              escape(inv.customer_state || ''),
-              escape(inv.customer_gstin || ''),
-              escape(item.name || ''),
-              escape(''),
-              escape(Number(item.unit_price || 0).toFixed(2)),
-              escape(Number(item.quantity || 0).toFixed(3)),
-              escape('PAC'),
-              escape('0.0000'),
+              escape(date),
+              escape(time),
+              escape(typeLabel),
+              escape(inv.customer_name || 'Walk-in'),
+              escape(inv.customer_phone || '-'),
+              escape(inv.customer_gstin || '-'),
+              escape(inv.customer_state || '-'),
+              escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || 'CASH'),
+              escape(item.name || 'Item'),
+              escape(hsn || '-'),
+              escape(quantity.toFixed(3)),
+              escape(uom),
+              escape(unitPrice.toFixed(2)),
               escape('0.00'),
               escape(taxableAmt.toFixed(2)),
-              escape(effectiveRate.toFixed(2)),
-              escape(gstAmt.toFixed(2)),
-              escape(cgstPct.toFixed(2)),
+              escape(effectiveGstRate > 0 ? `${effectiveGstRate}%` : '0%'),
+              escape(itemTax.toFixed(2)),
+              escape(cgstRate > 0 ? `${cgstRate}%` : '0%'),
               escape(cgstAmt.toFixed(2)),
-              escape(sgstPct.toFixed(2)),
+              escape(sgstRate > 0 ? `${sgstRate}%` : '0%'),
               escape(sgstAmt.toFixed(2)),
-              escape('0.00'),
-              escape('0.00'),
-              escape('0.00'),
-              escape('0.00'),
-              escape(totalAmt.toFixed(2)),
+              escape(igstRate > 0 ? `${igstRate}%` : '0%'),
+              escape(igstAmt.toFixed(2)),
+              escape(itemTotal.toFixed(2)),
+              escape((Number(inv.grand_total) || 0).toFixed(2)),
+              escape(inv.biller_name || ''),
+              escape(inv.description || inv.notes || ''),
             ]);
           }
-        }
+        } else {
+          // If invoice has no line items, output 1 row with invoice-level totals
+          const sub = Number(inv.subtotal) || 0;
+          const tax = Number(inv.tax_total) || 0;
+          const grand = Number(inv.grand_total) || 0;
+          let effRate = sub > 0 ? Math.round((tax / sub) * 100 * 10) / 10 : 0;
+          let cgst = Number(inv.cgst_total) || (isInterState ? 0 : Math.round((tax / 2) * 100) / 100);
+          let sgst = Number(inv.sgst_total) || (isInterState ? 0 : Math.round((tax / 2) * 100) / 100);
+          let igst = Number(inv.igst_total) || (isInterState ? tax : 0);
 
-        if (itemRows.length > 0) {
+          totalTaxableSum += sub;
+          totalGstSum += tax;
+          totalCgstSum += cgst;
+          totalSgstSum += sgst;
+          totalIgstSum += igst;
+          totalItemSum += grand;
+
           itemRows.push([
-            escape(''), escape(''), escape(''), escape(''), escape(''),
-            escape(''), escape(''), escape(''), escape(''), escape(''),
-            escape(''), escape(''), escape(''), escape('TOTAL'),
-            escape(''), escape(totalGstAmt.toFixed(2)),
-            escape(''), escape(''), escape(''), escape(''),
-            escape(''), escape(''), escape(''), escape(''),
-            escape(''),
-          ]);
-        }
-
-        csvContent = [itemHeaders.join(','), ...itemRows.map(r => r.join(','))].join('\n');
-        exportedCount = itemRows.length;
-      } else {
-        // Invoice-level CSV (existing behavior)
-        const headers = [
-          'Invoice No', 'Date', 'Time', 'Type', 'Customer Name', 'Customer Phone',
-          'Customer GSTIN', 'Payment Method', 'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)',
-          'Grand Total (₹)', 'Received (₹)', 'Balance (₹)', 'Biller', 'Description / Remarks'
-        ];
-
-        const rows = data.map((inv: any) => {
-          const { date, time } = formatDate(inv.created_at);
-          return [
             escape(inv.invoice_number),
             escape(date),
             escape(time),
-            escape(getTypeLabel(inv)),
-            escape(inv.customer_name || ''),
-            escape(inv.customer_phone || ''),
-            escape(inv.customer_gstin || ''),
-            escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || ''),
-            escape((inv.subtotal || 0).toFixed(2)),
-            escape((inv.tax_total || 0).toFixed(2)),
-            escape((inv.discount_total || 0).toFixed(2)),
-            escape((inv.grand_total || 0).toFixed(2)),
-            escape((inv.received_amount || 0).toFixed(2)),
-            escape((inv.balance_amount || 0).toFixed(2)),
+            escape(typeLabel),
+            escape(inv.customer_name || 'Walk-in'),
+            escape(inv.customer_phone || '-'),
+            escape(inv.customer_gstin || '-'),
+            escape(inv.customer_state || '-'),
+            escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || 'CASH'),
+            escape('General Bill Item'),
+            escape('-'),
+            escape('1.000'),
+            escape('PCS'),
+            escape(sub.toFixed(2)),
+            escape((Number(inv.discount_total) || 0).toFixed(2)),
+            escape(sub.toFixed(2)),
+            escape(effRate > 0 ? `${effRate}%` : '0%'),
+            escape(tax.toFixed(2)),
+            escape(!isInterState && effRate > 0 ? `${effRate / 2}%` : '0%'),
+            escape(cgst.toFixed(2)),
+            escape(!isInterState && effRate > 0 ? `${effRate / 2}%` : '0%'),
+            escape(sgst.toFixed(2)),
+            escape(isInterState && effRate > 0 ? `${effRate}%` : '0%'),
+            escape(igst.toFixed(2)),
+            escape(grand.toFixed(2)),
+            escape(grand.toFixed(2)),
             escape(inv.biller_name || ''),
             escape(inv.description || inv.notes || ''),
-          ];
-        });
-
-        csvContent = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
-        exportedCount = data.length;
+          ]);
+        }
       }
+
+      if (itemRows.length > 0) {
+        itemRows.push([
+          escape('TOTAL'),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(`Total Records: ${itemRows.length}`),
+          escape(''),
+          escape(totalQtySum.toFixed(3)),
+          escape(''),
+          escape(''),
+          escape(''),
+          escape(totalTaxableSum.toFixed(2)),
+          escape(''),
+          escape(totalGstSum.toFixed(2)),
+          escape(''),
+          escape(totalCgstSum.toFixed(2)),
+          escape(''),
+          escape(totalSgstSum.toFixed(2)),
+          escape(''),
+          escape(totalIgstSum.toFixed(2)),
+          escape(totalItemSum.toFixed(2)),
+          escape(totalItemSum.toFixed(2)),
+          escape(''),
+          escape(''),
+        ]);
+      }
+
+      csvContent = [headers.join(','), ...itemRows.map(r => r.join(','))].join('\n');
+      exportedCount = itemRows.length > 0 ? itemRows.length - 1 : 0;
 
       const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -1567,12 +1987,25 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
           {/* Right Controls */}
           <div className="flex items-center gap-2 shrink-0">
-            <DateRangeFilter
-              startDate={filterDate}
-              endDate={filterDateEnd}
-              onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
-              align="right"
-            />
+            {maskingConfig.enabled && !isStaff && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none" title="Staff masking is active for staff accounts. Genuine owner figures shown here.">
+                <Shield className="w-3 h-3" /> Staff Masking Active
+              </span>
+            )}
+
+            {shouldMask && maskingConfig.sales_history_scope !== 'ALL' ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25 shadow-2xs select-none" title="Historical date range restricted by store policy">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Scope: {staffDateScope.scopeLabel}</span>
+              </div>
+            ) : (
+              <DateRangeFilter
+                startDate={filterDate}
+                endDate={filterDateEnd}
+                onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
+                align="right"
+              />
+            )}
 
             <button
               onClick={handleExportCSV}
@@ -1615,9 +2048,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <IndianRupee className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total Revenue</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total Revenue</span>
+                        {maskedRevenue.isMasked && !isStaff && (
+                          <span className="text-[8px] bg-primary/10 text-primary px-1 rounded font-bold leading-none">Real</span>
+                        )}
+                      </div>
                       <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums leading-tight block mt-0.5">
-                        {loading ? '…' : formatCurrency(summary.totalSales)}
+                        {loading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)}
                       </span>
                     </div>
                   </div>
@@ -1630,7 +2068,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <div className="min-w-0">
                       <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Avg Order Value</span>
                       <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums leading-tight block mt-0.5">
-                        {loading ? '…' : formatCurrency(summary.avgOrder)}
+                        {loading ? '…' : maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)}
                       </span>
                     </div>
                   </div>
@@ -1643,7 +2081,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <div className="min-w-0">
                       <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total GST Tax</span>
                       <span className="text-xs font-black text-violet-600 dark:text-violet-400 font-mono tabular-nums leading-tight block mt-0.5">
-                        {loading ? '…' : formatCurrency(summary.totalTax)}
+                        {loading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)}
                       </span>
                     </div>
                   </div>
@@ -1929,14 +2367,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       <div className="flex items-center gap-2">
-                        {selectionMode && convertibleInvoicesInView.length > 0 && (
+                        {convertibleInvoicesInView.length > 0 && (
                           <input
                             type="checkbox"
                             checked={selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0}
                             onChange={() => {
                               if (selectedInvoiceIds.size === convertibleInvoicesInView.length) {
                                 setSelectedInvoiceIds(new Set());
+                                setSelectionMode(false);
                               } else {
+                                setSelectionMode(true);
                                 setSelectedInvoiceIds(new Set(convertibleInvoicesInView.map(i => i.invoice_id)));
                               }
                             }}
@@ -1967,16 +2407,38 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           key={inv.invoice_id}
                           inv={inv}
                           isSelected={selectedInvoice?.invoice_id === inv.invoice_id}
-                          onClick={() => { if (!selectionMode) handleSelectInvoice(inv); }}
+                          onClick={() => {
+                            if (selectionMode) {
+                              if (inv.invoice_type === 'BILL_OF_SUPPLY' && convertibleMap[inv.invoice_id]) {
+                                setSelectedInvoiceIds(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(inv.invoice_id)) {
+                                    next.delete(inv.invoice_id);
+                                    if (next.size === 0) setSelectionMode(false);
+                                  } else {
+                                    next.add(inv.invoice_id);
+                                  }
+                                  return next;
+                                });
+                              }
+                            } else {
+                              handleSelectInvoice(inv);
+                            }
+                          }}
                           selectionMode={selectionMode}
                           isChecked={selectedInvoiceIds.has(inv.invoice_id)}
                           convertible={convertibleMap[inv.invoice_id]}
                           onCheck={() => {
                             if (inv.invoice_type !== 'BILL_OF_SUPPLY' || !convertibleMap[inv.invoice_id]) return;
+                            setSelectionMode(true);
                             setSelectedInvoiceIds(prev => {
                               const next = new Set(prev);
-                              if (next.has(inv.invoice_id)) next.delete(inv.invoice_id);
-                              else next.add(inv.invoice_id);
+                              if (next.has(inv.invoice_id)) {
+                                next.delete(inv.invoice_id);
+                                if (next.size === 0) setSelectionMode(false);
+                              } else {
+                                next.add(inv.invoice_id);
+                              }
                               return next;
                             });
                           }}
@@ -2008,9 +2470,28 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full">
           {/* Top Stat Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={IndianRupee} label="Total Revenue" value={formatCurrency(summary.totalSales)} colorClass="text-emerald-500" bgClass="bg-emerald-500/10" sub={`${summary.totalInvoices} settled invoices`} />
-            <StatCard icon={TrendingUp} label="Avg Order Value" value={formatCurrency(summary.avgOrder)} colorClass="text-blue-500" bgClass="bg-blue-500/10" />
-            <StatCard icon={Percent} label="Total GST Tax" value={formatCurrency(summary.totalTax)} colorClass="text-violet-500" bgClass="bg-violet-500/10" />
+            <StatCard 
+              icon={IndianRupee} 
+              label="Total Revenue" 
+              value={maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)} 
+              colorClass="text-emerald-500" 
+              bgClass="bg-emerald-500/10" 
+              sub={maskedRevenue.isHidden ? 'Protected' : `${summary.totalInvoices} settled invoices`} 
+            />
+            <StatCard 
+              icon={TrendingUp} 
+              label="Avg Order Value" 
+              value={maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)} 
+              colorClass="text-blue-500" 
+              bgClass="bg-blue-500/10" 
+            />
+            <StatCard 
+              icon={Percent} 
+              label="Total GST Tax" 
+              value={maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)} 
+              colorClass="text-violet-500" 
+              bgClass="bg-violet-500/10" 
+            />
             {summary.totalDiscount > 0
               ? <StatCard icon={Tag} label="Discounts Given" value={formatCurrency(summary.totalDiscount)} colorClass="text-rose-500" bgClass="bg-rose-500/10" sub="Total savings" />
               : <StatCard icon={Layers} label="Invoices" value={String(summary.totalInvoices)} colorClass="text-amber-500" bgClass="bg-amber-500/10" sub="All time" />
@@ -2101,6 +2582,38 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             {/* Action Buttons */}
             <div className="flex items-center justify-end p-2.5 sm:p-3 bg-muted/30 border border-border rounded-2xl">
               <div className="flex flex-wrap items-center justify-end gap-2">
+                {(() => {
+                  const isBos = selectedInvoice.invoice_type === 'BILL_OF_SUPPLY';
+                  const isNotConverted = !selectedInvoice.converted_to_invoice_id;
+                  const isKnownExcluded = convertibleMap[selectedInvoice.invoice_id] === false;
+                  const isEligible = isBos && isNotConverted && !isKnownExcluded && (
+                    convertibleMap[selectedInvoice.invoice_id] === true ||
+                    items.length === 0 ||
+                    items.some((it: any) => 
+                      Number(it.tax_amount) > 0 || 
+                      Number(it.cgst_rate) > 0 || 
+                      Boolean(it.hsn_sac_code) || 
+                      Number(it.product_tax_rate_percent) > 0
+                    )
+                  );
+
+                  if (!enableConvertToGst || !isEligible || !isAdminRole(useAuthStore.getState().role)) return null;
+
+                  return (
+                    <button
+                      onClick={() => {
+                        setSelectedInvoiceIds(new Set([selectedInvoice.invoice_id]));
+                        setDrawerOpen(false);
+                        setConversionOpen(true);
+                      }}
+                      className="flex items-center justify-center gap-1.5 px-3.5 h-8 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all text-xs font-black border border-amber-500/30 cursor-pointer active:scale-95 whitespace-nowrap shadow-sm hover:shadow-amber-500/20"
+                      title="Convert this eligible Bill of Supply to a GST Invoice"
+                    >
+                      <ArrowDownRight className="w-3.5 h-3.5 shrink-0" />
+                      <span>Convert to GST</span>
+                    </button>
+                  );
+                })()}
                 {hasPermission(useAuthStore.getState(), 'sales.edit') && (
                   <button onClick={handleEditBill}
                     className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
@@ -2351,104 +2864,234 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             )}
 
             {/* Items */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  Order Items
-                </span>
-                <span className="text-[10px] text-muted-foreground font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</span>
-              </div>
-              <div className="border border-border rounded-xl overflow-hidden bg-card">
-                {/* Table header */}
-                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  <div className="col-span-5">Item</div>
-                  <div className="col-span-2 text-center">Qty</div>
-                  <div className="col-span-2 text-right">Rate</div>
-                  <div className="col-span-3 text-right">Total</div>
-                </div>
-                <div className="divide-y divide-border/30">
-                  {items.length === 0 ? (
-                    <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span className="text-xs font-medium">Loading items…</span>
-                    </div>
-                  ) : items.map((item, i) => {
-                    let comboItemsParsed: any[] | undefined = item.combo_items;
-                    if (!comboItemsParsed && item.combo_details) {
-                      try {
-                        const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
-                        if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
-                      } catch {}
-                    }
-                    const isComboItem = Boolean(item.isCombo || item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+            {(() => {
+              const isGstBill = selectedInvoice.invoice_type === 'GST' || 
+                                Number(selectedInvoice.tax_total) > 0 || 
+                                items.some((it: any) => Number(it.tax_amount) > 0 || Number(it.cgst_rate) > 0 || Number(it.tax_rate) > 0);
 
-                    return (
-                      <div key={item.item_id || i} className={clsx('grid grid-cols-12 px-4 py-2.5 items-center text-xs transition-colors hover:bg-muted/20', i % 2 !== 0 && 'bg-muted/[0.03]')}>
-                        <div className="col-span-5 flex items-center gap-2 min-w-0">
-                          {isComboItem ? (
-                            <div className="p-1 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30 shrink-0">
-                              <Boxes className="w-3.5 h-3.5" />
-                            </div>
-                          ) : (
-                            <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
-                              <Package className="w-3 h-3" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
-                              {isComboItem && (
-                                <span className="text-[9px] font-extrabold text-purple-600 dark:text-purple-400 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase leading-none">
-                                  COMBO OFFER
-                                </span>
-                              )}
-                            </div>
-                            {comboItemsParsed && comboItemsParsed.length > 0 && (
-                              <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
-                                Includes: {comboItemsParsed.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      Order Items
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="border border-border rounded-xl overflow-x-auto bg-card">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead>
+                        {isGstBill ? (
+                          <tr className="bg-muted/40 border-b border-border text-[10px] font-black uppercase tracking-wider text-muted-foreground select-none">
+                            <th className="px-3 py-2.5 min-w-[160px]">Item & HSN</th>
+                            <th className="px-2 py-2.5 text-center whitespace-nowrap">Qty</th>
+                            <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Unit Rate (Excl.)</th>
+                            <th className="px-2.5 py-2.5 text-right whitespace-nowrap">CGST / SGST</th>
+                            <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Taxable Value</th>
+                            <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Unit Rate (Incl.)</th>
+                            <th className="px-3 py-2.5 text-right whitespace-nowrap">Total</th>
+                          </tr>
+                        ) : (
+                          <tr className="bg-muted/40 border-b border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground select-none">
+                            <th className="px-4 py-2.5 min-w-[180px]">Item</th>
+                            <th className="px-2 py-2.5 text-center whitespace-nowrap">Qty</th>
+                            <th className="px-3 py-2.5 text-right whitespace-nowrap">Rate</th>
+                            <th className="px-4 py-2.5 text-right whitespace-nowrap">Total</th>
+                          </tr>
+                        )}
+                      </thead>
+                      <tbody className="divide-y divide-border/30">
+                        {items.length === 0 ? (
+                          <tr>
+                            <td colSpan={isGstBill ? 7 : 4} className="py-6 text-center text-muted-foreground">
+                              <div className="flex items-center justify-center gap-2">
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span className="text-xs font-medium">Loading items…</span>
                               </div>
-                            )}
-                            {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
-                              <span className="text-[9px] text-muted-foreground font-semibold block mt-0.5 truncate">
-                                MRP {formatCurrency(Number(item.originalRate))} → {formatCurrency(Number(item.unit_price))}{item.discountLabel ? ` (${item.discountLabel})` : ''}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {(() => {
+                            </td>
+                          </tr>
+                        ) : items.map((item, i) => {
+                          let comboItemsParsed: any[] | undefined = item.combo_items;
+                          if (!comboItemsParsed && item.combo_details) {
+                            try {
+                              const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+                              if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
+                            } catch {}
+                          }
+                          const isComboItem = Boolean(item.isCombo || item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+
+                          const itemTax = Number(item.tax_amount) || 0;
+                          const itemTotal = Number(item.total) || 0;
+                          const qty = Number(item.quantity) || 1;
+                          const unitPriceExcl = Number(item.unit_price) || 0;
+                          const itemCgstRate = Number(item.cgst_rate) || 0;
+                          const itemSgstRate = Number(item.sgst_rate) || 0;
+                          const itemIgstRate = Number(item.igst_rate) || 0;
+                          const directRate = Number(item.tax_rate) || (itemCgstRate + itemSgstRate + itemIgstRate);
+
+                          // Taxable base (Base Amount = Total - Tax or Qty * Unit Price)
+                          const taxableBase = itemTotal > itemTax 
+                            ? Math.round((itemTotal - itemTax) * 100) / 100 
+                            : Math.round((qty * unitPriceExcl) * 100) / 100;
+
+                          // Unit price including tax
+                          const unitPriceIncl = qty > 0 
+                            ? Math.round((itemTotal / qty) * 100) / 100 
+                            : (unitPriceExcl + itemTax);
+
+                          let calculatedRate = directRate;
+                          if (!calculatedRate || calculatedRate <= 0) {
+                            if (taxableBase > 0 && itemTax > 0) {
+                              calculatedRate = Math.round((itemTax / taxableBase) * 100 * 10) / 10;
+                            }
+                          }
+                          const itemTaxRate = calculatedRate > 0 ? calculatedRate : 0;
+                          const itemHsn = item.hsn_sac_code || item.hsn_code || (item as any).hsn;
+                          const isInterItem = selectedInvoice.supply_type === 'INTER' || itemIgstRate > 0;
+                          const effCgstR = itemCgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
+                          const effSgstR = itemSgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
+                          const effIgstR = itemIgstRate || (isInterItem && itemTaxRate > 0 ? itemTaxRate : 0);
+                          const effCgstAmt = Number(item.cgst_amount) || (!isInterItem && itemTax > 0 ? Math.round((itemTax / 2) * 100) / 100 : 0);
+                          const effSgstAmt = Number(item.sgst_amount) || (!isInterItem && itemTax > 0 ? Math.round((itemTax / 2) * 100) / 100 : 0);
+                          const effIgstAmt = Number(item.igst_amount) || (isInterItem && itemTax > 0 ? itemTax : 0);
+
                           const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
                           const isWeight = item.billing_type === 'WEIGHT' || 
                                            weightUoms.includes((item.unit || '').toLowerCase()) ||
                                            (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold));
                           const pcs = item.pieces_sold ?? item.pieces_override;
-                          if (isWeight) {
-                            return (
-                              <div className="col-span-2 text-center font-bold text-foreground/70">
-                                {pcs ? (
-                                  <div className="flex flex-col items-center leading-tight">
-                                    <span className="text-xs text-foreground font-black">{pcs} Pcs</span>
-                                    <span className="text-[10px] text-muted-foreground font-semibold">{item.quantity} {item.unit || 'Kg'}</span>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-foreground font-bold">{item.quantity} {item.unit || 'Kg'}</span>
-                                )}
-                              </div>
-                            );
-                          }
+
                           return (
-                            <div className="col-span-2 text-center font-bold text-foreground/70">
-                              <span className="text-xs text-foreground font-bold">{item.quantity} Pcs</span>
-                            </div>
+                            <tr 
+                              key={item.item_id || i}
+                              className={clsx(
+                                'transition-colors hover:bg-muted/15',
+                                i % 2 !== 0 && 'bg-muted/[0.02]'
+                              )}
+                            >
+                              {/* 1. Item NAME & HSN CODE */}
+                              <td className="px-3 py-2.5 align-middle min-w-[160px]">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {isComboItem ? (
+                                    <div className="p-1 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30 shrink-0">
+                                      <Boxes className="w-3.5 h-3.5" />
+                                    </div>
+                                  ) : (
+                                    <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
+                                      <Package className="w-3 h-3" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
+                                      {isComboItem && (
+                                        <span className="text-[9px] font-extrabold text-purple-600 dark:text-purple-400 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase leading-none">
+                                          COMBO
+                                        </span>
+                                      )}
+                                      {itemHsn && (
+                                        <span className="text-[9px] font-mono font-bold text-muted-foreground bg-muted/80 border border-border px-1.5 py-0.5 rounded leading-none" title={`HSN/SAC: ${itemHsn}`}>
+                                          HSN: {itemHsn}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {comboItemsParsed && comboItemsParsed.length > 0 && (
+                                      <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
+                                        Includes: {comboItemsParsed.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+                                      </div>
+                                    )}
+                                    {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
+                                      <span className="text-[9px] text-muted-foreground font-semibold block mt-0.5 truncate">
+                                        MRP {formatCurrency(Number(item.originalRate))} → {formatCurrency(Number(item.unit_price))}{item.discountLabel ? ` (${item.discountLabel})` : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* 2. Qty */}
+                              <td className="px-2 py-2.5 text-center font-bold text-foreground/80 align-middle whitespace-nowrap">
+                                {isWeight ? (
+                                  pcs ? (
+                                    <div className="flex flex-col items-center leading-tight">
+                                      <span className="text-xs text-foreground font-black">{pcs} Pcs</span>
+                                      <span className="text-[10px] text-muted-foreground font-semibold">{item.quantity} {item.unit || 'Kg'}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-foreground font-bold">{item.quantity} {item.unit || 'Kg'}</span>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-foreground font-bold">{item.quantity} Pcs</span>
+                                )}
+                              </td>
+
+                              {/* 3. Unit Rate excl. tax */}
+                              <td className="px-2.5 py-2.5 text-right align-middle whitespace-nowrap">
+                                <div className="text-foreground/85 font-mono font-semibold">{formatCurrency(unitPriceExcl)}</div>
+                                {isGstBill && itemTaxRate > 0 && (
+                                  <div className="text-[9.5px] font-medium text-muted-foreground">excl. tax</div>
+                                )}
+                              </td>
+
+                              {/* 4. CGST AMOUNT % , SGST AMOUNT % (DOWN LIKE UNIT RATE) */}
+                              {isGstBill && (
+                                <td className="px-2.5 py-2.5 text-right align-middle whitespace-nowrap">
+                                  {isInterItem ? (
+                                    <div className="font-mono text-right leading-tight">
+                                      <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                                        IGST: {formatCurrency(effIgstAmt)}
+                                      </div>
+                                      <div className="text-[9.5px] text-muted-foreground font-medium">({effIgstR}%)</div>
+                                    </div>
+                                  ) : (effCgstAmt > 0 || effSgstAmt > 0) ? (
+                                    <div className="font-mono text-right leading-tight space-y-0.5">
+                                      <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                                        CGST: {formatCurrency(effCgstAmt)} <span className="text-[9.5px] font-medium text-muted-foreground">({effCgstR}%)</span>
+                                      </div>
+                                      <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                                        SGST: {formatCurrency(effSgstAmt)} <span className="text-[9.5px] font-medium text-muted-foreground">({effSgstR}%)</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground font-mono text-[11px]">-</span>
+                                  )}
+                                </td>
+                              )}
+
+                              {/* 5. TAXABLE VALUE */}
+                              {isGstBill && (
+                                <td className="px-2.5 py-2.5 text-right align-middle whitespace-nowrap">
+                                  <div className="font-mono font-bold text-foreground">{formatCurrency(taxableBase)}</div>
+                                  {itemTax > 0 ? (
+                                    <div className="text-[10px] text-amber-700 dark:text-amber-400 font-mono font-semibold">
+                                      Tax: {formatCurrency(itemTax)}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[9.5px] text-muted-foreground font-medium">Tax: ₹0.00</div>
+                                  )}
+                                </td>
+                              )}
+
+                              {/* 6. UNIT RATE INCL TAX */}
+                              {isGstBill && (
+                                <td className="px-2.5 py-2.5 text-right align-middle whitespace-nowrap">
+                                  <div className="font-mono font-semibold text-foreground">{formatCurrency(unitPriceIncl)}</div>
+                                  <div className="text-[9.5px] font-medium text-muted-foreground">incl. tax</div>
+                                </td>
+                              )}
+
+                              {/* 7. TOTAL */}
+                              <td className="px-3 py-2.5 text-right align-middle whitespace-nowrap">
+                                <div className="font-mono font-black text-foreground text-sm">{formatCurrency(itemTotal)}</div>
+                              </td>
+                            </tr>
                           );
-                        })()}
-                        <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
-                        <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
-                      </div>
-                    );
-                  })}
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Totals */}
             {(() => {
@@ -2471,12 +3114,58 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <span className="text-muted-foreground font-semibold">Subtotal</span>
                       <span className="font-bold text-foreground">{formatCurrency(sub)}</span>
                     </div>
-                    {tax > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground font-semibold">Tax (GST)</span>
-                        <span className="font-bold text-foreground">{formatCurrency(tax)}</span>
-                      </div>
-                    )}
+                    {tax > 0 && (() => {
+                      const effTaxRate = sub > 0 ? Math.round((tax / sub) * 100 * 10) / 10 : 0;
+                      const isInter = selectedInvoice.supply_type === 'INTER';
+                      let cgst = Number(selectedInvoice.cgst_total) || 0;
+                      let sgst = Number(selectedInvoice.sgst_total) || 0;
+                      let igst = Number(selectedInvoice.igst_total) || 0;
+                      if (!isInter && cgst === 0 && sgst === 0 && igst === 0) {
+                        cgst = Math.round((tax / 2) * 100) / 100;
+                        sgst = Math.round((tax / 2) * 100) / 100;
+                      } else if (isInter && igst === 0) {
+                        igst = tax;
+                      }
+                      const cgstRate = effTaxRate > 0 ? Math.round((effTaxRate / 2) * 10) / 10 : 0;
+                      const sgstRate = effTaxRate > 0 ? Math.round((effTaxRate / 2) * 10) / 10 : 0;
+                      const igstRate = effTaxRate;
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
+                              <span>Tax (GST{effTaxRate > 0 ? ` ${effTaxRate}%` : ''})</span>
+                            </span>
+                            <span className="font-bold text-foreground font-mono">{formatCurrency(tax)}</span>
+                          </div>
+                          {(cgst > 0 || sgst > 0 || igst > 0) && (
+                            <div className="p-2.5 rounded-xl bg-amber-500/[0.05] dark:bg-amber-500/[0.10] border border-amber-500/20 my-1 space-y-1 text-xs">
+                              <div className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center justify-between pb-1 border-b border-amber-500/15">
+                                <span>GST Tax Summary</span>
+                                <span className="font-mono font-bold">{formatCurrency(tax)}</span>
+                              </div>
+                              {cgst > 0 && (
+                                <div className="flex justify-between text-muted-foreground text-[11px]">
+                                  <span>Central Tax (CGST {cgstRate > 0 ? `${cgstRate}%` : ''})</span>
+                                  <span className="font-mono font-bold text-foreground">{formatCurrency(cgst)}</span>
+                                </div>
+                              )}
+                              {sgst > 0 && (
+                                <div className="flex justify-between text-muted-foreground text-[11px]">
+                                  <span>State Tax (SGST {sgstRate > 0 ? `${sgstRate}%` : ''})</span>
+                                  <span className="font-mono font-bold text-foreground">{formatCurrency(sgst)}</span>
+                                </div>
+                              )}
+                              {igst > 0 && (
+                                <div className="flex justify-between text-muted-foreground text-[11px]">
+                                  <span>Integrated Tax (IGST {igstRate > 0 ? `${igstRate}%` : ''})</span>
+                                  <span className="font-mono font-bold text-foreground">{formatCurrency(igst)}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {disc > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-rose-500 font-semibold">
@@ -2582,6 +3271,49 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <span className="text-lg font-black text-foreground">{formatCurrency(preDeductionTotal)}</span>
                     </div>
                   )}
+                </div>
+              );
+            })()}
+
+            {(() => {
+              const isBos = selectedInvoice.invoice_type === 'BILL_OF_SUPPLY';
+              const isNotConverted = !selectedInvoice.converted_to_invoice_id;
+              const isKnownExcluded = convertibleMap[selectedInvoice.invoice_id] === false;
+              const isEligible = isBos && isNotConverted && !isKnownExcluded && (
+                convertibleMap[selectedInvoice.invoice_id] === true ||
+                items.length === 0 ||
+                items.some((it: any) => 
+                  Number(it.tax_amount) > 0 || 
+                  Number(it.cgst_rate) > 0 || 
+                  Boolean(it.hsn_sac_code) || 
+                  Number(it.product_tax_rate_percent) > 0
+                )
+              );
+
+              if (!enableConvertToGst || !isEligible || !isAdminRole(useAuthStore.getState().role)) return null;
+
+              return (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+                      <ArrowDownRight className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-foreground">Eligible for GST Conversion</p>
+                      <p className="text-[10px] text-muted-foreground">Convert this Bill of Supply into a GST tax invoice with full tax breakup.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedInvoiceIds(new Set([selectedInvoice.invoice_id]));
+                      setDrawerOpen(false);
+                      setConversionOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5 shrink-0"
+                  >
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                    Convert to GST
+                  </button>
                 </div>
               );
             })()}
@@ -2817,26 +3549,184 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             </>
           ) : (
             <>
-              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
-                <p className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4" />
-                  Confirm Conversion
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  You are about to convert <strong>{selectedBosInvoices.length}</strong> Bill of Supply invoice{selectedBosInvoices.length !== 1 ? 's' : ''} 
-                  to GST Invoice{selectedBosInvoices.length !== 1 ? 's' : ''}. 
-                  The sale prices will be recalculated using the configured profit percentage. 
-                  GST will be applied, and new GST invoice numbers will be assigned.
-                </p>
+              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span>Confirm Conversion ({selectedBosInvoices.length} Bill{selectedBosInvoices.length !== 1 ? 's' : ''})</span>
+                  </p>
+                  {conversionPreviewLoading && (
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground animate-pulse">
+                      <RefreshCw className="w-3 h-3 animate-spin text-amber-500" />
+                      Calculating...
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-xs space-y-1.5 leading-relaxed">
+                  {conversionPreview?.has_real_gst && (
+                    <div className="flex items-start gap-2 text-foreground/90 font-medium bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-xl">
+                      <span className="text-emerald-500 font-black text-xs shrink-0">✓ Real GST Products:</span>
+                      <span className="text-[11.5px]">
+                        {conversionTaxMode === 'EXCLUSIVE'
+                          ? 'Original BoS price is used as Base price, and GST is added on top (Base + GST).'
+                          : 'Original BoS price is maintained as the Total MRP (GST included inside).'}
+                      </span>
+                    </div>
+                  )}
+
+                  {conversionPreview?.has_paper && (
+                    <div className="flex items-start gap-2 text-foreground/90 font-medium bg-purple-500/10 border border-purple-500/20 px-2.5 py-1.5 rounded-xl">
+                      <span className="text-purple-500 font-black text-xs shrink-0">📄 Paper Products:</span>
+                      <span className="text-[11.5px]">Prices will use their designated Paper MRP / purchase figures.</span>
+                    </div>
+                  )}
+
+                  {conversionPreview?.has_skipped && (
+                    <div className="flex items-start gap-2 text-foreground/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-xl">
+                      <span className="text-amber-500 font-black text-xs shrink-0">⚠️ Non-Paper Estimates:</span>
+                      <span className="text-[11.5px]">Estimate items without GST/Paper purchase records are automatically skipped.</span>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+                    {conversionTaxMode === 'EXCLUSIVE'
+                      ? '➕ Tax Exclusive: GST is calculated and added on top of the base prices. The total invoice amount will increase by the GST amount.'
+                      : '🏷️ Tax Inclusive: Grand total stays fixed, and GST is back-calculated from the price.'}
+                  </p>
+                </div>
               </div>
 
-              <div className="max-h-[300px] overflow-y-auto space-y-1.5">
-                {selectedBosInvoices.map(inv => (
-                  <div key={inv.invoice_id} className="flex items-center justify-between p-2.5 bg-card border border-border rounded-xl text-xs">
-                    <span className="font-bold text-foreground">{inv.invoice_number}</span>
-                    <span className="text-muted-foreground">{formatCurrency(inv.grand_total)}</span>
+              <div className="p-3 bg-muted/30 border border-border/80 rounded-2xl space-y-2">
+                <label className="text-[11px] font-bold text-foreground flex items-center justify-between">
+                  <span>GST Pricing Calculation Mode</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    {conversionTaxMode === 'EXCLUSIVE' ? 'Base price + GST added on top' : 'Grand total fixed, GST included'}
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConversionTaxMode('EXCLUSIVE')}
+                    className={clsx(
+                      'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col',
+                      conversionTaxMode === 'EXCLUSIVE'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-bold shadow-sm'
+                        : 'bg-background border-border text-muted-foreground hover:border-border/80 hover:text-foreground'
+                    )}
+                  >
+                    <span className="text-xs font-bold">Tax Exclusive (+ GST)</span>
+                    <span className="text-[10px] opacity-75 mt-0.5">Calculated price + GST</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConversionTaxMode('INCLUSIVE')}
+                    className={clsx(
+                      'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col',
+                      conversionTaxMode === 'INCLUSIVE'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-bold shadow-sm'
+                        : 'bg-background border-border text-muted-foreground hover:border-border/80 hover:text-foreground'
+                    )}
+                  >
+                    <span className="text-xs font-bold">Tax Inclusive (MRP)</span>
+                    <span className="text-[10px] opacity-75 mt-0.5">Price already includes GST</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between px-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <span>Bill / Invoice</span>
+                  <span>BoS Amount ➔ Converted GST</span>
+                </div>
+                <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-0.5">
+                  {selectedBosInvoices.map(inv => {
+                    const invPreview = conversionPreview?.invoices?.find(p => p.invoice_id === inv.invoice_id);
+                    return (
+                      <div key={inv.invoice_id} className="flex items-center justify-between p-2.5 bg-card border border-border rounded-xl text-xs">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-foreground">{inv.invoice_number}</span>
+                          {invPreview?.skipped_items && invPreview.skipped_items.length > 0 && (
+                            <span className="text-[10px] text-amber-500 font-medium">
+                              {invPreview.skipped_items.length} item{invPreview.skipped_items.length > 1 ? 's' : ''} skipped
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end font-mono">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground text-xs">{formatCurrency(inv.grand_total)}</span>
+                            <span className="text-muted-foreground font-bold text-[10px]">➔</span>
+                            <span className={clsx(
+                              "font-black text-sm",
+                              conversionPreviewLoading ? "opacity-50" : "",
+                              conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500"
+                            )}>
+                              {invPreview ? formatCurrency(invPreview.converted_grand_total) : formatCurrency(inv.grand_total)}
+                            </span>
+                          </div>
+                          {invPreview && invPreview.tax_amount !== undefined && (
+                            <div className="text-[10.5px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                              <span>Base: {formatCurrency(invPreview.taxable_amount ?? (invPreview.converted_grand_total - invPreview.tax_amount))}</span>
+                              <span>•</span>
+                              <span className={clsx(
+                                "font-bold",
+                                conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500"
+                              )}>
+                                GST: {conversionTaxMode === 'EXCLUSIVE' ? '+' : ''}{formatCurrency(invPreview.tax_amount)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Total Summary Breakdown Footer */}
+              <div className="p-3.5 bg-muted/40 border border-border rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Original BoS Total</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {formatCurrency(conversionPreview?.total_bos_amount ?? selectedBosInvoices.reduce((s, i) => s + (Number(i.grand_total) || 0), 0))}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Taxable Amount (Base)</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {formatCurrency(conversionPreview?.total_taxable_amount ?? (conversionPreview?.total_converted_amount ? Math.max(0, conversionPreview.total_converted_amount - (conversionPreview.total_tax_amount || 0)) : selectedBosInvoices.reduce((s, i) => s + (Number(i.grand_total) || 0), 0)))}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className={clsx("font-bold flex items-center gap-1", conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500")}>
+                    <span>GST Tax Amount</span>
+                    <span className="text-[10px] font-normal opacity-80">
+                      ({conversionTaxMode === 'EXCLUSIVE' ? '+ Added on Base' : 'Included in Total'})
+                    </span>
+                  </span>
+                  <span className={clsx("font-mono font-black text-sm", conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500")}>
+                    {conversionTaxMode === 'EXCLUSIVE' ? '+' : ''}{formatCurrency(conversionPreview?.total_tax_amount ?? 0)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border/80">
+                  <div>
+                    <span className="text-xs font-black text-foreground uppercase tracking-wider block">Estimated GST Total</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {conversionTaxMode === 'EXCLUSIVE' ? 'Base + GST Amount' : 'Fixed Total (MRP)'}
+                    </span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <span className={clsx(
+                      "text-lg font-mono font-black",
+                      conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500"
+                    )}>
+                      {formatCurrency(conversionPreview?.total_converted_amount ?? selectedBosInvoices.reduce((s, i) => s + (Number(i.grand_total) || 0), 0))}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-border">
@@ -2850,6 +3740,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           invoice_ids: selectedBosInvoices.map(i => i.invoice_id),
                           tenant_id: tenantId || 'global',
                           user_id: userId || '',
+                          tax_mode: conversionTaxMode,
                         });
                         if (result.success && result.results) {
                           setConversionResults(result.results);

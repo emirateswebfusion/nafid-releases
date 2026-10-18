@@ -2531,6 +2531,21 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       }
       if (type === 'GST') {
         domainAttrsObj.gst_type = newProductIsDummy ? 'PAPER' : 'REAL';
+        if (newProductIsDummy) {
+          if (purchasePrice > 0) {
+            domainAttrsObj.gst_purchase_price = purchasePrice;
+            domainAttrsObj.paper_purchase_price = purchasePrice;
+          }
+          if (basePrice > 0) {
+            domainAttrsObj.paper_mrp = basePrice;
+            domainAttrsObj.paper_base_price = basePrice;
+          }
+        } else {
+          delete domainAttrsObj.paper_purchase_price;
+          delete domainAttrsObj.paper_mrp;
+          delete domainAttrsObj.paper_base_price;
+          delete domainAttrsObj.gst_purchase_price;
+        }
       }
       const res = await window.electronAPI.dbUpdateProduct({
         product_id: editingProductItemId,
@@ -2617,13 +2632,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     }
     if (type === 'GST') {
       domainAttrsObj.gst_type = newProductIsDummy ? 'PAPER' : 'REAL';
-      if (purchasePrice > 0) {
-        domainAttrsObj.gst_purchase_price = purchasePrice;
-        domainAttrsObj.paper_purchase_price = purchasePrice;
-      }
-      if (basePrice > 0) {
-        domainAttrsObj.paper_mrp = basePrice;
-        domainAttrsObj.paper_base_price = basePrice;
+      if (newProductIsDummy) {
+        if (purchasePrice > 0) {
+          domainAttrsObj.gst_purchase_price = purchasePrice;
+          domainAttrsObj.paper_purchase_price = purchasePrice;
+        }
+        if (basePrice > 0) {
+          domainAttrsObj.paper_mrp = basePrice;
+          domainAttrsObj.paper_base_price = basePrice;
+        }
       }
     }
     const res = await window.electronAPI.dbAddProduct({

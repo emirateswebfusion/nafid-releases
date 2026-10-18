@@ -88,6 +88,11 @@ export interface InvoiceData {
   scrapInvoiceNumber?: string;
   returnDeduction?: number;
   returnInvoiceNumber?: string;
+  pointsEarned?: number;
+  previousPointsBalance?: number;
+  pointsRedeemed?: number;
+  pointsRedeemedDiscount?: number;
+  remainingPointsBalance?: number;
   showProductOffers?: boolean;
   showPriceOverrideMrp?: boolean;
   billSettings?: BillSettings;
@@ -537,11 +542,22 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
               <td style="text-align: right; padding-right: 6px;">Return Credit :</td>
               <td style="text-align: right; width: 85px; color: #dc2626;">- ${data.returnDeduction.toFixed(2)}</td>
             </tr>` : ''}
+            ${data.pointsRedeemed && data.pointsRedeemed > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px;">Points Redeemed (${data.pointsRedeemed} pts) :</td>
+              <td style="text-align: right; width: 85px; color: #d97706;">- ${(data.pointsRedeemedDiscount || 0).toFixed(2)}</td>
+            </tr>` : ''}
             <tr style="font-weight: bold; font-size: 13px;">
               <td style="text-align: right; padding-right: 6px; padding-top: 2px;">Total :</td>
               <td style="text-align: right; width: 85px; padding-top: 2px;">${netPayable.toFixed(2)}</td>
             </tr>
           </table>
+
+          ${(data.pointsEarned || data.remainingPointsBalance != null) ? `
+          <div style="margin-top: 8px; padding: 4px 8px; background: #ecfdf5; border: 1px dashed #10b981; border-radius: 4px; font-size: 10px; color: #065f46;">
+            <strong>Loyalty Points:</strong> ${data.pointsEarned ? `Earned: +${data.pointsEarned} pts` : ''} ${data.pointsRedeemed ? `| Redeemed: -${data.pointsRedeemed} pts` : ''} ${data.remainingPointsBalance != null ? `| Balance: ${data.remainingPointsBalance} pts` : ''}
+          </div>
+          ` : ''}
 
           <!-- Signatory Section -->
           ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
@@ -1169,6 +1185,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${data.grandTotal.toFixed(2)}</td></tr>
       ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap Return Amount (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
       ${data.returnDeduction && data.returnDeduction > 0 ? `<tr><td colspan="4" class="text-right">Return Credit (${data.returnInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</td></tr>` : ''}
+      ${data.pointsRedeemed && data.pointsRedeemed > 0 ? `<tr><td colspan="4" class="text-right">Points Redeemed (${data.pointsRedeemed} pts)</td><td class="text-right" style="color:#d97706">-₹${(data.pointsRedeemedDiscount || 0).toFixed(2)}</td></tr>` : ''}
       ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
       <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#ea580c">Refund Amount</td><td class="text-right" style="font-weight:bold;color:#ea580c">₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</td></tr>
       ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
@@ -1177,6 +1194,11 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       ${renderHtmlBalanceRows(data, 'table')}
     </tfoot>
   </table>
+  ${(data.pointsEarned || data.remainingPointsBalance != null) ? `
+  <div style="margin-top: 8px; padding: 6px 12px; background: #ecfdf5; border: 1px dashed #10b981; border-radius: 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; color: #065f46;">
+    <div><strong>Loyalty Points:</strong> ${data.pointsEarned ? `Earned: +${data.pointsEarned} pts` : ''} ${data.pointsRedeemed ? ` | Redeemed: -${data.pointsRedeemed} pts` : ''}</div>
+    ${data.remainingPointsBalance != null ? `<div><strong>Current Balance:</strong> ${data.remainingPointsBalance} pts</div>` : ''}
+  </div>` : ''}
   ${bs?.showDescription !== false && (data.description || data.notes) ? `<div style="margin-top: 10px; font-size: 11px; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px;"><strong style="font-weight: 700; color: #0f172a;">Description / Notes:</strong> ${(data.description || data.notes)!.replace(/\n/g, '<br>')}</div>` : ''}
   ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms &amp; Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
   ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
@@ -1311,6 +1333,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <div class="row total"><span>Grand Total</span><span>₹${data.grandTotal.toFixed(2)}</span></div>
       ${data.scrapDeduction && data.scrapDeduction > 0 ? `<div class="row"><span>Scrap Return Amount (${data.scrapInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</span></div>` : ''}
       ${data.returnDeduction && data.returnDeduction > 0 ? `<div class="row"><span>Return Credit (${data.returnInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</span></div>` : ''}
+      ${data.pointsRedeemed && data.pointsRedeemed > 0 ? `<div class="row"><span>Points Redeemed (${data.pointsRedeemed} pts)</span><span style="color:#d97706">-₹${(data.pointsRedeemedDiscount || 0).toFixed(2)}</span></div>` : ''}
       ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
       <div class="row" style="font-weight:bold;color:#ea580c"><span>Refund Amount</span><span>₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</span></div>
       ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
@@ -1318,6 +1341,12 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       ` : ''}
       ${renderHtmlBalanceRows(data, 'div')}
     </div>
+
+    ${(data.pointsEarned || data.remainingPointsBalance != null) ? `
+    <div style="margin-top: 10px; padding: 6px 12px; background: #ecfdf5; border: 1px dashed #10b981; border-radius: 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; color: #065f46;">
+      <div><strong>Loyalty Points:</strong> ${data.pointsEarned ? `Earned: +${data.pointsEarned} pts` : ''} ${data.pointsRedeemed ? ` | Redeemed: -${data.pointsRedeemed} pts` : ''}</div>
+      ${data.remainingPointsBalance != null ? `<div><strong>Current Balance:</strong> ${data.remainingPointsBalance} pts</div>` : ''}
+    </div>` : ''}
 
     ${data.upiId ? `
     <div class="upi-box" style="text-align: center; margin-top: 15px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
@@ -1465,6 +1494,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${data.grandTotal.toFixed(2)}</td></tr>
         ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap Return Amount (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
         ${data.returnDeduction && data.returnDeduction > 0 ? `<tr><td colspan="4" class="text-right">Return Credit (${data.returnInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.returnDeduction.toFixed(2)}</td></tr>` : ''}
+        ${data.pointsRedeemed && data.pointsRedeemed > 0 ? `<tr><td colspan="4" class="text-right">Points Redeemed (${data.pointsRedeemed} pts)</td><td class="text-right" style="color:#d97706">-₹${(data.pointsRedeemedDiscount || 0).toFixed(2)}</td></tr>` : ''}
         ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
         <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#c2410c">Refund Amount</td><td class="text-right" style="font-weight:bold;color:#c2410c">₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</td></tr>
         ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
@@ -1473,6 +1503,12 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         ${renderHtmlBalanceRows(data, 'table')}
       </tfoot>
     </table>
+
+    ${(data.pointsEarned || data.remainingPointsBalance != null) ? `
+    <div style="margin-top: 8px; padding: 6px 12px; background: #ecfdf5; border: 1px dashed #10b981; border-radius: 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; color: #065f46;">
+      <div><strong>Loyalty Points:</strong> ${data.pointsEarned ? `Earned: +${data.pointsEarned} pts` : ''} ${data.pointsRedeemed ? ` | Redeemed: -${data.pointsRedeemed} pts` : ''}</div>
+      ${data.remainingPointsBalance != null ? `<div><strong>Current Balance:</strong> ${data.remainingPointsBalance} pts</div>` : ''}
+    </div>` : ''}
 
     ${data.upiId ? `
     <div class="upi-box" style="text-align: center; margin-top: 15px; padding: 10px; border: 1px dashed #9ca3af; display: flex; flex-direction: column; align-items: center; justify-content: center;">

@@ -11,8 +11,8 @@ import { getUpiPageConfig, saveUpiPageConfig, type UpiPageConfig, DEFAULT_UPI_PA
 import {
   Landmark, CreditCard, Smartphone, Plus, Pencil, Trash2, X, ArrowDownToLine,
   ArrowUpFromLine, Star, History, Wallet, CheckCircle2, AlertCircle, Search,
-  Copy, Check, Sparkles, Lock, ShieldCheck, ArrowUpRight, Layers, ShoppingCart,
-  FileText, Settings2, ToggleLeft, ToggleRight, RefreshCw
+  Copy, Check, Lightbulb, PlusCircle, Lock, ShieldCheck, ArrowUpRight, Layers, ShoppingCart,
+  FileText, Settings2, ToggleLeft, ToggleRight, RefreshCw, Loader2
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
@@ -154,9 +154,10 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
   const [isSavingTx, setIsSavingTx] = useState(false);
 
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const loadSources = useCallback(async () => {
-    setLoading(true);
+  const loadSources = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       if (window.electronAPI?.dbPaymentGetSources) {
         const res = await window.electronAPI.dbPaymentGetSources(tenantId || '');
@@ -165,9 +166,9 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       const config = await getUpiPageConfig(tenantId || '');
       setUpiPageConfig(config);
     } catch {
-      setSources([]);
+      if (!silent) setSources([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [tenantId]);
 
@@ -287,7 +288,17 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
 
   const toggleSourceDefault = async (s: PaymentSource, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (s.is_default === 1) return;
+    if (s.is_default === 1 || togglingId) return;
+    setTogglingId(s.source_id);
+
+    // Optimistic UI update for instantaneous responsiveness
+    setSources(prev => prev.map(item => {
+      if (item.type === s.type) {
+        return { ...item, is_default: item.source_id === s.source_id ? 1 : 0 };
+      }
+      return item;
+    }));
+
     try {
       const res = await window.electronAPI!.dbPaymentUpdateSource({
         ...s,
@@ -296,18 +307,28 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       });
       if (res.success) {
         showMessage(`"${s.name}" set as default payment method`);
-        await loadSources();
+        await loadSources(true);
       } else {
+        await loadSources(true);
         showMessage(res.error || 'Failed to update default state', 'error');
       }
     } catch (err: any) {
+      await loadSources(true);
       showMessage(err?.message || 'Failed to set default', 'error');
+    } finally {
+      setTogglingId(null);
     }
   };
 
   const toggleSourceEnabled = async (s: PaymentSource, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (togglingId) return;
     const nextState = s.is_enabled !== 1;
+    setTogglingId(s.source_id);
+
+    // Optimistic UI update so toggle feels instant and doesn't flicker or unload the section
+    setSources(prev => prev.map(item => item.source_id === s.source_id ? { ...item, is_enabled: nextState ? 1 : 0 } : item));
+
     try {
       const res = await window.electronAPI!.dbPaymentUpdateSource({
         ...s,
@@ -316,12 +337,18 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       });
       if (res.success) {
         showMessage(`"${s.name}" ${nextState ? 'enabled' : 'disabled'}`);
-        await loadSources();
+        await loadSources(true);
       } else {
+        // Rollback optimistic update on error
+        setSources(prev => prev.map(item => item.source_id === s.source_id ? { ...item, is_enabled: s.is_enabled } : item));
         showMessage(res.error || 'Failed to toggle state', 'error');
       }
     } catch (err: any) {
+      // Rollback optimistic update on error
+      setSources(prev => prev.map(item => item.source_id === s.source_id ? { ...item, is_enabled: s.is_enabled } : item));
       showMessage(err?.message || 'Failed to update state', 'error');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -343,7 +370,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
         showMessage('Payment method deleted');
         setDeleteConfirmOpen(false);
         setSourceToDelete(null);
-        await loadSources();
+        await loadSources(true);
       } else {
         showMessage(res.error || 'Failed to delete payment method', 'error');
       }
@@ -398,7 +425,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       showMessage(txForm.type === 'CASH_IN' ? 'Funds added to account' : 'Funds withdrawn from account');
       setTxForm({ type: 'CASH_IN', amount: '', category: '', notes: '', reference_number: '' });
       await openTransactions(selectedSource);
-      await loadSources();
+      await loadSources(true);
     } catch (e: any) {
       showMessage(e?.message || 'Operation failed', 'error');
     } finally {
@@ -732,28 +759,38 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                           {isOwner && (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button
+                                type="button"
+                                disabled={togglingId === s.source_id}
                                 onClick={e => toggleSourceDefault(s, e)}
                                 title={s.is_default === 1 ? 'Current Default Method' : 'Set as Default Method'}
                                 className={clsx(
                                   'p-2 rounded-xl border transition-all cursor-pointer',
                                   s.is_default === 1
                                     ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
-                                    : 'bg-muted/40 border-border/60 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10'
+                                    : 'bg-muted/40 border-border/60 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10',
+                                  togglingId === s.source_id && 'opacity-60 cursor-wait'
                                 )}
                               >
                                 <Star className={clsx('w-3.5 h-3.5', s.is_default === 1 && 'fill-amber-500')} />
                               </button>
                               <button
+                                type="button"
+                                disabled={togglingId === s.source_id}
                                 onClick={e => toggleSourceEnabled(s, e)}
                                 title={s.is_enabled === 1 ? 'Click to Disable Method' : 'Click to Enable Method'}
                                 className={clsx(
-                                  'p-2 rounded-xl border transition-all text-[11px] font-bold cursor-pointer',
+                                  'p-2 rounded-xl border transition-all text-[11px] font-bold cursor-pointer inline-flex items-center justify-center min-w-[62px]',
                                   s.is_enabled === 1
                                     ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                                    : 'bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400'
+                                    : 'bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400',
+                                  togglingId === s.source_id && 'opacity-60 cursor-wait'
                                 )}
                               >
-                                {s.is_enabled === 1 ? 'Active' : 'Disabled'}
+                                {togglingId === s.source_id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  s.is_enabled === 1 ? 'Active' : 'Disabled'
+                                )}
                               </button>
                             </div>
                           )}
@@ -1233,7 +1270,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                       disabled={isSaving}
                       className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary/25 disabled:opacity-50 cursor-pointer"
                     >
-                      <Sparkles className="w-4 h-4" />
+                      <Check className="w-4 h-4" />
                       <span>{isSaving ? 'Saving Payment Method...' : editing ? 'Save Changes' : 'Link Payment Method'}</span>
                     </button>
                   </div>
@@ -1338,7 +1375,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                 {/* Helpful Tip Box */}
                 <div className="p-4 rounded-2xl bg-card/60 border border-border/60 text-xs text-muted-foreground space-y-1.5 backdrop-blur-md">
                   <div className="font-bold text-foreground flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    <Lightbulb className="w-3.5 h-3.5 text-primary" />
                     <span>Quick Tip</span>
                   </div>
                   <p>Linking bank accounts and UPI IDs accurately helps generate automated settlement reports and clear customer receipts.</p>
@@ -1402,7 +1439,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
               <div className="bg-card/80 border border-border/80 rounded-3xl p-5 shadow-sm backdrop-blur-md space-y-4">
                 <div className="flex items-center justify-between border-b border-border/40 pb-3">
                   <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2 select-none">
-                    <Sparkles className="w-4 h-4 text-primary" />
+                    <PlusCircle className="w-4 h-4 text-primary" />
                     <span>Record Manual Transaction Entry</span>
                   </h3>
                   <div className="flex items-center gap-2">

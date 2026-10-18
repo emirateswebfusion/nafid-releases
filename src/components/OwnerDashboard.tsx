@@ -1,15 +1,25 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3, Sparkles, Globe, ShoppingBag } from 'lucide-react';
+import {
+    ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt,
+    ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes,
+    TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3,
+    Bot, Globe, Megaphone, SlidersHorizontal, GripVertical, ChevronLeft, ChevronRight,
+    RotateCcw, Check
+} from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
-import { useFeatureFlagsStore, cashierPageTitle, isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../featureFlags';
+import { useFeatureFlagsStore, cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../featureFlags';
 import { hasPermission, isAdminRole, formatRoleName } from '../utils/permissions';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { DigitalClock } from './DigitalClock';
+import { useDashboardCardsStore } from '../store/dashboardCardsStore';
+import { DashboardCardCustomizer } from './DashboardCardCustomizer';
+import { RestoreDefaultCardsDialog } from './RestoreDefaultCardsDialog';
+import { Modal } from './ui/Modal';
 
 function timeAgo(timestamp: number): string {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -40,8 +50,7 @@ interface OwnerDashboardProps {
 }
 
 export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffledQuotes, quoteIndex, QUOTES }: OwnerDashboardProps) {
-    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId, role, permissions, isCloudSyncPaused } = useAuthStore();
-    const { setRole } = useCartStore();
+    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId, userId, role, permissions, isCloudSyncPaused } = useAuthStore();
     const { theme, toggleTheme } = useThemeStore();
     const [menuOpen, setMenuOpen] = useState(false);
     const [displayTime, setDisplayTime] = useState('...');
@@ -53,7 +62,24 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [enableScrap, setEnableScrap] = useState(false);
     const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
     const [gridMode, setGridMode] = useState<'2COL' | '3COL'>('2COL');
+    const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+    const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+    const [draggedDashboardCardId, setDraggedDashboardCardId] = useState<string | null>(null);
+    const [dragOverDashboardCardId, setDragOverDashboardCardId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    const {
+        cardOrder,
+        loadCardOrder,
+        setCardOrder,
+        isEditMode,
+        setIsEditMode,
+        resetToDefault
+    } = useDashboardCardsStore();
+
+    useEffect(() => {
+        loadCardOrder(tenantId, userId, role);
+    }, [tenantId, userId, role, loadCardOrder]);
 
     useEffect(() => {
         if (!window.electronAPI || !tenantId) return;
@@ -195,17 +221,26 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             bgColor: 'bg-emerald-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-ecommerce-portal')),
             perm: 'products.view',
-            badge: 'ONLINE'
+            badge: 'NEW'
+        },
+        {
+            id: 'advertisements',
+            title: 'Advertisements & Promotions',
+            desc: 'Create Instagram-style promotional cards & track customer views',
+            icon: Megaphone,
+            color: 'text-amber-500',
+            bgColor: 'bg-amber-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-ads-manager')),
+            badge: 'NEW'
         },
         ...(isAiAssistantAvailable ? [{
             id: 'ai-assistant',
             title: 'AI Business Assistant',
             desc: 'Chat to analyze sales, inventory, customer credit & insights',
-            icon: Sparkles,
+            icon: Bot,
             color: 'text-indigo-500',
             bgColor: 'bg-indigo-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-ai-assistant')),
-            shortcut: 'AI',
             badge: 'NEW',
         }] : []),
         {
@@ -382,7 +417,17 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         history: 'sales_history',
     };
 
-    const visibleCards = cards.filter(c => {
+    // Sort cards according to user's custom sequence
+    const sortedCards = [...cards].sort((a, b) => {
+        const indexA = cardOrder.indexOf(a.id);
+        const indexB = cardOrder.indexOf(b.id);
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+    });
+
+    const visibleCards = sortedCards.filter(c => {
         // 1. Feature Flag check
         if (c.id === 'ai-assistant') {
             if (!isAiAssistantAvailable || (featureFlags && featureFlags.ai_assistant === false)) return false;
@@ -399,6 +444,67 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
         return true;
     });
+
+    const visibleCardIds = visibleCards.map(c => c.id);
+
+    const handleShiftCard = (cardId: string, direction: 'prev' | 'next') => {
+        const visIdx = visibleCardIds.indexOf(cardId);
+        if (visIdx === -1) return;
+        const targetVisIdx = direction === 'prev' ? visIdx - 1 : visIdx + 1;
+        if (targetVisIdx < 0 || targetVisIdx >= visibleCardIds.length) return;
+        const targetId = visibleCardIds[targetVisIdx];
+
+        const current = [...cardOrder];
+        const sourceIdx = current.indexOf(cardId);
+        const targetIdx = current.indexOf(targetId);
+        if (sourceIdx !== -1 && targetIdx !== -1) {
+            const [moved] = current.splice(sourceIdx, 1);
+            current.splice(targetIdx, 0, moved);
+            setCardOrder(current, tenantId, userId, role);
+        }
+    };
+
+    const handleDashboardCardDragStart = (e: React.DragEvent, id: string) => {
+        e.dataTransfer.setData('text/plain', id);
+        e.dataTransfer.effectAllowed = 'move';
+        setDraggedDashboardCardId(id);
+    };
+
+    const handleDashboardCardDragOver = (e: React.DragEvent, id: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragOverDashboardCardId !== id) {
+            setDragOverDashboardCardId(id);
+        }
+    };
+
+    const handleDashboardCardDragEnd = () => {
+        setDraggedDashboardCardId(null);
+        setDragOverDashboardCardId(null);
+    };
+
+    const handleDashboardCardDrop = (e: React.DragEvent, targetId: string) => {
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData('text/plain') || draggedDashboardCardId;
+        if (!sourceId || sourceId === targetId) {
+            setDraggedDashboardCardId(null);
+            setDragOverDashboardCardId(null);
+            return;
+        }
+
+        const current = [...cardOrder];
+        const sourceIdx = current.indexOf(sourceId);
+        const targetIdx = current.indexOf(targetId);
+
+        if (sourceIdx !== -1 && targetIdx !== -1) {
+            const [moved] = current.splice(sourceIdx, 1);
+            current.splice(targetIdx, 0, moved);
+            setCardOrder(current, tenantId, userId, role);
+        }
+
+        setDraggedDashboardCardId(null);
+        setDragOverDashboardCardId(null);
+    };
 
     const canOpenSettings = hasPermission({ role, permissions }, 'settings.view');
 
@@ -466,6 +572,25 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             </div>
                             <span className="w-px h-5 bg-border/40" />
                         </div>
+
+                        {/* Reorder / Customizer Header Action */}
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => setIsEditMode(!isEditMode)}
+                                className={clsx(
+                                    "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 cursor-pointer shadow-xs border",
+                                    isEditMode
+                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                        : "bg-muted/60 hover:bg-muted text-foreground border-border"
+                                )}
+                                title={isEditMode ? "Exit Reorder Mode" : "Enable Reorder Cards Mode"}
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                <span className="hidden md:inline">{isEditMode ? 'Done Reordering' : 'Reorder Cards'}</span>
+                            </button>
+                        </div>
+
+                        {/* Grid Mode Selector */}
                         <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
                             <button
                                 onClick={() => setGridMode('2COL')}
@@ -482,6 +607,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                 <Grid3x3 className="w-4 h-4" />
                             </button>
                         </div>
+
+                        {/* Theme Toggle */}
                         <button
                             onClick={toggleTheme}
                             className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
@@ -489,6 +616,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         >
                             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                         </button>
+
+                        {/* Settings Button */}
                         {canOpenSettings && (
                             <button
                                 onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
@@ -498,6 +627,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                 <Settings className="w-4 h-4" />
                             </button>
                         )}
+
+                        {/* Profile Menu */}
                         <div className="relative" ref={menuRef}>
                             <button
                                 onClick={() => setMenuOpen(!menuOpen)}
@@ -515,12 +646,22 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                             {formatRoleName(role)}
                                         </p>
                                     </div>
-                                    <div className="p-1.5">
+                                    <div className="p-1.5 space-y-1">
+                                        <button
+                                            onClick={() => {
+                                                setMenuOpen(false);
+                                                setShowCustomizeModal(true);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-foreground hover:bg-muted rounded-lg transition-colors text-left cursor-pointer"
+                                        >
+                                            <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                                            <span>Customize Cards Order</span>
+                                        </button>
                                         <button
                                             onClick={() => useAuthStore.getState().logout()}
-                                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left cursor-pointer"
+                                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left cursor-pointer"
                                         >
-                                            <LogOut className="w-4 h-4" />
+                                            <LogOut className="w-3.5 h-3.5" />
                                             <span>Logout</span>
                                         </button>
                                     </div>
@@ -533,6 +674,51 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
             {/* Grid Content */}
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 md:p-8 pb-20 md:pb-8">
+                {/* Reorder Mode Banner */}
+                {isEditMode && (
+                    <div className="mb-6 p-4 rounded-2xl bg-primary/10 border border-primary/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-primary text-primary-foreground shadow-xs">
+                                <GripVertical className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                                    <span>Card Reorder Mode is Active</span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-primary/20 text-primary font-black uppercase tracking-wider">
+                                        Live
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    Drag cards directly or use the ◀ ▶ buttons on each card to shift their position. Order is automatically saved.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button
+                                onClick={() => setShowCustomizeModal(true)}
+                                className="px-3 py-1.5 text-xs font-bold bg-card hover:bg-muted border border-border rounded-xl text-foreground cursor-pointer shadow-xs transition-colors"
+                            >
+                                Open List View
+                            </button>
+                            <button
+                                onClick={() => setShowRestoreDialog(true)}
+                                className="px-3 py-1.5 text-xs font-bold bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground cursor-pointer shadow-xs transition-colors"
+                                title="Reset to factory default sequence (Billing first, Cashier second...)"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5 inline mr-1" />
+                                Reset
+                            </button>
+                            <button
+                                onClick={() => setIsEditMode(false)}
+                                className="px-4 py-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-xl shadow-xs hover:opacity-95 cursor-pointer transition-opacity"
+                            >
+                                <Check className="w-3.5 h-3.5 inline mr-1" />
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {visibleCards.length === 0 ? (
                     <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-8 max-w-md mx-auto">
                         <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4 shadow-sm border border-amber-500/20">
@@ -549,47 +735,154 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         gridMode === '2COL' && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
                         gridMode === '3COL' && "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
                     )}>
-                        {visibleCards.map((card) => (
-                            <Card
-                                key={card.id}
-                                onClick={card.action}
-                                className="cursor-pointer group flex flex-col text-left hover:border-primary/50 hover:bg-muted/30 transition-all duration-300"
-                            >
-                                <CardHeader className="flex-row items-center justify-between pb-2">
-                                    <div className={clsx(
-                                        "p-3 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105",
-                                        card.bgColor, card.color
-                                    )}>
-                                        <card.icon className="w-6 h-6" />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {(card as any).badge && (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full shadow-2xs">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                {(card as any).badge}
-                                            </span>
-                                        )}
-                                        {card.shortcut && (
-                                            <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-border">
-                                                {card.shortcut}
-                                            </span>
-                                        )}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-1 flex flex-col pt-4">
-                                    <CardTitle className="text-xl mb-2 group-hover:text-primary transition-colors">{card.title}</CardTitle>
-                                    <CardDescription className="text-sm leading-relaxed mb-6">{card.desc}</CardDescription>
-                                    
-                                    <div className="mt-auto flex items-center gap-2 text-xs font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                                        <span>Open</span>
-                                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                        {visibleCards.map((card, cardIndex) => {
+                            const isDragged = draggedDashboardCardId === card.id;
+                            const isDragOver = dragOverDashboardCardId === card.id && !isDragged;
+                            const isFirst = cardIndex === 0;
+                            const isLast = cardIndex === visibleCards.length - 1;
+
+                            return (
+                                <Card
+                                    key={card.id}
+                                    draggable={isEditMode}
+                                    onDragStart={isEditMode ? (e) => handleDashboardCardDragStart(e, card.id) : undefined}
+                                    onDragOver={isEditMode ? (e) => handleDashboardCardDragOver(e, card.id) : undefined}
+                                    onDragEnd={isEditMode ? handleDashboardCardDragEnd : undefined}
+                                    onDrop={isEditMode ? (e) => handleDashboardCardDrop(e, card.id) : undefined}
+                                    onClick={isEditMode ? undefined : card.action}
+                                    className={clsx(
+                                        "flex flex-col text-left transition-all duration-300",
+                                        isEditMode
+                                            ? "cursor-grab active:cursor-grabbing border-dashed border-primary/40 bg-card hover:border-primary select-none"
+                                            : "cursor-pointer group hover:border-primary/50 hover:bg-muted/30",
+                                        isDragged && "opacity-40 scale-[0.98] border-primary ring-2 ring-primary/40",
+                                        isDragOver && "ring-2 ring-primary border-primary bg-primary/10"
+                                    )}
+                                >
+                                    <CardHeader className="flex-row items-center justify-between pb-2">
+                                        <div className="flex items-center gap-2">
+                                            {isEditMode && (
+                                                <div className="flex items-center gap-1 mr-1 text-muted-foreground">
+                                                    <GripVertical className="w-4 h-4 shrink-0" />
+                                                    <span className="px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-mono font-bold text-foreground border border-border">
+                                                        #{cardIndex + 1}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className={clsx(
+                                                "p-3 rounded-xl shadow-sm transition-transform duration-300",
+                                                !isEditMode && "group-hover:scale-105",
+                                                card.bgColor, card.color
+                                            )}>
+                                                <card.icon className="w-6 h-6" />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {isEditMode ? (
+                                                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleShiftCard(card.id, 'prev')}
+                                                        disabled={isFirst}
+                                                        className={clsx(
+                                                            "p-1 rounded transition-colors cursor-pointer",
+                                                            isFirst ? "opacity-30 cursor-not-allowed text-muted-foreground" : "hover:bg-card text-foreground active:scale-95"
+                                                        )}
+                                                        title="Move 1 step left/earlier"
+                                                    >
+                                                        <ChevronLeft className="w-4 h-4" />
+                                                    </button>
+                                                    <span className="text-[10px] font-bold text-muted-foreground px-1">
+                                                        {cardIndex + 1}/{visibleCards.length}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleShiftCard(card.id, 'next')}
+                                                        disabled={isLast}
+                                                        className={clsx(
+                                                            "p-1 rounded transition-colors cursor-pointer",
+                                                            isLast ? "opacity-30 cursor-not-allowed text-muted-foreground" : "hover:bg-card text-foreground active:scale-95"
+                                                        )}
+                                                        title="Move 1 step right/later"
+                                                    >
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {(card as any).badge && (
+                                                        (card as any).badge === 'NEW' ? (
+                                                            <span className="animate-new-badge relative inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-gradient-to-r from-emerald-500/15 via-teal-500/20 to-emerald-500/15 border border-emerald-500/40 dark:border-emerald-400/40 px-2.5 py-0.5 rounded-full select-none">
+                                                                <span className="relative flex h-2 w-2">
+                                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                                </span>
+                                                                <span className="font-extrabold tracking-wider">NEW</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full shadow-2xs">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                                {(card as any).badge}
+                                                            </span>
+                                                        )
+                                                    )}
+                                                    {card.shortcut && (
+                                                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-border">
+                                                            {card.shortcut}
+                                                        </span>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </CardHeader>
+
+                                    <CardContent className="flex-1 flex flex-col pt-4">
+                                        <CardTitle className={clsx("text-xl mb-2 transition-colors", !isEditMode && "group-hover:text-primary")}>
+                                            {card.title}
+                                        </CardTitle>
+                                        <CardDescription className="text-sm leading-relaxed mb-6">
+                                            {card.desc}
+                                        </CardDescription>
+
+                                        <div className="mt-auto flex items-center justify-between text-xs font-bold text-muted-foreground">
+                                            {isEditMode ? (
+                                                <span className="text-[11px] text-primary flex items-center gap-1">
+                                                    <GripVertical className="w-3.5 h-3.5" /> Drag or use ◀ ▶ arrows to move
+                                                </span>
+                                            ) : (
+                                                <div className="flex items-center gap-2 group-hover:text-primary transition-colors">
+                                                    <span>Open</span>
+                                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
                     </div>
                 )}
             </div>
+
+            {/* Customize Cards List Modal */}
+            <Modal
+                isOpen={showCustomizeModal}
+                onClose={() => setShowCustomizeModal(false)}
+                title="Customize Dashboard Cards / കാർഡുകൾ ക്രമീകരിക്കുക"
+                className="max-w-2xl"
+            >
+                <DashboardCardCustomizer
+                    onClose={() => setShowCustomizeModal(false)}
+                    allowedCardIds={visibleCardIds}
+                />
+            </Modal>
+
+            {/* Custom Restore Defaults Confirmation Dialog */}
+            <RestoreDefaultCardsDialog
+                isOpen={showRestoreDialog}
+                onClose={() => setShowRestoreDialog(false)}
+            />
 
             {/* Footer — sync progress bar when syncing, last sync status when idle */}
             {(isSyncing || syncComplete) && syncProgress ? (
@@ -633,4 +926,3 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         </div>
     );
 }
-

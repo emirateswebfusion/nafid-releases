@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3, Building2, ArrowLeft, ShoppingCart, Tag, Percent } from 'lucide-react';
+import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3, Building2, ArrowLeft, ShoppingCart, Tag, Percent, EyeOff, Shield, Lock } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { 
+  type StaffDataMaskingConfig, 
+  DEFAULT_STAFF_DATA_MASKING_CONFIG, 
+  STAFF_DATA_MASKING_KEY, 
+  parseStaffDataMaskingConfig, 
+  isStaffRole, 
+  shouldApplyStaffMasking, 
+  calculateMaskedStockValuation 
+} from '../utils/staffDataMasking';
 
 interface Product {
   product_id: string;
@@ -62,7 +71,8 @@ const reportCache = new Map<string, { products: Product[]; grades: any[]; timest
 
 export function StockReport({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { shopName, tenantId } = useAuthStore();
+  const { shopName, tenantId, role, permissions } = useAuthStore();
+  const [maskingConfig, setMaskingConfig] = useState<StaffDataMaskingConfig>(DEFAULT_STAFF_DATA_MASKING_CONFIG);
   const [products, setProducts] = useState<Product[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
   const [billQuantities, setBillQuantities] = useState<ProductBillQty[]>([]);
@@ -84,16 +94,20 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
 
   useEffect(() => {
-    const loadRealPaperSetting = () => {
+    const loadSettings = () => {
       if (window.electronAPI?.settingsGet) {
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
         }).catch(() => {});
+
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then(val => {
+          if (val) setMaskingConfig(parseStaffDataMaskingConfig(val));
+        }).catch(() => {});
       }
     };
-    loadRealPaperSetting();
-    window.addEventListener('settings:updated', loadRealPaperSetting);
-    return () => window.removeEventListener('settings:updated', loadRealPaperSetting);
+    loadSettings();
+    window.addEventListener('settings:updated', loadSettings);
+    return () => window.removeEventListener('settings:updated', loadSettings);
   }, [tenantId]);
 
   const deferredSearch = useDeferredValue(searchQuery);
@@ -428,6 +442,22 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     };
   }, [filteredProducts, getMrp, gradeMap]);
 
+  const isStaff = isStaffRole(role);
+  const shouldMask = shouldApplyStaffMasking(role, maskingConfig);
+  const canViewCost = !shouldMask || !maskingConfig.hide_purchase_cost_for_staff;
+
+  const maskedStockValue = useMemo(() => {
+    return calculateMaskedStockValuation(totalSellingValue, maskingConfig, isStaff);
+  }, [totalSellingValue, maskingConfig, isStaff]);
+
+  const maskedMrpValue = useMemo(() => {
+    return calculateMaskedStockValuation(totalMrpValue, maskingConfig, isStaff);
+  }, [totalMrpValue, maskingConfig, isStaff]);
+
+  const maskedPurchaseValue = useMemo(() => {
+    return calculateMaskedStockValuation(totalPurchaseValue, maskingConfig, isStaff);
+  }, [totalPurchaseValue, maskingConfig, isStaff]);
+
 
   const handleDownloadCsv = () => {
     const headers = ['Product', 'Category', 'Grade', 'Stock'];
@@ -458,7 +488,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       ];
       if (viewMode !== 'estimate') row.push(bq ? Number(bq.gst_qty).toFixed(0) : '0');
       if (viewMode !== 'gst') row.push(bq ? Number(bq.estimate_qty).toFixed(0) : '0');
-      row.push(weightStr, formatCurrency(Number(p.purchase_price) || 0), formatCurrency(rate), formatCurrency(finalSellingPrice));
+      row.push(weightStr, canViewCost ? formatCurrency(Number(p.purchase_price) || 0) : '•••', formatCurrency(rate), formatCurrency(finalSellingPrice));
       rows.push(row);
     }
     const csvContent = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -522,6 +552,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       + (viewMode !== 'gst' ? estTh : '')
       + '<th class="text-right">Weight</th><th class="text-right">Rate</th><th class="text-right">Value</th>';
 
+    const maskedPrintTotalVal = calculateMaskedStockValuation(totalValueVal, maskingConfig, isStaff);
+    const displayPrintVal = maskedPrintTotalVal.isHidden ? '••••••••' : formatCurrency(maskedPrintTotalVal.displayAmount);
+    const displayPrintStock = (shouldMask && maskingConfig.stock_mask_total_qty) ? '••••' : totalStockVal.toFixed(0);
+
     const html = `<!DOCTYPE html>
       <html>
         <head>
@@ -554,8 +588,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
             <p style="font-size:10px;color:#888;">Generated at ${new Date().toLocaleTimeString('en-IN', { timeZone: getStoreTimezone() })}</p>
           </div>\n\n          <div class="summary-row">
             <div class="summary-card"><div class="value">${totalProductsVal}</div><div class="label">Total Products</div></div>
-            <div class="summary-card"><div class="value">${totalStockVal.toFixed(0)}</div><div class="label">Total Stock</div></div>
-            <div class="summary-card"><div class="value" style="color:#059669;">${formatCurrency(totalValueVal)}</div><div class="label">Stock Value</div></div>
+            <div class="summary-card"><div class="value">${displayPrintStock}</div><div class="label">Total Stock</div></div>
+            <div class="summary-card"><div class="value" style="color:#059669;">${displayPrintVal}</div><div class="label">Stock Value</div></div>
             <div class="summary-card"><div class="value" style="color:${outOfStockVal > 0 ? '#d97706' : '#059669'};">${outOfStockVal}</div><div class="label">Out of Stock</div></div>
           </div>\n\n          <table>
             <thead>
@@ -567,12 +601,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               ${categoryRows}
               <tr class="total-row">
                 <td colspan="3">Grand Total</td>
-                <td class="text-right">${totalStockVal.toFixed(0)}</td>
+                <td class="text-right">${displayPrintStock}</td>
                 ${viewMode !== 'estimate' ? `<td class="text-right">${totalGstQty.toFixed(0)}</td>` : ''}
                 ${viewMode !== 'gst' ? `<td class="text-right">${totalEstQty.toFixed(0)}</td>` : ''}
                 <td class="text-right"></td>
                 <td class="text-right"></td>
-                <td class="text-right" style="color:#059669;">${formatCurrency(totalValueVal)}</td>
+                <td class="text-right" style="color:#059669;">${displayPrintVal}</td>
               </tr>
             </tbody>
           </table>\n\n          <div class="footer">
@@ -741,7 +775,17 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-bold text-foreground truncate">Stock Report</h1>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            </div>
+                {maskingConfig.enabled && !isStaff && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Staff masking is active for staff accounts. Genuine owner figures shown here.">
+                    <Shield className="w-3 h-3" /> Staff Masking Active
+                  </span>
+                )}
+                {maskingConfig.enabled && isStaff && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="Restricted view">
+                    <Lock className="w-3 h-3" /> Protected
+                  </span>
+                )}
+              </div>
             <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
               {loading ? <Skeleton className="h-3 w-16 inline-block align-middle" /> : products.length} products
               {lastUpdated && !loading && (
@@ -851,8 +895,21 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div className="leading-tight text-left min-w-0 flex-1">
-                <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalSellingValue)}</p>
-                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Stock Value</p>
+                <p className="text-2xl font-black text-foreground font-mono truncate">
+                  {loading ? (
+                    <Skeleton className="h-7 w-28" />
+                  ) : maskedStockValue.isHidden ? (
+                    '••••••••'
+                  ) : (
+                    formatCurrency(maskedStockValue.displayAmount)
+                  )}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider">Stock Value</p>
+                  {maskedStockValue.isMasked && !isStaff && (
+                    <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.2 rounded font-bold">Real View</span>
+                  )}
+                </div>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">At selling price</p>
               </div>
             </div>
@@ -868,7 +925,15 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <p className={clsx(
                   "text-2xl font-black font-mono truncate",
                   loading ? "text-foreground" : outOfStockCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
-                )}>{loading ? <Skeleton className="h-7 w-16" /> : totalStock.toFixed(0)}</p>
+                )}>
+                  {loading ? (
+                    <Skeleton className="h-7 w-16" />
+                  ) : (shouldMask && maskingConfig.stock_mask_total_qty) ? (
+                    '••••'
+                  ) : (
+                    totalStock.toFixed(0)
+                  )}
+                </p>
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Stock Health</p>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">{loading ? <Skeleton className="h-3 w-28" /> : (outOfStockCount > 0 ? `${outOfStockCount} out of stock` : 'All in stock')}</p>
               </div>
@@ -879,7 +944,17 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div className="leading-tight text-left min-w-0 flex-1">
-                <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalPurchaseValue)}</p>
+                <p className="text-2xl font-black text-foreground font-mono truncate">
+                  {loading ? (
+                    <Skeleton className="h-7 w-28" />
+                  ) : !canViewCost ? (
+                    '••••••••'
+                  ) : maskedPurchaseValue.isHidden ? (
+                    '••••••••'
+                  ) : (
+                    formatCurrency(maskedPurchaseValue.displayAmount)
+                  )}
+                </p>
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Purchase Value</p>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">At purchase price</p>
               </div>
@@ -890,7 +965,15 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <Tag className="w-5 h-5" />
               </div>
               <div className="leading-tight text-left min-w-0 flex-1">
-                <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalMrpValue)}</p>
+                <p className="text-2xl font-black text-foreground font-mono truncate">
+                  {loading ? (
+                    <Skeleton className="h-7 w-28" />
+                  ) : maskedMrpValue.isHidden ? (
+                    '••••••••'
+                  ) : (
+                    formatCurrency(maskedMrpValue.displayAmount)
+                  )}
+                </p>
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">MRP Value</p>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">At max retail price</p>
               </div>
@@ -904,7 +987,15 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <p className={clsx(
                   "text-2xl font-black font-mono truncate",
                   totalSellingValue - totalPurchaseValue >= 0 ? "text-foreground" : "text-rose-600 dark:text-rose-400"
-                )}>{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalSellingValue - totalPurchaseValue)}</p>
+                )}>
+                  {loading ? (
+                    <Skeleton className="h-7 w-28" />
+                  ) : !canViewCost ? (
+                    '••••••••'
+                  ) : (
+                    formatCurrency(totalSellingValue - totalPurchaseValue)
+                  )}
+                </p>
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Potential Margin</p>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">Selling − purchase</p>
               </div>
@@ -1159,7 +1250,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                               {viewMode !== 'estimate' && enableRealPaperStock && <td className="px-4 py-2.5 text-right text-sm font-bold text-sky-600 dark:text-sky-400 tabular-nums">{p.gstPaperStock.toFixed(0)}</td>}
                               {viewMode !== 'gst' && <td className="px-4 py-2.5 text-right text-sm text-amber-600 dark:text-amber-400">{p.estimateQty.toFixed(0)}</td>}
                               <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-'}</td>
-                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{!canViewCost ? '•••' : formatCurrency(Number(p.purchase_price) || 0)}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(p.rate)}</td>
                               <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(p.finalSellingPrice)}</td>
                             </tr>
@@ -1171,14 +1262,14 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   {!loading && (
                     <tr className="bg-muted/30 border-t-2 border-border">
                       <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
-                      <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
+                      <td className="px-4 py-3 text-right font-black text-sm text-foreground">{(shouldMask && maskingConfig.stock_mask_total_qty) ? '••••' : totalStock.toFixed(0)}</td>
                       {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-bold text-sm text-muted-foreground">{billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0).toFixed(0)}</td>}
                       {viewMode !== 'estimate' && enableRealPaperStock && <td className="px-4 py-3 text-right font-black text-sm text-sky-500 tabular-nums">{filteredProducts.reduce((s, p) => s + (p.paper_stock ?? 0), 0).toFixed(0)}</td>}
                       {viewMode !== 'gst' && <td className="px-4 py-3 text-right font-bold text-sm text-amber-500">{billQuantities.reduce((s, b) => s + Number(b.estimate_qty), 0).toFixed(0)}</td>}
                       <td className="px-4 py-3 text-right"></td>
-                      <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>
-                      <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{formatCurrency(totalMrpValue)}</td>
-                      <td className="px-4 py-3 text-right font-bold text-sm text-emerald-500">{formatCurrency(totalSellingValue)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{!canViewCost || maskedPurchaseValue.isHidden ? '••••••••' : formatCurrency(maskedPurchaseValue.displayAmount)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{maskedMrpValue.isHidden ? '••••••••' : formatCurrency(maskedMrpValue.displayAmount)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-emerald-500">{maskedStockValue.isHidden ? '••••••••' : formatCurrency(maskedStockValue.displayAmount)}</td>
                     </tr>
                   )}
                 </tbody>

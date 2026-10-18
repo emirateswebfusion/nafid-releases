@@ -109,16 +109,32 @@ function resolveDateRange(type, customFrom, customTo, isMal = false) {
   }
   if (customFrom && customTo) {
     const diff = Math.max(1, Math.round((new Date(customTo).getTime() - new Date(customFrom).getTime()) / (1e3 * 60 * 60 * 24)) + 1);
+    let label = isMal ? `${customFrom} \u0D2E\u0D41\u0D24\u0D7D ${customTo} \u0D35\u0D30\u0D46` : `${customFrom} to ${customTo}`;
+    if (customFrom.slice(0, 7) === customTo.slice(0, 7) && customFrom.endsWith("-01")) {
+      const [yStr, mStr] = customFrom.slice(0, 7).split("-");
+      const y = parseInt(yStr, 10);
+      const mIdx = parseInt(mStr, 10) - 1;
+      const lastDayOfM = new Date(y, mIdx + 1, 0).getDate();
+      if (customTo === `${yStr}-${mStr}-${pad(lastDayOfM)}`) {
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const malMonthNames = ["\u0D1C\u0D28\u0D41\u0D35\u0D30\u0D3F", "\u0D2B\u0D46\u0D2C\u0D4D\u0D30\u0D41\u0D35\u0D30\u0D3F", "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D4D", "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D7D", "\u0D2E\u0D47\u0D2F\u0D4D", "\u0D1C\u0D42\u0D7E", "\u0D1C\u0D42\u0D32\u0D48", "\u0D13\u0D17\u0D38\u0D4D\u0D31\u0D4D\u0D31\u0D4D", "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C", "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C\u0D7C", "\u0D28\u0D35\u0D02\u0D2C\u0D7C", "\u0D21\u0D3F\u0D38\u0D02\u0D2C\u0D7C"];
+        label = isMal ? `${malMonthNames[mIdx]} ${y}` : `${monthNames[mIdx]} ${y}`;
+      }
+    } else if (customFrom === customTo) {
+      label = customFrom;
+    }
     return {
       fromDate: customFrom,
       toDate: customTo,
-      label: isMal ? `${customFrom} \u0D2E\u0D41\u0D24\u0D7D ${customTo} \u0D35\u0D30\u0D46` : `${customFrom} to ${customTo}`,
+      label,
       daysCount: diff
     };
   }
   return { fromDate: todayStr, toDate: todayStr, label: todayStr, daysCount: 1 };
 }
 function extractDateFromText(text) {
+  if (!text) return {};
+  const lower = text.toLowerCase();
   const isoMatches = text.match(/\b(\d{4}-\d{2}-\d{2})\b/g);
   if (isoMatches && isoMatches.length >= 2) {
     return { fromDate: isoMatches[0], toDate: isoMatches[1] };
@@ -144,6 +160,93 @@ function extractDateFromText(text) {
       const toStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       return { fromDate: fromStr, toDate: toStr };
     }
+  }
+  const monthMap = {
+    january: { monthIndex: 0, en: "January", ml: "\u0D1C\u0D28\u0D41\u0D35\u0D30\u0D3F" },
+    jan: { monthIndex: 0, en: "January", ml: "\u0D1C\u0D28\u0D41\u0D35\u0D30\u0D3F" },
+    february: { monthIndex: 1, en: "February", ml: "\u0D2B\u0D46\u0D2C\u0D4D\u0D30\u0D41\u0D35\u0D30\u0D3F" },
+    feb: { monthIndex: 1, en: "February", ml: "\u0D2B\u0D46\u0D2C\u0D4D\u0D30\u0D41\u0D35\u0D30\u0D3F" },
+    march: { monthIndex: 2, en: "March", ml: "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D4D" },
+    mar: { monthIndex: 2, en: "March", ml: "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D4D" },
+    april: { monthIndex: 3, en: "April", ml: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D7D" },
+    apr: { monthIndex: 3, en: "April", ml: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D7D" },
+    may: { monthIndex: 4, en: "May", ml: "\u0D2E\u0D47\u0D2F\u0D4D" },
+    june: { monthIndex: 5, en: "June", ml: "\u0D1C\u0D42\u0D7E" },
+    jun: { monthIndex: 5, en: "June", ml: "\u0D1C\u0D42\u0D7E" },
+    july: { monthIndex: 6, en: "July", ml: "\u0D1C\u0D42\u0D32\u0D48" },
+    jul: { monthIndex: 6, en: "July", ml: "\u0D1C\u0D42\u0D32\u0D48" },
+    august: { monthIndex: 7, en: "August", ml: "\u0D13\u0D17\u0D38\u0D4D\u0D31\u0D4D\u0D31\u0D4D" },
+    aug: { monthIndex: 7, en: "August", ml: "\u0D13\u0D17\u0D38\u0D4D\u0D31\u0D4D\u0D31\u0D4D" },
+    september: { monthIndex: 8, en: "September", ml: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C" },
+    sep: { monthIndex: 8, en: "September", ml: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C" },
+    sept: { monthIndex: 8, en: "September", ml: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C" },
+    october: { monthIndex: 9, en: "October", ml: "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C\u0D7C" },
+    oct: { monthIndex: 9, en: "October", ml: "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C\u0D7C" },
+    november: { monthIndex: 10, en: "November", ml: "\u0D28\u0D35\u0D02\u0D2C\u0D7C" },
+    nov: { monthIndex: 10, en: "November", ml: "\u0D28\u0D35\u0D02\u0D2C\u0D7C" },
+    december: { monthIndex: 11, en: "December", ml: "\u0D21\u0D3F\u0D38\u0D02\u0D2C\u0D7C" },
+    dec: { monthIndex: 11, en: "December", ml: "\u0D21\u0D3F\u0D38\u0D02\u0D2C\u0D7C" }
+  };
+  const malRoots = [
+    { root: "\u0D1C\u0D28\u0D41\u0D35\u0D30\u0D3F", idx: 0, en: "January", ml: "\u0D1C\u0D28\u0D41\u0D35\u0D30\u0D3F" },
+    { root: "\u0D2B\u0D46\u0D2C\u0D4D\u0D30\u0D41\u0D35\u0D30\u0D3F", idx: 1, en: "February", ml: "\u0D2B\u0D46\u0D2C\u0D4D\u0D30\u0D41\u0D35\u0D30\u0D3F" },
+    { root: "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D4D", idx: 2, en: "March", ml: "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D4D" },
+    { root: "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D3F", idx: 2, en: "March", ml: "\u0D2E\u0D3E\u0D7C\u0D1A\u0D4D\u0D1A\u0D4D" },
+    { root: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D7D", idx: 3, en: "April", ml: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D7D" },
+    { root: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F", idx: 3, en: "April", ml: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D7D" },
+    { root: "\u0D2E\u0D47\u0D2F\u0D4D", idx: 4, en: "May", ml: "\u0D2E\u0D47\u0D2F\u0D4D" },
+    { root: "\u0D1C\u0D42\u0D7E", idx: 5, en: "June", ml: "\u0D1C\u0D42\u0D7E" },
+    { root: "\u0D1C\u0D42\u0D23\u0D3F", idx: 5, en: "June", ml: "\u0D1C\u0D42\u0D7E" },
+    { root: "\u0D1C\u0D42\u0D32\u0D48", idx: 6, en: "July", ml: "\u0D1C\u0D42\u0D32\u0D48" },
+    { root: "\u0D13\u0D17\u0D38\u0D4D\u0D31\u0D4D\u0D31\u0D4D", idx: 7, en: "August", ml: "\u0D13\u0D17\u0D38\u0D4D\u0D31\u0D4D\u0D31\u0D4D" },
+    { root: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C", idx: 8, en: "September", ml: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C" },
+    { root: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C", idx: 8, en: "September", ml: "\u0D38\u0D46\u0D2A\u0D4D\u0D31\u0D4D\u0D31\u0D02\u0D2C\u0D7C" },
+    { root: "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C\u0D7C", idx: 9, en: "October", ml: "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C\u0D7C" },
+    { root: "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C", idx: 9, en: "October", ml: "\u0D12\u0D15\u0D4D\u0D1F\u0D4B\u0D2C\u0D7C" },
+    { root: "\u0D28\u0D35\u0D02\u0D2C\u0D7C", idx: 10, en: "November", ml: "\u0D28\u0D35\u0D02\u0D2C\u0D7C" },
+    { root: "\u0D28\u0D35\u0D02\u0D2C", idx: 10, en: "November", ml: "\u0D28\u0D35\u0D02\u0D2C\u0D7C" },
+    { root: "\u0D21\u0D3F\u0D38\u0D02\u0D2C\u0D7C", idx: 11, en: "December", ml: "\u0D21\u0D3F\u0D38\u0D02\u0D2C\u0D7C" },
+    { root: "\u0D21\u0D3F\u0D38\u0D02\u0D2C", idx: 11, en: "December", ml: "\u0D21\u0D3F\u0D38\u0D02\u0D2C\u0D7C" }
+  ];
+  let foundMonthInfo = null;
+  const malFound = malRoots.find((m) => text.includes(m.root));
+  if (malFound) {
+    foundMonthInfo = { monthIndex: malFound.idx, en: malFound.en, ml: malFound.ml, matchedWord: malFound.root };
+  } else {
+    const enMatch = lower.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/i);
+    if (enMatch) {
+      const word = enMatch[0].toLowerCase();
+      if (word === "may") {
+        const isMayMonth = /(?:in|of|during|for|from|to|\b\d{1,2}(?:st|nd|rd|th)?|\b20\d\d)\s+may\b|\bmay\s+(?:month|\b\d{1,2}(?:st|nd|rd|th)?|\b20\d\d|sales|sale|revenue|expense|bills|invoices|products|product)/i.test(lower);
+        if (isMayMonth) {
+          foundMonthInfo = { monthIndex: monthMap[word].monthIndex, en: monthMap[word].en, ml: monthMap[word].ml, matchedWord: word };
+        }
+      } else if (monthMap[word]) {
+        foundMonthInfo = { monthIndex: monthMap[word].monthIndex, en: monthMap[word].en, ml: monthMap[word].ml, matchedWord: word };
+      }
+    }
+  }
+  if (foundMonthInfo) {
+    const now = /* @__PURE__ */ new Date();
+    const currentYear = now.getFullYear();
+    const yearMatch = text.match(/\b(20\d\d)\b/);
+    const targetYear = yearMatch ? parseInt(yearMatch[1], 10) : currentYear;
+    const dayBeforeMatch = text.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${foundMonthInfo.matchedWord}\\b`, "i"));
+    const dayAfterMatch = text.match(new RegExp(`\\b${foundMonthInfo.matchedWord}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i"));
+    const dayNumStr = dayBeforeMatch?.[1] || dayAfterMatch?.[1];
+    if (dayNumStr) {
+      const dNum = parseInt(dayNumStr, 10);
+      if (dNum >= 1 && dNum <= 31) {
+        const specificDate = `${targetYear}-${pad(foundMonthInfo.monthIndex + 1)}-${pad(dNum)}`;
+        return { specificDate, fromDate: specificDate, toDate: specificDate, label: `${dNum} ${foundMonthInfo.en} ${targetYear}` };
+      }
+    }
+    const startStr = `${targetYear}-${pad(foundMonthInfo.monthIndex + 1)}-01`;
+    const lastDay = new Date(targetYear, foundMonthInfo.monthIndex + 1, 0).getDate();
+    const endStr = `${targetYear}-${pad(foundMonthInfo.monthIndex + 1)}-${pad(lastDay)}`;
+    const isMalText = isMalayalam(text);
+    const label = isMalText ? `${foundMonthInfo.ml} ${targetYear}` : `${foundMonthInfo.en} ${targetYear}`;
+    return { fromDate: startStr, toDate: endStr, label };
   }
   return {};
 }
@@ -486,6 +589,31 @@ var OfflineAiIntentParser = class {
       if (text.includes("this month") || text.includes("\u0D08 \u0D2E\u0D3E\u0D38\u0D02")) rangeType = "this_month";
       return { intent: "SALES_UNIQUE_CUSTOMERS", domain: "SALES", params: { rangeType } };
     }
+    // Highest / Lowest Month
+    if (
+      /(which|what) month.*(highest|most|best|peak|maximum|lowest|worst|least) sales?/.test(text) ||
+      /(which|what) month.*(highest|most|best|peak|maximum|lowest|worst|least)/.test(text) ||
+      /(highest|lowest|best|worst|peak|maximum|most) (sales|revenue|sale) month/.test(text) ||
+      /(best|top|peak) month for (sales|revenue|sale)/.test(text) ||
+      /month (with|of) (the )?(highest|lowest|best|worst|peak|maximum|most) (sales|revenue|sale)/.test(text) ||
+      ((text.includes('month') || text.includes('\u0D2E\u0D3E\u0D38\u0D02') || text.includes('masam') || text.includes('masathil')) &&
+        (text.includes('highest sales') || text.includes('highest sale') || text.includes('best sales') || text.includes('most sales') || text.includes('lowest sales') || text.includes('worst sales') || text.includes('least sales')) &&
+        !text.includes('day') && !text.includes('\u0D26\u0D3F\u0D35\u0D38\u0D02') && !text.includes('daily') && !text.includes('this month') && !text.includes('ee masam')) ||
+      ((text.includes('\u0D0F\u0D31\u0D4D\u0D31\u0D35\u0D41\u0D02 \u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D') || text.includes('\u0D0F\u0D31\u0D4D\u0D31\u0D35\u0D41\u0D02 \u0D15\u0D41\u0D31\u0D1E\u0D4D\u0D1E') || text.includes('\u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D \u0D35\u0D3F\u0D7D\u0D2A\u0D4D\u0D2A\u0D28') || text.includes('\u0D15\u0D41\u0D31\u0D1E\u0D4D\u0D1E \u0D35\u0D3F\u0D7D\u0D2A\u0D4D\u0D2A\u0D28')) && (text.includes('\u0D38\u0D46\u0D2F\u0D3F\u0D7D\u0D38\u0D4D') || text.includes('\u0D35\u0D3F\u0D7D\u0D2A\u0D4D\u0D2A\u0D28')) && (text.includes('\u0D2E\u0D3E\u0D38\u0D02') || text.includes('month')) && !text.includes('\u0D26\u0D3F\u0D35\u0D38\u0D02') && !text.includes('day')) ||
+      ((text.includes('ethu') || text.includes('\u0D0F\u0D24\u0D4D') || text.includes('\u0D0F\u0D24\u0D41')) && (text.includes('masam') || text.includes('masathil') || text.includes('month') || text.includes('\u0D2E\u0D3E\u0D38\u0D02')) && (text.includes('highest') || text.includes('kooduthal') || text.includes('best') || text.includes('\u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D') || text.includes('lowest') || text.includes('kuranja') || text.includes('\u0D15\u0D41\u0D31\u0D1E\u0D4D\u0D1E')))
+    ) {
+      const isLowest = text.includes('lowest') || text.includes('worst') || text.includes('least') || text.includes('\u0D15\u0D41\u0D31\u0D1E\u0D4D\u0D1E') || text.includes('kuranja');
+      let year = undefined;
+      const yearMatch = text.match(/\b(20\d\d)\b/);
+      if (yearMatch) {
+        year = yearMatch[1];
+      } else if (text.includes('this year') || text.includes('\u0D08 \u0D35\u0D7C\u0D37\u0D02')) {
+        year = String(new Date().getFullYear());
+      } else if (text.includes('last year') || text.includes('\u0D15\u0D34\u0D3F\u0D1E\u0D4D\u0D1E \u0D35\u0D7C\u0D37\u0D02')) {
+        year = String(new Date().getFullYear() - 1);
+      }
+      return { intent: 'SALES_HIGHEST_MONTH', domain: 'SALES', params: { isLowest, year } };
+    }
     if (text.includes("highest sales day") || text.includes("highest sales this month") || text.includes("lowest sales this month") || text.includes("best sales day") || text.includes("\u0D0F\u0D31\u0D4D\u0D31\u0D35\u0D41\u0D02 \u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D") && (text.includes("\u0D38\u0D46\u0D2F\u0D3F\u0D7D\u0D38\u0D4D") || text.includes("\u0D35\u0D3F\u0D7D\u0D2A\u0D4D\u0D2A\u0D28")) && (text.includes("\u0D26\u0D3F\u0D35\u0D38\u0D02") || text.includes("day"))) {
       const isLowest = text.includes("lowest");
       let rangeType = "this_month";
@@ -523,10 +651,23 @@ var OfflineAiIntentParser = class {
       const isLowest = text.includes("lowest") || text.includes("\u0D15\u0D41\u0D31\u0D1E\u0D4D\u0D1E");
       const isRevenue = text.includes("revenue") || text.includes("\u0D35\u0D30\u0D41\u0D2E\u0D3E\u0D28\u0D02");
       let rangeType = "today";
-      if (text.includes("this month") || text.includes("\u0D08 \u0D2E\u0D3E\u0D38\u0D02") || text.includes("month") && !text.includes("today")) rangeType = "this_month";
+      if (dateExtraction.fromDate && dateExtraction.toDate) rangeType = "custom";
+      else if (text.includes("this month") || text.includes("\u0D08 \u0D2E\u0D3E\u0D38\u0D02") || text.includes("month") && !text.includes("today")) rangeType = "this_month";
       else if (text.includes("last month") || text.includes("\u0D15\u0D34\u0D3F\u0D1E\u0D4D\u0D1E \u0D2E\u0D3E\u0D38\u0D02")) rangeType = "last_month";
       else if (text.includes("yesterday") || text.includes("\u0D07\u0D28\u0D4D\u0D28\u0D32\u0D46")) rangeType = "yesterday";
-      return { intent: "TOP_SELLING_PRODUCTS", domain: "SALES", params: { limit, isLowest, isRevenue, rangeType } };
+      return {
+        intent: "TOP_SELLING_PRODUCTS",
+        domain: "SALES",
+        params: {
+          limit,
+          isLowest,
+          isRevenue,
+          rangeType,
+          customFrom: dateExtraction.fromDate,
+          customTo: dateExtraction.toDate,
+          customLabel: dateExtraction.label
+        }
+      };
     }
     const isSalesWord = text.includes("\u0D38\u0D46\u0D2F\u0D3F\u0D7D\u0D38\u0D4D") || text.includes("\u0D35\u0D3F\u0D7D\u0D2A\u0D4D\u0D2A\u0D28") || text.includes("sales") || text.includes("revenue") || text.includes("business") || text.includes("\u0D15\u0D1A\u0D4D\u0D1A\u0D35\u0D1F\u0D02") || text.includes("sell") || text.includes("turnover") || text.includes("intake") || text.includes("takings") || text.includes("\u0D35\u0D30\u0D41\u0D2E\u0D3E\u0D28\u0D02") || text.includes("\u0D35\u0D30\u0D41\u0D2E\u0D3E\u0D28");
     if (isSalesWord || text.includes("report") || text.includes("\u0D31\u0D3F\u0D2A\u0D4D\u0D2A\u0D4B\u0D7C\u0D1F\u0D4D\u0D1F\u0D4D")) {
@@ -683,6 +824,11 @@ function runTests() {
     { query: "Show daily sales trend this month", expectedIntent: "SALES_DAILY_TREND" },
     { query: "\u0D15\u0D34\u0D3F\u0D1E\u0D4D\u0D1E \u0D2E\u0D3E\u0D38\u0D35\u0D41\u0D2E\u0D3E\u0D2F\u0D3F \u0D24\u0D3E\u0D30\u0D24\u0D2E\u0D4D\u0D2F\u0D02 \u0D1A\u0D46\u0D2F\u0D4D\u0D2F\u0D42", expectedIntent: "COMPARE_SALES" },
     { query: "\u0D08 \u0D2E\u0D3E\u0D38\u0D02 \u0D0F\u0D31\u0D4D\u0D31\u0D35\u0D41\u0D02 \u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D \u0D38\u0D46\u0D2F\u0D3F\u0D7D\u0D38\u0D4D \u0D28\u0D1F\u0D28\u0D4D\u0D28 \u0D26\u0D3F\u0D35\u0D38\u0D02 \u0D0F\u0D24\u0D3E\u0D23\u0D4D?", expectedIntent: "SALES_HIGHEST_DAY" },
+    { query: "which month I had the highest sales", expectedIntent: "SALES_HIGHEST_MONTH" },
+    { query: "Which month had the highest sales?", expectedIntent: "SALES_HIGHEST_MONTH" },
+    { query: "What was our highest sales month?", expectedIntent: "SALES_HIGHEST_MONTH" },
+    { query: "\u0D0F\u0D31\u0D4D\u0D31\u0D35\u0D41\u0D02 \u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D \u0D38\u0D46\u0D2F\u0D3F\u0D7D\u0D38\u0D4D \u0D28\u0D1F\u0D28\u0D4D\u0D28 \u0D2E\u0D3E\u0D38\u0D02 \u0D0F\u0D24\u0D3E\u0D23\u0D4D", expectedIntent: "SALES_HIGHEST_MONTH" },
+    { query: "ethu masathilaanu highest sales", expectedIntent: "SALES_HIGHEST_MONTH" },
     // 3.D Invoice Count and Average Metrics
     { query: "How many invoices were created today?", expectedIntent: "SALES_INVOICE_COUNT" },
     { query: "How many bills were created this month?", expectedIntent: "SALES_INVOICE_COUNT" },
@@ -721,6 +867,8 @@ function runTests() {
     { query: "Show the top five best-selling products", expectedIntent: "TOP_SELLING_PRODUCTS", expectedParams: { limit: 5 } },
     { query: "Which product generated the highest revenue?", expectedIntent: "TOP_SELLING_PRODUCTS", expectedParams: { isRevenue: true } },
     { query: "\u0D0F\u0D31\u0D4D\u0D31\u0D35\u0D41\u0D02 \u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D \u0D35\u0D3F\u0D31\u0D4D\u0D31\u0D41\u0D2A\u0D4B\u0D2F 5 \u0D2A\u0D4D\u0D30\u0D4B\u0D21\u0D15\u0D4D\u0D31\u0D4D\u0D31\u0D41\u0D15\u0D7E \u0D24\u0D30\u0D42", expectedIntent: "TOP_SELLING_PRODUCTS", expectedParams: { limit: 5 } },
+    { query: "Top selling product in april", expectedIntent: "TOP_SELLING_PRODUCTS" },
+    { query: "\u0D0F\u0D2A\u0D4D\u0D30\u0D3F\u0D32\u0D3F\u0D32\u0D46 \u0D15\u0D42\u0D1F\u0D41\u0D24\u0D7D \u0D35\u0D3F\u0D31\u0D4D\u0D31 \u0D09\u0D7D\u0D2A\u0D4D\u0D2A\u0D28\u0D4D\u0D28\u0D19\u0D4D\u0D19\u0D7E", expectedIntent: "TOP_SELLING_PRODUCTS" },
     // 3.I Customer-Level Sales
     { query: "Which customers purchased the most this month?", expectedIntent: "SALES_CUSTOMER_LEVEL" },
     { query: "Show top spending customers", expectedIntent: "SALES_CUSTOMER_LEVEL" },

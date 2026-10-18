@@ -19,6 +19,7 @@ export type FeatureKey =
   | 'staff_attendance'
   | 'biller_pin'
   | 'sales_staff'
+  | 'staff_credit_billing'
   | 'sales_history'
   | 'loyalty'
   | 'ecommerce'
@@ -56,6 +57,7 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'staff_attendance', label: 'Enable Staff Attendance', desc: 'Track daily staff attendance, leaves, and working hours' },
   { key: 'biller_pin', label: 'Enable Biller PIN', desc: 'Require 4-digit PIN verification when printing bills for accountability' },
   { key: 'sales_staff', label: 'Enable Customer Handler / Sales Staff', desc: 'Allow selecting customer handler / sales staff on billing for sales attribution' },
+  { key: 'staff_credit_billing', label: 'Show Staff in Billing & Ledger', desc: 'Show staff in customer search and record staff credit purchases directly in staff ledger' },
   { key: 'sales_history', label: 'Sales History', desc: 'Review past transactions and reports' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
   ...(isAiAssistantAvailable ? [
@@ -85,6 +87,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   staff_attendance: false,
   biller_pin: false,
   sales_staff: false,
+  staff_credit_billing: false,
   sales_history: true,
   loyalty: true,
   ai_assistant: isAiAssistantAvailable,

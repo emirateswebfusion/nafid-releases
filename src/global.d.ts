@@ -43,6 +43,8 @@ export interface IElectronAPI {
   dbDeduplicateCustomers: (tenant_id?: string) => Promise<{ success: boolean; error?: string; merged_customers?: number; merged_parties?: number }>;
   dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => Promise<any[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
+  dbAdjustCustomerLoyaltyPoints: (params: { customer_id: string; tenant_id: string; points: number; reason?: string; user_name?: string }) => Promise<{ success: boolean; new_balance?: number; transaction_id?: string; error?: string }>;
+  dbRecalculateCustomerLoyaltyPoints: (params: { tenant_id: string }) => Promise<{ success: boolean; updatedCount?: number; error?: string }>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;
   dbAddGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
@@ -106,6 +108,14 @@ export interface IElectronAPI {
   whatsappDisconnect: () => Promise<{ success: boolean; error?: string }>;
   whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
   onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
+  // Shop Closing Overview WhatsApp APIs
+  shopClosingGetConfig: (params: { tenant_id?: string }) => Promise<any>;
+  shopClosingSaveConfig: (params: { tenant_id?: string; config: any; user_role?: string }) => Promise<{ success: boolean; error?: string; config?: any }>;
+  shopClosingGetPreview: (params: { tenant_id?: string; business_date?: string; checklist?: any }) => Promise<{ success: boolean; summary?: any; message?: string; error?: string }>;
+  shopClosingSendReport: (params: { tenant_id?: string; business_date?: string; trigger_type?: string; force?: boolean; custom_phone?: string; custom_checklist?: any }) => Promise<{ success: boolean; messageId?: string; error?: string; reportId?: string }>;
+  shopClosingGetHistory: (params: { tenant_id?: string; limit?: number }) => Promise<any[]>;
+  shopClosingRetry: (params: { report_id: string }) => Promise<{ success: boolean; error?: string }>;
+  onShopClosingUpdated: (callback: () => void) => () => void;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: any) => void) => void;
@@ -117,7 +127,25 @@ export interface IElectronAPI {
   onSyncProgress: (callback: (progress: SyncProgress) => void) => (() => void) | void;
   onTokenExpired: (callback: () => void) => (() => void) | void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
-  dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string }) => Promise<{ success: boolean; results?: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[]; error?: string }>;
+  dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => Promise<{ success: boolean; results?: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[]; error?: string }>;
+  dbPreviewConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => Promise<{
+    success: boolean;
+    invoices?: {
+      invoice_id: string;
+      invoice_number: string;
+      bos_grand_total: number;
+      converted_grand_total: number;
+      has_real_gst: boolean;
+      has_paper: boolean;
+      skipped_items: string[];
+    }[];
+    total_bos_amount?: number;
+    total_converted_amount?: number;
+    has_real_gst?: boolean;
+    has_paper?: boolean;
+    has_skipped?: boolean;
+    error?: string;
+  }>;
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
@@ -262,6 +290,10 @@ export interface IElectronAPI {
   ecommerceSyncProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; remoteId?: number; error?: string }>;
   ecommerceUnpublishProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; error?: string }>;
   ecommerceGetOrders: (payload: { tenant_id: string }) => Promise<{ success: boolean; orders: any[]; error?: string }>;
+
+  // Emergency Purge & Kill Switch
+  dbEmergencyPurge?: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string }) => Promise<{ success: boolean; clearedTables?: string[]; error?: string }>;
+  onEmergencyPurged?: (callback: (data: { wipeMode: string; reason?: string }) => void) => (() => void);
 }
 
 

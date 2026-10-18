@@ -41,6 +41,8 @@ import { useFeatureFlagsStore, isAiAssistantAvailable, type FeatureKey } from '.
 import { SplashScreen } from './components/SplashScreen';
 import { AiAssistant } from './components/AiAssistant';
 import { EcommercePortal } from './components/EcommercePortal';
+import { AdsManager } from './components/AdsManager';
+import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
 
 function App() {
   const [showAiAssistant, setShowAiAssistant] = useState(false);
@@ -57,6 +59,16 @@ function App() {
   const [printReceiptData, setPrintReceiptData] = useState<string | null>(null);
   const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
   const [showPrintA4, setShowPrintA4] = useState(false);
+
+  const {
+    showPinPrompt,
+    setShowPinPrompt,
+    enteredPin,
+    setEnteredPin,
+    pinError,
+    handlePinSubmit,
+    isPurging
+  } = useEmergencyPanicTrigger();
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
@@ -125,6 +137,7 @@ function App() {
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [showCustomersPage, setShowCustomersPage] = useState(false);
   const [showEcommercePortal, setShowEcommercePortal] = useState(false);
+  const [showAdsManager, setShowAdsManager] = useState(false);
   const [cameFromCustomers, setCameFromCustomers] = useState(false);
   const [customerTarget, setCustomerTarget] = useState<string | undefined>(undefined);
   const [showPaymentsPage, setShowPaymentsPage] = useState(false);
@@ -550,6 +563,7 @@ function App() {
       setShowComboManager(false);
       setShowFinancialReport(false);
       setShowAiAssistant(false);
+      setShowAdsManager(false);
       setRestrictedActivePage('BILLING');
     };
 
@@ -573,10 +587,12 @@ function App() {
       setShowComboManager(false);
       setShowFinancialReport(false);
       setShowAiAssistant(false);
+      setShowAdsManager(false);
       setRestrictedActivePage('');
     };
 
     const handleOpenComboManager = () => setShowComboManager(true);
+    const handleOpenAdsManager = () => setShowAdsManager(true);
     const handleOpenFinancialReport = () => setShowFinancialReport(true);
     const handleOpenAiAssistant = () => {
       if (isAiAssistantAvailable && canOpen('ai_assistant')) {
@@ -590,6 +606,7 @@ function App() {
     }
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-combo-manager', handleOpenComboManager);
+    window.addEventListener('open-ads-manager', handleOpenAdsManager);
     window.addEventListener('open-financial-report', handleOpenFinancialReport);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
@@ -647,6 +664,7 @@ function App() {
       }
       window.removeEventListener('open-inventory-manager', handleOpenInv);
       window.removeEventListener('open-combo-manager', handleOpenComboManager);
+      window.removeEventListener('open-ads-manager', handleOpenAdsManager);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
       window.removeEventListener('open-sales-history', handleOpenHistory);
       window.removeEventListener('open-staff-manager', handleOpenStaff);
@@ -847,6 +865,8 @@ function App() {
         <PermissionGuard permission="products.view" onBack={() => setShowEcommercePortal(false)}>
           <EcommercePortal onClose={() => setShowEcommercePortal(false)} />
         </PermissionGuard>
+      ) : showAdsManager ? (
+        <AdsManager onClose={() => setShowAdsManager(false)} />
       ) : (showAiAssistant && isAiAssistantAvailable) ? (
         <AiAssistant onClose={() => setShowAiAssistant(false)} />
       ) : restrictedActivePage === 'BILLING' ? (
@@ -870,11 +890,59 @@ function App() {
           useAuthStore.getState().logout();
         }}
         onClose={() => {
-          // User chose to continue working offline â€” just dismiss the modal.
-          // Cloud sync remains paused; status pill in header will show "Re-Login Needed".
           setShowSessionExpiredModal(false);
         }}
       />
+
+      {/* Emergency Panic Quick PIN Verification Modal */}
+      {showPinPrompt && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
+          <form onSubmit={handlePinSubmit} className="bg-card p-6 rounded-2xl border border-border shadow-2xl max-w-xs w-full space-y-4">
+            <div className="text-center space-y-1">
+              <h3 className="text-sm font-bold text-foreground">Security Verification</h3>
+              <p className="text-xs text-muted-foreground">Enter security code to continue</p>
+            </div>
+            <input
+              type="password"
+              autoFocus
+              maxLength={4}
+              value={enteredPin}
+              onChange={(e) => setEnteredPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="••••"
+              className={clsx(
+                "w-full h-11 text-center text-lg tracking-[0.5em] font-mono rounded-xl border bg-background outline-hidden transition-all",
+                pinError ? "border-rose-500 ring-2 ring-rose-500/20" : "border-border focus:border-primary"
+              )}
+            />
+            {pinError && <p className="text-[11px] text-rose-500 text-center font-medium">Invalid security code</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPinPrompt(false)}
+                className="flex-1 h-9 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 h-9 rounded-xl bg-primary text-primary-foreground text-xs font-bold"
+              >
+                Confirm
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Emergency Purging Overlay */}
+      {isPurging && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-3 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
+            <p className="text-xs font-mono text-muted-foreground">Resetting local system...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

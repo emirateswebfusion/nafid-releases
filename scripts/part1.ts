@@ -180,10 +180,27 @@ export function resolveDateRange(
 
   if (customFrom && customTo) {
     const diff = Math.max(1, Math.round((new Date(customTo).getTime() - new Date(customFrom).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    let label = isMal ? `${customFrom} മുതൽ ${customTo} വരെ` : `${customFrom} to ${customTo}`;
+
+    // Check if it spans a full calendar month
+    if (customFrom.slice(0, 7) === customTo.slice(0, 7) && customFrom.endsWith('-01')) {
+      const [yStr, mStr] = customFrom.slice(0, 7).split('-');
+      const y = parseInt(yStr, 10);
+      const mIdx = parseInt(mStr, 10) - 1;
+      const lastDayOfM = new Date(y, mIdx + 1, 0).getDate();
+      if (customTo === `${yStr}-${mStr}-${pad(lastDayOfM)}`) {
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const malMonthNames = ['ജനുവരി', 'ഫെബ്രുവരി', 'മാർച്ച്', 'ഏപ്രിൽ', 'മേയ്', 'ജൂൺ', 'ജൂലൈ', 'ഓഗസ്റ്റ്', 'സെപ്റ്റംബർ', 'ഒക്ടോബർ', 'നവംബർ', 'ഡിസംബർ'];
+        label = isMal ? `${malMonthNames[mIdx]} ${y}` : `${monthNames[mIdx]} ${y}`;
+      }
+    } else if (customFrom === customTo) {
+      label = customFrom;
+    }
+
     return {
       fromDate: customFrom,
       toDate: customTo,
-      label: isMal ? `${customFrom} മുതൽ ${customTo} വരെ` : `${customFrom} to ${customTo}`,
+      label,
       daysCount: diff,
     };
   }
@@ -194,7 +211,10 @@ export function resolveDateRange(
 /**
  * Natural Language Date Extractor
  */
-export function extractDateFromText(text: string): { fromDate?: string; toDate?: string; specificDate?: string } {
+export function extractDateFromText(text: string): { fromDate?: string; toDate?: string; specificDate?: string; label?: string } {
+  if (!text) return {};
+  const lower = text.toLowerCase();
+
   const isoMatches = text.match(/\b(\d{4}-\d{2}-\d{2})\b/g);
   if (isoMatches && isoMatches.length >= 2) {
     return { fromDate: isoMatches[0], toDate: isoMatches[1] };
@@ -224,6 +244,102 @@ export function extractDateFromText(text: string): { fromDate?: string; toDate?:
     }
   }
 
+  // Month Extraction (English & Malayalam)
+  const monthMap: Record<string, { monthIndex: number; en: string; ml: string }> = {
+    january: { monthIndex: 0, en: 'January', ml: 'ജനുവരി' },
+    jan: { monthIndex: 0, en: 'January', ml: 'ജനുവരി' },
+    february: { monthIndex: 1, en: 'February', ml: 'ഫെബ്രുവരി' },
+    feb: { monthIndex: 1, en: 'February', ml: 'ഫെബ്രുവരി' },
+    march: { monthIndex: 2, en: 'March', ml: 'മാർച്ച്' },
+    mar: { monthIndex: 2, en: 'March', ml: 'മാർച്ച്' },
+    april: { monthIndex: 3, en: 'April', ml: 'ഏപ്രിൽ' },
+    apr: { monthIndex: 3, en: 'April', ml: 'ഏപ്രിൽ' },
+    may: { monthIndex: 4, en: 'May', ml: 'മേയ്' },
+    june: { monthIndex: 5, en: 'June', ml: 'ജൂൺ' },
+    jun: { monthIndex: 5, en: 'June', ml: 'ജൂൺ' },
+    july: { monthIndex: 6, en: 'July', ml: 'ജൂലൈ' },
+    jul: { monthIndex: 6, en: 'July', ml: 'ജൂലൈ' },
+    august: { monthIndex: 7, en: 'August', ml: 'ഓഗസ്റ്റ്' },
+    aug: { monthIndex: 7, en: 'August', ml: 'ഓഗസ്റ്റ്' },
+    september: { monthIndex: 8, en: 'September', ml: 'സെപ്റ്റംബർ' },
+    sep: { monthIndex: 8, en: 'September', ml: 'സെപ്റ്റംബർ' },
+    sept: { monthIndex: 8, en: 'September', ml: 'സെപ്റ്റംബർ' },
+    october: { monthIndex: 9, en: 'October', ml: 'ഒക്ടോബർ' },
+    oct: { monthIndex: 9, en: 'October', ml: 'ഒക്ടോബർ' },
+    november: { monthIndex: 10, en: 'November', ml: 'നവംബർ' },
+    nov: { monthIndex: 10, en: 'November', ml: 'നവംബർ' },
+    december: { monthIndex: 11, en: 'December', ml: 'ഡിസംബർ' },
+    dec: { monthIndex: 11, en: 'December', ml: 'ഡിസംബർ' },
+  };
+
+  const malRoots = [
+    { root: 'ജനുവരി', idx: 0, en: 'January', ml: 'ജനുവരി' },
+    { root: 'ഫെബ്രുവരി', idx: 1, en: 'February', ml: 'ഫെബ്രുവരി' },
+    { root: 'മാർച്ച്', idx: 2, en: 'March', ml: 'മാർച്ച്' },
+    { root: 'മാർച്ചി', idx: 2, en: 'March', ml: 'മാർച്ച്' },
+    { root: 'ഏപ്രിൽ', idx: 3, en: 'April', ml: 'ഏപ്രിൽ' },
+    { root: 'ഏപ്രി', idx: 3, en: 'April', ml: 'ഏപ്രിൽ' },
+    { root: 'മേയ്', idx: 4, en: 'May', ml: 'മേയ്' },
+    { root: 'ജൂൺ', idx: 5, en: 'June', ml: 'ജൂൺ' },
+    { root: 'ജൂണി', idx: 5, en: 'June', ml: 'ജൂൺ' },
+    { root: 'ജൂലൈ', idx: 6, en: 'July', ml: 'ജൂലൈ' },
+    { root: 'ഓഗസ്റ്റ്', idx: 7, en: 'August', ml: 'ഓഗസ്റ്റ്' },
+    { root: 'സെപ്റ്റംബർ', idx: 8, en: 'September', ml: 'സെപ്റ്റംബർ' },
+    { root: 'സെപ്റ്റംബ', idx: 8, en: 'September', ml: 'സെപ്റ്റംബർ' },
+    { root: 'ഒക്ടോബർ', idx: 9, en: 'October', ml: 'ഒക്ടോബർ' },
+    { root: 'ഒക്ടോബ', idx: 9, en: 'October', ml: 'ഒക്ടോബർ' },
+    { root: 'നവംബർ', idx: 10, en: 'November', ml: 'നവംബർ' },
+    { root: 'നവംബ', idx: 10, en: 'November', ml: 'നവംബർ' },
+    { root: 'ഡിസംബർ', idx: 11, en: 'December', ml: 'ഡിസംബർ' },
+    { root: 'ഡിസംബ', idx: 11, en: 'December', ml: 'ഡിസംബർ' },
+  ];
+
+  let foundMonthInfo: { monthIndex: number; en: string; ml: string; matchedWord: string } | null = null;
+
+  const malFound = malRoots.find(m => text.includes(m.root));
+  if (malFound) {
+    foundMonthInfo = { monthIndex: malFound.idx, en: malFound.en, ml: malFound.ml, matchedWord: malFound.root };
+  } else {
+    const enMatch = lower.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/i);
+    if (enMatch) {
+      const word = enMatch[0].toLowerCase();
+      if (word === 'may') {
+        const isMayMonth = /(?:in|of|during|for|from|to|\b\d{1,2}(?:st|nd|rd|th)?|\b20\d\d)\s+may\b|\bmay\s+(?:month|\b\d{1,2}(?:st|nd|rd|th)?|\b20\d\d|sales|sale|revenue|expense|bills|invoices|products|product)/i.test(lower);
+        if (isMayMonth) {
+          foundMonthInfo = { monthIndex: monthMap[word].monthIndex, en: monthMap[word].en, ml: monthMap[word].ml, matchedWord: word };
+        }
+      } else if (monthMap[word]) {
+        foundMonthInfo = { monthIndex: monthMap[word].monthIndex, en: monthMap[word].en, ml: monthMap[word].ml, matchedWord: word };
+      }
+    }
+  }
+
+  if (foundMonthInfo) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const yearMatch = text.match(/\b(20\d\d)\b/);
+    const targetYear = yearMatch ? parseInt(yearMatch[1], 10) : currentYear;
+
+    const dayBeforeMatch = text.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${foundMonthInfo.matchedWord}\\b`, 'i'));
+    const dayAfterMatch = text.match(new RegExp(`\\b${foundMonthInfo.matchedWord}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'));
+    const dayNumStr = dayBeforeMatch?.[1] || dayAfterMatch?.[1];
+
+    if (dayNumStr) {
+      const dNum = parseInt(dayNumStr, 10);
+      if (dNum >= 1 && dNum <= 31) {
+        const specificDate = `${targetYear}-${pad(foundMonthInfo.monthIndex + 1)}-${pad(dNum)}`;
+        return { specificDate, fromDate: specificDate, toDate: specificDate, label: `${dNum} ${foundMonthInfo.en} ${targetYear}` };
+      }
+    }
+
+    const startStr = `${targetYear}-${pad(foundMonthInfo.monthIndex + 1)}-01`;
+    const lastDay = new Date(targetYear, foundMonthInfo.monthIndex + 1, 0).getDate();
+    const endStr = `${targetYear}-${pad(foundMonthInfo.monthIndex + 1)}-${pad(lastDay)}`;
+    const isMalText = isMalayalam(text);
+    const label = isMalText ? `${foundMonthInfo.ml} ${targetYear}` : `${foundMonthInfo.en} ${targetYear}`;
+    return { fromDate: startStr, toDate: endStr, label };
+  }
+
   return {};
 }
 
@@ -249,6 +365,7 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
   SALES_GROSS_NET: { id: 'SALES_GROSS_NET', domain: 'SALES', description: 'Gross sales, discounts, returns, and net sales reconciliation', requiredFields: ['grand_total', 'discount_total', 'tax_total'], handler: 'SALES_GROSS_NET' },
   SALES_INVOICE_TYPES: { id: 'SALES_INVOICE_TYPES', domain: 'SALES', description: 'Breakdown by invoice type (GST, Bill of Supply)', requiredFields: ['invoice_type', 'grand_total'], handler: 'SALES_INVOICE_TYPES' },
   SALES_HIGHEST_DAY: { id: 'SALES_HIGHEST_DAY', domain: 'SALES', description: 'Highest or lowest revenue day in a period', requiredFields: ['created_at', 'grand_total'], handler: 'SALES_HIGHEST_DAY' },
+  SALES_HIGHEST_MONTH: { id: 'SALES_HIGHEST_MONTH', domain: 'SALES', description: 'Highest or lowest revenue month across all time or a specific year', requiredFields: ['created_at', 'grand_total'], handler: 'SALES_HIGHEST_MONTH' },
   SALES_DAILY_TREND: { id: 'SALES_DAILY_TREND', domain: 'SALES', description: 'Daily sales trend across calendar days', requiredFields: ['created_at', 'grand_total'], handler: 'SALES_DAILY_TREND' },
   SALES_BILLER_STAFF: { id: 'SALES_BILLER_STAFF', domain: 'SALES', description: 'Sales aggregated by cashier/biller staff', requiredFields: ['user_id', 'biller_staff_id'], handler: 'SALES_BILLER_STAFF' },
   SALES_CUSTOMER_LEVEL: { id: 'SALES_CUSTOMER_LEVEL', domain: 'SALES', description: 'Customer sales volume and spending rankings', requiredFields: ['customer_name', 'customer_phone', 'grand_total'], handler: 'SALES_CUSTOMER_LEVEL' },

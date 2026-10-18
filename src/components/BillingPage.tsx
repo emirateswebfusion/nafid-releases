@@ -1068,6 +1068,7 @@ export function BillingPage() {
 
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [allCustomersList, setAllCustomersList] = useState<any[]>([]);
+  const [allStaffList, setAllStaffList] = useState<any[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(0);
   const customerNameContainerRef = useRef<HTMLDivElement>(null);
@@ -1527,6 +1528,7 @@ export function BillingPage() {
   const customerPhone = activeTab?.customerPhone || '';
   const customerGstin = activeTab?.customerGstin || '';
   const customerAddress = activeTab?.customerAddress || '';
+  const isB2B = (invoiceType === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(activeTab?.isB2B));
 
   const scrapPaymentStatus = activeTab?.scrapPaymentStatus ?? 'PENDING';
   const nextInvoiceNumber = activeTab?.reservedInvoiceNumber ?? '';
@@ -1554,7 +1556,8 @@ export function BillingPage() {
     if (editingActive) return;
 
     try {
-      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
+      const tabIsB2B = (invoiceType === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(tab?.isB2B));
+      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (tabIsB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         const allTabs = useTabStore.getState().tabs;
@@ -1572,7 +1575,7 @@ export function BillingPage() {
     } catch (e) {
       console.error('Failed to peek invoice number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
+  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isB2B, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
 
   const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
     setInvoiceType(type);
@@ -1582,7 +1585,8 @@ export function BillingPage() {
 
     try {
       const tab = getActiveTab();
-      const series = enableThreeInvoiceSeries ? (type === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
+      const tabIsB2B = (type === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(tab?.isB2B));
+      const series = enableThreeInvoiceSeries ? (type === 'GST' ? (tabIsB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         const allTabs = useTabStore.getState().tabs;
@@ -1702,10 +1706,16 @@ export function BillingPage() {
       ? returnSubtotal + returnTaxTotal
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
 
+  const pointsRedeemedCalc = (loyaltyEnabled && showLoyaltyRedemption && pointsToRedeem > 0)
+    ? Math.min(pointsToRedeem, Number(loyaltyCustomerData?.pointsBalance) || 0)
+    : 0;
+  const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
+
   const isGrandTotalOverridden = !isScrapMode && !isReturnMode && activeTab?.manualTotalOverride != null && activeTab.manualTotalOverride > 0;
-  const displayGrandTotal = isGrandTotalOverridden
-    ? activeTab.manualTotalOverride!
-    : rawDisplayGrandTotal;
+  const displayGrandTotal = Math.max(
+    0,
+    (isGrandTotalOverridden ? activeTab.manualTotalOverride! : rawDisplayGrandTotal) - pointsRedeemedDiscountCalc
+  );
   const balanceAmount = receivedAmount - displayGrandTotal;
   const _bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
 
@@ -2070,13 +2080,35 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v: any) => {
-      if (v) {
-        setLoyaltyEnabled(Boolean(v.enabled));
-        if (v.earningRate) setLoyaltyEarningRate(Number(v.earningRate));
-        if (v.redemptionRate) setLoyaltyRedemptionRate(Number(v.redemptionRate));
-      }
-    });
+    const reloadLoyaltyConfig = () => {
+      Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
+      ]).then(([rawCfg, rawFlags]: [any, any]) => {
+        let cfg = rawCfg;
+        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
+        let flags = rawFlags;
+        if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch {} }
+
+        let isEnabled = false;
+        let eRate = 100;
+        let rRate = 1;
+
+        if (cfg && typeof cfg === 'object') {
+          if (cfg.enabled !== undefined) isEnabled = Boolean(cfg.enabled);
+          if (cfg.earningRate) eRate = Number(cfg.earningRate) || 100;
+          if (cfg.redemptionRate) rRate = Number(cfg.redemptionRate) || 1;
+        }
+        if (flags && typeof flags.loyalty === 'boolean') {
+          isEnabled = flags.loyalty || isEnabled;
+        }
+
+        setLoyaltyEnabled(isEnabled);
+        setLoyaltyEarningRate(Math.max(1, eRate));
+        setLoyaltyRedemptionRate(Math.max(0.01, rRate));
+      }).catch(() => {});
+    };
+    reloadLoyaltyConfig();
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
       if (v?.billSettings?.bosTaxRatePercent != null) {
         setBosTaxRatePercent(Number(v.billSettings.bosTaxRatePercent));
@@ -2220,8 +2252,34 @@ export function BillingPage() {
             setShowDescriptionState(v.billSettings.showDescription !== false);
           }
         });
+        Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
+        ]).then(([rawCfg, rawFlags]: [any, any]) => {
+          let cfg = rawCfg;
+          if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
+          let flags = rawFlags;
+          if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch {} }
+
+          let isEnabled = false;
+          let eRate = 100;
+          let rRate = 1;
+
+          if (cfg && typeof cfg === 'object') {
+            if (cfg.enabled !== undefined) isEnabled = Boolean(cfg.enabled);
+            if (cfg.earningRate) eRate = Number(cfg.earningRate) || 100;
+            if (cfg.redemptionRate) rRate = Number(cfg.redemptionRate) || 1;
+          }
+          if (flags && typeof flags.loyalty === 'boolean') {
+            isEnabled = flags.loyalty || isEnabled;
+          }
+
+          setLoyaltyEnabled(isEnabled);
+          setLoyaltyEarningRate(Math.max(1, eRate));
+          setLoyaltyRedemptionRate(Math.max(0.01, rRate));
+        }).catch(() => {});
       }
-loadFlags(tenantId || 'global');
+      loadFlags(tenantId || 'global');
       if (isScrapMode) reserveScrapInvoiceNumberForTab(true);
       else if (isQuotationMode) reserveQuotationNumberForTab(true);
       else if (isReturnMode) reserveReturnNumberForTab(true);
@@ -2231,21 +2289,20 @@ loadFlags(tenantId || 'global');
     return () => window.removeEventListener('settings:updated', handleSettingsUpdated);
   }, [reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
 
-  // Re-peek invoice number when customer GSTIN goes empty ↔ filled (B2C ↔ B2B switch)
-  const prevHasGstin = useRef(false);
+  // Re-peek invoice number when customer GSTIN / B2B mode changes (B2C ↔ B2B switch)
+  const prevIsB2B = useRef(false);
   useEffect(() => {
     if (!enableThreeInvoiceSeries || invoiceType !== 'GST') return;
-    const hasGstin = !!(customerGstin?.trim());
-    if (prevHasGstin.current !== hasGstin) {
-      prevHasGstin.current = hasGstin;
-      const series = hasGstin ? 'gst_b2b' : 'gst_b2c';
+    if (prevIsB2B.current !== isB2B) {
+      prevIsB2B.current = isB2B;
+      const series = isB2B ? 'gst_b2b' : 'gst_b2c';
       window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }).then(result => {
         if (result.success && result.invoiceNumber) {
           updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
         }
       });
     }
-  }, [customerGstin, enableThreeInvoiceSeries, invoiceType, tenantId, getActiveTab, updateActiveTab]);
+  }, [isB2B, enableThreeInvoiceSeries, invoiceType, tenantId, getActiveTab, updateActiveTab]);
 
   const [scrapSearchResults, setScrapSearchResults] = useState<any[]>([]);
 
@@ -2844,6 +2901,21 @@ loadFlags(tenantId || 'global');
     }
   }, [tenantId]);
 
+  // Load all active staff when staff credit billing feature flag is enabled
+  useEffect(() => {
+    if (featureFlags?.staff_credit_billing && window.electronAPI?.dbGetStaff) {
+      window.electronAPI.dbGetStaff({ tenant_id: tenantId || 'global', status: 'ACTIVE' })
+        .then((data: any) => {
+          if (Array.isArray(data)) {
+            setAllStaffList(data);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setAllStaffList([]);
+    }
+  }, [featureFlags?.staff_credit_billing, tenantId]);
+
   // Customer autofill search by name or phone
   useEffect(() => {
     const nameQuery = customerName.trim();
@@ -2870,7 +2942,15 @@ loadFlags(tenantId || 'global');
   // Memoize party map and party customer list so they are not rebuilt on every keystroke
   const cachedPartyMap = useMemo(() => {
     const map = new Map<string, any>();
+    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
     (partiesForTier || []).forEach((p: any) => {
+      if (!p || !p.name) return;
+      const pType = String(p.party_type || '').toUpperCase();
+      // In billing page, strictly NO suppliers!
+      if (pType === 'SUPPLIER') return;
+      // Staff only when ON in settings
+      if (pType === 'STAFF' && !isStaffEnabled) return;
+
       const pName = (p.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
       const pPhone = (p.phone || '').trim();
       if (pName) map.set(pName, p);
@@ -2878,36 +2958,68 @@ loadFlags(tenantId || 'global');
       if (pName && pPhone) map.set(`${pName}|${pPhone}`, p);
     });
     return map;
-  }, [partiesForTier]);
+  }, [partiesForTier, featureFlags?.staff_credit_billing]);
 
   const cachedPartyCustomers = useMemo(() => {
-    return (partiesForTier || []).map((p: any) => ({
-      name: p.name,
-      phone: p.phone,
-      address: p.address,
-      gstin: p.gstin,
-      customer_gstin: p.gstin,
-      party_id: p.party_id,
-      balance: p.balance,
-      party_type: p.party_type,
-    }));
-  }, [partiesForTier]);
+    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
+    return (partiesForTier || [])
+      .filter((p: any) => {
+        if (!p || !p.name) return false;
+        const pType = String(p.party_type || '').toUpperCase();
+        // In billing page, strictly NO suppliers!
+        if (pType === 'SUPPLIER') return false;
+        // Staff only when ON in settings
+        if (pType === 'STAFF' && !isStaffEnabled) return false;
+        return true;
+      })
+      .map((p: any) => ({
+        name: p.name,
+        phone: p.phone,
+        address: p.address,
+        gstin: p.gstin,
+        customer_gstin: p.gstin,
+        party_id: p.party_id,
+        balance: p.balance,
+        party_type: p.party_type,
+        is_staff: String(p.party_type || '').toUpperCase() === 'STAFF',
+      }));
+  }, [partiesForTier, featureFlags?.staff_credit_billing]);
 
-  // Compute filtered & deduplicated customer suggestions
+  // Compute filtered & deduplicated customer suggestions (including staff if enabled)
   const filteredCustomerSuggestions = useMemo(() => {
     const qName = customerName.trim().replace(/\s+/g, ' ').toLowerCase();
     const qPhone = customerPhone.trim();
     if (!qName && !qPhone) return [];
 
-    const combined = [...cachedPartyCustomers, ...customerSearchResults, ...allCustomersList];
+    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
+    const staffItems = (isStaffEnabled && Array.isArray(allStaffList)) ? allStaffList.map(s => ({
+      customer_id: s.staff_id,
+      staff_id: s.staff_id,
+      is_staff: true,
+      name: s.name,
+      phone: s.phone || '',
+      staff_code: s.staff_code,
+      role_designation: s.role_designation,
+      balance: s.current_balance,
+    })) : [];
+
+    const combined = [...staffItems, ...cachedPartyCustomers, ...customerSearchResults, ...allCustomersList];
     const seen = new Set<string>();
     const matched: any[] = [];
 
     for (const c of combined) {
       if (!c || !c.name) continue;
+      const pType = String(c.party_type || '').toUpperCase();
+      // In billing page, strictly NO suppliers!
+      if (pType === 'SUPPLIER') continue;
+
+      const isStaff = Boolean(c.is_staff || pType === 'STAFF');
+      // Staff only when ON in settings
+      if (isStaff && !isStaffEnabled) continue;
+
       const cNormName = c.name.trim().replace(/\s+/g, ' ').toLowerCase();
       const cPhone = (c.phone || '').trim();
-      const key = `${cNormName}|${cPhone}`;
+      const key = isStaff ? `staff|${c.staff_id || c.name}` : `${cNormName}|${cPhone}`;
       if (seen.has(key)) continue;
 
       const matchesName = qName ? cNormName.includes(qName) : false;
@@ -2915,26 +3027,84 @@ loadFlags(tenantId || 'global');
 
       if (matchesName || matchesPhone) {
         seen.add(key);
-        const pMatch = cachedPartyMap.get(key) || cachedPartyMap.get(cNormName) || (cPhone ? cachedPartyMap.get(cPhone) : null);
+        const pMatch = isStaff ? null : (cachedPartyMap.get(key) || cachedPartyMap.get(cNormName) || (cPhone ? cachedPartyMap.get(cPhone) : null));
         const mergedBal = c.balance ?? (pMatch ? pMatch.balance : undefined);
         matched.push({
           ...c,
+          is_staff: isStaff,
           balance: mergedBal,
         });
         if (matched.length >= 15) break;
       }
     }
     return matched;
-  }, [customerName, customerPhone, customerSearchResults, allCustomersList, cachedPartyCustomers, cachedPartyMap]);
+  }, [customerName, customerPhone, customerSearchResults, allCustomersList, allStaffList, featureFlags?.staff_credit_billing, cachedPartyCustomers, cachedPartyMap]);
 
-  // Debounce party tier application during customer typing so typing is never blocked
+  const findMatchingParty = useCallback((name?: string, phone?: string) => {
+    const cleanName = (name || '').trim().toLowerCase();
+    const cleanPhone = (phone || '').trim();
+    if (!cleanName && !cleanPhone) return null;
+    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
+    const combinedList = [
+      ...(partiesForTier || []).filter((p: any) => {
+        if (!p) return false;
+        const pType = String(p.party_type || '').toUpperCase();
+        if (pType === 'SUPPLIER') return false;
+        if (pType === 'STAFF' && !isStaffEnabled) return false;
+        return true;
+      }),
+      ...(allCustomersList || []).filter((c: any) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
+      ...(customerSearchResults || []).filter((c: any) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
+    ];
+    return combinedList.find((c: any) => {
+      if (!c) return false;
+      const cName = (c.name || '').trim().toLowerCase();
+      const cPhone = String(c.phone || '').trim();
+      const matchName = cleanName && cName && (
+        cName === cleanName ||
+        cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
+      );
+      const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
+      return Boolean(matchName || matchPhone);
+    }) || null;
+  }, [partiesForTier, allCustomersList, customerSearchResults, featureFlags?.staff_credit_billing]);
+
+  // Debounce party tier application & loyalty customer auto-matching during customer typing so typing is never blocked
   useEffect(() => {
-    if (!customerName.trim() && !customerPhone.trim()) return;
+    if (!customerName.trim() && !customerPhone.trim()) {
+      if (loyaltyCustomerData.customerId) {
+        setLoyaltyCustomerData({ customerId: null, pointsBalance: 0 });
+        setPointsToRedeem(0);
+        setShowLoyaltyRedemption(false);
+      }
+      return;
+    }
     const timer = setTimeout(() => {
       applyPartyTier(customerName, customerPhone);
+      const matched = findMatchingParty(customerName, customerPhone);
+      if (matched && matched.customer_id) {
+        setLoyaltyCustomerData({
+          customerId: matched.customer_id,
+          pointsBalance: Number(matched.current_points_balance) || 0,
+        });
+        if (!activeTab?.customerId) {
+          updateActiveTab({ customerId: matched.customer_id });
+        }
+      }
     }, 200);
     return () => clearTimeout(timer);
-  }, [customerName, customerPhone]);
+  }, [customerName, customerPhone, findMatchingParty]);
+
+  // Ensure redeemed points does not exceed active customer balance
+  useEffect(() => {
+    const bal = Number(loyaltyCustomerData?.pointsBalance) || 0;
+    if (!loyaltyCustomerData.customerId || bal <= 0) {
+      if (pointsToRedeem > 0) setPointsToRedeem(0);
+      if (showLoyaltyRedemption) setShowLoyaltyRedemption(false);
+    } else if (pointsToRedeem > bal) {
+      setPointsToRedeem(bal);
+    }
+  }, [loyaltyCustomerData.customerId, loyaltyCustomerData.pointsBalance]);
 
   // Click outside to dismiss customer suggestions dropdown
   useEffect(() => {
@@ -2950,24 +3120,6 @@ loadFlags(tenantId || 'global');
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const findMatchingParty = useCallback((name?: string, phone?: string) => {
-    const cleanName = (name || '').trim().toLowerCase();
-    const cleanPhone = (phone || '').trim();
-    if (!cleanName && !cleanPhone) return null;
-    const combinedList = [...(partiesForTier || []), ...(allCustomersList || []), ...(customerSearchResults || [])];
-    return combinedList.find((c: any) => {
-      if (!c) return false;
-      const cName = (c.name || '').trim().toLowerCase();
-      const cPhone = String(c.phone || '').trim();
-      const matchName = cleanName && cName && (
-        cName === cleanName ||
-        cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
-      );
-      const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
-      return Boolean(matchName || matchPhone);
-    }) || null;
-  }, [partiesForTier, allCustomersList, customerSearchResults]);
-
   const selectCustomerSuggestion = (c: any) => {
     skipCustomerDropdownOnFocusRef.current = true;
     const cleanName = (c.name || '').trim().replace(/\s+/g, ' ');
@@ -2976,6 +3128,8 @@ loadFlags(tenantId || 'global');
 
     updateActiveTab({
       customerId: c.customer_id || '',
+      isStaffCustomer: Boolean(c.is_staff),
+      staffId: c.is_staff ? (c.staff_id || c.customer_id) : undefined,
       customerName: cleanName,
       customerPhone: cleanPhone,
       customerAddress: cleanAddress,
@@ -3260,7 +3414,21 @@ loadFlags(tenantId || 'global');
 
           let sku_barcode = item.sku_barcode || null;
           let brand_manufacturer = item.brand_manufacturer || null;
-          let tax_rate_percent = Number(item.tax_rate_percent) || 0;
+
+          const itemCgstR = Number(item.cgst_rate) || 0;
+          const itemSgstR = Number(item.sgst_rate) || 0;
+          const itemIgstR = Number(item.igst_rate) || 0;
+          const combinedRate = itemCgstR + itemSgstR + itemIgstR;
+          const pTaxRate = Number(p?.tax_rate_percent ?? (p as any)?.gst_percent ?? 0);
+
+          let tax_rate_percent = combinedRate || Number(item.tax_rate_percent) || Number(item.item_tax_rate) || pTaxRate || 0;
+          if (tax_rate_percent <= 0 && Number(item.tax_amount) > 0) {
+            const itemBase = (Number(item.unit_price) * Number(item.quantity)) || (Number(item.total) - Number(item.tax_amount));
+            if (itemBase > 0) {
+              tax_rate_percent = Math.round((Number(item.tax_amount) / itemBase) * 100 * 10) / 10;
+            }
+          }
+
           let billing_type = isPcsWeight ? 'WEIGHT' : (item.billing_type || 'PIECE');
           let pricing_mode = item.pricing_mode || 'FIXED';
           let purchase_price = Number(item.purchase_price) || 0;
@@ -3279,7 +3447,9 @@ loadFlags(tenantId || 'global');
           if (p) {
             sku_barcode = p.sku_barcode || null;
             brand_manufacturer = p.brand_manufacturer || null;
-            tax_rate_percent = p.gst_percent || 0;
+            if (pTaxRate > 0 && (tax_rate_percent <= 0 || combinedRate <= 0)) {
+              tax_rate_percent = pTaxRate;
+            }
             billing_type = isPcsWeight ? 'WEIGHT' : (p.billing_type || 'PIECE');
             pricing_mode = p.pricing_mode || 'FIXED';
             purchase_price = p.purchase_price || 0;
@@ -3305,10 +3475,11 @@ loadFlags(tenantId || 'global');
             catalog_discount_percent = p.discount_percent != null ? Number(p.discount_percent) : (p.catalog_discount_percent != null ? Number(p.catalog_discount_percent) : null);
 
             let mrp = Number(p.base_price) || 0;
-            if ((invoiceType === 'GST' || item.isDummyStock) && p.domain_attributes) {
+            if (p.domain_attributes) {
               try {
                 const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-                if (da.paper_mrp != null && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) {
+                const isPaperItem = Boolean(item.isDummyStock || da.gst_type === 'PAPER');
+                if (isPaperItem && da.paper_mrp != null && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) {
                   mrp = Number(da.paper_mrp);
                 }
               } catch {}
@@ -3376,6 +3547,8 @@ loadFlags(tenantId || 'global');
             sku_barcode,
             brand_manufacturer,
             uom,
+            hsn_sac_code: item.hsn_sac_code || (item as any).hsn_code || p?.hsn_sac_code || (p as any)?.hsn_code || null,
+            is_gst_applicable: item.is_gst_applicable !== undefined ? Boolean(item.is_gst_applicable) : ((p as any)?.is_gst_applicable !== 0),
           };
         });
 
@@ -3601,7 +3774,7 @@ loadFlags(tenantId || 'global');
             name: item.name || catProd?.name || 'Product',
             base_price: Number(item.unit_price) || 0,
             purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
-            tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.gst_percent || 0),
+            tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.tax_rate_percent || (catProd as any)?.gst_percent || 0),
             billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
             uom: effectiveUom,
             pieces_per_kg: piecesPerKg || 1,
@@ -4512,7 +4685,7 @@ loadFlags(tenantId || 'global');
           item_code: catProd?.item_code || item.item_code || '',
           base_price: Number(item.unit_price) || 0,
           purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
-          tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.gst_percent || 0),
+          tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.tax_rate_percent || (catProd as any)?.gst_percent || 0),
           billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
           uom: effectiveUom,
           pieces_per_kg: piecesPerKg || 1,
@@ -4954,7 +5127,7 @@ loadFlags(tenantId || 'global');
           quantity: item.available_to_return,
           base_price: Number(item.unit_price) || 0,
           purchase_price: Number(p?.purchase_price ?? item.unit_price) || 0,
-          tax_rate_percent: Number(p?.gst_percent || item.gst_percent) || 0,
+          tax_rate_percent: Number(p?.tax_rate_percent ?? (p as any)?.gst_percent ?? item.tax_rate_percent ?? item.gst_percent ?? 0),
           billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || p?.billing_type || 'PIECE'),
           pricing_mode: 'FIXED',
           isReturnItem: true,
@@ -5972,7 +6145,11 @@ loadFlags(tenantId || 'global');
         pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
       });
 
-      if (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode) {
+      if (invoiceType === 'GST' && isB2B && !isQuotationMode && !isReturnMode && !isScrapMode) {
+        if (!(customerGstin || '').trim()) {
+          setHardwareError('Customer GSTIN is required for B2B GST Tax Invoices under GST rules.');
+          return;
+        }
         if (!(customerName || '').trim() || !(customerPhone || '').trim() || !(customerAddress || '').trim()) {
           setHardwareError('Customer Name, Mobile Phone, and Address are required for GST Tax Invoices under GST rules.');
           return;
@@ -6001,9 +6178,9 @@ loadFlags(tenantId || 'global');
 
       const isEditing = !!editingInvoiceId;
 
-      const pointsRedeemedCalc = showLoyaltyRedemption && loyaltyCustomerData.customerId ? Math.min(pointsToRedeem, loyaltyCustomerData.pointsBalance) : 0;
+      const pointsRedeemedCalc = showLoyaltyRedemption && loyaltyCustomerData.customerId ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0) : 0;
       const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
-      const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscountCalc);
+      const effectiveGrandTotal = displayGrandTotal;
 
       const effectiveFinalPaymentMethod = paymentMethod === 'SPLIT' ? 'SPLIT' : paymentMethod;
       const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
@@ -6012,7 +6189,7 @@ loadFlags(tenantId || 'global');
       const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
 
       const invoice_id = isEditing ? editingInvoiceId : uuidv4();
-      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
+      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (isB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       let invoice_number: string;
       if (isEditing && editingInvoiceNumber) {
         invoice_number = editingInvoiceNumber;
@@ -6189,19 +6366,19 @@ loadFlags(tenantId || 'global');
       const openCashDrawerOnPending = printFmt.openCashDrawerOnPending === true;
       const isHalfA4 = printFmt.format === 'half-a4';
       const isA4 = printFmt.format === 'a4';
-      const isB2B = Boolean(customerGstin?.trim());
       const isGstOrB2B = invoiceType === 'GST' || isB2B;
       const useA4 = isGstOrB2B || isA4 || isHalfA4;
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
       const state = useCartStore.getState();
       // Calculate loyalty points
-      const previousPointsBalance = loyaltyCustomerData.customerId ? loyaltyCustomerData.pointsBalance : 0;
-      const pointsEarned = loyaltyEnabled && loyaltyCustomerData.customerId && (paymentMethod !== 'PENDING')
-        ? Math.floor(displayGrandTotal / loyaltyEarningRate)
+      const previousPointsBalance = Number(loyaltyCustomerData.pointsBalance) || 0;
+      const hasCustomerForPoints = Boolean(loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim()));
+      const pointsEarned = loyaltyEnabled && hasCustomerForPoints && (paymentMethod !== 'PENDING')
+        ? Math.floor(displayGrandTotal / (loyaltyEarningRate > 0 ? loyaltyEarningRate : 100))
         : 0;
       const pointsRedeemed = showLoyaltyRedemption && loyaltyCustomerData.customerId
-        ? Math.min(pointsToRedeem, loyaltyCustomerData.pointsBalance)
+        ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0)
         : 0;
       const pointsRedeemedDiscount = pointsRedeemed * loyaltyRedemptionRate;
       const remainingPointsBalance = previousPointsBalance + pointsEarned - pointsRedeemed;
@@ -6381,6 +6558,8 @@ loadFlags(tenantId || 'global');
           },
           customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
+          is_staff: Boolean(activeTab?.isStaffCustomer),
+          staff_id: activeTab?.staffId || (activeTab?.isStaffCustomer ? activeTab.customerId : null),
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
@@ -6420,6 +6599,8 @@ loadFlags(tenantId || 'global');
             : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
           customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
+          is_staff: Boolean(activeTab?.isStaffCustomer),
+          staff_id: activeTab?.staffId || (activeTab?.isStaffCustomer ? activeTab.customerId : null),
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
           customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
@@ -6616,6 +6797,9 @@ loadFlags(tenantId || 'global');
           clearCart();
           clearScrapDeduction();
           clearReturnDeduction();
+          setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
+          setShowLoyaltyRedemption(false);
+          setPointsToRedeem(0);
           updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, actualRefundPaid: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
           syncActiveSnapshot();
           await reserveInvoiceNumberForTab();
@@ -6840,7 +7024,7 @@ loadFlags(tenantId || 'global');
       const printFmt = parsePrintFormat(printFmtRaw);
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
-      const isB2B = Boolean(customerGstin?.trim());
+      const isB2B = Boolean(customerGstin?.trim()) || Boolean(activeTab?.isB2B);
       const isGstOrB2B = invoiceType === 'GST' || isB2B;
       const isHalfA4 = printFmt.format === 'half-a4';
       const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
@@ -7927,7 +8111,7 @@ loadFlags(tenantId || 'global');
           <input
             ref={customerNameInputRef}
             autoFocus={uiConfig.entryFocusOrder === 'customer-first'}
-            placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
+            placeholder={isB2B ? "Customer Name * [F4]" : "Customer Name [F4]"}
             value={customerName}
             onFocus={() => {
               if (!skipCustomerDropdownOnFocusRef.current && (customerName.trim() || customerPhone.trim())) {
@@ -7937,7 +8121,7 @@ loadFlags(tenantId || 'global');
             onChange={e => {
               const val = e.target.value;
               if (!val.trim() && !customerPhone.trim()) {
-                updateActiveTab({ customerId: '', customerName: '', customerAddress: '', customerGstin: '' });
+                updateActiveTab({ customerId: '', customerName: '', customerAddress: '', customerGstin: '', isStaffCustomer: false, staffId: undefined });
                 setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
                 setShowCustomerDropdown(false);
               } else {
@@ -7951,17 +8135,22 @@ loadFlags(tenantId || 'global');
               'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
               paymentMethod === 'CREDIT'
                 ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
-                : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
+                : (isB2B && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
                 ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                 : 'border-border focus:ring-primary/20 focus:border-primary'
             )}
           />
+          {activeTab?.isStaffCustomer && (
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800 pointer-events-none select-none">
+              STAFF
+            </span>
+          )}
           {showCustomerDropdown && (customerName.trim() || customerPhone.trim()) && filteredCustomerSuggestions.length > 0 && (
             <div ref={customerDropdownRef} className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
               <div ref={customerListRef} className="max-h-[220px] overflow-y-auto divide-y divide-border/60 custom-scrollbar">
                 {filteredCustomerSuggestions.slice(0, 15).map((c, index) => (
                   <button
-                    key={c.customer_id || c.party_id || c.phone || index}
+                    key={c.is_staff ? `staff-${c.staff_id || index}` : (c.customer_id || c.party_id || c.phone || index)}
                     data-customer-index={index}
                     type="button"
                     onClick={() => selectCustomerSuggestion(c)}
@@ -7972,17 +8161,34 @@ loadFlags(tenantId || 'global');
                         : "hover:bg-muted/60 dark:hover:bg-slate-800/60"
                     )}
                   >
-                    <User className={clsx("w-4 h-4 shrink-0 transition-colors", index === selectedCustomerIndex ? "text-primary dark:text-blue-300" : "text-muted-foreground dark:text-gray-400")} />
+                    {c.is_staff ? (
+                      <div className="w-5 h-5 rounded-full bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                        <User className="w-3.5 h-3.5" />
+                      </div>
+                    ) : (
+                      <User className={clsx("w-4 h-4 shrink-0 transition-colors", index === selectedCustomerIndex ? "text-primary dark:text-blue-300" : "text-muted-foreground dark:text-gray-400")} />
+                    )}
                     <div className="flex-1 min-w-0">
-                      <div className={clsx("text-xs font-bold truncate transition-colors", index === selectedCustomerIndex ? "text-primary dark:text-blue-300" : "text-slate-900 dark:text-gray-100")}>{c.name}</div>
-                      <div className={clsx("text-[10px] transition-colors", index === selectedCustomerIndex ? "text-primary/80 dark:text-blue-300/80" : "text-muted-foreground dark:text-gray-400")}>{c.phone || c.address || 'No phone/address'}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={clsx("text-xs font-bold truncate transition-colors", index === selectedCustomerIndex ? "text-primary dark:text-blue-300" : "text-slate-900 dark:text-gray-100")}>{c.name}</span>
+                        {c.is_staff && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider uppercase bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            STAFF
+                          </span>
+                        )}
+                      </div>
+                      <div className={clsx("text-[10px] transition-colors", index === selectedCustomerIndex ? "text-primary/80 dark:text-blue-300/80" : "text-muted-foreground dark:text-gray-400")}>
+                        {c.is_staff
+                          ? [c.staff_code ? `Code: ${c.staff_code}` : null, c.role_designation, c.phone].filter(Boolean).join(' • ')
+                          : (c.phone || c.address || 'No phone/address')}
+                      </div>
                     </div>
-                    {Number(c.current_points_balance) > 0 && (
+                    {!c.is_staff && Number(c.current_points_balance) > 0 && (
                       <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
                     )}
                     {c.balance != null && Number(c.balance) !== 0 && (
                       <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
-                        Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
+                        {c.is_staff ? (Number(c.balance) < 0 ? `Owes: ₹${Math.abs(Number(c.balance)).toFixed(2)}` : `Bal: ₹${Number(c.balance).toFixed(2)}`) : `Bal: ₹${Math.abs(Number(c.balance)).toFixed(2)}`}
                       </span>
                     )}
                   </button>
@@ -7995,7 +8201,7 @@ loadFlags(tenantId || 'global');
           <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400')} />
           <input
             ref={customerPhoneInputRef}
-            placeholder={invoiceType === 'GST' ? "Phone *" : "Phone Number"}
+            placeholder={isB2B ? "Phone *" : "Phone Number"}
             value={customerPhone}
             onFocus={() => {
               if (!skipCustomerDropdownOnFocusRef.current && (customerName.trim() || customerPhone.trim())) {
@@ -8005,7 +8211,7 @@ loadFlags(tenantId || 'global');
             onChange={e => {
               const val = e.target.value;
               if (!val.trim() && !customerName.trim()) {
-                updateActiveTab({ customerId: '', customerPhone: '', customerAddress: '', customerGstin: '' });
+                updateActiveTab({ customerId: '', customerPhone: '', customerAddress: '', customerGstin: '', isStaffCustomer: false, staffId: undefined });
                 setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
                 setShowCustomerDropdown(false);
               } else {
@@ -8019,13 +8225,38 @@ loadFlags(tenantId || 'global');
               'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
               paymentMethod === 'CREDIT'
                 ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
-                : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
+                : (isB2B && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
                 ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                 : 'border-border focus:ring-primary/20 focus:border-primary'
             )}
           />
         </div>
         <CustomerOutstandingBadge partyObj={findMatchingParty(customerName, customerPhone)} />
+        {loyaltyEnabled && !isScrapMode && !isQuotationMode && loyaltyCustomerData.customerId && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div
+              className="h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 shadow-2xs whitespace-nowrap"
+              title={`Customer Loyalty Balance: ${(Number(loyaltyCustomerData?.pointsBalance) || 0).toFixed(0)} points`}
+            >
+              <Star className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500" />
+              <span className="font-extrabold text-[11px] uppercase tracking-wider opacity-90">Points:</span>
+              <span className="px-2 py-0.5 rounded-md text-xs font-black bg-emerald-600 text-white shadow-2xs">
+                {(Number(loyaltyCustomerData?.pointsBalance) || 0).toFixed(0)} pts
+              </span>
+            </div>
+            {(Number(loyaltyCustomerData?.pointsBalance) || 0) > 0 && !showLoyaltyRedemption && (
+              <button
+                type="button"
+                onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
+                className="h-[36px] px-2.5 py-1 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                title="Click to redeem points for bill discount"
+              >
+                <Gift className="w-3.5 h-3.5" />
+                <span>Redeem</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Real-time Credit Limit Warning Banner */}
@@ -8130,13 +8361,13 @@ loadFlags(tenantId || 'global');
           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
           <input
             ref={customerAddressInputRef}
-            placeholder={invoiceType === 'GST' ? "Customer Address *" : "Customer Address"}
+            placeholder={isB2B ? "Customer Address *" : "Customer Address"}
             value={customerAddress}
             onChange={e => updateActiveTab({ customerAddress: e.target.value })}
             onKeyDown={handleCustomerAddressKeyDown}
             className={clsx(
               'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground font-semibold placeholder:font-normal placeholder:text-muted-foreground/60 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 transition-all duration-300',
-              (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
+              (isB2B && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
                 ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                 : 'border-border focus:ring-primary/20 focus:border-primary'
             )}
@@ -8194,6 +8425,53 @@ loadFlags(tenantId || 'global');
         </div>
         {invoiceType === 'GST' && (
           <div className="flex items-center gap-2 flex-1">
+              <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateActiveTab({ isB2B: false, customerGstin: '' });
+                    if (enableThreeInvoiceSeries) {
+                      window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2c' }).then(result => {
+                        if (result.success && result.invoiceNumber) {
+                          updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
+                        }
+                      });
+                    }
+                  }}
+                  className={clsx(
+                    'px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap',
+                    !isB2B
+                      ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm border border-border/20'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="B2C Consumer GST Invoice (Customer Name, Phone & Address optional)"
+                >
+                  B2C
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateActiveTab({ isB2B: true });
+                    if (enableThreeInvoiceSeries) {
+                      window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2b' }).then(result => {
+                        if (result.success && result.invoiceNumber) {
+                          updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
+                        }
+                      });
+                    }
+                    setTimeout(() => customerGstinInputRef.current?.focus(), 50);
+                  }}
+                  className={clsx(
+                    'px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap',
+                    isB2B
+                      ? 'bg-card text-blue-600 dark:text-blue-400 shadow-sm border border-border/20'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="B2B Business Tax Invoice (Customer Name, Phone, Address & GSTIN required)"
+                >
+                  B2B
+                </button>
+              </div>
               <div className="flex-1">
                 <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
               </div>
@@ -8201,12 +8479,20 @@ loadFlags(tenantId || 'global');
                 <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                 <input
                   ref={customerGstinInputRef}
-                  placeholder="GSTIN"
+                  placeholder={isB2B ? "GSTIN *" : "GSTIN (optional)"}
                   value={customerGstin}
-                  onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
+                  onChange={e => {
+                    const val = e.target.value.toUpperCase();
+                    updateActiveTab({ customerGstin: val, isB2B: Boolean(val.trim()) || isB2B });
+                  }}
                   onKeyDown={handleCustomerGstinKeyDown}
                   maxLength={15}
-                  className="w-full pl-7 pr-2 py-1 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
+                  className={clsx(
+                    "w-full pl-7 pr-2 py-1 bg-background border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 uppercase",
+                    (isB2B && !customerGstin.trim())
+                      ? "border-rose-400 dark:border-rose-700 focus:ring-rose-500/20"
+                      : "border-border focus:ring-primary/20"
+                  )}
                 />
               </div>
           </div>
@@ -8228,33 +8514,51 @@ loadFlags(tenantId || 'global');
         )}
       </div>
       {/* Points Redemption Input */}
-      {showLoyaltyRedemption && loyaltyCustomerData.customerId && (
-        <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-          <div className="flex items-center gap-2">
-            <Gift className="w-4 h-4 text-amber-500 shrink-0" />
-            <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
-            <input type="number" min="0" max={Number(loyaltyCustomerData?.pointsBalance) || 0}
-              value={pointsToRedeem || ''}
-              onChange={e => setPointsToRedeem(e.target.value === '' ? 0 : Math.min(Number(e.target.value), Number(loyaltyCustomerData?.pointsBalance) || 0))}
-              className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-              placeholder="0" />
-            <span className="text-xs text-muted-foreground">pts</span>
-            <span className="text-xs font-bold text-amber-600">
-              = -{formatCurrency(pointsToRedeem * loyaltyRedemptionRate)}
-            </span>
-            <button
-              onClick={() => { setShowLoyaltyRedemption(false); setPointsToRedeem(0); }}
-              className="ml-auto p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
-              <X className="w-3.5 h-3.5" />
-            </button>
+      {showLoyaltyRedemption && loyaltyCustomerData.customerId && (() => {
+        const availableBalance = Number(loyaltyCustomerData?.pointsBalance) || 0;
+        const rate = loyaltyRedemptionRate > 0 ? loyaltyRedemptionRate : 1;
+        const billTotalBeforePoints = isGrandTotalOverridden ? (activeTab?.manualTotalOverride || 0) : rawDisplayGrandTotal;
+        const maxPointsByBill = Math.floor(billTotalBeforePoints / rate);
+        const maxRedeemablePoints = Math.max(0, Math.min(availableBalance, maxPointsByBill));
+        return (
+          <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Gift className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
+              <input type="number" min="0" max={maxRedeemablePoints}
+                value={pointsToRedeem || ''}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : Number(e.target.value);
+                  setPointsToRedeem(Math.max(0, Math.min(val, maxRedeemablePoints)));
+                }}
+                className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                placeholder="0" />
+              <span className="text-xs text-muted-foreground">pts</span>
+              <button
+                type="button"
+                onClick={() => setPointsToRedeem(maxRedeemablePoints)}
+                className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 rounded border border-amber-500/30 cursor-pointer"
+                title={`Redeem maximum allowed points (${maxRedeemablePoints} pts)`}
+              >
+                Max ({maxRedeemablePoints})
+              </button>
+              <span className="text-xs font-bold text-amber-600">
+                = -{formatCurrency(pointsToRedeem * loyaltyRedemptionRate)}
+              </span>
+              <button
+                onClick={() => { setShowLoyaltyRedemption(false); setPointsToRedeem(0); }}
+                className="ml-auto p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {pointsToRedeem > 0 && (
+              <p className="text-[10px] text-amber-600 mt-1 font-semibold">
+                Discount: {formatCurrency(pointsToRedeem * loyaltyRedemptionRate)} applied to bill total
+              </p>
+            )}
           </div>
-          {pointsToRedeem > 0 && (
-            <p className="text-[10px] text-amber-600 mt-1 font-semibold">
-              Discount: {formatCurrency(pointsToRedeem * loyaltyRedemptionRate)} will be applied
-            </p>
-          )}
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 
@@ -8664,6 +8968,15 @@ loadFlags(tenantId || 'global');
                   />
                 </div>
               )}
+              {pointsRedeemedDiscountCalc > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-bold">
+                  <Gift className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Loyalty ({pointsRedeemedCalc} pts): -{formatCurrency(pointsRedeemedDiscountCalc)}</span>
+                  <button type="button" onClick={() => { setPointsToRedeem(0); setShowLoyaltyRedemption(false); }} className="hover:text-destructive p-0.5 cursor-pointer" title="Remove Loyalty Discount">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
 
           </div>
@@ -8856,7 +9169,7 @@ loadFlags(tenantId || 'global');
             >
               <Store className="w-4 h-4" />
             </button>
-            <div className="min-w-0 leading-tight">
+            <div className="min-w-0 leading-tight select-none" data-panic-click="true" data-panic-target="LOGO">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
@@ -11769,6 +12082,30 @@ loadFlags(tenantId || 'global');
             </div>
 
             </div>
+
+            {/* Loyalty Redemption Discount in Totals */}
+            {pointsRedeemedDiscountCalc > 0 && (
+              <div className="mx-3 mb-1 px-3 py-2 bg-amber-500/10 border border-amber-500/25 rounded-xl flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Gift className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-300 truncate">
+                    Loyalty Discount ({pointsRedeemedCalc} pts)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">
+                    -{formatCurrency(pointsRedeemedDiscountCalc)}
+                  </span>
+                  <button
+                    onClick={() => { setPointsToRedeem(0); setShowLoyaltyRedemption(false); }}
+                    title="Remove Loyalty Discount"
+                    className="p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Grand Total + Received + Change */}
             <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">

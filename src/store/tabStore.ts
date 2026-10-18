@@ -36,6 +36,7 @@ export interface TabSnapshot {
   editingInvoiceRole: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | null;
   pendingScrapInvoiceToEdit: string | null;
   manualTotalOverride?: number | null;
+  isB2B?: boolean;
 }
 
 export interface Tab {
@@ -68,9 +69,12 @@ export interface Tab {
   reservedQuotationNumber: string;
   reservedReturnNumber: string;
   scrapPaymentStatus: 'CASH' | 'PENDING' | 'CREDIT' | 'SETTLED';
+  isStaffCustomer?: boolean;
+  staffId?: string;
   selectedUpiId?: string;
   selectedUpiSourceId?: string;
   selectedUpiName?: string;
+  isB2B?: boolean;
 }
 
 interface TabState {
@@ -108,6 +112,7 @@ function getSnapshotFromCartStore(cartState: any): TabSnapshot {
     editingInvoiceRole: cartState.editingInvoiceRole,
     pendingScrapInvoiceToEdit: cartState.pendingScrapInvoiceToEdit,
     manualTotalOverride: useTabStore?.getState?.()?.getActiveTab?.()?.manualTotalOverride ?? null,
+    isB2B: useTabStore?.getState?.()?.getActiveTab?.()?.isB2B ?? false,
   };
 }
 
@@ -135,6 +140,9 @@ function applySnapshotToCartStore(snapshot: TabSnapshot) {
   });
   if (snapshot.manualTotalOverride !== undefined) {
     useTabStore.getState().updateActiveTab({ manualTotalOverride: snapshot.manualTotalOverride });
+  }
+  if (snapshot.isB2B !== undefined) {
+    useTabStore.getState().updateActiveTab({ isB2B: snapshot.isB2B });
   }
 }
 
@@ -195,11 +203,13 @@ function createDefaultTab(): Tab {
       editingInvoiceNumber: null,
       editingInvoiceRole: null,
       pendingScrapInvoiceToEdit: null,
+      isB2B: false,
     },
     customerName: '',
     customerPhone: '',
     customerGstin: '',
     customerAddress: '',
+    isB2B: false,
     description: '',
     paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
     splitDetails: { cash: 0, card: 0, upi: 0, cheque: 0, bank_transfer: 0 },
@@ -353,7 +363,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
       'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName'
+      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
@@ -371,7 +381,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
       'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName'
+      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))

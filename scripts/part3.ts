@@ -641,6 +641,121 @@ export async function processOfflineAiQuery(
         return { content: md, intent: parsed.intent };
       }
 
+      case 'SALES_HIGHEST_MONTH': {
+        const isLowest = !!parsed.params?.isLowest;
+        const targetYear = parsed.params?.year;
+        const fromDate = targetYear ? `${targetYear}-01-01` : '2000-01-01';
+        const toDate = targetYear ? `${targetYear}-12-31` : '2099-12-31';
+
+        const invs = await fetchInvoices(fromDate, toDate);
+        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
+
+        if (validInvs.length === 0) {
+          const emptyMsg = targetYear
+            ? (isMal ? `${targetYear}-ൽ സെയിൽസ് റെക്കോർഡുകൾ ഒന്നും ലഭ്യമല്ല.` : `No sales records found for the year ${targetYear}.`)
+            : (isMal ? 'സെയിൽസ് റെക്കോർഡുകൾ ഒന്നും ലഭ്യമല്ല.' : 'No sales records found in the system.');
+          return { content: emptyMsg, intent: parsed.intent };
+        }
+
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        const malMonthNames = [
+          'ജനുവരി', 'ഫെബ്രുവരി', 'മാർച്ച്', 'ഏപ്രിൽ', 'മേയ്', 'ജൂൺ',
+          'ജൂലൈ', 'ഓഗസ്റ്റ്', 'സെപ്റ്റംബർ', 'ഒക്ടോബർ', 'നവംബർ', 'ഡിസംബർ'
+        ];
+
+        const monthMap: Record<string, { key: string; label: string; year: number; monthNum: number; sales: number; count: number }> = {};
+
+        validInvs.forEach((i: any) => {
+          const dateStr = (i.created_at || '').slice(0, 10);
+          if (!dateStr || dateStr.length < 7) return;
+          const monthKey = dateStr.slice(0, 7);
+          const [yStr, mStr] = monthKey.split('-');
+          const y = parseInt(yStr, 10);
+          const m = parseInt(mStr, 10);
+          if (!monthMap[monthKey]) {
+            const mIdx = Math.max(0, Math.min(11, m - 1));
+            const label = isMal ? `${malMonthNames[mIdx]} ${y}` : `${monthNames[mIdx]} ${y}`;
+            monthMap[monthKey] = { key: monthKey, label, year: y, monthNum: m, sales: 0, count: 0 };
+          }
+          monthMap[monthKey].sales += Number(i.grand_total) || 0;
+          monthMap[monthKey].count += 1;
+        });
+
+        const monthsArray = Object.values(monthMap).sort((a, b) => a.key.localeCompare(b.key));
+        if (monthsArray.length === 0) {
+          return { content: isMal ? 'സെയിൽസ് റെക്കോർഡുകൾ ഒന്നും ലഭ്യമല്ല.' : 'No sales records found.', intent: parsed.intent };
+        }
+
+        const sortedBySales = [...monthsArray].sort((a, b) => b.sales - a.sales);
+        const highestMonth = sortedBySales[0];
+        const lowestMonth = sortedBySales[sortedBySales.length - 1];
+        const targetMonth = isLowest ? lowestMonth : highestMonth;
+
+        const title = isLowest
+          ? (isMal ? 'ഏറ്റവും കുറഞ്ഞ വിൽപ്പന നടന്ന മാസം' : 'Lowest Sales Month')
+          : (isMal ? 'ഏറ്റവും കൂടുതൽ വിൽപ്പന നടന്ന മാസം' : 'Highest Sales Month');
+
+        const periodLabel = targetYear ? (isMal ? `${targetYear} വർഷം` : `Year ${targetYear}`) : (isMal ? 'എല്ലാ സമയത്തെയും' : 'All-Time');
+
+        let md = isMal
+          ? `### 🏆 ${title} (${periodLabel})\n\n` +
+            `* **മാസം:** **${targetMonth.label}**\n` +
+            `* **ആകെ വിൽപ്പന:** **${formatINR(targetMonth.sales)}**\n` +
+            `* **ബില്ലുകളുടെ എണ്ണം:** **${targetMonth.count} എണ്ണം**\n` +
+            `* **ശരാശരി ബിൽ തുക:** **${formatINR(targetMonth.count > 0 ? targetMonth.sales / targetMonth.count : 0)}**\n\n` +
+            `#### 📊 മാസ തിരിച്ചുള്ള വിൽപ്പന വിവരങ്ങൾ:\n\n` +
+            `| മാസം | ബില്ലുകൾ | ആകെ വിൽപ്പന |\n| :--- | :---: | :---: |\n`
+          : `### 🏆 ${title} (${periodLabel})\n\n` +
+            `* **Month:** **${targetMonth.label}**\n` +
+            `* **Total Sales Revenue:** **${formatINR(targetMonth.sales)}**\n` +
+            `* **Total Invoices:** **${targetMonth.count} bills**\n` +
+            `* **Average Ticket Value:** **${formatINR(targetMonth.count > 0 ? targetMonth.sales / targetMonth.count : 0)}**\n\n` +
+            `#### 📊 Monthly Sales Breakdown:\n\n` +
+            `| Month | Invoices | Total Sales Revenue |\n| :--- | :---: | :---: |\n`;
+
+        monthsArray.forEach(m => {
+          const isTarget = m.key === targetMonth.key;
+          const prefix = isTarget ? (isLowest ? '🔻 ' : '⭐ ') : '';
+          const nameDisplay = isTarget ? `**${prefix}${m.label}**` : `${m.label}`;
+          md += `| ${nameDisplay} | ${m.count} | **${formatINR(m.sales)}** |\n`;
+        });
+
+        const chartItems = monthsArray.map(m => ({
+          month: m.label,
+          sales: Math.round(m.sales * 100) / 100,
+          invoices: m.count,
+        }));
+
+        const suggestedPrompts = isMal
+          ? [
+              'ഈ മാസത്തെ മൊത്തം വിൽപ്പന എത്രയാണ്?',
+              'ഏറ്റവും കൂടുതൽ സെയിൽസ് നടന്ന ദിവസം ഏതാണ്?',
+              'കൂടുതൽ വിറ്റഴിഞ്ഞ ഉൽപ്പന്നങ്ങൾ ഏവ?'
+            ]
+          : [
+              'What are today\'s total sales?',
+              'Which day had the highest sales this month?',
+              'Top selling products this month'
+            ];
+
+        return {
+          content: md,
+          intent: parsed.intent,
+          domain: 'SALES',
+          chartData: {
+            type: 'bar',
+            title: isMal ? 'പ്രതിമാസ വിൽപ്പന താരതമ്യം' : 'Monthly Sales Performance',
+            labelKey: 'month',
+            dataKey: 'sales',
+            items: chartItems,
+          },
+          suggestedPrompts,
+        };
+      }
+
       case 'SALES_HIGHEST_DAY':
       case 'SALES_DAILY_TREND': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
@@ -768,7 +883,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'TOP_SELLING_PRODUCTS': {
-        const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
+        const range = resolveDateRange(parsed.params.rangeType || (parsed.params.customFrom ? 'custom' : 'today'), parsed.params.customFrom, parsed.params.customTo, isMal);
         let summaryList: any[] = [];
         if (electronAPI.dbGetProductSalesSummary) {
           try {
@@ -786,18 +901,52 @@ export async function processOfflineAiQuery(
           : `### 🏆 Top Selling Products — ${range.label}\n\n`;
 
         if (summaryList && summaryList.length > 0) {
+          const topProduct = summaryList[0];
           md += isMal
-            ? `| ഉൽപ്പന്നം | വിറ്റ അളവ് | ആകെ വരുമാനം |\n| :--- | :---: | :---: |\n`
-            : `| Product Name | Qty Sold | Revenue |\n| :--- | :---: | :---: |\n`;
+            ? `* **ഒന്നാം സ്ഥാനം:** **${topProduct.name}** (${topProduct.total_qty || topProduct.gst_qty || 0} എണ്ണം, ${formatINR(topProduct.total_revenue || 0)})\n\n` +
+              `| ഉൽപ്പന്നം | വിറ്റ അളവ് | ആകെ വരുമാനം |\n| :--- | :---: | :---: |\n`
+            : `* **#1 Top Seller:** **${topProduct.name}** (${topProduct.total_qty || topProduct.gst_qty || 0} sold, ${formatINR(topProduct.total_revenue || 0)})\n\n` +
+              `| Product Name | Qty Sold | Revenue |\n| :--- | :---: | :---: |\n`;
 
-          summaryList.slice(0, limit).forEach(p => {
-            md += `| **${p.name}** | ${p.total_qty || p.gst_qty || 0} | **${formatINR(p.total_revenue || 0)}** |\n`;
+          summaryList.slice(0, limit).forEach((p, idx) => {
+            const prefix = idx === 0 ? '⭐ ' : '';
+            md += `| ${prefix}**${p.name}** | ${p.total_qty || p.gst_qty || 0} | **${formatINR(p.total_revenue || 0)}** |\n`;
           });
         } else {
-          md += isMal ? 'ഈ കാലയളവിൽ ഉൽപ്പന്ന വിൽപ്പനകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല.' : `No product sales recorded for ${range.label}.`;
+          md += isMal ? `ഈ കാലയളവിൽ ഉൽപ്പന്ന വിൽപ്പനകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല (${range.label}).` : `No product sales recorded for ${range.label}.`;
         }
 
-        return { content: md, intent: parsed.intent };
+        const chartItems = (summaryList || []).slice(0, limit).map((p: any) => ({
+          product: p.name,
+          qty: p.total_qty || p.gst_qty || 0,
+          revenue: Math.round((Number(p.total_revenue) || 0) * 100) / 100,
+        }));
+
+        const suggestedPrompts = isMal
+          ? [
+              'ഈ മാസത്തെ മൊത്തം വിൽപ്പന എത്രയാണ്?',
+              'ഏറ്റവും കൂടുതൽ വരുമാനം തന്ന ഉൽപ്പന്നം ഏതാണ്?',
+              'സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ ഏവ?'
+            ]
+          : [
+              'What are today\'s total sales?',
+              'Which product generated the highest revenue?',
+              'Which products are out of stock right now?'
+            ];
+
+        return {
+          content: md,
+          intent: parsed.intent,
+          domain: 'SALES',
+          chartData: chartItems.length > 0 ? {
+            type: 'bar',
+            title: isMal ? `കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ — ${range.label}` : `Top Selling Products — ${range.label}`,
+            labelKey: 'product',
+            dataKey: 'qty',
+            items: chartItems,
+          } : undefined,
+          suggestedPrompts,
+        };
       }
 
       // ──────────────────────────────────────────────────────────────────────

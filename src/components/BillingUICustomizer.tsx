@@ -17,7 +17,7 @@ import {
   ENTRY_FIELD_FLOW_PRESETS
 } from '../store/billingUIStore';
 import { 
-  LayoutGrid, Columns, Sliders, RotateCcw, Check, Sparkles, 
+  LayoutGrid, Columns, Sliders, RotateCcw, Check, 
   Eye, Monitor, Touchpad, Layers, Save, Undo2, X, AlertCircle,
   ShoppingCart, DollarSign, User, Search, Plus, Scale, Clock,
   FileText, ArrowLeftRight, Recycle, Banknote, Store, TrendingUp, PauseCircle, Truck, Settings, BookOpen, Users, Package, Shield, UserCheck, CreditCard, Tag, Percent, Printer

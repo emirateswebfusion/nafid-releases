@@ -5,8 +5,9 @@ import { useCartStore } from '../store/cartStore';
 import { isAdminRole, hasPermission } from '../utils/permissions';
 import {
   Search, ChevronLeft, User, UserCheck, UserPlus, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
-  ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
-  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save, Download, Printer, FileText
+  ShoppingBag, GitMerge, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
+  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save, Download, Printer, FileText,
+  RotateCw, Plus, SlidersHorizontal
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
@@ -267,6 +268,14 @@ export function CustomersPage({
   const [loyaltyTxs, setLoyaltyTxs] = useState<LoyaltyTx[]>([]);
   const [loyaltyTxsLoading, setLoyaltyTxsLoading] = useState(false);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+
+  // Loyalty Points Adjustment Modal state
+  const [adjustPointsModalOpen, setAdjustPointsModalOpen] = useState(false);
+  const [adjustPointsValue, setAdjustPointsValue] = useState<number | ''>('');
+  const [adjustPointsType, setAdjustPointsType] = useState<'ADD' | 'DEDUCT'>('ADD');
+  const [adjustPointsReason, setAdjustPointsReason] = useState('');
+  const [adjustPointsLoading, setAdjustPointsLoading] = useState(false);
+  const [recalculatingPoints, setRecalculatingPoints] = useState(false);
 
   // Invoice Detail Modal state
   const [viewingInvoice, setViewingInvoice] = useState<InvoiceRecord | null>(null);
@@ -727,6 +736,77 @@ export function CustomersPage({
     } finally {
       setInvoicesLoading(false);
       setLoyaltyTxsLoading(false);
+    }
+  };
+
+  const handleAdjustPointsSubmit = async () => {
+    if (!selectedCustomer || !window.electronAPI) return;
+    const pts = Number(adjustPointsValue);
+    if (!pts || pts <= 0) {
+      showStatus('Please enter a valid points amount', 'error');
+      return;
+    }
+    const signedPts = adjustPointsType === 'ADD' ? pts : -pts;
+    setAdjustPointsLoading(true);
+    try {
+      const res = await window.electronAPI.dbAdjustCustomerLoyaltyPoints({
+        customer_id: selectedCustomer.customer_id,
+        tenant_id: tenantId || 'global',
+        points: signedPts,
+        reason: adjustPointsReason.trim() || `Manual ${adjustPointsType === 'ADD' ? 'bonus' : 'deduction'} adjustment`,
+        user_name: useAuthStore.getState().userName || undefined,
+      });
+      if (res.success) {
+        showStatus('Loyalty points adjusted successfully', 'success');
+        setAdjustPointsModalOpen(false);
+        setAdjustPointsValue('');
+        setAdjustPointsReason('');
+        const [updatedCustList, updatedTxs] = await Promise.all([
+          window.electronAPI.dbGetCustomers(tenantId),
+          window.electronAPI.dbGetCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId }),
+        ]);
+        if (Array.isArray(updatedCustList)) {
+          setCustomers(updatedCustList);
+          const found = updatedCustList.find(c => c.customer_id === selectedCustomer.customer_id);
+          if (found) setSelectedCustomer(found);
+        }
+        if (Array.isArray(updatedTxs)) setLoyaltyTxs(updatedTxs);
+      } else {
+        showStatus(res.error || 'Failed to adjust points', 'error');
+      }
+    } catch (e: any) {
+      showStatus(e?.message || 'Error adjusting points', 'error');
+    } finally {
+      setAdjustPointsLoading(false);
+    }
+  };
+
+  const handleRecalculateCustomerPoints = async () => {
+    if (!selectedCustomer || !window.electronAPI) return;
+    setRecalculatingPoints(true);
+    try {
+      const res = await window.electronAPI.dbRecalculateCustomerLoyaltyPoints({
+        tenant_id: tenantId || 'global',
+      });
+      if (res.success) {
+        showStatus(`Points recalculated successfully! (${res.updatedCount || 0} customers updated)`, 'success');
+        const [updatedCustList, updatedTxs] = await Promise.all([
+          window.electronAPI.dbGetCustomers(tenantId),
+          window.electronAPI.dbGetCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId }),
+        ]);
+        if (Array.isArray(updatedCustList)) {
+          setCustomers(updatedCustList);
+          const found = updatedCustList.find(c => c.customer_id === selectedCustomer.customer_id);
+          if (found) setSelectedCustomer(found);
+        }
+        if (Array.isArray(updatedTxs)) setLoyaltyTxs(updatedTxs);
+      } else {
+        showStatus(res.error || 'Failed to recalculate points', 'error');
+      }
+    } catch (e: any) {
+      showStatus(e?.message || 'Error recalculating points', 'error');
+    } finally {
+      setRecalculatingPoints(false);
     }
   };
 
@@ -1258,7 +1338,7 @@ export function CustomersPage({
                 className="h-9 px-3 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/50 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                 title="Scan and merge duplicate customer and credit ledger records"
               >
-                <Sparkles className={`w-3.5 h-3.5 ${cleaningDuplicates ? 'animate-spin' : 'text-amber-500'}`} />
+                <GitMerge className={`w-3.5 h-3.5 ${cleaningDuplicates ? 'animate-spin' : 'text-amber-500'}`} />
                 <span className="hidden sm:inline">{cleaningDuplicates ? 'Merging...' : 'Merge Duplicates'}</span>
               </button>
             )}
@@ -1467,7 +1547,7 @@ export function CustomersPage({
                 </div>
 
                 <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <Award className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <div className="text-left">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase block leading-none">Active</span>
                     <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono leading-tight">{totalPointsActive.toFixed(0)} pts</span>
@@ -1803,7 +1883,7 @@ export function CustomersPage({
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex-1 md:flex-initial min-w-[170px] flex items-center justify-between gap-3 shadow-xs">
                   <div>
                     <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                      <Sparkles className="w-3 h-3" />
+                      <Award className="w-3 h-3" />
                       <span>Active Points</span>
                     </div>
                     <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight mt-0.5">
@@ -1953,6 +2033,39 @@ export function CustomersPage({
                   </button>
                 </div>
               )}
+
+              {detailTab === 'points' && loyaltyEnabled && (
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <button
+                    type="button"
+                    onClick={handleRecalculateCustomerPoints}
+                    disabled={recalculatingPoints}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold border border-border bg-card hover:bg-muted text-foreground transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                    title="Recalculate loyalty points balance from customer purchase history"
+                  >
+                    {recalculatingPoints ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                    ) : (
+                      <RotateCw className="w-3.5 h-3.5 text-primary" />
+                    )}
+                    <span>Recalculate</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdjustPointsValue('');
+                      setAdjustPointsReason('');
+                      setAdjustPointsType('ADD');
+                      setAdjustPointsModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                    title="Manually add or deduct loyalty points"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span>Adjust Points</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Tab Body */}
@@ -2083,8 +2196,30 @@ export function CustomersPage({
                 </div>
               )}
 
-              {detailTab === 'points' && loyaltyEnabled && (
-                <div>
+              {detailTab === 'points' && loyaltyEnabled && selectedCustomer && (
+                <div className="space-y-6">
+                  {/* Summary row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Available Balance</p>
+                      <p className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
+                        {(Number(selectedCustomer.current_points_balance) || 0).toFixed(0)} <span className="text-xs">pts</span>
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Earned</p>
+                      <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+                        +{(Number(selectedCustomer.total_points_earned) || 0).toFixed(0)} <span className="text-xs">pts</span>
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">Total Redeemed</p>
+                      <p className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono mt-1">
+                        -{(Number(selectedCustomer.total_points_redeemed) || 0).toFixed(0)} <span className="text-xs">pts</span>
+                      </p>
+                    </div>
+                  </div>
+
                   {loyaltyTxsLoading ? (
                     <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
                   ) : loyaltyTxs.length === 0 ? (
@@ -2107,7 +2242,7 @@ export function CustomersPage({
                             tx.transaction_type === 'EARNED' ? 'bg-emerald-500 text-white' :
                             tx.transaction_type === 'REDEEMED' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'
                           )}>
-                            <Sparkles className="w-2.5 h-2.5" />
+                            <Award className="w-2.5 h-2.5" />
                           </div>
 
                           <div className="p-4 rounded-2xl border border-border/60 bg-card hover:border-primary/30 transition-all shadow-xs flex items-center justify-between gap-4">
@@ -2946,6 +3081,118 @@ export function CustomersPage({
                   <>
                     <Save className="w-4 h-4" />
                     <span>Save Changes</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Adjust Loyalty Points Modal */}
+      {adjustPointsModalOpen && selectedCustomer && (
+        <Modal
+          isOpen={adjustPointsModalOpen}
+          onClose={() => { if (!adjustPointsLoading) setAdjustPointsModalOpen(false); }}
+          title="Adjust Loyalty Points"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl border border-border bg-amber-500/5 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-muted-foreground">Customer:</span>
+                <span className="font-black text-foreground">{selectedCustomer.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-muted-foreground">Current Balance:</span>
+                <span className="font-black font-mono text-amber-600 dark:text-amber-400">
+                  {(Number(selectedCustomer.current_points_balance) || 0).toFixed(0)} pts
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Adjustment Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustPointsType('ADD')}
+                    className={clsx(
+                      'py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5',
+                      adjustPointsType === 'ADD'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-black'
+                        : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Points (+)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustPointsType('DEDUCT')}
+                    className={clsx(
+                      'py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5',
+                      adjustPointsType === 'DEDUCT'
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 font-black'
+                        : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <span>Deduct Points (-)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Points Amount <span className="text-destructive">*</span></label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={adjustPointsValue}
+                  onChange={e => setAdjustPointsValue(e.target.value === '' ? '' : Math.max(1, Math.floor(Number(e.target.value))))}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm font-bold font-mono text-foreground placeholder:text-muted-foreground/60 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 focus:outline-none transition-all shadow-sm"
+                  placeholder="e.g. 50"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Reason / Description</label>
+                <input
+                  type="text"
+                  value={adjustPointsReason}
+                  onChange={e => setAdjustPointsReason(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 focus:outline-none transition-all shadow-sm"
+                  placeholder="e.g. Festival bonus / promotional reward"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
+              <button
+                type="button"
+                disabled={adjustPointsLoading}
+                onClick={() => setAdjustPointsModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={adjustPointsLoading || !adjustPointsValue || Number(adjustPointsValue) <= 0}
+                onClick={handleAdjustPointsSubmit}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                {adjustPointsLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Save Points</span>
                   </>
                 )}
               </button>

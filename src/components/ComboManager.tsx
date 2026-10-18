@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { 
   Search, Plus, Trash2, Edit3, X, Check, Tag, Package, AlertCircle, 
-  RefreshCw, Layers, ToggleLeft, ToggleRight, Sparkles, ShoppingBag, 
+  RefreshCw, Layers, ToggleLeft, ToggleRight, ShoppingBag, 
   Copy, Filter, Percent, CheckCircle2, Grid, List, Minus, 
   SlidersHorizontal, Zap, ArrowRight, BarChart2, Boxes
 } from 'lucide-react';
@@ -442,7 +442,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
 
           <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center gap-3">
             <div className="p-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-              <Sparkles className="w-5 h-5" />
+              <Boxes className="w-5 h-5" />
             </div>
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Bundled Items</p>
@@ -583,7 +583,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5">
                           <span className="inline-flex items-center gap-1 text-[9px] uppercase font-black tracking-wider px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
-                            <Sparkles className="w-3 h-3" /> COMBO OFFER
+                            <Tag className="w-3 h-3" /> COMBO OFFER
                           </span>
                           {!combo.is_active && (
                             <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
@@ -993,7 +993,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
               {standaloneTotal > 0 && comboPriceNum > 0 && (
                 <div className="flex items-center justify-between border-t border-purple-500/20 pt-2 text-xs">
                   <span className="font-bold text-purple-600 dark:text-purple-300 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Percent className="w-3.5 h-3.5" />
                     Customer Savings:
                   </span>
                   <span className="font-black text-emerald-600 dark:text-emerald-400">
