@@ -261,7 +261,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changingPass, setChangingPass] = useState(false);
   const [confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen] = useState(false);
-  const [appVersion, setAppVersion] = useState('v2.0.4');
+  const [appVersion, setAppVersion] = useState('v2.0.5');
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
   });

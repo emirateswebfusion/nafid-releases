@@ -2081,11 +2081,19 @@ export function initDb() {
   } catch (e: any) {
     console.error('[DB Migration] shop_closing_reports table ensure error:', e.message);
   }
+  try {
+    ensureInvoiceColumnsExist(db);
+  } catch (e: any) {
+    console.error('[DB Migration] ensureInvoiceColumnsExist error:', e.message);
+  }
 }
 
+let invoiceColumnsEnsured = false;
 export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
+  if (invoiceColumnsEnsured) return;
   const d = targetDb || db;
   if (!d) return;
+  invoiceColumnsEnsured = true;
   try {
     const invCols = d.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
     const invoiceColsToEnsure: Record<string, string> = {
@@ -2167,6 +2175,38 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       console.warn('[DB Migration] Fix legacy held invoice numbers error:', e.message);
     }
 
+    // Migration: Sync converted GST invoices' created_at to match their source Bill of Supply's actual created_at
+    try {
+      d.exec(`
+        UPDATE invoices
+        SET created_at = (
+          SELECT src.created_at
+          FROM invoices src
+          WHERE src.invoice_id = invoices.converted_from_invoice_id
+            AND src.created_at IS NOT NULL
+        )
+        WHERE converted_from_invoice_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM invoices src
+            WHERE src.invoice_id = invoices.converted_from_invoice_id
+              AND src.created_at IS NOT NULL
+              AND src.created_at != invoices.created_at
+          );
+
+        UPDATE invoice_items
+        SET created_at = (
+          SELECT inv.created_at
+          FROM invoices inv
+          WHERE inv.invoice_id = invoice_items.invoice_id
+        )
+        WHERE invoice_id IN (
+          SELECT invoice_id FROM invoices WHERE converted_from_invoice_id IS NOT NULL
+        );
+      `);
+    } catch (migErr: any) {
+      console.warn('[DB Migration] Could not backfill converted invoices created_at:', migErr.message);
+    }
+
     // Migration: Clean up erroneous paper prices on Real products in domain_attributes
     try {
       const realProds = d.prepare(`
@@ -2207,8 +2247,6 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
 export function getDb() {
   if (!db) {
     initDb();
-  } else {
-    ensureInvoiceColumnsExist(db);
   }
   return db;
 }

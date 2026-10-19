@@ -869,7 +869,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             <Modal
                 isOpen={showCustomizeModal}
                 onClose={() => setShowCustomizeModal(false)}
-                title="Customize Dashboard Cards / കാർഡുകൾ ക്രമീകരിക്കുക"
+                title="Customize Dashboard Cards"
                 className="max-w-2xl"
             >
                 <DashboardCardCustomizer

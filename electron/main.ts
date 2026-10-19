@@ -7448,17 +7448,22 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
           //    No stock movement: stock was already deducted when the BoS was sold.
+          //    Inherits the actual bill date (created_at) from the original Bill of Supply!
+          const actualBillDate = inv.created_at || new Date().toISOString();
+
           db.prepare(`
             INSERT INTO invoices (
               invoice_id, tenant_id, user_id, invoice_number, invoice_type,
               subtotal, tax_total, discount_total, discount_type, discount_value, grand_total,
-              payment_method, received_amount, balance_amount,
-              customer_name, customer_phone, customer_gstin, customer_state, customer_address,
+              payment_method, split_details, received_amount, balance_amount,
+              customer_id, customer_name, customer_phone, customer_gstin, customer_state, customer_address,
+              biller_staff_id, sales_staff_id, notes, description,
               sync_status,
               converted_from_invoice_id, converted_from_invoice_number,
-              cgst_total, sgst_total, igst_total, supply_type
+              cgst_total, sgst_total, igst_total, supply_type,
+              created_at
             )
-            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?)
           `).run(
             newInvoiceId,
             inv.tenant_id,
@@ -7471,19 +7476,26 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             inv.discount_value || 0,
             newGrandTotal,
             inv.payment_method || 'CASH',
+            inv.split_details || null,
             newReceivedAmount,
             newBalanceAmount,
+            inv.customer_id || null,
             inv.customer_name || null,
             inv.customer_phone || null,
             inv.customer_gstin || null,
             inv.customer_state || null,
             inv.customer_address || null,
+            inv.biller_staff_id || null,
+            inv.sales_staff_id || null,
+            inv.notes || null,
+            inv.description || null,
             invoice_id,
             oldInvoiceNumber,
             convCgstTotal,
             convSgstTotal,
             convIgstTotal,
-            convSupplyType
+            convSupplyType,
+            actualBillDate
           );
 
           // 2. Copy the priced items — they remember their original BoS values so
@@ -7494,9 +7506,9 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               source_item_id, bos_unit_price, bos_tax_amount, bos_total, qty_from_paper_stock,
               cgst_rate, sgst_rate, igst_rate,
               cgst_amount, sgst_amount, igst_amount, supply_type,
-              hsn_sac_code, uom
+              hsn_sac_code, uom, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           for (const ci of copyItems) {
@@ -7531,7 +7543,8 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               itemIgst,
               convSupplyType,
               ci.hsn_sac_code || null,
-              ci.uom || 'PCS'
+              ci.uom || 'PCS',
+              actualBillDate
             );
           }
 

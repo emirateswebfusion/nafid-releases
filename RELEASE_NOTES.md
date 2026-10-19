@@ -1,3 +1,13 @@
+# Nafid POS v2.0.5 Release Notes
+
+## What's Changed
+- **Eliminated Database Lock & Freeze in Sales History**: Fixed critical bottleneck where `ensureInvoiceColumnsExist()` was executing on every `getDb()` query invocation, causing concurrent SQLite table scans and synchronous thread blocking when inspecting past sales. Database migrations now run strictly once during startup initialization.
+- **Renderer Protection & Query Timeouts**: Hardened renderer IPC communications in `SalesHistory.tsx` with dedicated 2-3s safety timeouts and race-condition guards (`selectedInvoiceIdRef`), guaranteeing the UI never hangs indefinitely if the disk or database is busy.
+- **Hardened Data Parsing**: Added recursion depth protection to `parseSplitDetails` and null-safe filtering to combo item parsing and GST tax rate checks.
+- **Bill Date Inheritance on BoS-to-GST Conversion**: Preserved original Bill of Supply transaction timestamps (`created_at`) when converting to GST tax invoices, preventing converted bills from jumping to the current date.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.5.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.4...v2.0.5
+
 # Nafid POS v2.0.4 Release Notes
 
 ## What's Changed

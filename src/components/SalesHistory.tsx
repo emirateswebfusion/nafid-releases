@@ -209,7 +209,9 @@ function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: string; t
 function parseSplitDetails(splitDetailsRaw: any) {
   if (!splitDetailsRaw || splitDetailsRaw === 'null') return null;
   let curr = splitDetailsRaw;
-  while (typeof curr === 'string') {
+  let depth = 0;
+  while (typeof curr === 'string' && depth < 5) {
+    depth++;
     try {
       curr = JSON.parse(curr);
     } catch {
@@ -497,6 +499,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [taxPercentageFilter, setTaxPercentageFilter] = useState('');
   const [reprintSuccess, setReprintSuccess] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const selectedInvoiceIdRef = useRef<string | null>(null);
   const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
   const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT'>('CASH');
   const [collectReceivedAmount, setCollectReceivedAmount] = useState(0);
@@ -965,6 +968,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
   };
 
+  const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))
+    ]);
+  };
+
   // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
   // Mirrors the recovery logic used when editing a bill in BillingPage.
   const enrichItemsWithMrp = async (invoiceItems: any[]): Promise<any[]> => {
@@ -980,7 +990,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       );
       if (mightHaveCombos && window.electronAPI?.dbGetComboOffers) {
         try {
-          const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: effectiveTenantId });
+          const allCombos = await withTimeout(
+            window.electronAPI.dbGetComboOffers({ tenant_id: effectiveTenantId }),
+            2000,
+            []
+          );
           if (Array.isArray(allCombos)) combosList = allCombos;
         } catch {
           // ignore combo lookup failure
@@ -992,7 +1006,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const productMap: Record<string, any> = {};
       if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
         try {
-          const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: effectiveTenantId, product_ids: productIds });
+          const products = await withTimeout(
+            window.electronAPI.dbGetProductsByIds({ tenant_id: effectiveTenantId, product_ids: productIds }),
+            2000,
+            []
+          );
           if (Array.isArray(products)) {
             products.forEach((p: any) => { if (p?.product_id) productMap[p.product_id] = p; });
           }
@@ -1087,7 +1105,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const handleSelectInvoice = async (inv: any) => {
-    if (!inv) return;
+    if (!inv || !inv.invoice_id) return;
+    selectedInvoiceIdRef.current = inv.invoice_id;
     setSelectedInvoice(inv);
     setDrawerOpen(true);
     setItemsLoading(true);
@@ -1095,17 +1114,31 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     try {
       if (window.electronAPI) {
         const [data, returned] = await Promise.all([
-          window.electronAPI.dbGetInvoiceItems(inv.invoice_id).catch((err: any) => {
-            console.error('[SalesHistory] dbGetInvoiceItems error:', err);
-            return [];
-          }),
-          window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id).catch((err: any) => {
-            console.error('[SalesHistory] dbGetAlreadyReturnedQuantities error:', err);
-            return [];
-          }),
+          withTimeout(
+            window.electronAPI.dbGetInvoiceItems(inv.invoice_id).catch((err: any) => {
+              console.error('[SalesHistory] dbGetInvoiceItems error:', err);
+              return [];
+            }),
+            3000,
+            []
+          ),
+          withTimeout(
+            window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id).catch((err: any) => {
+              console.error('[SalesHistory] dbGetAlreadyReturnedQuantities error:', err);
+              return [];
+            }),
+            3000,
+            []
+          ),
         ]);
+
+        if (selectedInvoiceIdRef.current !== inv.invoice_id) return;
+
         const invoiceItems = Array.isArray(data) ? data : [];
         const enriched = await enrichItemsWithMrp(invoiceItems);
+
+        if (selectedInvoiceIdRef.current !== inv.invoice_id) return;
+
         setItems(enriched);
         const returnedMap: Record<string, number> = {};
         (Array.isArray(returned) ? returned : []).forEach((r: any) => {
@@ -1120,13 +1153,18 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       }
     } catch (err) {
       console.error('[SalesHistory] handleSelectInvoice error:', err);
-      setItems([]);
+      if (selectedInvoiceIdRef.current === inv.invoice_id) {
+        setItems([]);
+      }
     } finally {
-      setItemsLoading(false);
+      if (selectedInvoiceIdRef.current === inv.invoice_id) {
+        setItemsLoading(false);
+      }
     }
   };
 
   const closeDrawer = () => {
+    selectedInvoiceIdRef.current = null;
     setDrawerOpen(false);
     setCanReturn(true);
     setItemsLoading(false);
@@ -2333,7 +2371,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30 border border-emerald-500/40 ring-1 ring-emerald-500/20'
                       : 'text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10'
                   )}
-                  title="Bill of Supply / Counter Sales (കടയുടെ യഥാർത്ഥ കണക്കുകൾ - BOS)"
+                  title="Bill of Supply / Counter Sales (BOS)"
                 >
                   <span className="relative flex items-center justify-center">
                     <Receipt className="w-3.5 h-3.5" />
@@ -2352,7 +2390,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       ? 'bg-card text-foreground border border-border shadow-xs'
                       : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
                   )}
-                  title="Official Statutory GST Invoices (ഗവൺമെന്റ് ടാക്സ് ഫയലിംഗ് - GST)"
+                  title="Official Statutory GST Invoices (GST)"
                 >
                   <span>GST</span>
                 </button>
@@ -2365,7 +2403,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       ? 'bg-card text-foreground border border-border shadow-xs'
                       : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
                   )}
-                  title="All Invoices & Filing Copies (എല്ലാം)"
+                  title="All Invoices & Filing Copies"
                 >
                   <span>All</span>
                 </button>
@@ -2797,10 +2835,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     convertibleMap[selectedInvoice.invoice_id] === true ||
                     items.length === 0 ||
                     items.some((it: any) => 
-                      Number(it.tax_amount) > 0 || 
-                      Number(it.cgst_rate) > 0 || 
-                      Boolean(it.hsn_sac_code) || 
-                      Number(it.product_tax_rate_percent) > 0
+                      Number(it?.tax_amount) > 0 || 
+                      Number(it?.cgst_rate) > 0 || 
+                      Boolean(it?.hsn_sac_code) || 
+                      Number(it?.product_tax_rate_percent) > 0
                     )
                   );
 
@@ -3139,7 +3177,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             {(() => {
               const isGstBill = selectedInvoice.invoice_type === 'GST' || 
                                 Number(selectedInvoice.tax_total) > 0 || 
-                                items.some((it: any) => Number(it.tax_amount) > 0 || Number(it.cgst_rate) > 0 || Number(it.tax_rate) > 0);
+                                items.some((it: any) => Number(it?.tax_amount) > 0 || Number(it?.cgst_rate) > 0 || Number(it?.tax_rate) > 0);
 
               return (
                 <div>
@@ -3275,7 +3313,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                                     </div>
                                     {comboItemsParsed && comboItemsParsed.length > 0 && (
                                       <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
-                                        Includes: {comboItemsParsed.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+                                        Includes: {comboItemsParsed.filter(Boolean).map((ci: any) => typeof ci === 'string' ? ci : `${ci.product_name || ci.name || 'Product'} (x${ci.quantity ?? 1})`).join(', ')}
                                       </div>
                                     )}
                                     {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (

@@ -327,7 +327,7 @@ Nafid is a comprehensive Point of Sale (POS) system built with React, Electron, 
 ---
 
 ## Version
-Current: **v2.0.4**
+Current: **v2.0.5**
 
 ---
 
