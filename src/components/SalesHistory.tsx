@@ -68,27 +68,39 @@ const TAX_RATES = [
   { value: '28', label: '28%' },
 ];
 
-function formatCurrency(amount: number): string {
-  return `\u20B9${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: any): string {
+  const num = Number(amount);
+  if (isNaN(num)) return '\u20B90.00';
+  return `\u20B9${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(dateStr: string) {
-  const tz = getStoreTimezone();
-  const d = parseUTCDate(dateStr);
-  return {
-    date: d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
-  };
+  if (!dateStr) return { date: '-', time: '-' };
+  try {
+    const tz = getStoreTimezone();
+    const d = parseUTCDate(dateStr);
+    if (isNaN(d.getTime())) return { date: '-', time: '-' };
+    return {
+      date: d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
+      time: d.toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
+    };
+  } catch {
+    return { date: '-', time: '-' };
+  }
 }
 
 function formatGroupDate(dateStr?: string) {
   if (!dateStr) return '-';
-  const tz = getStoreTimezone();
-  const d = parseUTCDate(dateStr);
-  if (isNaN(d.getTime())) return '-';
-  const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
-  const dateStrFormatted = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' });
-  return `${dateStrFormatted} ${dayName}`;
+  try {
+    const tz = getStoreTimezone();
+    const d = parseUTCDate(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
+    const dateStrFormatted = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${dateStrFormatted} ${dayName}`;
+  } catch {
+    return '-';
+  }
 }
 
 function getInvoiceNetTotal(inv: any): number {
@@ -467,6 +479,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [canReturn, setCanReturn] = useState(true);
   const [items, setItems] = useState<any[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'bills' | 'analytics'>('bills');
   const [showGraphBanner, setShowGraphBanner] = useState(false);
@@ -955,127 +968,168 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
   // Mirrors the recovery logic used when editing a bill in BillingPage.
   const enrichItemsWithMrp = async (invoiceItems: any[]): Promise<any[]> => {
-    const { tenantId } = useAuthStore.getState();
-    let combosList: any[] = [];
+    if (!Array.isArray(invoiceItems) || invoiceItems.length === 0) return [];
     try {
-      const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: tenantId || 'global' });
-      if (Array.isArray(allCombos)) combosList = allCombos;
-    } catch {}
-
-    const nonService = invoiceItems.filter((i: any) => !i.is_service_item);
-    const productIds = [...new Set(nonService.map((i: any) => i.product_id).filter(Boolean))] as string[];
-    const productMap: Record<string, any> = {};
-    if (productIds.length > 0) {
-      try {
-        const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
-        if (Array.isArray(products)) {
-          products.forEach((p: any) => { productMap[p.product_id] = p; });
-        }
-      } catch {
-        // ignore product lookup failures
-      }
-    }
-    return invoiceItems.map(item => {
-      let comboItemsParsed: any[] | undefined = undefined;
-      if (item.combo_details) {
-        try {
-          const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
-          if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
-        } catch {}
-      }
-
-      const matchedCombo = combosList.find((c: any) =>
-        (item.combo_id && c.combo_id === item.combo_id) ||
-        (item.name && c.name && c.name.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
-        (item.product_id && c.combo_id === item.product_id)
+      const { tenantId } = useAuthStore.getState();
+      const effectiveTenantId = tenantId || 'global';
+      let combosList: any[] = [];
+      
+      // Only query combo offers if at least one item looks like a combo
+      const mightHaveCombos = invoiceItems.some((i: any) => 
+        Boolean(i?.combo_id || i?.isCombo || (i?.combo_details && i.combo_details !== 'null'))
       );
-
-      if (!comboItemsParsed && matchedCombo && matchedCombo.items) {
-        comboItemsParsed = matchedCombo.items;
-      }
-
-      const isComboItem = Boolean(item.combo_id || matchedCombo || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
-
-      const p = item.is_service_item ? null : productMap[item.product_id];
-      const mrp = p ? (p.pricing_mode === 'GRADE_RATE' && Number(p.grade_rate) > 0 ? Number(p.grade_rate) : (Number(p.base_price) || 0)) : 0;
-      const soldPrice = Number(item.unit_price) || 0;
-      let originalRate: number | undefined;
-      let discountLabel: string | undefined;
-      let isPriceOverride = false;
-      if (mrp > 0 && soldPrice < mrp) {
-        const offerPrice = p?.offer_price ? Number(p.offer_price) : null;
-        const catalogDiscFlat = p?.discount_flat ? Number(p.discount_flat) : null;
-        const catalogDiscPct = p?.discount_percent ? Number(p.discount_percent) : null;
-        const catalogPrice = offerPrice !== null ? offerPrice
-          : catalogDiscFlat !== null ? mrp - catalogDiscFlat
-          : catalogDiscPct !== null ? mrp * (1 - catalogDiscPct / 100)
-          : mrp;
-
-        if (offerPrice !== null && Math.abs(offerPrice - soldPrice) < 0.01) {
-          originalRate = mrp;
-          discountLabel = 'Offer';
-          isPriceOverride = false;
-        } else if (catalogPrice < mrp && Math.abs(catalogPrice - soldPrice) < 0.01) {
-          originalRate = mrp;
-          discountLabel = catalogDiscFlat ? `-₹${catalogDiscFlat.toFixed(0)}` : catalogDiscPct ? `${catalogDiscPct}% OFF` : 'Offer';
-          isPriceOverride = false;
-        } else {
-          const diff = mrp - soldPrice;
-          if (diff >= 0.05) {
-            originalRate = mrp;
-            discountLabel = `-₹${diff.toFixed(0)}`;
-            isPriceOverride = true;
-          }
+      if (mightHaveCombos && window.electronAPI?.dbGetComboOffers) {
+        try {
+          const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: effectiveTenantId });
+          if (Array.isArray(allCombos)) combosList = allCombos;
+        } catch {
+          // ignore combo lookup failure
         }
       }
-      let pcsPerKg: number | undefined;
-      if (p?.domain_attributes) {
+
+      const nonService = invoiceItems.filter((i: any) => !i?.is_service_item);
+      const productIds = [...new Set(nonService.map((i: any) => i?.product_id).filter(Boolean))] as string[];
+      const productMap: Record<string, any> = {};
+      if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
         try {
-          const attrs = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-          if (attrs?.pcs_per_kg) pcsPerKg = Number(attrs.pcs_per_kg);
-        } catch {}
+          const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: effectiveTenantId, product_ids: productIds });
+          if (Array.isArray(products)) {
+            products.forEach((p: any) => { if (p?.product_id) productMap[p.product_id] = p; });
+          }
+        } catch {
+          // ignore product lookup failures
+        }
       }
-      return {
-        ...item,
-        originalRate,
-        discountLabel,
-        isPriceOverride,
-        brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined,
-        billing_type: p?.billing_type || item.billing_type || undefined,
-        pieces_per_kg: pcsPerKg,
-        hsn_sac_code: item.hsn_sac_code || p?.hsn_sac_code || undefined,
-        unit: p?.uom || item.uom || item.unit || undefined,
-        isCombo: isComboItem,
-        combo_items: comboItemsParsed,
-      };
-    });
+
+      return invoiceItems.map(item => {
+        try {
+          let comboItemsParsed: any[] | undefined = undefined;
+          if (item?.combo_details) {
+            try {
+              const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+              if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
+            } catch {}
+          }
+
+          const itemNameClean = String(item?.name || '').toLowerCase().trim();
+          const matchedCombo = combosList.find((c: any) => {
+            const cNameClean = String(c?.name || '').toLowerCase().trim();
+            return (item?.combo_id && c?.combo_id === item.combo_id) ||
+              (cNameClean && itemNameClean && cNameClean === itemNameClean) ||
+              (item?.product_id && c?.combo_id === item.product_id);
+          });
+
+          if (!comboItemsParsed && matchedCombo && matchedCombo.items) {
+            comboItemsParsed = matchedCombo.items;
+          }
+
+          const isComboItem = Boolean(item?.combo_id || matchedCombo || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+
+          const p = item?.is_service_item ? null : productMap[item?.product_id];
+          const mrp = p ? (p.pricing_mode === 'GRADE_RATE' && Number(p.grade_rate) > 0 ? Number(p.grade_rate) : (Number(p.base_price) || 0)) : 0;
+          const soldPrice = Number(item?.unit_price) || 0;
+          let originalRate: number | undefined;
+          let discountLabel: string | undefined;
+          let isPriceOverride = false;
+          if (mrp > 0 && soldPrice < mrp) {
+            const offerPrice = p?.offer_price ? Number(p.offer_price) : null;
+            const catalogDiscFlat = p?.discount_flat ? Number(p.discount_flat) : null;
+            const catalogDiscPct = p?.discount_percent ? Number(p.discount_percent) : null;
+            const catalogPrice = offerPrice !== null ? offerPrice
+              : catalogDiscFlat !== null ? mrp - catalogDiscFlat
+              : catalogDiscPct !== null ? mrp * (1 - catalogDiscPct / 100)
+              : mrp;
+
+            if (offerPrice !== null && Math.abs(offerPrice - soldPrice) < 0.01) {
+              originalRate = mrp;
+              discountLabel = 'Offer';
+              isPriceOverride = false;
+            } else if (catalogPrice < mrp && Math.abs(catalogPrice - soldPrice) < 0.01) {
+              originalRate = mrp;
+              discountLabel = catalogDiscFlat ? `-₹${catalogDiscFlat.toFixed(0)}` : catalogDiscPct ? `${catalogDiscPct}% OFF` : 'Offer';
+              isPriceOverride = false;
+            } else {
+              const diff = mrp - soldPrice;
+              if (diff >= 0.05) {
+                originalRate = mrp;
+                discountLabel = `-₹${diff.toFixed(0)}`;
+                isPriceOverride = true;
+              }
+            }
+          }
+          let pcsPerKg: number | undefined;
+          if (p?.domain_attributes) {
+            try {
+              const attrs = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+              if (attrs?.pcs_per_kg) pcsPerKg = Number(attrs.pcs_per_kg);
+            } catch {}
+          }
+          return {
+            ...item,
+            originalRate,
+            discountLabel,
+            isPriceOverride,
+            brand_manufacturer: p?.brand_manufacturer || item?.brand_manufacturer || undefined,
+            billing_type: p?.billing_type || item?.billing_type || undefined,
+            pieces_per_kg: pcsPerKg,
+            hsn_sac_code: item?.hsn_sac_code || p?.hsn_sac_code || undefined,
+            unit: p?.uom || item?.uom || item?.unit || undefined,
+            isCombo: isComboItem,
+            combo_items: comboItemsParsed,
+          };
+        } catch {
+          return item;
+        }
+      });
+    } catch {
+      return invoiceItems;
+    }
   };
 
   const handleSelectInvoice = async (inv: any) => {
+    if (!inv) return;
     setSelectedInvoice(inv);
     setDrawerOpen(true);
-    if (window.electronAPI) {
-      const [data, returned] = await Promise.all([
-        window.electronAPI.dbGetInvoiceItems(inv.invoice_id),
-        window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id),
-      ]);
-      const invoiceItems = Array.isArray(data) ? data : [];
-      const enriched = await enrichItemsWithMrp(invoiceItems);
-      setItems(enriched);
-      const returnedMap: Record<string, number> = {};
-      (Array.isArray(returned) ? returned : []).forEach((r: any) => {
-        returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
-      });
-      const fullyReturned = invoiceItems.every((item: any) =>
-        Number(item.quantity) - (returnedMap[item.item_id] || 0) <= 0
-      );
-      setCanReturn(!fullyReturned);
+    setItemsLoading(true);
+    setItems([]);
+    try {
+      if (window.electronAPI) {
+        const [data, returned] = await Promise.all([
+          window.electronAPI.dbGetInvoiceItems(inv.invoice_id).catch((err: any) => {
+            console.error('[SalesHistory] dbGetInvoiceItems error:', err);
+            return [];
+          }),
+          window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id).catch((err: any) => {
+            console.error('[SalesHistory] dbGetAlreadyReturnedQuantities error:', err);
+            return [];
+          }),
+        ]);
+        const invoiceItems = Array.isArray(data) ? data : [];
+        const enriched = await enrichItemsWithMrp(invoiceItems);
+        setItems(enriched);
+        const returnedMap: Record<string, number> = {};
+        (Array.isArray(returned) ? returned : []).forEach((r: any) => {
+          if (r?.invoice_item_id) {
+            returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
+          }
+        });
+        const fullyReturned = invoiceItems.length > 0 && invoiceItems.every((item: any) =>
+          Number(item.quantity) - (returnedMap[item.item_id] || 0) <= 0
+        );
+        setCanReturn(!fullyReturned);
+      }
+    } catch (err) {
+      console.error('[SalesHistory] handleSelectInvoice error:', err);
+      setItems([]);
+    } finally {
+      setItemsLoading(false);
     }
   };
 
   const closeDrawer = () => {
     setDrawerOpen(false);
     setCanReturn(true);
+    setItemsLoading(false);
     setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
   };
 
@@ -1266,11 +1320,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
             } catch {}
           }
-          const matchedCombo = combosList.find((c: any) =>
-            (item.combo_id && c.combo_id === item.combo_id) ||
-            (item.name && c.name && c.name.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
-            (item.product_id && c.combo_id === item.product_id)
-          );
+          const iName = String(item?.name || '').toLowerCase().trim();
+          const matchedCombo = combosList.find((c: any) => {
+            const cName = String(c?.name || '').toLowerCase().trim();
+            return (item?.combo_id && c?.combo_id === item.combo_id) ||
+              (cName && iName && cName === iName) ||
+              (item?.product_id && c?.combo_id === item.product_id);
+          });
           if (!comboItemsParsed && matchedCombo && matchedCombo.items) {
             comboItemsParsed = matchedCombo.items;
           }
@@ -3116,13 +3172,19 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         )}
                       </thead>
                       <tbody className="divide-y divide-border/30">
-                        {items.length === 0 ? (
+                        {itemsLoading ? (
                           <tr>
-                            <td colSpan={isGstBill ? 7 : 4} className="py-6 text-center text-muted-foreground">
+                            <td colSpan={isGstBill ? 7 : 4} className="py-8 text-center text-muted-foreground">
                               <div className="flex items-center justify-center gap-2">
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <RefreshCw className="w-4 h-4 animate-spin text-primary" />
                                 <span className="text-xs font-medium">Loading items…</span>
                               </div>
+                            </td>
+                          </tr>
+                        ) : items.length === 0 ? (
+                          <tr>
+                            <td colSpan={isGstBill ? 7 : 4} className="py-8 text-center text-muted-foreground">
+                              <p className="text-xs">No items found for this bill</p>
                             </td>
                           </tr>
                         ) : items.map((item, i) => {
@@ -3171,8 +3233,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           const effIgstAmt = Number(item.igst_amount) || (isInterItem && itemTax > 0 ? itemTax : 0);
 
                           const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
+                          const itemUnitStr = String(item.unit || item.uom || '').toLowerCase();
                           const isWeight = item.billing_type === 'WEIGHT' || 
-                                           weightUoms.includes((item.unit || '').toLowerCase()) ||
+                                           weightUoms.includes(itemUnitStr) ||
                                            (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold));
                           const pcs = item.pieces_sold ?? item.pieces_override;
 

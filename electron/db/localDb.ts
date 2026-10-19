@@ -889,6 +889,9 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_shop_closing_reports_date ON shop_closing_reports(tenant_id, business_date, trigger_type);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_tenant_product ON invoice_items(tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_returns_invoice_id ON returns(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_return_items_return_id ON return_items(return_id);
+    CREATE INDEX IF NOT EXISTS idx_return_items_invoice_item_id ON return_items(invoice_item_id);
     CREATE INDEX IF NOT EXISTS idx_products_tenant_deleted ON products(tenant_id, is_deleted);
     CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(sku_barcode);
     CREATE INDEX IF NOT EXISTS idx_products_item_code ON products(item_code);
@@ -2188,6 +2191,14 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
     } catch (e: any) {
       console.warn('[DB Migration] Clean real product paper attributes error:', e.message);
     }
+    // Migration: Auto-ensure performance indexes on returns tables
+    try {
+      d.exec(`
+        CREATE INDEX IF NOT EXISTS idx_returns_invoice_id ON returns(invoice_id);
+        CREATE INDEX IF NOT EXISTS idx_return_items_return_id ON return_items(return_id);
+        CREATE INDEX IF NOT EXISTS idx_return_items_invoice_item_id ON return_items(invoice_item_id);
+      `);
+    } catch {}
   } catch (e: any) {
     console.warn('[DB Migration] Auto-ensure columns error:', e.message);
   }

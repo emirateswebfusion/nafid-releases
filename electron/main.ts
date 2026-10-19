@@ -1517,7 +1517,7 @@ ipcMain.handle('db:getProductsByIds', (event, { tenant_id, product_ids }: { tena
     const db = getDb();
     if (!product_ids?.length) return [];
     const placeholders = product_ids.map(() => '?').join(',');
-    return db.prepare(`SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.product_id IN (${placeholders})`).all(tenant_id, ...product_ids);
+    return db.prepare(`SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE (p.tenant_id = ? OR p.tenant_id = 'global' OR p.tenant_id = 'unset' OR p.tenant_id IS NULL) AND p.product_id IN (${placeholders})`).all(tenant_id || 'global', ...product_ids);
   } catch (error: any) {
     console.error('[db:getProductsByIds]', error);
     return { error: 'Operation failed' };

@@ -18,6 +18,7 @@ Nafid is a comprehensive Point of Sale (POS) system built with React, Electron, 
 - **Split payments** - Accept multiple payment methods per transaction
 - **Biller PIN verification** - Optional 4-digit PIN for print accountability
 - **Sales staff attribution** - Track sales by customer handler/staff member
+- **Staff credit billing** - Record staff purchases directly in staff ledger
 
 ### Payment Methods
 - **Cash** - With automatic change calculation
@@ -90,6 +91,36 @@ Nafid is a comprehensive Point of Sale (POS) system built with React, Electron, 
 - **Payment receipts** - Record payments against outstanding
 - **Account statements** - Generate party-wise ledger statements
 - **Opening balances** - Set initial balances for migration
+
+---
+
+## E-Commerce (FusionCart Integration)
+
+### Online Store Management
+- **Vendor registration** - Register as FusionCart vendor from POS
+- **Store configuration** - Store name, slug, description, contact details
+- **Connection testing** - Verify FusionCart API connectivity with latency
+- **Real-time sync status** - Monitor last sync time and status
+
+### Product Synchronization
+- **Product mapping** - Link POS products to FusionCart products
+- **Online enable/disable** - Control which products appear online
+- **Override fields** - Custom online title, description, price per product
+- **Sync status tracking** - SYNCED, PENDING, FAILED, UNSYNCED states
+- **Bulk operations** - Enable/disable/sync multiple products at once
+- **Filters & search** - By online status, category, stock level, keyword
+
+### Order Management
+- **Order dashboard** - View FusionCart orders in POS
+- **Order details** - Customer info, items, payment status, addresses
+- **Status filtering** - Filter by order status (pending, confirmed, shipped, etc.)
+- **Real-time refresh** - Pull latest orders from FusionCart
+
+### Settings
+- **FusionCart URL** - Configure API endpoint (default: localhost:5050/api)
+- **Store credentials** - Store ID, vendor ID auto-populated on approval
+- **Registration workflow** - NOT_REQUESTED → PENDING → APPROVED → ACTIVE
+- **Error handling** - Rejection reasons, connection error states
 
 ---
 
@@ -232,13 +263,14 @@ Nafid is a comprehensive Point of Sale (POS) system built with React, Electron, 
 
 ---
 
-## AI Assistant (Experimental)
+## AI Business Assistant
 
 - **Natural language queries** - "Show top 5 selling products this month"
 - **Sales analytics** - Instant insights without reports
 - **Stock alerts** - "Which items are below reorder level?"
 - **Credit reports** - "Show customers with overdue > 30 days"
 - **Voice commands** - Hands-free operation (planned)
+- **Always available** - Enabled by default in all environments
 
 ---
 
@@ -295,7 +327,7 @@ Nafid is a comprehensive Point of Sale (POS) system built with React, Electron, 
 ---
 
 ## Version
-Current: **v1.7.16**
+Current: **v2.0.4**
 
 ---
 

@@ -1,3 +1,13 @@
+# Nafid POS v2.0.4 Release Notes
+
+## What's Changed
+- **Fixed Bill View POS Hang in Sales History**: Resolved issue where viewing bills in Sales History caused the POS to freeze or get stuck indefinitely on "Loading items…".
+- **Added SQLite Performance Indexes**: Added `idx_returns_invoice_id`, `idx_return_items_return_id`, and `idx_return_items_invoice_item_id` to eliminate full table scans when checking returned quantities.
+- **Optimized MRP & Combo Lookup**: Eliminated unconditional correlated subqueries for combo offers on invoice selection, now only querying combos when bills contain combo items.
+- **Enhanced UI Error Handling & Null-Safety**: Replaced infinite loading spinner with explicit `itemsLoading` state and empty-state messaging, and hardened `formatCurrency`, date parsers, and unit string coercion against uncaught type errors.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.4.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.3...v2.0.4
+
 # Nafid POS v2.0.3 Release Notes
 
 ## What's Changed
