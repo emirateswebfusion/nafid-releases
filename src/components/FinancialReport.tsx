@@ -131,8 +131,11 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       const trendMap: Record<string, { sales: number; profit: number; tax: number }> = {};
 
       if (Array.isArray(invoices)) {
-        totalInvoices = invoices.length;
         for (const inv of invoices) {
+          // Skip statutory tax conversion copies so that store revenue, cash, collections, and trends represent genuine business performance
+          if (inv.converted_from_invoice_id) continue;
+
+          totalInvoices++;
           const grandTotal = Number(inv.grand_total) || 0;
           const tax = Number(inv.tax_total) || 0;
           const disc = Number(inv.discount_total) || 0;

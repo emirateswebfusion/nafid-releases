@@ -261,7 +261,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changingPass, setChangingPass] = useState(false);
   const [confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen] = useState(false);
-  const [appVersion, setAppVersion] = useState('v1.0.0');
+  const [appVersion, setAppVersion] = useState('v2.0.3');
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
   });
@@ -306,6 +306,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
+  const [loyaltyAwardOnPending, setLoyaltyAwardOnPending] = useState(false);
   const [enablePartyGst, setEnablePartyGst] = useState(true);
   const [enablePartyEstimate, setEnablePartyEstimate] = useState(true);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
@@ -371,6 +372,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setShowCashRegister(true);
     } else if (key === 'cash_register' && !targetVal) {
       setShowCashRegister(false);
+    } else if (key === 'loyalty') {
+      setLoyaltyEnabled(targetVal);
     }
 
     updatedFlags = sanitizeFeatureFlags(updatedFlags);
@@ -605,6 +608,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     loyaltyEnabled: overrides.loyaltyEnabled !== undefined ? overrides.loyaltyEnabled : loyaltyEnabled,
     loyaltyEarningRate: overrides.loyaltyEarningRate !== undefined ? overrides.loyaltyEarningRate : loyaltyEarningRate,
     loyaltyRedemptionRate: overrides.loyaltyRedemptionRate !== undefined ? overrides.loyaltyRedemptionRate : loyaltyRedemptionRate,
+    loyaltyAwardOnPending: overrides.loyaltyAwardOnPending !== undefined ? overrides.loyaltyAwardOnPending : loyaltyAwardOnPending,
     billSettings: overrides.billSettings !== undefined ? overrides.billSettings : billSettings,
     scrapBillSettings: overrides.scrapBillSettings !== undefined ? overrides.scrapBillSettings : scrapBillSettings,
     gstProfitPercentage: overrides.gstProfitPercentage !== undefined ? overrides.gstProfitPercentage : gstProfitPercentage,
@@ -648,7 +652,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -884,6 +888,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       let finalLoyaltyEnabled = Boolean(finalFlags?.loyalty);
       let finalLoyaltyEarningRate = 100;
       let finalLoyaltyRedemptionRate = 1;
+      let finalLoyaltyAwardOnPending = false;
       const loyaltyCfg = allSettings['loyalty_config'];
       if (loyaltyCfg && typeof loyaltyCfg === 'object') {
         if (loyaltyCfg.enabled !== undefined) {
@@ -891,6 +896,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         }
         if (loyaltyCfg.earningRate) finalLoyaltyEarningRate = Number(loyaltyCfg.earningRate) || 100;
         if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate) || 1;
+        if (loyaltyCfg.awardPointsOnPending !== undefined) finalLoyaltyAwardOnPending = Boolean(loyaltyCfg.awardPointsOnPending);
       }
 
       let finalBankName = '';
@@ -1134,6 +1140,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setLoyaltyEnabled(finalLoyaltyEnabled);
       setLoyaltyEarningRate(finalLoyaltyEarningRate);
       setLoyaltyRedemptionRate(finalLoyaltyRedemptionRate);
+      setLoyaltyAwardOnPending(finalLoyaltyAwardOnPending);
       setLabelCodeType(finalLabelType);
       setLabelShowShopName(finalLabelShowName);
       setStockReportDefaultView(finalSrdv);
@@ -1250,6 +1257,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         loyaltyEnabled: finalLoyaltyEnabled,
         loyaltyEarningRate: finalLoyaltyEarningRate,
         loyaltyRedemptionRate: finalLoyaltyRedemptionRate,
+        loyaltyAwardOnPending: finalLoyaltyAwardOnPending,
         billSettings: finalBillSettings,
         scrapBillSettings: finalScrapBillSettings,
         gstProfitPercentage: finalGstProfit,
@@ -1464,7 +1472,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive', value: gstConversionTaxInclusive }), name: 'gst_conversion_tax_inclusive' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: Boolean(sanitizedFlags.loyalty), earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1, awardPointsOnPending: Boolean(loyaltyAwardOnPending) } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_open_cash_drawer', value: autoOpenCashDrawer }), name: 'auto_open_cash_drawer' },
@@ -1629,6 +1637,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         loyaltyEnabled,
         loyaltyEarningRate: Number(loyaltyEarningRate) || 100,
         loyaltyRedemptionRate: Number(loyaltyRedemptionRate) || 1,
+        loyaltyAwardOnPending,
         billSettings,
         scrapBillSettings,
         gstProfitPercentage,
@@ -2281,61 +2290,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               </div>
             </div>
 
-            {/* Card 4: Store Features */}
-            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
-                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 shadow-[0_4px_12px_rgba(168,85,247,0.1)] dark:shadow-[0_4px_12px_rgba(168,85,247,0.05)] shrink-0">
-                  <Tags className="w-4.5 h-4.5" />
-                </div>
-                <span className="text-xs font-black text-purple-600 uppercase tracking-widest">Store Features</span>
-              </div>
-              <div className="space-y-5">
-                {/* Loyalty Toggle & Configs */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); useFeatureFlagsStore.getState().setFlag('loyalty', v); }}>Enable Loyalty Points System</label>
-                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for future discounts.</p>
-                    </div>
-                    <button type="button" onClick={() => { const v = !loyaltyEnabled; setLoyaltyEnabled(v); useFeatureFlagsStore.getState().setFlag('loyalty', v); }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', loyaltyEnabled ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
-
-                  {loyaltyEnabled && (
-                    <div className="rounded-2xl border border-border p-5 space-y-4 bg-muted/30 animate-in slide-in-from-top-2 duration-200">
-                      <div className="flex items-center gap-2.5 pb-2.5 border-b border-border">
-                        <TrendingUp className="w-4 h-4 text-primary" />
-                        <span className="text-xs font-bold text-foreground">Points Earning &amp; Redemption Rules</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-5">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Earning Rate</label>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-muted-foreground font-mono">₹</span>
-                            <input type="number" min="1" value={loyaltyEarningRate}
-                              onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
-                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
-                            <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground/70">Customer earns 1 point per ₹{loyaltyEarningRate} spent.</p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
-                            <input type="number" min="0.01" step="0.01" value={loyaltyRedemptionRate}
-                              onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
-                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
-                          </div>
-                          <p className="text-[10px] text-muted-foreground/70">Each point gives ₹{loyaltyRedemptionRate} discount on bills.</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
           </div>
         );
       case 'whatsapp':
@@ -3982,6 +3936,81 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
 
                   <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs", whatsNewLang === 'ml' && "font-malayalam")}>
+                    {/* 1. Bill of Supply to GST Convert Corrected */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ബിൽ ഓഫ് സപ്ലൈ ➔ GST കൺവേർഷൻ' : 'Bill of Supply → GST Convert'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'കറക്ഷൻ' : 'Corrected'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Tax-Inclusive Margin & Real Sales Fix</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'എസ്റ്റിമേറ്റ് / ബിൽ ഓഫ് സപ്ലൈ ബില്ലുകൾ GST ടാക്സ് ഇൻവോയ്സിലേക്ക് മാറ്റുന്നതിൽ കൃത്യമായ ലാഭവിഹിതവും (Profit %) ടാക്സ്-ഇൻക്ലൂസീവ് കണക്കുകൂട്ടലുകളും ഉറപ്പാക്കി. കൺവേർട്ട് ചെയ്ത ബില്ലുകൾ സെയിൽസ് റിപ്പോർട്ടിൽ ഇരട്ടിപ്പായി വരുന്നത് തടയുകയും, GST ഫയലിംഗ് കോപ്പികൾ കൃത്യമായി രേഖപ്പെടുത്തുകയും ചെയ്യുന്നു.'
+                            : 'Corrected and perfected Bill of Supply to GST conversion with accurate tax-inclusive profit margins, automatic sequential GST invoice generation, statutory tax copy tagging, and prevention of duplicate sales in revenue reports.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 2. E-Commerce Storefront Added */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ഇ-കൊമേഴ്‌സ് പോർട്ടൽ' : 'E-Commerce Storefront'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'പുതിയത്' : 'Added'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold pl-4 -mt-0.5">Online Store & Real-Time Stock Sync</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഷോപ്പിനായി സ്വന്തം ഓൺലൈൻ സ്റ്റോറും ഇ-കൊമേഴ്‌സ് പോർട്ടലും POS-ൽ സജ്ജമാക്കി. ഓൺലൈൻ ഓർഡറുകൾ തത്സമയം സ്വീകരിക്കാനും, ഓർഡർ സ്റ്റാറ്റസ് പ്രോസസ്സ് ചെയ്യാനും, കടയിലെയും ഓൺലൈനിലെയും സ്റ്റോക്ക് ഒരേപോലെ ലൈവായി സിങ്ക് ചെയ്യാനും സാധിക്കും.'
+                            : 'Launch and manage your online store directly within Nafid POS. Features real-time catalog and inventory synchronization, incoming web order alerts, order fulfillment tracking, and unified multi-channel stock deduction.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 3. Digital Ads Feature Added */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-purple-500/40 hover:bg-purple-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ഡിജിറ്റൽ പരസ്യ ബോർഡ്' : 'Digital Ads & Promo Display'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'പുതിയത്' : 'Added'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold pl-4 -mt-0.5">Customer Screen & Counter Display Ads</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'കൗണ്ടറിലെ കസ്റ്റമർ ഡിസ്പ്ലേ സ്ക്രീനുകളിലും ടാബ്‌ലറ്റുകളിലും ഷോപ്പിലെ ഓഫറുകൾ, വിശേഷാൽ ഡിസ്കൗണ്ടുകൾ, ഉൽപ്പന്ന പരസ്യങ്ങൾ എന്നിവ മനോഹരമായ ബാനറുകളായും ഓട്ടോമാറ്റിക് സ്ലൈഡ്‌ഷോയായും പ്രദർശിപ്പിക്കാം.'
+                            : 'Promote high-margin products, seasonal discounts, and brand announcements on secondary customer-facing screens or counter tablets with scheduling, animated transitions, and full-screen promo playback.'}
+                        </p>
+                      </div>
+                    </div>
+
                     {/* Digital Warranty Certificates (Bill Number & Brand) */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-violet-500/40 hover:bg-violet-500/[0.02] transition-all flex flex-col justify-between">
                       <div className="space-y-1">
@@ -4014,7 +4043,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
                             <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'കസ്റ്റമർ ലോയൽറ്റി & റിഡംപ്ഷൻ' : 'Customer Loyalty & Redemption'}
+                              {whatsNewLang === 'ml' ? 'കസ്റ്റമർ ലോയൽറ്റി & ഡയനാമിക് റിഡംപ്ഷൻ' : 'Customer Loyalty & Unified Redemption'}
                             </p>
                           </div>
                           <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md shrink-0">
@@ -4022,12 +4051,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                           </span>
                         </div>
                         {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold pl-4 -mt-0.5">Real-Time Points & Instant Bill Discounts</p>
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold pl-4 -mt-0.5">Real-Time Points, Alt+L Shortcut & Unified Deduction</p>
                         )}
                         <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
                           {whatsNewLang === 'ml'
-                            ? 'ഓരോ പർച്ചേസിലും കസ്റ്റമർമാർക്ക് പോയിന്റുകൾ നൽകാം (₹X = 1 Pt). ബില്ലിംഗിൽ കസ്റ്റമറെ സെലക്ട് ചെയ്യുമ്പോൾ ഫോൺ നമ്പറിന് തൊട്ടടുത്ത് തന്നെ പോയിന്റ് ബാലൻസ് കാണാം. "Redeem" അല്ലെങ്കിൽ "Max" ബട്ടൺ ക്ലിക്ക് ചെയ്ത് പോയിന്റുകൾ തത്സമയം പണമാക്കി ബിൽ തുകയിൽ നിന്ന് കുറയ്ക്കാം. കസ്റ്റമർ പേജിൽ ഹിസ്റ്ററിയും പോയിന്റ് അഡ്ജസ്റ്റ്മെന്റും ലഭ്യമാണ്.'
-                            : 'Award customer loyalty points on purchases (₹X = 1 Pt). When selecting a customer during billing, their points balance appears right beside the phone number. Redeem points for instant discounts using the "Redeem" or quick "Max" button, with audit history and manual adjustment tools.'}
+                            ? 'ഓരോ പർച്ചേസിലും കസ്റ്റമർമാർക്ക് പോയിന്റുകൾ നൽകാം (₹X = 1 Pt). ബില്ലിംഗിൽ കസ്റ്റമറെ സെലക്ട് ചെയ്യുമ്പോൾ ഫോൺ നമ്പറിന് തൊട്ടടുത്ത് തന്നെ പോയിന്റ് ബാലൻസ് കാണാം. താഴെ സ്ക്രാപ്പ്/റിട്ടേൺ ഡിഡക്ഷനുകൾക്കൊപ്പമുള്ള ഏകീകൃത പാനലിൽ "Alt+L" ഷോർട്ട്‌കട്ട് വഴിയോ ടാബ് വഴിയോ പോയിന്റ് ഇൻപുട്ടിലേക്ക് മാറി, പോയിന്റുകൾ നേരിട്ട് ടൈപ്പ് ചെയ്തോ "Max" ബട്ടൺ വഴിയോ തത്സമയം ബിൽ തുകയിൽ നിന്ന് കുറയ്ക്കാം. കസ്റ്റമർ പേജിൽ ലെഡ്ജർ ഹിസ്റ്ററിയും മാനുവൽ അഡ്ജസ്റ്റ്മെന്റും ലഭ്യമാണ്.'
+                            : 'Award customer loyalty points on purchases (₹X = 1 Pt). When selecting a customer during billing, their points balance appears right beside the phone number. Seamlessly redeem points using the unified dynamic deduction bar via "Alt+L" shortcut or tab, with direct numeric entry and a quick "Max" button to deduct cash value in real time. Includes full points audit ledger and manual adjustments in Customers Page.'}
                         </p>
                       </div>
                     </div>
@@ -4157,30 +4186,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       </div>
                     </div>
 
-                    {/* 4. Digital Ads & Promo Screen */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-purple-500/40 hover:bg-purple-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ഡിജിറ്റൽ പരസ്യ ബോർഡ്' : 'Digital Ads Manager'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'മാർക്കറ്റിംഗ്' : 'Marketing'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Customer Display Promotions</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഷോപ്പിലെ ഓഫറുകൾ, വിശേഷാൽ ഡിസ്കൗണ്ടുകൾ, അറിയിപ്പുകൾ എന്നിവ കസ്റ്റമർ ഡിസ്പ്ലേ സ്ക്രീനുകളിലും മൊബൈൽ പോർട്ടലിലും മനോഹരമായ ബാനറുകളായി പ്രദർശിപ്പിക്കാം.'
-                            : 'Create, schedule, and showcase custom promotional marketing banners, seasonal discount announcements, and customer-facing screen campaigns.'}
-                        </p>
-                      </div>
-                    </div>
 
                     {/* 5. Offline AI Assistant & Analytics */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-cyan-500/40 hover:bg-cyan-500/[0.02] transition-all flex flex-col justify-between">
@@ -4602,6 +4607,87 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   Disabled features are hidden everywhere — dashboards, billing page buttons, and manager screens. Existing data is never deleted; re-enabling a feature restores it. Changes apply after saving.
                 </p>
               </div>
+
+              {/* Points Earning & Redemption Rules (when Loyalty Points is enabled) */}
+              {featureFlags?.loyalty && (
+                <div className="mt-6 bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                    <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 shadow-[0_4px_12px_rgba(245,158,11,0.1)] shrink-0">
+                      <TrendingUp className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Points Earning &amp; Redemption Rules</h3>
+                      <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Configure how customers earn loyalty points on purchases and their redemption value</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-1.5 p-4 rounded-2xl bg-muted/20 border border-border/60">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Earning Rate</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-muted-foreground font-mono">₹</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={loyaltyEarningRate}
+                          onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
+                          className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono"
+                        />
+                        <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Customer earns 1 point per ₹{loyaltyEarningRate} spent.</p>
+                    </div>
+                    <div className="space-y-1.5 p-4 rounded-2xl bg-muted/20 border border-border/60">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={loyaltyRedemptionRate}
+                          onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
+                          className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono"
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Each point gives ₹{loyaltyRedemptionRate} discount on bills.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-border/60">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-muted/20 border border-border/60 hover:border-primary/20 transition-all duration-300">
+                      <div className="flex-1 min-w-0">
+                        <label
+                          className="text-xs font-bold text-foreground cursor-pointer select-none"
+                          onClick={() => setLoyaltyAwardOnPending(!loyaltyAwardOnPending)}
+                        >
+                          Award Points on Pending Bills
+                        </label>
+                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
+                          {loyaltyAwardOnPending
+                            ? 'ON: Points are awarded immediately when a bill is created, even while payment is pending.'
+                            : 'OFF: Points are awarded only after the bill is paid / settled in Cash Settlement.'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLoyaltyAwardOnPending(!loyaltyAwardOnPending)}
+                        className={clsx(
+                          'relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer',
+                          loyaltyAwardOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20'
+                        )}
+                        title={loyaltyAwardOnPending ? 'Award on Pending (ON)' : 'Award only after Paid (OFF)'}
+                      >
+                        <span
+                          className={clsx(
+                            'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300',
+                            loyaltyAwardOnPending ? 'translate-x-5' : 'translate-x-0'
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Party Ledger Balance Modes Card */}
               <div className="mt-6 bg-card border border-border rounded-[28px] p-6 shadow-sm">

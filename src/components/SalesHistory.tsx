@@ -275,43 +275,44 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
           ? 'bg-primary/5'
           : isChecked
             ? 'bg-amber-500/10'
-            : 'hover:bg-muted/30',
-        isConvertedBos && 'opacity-55'
+            : 'hover:bg-muted/30'
       )}
     >
       {/* Invoice # */}
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex items-center gap-2.5">
-          {canConvert ? (
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                onCheck?.();
-              }}
-              className="flex items-center justify-center cursor-pointer shrink-0 p-0.5"
-              title={isChecked ? 'Deselect bill' : 'Select bill (turns on Convert to GST)'}
-            >
-              <input
-                type="checkbox"
-                checked={isChecked}
-                readOnly
-                className={clsx(
-                  'w-4 h-4 rounded-md border-2 transition-all cursor-pointer',
-                  isChecked
-                    ? 'border-amber-500 bg-amber-500 text-white'
-                    : 'border-border/80 hover:border-amber-500'
-                )}
-              />
-            </div>
-          ) : (inv.invoice_type === 'BILL_OF_SUPPLY' && !isConvertedBos && selectionMode) ? (
-            <div className="flex items-center justify-center shrink-0 p-0.5" title="Full Estimate Bill (cannot convert to GST)">
-              <input
-                type="checkbox"
-                disabled
-                checked={false}
-                className="w-4 h-4 rounded-md border border-border/40 bg-muted/40 opacity-30 cursor-not-allowed"
-              />
-            </div>
+          {selectionMode ? (
+            canConvert ? (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCheck?.();
+                }}
+                className="flex items-center justify-center cursor-pointer shrink-0 p-0.5"
+                title={isChecked ? 'Deselect bill' : 'Select bill'}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  readOnly
+                  className={clsx(
+                    'w-4 h-4 rounded-md border-2 transition-all cursor-pointer',
+                    isChecked
+                      ? 'border-amber-500 bg-amber-500 text-white'
+                      : 'border-border/80 hover:border-amber-500'
+                  )}
+                />
+              </div>
+            ) : (inv.invoice_type === 'BILL_OF_SUPPLY' && !isConvertedBos) ? (
+              <div className="flex items-center justify-center shrink-0 p-0.5" title="Full Estimate Bill (cannot convert to GST)">
+                <input
+                  type="checkbox"
+                  disabled
+                  checked={false}
+                  className="w-4 h-4 rounded-md border border-border/40 bg-muted/40 opacity-30 cursor-not-allowed"
+                />
+              </div>
+            ) : null
           ) : null}
           <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
             <Receipt className="w-4 h-4" />
@@ -320,13 +321,13 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
             <div className="text-xs font-black text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5 flex-wrap">
               <span>{inv.invoice_number}</span>
               {isConvertedBos && (
-                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                  GST Converted
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20" title={`Converted to GST: ${inv.converted_to_invoice_number || ''}`}>
+                  ⚡ GST Filed {inv.converted_to_invoice_number ? `(${inv.converted_to_invoice_number})` : ''}
                 </span>
               )}
               {isConversionCopy && (
-                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  From BOS
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`Statutory GST filing copy from BOS: ${inv.converted_from_invoice_number || ''}`}>
+                  📄 Tax Copy {inv.converted_from_invoice_number ? `(From ${inv.converted_from_invoice_number})` : ''}
                 </span>
               )}
             </div>
@@ -477,6 +478,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [isFetching, setIsFetching] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState('');
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState('');
+  const [accountingView, setAccountingView] = useState<'REAL_SALES' | 'TAX_FILING' | 'ALL'>('REAL_SALES');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const [taxPercentageFilter, setTaxPercentageFilter] = useState('');
@@ -777,7 +779,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setOffset(0);
     setHasMore(true);
     loadInvoices(true);
-  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig]);
+  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig, accountingView]);
 
   useEffect(() => {
     if (invoiceTypeFilter === 'BILL_OF_SUPPLY' && taxPercentageFilter !== '') {
@@ -881,6 +883,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           invoice_type: effectiveInvoiceType,
           tax_rate_percent: taxPercentageFilter || undefined,
           filterDate: effectiveFilterDate, filterDateEnd: effectiveFilterDateEnd,
+          accounting_view: accountingView,
         };
 
         const promises: Promise<any>[] = [
@@ -1076,13 +1079,82 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
   };
 
+  const handleViewLinkedInvoice = async (targetInvoiceId?: string, targetInvoiceNumber?: string) => {
+    if (!targetInvoiceId && !targetInvoiceNumber) {
+      showToast('No linked bill details found', 'error');
+      return;
+    }
+    try {
+      // 1. First check in-memory loaded invoices for instant match
+      let match = invoices.find((i: any) =>
+        (targetInvoiceId && i.invoice_id === targetInvoiceId) ||
+        (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber) ||
+        (targetInvoiceNumber && i.invoice_number?.trim().toUpperCase() === targetInvoiceNumber.trim().toUpperCase())
+      );
+
+      // 2. Query by invoice_id (new main.ts direct bypass)
+      if (!match && targetInvoiceId && window.electronAPI?.dbGetInvoices) {
+        try {
+          const res = await window.electronAPI.dbGetInvoices({
+            invoice_id: targetInvoiceId,
+            limit: 5,
+            offset: 0,
+          });
+          if (Array.isArray(res) && res.length > 0) {
+            match = res.find((i: any) => i.invoice_id === targetInvoiceId || (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber)) || res[0];
+          }
+        } catch (err) {
+          console.warn('[handleViewLinkedInvoice] Error querying by invoice_id:', err);
+        }
+      }
+
+      // 3. Fallback: Query by invoice_number with search
+      const searchKey = targetInvoiceNumber || targetInvoiceId;
+      if (!match && searchKey && window.electronAPI?.dbGetInvoices) {
+        try {
+          const res = await window.electronAPI.dbGetInvoices({
+            search: searchKey,
+            accounting_view: 'ALL',
+            limit: 25,
+            offset: 0,
+          });
+          if (Array.isArray(res)) {
+            match = res.find((i: any) =>
+              (targetInvoiceId && i.invoice_id === targetInvoiceId) ||
+              (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber) ||
+              (targetInvoiceNumber && i.invoice_number?.trim().toUpperCase() === targetInvoiceNumber.trim().toUpperCase()) ||
+              (targetInvoiceId && i.invoice_number === targetInvoiceId)
+            );
+          }
+        } catch (err) {
+          console.warn('[handleViewLinkedInvoice] Error querying by search:', err);
+        }
+      }
+
+      if (match) {
+        // Synchronize accounting view so the underlying list matches the active document
+        if (match.invoice_type === 'BILL_OF_SUPPLY' && accountingView === 'TAX_FILING') {
+          setAccountingView('REAL_SALES');
+        } else if (match.invoice_type === 'GST' && accountingView === 'REAL_SALES' && match.converted_from_invoice_id) {
+          setAccountingView('TAX_FILING');
+        }
+        await handleSelectInvoice(match);
+      } else {
+        showToast(`Linked bill "${targetInvoiceNumber || targetInvoiceId}" could not be found`, 'error');
+      }
+    } catch (e: any) {
+      console.error('[handleViewLinkedInvoice] Failed to load linked invoice:', e);
+      showToast('Could not open linked bill: ' + (e?.message || 'Error'), 'error');
+    }
+  };
+
   const summary = dbSummary || {
-    totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
-    totalInvoices: invoices.filter(i => !i.converted_to_invoice_id).length,
-    totalTax: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
-    totalDiscount: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.discount_total || 0), 0),
+    totalSales: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
+    totalInvoices: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).length,
+    totalTax: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
+    totalDiscount: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).reduce((s, i) => s + (i.discount_total || 0), 0),
     avgOrder: (() => {
-      const live = invoices.filter(i => !i.converted_to_invoice_id);
+      const live = invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id);
       return live.length > 0 ? live.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0) / live.length : 0;
     })(),
   };
@@ -1595,6 +1667,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           tax_rate_percent: taxPercentageFilter || undefined,
           filterDate: filterDate || undefined,
           filterDateEnd: filterDateEnd || undefined,
+          accounting_view: accountingView,
         }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }).catch(() => '') || '',
       ]);
@@ -1622,7 +1695,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       let filename: string;
       let exportedCount = 0;
 
-      const parts: string[] = ['sales_gst_report'];
+      const parts: string[] = ['sales_report'];
+      parts.push(accountingView.toLowerCase().replace('_', '-'));
       if (invoiceTypeFilter) parts.push(invoiceTypeFilter.replace('_', '-').toLowerCase());
       if (paymentFilter) parts.push(paymentFilter.toLowerCase());
       if (taxPercentageFilter) parts.push(`${taxPercentageFilter}pct`);
@@ -1958,30 +2032,32 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
 
           {/* Center: View Mode Segmented Switcher */}
-          <div className="flex items-center bg-muted/40 p-1 rounded-2xl border border-border/70 gap-1 shadow-inner">
+          <div className="flex items-center bg-muted/60 dark:bg-muted/30 p-1 rounded-2xl border border-border/80 gap-1 shadow-inner backdrop-blur-xs">
             <button
+              type="button"
               onClick={() => setViewMode('bills')}
               className={clsx(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border',
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer active:scale-[0.98]',
                 viewMode === 'bills'
-                  ? 'bg-card text-foreground border-border shadow-xs'
-                  : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-card/50'
+                  ? 'bg-card text-foreground border border-border shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
               )}
             >
-              <Receipt className="w-3.5 h-3.5 text-primary" />
-              Bills List
+              <Receipt className={clsx('w-3.5 h-3.5 transition-colors', viewMode === 'bills' ? 'text-primary' : 'text-muted-foreground')} />
+              <span>Bills List</span>
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('analytics')}
               className={clsx(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border',
+                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer active:scale-[0.98]',
                 viewMode === 'analytics'
-                  ? 'bg-card text-foreground border-border shadow-xs'
-                  : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-card/50'
+                  ? 'bg-card text-foreground border border-border shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
               )}
             >
-              <BarChart3 className="w-3.5 h-3.5 text-violet-500" />
-              Analytics &amp; Graph
+              <BarChart3 className={clsx('w-3.5 h-3.5 transition-colors', viewMode === 'analytics' ? 'text-violet-500' : 'text-muted-foreground')} />
+              <span>Analytics &amp; Graph</span>
             </button>
           </div>
 
@@ -2004,28 +2080,31 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 endDate={filterDateEnd}
                 onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
                 align="right"
+                triggerClassName="h-8.5 px-3 rounded-xl text-xs font-semibold bg-background border-border/80 hover:bg-muted/40 shadow-2xs"
               />
             )}
 
             <button
+              type="button"
               onClick={handleExportCSV}
               disabled={isExporting}
               title="Export filtered invoices to CSV"
-              className="h-8 px-3 rounded-xl text-[11px] font-bold transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 shrink-0"
+              className="h-8.5 px-3.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 shadow-2xs hover:shadow-emerald-500/10"
             >
               {isExporting
-                ? <RefreshCw className="w-3 h-3 animate-spin" />
-                : <Download className="w-3 h-3" />
+                ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                : <Download className="w-3.5 h-3.5" />
               }
-              {isExporting ? 'Exporting…' : 'CSV'}
+              <span>{isExporting ? 'Exporting…' : 'Export CSV'}</span>
             </button>
 
             <button
+              type="button"
               onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              className="h-8.5 w-8.5 rounded-xl border border-destructive/25 bg-destructive/5 text-destructive hover:bg-destructive/15 transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
               title="Close"
             >
-              <X className="w-4 h-4 text-destructive" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -2042,19 +2121,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             <div className="px-4 py-2 border-b border-border/70 bg-card/60 shrink-0">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                  {/* KPI 1: Total Revenue */}
-                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[170px]">
-                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
+                  {/* KPI 1: Total Revenue / GST Turnover */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[170px] transition-all">
+                    <div className="p-1.5 rounded-lg shrink-0 transition-colors bg-emerald-500/10 text-emerald-500">
                       <IndianRupee className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total Revenue</span>
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                          {accountingView === 'TAX_FILING' ? 'GST Turnover' : accountingView === 'REAL_SALES' ? 'BOS Turnover' : 'Total Revenue'}
+                        </span>
                         {maskedRevenue.isMasked && !isStaff && (
-                          <span className="text-[8px] bg-primary/10 text-primary px-1 rounded font-bold leading-none">Real</span>
+                          <span className="text-[8px] bg-primary/10 text-primary px-1 rounded font-bold leading-none">BOS</span>
                         )}
                       </div>
-                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums leading-tight block mt-0.5">
+                      <span className="text-xs font-black font-mono tabular-nums leading-tight block mt-0.5 text-emerald-600 dark:text-emerald-400">
                         {loading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)}
                       </span>
                     </div>
@@ -2066,7 +2147,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <TrendingUp className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Avg Order Value</span>
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        {accountingView === 'TAX_FILING' ? 'Avg GST Invoice' : accountingView === 'REAL_SALES' ? 'Avg BOS Order' : 'Avg Order Value'}
+                      </span>
                       <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums leading-tight block mt-0.5">
                         {loading ? '…' : maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)}
                       </span>
@@ -2079,7 +2162,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <Percent className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total GST Tax</span>
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        {accountingView === 'TAX_FILING' ? 'Declared GST Tax' : 'Total Tax'}
+                      </span>
                       <span className="text-xs font-black text-violet-600 dark:text-violet-400 font-mono tabular-nums leading-tight block mt-0.5">
                         {loading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)}
                       </span>
@@ -2092,7 +2177,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <Receipt className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total Invoices</span>
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        {accountingView === 'TAX_FILING' ? 'GST Invoices' : accountingView === 'REAL_SALES' ? 'BOS Invoices' : 'Total Invoices'}
+                      </span>
                       <span className="text-xs font-black text-foreground font-mono tabular-nums leading-tight block mt-0.5">
                         {loading ? '…' : `${summary.totalInvoices} Bills`}
                       </span>
@@ -2102,16 +2189,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
                 {/* Quick Toggle for Collapsible Trend Banner */}
                 <button
+                  type="button"
                   onClick={() => setShowGraphBanner(!showGraphBanner)}
                   className={clsx(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs shrink-0',
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border shadow-2xs shrink-0 active:scale-95',
                     showGraphBanner
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background text-muted-foreground hover:text-foreground border-border/70'
+                      ? 'bg-primary text-primary-foreground border-primary shadow-xs shadow-primary/20'
+                      : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted/40 border-border/80'
                   )}
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  {showGraphBanner ? 'Hide Trend Chart' : 'Show Trend Chart'}
+                  <span>{showGraphBanner ? 'Hide Trend Chart' : 'Show Trend Chart'}</span>
                 </button>
               </div>
             </div>
@@ -2177,7 +2265,58 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             )}
 
             {/* Search + Payment Method Filter Toolbar */}
-            <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border bg-card">
+            <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border bg-card flex-wrap">
+              {/* Accounting View Switcher: BOS vs GST */}
+              <div className="inline-flex items-center bg-muted/80 dark:bg-muted/40 p-1 rounded-2xl border border-border/80 shadow-inner gap-1 backdrop-blur-xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAccountingView('REAL_SALES')}
+                  className={clsx(
+                    'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-2 cursor-pointer active:scale-[0.97] select-none',
+                    accountingView === 'REAL_SALES'
+                      ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30 border border-emerald-500/40 ring-1 ring-emerald-500/20'
+                      : 'text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10'
+                  )}
+                  title="Bill of Supply / Counter Sales (കടയുടെ യഥാർത്ഥ കണക്കുകൾ - BOS)"
+                >
+                  <span className="relative flex items-center justify-center">
+                    <Receipt className="w-3.5 h-3.5" />
+                    {accountingView === 'REAL_SALES' && (
+                      <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                    )}
+                  </span>
+                  <span>BOS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountingView('TAX_FILING')}
+                  className={clsx(
+                    'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center cursor-pointer active:scale-[0.97] select-none',
+                    accountingView === 'TAX_FILING'
+                      ? 'bg-card text-foreground border border-border shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                  )}
+                  title="Official Statutory GST Invoices (ഗവൺമെന്റ് ടാക്സ് ഫയലിംഗ് - GST)"
+                >
+                  <span>GST</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountingView('ALL')}
+                  className={clsx(
+                    'px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-1 cursor-pointer active:scale-[0.97] select-none',
+                    accountingView === 'ALL'
+                      ? 'bg-card text-foreground border border-border shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                  )}
+                  title="All Invoices & Filing Copies (എല്ലാം)"
+                >
+                  <span>All</span>
+                </button>
+              </div>
+
+              <span className="w-px h-6 bg-border/60 mx-0.5 shrink-0" />
+
               <div className="relative flex-1 max-w-xs">
                 {isSearching ? (
                   <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary animate-spin pointer-events-none" />
@@ -2187,7 +2326,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 <Input
                   type="text"
                   placeholder="Search invoice or customer…"
-                  className="pl-9 pr-8 h-8 text-xs bg-background border-border font-medium"
+                  className="pl-9 pr-8 h-8.5 text-xs bg-background border-border/80 font-medium rounded-xl"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -2198,7 +2337,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       setSearch('');
                       setDebouncedSearch('');
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded transition-colors cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer active:scale-90"
+                    title="Clear search"
                   >
                     <X className="w-3.5 h-3.5 text-destructive" />
                   </button>
@@ -2221,15 +2361,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   ]}
                   size="xs"
                   className="w-36"
-                  triggerClassName="rounded-full h-7 border px-3 transition-all bg-primary/10 text-primary border-primary/25 dark:bg-primary/15"
+                  triggerClassName="rounded-xl h-8.5 border px-3 transition-all bg-background border-border/80 hover:bg-muted/30"
                 />
                 <span className="w-px h-5 bg-border/60 mx-1 shrink-0" />
                 {(() => {
                   const typeChipColors: Record<string, { bg: string; text: string; border: string }> = {
-                    '': { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                    GST_B2B: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                    GST_B2C: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                    BILL_OF_SUPPLY: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                    '': { bg: 'bg-background border-border/80 hover:bg-muted/30', text: 'text-foreground', border: 'border-border/80' },
+                    GST_B2B: { bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/25' },
+                    GST_B2C: { bg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/25', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-500/25' },
+                    BILL_OF_SUPPLY: { bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/25' },
                   };
                   const colors = typeChipColors[invoiceTypeFilter] || typeChipColors[''];
                   return (
@@ -2244,7 +2384,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       ]}
                       size="xs"
                       className="w-40"
-                      triggerClassName={clsx('rounded-full h-7 border px-3 transition-all', colors.bg, colors.text, colors.border)}
+                      triggerClassName={clsx('rounded-xl h-8.5 border px-3 transition-all font-semibold', colors.bg, colors.text, colors.border)}
                       renderOption={(opt) => {
                         const typeIcon: Record<string, any> = { '': Receipt, GST_B2B: Building, GST_B2C: User, BILL_OF_SUPPLY: FileText };
                         const typeColor: Record<string, string> = { '': 'text-foreground', GST_B2B: 'text-blue-500', GST_B2C: 'text-violet-500', BILL_OF_SUPPLY: 'text-amber-500' };
@@ -2266,7 +2406,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     options={TAX_RATES}
                     size="xs"
                     className="w-28"
-                    triggerClassName="rounded-full h-7 border px-3 transition-all bg-primary/10 text-primary border-primary/25 dark:bg-primary/15"
+                    triggerClassName="rounded-xl h-8.5 border px-3 transition-all bg-background border-border/80 hover:bg-muted/30 font-semibold"
                     renderOption={(opt) => (
                       <span className="flex items-center gap-2 text-xs font-bold text-foreground">
                         <Percent className="w-3 h-3 text-muted-foreground" />
@@ -2283,52 +2423,67 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               {enableConvertToGst && isAdminRole(useAuthStore.getState().role) && (
                 !selectionMode ? (
                   <button
+                    type="button"
                     onClick={() => setSelectionMode(true)}
-                    className="h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground flex items-center gap-1 shrink-0"
+                    className="h-8.5 px-3.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20 active:scale-95 flex items-center gap-1.5 shrink-0 shadow-2xs hover:shadow-amber-500/10"
+                    title="Select eligible Bill of Supply sales to convert into statutory GST invoices"
                   >
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500 inline -mt-0.5" />
-                    Convert to GST
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>Convert to GST</span>
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2 shrink-0">
-                    {convertibleInvoicesInView.length > 0 && (
-                      <button
-                        onClick={() => {
-                          if (selectedInvoiceIds.size === convertibleInvoicesInView.length) {
-                            setSelectedInvoiceIds(new Set());
-                          } else {
-                            setSelectedInvoiceIds(new Set(convertibleInvoicesInView.map(i => i.invoice_id)));
-                          }
-                        }}
-                        className="h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border border-border bg-card text-foreground hover:bg-muted"
-                      >
+                  <div className="inline-flex items-center bg-muted/80 dark:bg-muted/40 p-1 rounded-2xl border border-border/80 shadow-inner gap-1 backdrop-blur-xs shrink-0 animate-in fade-in zoom-in-95 duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0) {
+                          setSelectedInvoiceIds(new Set());
+                        } else {
+                          setSelectedInvoiceIds(new Set(convertibleInvoicesInView.map(i => i.invoice_id)));
+                        }
+                      }}
+                      className={clsx(
+                        'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-1.5 cursor-pointer active:scale-[0.97] select-none',
+                        selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0
+                          ? 'bg-card text-foreground border border-border shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                      )}
+                      title="Select or deselect all convertible bills"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span>
                         {selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0
                           ? 'Deselect All'
                           : `Select All (${convertibleInvoicesInView.length})`}
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => setConversionOpen(true)}
-                      disabled={selectedBosInvoices.length === 0}
-                      className={clsx(
-                        'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95',
-                        selectedBosInvoices.length > 0
-                          ? 'bg-amber-500 hover:bg-amber-600 text-white animate-in fade-in'
-                          : 'bg-amber-500/40 text-white/70 cursor-not-allowed'
-                      )}
-                      title={selectedBosInvoices.length === 0 ? 'Select at least 1 Bill of Supply to convert' : 'Click to convert selected bills to GST'}
-                    >
-                      <ArrowDownRight className="w-3.5 h-3.5" />
-                      <span>Convert Selected {selectedBosInvoices.length > 0 ? `(${selectedBosInvoices.length})` : ''}</span>
+                      </span>
                     </button>
 
                     <button
-                      onClick={() => { setSelectionMode(false); setSelectedInvoiceIds(new Set()); }}
-                      className="h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500/20 flex items-center gap-1"
+                      type="button"
+                      onClick={() => setConversionOpen(true)}
+                      disabled={selectedBosInvoices.length === 0}
+                      className={clsx(
+                        'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-1.5 select-none',
+                        selectedBosInvoices.length > 0
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs shadow-amber-500/25 border border-amber-400/40 ring-1 ring-amber-400/20 cursor-pointer active:scale-[0.97]'
+                          : 'text-muted-foreground/50 cursor-not-allowed opacity-60'
+                      )}
+                      title={selectedBosInvoices.length === 0 ? 'Select at least 1 Bill of Supply to convert' : 'Click to convert selected bills to GST'}
                     >
-                      <X className="w-3 h-3" />
-                      Cancel
+                      <ArrowDownRight className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        Convert Selected{selectedBosInvoices.length > 0 ? ` (${selectedBosInvoices.length})` : ''}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setSelectionMode(false); setSelectedInvoiceIds(new Set()); }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-1 cursor-pointer active:scale-[0.97] select-none text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10"
+                      title="Exit selection mode"
+                    >
+                      <X className="w-3.5 h-3.5 shrink-0" />
+                      <span>Cancel</span>
                     </button>
                   </div>
                 )
@@ -2367,16 +2522,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                       <div className="flex items-center gap-2">
-                        {convertibleInvoicesInView.length > 0 && (
+                        {selectionMode && convertibleInvoicesInView.length > 0 && (
                           <input
                             type="checkbox"
                             checked={selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0}
                             onChange={() => {
                               if (selectedInvoiceIds.size === convertibleInvoicesInView.length) {
                                 setSelectedInvoiceIds(new Set());
-                                setSelectionMode(false);
                               } else {
-                                setSelectionMode(true);
                                 setSelectedInvoiceIds(new Set(convertibleInvoicesInView.map(i => i.invoice_id)));
                               }
                             }}
@@ -2414,7 +2567,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                                   const next = new Set(prev);
                                   if (next.has(inv.invoice_id)) {
                                     next.delete(inv.invoice_id);
-                                    if (next.size === 0) setSelectionMode(false);
                                   } else {
                                     next.add(inv.invoice_id);
                                   }
@@ -2430,12 +2582,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           convertible={convertibleMap[inv.invoice_id]}
                           onCheck={() => {
                             if (inv.invoice_type !== 'BILL_OF_SUPPLY' || !convertibleMap[inv.invoice_id]) return;
-                            setSelectionMode(true);
                             setSelectedInvoiceIds(prev => {
                               const next = new Set(prev);
                               if (next.has(inv.invoice_id)) {
                                 next.delete(inv.invoice_id);
-                                if (next.size === 0) setSelectionMode(false);
                               } else {
                                 next.add(inv.invoice_id);
                               }
@@ -2449,14 +2599,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   ))}
                   {hasMore && (
                     <tr ref={sentinelRef}>
-                      <td colSpan={7} className="py-4 text-center">
+                      <td colSpan={7} className="py-5 text-center">
                         <button
+                          type="button"
                           onClick={() => loadInvoices(false)}
                           disabled={isFetching}
-                          className="px-4 py-2 rounded-full border border-border bg-muted/50 hover:bg-muted text-xs font-bold text-foreground transition-all cursor-pointer inline-flex items-center gap-2"
+                          className="h-9 px-5 rounded-xl border border-border/80 bg-card hover:bg-muted text-xs font-bold text-foreground transition-all duration-150 cursor-pointer inline-flex items-center gap-2 active:scale-95 shadow-2xs hover:shadow-xs disabled:opacity-50"
                         >
-                          <RefreshCw className={clsx("w-3.5 h-3.5", isFetching && "animate-spin")} />
-                          {isFetching ? 'Loading more records…' : `Load More Records (${invoices.length} of ${summary.totalInvoices} loaded)`}
+                          <RefreshCw className={clsx("w-3.5 h-3.5 text-primary", isFetching && "animate-spin")} />
+                          <span>{isFetching ? 'Loading more records…' : `Load More Records (${invoices.length} of ${summary.totalInvoices} loaded)`}</span>
                         </button>
                       </td>
                     </tr>
@@ -2601,12 +2752,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
                   return (
                     <button
+                      type="button"
                       onClick={() => {
                         setSelectedInvoiceIds(new Set([selectedInvoice.invoice_id]));
                         setDrawerOpen(false);
                         setConversionOpen(true);
                       }}
-                      className="flex items-center justify-center gap-1.5 px-3.5 h-8 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all text-xs font-black border border-amber-500/30 cursor-pointer active:scale-95 whitespace-nowrap shadow-sm hover:shadow-amber-500/20"
+                      className="flex items-center justify-center gap-1.5 px-3.5 h-8.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all text-xs font-bold border border-amber-500/40 cursor-pointer active:scale-95 whitespace-nowrap shadow-xs shadow-amber-500/20"
                       title="Convert this eligible Bill of Supply to a GST Invoice"
                     >
                       <ArrowDownRight className="w-3.5 h-3.5 shrink-0" />
@@ -2615,82 +2767,146 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   );
                 })()}
                 {hasPermission(useAuthStore.getState(), 'sales.edit') && (
-                  <button onClick={handleEditBill}
-                    className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                  <button
+                    type="button"
+                    onClick={handleEditBill}
+                    className="flex items-center justify-center gap-1.5 px-3 h-8.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/25 cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
                   >
                     <Edit3 className="w-3.5 h-3.5 shrink-0" />
                     <span>Edit Bill</span>
                   </button>
                 )}
                 {hasPermission(useAuthStore.getState(), 'sales.delete') && (
-                  <button onClick={() => setDeleteConfirmOpen(true)}
-                    className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className="flex items-center justify-center gap-1.5 px-3 h-8.5 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/25 cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
                   >
                     <Trash2 className="w-3.5 h-3.5 shrink-0" />
                     <span>Delete</span>
                   </button>
                 )}
                 {(isAdminRole(useAuthStore.getState().role) || hasPermission(useAuthStore.getState(), 'sales.refund')) && (
-                  <button onClick={async () => {
-                    if (!canReturn) return;
-                    // Store invoice ref and close — BillingPage will open in return mode
-                    localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
-                    // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
-                    if (isAdminRole(useAuthStore.getState().role)) {
-                      useCartStore.getState().setRole('BILLER');
-                    }
-                    closeDrawer();
-                    onClose();
-                    setTimeout(() => window.dispatchEvent(new CustomEvent('open-return-mode')), 100);
-                  }}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!canReturn) return;
+                      // Store invoice ref and close — BillingPage will open in return mode
+                      localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
+                      // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
+                      if (isAdminRole(useAuthStore.getState().role)) {
+                        useCartStore.getState().setRole('BILLER');
+                      }
+                      closeDrawer();
+                      onClose();
+                      setTimeout(() => window.dispatchEvent(new CustomEvent('open-return-mode')), 100);
+                    }}
                     disabled={!canReturn}
                     title={canReturn ? undefined : 'All items in this bill have already been returned'}
-                    className={clsx('flex items-center justify-center gap-1.5 px-2.5 h-8 rounded-xl transition-all text-xs font-bold border cursor-pointer active:scale-95 whitespace-nowrap',
+                    className={clsx(
+                      'flex items-center justify-center gap-1.5 px-3 h-8.5 rounded-xl transition-all text-xs font-bold border cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs',
                       canReturn
-                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 border-red-500/20'
-                        : 'bg-muted/40 text-muted-foreground/50 border-border/60 cursor-not-allowed')}
+                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 border-red-500/25'
+                        : 'bg-muted/40 text-muted-foreground/50 border-border/60 cursor-not-allowed'
+                    )}
                   >
                     <Package className="w-3.5 h-3.5 shrink-0" />
                     <span>{canReturn ? 'Return' : 'Returned'}</span>
                   </button>
                 )}
                 {selectedInvoice.payment_method === 'PENDING' && (
-                  <button onClick={openCollectPayment}
-                    className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                  <button
+                    type="button"
+                    onClick={openCollectPayment}
+                    className="flex items-center justify-center gap-1.5 px-3.5 h-8.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all text-xs font-bold border border-emerald-500/40 cursor-pointer active:scale-95 whitespace-nowrap shadow-xs shadow-emerald-600/20"
                   >
                     <CreditCard className="w-3.5 h-3.5 shrink-0" />
                     <span>Collect Payment</span>
                   </button>
                 )}
                 {selectedInvoice.payment_method !== 'PENDING' && isAdminRole(useAuthStore.getState().role) && (
-                  <button onClick={openCollectPayment}
-                    className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 rounded-xl transition-all text-xs font-bold border border-violet-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                  <button
+                    type="button"
+                    onClick={openCollectPayment}
+                    className="flex items-center justify-center gap-1.5 px-3 h-8.5 bg-violet-500/10 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20 rounded-xl transition-all text-xs font-bold border border-violet-500/25 cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
                     title="Change Payment Method (Admin Only)"
                   >
                     <CreditCard className="w-3.5 h-3.5 shrink-0" />
                     <span>Change Payment</span>
                   </button>
                 )}
-                <button onClick={handleReprint}
-                  className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                <button
+                  type="button"
+                  onClick={handleReprint}
+                  className="flex items-center justify-center gap-1.5 px-3 h-8.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/25 cursor-pointer active:scale-95 whitespace-nowrap shadow-2xs"
                 >
                   <Printer className="w-3.5 h-3.5 shrink-0" />
                   <span>Reprint</span>
                 </button>
-                <button onClick={handleSendWhatsAppInvoice}
+                <button
+                  type="button"
+                  onClick={handleSendWhatsAppInvoice}
                   disabled={isSendingWhatsApp}
-                  className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95 whitespace-nowrap disabled:opacity-50"
+                  className="flex items-center justify-center gap-1.5 px-3 h-8.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/25 cursor-pointer active:scale-95 whitespace-nowrap disabled:opacity-50 shadow-2xs"
                   title="Send Invoice PDF via WhatsApp"
                 >
                   {isSendingWhatsApp ? (
                     <div className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin shrink-0" />
                   ) : (
-                    <WhatsAppIcon className="w-3.5 h-3.5 fill-emerald-500 text-emerald-500 shrink-0" />
+                    <WhatsAppIcon className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600 shrink-0" />
                   )}
                   <span>WhatsApp</span>
                 </button>
               </div>
             </div>
+
+            {/* Linked Conversion Banner */}
+            {selectedInvoice.converted_to_invoice_id && (
+              <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400 shrink-0">
+                    <Building className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-violet-700 dark:text-violet-300">GST Invoice Linked for Tax Filing</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Statutory GST Invoice: <span className="font-mono font-bold text-foreground">{selectedInvoice.converted_to_invoice_number || selectedInvoice.converted_to_invoice_id}</span> • Original counter sale remains your true business record.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleViewLinkedInvoice(selectedInvoice.converted_to_invoice_id, selectedInvoice.converted_to_invoice_number)}
+                  className="px-3.5 h-8 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>View GST Copy</span>
+                </button>
+              </div>
+            )}
+            {selectedInvoice.converted_from_invoice_id && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-emerald-700 dark:text-emerald-300">Statutory GST Filing Invoice</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Generated from Original Counter Sale: <span className="font-mono font-bold text-foreground">{selectedInvoice.converted_from_invoice_number || selectedInvoice.converted_from_invoice_id}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleViewLinkedInvoice(selectedInvoice.converted_from_invoice_id, selectedInvoice.converted_from_invoice_number)}
+                  className="px-3.5 h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>View Original Sale</span>
+                </button>
+              </div>
+            )}
 
             {/* Customer + Payment Split */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3202,10 +3418,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                                 setDrawerOpen(false);
                                 onClose();
                               }}
-                              className="px-2 py-0.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-[11px] border border-orange-500/20 transition-all cursor-pointer flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-xs border border-orange-500/25 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
                               title="Edit Scrap Invoice in Billing Page"
                             >
-                              <Edit3 className="w-3 h-3" /> Edit Scrap
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit Scrap</span>
                             </button>
                           )}
                         </div>
@@ -3274,49 +3491,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </div>
               );
             })()}
-
-            {(() => {
-              const isBos = selectedInvoice.invoice_type === 'BILL_OF_SUPPLY';
-              const isNotConverted = !selectedInvoice.converted_to_invoice_id;
-              const isKnownExcluded = convertibleMap[selectedInvoice.invoice_id] === false;
-              const isEligible = isBos && isNotConverted && !isKnownExcluded && (
-                convertibleMap[selectedInvoice.invoice_id] === true ||
-                items.length === 0 ||
-                items.some((it: any) => 
-                  Number(it.tax_amount) > 0 || 
-                  Number(it.cgst_rate) > 0 || 
-                  Boolean(it.hsn_sac_code) || 
-                  Number(it.product_tax_rate_percent) > 0
-                )
-              );
-
-              if (!enableConvertToGst || !isEligible || !isAdminRole(useAuthStore.getState().role)) return null;
-
-              return (
-                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
-                      <ArrowDownRight className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-foreground">Eligible for GST Conversion</p>
-                      <p className="text-[10px] text-muted-foreground">Convert this Bill of Supply into a GST tax invoice with full tax breakup.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedInvoiceIds(new Set([selectedInvoice.invoice_id]));
-                      setDrawerOpen(false);
-                      setConversionOpen(true);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5 shrink-0"
-                  >
-                    <ArrowDownRight className="w-3.5 h-3.5" />
-                    Convert to GST
-                  </button>
-                </div>
-              );
-            })()}
           </div>
         )}
       </Modal>
@@ -3355,6 +3529,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     const isActive = collectPaymentMethod === opt.value;
                     return (
                       <button
+                        type="button"
                         key={opt.value}
                         onClick={() => {
                           setCollectPaymentMethod(opt.value);
@@ -3363,10 +3538,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           }
                         }}
                         className={clsx(
-                          'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
+                          'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-150 active:scale-[0.98] cursor-pointer',
                           isActive
-                            ? `${opt.bg} ${opt.border} ${opt.color} shadow-sm`
-                            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                            ? `${opt.bg} ${opt.border} ${opt.color} shadow-xs ring-1 ring-primary/20`
+                            : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground hover:border-border/80'
                         )}
                       >
                         <div className={clsx(
@@ -3375,7 +3550,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         )}>
                           <opt.icon className="w-4.5 h-4.5" />
                         </div>
-                        <span className="text-xs font-extrabold">{opt.label}</span>
+                        <span className="text-xs font-bold">{opt.label}</span>
                       </button>
                     );
                   })}
@@ -3455,18 +3630,29 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
                 <button
+                  type="button"
+                  onClick={() => setCollectPaymentOpen(false)}
+                  disabled={collectPaymentSaving}
+                  className="h-10 px-4 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 active:scale-95 cursor-pointer border border-border/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
                   onClick={handleCollectPayment}
                   disabled={collectPaymentSaving || collectPaymentSuccess}
-                  className="px-5 py-2.5 text-sm font-black bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                  className="h-10 px-6 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm shadow-emerald-600/20 cursor-pointer flex items-center gap-2"
                 >
                   {collectPaymentSaving ? (
                     <span className="flex items-center gap-2">
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Saving...
+                      <span>Saving...</span>
                     </span>
-                  ) : 'Confirm Payment'}
+                  ) : (
+                    <span>Confirm Payment</span>
+                  )}
                 </button>
               </div>
             </>
@@ -3532,8 +3718,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
                 <button
+                  type="button"
                   onClick={() => {
                     setConversionOpen(false);
                     setConversionResults(null);
@@ -3541,7 +3728,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     setSelectionMode(false);
                     loadInvoices(true);
                   }}
-                  className="px-5 py-2.5 text-sm font-black bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
+                  className="h-10 px-6 text-xs font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all duration-150 active:scale-95 cursor-pointer shadow-xs"
                 >
                   Done
                 </button>
@@ -3604,32 +3791,38 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     {conversionTaxMode === 'EXCLUSIVE' ? 'Base price + GST added on top' : 'Grand total fixed, GST included'}
                   </span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <button
                     type="button"
                     onClick={() => setConversionTaxMode('EXCLUSIVE')}
                     className={clsx(
-                      'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col',
+                      'p-3 rounded-2xl border text-left transition-all duration-150 cursor-pointer flex flex-col active:scale-[0.98]',
                       conversionTaxMode === 'EXCLUSIVE'
-                        ? 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-bold shadow-sm'
-                        : 'bg-background border-border text-muted-foreground hover:border-border/80 hover:text-foreground'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-300 font-bold shadow-xs shadow-amber-500/10 ring-1 ring-amber-500/30'
+                        : 'bg-background border-border/80 text-muted-foreground hover:border-border hover:text-foreground'
                     )}
                   >
-                    <span className="text-xs font-bold">Tax Exclusive (+ GST)</span>
-                    <span className="text-[10px] opacity-75 mt-0.5">Calculated price + GST</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Tax Exclusive (+ GST)</span>
+                      <span className={clsx("w-2 h-2 rounded-full", conversionTaxMode === 'EXCLUSIVE' ? "bg-amber-500 ring-2 ring-amber-500/30" : "bg-muted-foreground/30")} />
+                    </div>
+                    <span className="text-[10.5px] text-muted-foreground mt-1">Calculated base price + GST added on top</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setConversionTaxMode('INCLUSIVE')}
                     className={clsx(
-                      'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col',
+                      'p-3 rounded-2xl border text-left transition-all duration-150 cursor-pointer flex flex-col active:scale-[0.98]',
                       conversionTaxMode === 'INCLUSIVE'
-                        ? 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-bold shadow-sm'
-                        : 'bg-background border-border text-muted-foreground hover:border-border/80 hover:text-foreground'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-300 font-bold shadow-xs shadow-amber-500/10 ring-1 ring-amber-500/30'
+                        : 'bg-background border-border/80 text-muted-foreground hover:border-border hover:text-foreground'
                     )}
                   >
-                    <span className="text-xs font-bold">Tax Inclusive (MRP)</span>
-                    <span className="text-[10px] opacity-75 mt-0.5">Price already includes GST</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Tax Inclusive (MRP)</span>
+                      <span className={clsx("w-2 h-2 rounded-full", conversionTaxMode === 'INCLUSIVE' ? "bg-amber-500 ring-2 ring-amber-500/30" : "bg-muted-foreground/30")} />
+                    </div>
+                    <span className="text-[10.5px] text-muted-foreground mt-1">Total price already includes GST inside</span>
                   </button>
                 </div>
               </div>
@@ -3729,8 +3922,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
                 <button
+                  type="button"
+                  onClick={() => setConversionOpen(false)}
+                  disabled={converting}
+                  className="h-10 px-4 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 active:scale-95 cursor-pointer border border-border/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
                   onClick={async () => {
                     setConverting(true);
                     try {
@@ -3779,12 +3981,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     }
                   }}
                   disabled={converting}
-                  className="px-5 py-2.5 text-sm font-black bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+                  className="h-10 px-6 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm shadow-amber-500/20 cursor-pointer flex items-center gap-2"
                 >
                   {converting ? (
-                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Converting...</>
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> <span>Converting...</span></>
                   ) : (
-                    <><ArrowDownRight className="w-3.5 h-3.5" /> Convert to GST</>
+                    <><ArrowDownRight className="w-3.5 h-3.5" /> <span>Convert to GST</span></>
                   )}
                 </button>
               </div>
@@ -3817,16 +4019,25 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             </p>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+          <div className="flex justify-end gap-2 pt-3 border-t border-border">
             <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleteSaving}
+              className="h-10 px-4 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 active:scale-95 cursor-pointer border border-border/80"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
               onClick={handleDeleteInvoice}
               disabled={deleteSaving}
-              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+              className="h-10 px-6 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm shadow-rose-600/25 cursor-pointer flex items-center gap-2"
             >
               {deleteSaving ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> <span>Deleting...</span></>
               ) : (
-                <><Trash2 className="w-3.5 h-3.5" /> Delete Invoice</>
+                <><Trash2 className="w-3.5 h-3.5" /> <span>Delete Invoice</span></>
               )}
             </button>
           </div>

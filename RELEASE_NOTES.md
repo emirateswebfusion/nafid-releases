@@ -1,7 +1,26 @@
+# Nafid POS v2.0.3 Release Notes
+
+## What's Changed
+- **What's New in App Appearance Updated**: Refreshed user-facing feature highlights and Malayalam/English translations in Settings under Appearance.
+- **Bill of Supply → GST Convert Corrected**: Corrected and streamlined conversion from Non-GST Estimate / Bill of Supply to statutory GST tax invoices with accurate tax-inclusive profit margins, automatic sequential GST invoice numbers, statutory tax copy tagging, and duplicate sales prevention.
+- **E-Commerce Storefront Added**: Seamless online catalog and inventory synchronization, incoming web order processing, and multi-channel stock deduction.
+- **Digital Advertisements & Customer Promo Screen**: Full promo slideshow playback for secondary customer-facing displays and counter screens.
+- **Digital Warranty Certificates & Brand Tracking**: Official A4 warranty certificates with dedicated Bill Number, Brand, and real-time cloud synchronization.
+- **Customer Loyalty Points & Unified POS Redemption**: Award reward points (₹X = 1 Pt) on purchases, display points beside customer phone, and redeem via Alt+L shortcut with quick Max button. Includes loyalty points earning rules and toggle to award points on pending bills.
+- **Dynamic POS Dashboard Card Reordering**: Interactive card customizer with drag-and-drop or position arrows, user-profile persistence, and restore defaults dialog.
+- **Theme, Typography & Admin Surface Studio**: Customize brand colors, curated font stacks, and custom non-bluish base surfaces (Zinc, Warm Sand, Pitch Black OLED).
+- **Automated WhatsApp Shop Closing Reports**: Automatic end-of-day business closing summaries sent to WhatsApp.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.3.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.2...v2.0.3
+
 # Nafid POS v2.0.2 Release Notes
 
 ## What's Changed
+- **Bill of Supply → GST Convert Corrected**: Corrected and streamlined conversion from Non-GST Estimate / Bill of Supply to statutory GST tax invoices. Features accurate tax-inclusive profit margins, automated sequential GST invoice generation, statutory tax copy tagging (`⚡ GST Filed` / `📄 Tax Copy`), and prevention of revenue double-counting in accounting reports.
+- **E-Commerce Storefront Added**: Seamlessly manage an integrated online store with live bi-directional catalog and inventory synchronization, instant online order notifications, fulfillment workflow tracking, and unified multi-channel stock deduction.
+- **Digital Advertisements & Customer Promo Screen Added**: Complete Digital Ads Manager enabling high-impact promotional banners, seasonal discounts, and automated slideshow playback on customer-facing screens and checkout counter displays.
 - **Digital Warranty Certificates & Brand Tracking**: Issue, track, and print official A4 warranty certificates with dedicated **Bill Number** and **Brand** fields alongside customer and product specifications. Features instant edge-to-cloud sync, search by bill number or brand, and clean warranty card printouts.
+- **Customer Loyalty Points & Unified POS Redemption**: Award reward points on purchases with customizable earn & redeem rates. In billing, customer loyalty points balance displays alongside phone number, and points can be redeemed directly via the unified dynamic deduction panel using the **Alt+L** shortcut or tab with direct numeric input and quick `Max` redemption. Complete with points ledger history and manual balance adjustment in the Customers directory.
 - **Dynamic POS Dashboard Card Reordering & Customizer**: Store owners and staff can dynamically reorganize POS dashboard module cards (Billing, Cashier Settlement, Inventory, E-Commerce, etc.) using live drag-and-drop or position arrows. Features user-profile persistence, responsive touch & mouse support, and a dedicated Restore Defaults confirmation dialog with live sequence preview.
 - **Theme, Typography & Admin Surface Studio**: Complete design studio in Settings. Calibrate primary brand accent colors, curated typography font stacks (Geist, Outfit, Space Grotesk, DM Sans, Plus Jakarta Sans), and UI reading density. Store Administrators can now customize base surface colors for Light and Dark modes (including Zero-Blue Neutral Zinc, Warm Cream/Sand, Pitch Black OLED, or custom HEX) replacing default white and bluish/navy tones.
 - **Automated WhatsApp Shop Closing Reports**: End-of-day business closing summaries sent automatically to WhatsApp with cash count reconciliation, multi-biller sales, credit collections, and expense totals.

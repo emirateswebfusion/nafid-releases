@@ -6,7 +6,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, MessageSquare, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent,
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, MessageSquare, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent, Coins,
   ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
@@ -1046,11 +1046,13 @@ export function BillingPage() {
   const [returnDeductionSearchQuery, setReturnDeductionSearchQuery] = useState('');
   const [returnDeductionResults, setReturnDeductionResults] = useState<any[]>([]);
   const [returnDeductionSearchMode, setReturnDeductionSearchMode] = useState(false);
+  const [deductionTabMode, setDeductionTabMode] = useState<'scrap' | 'return' | 'points'>('scrap');
 
   // Loyalty points state
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
+  const [loyaltyAwardOnPending, setLoyaltyAwardOnPending] = useState(false);
   const [loyaltyCustomerData, setLoyaltyCustomerData] = useState<{
     customerId: string | null;
     pointsBalance: number;
@@ -1327,6 +1329,25 @@ export function BillingPage() {
       ? PAYMENT_OPTIONS
       : PAYMENT_OPTIONS.filter((opt) => opt.value !== 'PENDING');
   }, [isCashSettlementEnabled]);
+  const isScrapModuleEnabled = enableScrap && (!featureFlags || featureFlags.scrap !== false);
+  const isReturnModuleEnabled = !featureFlags || featureFlags.returns !== false;
+  const isLoyaltyModuleEnabled = loyaltyEnabled && (!featureFlags || featureFlags.loyalty !== false);
+  const effectiveReturnSearchMode = isScrapModuleEnabled ? returnDeductionSearchMode : true;
+  const effectiveDeductionMode: 'scrap' | 'return' | 'points' = useMemo(() => {
+    if (deductionTabMode === 'scrap' && !isScrapModuleEnabled) {
+      if (isReturnModuleEnabled) return 'return';
+      if (isLoyaltyModuleEnabled) return 'points';
+    }
+    if (deductionTabMode === 'return' && !isReturnModuleEnabled) {
+      if (isScrapModuleEnabled) return 'scrap';
+      if (isLoyaltyModuleEnabled) return 'points';
+    }
+    if (deductionTabMode === 'points' && !isLoyaltyModuleEnabled) {
+      if (isScrapModuleEnabled) return 'scrap';
+      if (isReturnModuleEnabled) return 'return';
+    }
+    return deductionTabMode;
+  }, [deductionTabMode, isScrapModuleEnabled, isReturnModuleEnabled, isLoyaltyModuleEnabled]);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const lastActiveTabId = useRef(activeTabId);
   const prevScrapMode = useRef(isScrapMode);
@@ -1706,8 +1727,9 @@ export function BillingPage() {
       ? returnSubtotal + returnTaxTotal
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
 
-  const pointsRedeemedCalc = (loyaltyEnabled && showLoyaltyRedemption && pointsToRedeem > 0)
-    ? Math.min(pointsToRedeem, Number(loyaltyCustomerData?.pointsBalance) || 0)
+  const customerPointsBalance = Number(loyaltyCustomerData?.pointsBalance) || 0;
+  const pointsRedeemedCalc = (isLoyaltyModuleEnabled && pointsToRedeem > 0)
+    ? Math.min(pointsToRedeem, customerPointsBalance)
     : 0;
   const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
 
@@ -2093,11 +2115,13 @@ export function BillingPage() {
         let isEnabled = false;
         let eRate = 100;
         let rRate = 1;
+        let awardOnPending = false;
 
         if (cfg && typeof cfg === 'object') {
           if (cfg.enabled !== undefined) isEnabled = Boolean(cfg.enabled);
           if (cfg.earningRate) eRate = Number(cfg.earningRate) || 100;
           if (cfg.redemptionRate) rRate = Number(cfg.redemptionRate) || 1;
+          if (cfg.awardPointsOnPending !== undefined) awardOnPending = Boolean(cfg.awardPointsOnPending);
         }
         if (flags && typeof flags.loyalty === 'boolean') {
           isEnabled = flags.loyalty || isEnabled;
@@ -2106,6 +2130,7 @@ export function BillingPage() {
         setLoyaltyEnabled(isEnabled);
         setLoyaltyEarningRate(Math.max(1, eRate));
         setLoyaltyRedemptionRate(Math.max(0.01, rRate));
+        setLoyaltyAwardOnPending(awardOnPending);
       }).catch(() => {});
     };
     reloadLoyaltyConfig();
@@ -2264,11 +2289,13 @@ export function BillingPage() {
           let isEnabled = false;
           let eRate = 100;
           let rRate = 1;
+          let awardOnPending = false;
 
           if (cfg && typeof cfg === 'object') {
             if (cfg.enabled !== undefined) isEnabled = Boolean(cfg.enabled);
             if (cfg.earningRate) eRate = Number(cfg.earningRate) || 100;
             if (cfg.redemptionRate) rRate = Number(cfg.redemptionRate) || 1;
+            if (cfg.awardPointsOnPending !== undefined) awardOnPending = Boolean(cfg.awardPointsOnPending);
           }
           if (flags && typeof flags.loyalty === 'boolean') {
             isEnabled = flags.loyalty || isEnabled;
@@ -2277,6 +2304,7 @@ export function BillingPage() {
           setLoyaltyEnabled(isEnabled);
           setLoyaltyEarningRate(Math.max(1, eRate));
           setLoyaltyRedemptionRate(Math.max(0.01, rRate));
+          setLoyaltyAwardOnPending(awardOnPending);
         }).catch(() => {});
       }
       loadFlags(tenantId || 'global');
@@ -2887,6 +2915,7 @@ export function BillingPage() {
   const [scrapDeductionDropdownStyle, setScrapDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
   const returnDeductionInputRef = useRef<HTMLInputElement>(null);
   const [returnDeductionDropdownStyle, setReturnDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
+  const pointsDeductionInputRef = useRef<HTMLInputElement>(null);
 
   // Load all existing customers for fast autocomplete
   useEffect(() => {
@@ -2972,18 +3001,30 @@ export function BillingPage() {
         if (pType === 'STAFF' && !isStaffEnabled) return false;
         return true;
       })
-      .map((p: any) => ({
-        name: p.name,
-        phone: p.phone,
-        address: p.address,
-        gstin: p.gstin,
-        customer_gstin: p.gstin,
-        party_id: p.party_id,
-        balance: p.balance,
-        party_type: p.party_type,
-        is_staff: String(p.party_type || '').toUpperCase() === 'STAFF',
-      }));
-  }, [partiesForTier, featureFlags?.staff_credit_billing]);
+      .map((p: any) => {
+        const pPhone = (p.phone || '').trim();
+        const pNormName = (p.name || '').trim().toLowerCase();
+        const cust = (allCustomersList || []).find((c: any) => {
+          if (!c) return false;
+          const cPhone = String(c.phone || '').trim();
+          const cName = String(c.name || '').trim().toLowerCase();
+          return (pPhone && cPhone === pPhone) || (pNormName && cName === pNormName);
+        });
+        return {
+          name: p.name,
+          phone: p.phone,
+          address: p.address,
+          gstin: p.gstin,
+          customer_gstin: p.gstin,
+          party_id: p.party_id,
+          customer_id: cust?.customer_id || p.customer_id || undefined,
+          current_points_balance: cust ? Number(cust.current_points_balance) || 0 : undefined,
+          balance: p.balance,
+          party_type: p.party_type,
+          is_staff: String(p.party_type || '').toUpperCase() === 'STAFF',
+        };
+      });
+  }, [partiesForTier, allCustomersList, featureFlags?.staff_credit_billing]);
 
   // Compute filtered & deduplicated customer suggestions (including staff if enabled)
   const filteredCustomerSuggestions = useMemo(() => {
@@ -3056,7 +3097,7 @@ export function BillingPage() {
       ...(allCustomersList || []).filter((c: any) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
       ...(customerSearchResults || []).filter((c: any) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
     ];
-    return combinedList.find((c: any) => {
+    const match = combinedList.find((c: any) => {
       if (!c) return false;
       const cName = (c.name || '').trim().toLowerCase();
       const cPhone = String(c.phone || '').trim();
@@ -3067,11 +3108,28 @@ export function BillingPage() {
       const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
       return Boolean(matchName || matchPhone);
     }) || null;
+
+    if (match) {
+      const cust = (allCustomersList || []).find((c: any) => {
+        if (!c) return false;
+        const cp = String(c.phone || '').trim();
+        const cn = String(c.name || '').trim().toLowerCase();
+        return (cleanPhone && cp && cp === cleanPhone) || (cleanName && cn && cn === cleanName);
+      });
+      return {
+        ...match,
+        customer_id: match.customer_id || cust?.customer_id,
+        current_points_balance: match.current_points_balance ?? (cust ? Number(cust.current_points_balance) || 0 : undefined),
+      };
+    }
+    return null;
   }, [partiesForTier, allCustomersList, customerSearchResults, featureFlags?.staff_credit_billing]);
 
   // Debounce party tier application & loyalty customer auto-matching during customer typing so typing is never blocked
   useEffect(() => {
-    if (!customerName.trim() && !customerPhone.trim()) {
+    const cleanName = customerName.trim().toLowerCase();
+    const cleanPhone = customerPhone.trim();
+    if (!cleanName && !cleanPhone) {
       if (loyaltyCustomerData.customerId) {
         setLoyaltyCustomerData({ customerId: null, pointsBalance: 0 });
         setPointsToRedeem(0);
@@ -3082,18 +3140,56 @@ export function BillingPage() {
     const timer = setTimeout(() => {
       applyPartyTier(customerName, customerPhone);
       const matched = findMatchingParty(customerName, customerPhone);
-      if (matched && matched.customer_id) {
+      const custMatch = (allCustomersList || []).find((c: any) => {
+        if (!c) return false;
+        const cp = String(c.phone || '').trim();
+        const cn = String(c.name || '').trim().toLowerCase();
+        if (cleanPhone && cp && cp === cleanPhone) return true;
+        if (cleanName && cn && cn === cleanName) return true;
+        return false;
+      });
+
+      const resolvedCustId = (matched && matched.customer_id) || custMatch?.customer_id;
+      const resolvedPoints = custMatch?.current_points_balance !== undefined
+        ? Number(custMatch.current_points_balance) || 0
+        : (matched?.current_points_balance !== undefined ? Number(matched.current_points_balance) || 0 : 0);
+
+      if (resolvedCustId) {
         setLoyaltyCustomerData({
-          customerId: matched.customer_id,
-          pointsBalance: Number(matched.current_points_balance) || 0,
+          customerId: resolvedCustId,
+          pointsBalance: Number(resolvedPoints) || 0,
         });
         if (!activeTab?.customerId) {
-          updateActiveTab({ customerId: matched.customer_id });
+          updateActiveTab({ customerId: resolvedCustId });
+        }
+      } else if (cleanPhone || cleanName) {
+        // Query backend directly if not loaded in memory yet
+        if (window.electronAPI?.dbFindCustomers) {
+          window.electronAPI.dbFindCustomers({
+            tenant_id: tenantId || 'global',
+            phone: cleanPhone || undefined,
+            name: cleanName || undefined,
+          }).then((res: any) => {
+            const list = Array.isArray(res) ? res : [];
+            const found = list.find((c: any) =>
+              (cleanPhone && String(c.phone || '').trim() === cleanPhone) ||
+              (cleanName && String(c.name || '').trim().toLowerCase() === cleanName)
+            ) || list[0];
+            if (found && found.customer_id) {
+              setLoyaltyCustomerData({
+                customerId: found.customer_id,
+                pointsBalance: Number(found.current_points_balance) || 0,
+              });
+              if (!activeTab?.customerId) {
+                updateActiveTab({ customerId: found.customer_id });
+              }
+            }
+          }).catch(() => {});
         }
       }
     }, 200);
     return () => clearTimeout(timer);
-  }, [customerName, customerPhone, findMatchingParty]);
+  }, [customerName, customerPhone, findMatchingParty, allCustomersList, tenantId]);
 
   // Ensure redeemed points does not exceed active customer balance
   useEffect(() => {
@@ -6178,7 +6274,7 @@ export function BillingPage() {
 
       const isEditing = !!editingInvoiceId;
 
-      const pointsRedeemedCalc = showLoyaltyRedemption && loyaltyCustomerData.customerId ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0) : 0;
+      const pointsRedeemedCalc = loyaltyEnabled && pointsToRedeem > 0 ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0) : 0;
       const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
       const effectiveGrandTotal = displayGrandTotal;
 
@@ -6374,10 +6470,11 @@ export function BillingPage() {
       // Calculate loyalty points
       const previousPointsBalance = Number(loyaltyCustomerData.pointsBalance) || 0;
       const hasCustomerForPoints = Boolean(loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim()));
-      const pointsEarned = loyaltyEnabled && hasCustomerForPoints && (paymentMethod !== 'PENDING')
+      const shouldAwardPointsNow = paymentMethod !== 'PENDING' || loyaltyAwardOnPending;
+      const pointsEarned = loyaltyEnabled && hasCustomerForPoints && shouldAwardPointsNow
         ? Math.floor(displayGrandTotal / (loyaltyEarningRate > 0 ? loyaltyEarningRate : 100))
         : 0;
-      const pointsRedeemed = showLoyaltyRedemption && loyaltyCustomerData.customerId
+      const pointsRedeemed = loyaltyEnabled && pointsToRedeem > 0
         ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0)
         : 0;
       const pointsRedeemedDiscount = pointsRedeemed * loyaltyRedemptionRate;
@@ -6573,6 +6670,13 @@ export function BillingPage() {
           // GST totals for edited invoice
           cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
           items: checkoutItems,
+          loyalty_enabled: wantsLoyalty,
+          loyalty_customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
+          points_earned: pointsEarned,
+          points_redeemed: pointsRedeemed,
+          points_redeemed_discount: pointsRedeemedDiscount,
+          previous_points_balance: previousPointsBalance,
+          remaining_points_balance: remainingPointsBalance,
         });
       } else {
         result = await window.electronAPI.dbCheckout({
@@ -7544,13 +7648,29 @@ export function BillingPage() {
     'F8': () => { discountRef.current?.focus(); },
     'F9': () => {
       // Scrap Deduction
+      if (!isScrapModuleEnabled) return;
+      setDeductionTabMode('scrap');
       setReturnDeductionSearchMode(false);
       setTimeout(() => scrapDeductionInputRef.current?.focus(), 100);
     },
     'F10': () => {
       // Return Deduction
+      if (!isReturnModuleEnabled) return;
+      setDeductionTabMode('return');
       setReturnDeductionSearchMode(true);
       setTimeout(() => returnDeductionInputRef.current?.focus(), 100);
+    },
+    'Alt+l': () => {
+      // Points Deduction
+      if (!isLoyaltyModuleEnabled) return;
+      setDeductionTabMode('points');
+      setTimeout(() => pointsDeductionInputRef.current?.focus(), 100);
+    },
+    'Alt+L': () => {
+      // Points Deduction
+      if (!isLoyaltyModuleEnabled) return;
+      setDeductionTabMode('points');
+      setTimeout(() => pointsDeductionInputRef.current?.focus(), 100);
     },
     'F11': () => {
       // Cycle payment method
@@ -8232,29 +8352,17 @@ export function BillingPage() {
           />
         </div>
         <CustomerOutstandingBadge partyObj={findMatchingParty(customerName, customerPhone)} />
-        {loyaltyEnabled && !isScrapMode && !isQuotationMode && loyaltyCustomerData.customerId && (
-          <div className="flex items-center gap-1.5 shrink-0">
+        {loyaltyEnabled && !isScrapMode && !isQuotationMode && (loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim())) && (
+          <div className="flex items-center shrink-0">
             <div
               className="h-[36px] px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 shadow-2xs whitespace-nowrap"
               title={`Customer Loyalty Balance: ${(Number(loyaltyCustomerData?.pointsBalance) || 0).toFixed(0)} points`}
             >
-              <Star className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500" />
               <span className="font-extrabold text-[11px] uppercase tracking-wider opacity-90">Points:</span>
               <span className="px-2 py-0.5 rounded-md text-xs font-black bg-emerald-600 text-white shadow-2xs">
                 {(Number(loyaltyCustomerData?.pointsBalance) || 0).toFixed(0)} pts
               </span>
             </div>
-            {(Number(loyaltyCustomerData?.pointsBalance) || 0) > 0 && !showLoyaltyRedemption && (
-              <button
-                type="button"
-                onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
-                className="h-[36px] px-2.5 py-1 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-                title="Click to redeem points for bill discount"
-              >
-                <Gift className="w-3.5 h-3.5" />
-                <span>Redeem</span>
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -8497,68 +8605,7 @@ export function BillingPage() {
               </div>
           </div>
         )}
-        {/* Loyalty Points Display & Redemption */}
-        {loyaltyEnabled && !isScrapMode && !isQuotationMode && loyaltyCustomerData.customerId && (
-          <div className="flex items-center gap-2 ml-auto">
-            <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-              <Star className="w-3 h-3 text-emerald-500" />
-              <span className="text-xs font-bold text-emerald-600">{(Number(loyaltyCustomerData?.pointsBalance) || 0).toFixed(0)} pts</span>
-            </div>
-            {(Number(loyaltyCustomerData?.pointsBalance) || 0) > 0 && !showLoyaltyRedemption && (
-              <button onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
-                className="px-2 py-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer">
-                Redeem
-              </button>
-            )}
-          </div>
-        )}
       </div>
-      {/* Points Redemption Input */}
-      {showLoyaltyRedemption && loyaltyCustomerData.customerId && (() => {
-        const availableBalance = Number(loyaltyCustomerData?.pointsBalance) || 0;
-        const rate = loyaltyRedemptionRate > 0 ? loyaltyRedemptionRate : 1;
-        const billTotalBeforePoints = isGrandTotalOverridden ? (activeTab?.manualTotalOverride || 0) : rawDisplayGrandTotal;
-        const maxPointsByBill = Math.floor(billTotalBeforePoints / rate);
-        const maxRedeemablePoints = Math.max(0, Math.min(availableBalance, maxPointsByBill));
-        return (
-          <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Gift className="w-4 h-4 text-amber-500 shrink-0" />
-              <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
-              <input type="number" min="0" max={maxRedeemablePoints}
-                value={pointsToRedeem || ''}
-                onChange={e => {
-                  const val = e.target.value === '' ? 0 : Number(e.target.value);
-                  setPointsToRedeem(Math.max(0, Math.min(val, maxRedeemablePoints)));
-                }}
-                className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                placeholder="0" />
-              <span className="text-xs text-muted-foreground">pts</span>
-              <button
-                type="button"
-                onClick={() => setPointsToRedeem(maxRedeemablePoints)}
-                className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 rounded border border-amber-500/30 cursor-pointer"
-                title={`Redeem maximum allowed points (${maxRedeemablePoints} pts)`}
-              >
-                Max ({maxRedeemablePoints})
-              </button>
-              <span className="text-xs font-bold text-amber-600">
-                = -{formatCurrency(pointsToRedeem * loyaltyRedemptionRate)}
-              </span>
-              <button
-                onClick={() => { setShowLoyaltyRedemption(false); setPointsToRedeem(0); }}
-                className="ml-auto p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {pointsToRedeem > 0 && (
-              <p className="text-[10px] text-amber-600 mt-1 font-semibold">
-                Discount: {formatCurrency(pointsToRedeem * loyaltyRedemptionRate)} applied to bill total
-              </p>
-            )}
-          </div>
-        );
-      })()}
     </div>
   );
 
@@ -8881,103 +8928,138 @@ export function BillingPage() {
               })}
             </div>
 
-            {/* Deduction Section (Scrap & Return Credits) */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mr-1">Deduction:</span>
-              {storeScrapDeduction > 0 ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-lg text-xs font-bold">
-                  <Recycle className="w-3.5 h-3.5" />
-                  <span>Scrap: -{formatCurrency(storeScrapDeduction)}</span>
-                  <button type="button" onClick={() => clearScrapDeduction()} className="hover:text-destructive p-0.5">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <input
-                    ref={scrapDeductionInputRef}
-                    type="text"
-                    placeholder="Scrap # & Enter"
-                    value={scrapDeductionSearchQuery}
-                    onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
-                    onKeyDown={async e => {
-                      if (e.key === 'Enter') {
-                        const q = scrapDeductionSearchQuery.trim();
-                        if (!q) return;
-                        try {
-                          const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
-                          if (res && res.totalAmount) {
-                            if (res.paymentStatus === 'SETTLED') {
-                              setHardwareError(`Scrap credit ${q} already redeemed.`);
-                              return;
+            {/* Deduction Section (Scrap, Return & Points Credits) */}
+            {(isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled || storeScrapDeduction > 0 || storeReturnDeduction > 0 || pointsRedeemedDiscountCalc > 0) && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mr-1">Deduction:</span>
+                {(isScrapModuleEnabled || storeScrapDeduction > 0) && (
+                  storeScrapDeduction > 0 ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-lg text-xs font-bold">
+                      <Recycle className="w-3.5 h-3.5" />
+                      <span>Scrap: -{formatCurrency(storeScrapDeduction)}</span>
+                      <button type="button" onClick={() => clearScrapDeduction()} className="hover:text-destructive p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        ref={scrapDeductionInputRef}
+                        type="text"
+                        placeholder="Scrap # & Enter"
+                        value={scrapDeductionSearchQuery}
+                        onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter') {
+                            const q = scrapDeductionSearchQuery.trim();
+                            if (!q) return;
+                            try {
+                              const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                              if (res && res.totalAmount) {
+                                if (res.paymentStatus === 'SETTLED') {
+                                  setHardwareError(`Scrap credit ${q} already redeemed.`);
+                                  return;
+                                }
+                                setScrapDeduction(res.totalAmount, q);
+                                setScrapDeductionSearchQuery('');
+                              } else {
+                                setHardwareError(`Scrap invoice "${q}" not found`);
+                              }
+                            } catch {
+                              setHardwareError('Failed to fetch scrap invoice');
                             }
-                            setScrapDeduction(res.totalAmount, q);
-                            setScrapDeductionSearchQuery('');
-                          } else {
-                            setHardwareError(`Scrap invoice "${q}" not found`);
                           }
-                        } catch {
-                          setHardwareError('Failed to fetch scrap invoice');
-                        }
-                      }
-                    }}
-                    className="w-32 px-2.5 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-                  />
-                </div>
-              )}
+                        }}
+                        className="w-32 px-2.5 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                      />
+                    </div>
+                  )
+                )}
 
-              {storeReturnDeduction > 0 ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold">
-                  <ArrowLeftRight className="w-3.5 h-3.5" />
-                  <span>Return: -{formatCurrency(storeReturnDeduction)}</span>
-                  <button type="button" onClick={() => clearReturnDeduction()} className="hover:text-destructive p-0.5">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <input
-                    ref={returnDeductionInputRef}
-                    type="text"
-                    placeholder="Return # & Enter"
-                    value={returnDeductionSearchQuery}
-                    onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
-                    onKeyDown={async e => {
-                      if (e.key === 'Enter') {
-                        const q = returnDeductionSearchQuery.trim();
-                        if (!q) return;
-                        try {
-                          const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
-                          if (res && res.grand_total) {
-                            const remaining = res.grand_total - (res.adjusted_amount || 0);
-                            if (remaining > 0) {
-                              setReturnDeduction(remaining, q);
-                              setReturnDeductionSearchQuery('');
-                            } else {
-                              setHardwareError('Return already fully adjusted');
+                {(isReturnModuleEnabled || storeReturnDeduction > 0) && (
+                  storeReturnDeduction > 0 ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold">
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                      <span>Return: -{formatCurrency(storeReturnDeduction)}</span>
+                      <button type="button" onClick={() => clearReturnDeduction()} className="hover:text-destructive p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        ref={returnDeductionInputRef}
+                        type="text"
+                        placeholder="Return # & Enter"
+                        value={returnDeductionSearchQuery}
+                        onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter') {
+                            const q = returnDeductionSearchQuery.trim();
+                            if (!q) return;
+                            try {
+                              const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                              if (res && res.grand_total) {
+                                const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                if (remaining > 0) {
+                                  setReturnDeduction(remaining, q);
+                                  setReturnDeductionSearchQuery('');
+                                } else {
+                                  setHardwareError('Return already fully adjusted');
+                                }
+                              } else {
+                                setHardwareError(`Return "${q}" not found`);
+                              }
+                            } catch {
+                              setHardwareError('Failed to fetch return');
                             }
-                          } else {
-                            setHardwareError(`Return "${q}" not found`);
                           }
-                        } catch {
-                          setHardwareError('Failed to fetch return');
-                        }
-                      }
-                    }}
-                    className="w-32 px-2.5 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-                  />
-                </div>
-              )}
-              {pointsRedeemedDiscountCalc > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-bold">
-                  <Gift className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Loyalty ({pointsRedeemedCalc} pts): -{formatCurrency(pointsRedeemedDiscountCalc)}</span>
-                  <button type="button" onClick={() => { setPointsToRedeem(0); setShowLoyaltyRedemption(false); }} className="hover:text-destructive p-0.5 cursor-pointer" title="Remove Loyalty Discount">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </div>
+                        }}
+                        className="w-32 px-2.5 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                      />
+                    </div>
+                  )
+                )}
+
+                {isLoyaltyModuleEnabled && (
+                  pointsRedeemedDiscountCalc > 0 ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold">
+                      <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Loyalty ({pointsRedeemedCalc} pts): -{formatCurrency(pointsRedeemedDiscountCalc)}</span>
+                      <button type="button" onClick={() => { setPointsToRedeem(0); }} className="hover:text-destructive p-0.5 cursor-pointer" title="Remove Loyalty Discount">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={customerPointsBalance > 0 ? `Pts (Max ${customerPointsBalance})` : "Pts: 0"}
+                        disabled={customerPointsBalance <= 0}
+                        value={pointsToRedeem > 0 ? pointsToRedeem : ''}
+                        onChange={e => {
+                          const clean = e.target.value.replace(/\D/g, '');
+                          const num = clean === '' ? 0 : Number(clean);
+                          const val = Math.max(0, Math.min(num, customerPointsBalance));
+                          setPointsToRedeem(clean === '' ? 0 : val);
+                        }}
+                        className="w-28 px-2 py-1 bg-background border border-border rounded-lg text-xs font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      {customerPointsBalance > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPointsToRedeem(customerPointsBalance)}
+                          className="px-1.5 py-1 text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-md border border-emerald-500/20 cursor-pointer"
+                        >
+                          Max
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
           </div>
 
@@ -11083,38 +11165,41 @@ export function BillingPage() {
             </div>
 
             {/* Scrap & Return Deduction section in Left Panel for Top/Bottom Stack layout */}
+            {/* Scrap & Return Deduction section in Left Panel for Top/Bottom Stack layout */}
             {uiConfig.orientation === 'horizontal-stack' && (
               <div className="mt-3">
                 <div className={clsx(
                   'transition-all duration-400 ease-in-out',
-                  !isScrapMode && !isQuotationMode && !isReturnMode && (storeScrapDeduction > 0 || storeReturnDeduction > 0 || enableScrap)
-                    ? 'max-h-[350px] opacity-100 scale-100'
-                    : 'max-h-0 opacity-0 scale-95'
+                  !isScrapMode && !isQuotationMode && !isReturnMode && (isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled || storeScrapDeduction > 0 || storeReturnDeduction > 0 || pointsRedeemedDiscountCalc > 0)
+                    ? 'max-h-[500px] opacity-100 scale-100'
+                    : 'max-h-0 opacity-0 scale-95 pointer-events-none'
                 )}>
                   <div className={clsx(
                     "px-0 py-0 mt-1 border rounded-2xl overflow-hidden transition-all duration-300 shadow-sm",
-                    storeScrapDeduction > 0 && storeReturnDeduction > 0
+                    ((storeScrapDeduction > 0 ? 1 : 0) + (storeReturnDeduction > 0 ? 1 : 0) + (pointsRedeemedDiscountCalc > 0 ? 1 : 0)) > 1
                       ? "border-primary/20 bg-muted/5"
                       : storeScrapDeduction > 0
                         ? "border-orange-500/25 bg-orange-500/[0.01]"
                         : storeReturnDeduction > 0
                           ? "border-rose-500/25 bg-rose-500/[0.01]"
-                          : "border-orange-500/20 bg-orange-500/[0.01]"
+                          : pointsRedeemedDiscountCalc > 0
+                            ? "border-emerald-500/25 bg-emerald-500/[0.01]"
+                            : "border-border/60 bg-muted/5"
                   )}>
-                    {(storeScrapDeduction > 0 || storeReturnDeduction > 0) ? (
+                    {/* Applied Credits Summary Row */}
+                    {(storeScrapDeduction > 0 || storeReturnDeduction > 0 || pointsRedeemedDiscountCalc > 0) && (
                       <div className="p-2 space-y-1.5 bg-muted/40 border-b border-border/50">
                         <div className="flex items-center justify-between px-1 mb-0.5">
                           <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Applied Credits</p>
-                          {(storeScrapDeduction > 0 && storeReturnDeduction > 0) && (
+                          {((storeScrapDeduction > 0 ? 1 : 0) + (storeReturnDeduction > 0 ? 1 : 0) + (pointsRedeemedDiscountCalc > 0 ? 1 : 0)) > 1 && (
                             <span className="text-[9px] font-bold text-foreground bg-primary/10 px-2 py-0.5 rounded-full">
-                              Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0))}
+                              Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0) + (pointsRedeemedDiscountCalc || 0))}
                             </span>
                           )}
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-1.5 items-center">
-                          {/* Column 1: Scrap Card OR Scrap Input */}
-                          {storeScrapDeduction > 0 ? (
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 items-center">
+                          {storeScrapDeduction > 0 && (
                             <div className="flex items-center justify-between p-1.5 bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/10 rounded-xl transition-all duration-200 min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                 <div className="p-1 bg-orange-500/10 text-orange-600 rounded-lg shrink-0">
@@ -11128,6 +11213,7 @@ export function BillingPage() {
                               <div className="flex items-center gap-1 shrink-0 ml-1">
                                 <span className="text-[11px] font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
                                 <button
+                                  type="button"
                                   onClick={() => clearScrapDeduction()}
                                   title="Remove Scrap Credit"
                                   className="p-0.5 text-orange-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
@@ -11136,67 +11222,9 @@ export function BillingPage() {
                                 </button>
                               </div>
                             </div>
-                          ) : (
-                            <div className="relative">
-                              <input
-                                ref={scrapDeductionInputRef}
-                                type="text"
-                                placeholder="Type scrap # & Enter..."
-                                value={scrapDeductionSearchQuery}
-                                onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
-                                onKeyDown={async e => {
-                                  if (e.key === 'Enter') {
-                                    const q = scrapDeductionSearchQuery.trim();
-                                    if (!q) return;
-                                    try {
-                                      const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
-                                      if (res && res.totalAmount) {
-                                        if (res.paymentStatus === 'SETTLED') {
-                                          setHardwareError(`Scrap credit ${q} has already been redeemed.`);
-                                          return;
-                                        }
-                                        setScrapDeduction(res.totalAmount, q);
-                                        setScrapDeductionSearchQuery('');
-                                        setScrapDeductionResults([]);
-                                        setScrapDeductionDropdownStyle(null);
-                                      } else {
-                                        const getNumPart = getNumericPart;
-                                        const numQ = getNumPart(q);
-                                        const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
-                                        if (Array.isArray(list)) {
-                                          const match = list.find(inv =>
-                                            inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
-                                          );
-                                          if (match) {
-                                            const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
-                                            if (detailRes && detailRes.totalAmount) {
-                                              if (detailRes.paymentStatus === 'SETTLED') {
-                                                setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
-                                                return;
-                                              }
-                                              setScrapDeduction(detailRes.totalAmount, match.invoice_number);
-                                              setScrapDeductionSearchQuery('');
-                                              setScrapDeductionResults([]);
-                                              setScrapDeductionDropdownStyle(null);
-                                              return;
-                                            }
-                                          }
-                                        }
-                                        setHardwareError(`Scrap invoice "${q}" not found`);
-                                      }
-                                    } catch (e) {
-                                      setHardwareError('Failed to fetch scrap invoice');
-                                    }
-                                  }
-                                  if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
-                                }}
-                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
-                              />
-                            </div>
                           )}
 
-                          {/* Column 2: Return Card OR Return Input */}
-                          {storeReturnDeduction > 0 ? (
+                          {storeReturnDeduction > 0 && (
                             <div className="flex items-center justify-between p-1.5 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-xl transition-all duration-200 min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                 <div className="p-1 bg-rose-500/10 text-rose-600 rounded-lg shrink-0">
@@ -11210,9 +11238,8 @@ export function BillingPage() {
                               <div className="flex items-center gap-1 shrink-0 ml-1">
                                 <span className="text-[11px] font-black text-rose-600">-{formatCurrency(storeReturnDeduction)}</span>
                                 <button
-                                  onClick={() => {
-                                    clearReturnDeduction();
-                                  }}
+                                  type="button"
+                                  onClick={() => clearReturnDeduction()}
                                   title="Remove Return Credit"
                                   className="p-0.5 text-rose-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
                                 >
@@ -11220,202 +11247,277 @@ export function BillingPage() {
                                 </button>
                               </div>
                             </div>
-                          ) : (
-                            <div className="relative">
-                              <input
-                                ref={returnDeductionInputRef}
-                                type="text"
-                                placeholder="Type return # & Enter..."
-                                value={returnDeductionSearchQuery}
-                                onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
-                                onKeyDown={async e => {
-                                  if (e.key === 'Enter') {
-                                    const q = returnDeductionSearchQuery.trim();
-                                    if (!q) return;
-                                    try {
-                                      const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
-                                      if (res && res.grand_total) {
-                                        const remaining = res.grand_total - (res.adjusted_amount || 0);
-                                        if (remaining > 0) {
-                                          setReturnDeduction(remaining, q);
-                                          setReturnDeductionSearchQuery('');
-                                          setReturnDeductionResults([]);
-                                          setReturnDeductionDropdownStyle(null);
-                                        } else {
-                                          setHardwareError('Return already fully adjusted');
-                                        }
-                                      } else {
-                                        const getNumPart = getNumericPart;
-                                        const numQ = getNumPart(q);
-                                        const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
-                                        if (Array.isArray(list)) {
-                                          const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
-                                          if (match) {
-                                            const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
-                                            if (detailRes && detailRes.grand_total) {
-                                              const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
-                                              if (remaining > 0) {
-                                                setReturnDeduction(remaining, match.return_number);
-                                                setReturnDeductionSearchQuery('');
-                                                setReturnDeductionResults([]);
-                                                setReturnDeductionDropdownStyle(null);
-                                                return;
-                                              }
-                                            }
-                                          }
-                                        }
-                                        setHardwareError(`Return "${q}" not found`);
-                                      }
-                                    } catch (e) {
-                                      setHardwareError('Failed to fetch return');
-                                    }
-                                  }
-                                  if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
-                                }}
-                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
-                              />
+                          )}
+
+                          {pointsRedeemedDiscountCalc > 0 && (
+                            <div className="flex items-center justify-between p-1.5 bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 rounded-xl transition-all duration-200 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <div className="p-1 bg-emerald-500/10 text-emerald-600 rounded-lg shrink-0">
+                                  <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider leading-none">Points Credit</p>
+                                  <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{pointsRedeemedCalc} pts</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 ml-1">
+                                <span className="text-[11px] font-black text-emerald-600">-{formatCurrency(pointsRedeemedDiscountCalc)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setPointsToRedeem(0)}
+                                  title="Remove Points Credit"
+                                  className="p-0.5 text-emerald-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
-                    ) : (
-                      /* Neither is applied: show standard selector tabs and full-width input */
+                    )}
+
+                    {/* Deduction Tabs (Scrap / Return / Points) */}
+                    {(isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled) && (
                       <div>
                         <div className="flex bg-muted/20 p-0.5 border-b border-border/40 gap-1">
-                          <button
-                            onClick={() => setReturnDeductionSearchMode(false)}
-                            className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
-                              !returnDeductionSearchMode
-                                ? 'bg-orange-500/10 text-orange-600 shadow-sm'
-                                : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                            )}
-                          >
-                            <span>Scrap Deduction</span>
-                            <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
-                          </button>
-                          <button
-                            onClick={() => setReturnDeductionSearchMode(true)}
-                            className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
-                              returnDeductionSearchMode
-                                ? 'bg-rose-500/10 text-rose-600 shadow-sm'
-                                : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                            )}
-                          >
-                            <span>Return Deduction</span>
-                            <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
-                          </button>
+                          {isScrapModuleEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeductionTabMode('scrap');
+                                setReturnDeductionSearchMode(false);
+                                setTimeout(() => scrapDeductionInputRef.current?.focus(), 50);
+                              }}
+                              className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                                effectiveDeductionMode === 'scrap'
+                                  ? 'bg-orange-500/10 text-orange-600 shadow-sm'
+                                  : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                              )}
+                            >
+                              <Recycle className="w-3.5 h-3.5" />
+                              <span>Scrap</span>
+                              <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
+                            </button>
+                          )}
+
+                          {isReturnModuleEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeductionTabMode('return');
+                                setReturnDeductionSearchMode(true);
+                                setTimeout(() => returnDeductionInputRef.current?.focus(), 50);
+                              }}
+                              className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                                effectiveDeductionMode === 'return'
+                                  ? 'bg-rose-500/10 text-rose-600 shadow-sm'
+                                  : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                              )}
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                              <span>Return</span>
+                              <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
+                            </button>
+                          )}
+
+                          {isLoyaltyModuleEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeductionTabMode('points');
+                                setTimeout(() => pointsDeductionInputRef.current?.focus(), 50);
+                              }}
+                              className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                                effectiveDeductionMode === 'points'
+                                  ? 'bg-emerald-500/10 text-emerald-600 shadow-sm'
+                                  : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                              )}
+                            >
+                              <Coins className="w-3.5 h-3.5" />
+                              <span>Points</span>
+                              <span className="inline-flex items-center justify-center min-w-[20px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">Alt+L</span>
+                            </button>
+                          )}
                         </div>
 
+                        {/* Dynamic Single Input Row */}
                         <div className="flex items-center gap-1 px-2 py-1.5">
                           <div className="flex-1 relative">
-                            {!returnDeductionSearchMode ? (
-                              <input
-                                ref={scrapDeductionInputRef}
-                                type="text"
-                                placeholder="Type scrap invoice number & Enter..."
-                                value={scrapDeductionSearchQuery}
-                                onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
-                                onKeyDown={async e => {
-                                  if (e.key === 'Enter') {
-                                    const q = scrapDeductionSearchQuery.trim();
-                                    if (!q) return;
-                                    try {
-                                      const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
-                                      if (res && res.totalAmount) {
-                                        if (res.paymentStatus === 'SETTLED') {
-                                          setHardwareError(`Scrap credit ${q} has already been redeemed.`);
-                                          return;
-                                        }
-                                        setScrapDeduction(res.totalAmount, q);
-                                        setScrapDeductionSearchQuery('');
-                                        setScrapDeductionResults([]);
-                                        setScrapDeductionDropdownStyle(null);
-                                      } else {
-                                        const getNumPart = getNumericPart;
-                                        const numQ = getNumPart(q);
-                                        const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
-                                        if (Array.isArray(list)) {
-                                          const match = list.find(inv =>
-                                            inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
-                                          );
-                                          if (match) {
-                                            const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
-                                            if (detailRes && detailRes.totalAmount) {
-                                              if (detailRes.paymentStatus === 'SETTLED') {
-                                                setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
-                                                return;
-                                              }
-                                              setScrapDeduction(detailRes.totalAmount, match.invoice_number);
-                                              setScrapDeductionSearchQuery('');
-                                              setScrapDeductionResults([]);
-                                              setScrapDeductionDropdownStyle(null);
-                                              return;
-                                            }
+                            {effectiveDeductionMode === 'scrap' ? (
+                              storeScrapDeduction > 0 ? (
+                                <div className="flex items-center justify-between px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-xs font-bold text-orange-600">
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <Recycle className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="truncate">Scrap #{storeScrapInvoiceNumber}: -{formatCurrency(storeScrapDeduction)} applied</span>
+                                  </div>
+                                  <button type="button" onClick={() => clearScrapDeduction()} className="text-orange-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <input
+                                  ref={scrapDeductionInputRef}
+                                  type="text"
+                                  placeholder="Type scrap invoice number & Enter..."
+                                  value={scrapDeductionSearchQuery}
+                                  onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                                  onKeyDown={async e => {
+                                    if (e.key === 'Enter') {
+                                      const q = scrapDeductionSearchQuery.trim();
+                                      if (!q) return;
+                                      try {
+                                        const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                                        if (res && res.totalAmount) {
+                                          if (res.paymentStatus === 'SETTLED') {
+                                            setHardwareError(`Scrap credit ${q} has already been redeemed.`);
+                                            return;
                                           }
-                                        }
-                                        setHardwareError(`Scrap invoice "${q}" not found`);
-                                      }
-                                    } catch (e) {
-                                      setHardwareError('Failed to fetch scrap invoice');
-                                    }
-                                  }
-                                  if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
-                                }}
-                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
-                              />
-                            ) : (
-                              <input
-                                ref={returnDeductionInputRef}
-                                type="text"
-                                placeholder="Type return number & Enter..."
-                                value={returnDeductionSearchQuery}
-                                onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
-                                onKeyDown={async e => {
-                                  if (e.key === 'Enter') {
-                                    const q = returnDeductionSearchQuery.trim();
-                                    if (!q) return;
-                                    try {
-                                      const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
-                                      if (res && res.grand_total) {
-                                        const remaining = res.grand_total - (res.adjusted_amount || 0);
-                                        if (remaining > 0) {
-                                          setReturnDeduction(remaining, q);
-                                          setReturnDeductionSearchQuery('');
-                                          setReturnDeductionResults([]);
-                                          setReturnDeductionDropdownStyle(null);
+                                          setScrapDeduction(res.totalAmount, q);
+                                          setScrapDeductionSearchQuery('');
+                                          setScrapDeductionResults([]);
+                                          setScrapDeductionDropdownStyle(null);
                                         } else {
-                                          setHardwareError('Return already fully adjusted');
-                                        }
-                                      } else {
-                                        const getNumPart = getNumericPart;
-                                        const numQ = getNumPart(q);
-                                        const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
-                                        if (Array.isArray(list)) {
-                                          const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
-                                          if (match) {
-                                            const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
-                                            if (detailRes && detailRes.grand_total) {
-                                              const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
-                                              if (remaining > 0) {
-                                                setReturnDeduction(remaining, match.return_number);
-                                                setReturnDeductionSearchQuery('');
-                                                setReturnDeductionResults([]);
-                                                setReturnDeductionDropdownStyle(null);
+                                          const getNumPart = getNumericPart;
+                                          const numQ = getNumPart(q);
+                                          const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+                                          if (Array.isArray(list)) {
+                                            const match = list.find(inv =>
+                                              inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
+                                            );
+                                            if (match) {
+                                              const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
+                                              if (detailRes && detailRes.totalAmount) {
+                                                if (detailRes.paymentStatus === 'SETTLED') {
+                                                  setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
+                                                  return;
+                                                }
+                                                setScrapDeduction(detailRes.totalAmount, match.invoice_number);
+                                                setScrapDeductionSearchQuery('');
+                                                setScrapDeductionResults([]);
+                                                setScrapDeductionDropdownStyle(null);
                                                 return;
                                               }
                                             }
                                           }
+                                          setHardwareError(`Scrap invoice "${q}" not found`);
                                         }
-                                        setHardwareError(`Return "${q}" not found`);
+                                      } catch (e) {
+                                        setHardwareError('Failed to fetch scrap invoice');
                                       }
-                                    } catch (e) {
-                                      setHardwareError('Failed to fetch return');
                                     }
-                                  }
-                                  if (e.key === 'Escape') { setScrapDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
-                                }}
-                                className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
-                              />
+                                    if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
+                                  }}
+                                  className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
+                                />
+                              )
+                            ) : effectiveDeductionMode === 'return' ? (
+                              storeReturnDeduction > 0 ? (
+                                <div className="flex items-center justify-between px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs font-bold text-rose-600">
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="truncate">Return #{storeReturnInvoiceNumber}: -{formatCurrency(storeReturnDeduction)} applied</span>
+                                  </div>
+                                  <button type="button" onClick={() => clearReturnDeduction()} className="text-rose-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <input
+                                  ref={returnDeductionInputRef}
+                                  type="text"
+                                  placeholder="Type return number & Enter..."
+                                  value={returnDeductionSearchQuery}
+                                  onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                                  onKeyDown={async e => {
+                                    if (e.key === 'Enter') {
+                                      const q = returnDeductionSearchQuery.trim();
+                                      if (!q) return;
+                                      try {
+                                        const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                                        if (res && res.grand_total) {
+                                          const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                          if (remaining > 0) {
+                                            setReturnDeduction(remaining, q);
+                                            setReturnDeductionSearchQuery('');
+                                            setReturnDeductionResults([]);
+                                            setReturnDeductionDropdownStyle(null);
+                                          } else {
+                                            setHardwareError('Return already fully adjusted');
+                                          }
+                                        } else {
+                                          const getNumPart = getNumericPart;
+                                          const numQ = getNumPart(q);
+                                          const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
+                                          if (Array.isArray(list)) {
+                                            const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
+                                            if (match) {
+                                              const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
+                                              if (detailRes && detailRes.grand_total) {
+                                                const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
+                                                if (remaining > 0) {
+                                                  setReturnDeduction(remaining, match.return_number);
+                                                  setReturnDeductionSearchQuery('');
+                                                  setReturnDeductionResults([]);
+                                                  setReturnDeductionDropdownStyle(null);
+                                                  return;
+                                                }
+                                              }
+                                            }
+                                          }
+                                          setHardwareError(`Return "${q}" not found`);
+                                        }
+                                      } catch (e) {
+                                        setHardwareError('Failed to fetch return');
+                                      }
+                                    }
+                                    if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
+                                  }}
+                                  className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
+                                />
+                              )
+                            ) : (
+                              /* Points Dynamic Input */
+                              <div className="flex items-center gap-1.5 w-full">
+                                <input
+                                  ref={pointsDeductionInputRef}
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder={customerPointsBalance > 0 ? `Enter points to redeem (Max ${customerPointsBalance} pts)...` : "0 pts available"}
+                                  disabled={customerPointsBalance <= 0}
+                                  value={pointsToRedeem > 0 ? pointsToRedeem : ''}
+                                  onChange={e => {
+                                    const clean = e.target.value.replace(/\D/g, '');
+                                    const num = clean === '' ? 0 : Number(clean);
+                                    const val = Math.max(0, Math.min(num, customerPointsBalance));
+                                    setPointsToRedeem(clean === '' ? 0 : val);
+                                  }}
+                                  className="w-full pl-2.5 pr-2 py-1.5 bg-background border border-border hover:border-emerald-500/40 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl text-xs font-mono font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                {customerPointsBalance > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPointsToRedeem(customerPointsBalance)}
+                                    className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-xl border border-emerald-500/20 transition-all shrink-0 cursor-pointer"
+                                    title="Redeem maximum available points"
+                                  >
+                                    Max
+                                  </button>
+                                )}
+                                {pointsRedeemedDiscountCalc > 0 && (
+                                  <div className="flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-xl shrink-0">
+                                    <span>-{formatCurrency(pointsRedeemedDiscountCalc)}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPointsToRedeem(0)}
+                                      className="p-0.5 text-muted-foreground hover:text-destructive cursor-pointer"
+                                      title="Clear Points"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -11712,34 +11814,36 @@ export function BillingPage() {
             {uiConfig.orientation !== 'horizontal-stack' && (
             <div className={clsx(
               'transition-all duration-400 ease-in-out',
-              !isScrapMode && !isQuotationMode && !isReturnMode && (storeScrapDeduction > 0 || storeReturnDeduction > 0 || enableScrap)
-                ? 'max-h-[350px] opacity-100 scale-100'
-                : 'max-h-0 opacity-0 scale-95'
+              !isScrapMode && !isQuotationMode && !isReturnMode && (isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled || storeScrapDeduction > 0 || storeReturnDeduction > 0 || pointsRedeemedDiscountCalc > 0)
+                ? 'max-h-[500px] opacity-100 scale-100'
+                : 'max-h-0 opacity-0 scale-95 pointer-events-none'
             )}>
               <div className={clsx(
                 "px-0 py-0 mt-1 border rounded-2xl overflow-hidden transition-all duration-300 shadow-sm",
-                storeScrapDeduction > 0 && storeReturnDeduction > 0
+                ((storeScrapDeduction > 0 ? 1 : 0) + (storeReturnDeduction > 0 ? 1 : 0) + (pointsRedeemedDiscountCalc > 0 ? 1 : 0)) > 1
                   ? "border-primary/20 bg-muted/5"
                   : storeScrapDeduction > 0
                     ? "border-orange-500/25 bg-orange-500/[0.01]"
                     : storeReturnDeduction > 0
                       ? "border-rose-500/25 bg-rose-500/[0.01]"
-                      : "border-orange-500/20 bg-orange-500/[0.01]"
+                      : pointsRedeemedDiscountCalc > 0
+                        ? "border-emerald-500/25 bg-emerald-500/[0.01]"
+                        : "border-border/60 bg-muted/5"
               )}>
-                {(storeScrapDeduction > 0 || storeReturnDeduction > 0) ? (
+                {/* Applied Credits Summary Row */}
+                {(storeScrapDeduction > 0 || storeReturnDeduction > 0 || pointsRedeemedDiscountCalc > 0) && (
                   <div className="p-2 space-y-1.5 bg-muted/40 border-b border-border/50">
                     <div className="flex items-center justify-between px-1 mb-0.5">
                       <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Applied Credits</p>
-                      {(storeScrapDeduction > 0 && storeReturnDeduction > 0) && (
+                      {((storeScrapDeduction > 0 ? 1 : 0) + (storeReturnDeduction > 0 ? 1 : 0) + (pointsRedeemedDiscountCalc > 0 ? 1 : 0)) > 1 && (
                         <span className="text-[9px] font-bold text-foreground bg-primary/10 px-2 py-0.5 rounded-full">
-                          Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0))}
+                          Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0) + (pointsRedeemedDiscountCalc || 0))}
                         </span>
                       )}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-1.5 items-center">
-                      {/* Column 1: Scrap Card OR Scrap Input (if Return is applied but Scrap is not) */}
-                      {storeScrapDeduction > 0 ? (
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 items-center">
+                      {storeScrapDeduction > 0 && (
                         <div className="flex items-center justify-between p-1.5 bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/10 rounded-xl transition-all duration-200 min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <div className="p-1 bg-orange-500/10 text-orange-600 rounded-lg shrink-0">
@@ -11753,6 +11857,7 @@ export function BillingPage() {
                           <div className="flex items-center gap-1 shrink-0 ml-1">
                             <span className="text-[11px] font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
                             <button
+                              type="button"
                               onClick={() => clearScrapDeduction()}
                               title="Remove Scrap Credit"
                               className="p-0.5 text-orange-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
@@ -11761,67 +11866,9 @@ export function BillingPage() {
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        <div className="relative">
-                          <input
-                            ref={scrapDeductionInputRef}
-                            type="text"
-                            placeholder="Type scrap # & Enter..."
-                            value={scrapDeductionSearchQuery}
-                            onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
-                            onKeyDown={async e => {
-                              if (e.key === 'Enter') {
-                                const q = scrapDeductionSearchQuery.trim();
-                                if (!q) return;
-                                try {
-                                  const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
-                                  if (res && res.totalAmount) {
-                                    if (res.paymentStatus === 'SETTLED') {
-                                      setHardwareError(`Scrap credit ${q} has already been redeemed.`);
-                                      return;
-                                    }
-                                    setScrapDeduction(res.totalAmount, q);
-                                    setScrapDeductionSearchQuery('');
-                                    setScrapDeductionResults([]);
-                                    setScrapDeductionDropdownStyle(null);
-                                  } else {
-                                    const getNumPart = getNumericPart;
-                                    const numQ = getNumPart(q);
-                                    const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
-                                    if (Array.isArray(list)) {
-                                      const match = list.find(inv =>
-                                        inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
-                                      );
-                                      if (match) {
-                                        const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
-                                        if (detailRes && detailRes.totalAmount) {
-                                          if (detailRes.paymentStatus === 'SETTLED') {
-                                            setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
-                                            return;
-                                          }
-                                          setScrapDeduction(detailRes.totalAmount, match.invoice_number);
-                                          setScrapDeductionSearchQuery('');
-                                          setScrapDeductionResults([]);
-                                          setScrapDeductionDropdownStyle(null);
-                                          return;
-                                        }
-                                      }
-                                    }
-                                    setHardwareError(`Scrap invoice "${q}" not found`);
-                                  }
-                                } catch (e) {
-                                  setHardwareError('Failed to fetch scrap invoice');
-                                }
-                              }
-                              if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
-                            }}
-                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
-                          />
-                        </div>
                       )}
 
-                      {/* Column 2: Return Card OR Return Input (if Scrap is applied but Return is not) */}
-                      {storeReturnDeduction > 0 ? (
+                      {storeReturnDeduction > 0 && (
                         <div className="flex items-center justify-between p-1.5 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-xl transition-all duration-200 min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <div className="p-1 bg-rose-500/10 text-rose-600 rounded-lg shrink-0">
@@ -11835,9 +11882,8 @@ export function BillingPage() {
                           <div className="flex items-center gap-1 shrink-0 ml-1">
                             <span className="text-[11px] font-black text-rose-600">-{formatCurrency(storeReturnDeduction)}</span>
                             <button
-                              onClick={() => {
-                                clearReturnDeduction();
-                              }}
+                              type="button"
+                              onClick={() => clearReturnDeduction()}
                               title="Remove Return Credit"
                               className="p-0.5 text-rose-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
                             >
@@ -11845,202 +11891,277 @@ export function BillingPage() {
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        <div className="relative">
-                          <input
-                            ref={returnDeductionInputRef}
-                            type="text"
-                            placeholder="Type return # & Enter..."
-                            value={returnDeductionSearchQuery}
-                            onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
-                            onKeyDown={async e => {
-                              if (e.key === 'Enter') {
-                                const q = returnDeductionSearchQuery.trim();
-                                if (!q) return;
-                                try {
-                                  const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
-                                  if (res && res.grand_total) {
-                                    const remaining = res.grand_total - (res.adjusted_amount || 0);
-                                    if (remaining > 0) {
-                                      setReturnDeduction(remaining, q);
-                                      setReturnDeductionSearchQuery('');
-                                      setReturnDeductionResults([]);
-                                      setReturnDeductionDropdownStyle(null);
-                                    } else {
-                                      setHardwareError('Return already fully adjusted');
-                                    }
-                                  } else {
-                                    const getNumPart = getNumericPart;
-                                    const numQ = getNumPart(q);
-                                    const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
-                                    if (Array.isArray(list)) {
-                                      const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
-                                      if (match) {
-                                        const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
-                                        if (detailRes && detailRes.grand_total) {
-                                          const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
-                                          if (remaining > 0) {
-                                            setReturnDeduction(remaining, match.return_number);
-                                            setReturnDeductionSearchQuery('');
-                                            setReturnDeductionResults([]);
-                                            setReturnDeductionDropdownStyle(null);
-                                            return;
-                                          }
-                                        }
-                                      }
-                                    }
-                                    setHardwareError(`Return "${q}" not found`);
-                                  }
-                                } catch (e) {
-                                  setHardwareError('Failed to fetch return');
-                                }
-                              }
-                              if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
-                            }}
-                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
-                          />
+                      )}
+
+                      {pointsRedeemedDiscountCalc > 0 && (
+                        <div className="flex items-center justify-between p-1.5 bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 rounded-xl transition-all duration-200 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <div className="p-1 bg-emerald-500/10 text-emerald-600 rounded-lg shrink-0">
+                              <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider leading-none">Points Credit</p>
+                              <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{pointsRedeemedCalc} pts</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-1">
+                            <span className="text-[11px] font-black text-emerald-600">-{formatCurrency(pointsRedeemedDiscountCalc)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setPointsToRedeem(0)}
+                              title="Remove Points Credit"
+                              className="p-0.5 text-emerald-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
-                ) : (
-                  /* Neither is applied: show standard selector tabs and full-width input */
+                )}
+
+                {/* Deduction Tabs (Scrap / Return / Points) */}
+                {(isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled) && (
                   <div>
                     <div className="flex bg-muted/20 p-0.5 border-b border-border/40 gap-1">
-                      <button
-                        onClick={() => setReturnDeductionSearchMode(false)}
-                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
-                          !returnDeductionSearchMode
-                            ? 'bg-orange-500/10 text-orange-600 shadow-sm'
-                            : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                        )}
-                      >
-                        <span>Scrap Deduction</span>
-                        <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
-                      </button>
-                      <button
-                        onClick={() => setReturnDeductionSearchMode(true)}
-                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
-                          returnDeductionSearchMode
-                            ? 'bg-rose-500/10 text-rose-600 shadow-sm'
-                            : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                        )}
-                      >
-                        <span>Return Deduction</span>
-                        <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
-                      </button>
+                      {isScrapModuleEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeductionTabMode('scrap');
+                            setReturnDeductionSearchMode(false);
+                            setTimeout(() => scrapDeductionInputRef.current?.focus(), 50);
+                          }}
+                          className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                            effectiveDeductionMode === 'scrap'
+                              ? 'bg-orange-500/10 text-orange-600 shadow-sm'
+                              : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                          )}
+                        >
+                          <Recycle className="w-3.5 h-3.5" />
+                          <span>Scrap</span>
+                          <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
+                        </button>
+                      )}
+
+                      {isReturnModuleEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeductionTabMode('return');
+                            setReturnDeductionSearchMode(true);
+                            setTimeout(() => returnDeductionInputRef.current?.focus(), 50);
+                          }}
+                          className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                            effectiveDeductionMode === 'return'
+                              ? 'bg-rose-500/10 text-rose-600 shadow-sm'
+                              : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                          )}
+                        >
+                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                          <span>Return</span>
+                          <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
+                        </button>
+                      )}
+
+                      {isLoyaltyModuleEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeductionTabMode('points');
+                            setTimeout(() => pointsDeductionInputRef.current?.focus(), 50);
+                          }}
+                          className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
+                            effectiveDeductionMode === 'points'
+                              ? 'bg-emerald-500/10 text-emerald-600 shadow-sm'
+                              : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                          )}
+                        >
+                          <Coins className="w-3.5 h-3.5" />
+                          <span>Points</span>
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">Alt+L</span>
+                        </button>
+                      )}
                     </div>
 
+                    {/* Dynamic Single Input Row */}
                     <div className="flex items-center gap-1 px-2 py-1.5">
                       <div className="flex-1 relative">
-                        {!returnDeductionSearchMode ? (
-                          <input
-                            ref={scrapDeductionInputRef}
-                            type="text"
-                            placeholder="Type scrap invoice number & Enter..."
-                            value={scrapDeductionSearchQuery}
-                            onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
-                            onKeyDown={async e => {
-                              if (e.key === 'Enter') {
-                                const q = scrapDeductionSearchQuery.trim();
-                                if (!q) return;
-                                try {
-                                  const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
-                                  if (res && res.totalAmount) {
-                                    if (res.paymentStatus === 'SETTLED') {
-                                      setHardwareError(`Scrap credit ${q} has already been redeemed.`);
-                                      return;
-                                    }
-                                    setScrapDeduction(res.totalAmount, q);
-                                    setScrapDeductionSearchQuery('');
-                                    setScrapDeductionResults([]);
-                                    setScrapDeductionDropdownStyle(null);
-                                  } else {
-                                    const getNumPart = getNumericPart;
-                                    const numQ = getNumPart(q);
-                                    const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
-                                    if (Array.isArray(list)) {
-                                      const match = list.find(inv =>
-                                        inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
-                                      );
-                                      if (match) {
-                                        const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
-                                        if (detailRes && detailRes.totalAmount) {
-                                          if (detailRes.paymentStatus === 'SETTLED') {
-                                            setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
-                                            return;
-                                          }
-                                          setScrapDeduction(detailRes.totalAmount, match.invoice_number);
-                                          setScrapDeductionSearchQuery('');
-                                          setScrapDeductionResults([]);
-                                          setScrapDeductionDropdownStyle(null);
-                                          return;
-                                        }
+                        {effectiveDeductionMode === 'scrap' ? (
+                          storeScrapDeduction > 0 ? (
+                            <div className="flex items-center justify-between px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-xs font-bold text-orange-600">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <Recycle className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">Scrap #{storeScrapInvoiceNumber}: -{formatCurrency(storeScrapDeduction)} applied</span>
+                              </div>
+                              <button type="button" onClick={() => clearScrapDeduction()} className="text-orange-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              ref={scrapDeductionInputRef}
+                              type="text"
+                              placeholder="Type scrap invoice number & Enter..."
+                              value={scrapDeductionSearchQuery}
+                              onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                              onKeyDown={async e => {
+                                if (e.key === 'Enter') {
+                                  const q = scrapDeductionSearchQuery.trim();
+                                  if (!q) return;
+                                  try {
+                                    const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                                    if (res && res.totalAmount) {
+                                      if (res.paymentStatus === 'SETTLED') {
+                                        setHardwareError(`Scrap credit ${q} has already been redeemed.`);
+                                        return;
                                       }
-                                    }
-                                    setHardwareError(`Scrap invoice "${q}" not found`);
-                                  }
-                                } catch (e) {
-                                  setHardwareError('Failed to fetch scrap invoice');
-                                }
-                              }
-                              if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
-                            }}
-                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
-                          />
-                        ) : (
-                          <input
-                            ref={returnDeductionInputRef}
-                            type="text"
-                            placeholder="Type return number & Enter..."
-                            value={returnDeductionSearchQuery}
-                            onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
-                            onKeyDown={async e => {
-                              if (e.key === 'Enter') {
-                                const q = returnDeductionSearchQuery.trim();
-                                if (!q) return;
-                                try {
-                                  const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
-                                  if (res && res.grand_total) {
-                                    const remaining = res.grand_total - (res.adjusted_amount || 0);
-                                    if (remaining > 0) {
-                                      setReturnDeduction(remaining, q);
-                                      setReturnDeductionSearchQuery('');
-                                      setReturnDeductionResults([]);
-                                      setReturnDeductionDropdownStyle(null);
+                                      setScrapDeduction(res.totalAmount, q);
+                                      setScrapDeductionSearchQuery('');
+                                      setScrapDeductionResults([]);
+                                      setScrapDeductionDropdownStyle(null);
                                     } else {
-                                      setHardwareError('Return already fully adjusted');
-                                    }
-                                  } else {
-                                    const getNumPart = getNumericPart;
-                                    const numQ = getNumPart(q);
-                                    const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
-                                    if (Array.isArray(list)) {
-                                      const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
-                                      if (match) {
-                                        const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
-                                        if (detailRes && detailRes.grand_total) {
-                                          const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
-                                          if (remaining > 0) {
-                                            setReturnDeduction(remaining, match.return_number);
-                                            setReturnDeductionSearchQuery('');
-                                            setReturnDeductionResults([]);
-                                            setReturnDeductionDropdownStyle(null);
+                                      const getNumPart = getNumericPart;
+                                      const numQ = getNumPart(q);
+                                      const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+                                      if (Array.isArray(list)) {
+                                        const match = list.find(inv =>
+                                          inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
+                                        );
+                                        if (match) {
+                                          const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
+                                          if (detailRes && detailRes.totalAmount) {
+                                            if (detailRes.paymentStatus === 'SETTLED') {
+                                              setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
+                                              return;
+                                            }
+                                            setScrapDeduction(detailRes.totalAmount, match.invoice_number);
+                                            setScrapDeductionSearchQuery('');
+                                            setScrapDeductionResults([]);
+                                            setScrapDeductionDropdownStyle(null);
                                             return;
                                           }
                                         }
                                       }
+                                      setHardwareError(`Scrap invoice "${q}" not found`);
                                     }
-                                    setHardwareError(`Return "${q}" not found`);
+                                  } catch (e) {
+                                    setHardwareError('Failed to fetch scrap invoice');
                                   }
-                                } catch (e) {
-                                  setHardwareError('Failed to fetch return');
                                 }
-                              }
-                              if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
-                            }}
-                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
-                          />
+                                if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
+                              }}
+                              className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
+                            />
+                          )
+                        ) : effectiveDeductionMode === 'return' ? (
+                          storeReturnDeduction > 0 ? (
+                            <div className="flex items-center justify-between px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs font-bold text-rose-600">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">Return #{storeReturnInvoiceNumber}: -{formatCurrency(storeReturnDeduction)} applied</span>
+                              </div>
+                              <button type="button" onClick={() => clearReturnDeduction()} className="text-rose-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              ref={returnDeductionInputRef}
+                              type="text"
+                              placeholder="Type return number & Enter..."
+                              value={returnDeductionSearchQuery}
+                              onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                              onKeyDown={async e => {
+                                if (e.key === 'Enter') {
+                                  const q = returnDeductionSearchQuery.trim();
+                                  if (!q) return;
+                                  try {
+                                    const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                                    if (res && res.grand_total) {
+                                      const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                      if (remaining > 0) {
+                                        setReturnDeduction(remaining, q);
+                                        setReturnDeductionSearchQuery('');
+                                        setReturnDeductionResults([]);
+                                        setReturnDeductionDropdownStyle(null);
+                                      } else {
+                                        setHardwareError('Return already fully adjusted');
+                                      }
+                                    } else {
+                                      const getNumPart = getNumericPart;
+                                      const numQ = getNumPart(q);
+                                      const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
+                                      if (Array.isArray(list)) {
+                                        const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
+                                        if (match) {
+                                          const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
+                                          if (detailRes && detailRes.grand_total) {
+                                            const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
+                                            if (remaining > 0) {
+                                              setReturnDeduction(remaining, match.return_number);
+                                              setReturnDeductionSearchQuery('');
+                                              setReturnDeductionResults([]);
+                                              setReturnDeductionDropdownStyle(null);
+                                              return;
+                                            }
+                                          }
+                                        }
+                                      }
+                                      setHardwareError(`Return "${q}" not found`);
+                                    }
+                                  } catch (e) {
+                                    setHardwareError('Failed to fetch return');
+                                  }
+                                }
+                                if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
+                              }}
+                              className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
+                            />
+                          )
+                        ) : (
+                          /* Points Dynamic Input */
+                          <div className="flex items-center gap-1.5 w-full">
+                            <input
+                              ref={pointsDeductionInputRef}
+                              type="text"
+                              inputMode="numeric"
+                              placeholder={customerPointsBalance > 0 ? `Enter points to redeem (Max ${customerPointsBalance} pts)...` : "0 pts available"}
+                              disabled={customerPointsBalance <= 0}
+                              value={pointsToRedeem > 0 ? pointsToRedeem : ''}
+                              onChange={e => {
+                                const clean = e.target.value.replace(/\D/g, '');
+                                const num = clean === '' ? 0 : Number(clean);
+                                const val = Math.max(0, Math.min(num, customerPointsBalance));
+                                setPointsToRedeem(clean === '' ? 0 : val);
+                              }}
+                              className="w-full pl-2.5 pr-2 py-1.5 bg-background border border-border hover:border-emerald-500/40 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl text-xs font-mono font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            {customerPointsBalance > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setPointsToRedeem(customerPointsBalance)}
+                                className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-xl border border-emerald-500/20 transition-all shrink-0 cursor-pointer"
+                                title="Redeem maximum available points"
+                              >
+                                Max
+                              </button>
+                            )}
+                            {pointsRedeemedDiscountCalc > 0 && (
+                              <div className="flex items-center gap-1 text-xs font-black text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-xl shrink-0">
+                                <span>-{formatCurrency(pointsRedeemedDiscountCalc)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setPointsToRedeem(0)}
+                                  className="p-0.5 text-muted-foreground hover:text-destructive cursor-pointer"
+                                  title="Clear Points"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

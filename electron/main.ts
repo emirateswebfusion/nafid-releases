@@ -4585,7 +4585,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     const ptsRedeemedDiscount = Math.max(0, Number(invoice.points_redeemed_discount) || 0);
 
     let ptsEarned = Math.max(0, Number(invoice.points_earned) || 0);
-    if (ptsEarned === 0 && customerId && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') {
+    if (customerId && invoice.payment_method !== 'HOLD') {
       try {
         const lCfgRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'").get(tenantId)
           || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'").get();
@@ -4600,7 +4600,12 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
           flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
         }
         const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
-        if (isLoyaltyOn) {
+        const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
+        const shouldAwardNow = invoice.payment_method !== 'PENDING' || awardOnPending;
+
+        if (!shouldAwardNow) {
+          ptsEarned = 0;
+        } else if (isLoyaltyOn && ptsEarned === 0) {
           const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
           ptsEarned = Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / earningRate);
         }
@@ -5530,10 +5535,10 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
   }
 });
 
-ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; tax_rate_percent?: string; only_user_invoices?: boolean }) => {
+ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; tax_rate_percent?: string; only_user_invoices?: boolean; accounting_view?: 'REAL_SALES' | 'TAX_FILING' | 'ALL'; invoice_id?: string }) => {
   try {
     const db = getDb();
-    const { user_id, tenant_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent } = filters || {};
+    const { user_id, tenant_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent, accounting_view, invoice_id } = filters || {};
 
     const activeTenantId = tenant_id || 'global';
 
@@ -5553,15 +5558,50 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     `;
     const params: any[] = [activeTenantId];
 
+    // Direct invoice_id or invoice_number lookup shortcut
+    if (invoice_id) {
+      const direct = db.prepare(`
+        SELECT i.*, u.name as biller_name,
+          st_biller.name as biller_staff_name,
+          st_sales.name as sales_staff_name,
+          COALESCE((SELECT COUNT(*) FROM invoice_items ii WHERE ii.invoice_id = i.invoice_id), 0) as item_count
+        FROM invoices i 
+        LEFT JOIN users u ON i.user_id = u.user_id 
+        LEFT JOIN staff st_biller ON i.biller_staff_id = st_biller.staff_id
+        LEFT JOIN staff st_sales ON i.sales_staff_id = st_sales.staff_id
+        WHERE (i.invoice_id = ? OR i.invoice_number = ?)
+          AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+        LIMIT 1
+      `).all(invoice_id, invoice_id);
+      if (direct && direct.length > 0) {
+        return direct;
+      }
+    }
+
     // Only filter by user_id if explicitly requested (e.g. only_user_invoices flag)
     if (filters?.only_user_invoices && user_id) {
       query += ' AND i.user_id = ?';
       params.push(user_id);
     }
 
+    // Accounting View filter:
+    // - TAX_FILING: Official GST invoices meant for government/tax filing (both direct GST and BoS-converted GST copies)
+    // - ALL: Complete unfiltered ledger (both original counter sales and GST filing copies)
+    // - REAL_SALES (Default): Real operational counter sales. Excludes synthetic tax conversion copies so cash & sales are 100% accurate!
+    if (invoice_id) {
+      // If directly looking up an invoice by ID, do not restrict by accounting view
+    } else if (accounting_view === 'TAX_FILING') {
+      query += " AND i.invoice_type = 'GST'";
+    } else if (accounting_view === 'ALL') {
+      // Do not filter out conversion copies
+    } else {
+      // Default to REAL_SALES: Show genuine counter transactions
+      query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
+    }
+
     if (search) {
-      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      query += ' AND (i.invoice_id = ? OR i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
+      params.push(search, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     if (payment_method) {
@@ -5633,10 +5673,10 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
   }
 });
 
-ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; tax_rate_percent?: string; only_user_invoices?: boolean }) => {
+ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; tax_rate_percent?: string; only_user_invoices?: boolean; accounting_view?: 'REAL_SALES' | 'TAX_FILING' | 'ALL' }) => {
   try {
     const db = getDb();
-    const { user_id, tenant_id, role, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent } = filters || {};
+    const { user_id, tenant_id, role, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent, accounting_view } = filters || {};
 
     const activeTenantId = tenant_id || 'global';
 
@@ -5645,18 +5685,37 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
       ? (payment_method.toUpperCase() === 'BANK_TRANSFER' ? 'bank_transfer' : payment_method.toLowerCase())
       : null;
 
-    let query = `
+    const isTaxFiling = accounting_view === 'TAX_FILING';
+
+    let query = isTaxFiling ? `
       SELECT 
-        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN 
+        COALESCE(SUM(
+          CASE
+            WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+              THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
+            ELSE MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+          END
+        ), 0) as totalSales,
+        COUNT(1) as totalInvoices,
+        COALESCE(SUM(i.tax_total), 0) as totalTax,
+        COALESCE(SUM(i.discount_total), 0) as totalDiscount
+      FROM invoices i 
+      WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
+        AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+        AND (i.invoice_type = 'GST')
+        AND (i.is_held IS NULL OR i.is_held = 0)
+    ` : `
+      SELECT 
+        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
               THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
             ELSE MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ELSE 0 END), 0) as totalSales,
-        COUNT(CASE WHEN i.converted_to_invoice_id IS NULL THEN 1 END) as totalInvoices,
-        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.tax_total ELSE 0 END), 0) as totalTax,
-        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.discount_total ELSE 0 END), 0) as totalDiscount
+        COUNT(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 1 END) as totalInvoices,
+        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.tax_total ELSE 0 END), 0) as totalTax,
+        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.discount_total ELSE 0 END), 0) as totalDiscount
       FROM invoices i 
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
@@ -5664,7 +5723,6 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
     const params: any[] = [activeTenantId];
-
 
     if (filters?.only_user_invoices && user_id) {
       query += ' AND i.user_id = ?';
@@ -5749,7 +5807,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
-        AND converted_to_invoice_id IS NULL 
+        AND (converted_from_invoice_id IS NULL OR converted_from_invoice_id = '')
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
@@ -5998,6 +6056,94 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       staff_id: (payload as any).staff_id || null,
     });
     backfillLastRun = 0; // reset so next db:getParties re-scans
+
+    // Sync Loyalty Points on invoice update
+    const targetCustId = customerId || (payload as any).customer_id || (invoice as any).customer_id || existingInv.customer_id;
+    if (targetCustId) {
+      try {
+        const targetTenantId = payload.tenant_id || existingInv.tenant_id || 'global';
+        const lCfgRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'").get(targetTenantId)
+          || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'").get();
+        let lCfg: any = null;
+        if (lCfgRow?.value) {
+          lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
+        }
+        const flagsRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'").get(targetTenantId)
+          || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'").get();
+        let flags: any = null;
+        if (flagsRow?.value) {
+          flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
+        }
+        const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
+
+        if (isLoyaltyOn) {
+          const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+          const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
+          const newPaymentMethod = (invoice.payment_method || existingInv.payment_method || '').toUpperCase();
+          const shouldEarn = newPaymentMethod !== 'PENDING' || awardOnPending;
+
+          let targetPointsEarned: number;
+          if ((invoice as any).points_earned !== undefined && (invoice as any).points_earned !== null) {
+            targetPointsEarned = Number((invoice as any).points_earned) || 0;
+          } else if (shouldEarn) {
+            targetPointsEarned = Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / earningRate);
+          } else {
+            targetPointsEarned = 0;
+          }
+
+          const prevEarned = Number(existingInv.points_earned) || 0;
+          const diffEarned = targetPointsEarned - prevEarned;
+
+          if (diffEarned !== 0) {
+            const custRow: any = db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?').get(targetCustId);
+            const curBal = Number(custRow?.current_points_balance) || 0;
+            const newBal = Math.max(0, curBal + diffEarned);
+            const nowTs = localTimestamp();
+
+            const txType = diffEarned > 0 ? 'EARNED' : 'ADJUSTED';
+            const txDesc = diffEarned > 0
+              ? (prevEarned === 0
+                  ? `Earned ${targetPointsEarned} points on invoice ${existingInv.invoice_number}`
+                  : `Earned ${diffEarned} additional points on updated invoice ${existingInv.invoice_number}`)
+              : `Adjusted ${Math.abs(diffEarned)} points on updated invoice ${existingInv.invoice_number}`;
+
+            db.prepare(`
+              INSERT INTO loyalty_transactions (
+                transaction_id, tenant_id, customer_id, invoice_id,
+                transaction_type, points, points_balance_before, points_balance_after,
+                reference_number, description, created_by, sync_status, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+            `).run(
+              crypto.randomUUID(), targetTenantId,
+              targetCustId, payload.invoice_id,
+              txType, Math.abs(diffEarned), curBal, newBal,
+              existingInv.invoice_number, txDesc,
+              payload.user_id || payload.role || 'system',
+              nowTs, nowTs
+            );
+
+            db.prepare(`
+              UPDATE customers SET
+                total_points_earned = COALESCE(total_points_earned, 0) + ?,
+                current_points_balance = ?,
+                last_purchase_date = COALESCE(last_purchase_date, ?),
+                sync_status = 'PENDING',
+                updated_at = CURRENT_TIMESTAMP
+              WHERE customer_id = ?
+            `).run(diffEarned, newBal, nowTs, targetCustId);
+
+            db.prepare(`
+              UPDATE invoices SET
+                points_earned = ?,
+                remaining_points_balance = ?
+              WHERE invoice_id = ?
+            `).run(targetPointsEarned, newBal, payload.invoice_id);
+          }
+        }
+      } catch (lErr) {
+        console.warn('[db:updateInvoice] Failed to sync loyalty points:', lErr);
+      }
+    }
   });
 
   try {
@@ -6102,6 +6248,75 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       staff_id: (payload as any).staff_id || null,
     });
     backfillLastRun = 0; // reset so next db:getParties re-scans
+
+    // Award loyalty points if invoice was pending and now paid
+    if (existingInv.customer_id && (!existingInv.points_earned || Number(existingInv.points_earned) <= 0)) {
+      const newPm = (payload.payment_method || '').toUpperCase();
+      if (newPm !== 'PENDING') {
+        try {
+          const targetTenantId = existingInv.tenant_id || payload.tenant_id || 'global';
+          const lCfgRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'").get(targetTenantId)
+            || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'").get();
+          let lCfg: any = null;
+          if (lCfgRow?.value) {
+            lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
+          }
+          const flagsRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'").get(targetTenantId)
+            || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'").get();
+          let flags: any = null;
+          if (flagsRow?.value) {
+            flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
+          }
+          const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
+          if (isLoyaltyOn) {
+            const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+            const ptsEarned = Math.floor(Math.max(0, Number(existingInv.grand_total) || 0) / earningRate);
+            if (ptsEarned > 0) {
+              const custRow: any = db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?').get(existingInv.customer_id);
+              const prevBal = Number(custRow?.current_points_balance) || 0;
+              const newBal = prevBal + ptsEarned;
+              const nowTimestamp = localTimestamp();
+              const eTxId = crypto.randomUUID();
+
+              db.prepare(`
+                UPDATE invoices SET
+                  points_earned = ?,
+                  previous_points_balance = COALESCE(previous_points_balance, ?),
+                  remaining_points_balance = ?
+                WHERE invoice_id = ?
+              `).run(ptsEarned, prevBal, newBal, payload.invoice_id);
+
+              db.prepare(`
+                INSERT INTO loyalty_transactions (
+                  transaction_id, tenant_id, customer_id, invoice_id,
+                  transaction_type, points, points_balance_before, points_balance_after,
+                  reference_number, description, created_by, sync_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'EARNED', ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+              `).run(
+                eTxId, targetTenantId, existingInv.customer_id, payload.invoice_id,
+                ptsEarned, prevBal, newBal,
+                existingInv.invoice_number,
+                `Earned ${ptsEarned} points on settled invoice ${existingInv.invoice_number}`,
+                'system',
+                nowTimestamp, nowTimestamp
+              );
+
+              db.prepare(`
+                UPDATE customers SET
+                  total_points_earned = COALESCE(total_points_earned, 0) + ?,
+                  current_points_balance = ?,
+                  last_purchase_date = ?,
+                  sync_status = 'PENDING',
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE customer_id = ?
+              `).run(ptsEarned, newBal, nowTimestamp, existingInv.customer_id);
+            }
+          }
+        } catch (lErr) {
+          console.warn('[db:updateInvoicePayment] Failed to award loyalty points on payment update:', lErr);
+        }
+      }
+    }
 
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice payment update sync error:', e));
@@ -9105,8 +9320,8 @@ ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id, fromDate, toDat
              ii.name,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END), 0) as gst_qty,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL THEN ii.quantity ELSE 0 END), 0) as bos_qty,
-             COALESCE(SUM(ii.quantity), 0) as total_qty,
-             COALESCE(SUM(ii.total), 0) as total_revenue
+             COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN ii.quantity ELSE 0 END), 0) as total_qty,
+             COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN ii.total ELSE 0 END), 0) as total_revenue
       FROM invoice_items ii
       JOIN invoices i ON ii.invoice_id = i.invoice_id
       WHERE ii.tenant_id = ? AND i.invoice_type IN ('GST', 'BILL_OF_SUPPLY') AND (i.is_deleted IS NULL OR i.is_deleted = 0)
@@ -10752,6 +10967,71 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           updated_at = CURRENT_TIMESTAMP
         WHERE invoice_id = ?
       `).run(payment_method, splitStr, storedReceivedAmount, actualRefundPaid, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);
+
+      // If invoice was created with 0 points_earned (e.g. pending bill) but customer exists and loyalty is enabled, award points now!
+      if (invoice.customer_id && (!invoice.points_earned || Number(invoice.points_earned) <= 0)) {
+        try {
+          const lCfgRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'").get(targetTenantId)
+            || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'").get();
+          let lCfg: any = null;
+          if (lCfgRow?.value) {
+            lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
+          }
+          const flagsRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'").get(targetTenantId)
+            || db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'").get();
+          let flags: any = null;
+          if (flagsRow?.value) {
+            flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
+          }
+          const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
+          if (isLoyaltyOn) {
+            const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+            const ptsEarned = Math.floor(Math.max(0, Number(newGrandTotal) || 0) / earningRate);
+            if (ptsEarned > 0) {
+              const custRow: any = db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?').get(invoice.customer_id);
+              const prevBal = Number(custRow?.current_points_balance) || 0;
+              const newBal = prevBal + ptsEarned;
+              const nowTimestamp = localTimestamp();
+              const eTxId = crypto.randomUUID();
+
+              db.prepare(`
+                UPDATE invoices SET
+                  points_earned = ?,
+                  previous_points_balance = COALESCE(previous_points_balance, ?),
+                  remaining_points_balance = ?
+                WHERE invoice_id = ?
+              `).run(ptsEarned, prevBal, newBal, invoice_id);
+
+              db.prepare(`
+                INSERT INTO loyalty_transactions (
+                  transaction_id, tenant_id, customer_id, invoice_id,
+                  transaction_type, points, points_balance_before, points_balance_after,
+                  reference_number, description, created_by, sync_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'EARNED', ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+              `).run(
+                eTxId, targetTenantId, invoice.customer_id, invoice_id,
+                ptsEarned, prevBal, newBal,
+                invoice.invoice_number,
+                `Earned ${ptsEarned} points on settled invoice ${invoice.invoice_number}`,
+                user_id || 'system',
+                nowTimestamp, nowTimestamp
+              );
+
+              db.prepare(`
+                UPDATE customers SET
+                  total_points_earned = COALESCE(total_points_earned, 0) + ?,
+                  current_points_balance = ?,
+                  last_purchase_date = ?,
+                  sync_status = 'PENDING',
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE customer_id = ?
+              `).run(ptsEarned, newBal, nowTimestamp, invoice.customer_id);
+            }
+          }
+        } catch (lErr) {
+          console.warn('[db:cashier:settlePayment] Failed to award loyalty points on settlement:', lErr);
+        }
+      }
       
       const date = localDate();
       const drawer = getOpenCashDrawer(db, targetTenantId, date);
@@ -11907,6 +12187,8 @@ ipcMain.handle('db:recalculateCustomerLoyaltyPoints', safeHandler((event, payloa
     } catch {}
   }
   const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+  const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
+  const paymentFilter = awardOnPending ? "AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('HOLD'))" : "AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))";
 
   const custs: any[] = db.prepare(`SELECT customer_id, phone, name FROM customers WHERE (tenant_id = ? OR tenant_id = 'global' OR ? = 'global') AND (is_deleted IS NULL OR is_deleted = 0)`).all(tid, tid);
   let updatedCount = 0;
@@ -11921,7 +12203,7 @@ ipcMain.handle('db:recalculateCustomerLoyaltyPoints', safeHandler((event, payloa
         FROM invoices
         WHERE (customer_id = ? OR (customer_phone IS NOT NULL AND customer_phone = ? AND customer_phone != ''))
           AND (is_deleted IS NULL OR is_deleted = 0)
-          AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))
+          ${paymentFilter}
       `).get(c.customer_id, c.phone || '');
 
       let earned = Number(invRow?.totEarned) || 0;
@@ -11934,7 +12216,7 @@ ipcMain.handle('db:recalculateCustomerLoyaltyPoints', safeHandler((event, payloa
           FROM invoices
           WHERE (customer_id = ? OR (customer_phone IS NOT NULL AND customer_phone = ? AND customer_phone != ''))
             AND (is_deleted IS NULL OR is_deleted = 0)
-            AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))
+            ${paymentFilter}
         `).get(c.customer_id, c.phone || '');
         const totSales = Number(salesRow?.totSales) || 0;
         if (totSales > 0) {

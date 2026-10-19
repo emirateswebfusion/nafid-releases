@@ -7,6 +7,7 @@ interface DateRangeFilterProps {
   endDate: string;
   onChange: (start: string, end: string) => void;
   align?: 'left' | 'right';
+  triggerClassName?: string;
 }
 
 function toDisplay(d: string) {
@@ -89,7 +90,7 @@ const generateCalendarDays = (year: number, month: number): CalendarDay[] => {
   return days;
 };
 
-export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }: DateRangeFilterProps) {
+export function DateRangeFilter({ startDate, endDate, onChange, align = 'left', triggerClassName }: DateRangeFilterProps) {
   const [open, setOpen] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(startDate);
   const [tempEndDate, setTempEndDate] = useState(endDate);
@@ -231,19 +232,26 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }
           setOpen(o => !o);
         }}
         className={clsx(
-          'flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm transition-all bg-background select-none',
-          open ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-muted-foreground/30'
+          'flex items-center gap-2 border rounded-xl transition-all select-none cursor-pointer active:scale-[0.98]',
+          triggerClassName || 'px-4 py-2.5 text-sm bg-background',
+          open
+            ? 'border-primary ring-2 ring-primary/20 shadow-xs'
+            : 'border-border hover:border-muted-foreground/30 hover:bg-muted/20'
         )}
       >
-        <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-        <span className={hasSelection ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+        <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <span className={clsx(hasSelection ? 'text-foreground font-semibold' : 'text-muted-foreground font-medium')}>
           {rangeText}
         </span>
         {hasSelection && (
-          <X
-            className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground ml-1 shrink-0"
+          <span
+            role="button"
+            className="p-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground ml-auto transition-colors cursor-pointer"
             onClick={e => { e.stopPropagation(); clear(); }}
-          />
+            title="Clear date filter"
+          >
+            <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+          </span>
         )}
       </button>
 
@@ -346,14 +354,14 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }
             <button
               type="button"
               onClick={handleCancel}
-              className="w-full py-1.5 text-xs font-semibold rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:text-red-600 transition-colors"
+              className="w-full py-1.5 text-xs font-bold rounded-xl border border-destructive/25 text-destructive hover:bg-destructive/10 active:scale-95 transition-all cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleApply}
-              className="w-full py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm transition-all"
+              className="w-full py-1.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               Apply
             </button>
