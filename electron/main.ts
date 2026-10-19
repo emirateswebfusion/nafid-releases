@@ -7169,17 +7169,19 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             || db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
           const tripleSeries = tripleSeriesRow ? parseSetting(tripleSeriesRow) : null;
 
-          let configKey = 'invoice_counter_config';
+          const isB2B = Boolean(inv.customer_gstin && inv.customer_gstin.trim() !== '');
+          let configKey = 'gst_invoice_counter_config';
 
           if (tripleSeries && tripleSeries.enabled) {
-            const isB2B = inv.customer_gstin && inv.customer_gstin.trim() !== '';
             configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
           } else {
-            // Fallback to old dual series check
+            // Dedicated GST counter so GST invoices NEVER steal or continue regular Bill of Supply numbers
             const dualSeriesRow2: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tid, 'dual_invoice_series')
               || db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
             const dualSeries2 = dualSeriesRow2 ? parseSetting(dualSeriesRow2) : null;
             if (dualSeries2 && dualSeries2.enabled) {
+              configKey = 'gst_invoice_counter_config';
+            } else {
               configKey = 'gst_invoice_counter_config';
             }
           }
@@ -8483,7 +8485,13 @@ function getGuaranteedNextInvoiceNumber(
   overrideDefaultPrefix?: string
 ): { invoiceNumber: string; counter: number; prefix: string } {
   const terminalCode = getOrInitTerminalCode(db);
-  const defaultPrefix = overrideDefaultPrefix || `${terminalCode}-`;
+  const fallbackPrefix = (
+    configKey === 'gst_b2b_invoice_counter_config' ? 'B2B-' :
+    configKey === 'gst_b2c_invoice_counter_config' ? 'B2C-' :
+    configKey === 'gst_invoice_counter_config' ? 'GST-' :
+    `${terminalCode}-`
+  );
+  const defaultPrefix = overrideDefaultPrefix || fallbackPrefix;
 
   const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
   let counter = 1;
@@ -8496,7 +8504,7 @@ function getGuaranteedNextInvoiceNumber(
       if (configKey === 'invoice_counter_config') {
         prefix = defaultPrefix;
       } else if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
-        prefix = parsed.prefix;
+        prefix = parsed.prefix.endsWith('-') ? parsed.prefix : `${parsed.prefix}-`;
       }
     } catch {
       counter = 1;
@@ -8531,7 +8539,13 @@ function peekGuaranteedNextInvoiceNumber(
   overrideDefaultPrefix?: string
 ): { invoiceNumber: string } {
   const terminalCode = getOrInitTerminalCode(db);
-  const defaultPrefix = overrideDefaultPrefix || `${terminalCode}-`;
+  const fallbackPrefix = (
+    configKey === 'gst_b2b_invoice_counter_config' ? 'B2B-' :
+    configKey === 'gst_b2c_invoice_counter_config' ? 'B2C-' :
+    configKey === 'gst_invoice_counter_config' ? 'GST-' :
+    `${terminalCode}-`
+  );
+  const defaultPrefix = overrideDefaultPrefix || fallbackPrefix;
 
   const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
   let counter = 1;
@@ -8544,7 +8558,7 @@ function peekGuaranteedNextInvoiceNumber(
       if (configKey === 'invoice_counter_config') {
         prefix = defaultPrefix;
       } else if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
-        prefix = parsed.prefix;
+        prefix = parsed.prefix.endsWith('-') ? parsed.prefix : `${parsed.prefix}-`;
       }
     } catch {
       counter = 1;
