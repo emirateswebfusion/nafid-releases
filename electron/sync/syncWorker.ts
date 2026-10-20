@@ -2727,6 +2727,16 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 }
               }
 
+              // If this invoice was soft-deleted locally but cloud is active, re-deduct local product stock (restored in cloud)
+              if (!isDeletedPull && prior && prior.is_deleted === 1 && Array.isArray(currentInv.items)) {
+                const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
+                if (!isConversionCopy) {
+                  for (const item of currentInv.items) {
+                    db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?').run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
+                  }
+                }
+              }
+
               // If this invoice is soft-deleted, ensure any local party ledger entries are also soft-deleted
               if (isDeletedPull && currentInv.invoice_number) {
                 const invNum = String(currentInv.invoice_number).trim();
@@ -2735,6 +2745,17 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                   SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
                   WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
                     AND (is_deleted IS NULL OR is_deleted = 0)
+                `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
+              }
+
+              // If this invoice was restored, restore any corresponding party ledger entries
+              if (!isDeletedPull && prior && prior.is_deleted === 1 && currentInv.invoice_number) {
+                const invNum = String(currentInv.invoice_number).trim();
+                db.prepare(`
+                  UPDATE party_ledger
+                  SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+                  WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
+                    AND is_deleted = 1
                 `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
               }
 

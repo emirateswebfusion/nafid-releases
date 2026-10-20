@@ -4,12 +4,26 @@ import { sendWhatsAppBill } from './whatsappService';
 
 export interface ShopClosingChecklist {
   sales: boolean;
+  grossSales?: boolean;
+  totalDiscount?: boolean;
+  taxCollected?: boolean;
   invoices: boolean;
   paymentMethods: boolean;
+  paymentCash?: boolean;
+  paymentUpi?: boolean;
+  paymentCard?: boolean;
+  paymentBank?: boolean;
+  paymentCheque?: boolean;
+  paymentCredit?: boolean;
   expenses: boolean;
+  expensesList: boolean;
   cashInOut: boolean;
+  cashInList: boolean;
   creditSales: boolean;
   customerPayments: boolean;
+  partyTransactions: boolean;
+  staffTransactions: boolean;
+  scrap: boolean;
   returns: boolean;
   refunds: boolean;
   purchases: boolean;
@@ -38,14 +52,28 @@ export const DEFAULT_CHECKLIST: ShopClosingChecklist = {
   counterDetails: true,
   closingStaff: true,
   sales: true,
+  grossSales: true,
+  totalDiscount: true,
+  taxCollected: true,
   invoices: true,
   paymentMethods: true,
+  paymentCash: true,
+  paymentUpi: true,
+  paymentCard: true,
+  paymentBank: true,
+  paymentCheque: true,
+  paymentCredit: true,
   cashBalances: true,
   cashDifferences: true,
   cashInOut: true,
+  cashInList: true,
   expenses: true,
+  expensesList: true,
   creditSales: true,
   customerPayments: true,
+  partyTransactions: true,
+  staffTransactions: true,
+  scrap: true,
   returns: true,
   refunds: true,
   purchases: false,
@@ -242,8 +270,13 @@ export function buildShopClosingSummaryData(
   const actualCashCounted = drawer?.actual_cash !== null && drawer?.actual_cash !== undefined
     ? Math.round(Number(drawer.actual_cash) * 100) / 100
     : expectedClosingCash;
-  const cashShortage = Math.round(Number(drawer?.cash_short || 0) * 100) / 100;
-  const cashExcess = Math.round(Number(drawer?.cash_excess || 0) * 100) / 100;
+  let cashShortage = Math.round(Number(drawer?.cash_short || 0) * 100) / 100;
+  let cashExcess = Math.round(Number(drawer?.cash_excess || 0) * 100) / 100;
+  if (drawer?.actual_cash !== null && drawer?.actual_cash !== undefined) {
+    const diff = Math.round((actualCashCounted - expectedClosingCash) * 100) / 100;
+    if (diff < 0 && cashShortage === 0) cashShortage = Math.abs(diff);
+    if (diff > 0 && cashExcess === 0) cashExcess = diff;
+  }
   const registerStatus = drawer?.status || 'OPEN';
   const closingRemarks = drawer?.closing_remarks || '';
 
@@ -308,6 +341,7 @@ export function buildShopClosingSummaryData(
           AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
           AND (i.is_held IS NULL OR i.is_held = 0)
           AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+          AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')
           AND (
             date(COALESCE(i.settled_at, i.created_at)) = ?
             OR date(COALESCE(i.settled_at, i.created_at)) = ?
@@ -327,11 +361,13 @@ export function buildShopClosingSummaryData(
         const disc = Math.max(0, Number(inv.discount_total || 0) + Number(inv.points_redeemed_discount || 0));
         const sub = Math.max(0, Number(inv.subtotal) || 0);
         const refundPaid = Math.max(0, Number(inv.actual_refund_paid) || 0);
+        const scrapDed = Math.max(0, Number(inv.scrap_deduction) || 0);
+        const returnDed = Math.max(0, Number(inv.return_deduction) || 0);
 
         netSales += gTotal;
         totalTax += tax;
         totalDiscount += disc;
-        grossSales += (sub + tax);
+        grossSales += (disc > 0 || scrapDed > 0 || returnDed > 0 ? (gTotal + disc + scrapDed + returnDed) : (sub > 0 && Math.abs((sub + tax) - gTotal) > 0.01 ? (sub + tax) : gTotal));
         refundsPaidAmount += refundPaid;
 
         const pm = (inv.payment_method || 'CASH').toUpperCase();
@@ -374,8 +410,19 @@ export function buildShopClosingSummaryData(
         } else if (pm === 'CHEQUE') {
           paymentBreakdown.cheque += gTotal;
         } else if (pm === 'CREDIT') {
-          paymentBreakdown.credit += gTotal;
-          creditSalesAmount += gTotal;
+          const recAmt = Math.max(0, Number(inv.received_amount) || 0);
+          if (recAmt > 0 && recAmt < gTotal) {
+            paymentBreakdown.cash += recAmt;
+            invCashPortion = recAmt;
+            paymentBreakdown.credit += (gTotal - recAmt);
+            creditSalesAmount += (gTotal - recAmt);
+          } else if (recAmt >= gTotal && gTotal > 0) {
+            paymentBreakdown.cash += gTotal;
+            invCashPortion = gTotal;
+          } else {
+            paymentBreakdown.credit += gTotal;
+            creditSalesAmount += gTotal;
+          }
         } else {
           paymentBreakdown.cash += gTotal;
           invCashPortion = gTotal;
@@ -407,21 +454,19 @@ export function buildShopClosingSummaryData(
     console.error('[ShopClosing] Invoices calculation error:', err.message);
   }
 
-  // 3. Cash Transactions (Cash In, Cash Out, Expenses)
+  // 3. Cash Transactions (Cash In, Cash Out, Expenses & Itemized lists)
   let totalCashIn = 0;
   let totalCashOut = 0;
   let cashInCount = 0;
   let cashOutCount = 0;
   let totalExpenses = 0;
+  const cashInItems: Array<{ description: string; amount: number; time?: string }> = [];
+  const expensesItems: Array<{ description: string; amount: number; time?: string }> = [];
 
   try {
-    const txRow = db
+    const txRows = db
       .prepare(`
-        SELECT 
-          COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
-          COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out,
-          COUNT(CASE WHEN type = 'CASH_IN' THEN 1 END) AS count_in,
-          COUNT(CASE WHEN type = 'CASH_OUT' THEN 1 END) AS count_out
+        SELECT type, amount, category, notes, transaction_date
         FROM cash_transactions
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
           AND (
@@ -431,49 +476,227 @@ export function buildShopClosingSummaryData(
             OR substr(transaction_date, 1, 10) = ?
             OR transaction_date LIKE ?
           )
+        ORDER BY transaction_date ASC
       `)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
 
-    if (txRow) {
-      totalCashIn = Math.round(Number(txRow.total_in || 0) * 100) / 100;
-      totalCashOut = Math.round(Number(txRow.total_out || 0) * 100) / 100;
-      cashInCount = Number(txRow.count_in || 0);
-      cashOutCount = Number(txRow.count_out || 0);
+    if (Array.isArray(txRows)) {
+      for (const row of txRows) {
+        const amt = Math.round(Number(row.amount || 0) * 100) / 100;
+        const desc = (row.notes || row.category || (row.type === 'CASH_IN' ? 'Deposit' : 'Expense')).trim();
+        if (row.type === 'CASH_IN') {
+          totalCashIn += amt;
+          cashInCount++;
+          cashInItems.push({
+            description: desc,
+            amount: amt,
+            time: row.transaction_date,
+          });
+        } else if (row.type === 'CASH_OUT') {
+          totalCashOut += amt;
+          cashOutCount++;
+          expensesItems.push({
+            description: desc,
+            amount: amt,
+            time: row.transaction_date,
+          });
+        }
+      }
+      totalCashIn = Math.round(totalCashIn * 100) / 100;
+      totalCashOut = Math.round(totalCashOut * 100) / 100;
       totalExpenses = totalCashOut;
     }
   } catch (err: any) {
     console.error('[ShopClosing] Cash transactions error:', err.message);
   }
 
-  // 4. Customer Payments collected today (from party_ledger)
+  // 4. Customer Payments collected & Party transactions (from party_ledger)
   let customerPaymentsCollected = 0;
-  try {
-    const plRow = db
-      .prepare(`
-        SELECT COALESCE(SUM(credit_amount), 0) AS total_collected
-        FROM party_ledger
-        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id IS NULL)
-          AND (
-            date(transaction_date) = ?
-            OR date(transaction_date) = ?
-            OR substr(transaction_date, 1, 10) = ?
-            OR substr(transaction_date, 1, 10) = ?
-            OR transaction_date LIKE ?
-          )
-          AND (is_deleted IS NULL OR is_deleted = 0)
-          AND credit_amount > 0
-          AND (description NOT LIKE '%Opening Balance%' OR description IS NULL)
-      `)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
+  const partyTransactionItems: Array<{ partyName: string; type: 'Got Cash' | 'Gave Cash' | string; amount: number; description?: string }> = [];
 
-    if (plRow) {
-      customerPaymentsCollected = Math.round(Number(plRow.total_collected || 0) * 100) / 100;
+  try {
+    const plRows = db
+      .prepare(`
+        SELECT pl.party_id, pl.credit_amount, pl.debit_amount, pl.description, pl.transaction_date,
+               p.name AS party_name
+        FROM party_ledger pl
+        LEFT JOIN parties p ON pl.party_id = p.party_id
+        WHERE (pl.tenant_id = ? OR pl.tenant_id = 'global' OR pl.tenant_id IS NULL)
+          AND (
+            date(pl.transaction_date) = ?
+            OR date(pl.transaction_date) = ?
+            OR substr(pl.transaction_date, 1, 10) = ?
+            OR substr(pl.transaction_date, 1, 10) = ?
+            OR pl.transaction_date LIKE ?
+          )
+          AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+          AND (pl.description NOT LIKE '%Opening Balance%' OR pl.description IS NULL)
+          AND (pl.description NOT LIKE 'Credit Sale%' OR pl.description IS NULL)
+          AND (pl.description NOT LIKE 'Cash Sale%' OR pl.description IS NULL)
+          AND (pl.description NOT LIKE 'Payment received (%) for %' OR pl.description IS NULL)
+        ORDER BY pl.transaction_date ASC
+      `)
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+
+    if (Array.isArray(plRows)) {
+      for (const pl of plRows) {
+        const credit = Math.round(Number(pl.credit_amount || 0) * 100) / 100;
+        const debit = Math.round(Number(pl.debit_amount || 0) * 100) / 100;
+        const partyName = (pl.party_name || pl.party_id || 'Party').trim();
+        const descUpper = (pl.description || '').toUpperCase();
+        const isExplicitGot = descUpper.includes('GOT CASH') || descUpper.includes('CASH RECEIVED') || descUpper.includes('RECEIPT');
+        const isExplicitGave = descUpper.includes('GAVE CASH') || descUpper.includes('CASH PAID') || descUpper.includes('PAYMENT');
+
+        // In POS Party Ledger:
+        // DEBIT is Received / Got Cash from Customer (collections towards dues).
+        // CREDIT is Paid / Gave Cash to Party (or sale charge).
+        // If an entry explicitly says Got Cash in description, treat as Got Cash regardless of column.
+        if (debit > 0 || (credit > 0 && isExplicitGot)) {
+          const amt = debit > 0 ? debit : credit;
+          customerPaymentsCollected += amt;
+          partyTransactionItems.push({
+            partyName,
+            type: 'Got Cash',
+            amount: amt,
+            description: pl.description || undefined,
+          });
+        } else if (credit > 0 || (debit > 0 && isExplicitGave)) {
+          const amt = credit > 0 ? credit : debit;
+          partyTransactionItems.push({
+            partyName,
+            type: 'Gave Cash',
+            amount: amt,
+            description: pl.description || undefined,
+          });
+        }
+      }
+      customerPaymentsCollected = Math.round(customerPaymentsCollected * 100) / 100;
     }
   } catch (err: any) {
     console.error('[ShopClosing] Party ledger query error:', err.message);
   }
 
-  // 5. Returns count & amount
+  // 5. Staff transactions
+  const staffTransactionItems: Array<{ staffName: string; type: string; amount: number; notes?: string }> = [];
+  try {
+    const stRows = db
+      .prepare(`
+        SELECT st.staff_id, st.type, st.amount, st.notes, st.transaction_date,
+               s.name AS staff_name
+        FROM staff_transactions st
+        LEFT JOIN staff s ON st.staff_id = s.staff_id
+        WHERE (st.tenant_id = ? OR st.tenant_id = 'global' OR st.tenant_id IS NULL)
+          AND (
+            date(st.transaction_date) = ?
+            OR date(st.transaction_date) = ?
+            OR substr(st.transaction_date, 1, 10) = ?
+            OR substr(st.transaction_date, 1, 10) = ?
+            OR st.transaction_date LIKE ?
+          )
+        ORDER BY st.transaction_date ASC
+      `)
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+
+    if (Array.isArray(stRows)) {
+      for (const st of stRows) {
+        const amt = Math.round(Number(st.amount || 0) * 100) / 100;
+        staffTransactionItems.push({
+          staffName: (st.staff_name || 'Staff').trim(),
+          type: st.type || 'Payment',
+          amount: amt,
+          notes: st.notes || undefined,
+        });
+      }
+    }
+  } catch (err: any) {
+    console.error('[ShopClosing] Staff transactions query error:', err.message);
+  }
+
+  // 6. Scrap transactions & bill scrap deductions
+  const scrapSummary: {
+    totalAmount: number;
+    count: number;
+    items: Array<{ categoryName: string; quantity: number; unit?: string; rate: number; totalAmount: number; partyName?: string }>;
+  } = {
+    totalAmount: 0,
+    count: 0,
+    items: [],
+  };
+
+  try {
+    const scrapRows = db
+      .prepare(`
+        SELECT st.quantity, st.rate, st.total_amount, st.party_name, st.type,
+               sc.name AS category_name, sc.unit
+        FROM scrap_transactions st
+        LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
+        WHERE (st.tenant_id = ? OR st.tenant_id = 'global' OR st.tenant_id IS NULL)
+          AND (st.is_deleted IS NULL OR st.is_deleted = 0)
+          AND (
+            date(st.transaction_date) = ?
+            OR date(st.transaction_date) = ?
+            OR substr(st.transaction_date, 1, 10) = ?
+            OR substr(st.transaction_date, 1, 10) = ?
+            OR st.transaction_date LIKE ?
+          )
+        ORDER BY st.transaction_date ASC
+      `)
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+
+    if (Array.isArray(scrapRows)) {
+      for (const sr of scrapRows) {
+        const total = Math.round(Number(sr.total_amount || 0) * 100) / 100;
+        scrapSummary.totalAmount += total;
+        scrapSummary.count++;
+        scrapSummary.items.push({
+          categoryName: sr.category_name || (sr.type === 'PURCHASE' ? 'Scrap Purchase' : 'Scrap Sale'),
+          quantity: Number(sr.quantity || 0),
+          unit: sr.unit || 'Kgs',
+          rate: Number(sr.rate || 0),
+          totalAmount: total,
+          partyName: sr.party_name || undefined,
+        });
+      }
+    }
+
+    // Also check invoices for scrap deductions
+    const invScrapRow = db
+      .prepare(`
+        SELECT COUNT(*) AS inv_scrap_count, COALESCE(SUM(scrap_deduction), 0) AS total_inv_scrap
+        FROM invoices
+        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+          AND scrap_deduction > 0
+          AND (is_deleted IS NULL OR is_deleted = 0)
+          AND (converted_from_invoice_id IS NULL OR converted_from_invoice_id = '')
+          AND (
+            date(COALESCE(settled_at, created_at)) = ?
+            OR date(COALESCE(settled_at, created_at)) = ?
+            OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
+            OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
+            OR COALESCE(settled_at, created_at) LIKE ?
+          )
+      `)
+      .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
+
+    if (invScrapRow && Number(invScrapRow.total_inv_scrap) > 0) {
+      const invScrapAmt = Math.round(Number(invScrapRow.total_inv_scrap) * 100) / 100;
+      scrapSummary.totalAmount += invScrapAmt;
+      scrapSummary.count += Number(invScrapRow.inv_scrap_count || 1);
+      scrapSummary.items.push({
+        categoryName: 'Bill Scrap Deductions',
+        quantity: Number(invScrapRow.inv_scrap_count || 1),
+        unit: 'bills',
+        rate: invScrapAmt,
+        totalAmount: invScrapAmt,
+      });
+    }
+
+    scrapSummary.totalAmount = Math.round(scrapSummary.totalAmount * 100) / 100;
+  } catch (err: any) {
+    console.error('[ShopClosing] Scrap query error:', err.message);
+  }
+
+  // 7. Returns count & amount
   let returnsCount = 0;
   let returnsAmount = 0;
   try {
@@ -500,13 +723,24 @@ export function buildShopClosingSummaryData(
     console.error('[ShopClosing] Returns query error:', err.message);
   }
 
-  // 6. Purchases bills
+  // 8. Purchases bills
   let purchasesCount = 0;
   let purchasesAmount = 0;
   try {
+    let amountCol = 'grand_total';
+    try {
+      const tableInfo = db.prepare(`PRAGMA table_info(purchase_bills)`).all() as any[];
+      const colNames = (tableInfo || []).map((c: any) => c.name);
+      if (colNames.includes('total_amount')) {
+        amountCol = 'total_amount';
+      } else if (colNames.includes('grand_total')) {
+        amountCol = 'grand_total';
+      }
+    } catch {}
+
     const pbRow = db
       .prepare(`
-        SELECT COUNT(*) AS pb_count, COALESCE(SUM(grand_total), 0) AS pb_total
+        SELECT COUNT(*) AS pb_count, COALESCE(SUM(${amountCol}), 0) AS pb_total
         FROM purchase_bills
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id IS NULL)
           AND (
@@ -568,6 +802,11 @@ export function buildShopClosingSummaryData(
     cashInCount,
     cashOutCount,
     totalExpenses,
+    expensesItems,
+    cashInItems,
+    partyTransactionItems,
+    staffTransactionItems,
+    scrapSummary,
     returnsCount,
     returnsAmount,
     refundsPaidAmount: Math.round(refundsPaidAmount * 100) / 100,
@@ -628,11 +867,13 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
     }
     if (checklist.sales) {
       lines.push(`• Net Sales: *${formatCurrency(summaryData.netSales)}*`);
-      if (summaryData.totalDiscount > 0) {
+      if (checklist.grossSales !== false && summaryData.grossSales > 0 && summaryData.totalDiscount > 0) {
         lines.push(`• Gross Sales: ${formatCurrency(summaryData.grossSales)}`);
+      }
+      if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency(summaryData.totalDiscount)}`);
       }
-      if (summaryData.totalTax > 0) {
+      if (checklist.taxCollected !== false && summaryData.totalTax > 0) {
         lines.push(`• Tax Collected: ${formatCurrency(summaryData.totalTax)}`);
       }
     }
@@ -641,14 +882,43 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   // Payment Breakdown
   if (checklist.paymentMethods) {
     const pm = summaryData.paymentBreakdown;
-    lines.push(``);
-    lines.push(`💳 *PAYMENT BREAKDOWN*`);
-    lines.push(`• Cash: *${formatCurrency(pm.cash)}*`);
-    lines.push(`• UPI / QR: *${formatCurrency(pm.upi)}*`);
-    lines.push(`• Card / POS: *${formatCurrency(pm.card)}*`);
-    if (pm.bankTransfer > 0) lines.push(`• Bank Transfer: ${formatCurrency(pm.bankTransfer)}`);
-    if (pm.cheque > 0) lines.push(`• Cheque: ${formatCurrency(pm.cheque)}`);
-    if (pm.credit > 0) lines.push(`• Credit (Pending): ${formatCurrency(pm.credit)}`);
+    const pmLines: string[] = [];
+    if (checklist.paymentCash !== false && (pm.cash > 0 || (pm.upi === 0 && pm.card === 0 && pm.bankTransfer === 0 && pm.cheque === 0 && pm.credit === 0))) {
+      pmLines.push(`• Cash: *${formatCurrency(pm.cash)}*`);
+    } else if (checklist.paymentCash !== false && pm.cash > 0) {
+      pmLines.push(`• Cash: *${formatCurrency(pm.cash)}*`);
+    }
+    if (checklist.paymentUpi !== false && pm.upi > 0) {
+      pmLines.push(`• UPI / QR: *${formatCurrency(pm.upi)}*`);
+    }
+    if (checklist.paymentCard !== false && pm.card > 0) {
+      pmLines.push(`• Card / POS: *${formatCurrency(pm.card)}*`);
+    }
+    if (checklist.paymentBank !== false && pm.bankTransfer > 0) {
+      pmLines.push(`• Bank Transfer: ${formatCurrency(pm.bankTransfer)}`);
+    }
+    if (checklist.paymentCheque !== false && pm.cheque > 0) {
+      pmLines.push(`• Cheque: ${formatCurrency(pm.cheque)}`);
+    }
+    if (checklist.paymentCredit !== false && pm.credit > 0) {
+      pmLines.push(`• Credit (Pending): ${formatCurrency(pm.credit)}`);
+    }
+
+    // If all payment collections are 0.00, show only selected modes with 0.00 rather than cluttering
+    if (pmLines.length === 0) {
+      if (checklist.paymentCash !== false) pmLines.push(`• Cash: *${formatCurrency(pm.cash)}*`);
+      if (checklist.paymentUpi !== false) pmLines.push(`• UPI / QR: *${formatCurrency(pm.upi)}*`);
+      if (checklist.paymentCard !== false) pmLines.push(`• Card / POS: *${formatCurrency(pm.card)}*`);
+      if (checklist.paymentBank !== false && pm.bankTransfer > 0) pmLines.push(`• Bank Transfer: ${formatCurrency(pm.bankTransfer)}`);
+      if (checklist.paymentCheque !== false && pm.cheque > 0) pmLines.push(`• Cheque: ${formatCurrency(pm.cheque)}`);
+      if (checklist.paymentCredit !== false && pm.credit > 0) pmLines.push(`• Credit (Pending): ${formatCurrency(pm.credit)}`);
+    }
+
+    if (pmLines.length > 0) {
+      lines.push(``);
+      lines.push(`💳 *PAYMENT BREAKDOWN*`);
+      lines.push(...pmLines);
+    }
   }
 
   // Credit & Collections
@@ -661,6 +931,27 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
       lines.push(`📑 *CREDIT & COLLECTIONS*`);
       lines.push(...items);
     }
+  }
+
+  // Party Transactions List (Itemized)
+  if (checklist.partyTransactions && summaryData.partyTransactionItems && summaryData.partyTransactionItems.length > 0) {
+    lines.push(``);
+    lines.push(`👥 *PARTY TRANSACTIONS:*`);
+    summaryData.partyTransactionItems.forEach((pt: any) => {
+      const typeNote = pt.type ? ` (${pt.type})` : '';
+      lines.push(`• -${pt.partyName} : *${formatCurrency(pt.amount)}*${typeNote}`);
+    });
+  }
+
+  // Staff Transactions List (Itemized)
+  if (checklist.staffTransactions && summaryData.staffTransactionItems && summaryData.staffTransactionItems.length > 0) {
+    lines.push(``);
+    lines.push(`👔 *STAFF TRANSACTIONS:*`);
+    summaryData.staffTransactionItems.forEach((st: any) => {
+      const typeNote = st.type ? ` (${st.type})` : '';
+      const notesTxt = st.notes ? ` - ${st.notes}` : '';
+      lines.push(`• -${st.staffName} : *${formatCurrency(st.amount)}*${typeNote}${notesTxt}`);
+    });
   }
 
   // Cash Balances & Differences
@@ -695,9 +986,40 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
     }
     if (items.length > 0) {
       lines.push(``);
-      lines.push(`💸 *CASH TRANSACTIONS & EXPENSES*`);
+      lines.push(`💸 *CASH FLOW SUMMARY*`);
       lines.push(...items);
     }
+  }
+
+  // Itemized Cash In List
+  if (checklist.cashInList && summaryData.cashInItems && summaryData.cashInItems.length > 0) {
+    lines.push(``);
+    lines.push(`📥 *CASH IN ENTRIES:*`);
+    summaryData.cashInItems.forEach((ci: any) => {
+      lines.push(`• ${ci.description}: *+${formatCurrency(ci.amount)}*`);
+    });
+    lines.push(`*Total Cash In:* +${formatCurrency(summaryData.totalCashIn)}`);
+  }
+
+  // Itemized Expenses List
+  if (checklist.expensesList && summaryData.expensesItems && summaryData.expensesItems.length > 0) {
+    lines.push(``);
+    lines.push(`🧾 *EXPENSES LIST:*`);
+    summaryData.expensesItems.forEach((exp: any) => {
+      lines.push(`• ${exp.description}: *${formatCurrency(exp.amount)}*`);
+    });
+    lines.push(`*Total Expenses:* ${formatCurrency(summaryData.totalExpenses)}`);
+  }
+
+  // Scrap Transactions & Deductions
+  if (checklist.scrap && summaryData.scrapSummary && (summaryData.scrapSummary.totalAmount > 0 || summaryData.scrapSummary.count > 0)) {
+    lines.push(``);
+    lines.push(`♻️ *SCRAP ENTRIES:*`);
+    summaryData.scrapSummary.items.forEach((sc: any) => {
+      const qtyTxt = sc.quantity > 0 ? ` (${sc.quantity} ${sc.unit || 'Kgs'}${sc.rate > 0 ? ` @ ${formatCurrency(sc.rate)}` : ''})` : '';
+      lines.push(`• ${sc.categoryName}${qtyTxt}: *${formatCurrency(sc.totalAmount)}*`);
+    });
+    lines.push(`*Total Scrap:* ${formatCurrency(summaryData.scrapSummary.totalAmount)}`);
   }
 
   // Returns & Refunds
@@ -1032,7 +1354,12 @@ export function initShopClosingIpc(helpers: {
   const { reconcileCashDrawerFn, getStoreTimezoneSettingFn, getDbFn, getTenantIdFn } = helpers;
 
   ipcMain.handle('shopClosing:getConfig', (_event, { tenant_id }: { tenant_id?: string }) => {
-    return getShopClosingConfig(getDbFn(), tenant_id);
+    const cfg = getShopClosingConfig(getDbFn(), tenant_id);
+    return {
+      ...cfg,
+      success: true,
+      config: cfg,
+    };
   });
 
   ipcMain.handle('shopClosing:saveConfig', (_event, { tenant_id, config, user_role }: { tenant_id?: string; config: Partial<ShopClosingOverviewConfig>; user_role?: string }) => {
@@ -1045,6 +1372,91 @@ export function initShopClosingIpc(helpers: {
       const cfg = getShopClosingConfig(db, tenant_id);
       const effectiveChecklist = checklist || cfg.checklist || DEFAULT_CHECKLIST;
       const summary = buildShopClosingSummaryData(db, tenant_id, business_date, undefined, undefined, reconcileCashDrawerFn, getStoreTimezoneSettingFn);
+
+      // In Settings Real-time Preview:
+      // If the current shift / business day does not yet contain entries for any enabled itemized checklist section,
+      // populate representative sample preview items so the merchant sees in real-time exactly how their selected
+      // options look in WhatsApp.
+      if (effectiveChecklist.expensesList && (!summary.expensesItems || summary.expensesItems.length === 0)) {
+        summary.expensesItems = [
+          { description: 'tea', amount: 10 },
+          { description: 'Shop Cleaning & Waste', amount: 50 },
+          { description: 'Delivery Petrol', amount: 140 },
+        ];
+        if (!summary.totalExpenses) summary.totalExpenses = 200;
+      }
+      if (effectiveChecklist.cashInList && (!summary.cashInItems || summary.cashInItems.length === 0)) {
+        summary.cashInItems = [
+          { description: 'Opening Float Deposit', amount: 1000 },
+          { description: 'Owner Cash Injection', amount: 500 },
+        ];
+        if (!summary.totalCashIn) summary.totalCashIn = 1500;
+      }
+      if (effectiveChecklist.partyTransactions && (!summary.partyTransactionItems || summary.partyTransactionItems.length === 0)) {
+        summary.partyTransactionItems = [
+          { partyName: 'Suhaib', type: 'Got Cash', amount: 1000, description: 'Ledger payment' },
+          { partyName: 'Al Madina Traders', type: 'Got Cash', amount: 1400, description: 'Invoice payment' },
+        ];
+      }
+      if (effectiveChecklist.staffTransactions && (!summary.staffTransactionItems || summary.staffTransactionItems.length === 0)) {
+        summary.staffTransactionItems = [
+          { staffName: 'Rahul', type: 'Advance', amount: 500, notes: 'Emergency' },
+          { staffName: 'Sanjay', type: 'Salary', amount: 1200, notes: 'Part payment' },
+        ];
+      }
+      if (effectiveChecklist.scrap && (!summary.scrapSummary || (summary.scrapSummary.totalAmount === 0 && summary.scrapSummary.count === 0))) {
+        summary.scrapSummary = {
+          totalAmount: 950,
+          count: 2,
+          items: [
+            { categoryName: 'Iron Scrap', quantity: 20, unit: 'Kgs', rate: 30, totalAmount: 600 },
+            { categoryName: 'Copper Wire Scrap', quantity: 1, unit: 'Kgs', rate: 350, totalAmount: 350 },
+          ],
+        };
+      }
+
+      // In Settings Real-time Preview:
+      // If store has 0 sales or all payments are 0.00 today yet, provide realistic sample sales & payments
+      // so the merchant sees in real-time exactly how their selected payment methods and metrics look in WhatsApp.
+      const hasAnyPayment = (summary.paymentBreakdown.cash > 0 ||
+        summary.paymentBreakdown.upi > 0 ||
+        summary.paymentBreakdown.card > 0 ||
+        summary.paymentBreakdown.bankTransfer > 0 ||
+        summary.paymentBreakdown.cheque > 0 ||
+        summary.paymentBreakdown.credit > 0);
+
+      if (summary.totalInvoices === 0 || !hasAnyPayment) {
+        summary.totalInvoices = summary.totalInvoices || 38;
+        summary.grossSales = summary.grossSales || 42850;
+        summary.totalDiscount = summary.totalDiscount || 1350;
+        summary.netSales = summary.netSales || 41500;
+        summary.totalTax = summary.totalTax || 3240;
+        summary.paymentBreakdown = {
+          cash: 18450,
+          upi: 14200,
+          card: 6350,
+          bankTransfer: 1500,
+          cheque: 500,
+          credit: 1000,
+        };
+        if (!summary.creditSalesAmount) summary.creditSalesAmount = 1000;
+        if (!summary.customerPaymentsCollected) summary.customerPaymentsCollected = 2400;
+        if (!summary.openingBalance) summary.openingBalance = 3000;
+        if (!summary.expectedClosingCash) summary.expectedClosingCash = 21750;
+        if (!summary.actualCashCounted) summary.actualCashCounted = 21750;
+        if (!summary.returnsCount) summary.returnsCount = 2;
+        if (!summary.returnsAmount) summary.returnsAmount = 480;
+        if (!summary.refundsPaidAmount) summary.refundsPaidAmount = 480;
+        if (!summary.purchasesCount) summary.purchasesCount = 1;
+        if (!summary.purchasesAmount) summary.purchasesAmount = 15800;
+        if (!summary.countersSummary || summary.countersSummary.length === 0) {
+          summary.countersSummary = [
+            { counterCode: 'POS-01', billerName: 'Alex', invoiceCount: 24, netSales: 26800, cashSales: 12400 },
+            { counterCode: 'POS-02', billerName: 'Sam', invoiceCount: 14, netSales: 14700, cashSales: 6050 },
+          ];
+        }
+      }
+
       const message = formatClosingWhatsAppMessage(summary, effectiveChecklist);
       return { success: true, summary, message };
     } catch (err: any) {

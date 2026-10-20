@@ -1,3 +1,15 @@
+# Nafid POS v2.0.6 Release Notes
+
+## What's Changed
+- **Recycle Bin & Safe Recovery Added**: Introduced full-featured Recycle Bin allowing users to safely recover deleted sales invoices, inventory items, customer profiles, and ledger parties with one-click restore and automatic stock balance reconciliation.
+- **Custom Billing Date & Time Picker**: Integrated a modern calendar and time selector directly on the billing screen with quick Today/Yesterday shortcuts, enabling fast, accurate entry of backdated transactions.
+- **Instant Zero-Lag Sales History Bill Inspection**: Past bills open instantly with zero loading lag thanks to background hover prefetching and intelligent in-memory drawer caching.
+- **Enhanced WhatsApp Closing Report Customization**: Fine-tune end-of-day business closing summaries with granular section and metric checkboxes for cashier breakdown, expense details, scrap transactions, and party ledger collections.
+- **Dedicated GST Prefix Fallback & Counter Isolation**: Ensured GST invoices use dedicated sequence numbers and fallback prefixes (`GST-`, `B2B-`, `B2C-`) without conflicting with regular Bill of Supply counters.
+- **Updated What's New in App Appearance**: Added bilingual highlights (Malayalam & English) directly inside Settings under Appearance.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.6.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.5...v2.0.6
+
 # Nafid POS v2.0.5 Release Notes
 
 ## What's Changed

@@ -4,7 +4,7 @@ export function cleanSearchText(str: string): string {
 }
 
 function getWords(query: string): string[] {
-  return query.trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  return query.trim().toLowerCase().split(/[^\p{L}\p{N}]+/gu).filter(w => w.length > 0);
 }
 
 function allWordsMatch(text: string, words: string[]): boolean {
@@ -79,8 +79,13 @@ export function sortProductsBySearchPriority<T extends { sku_barcode?: string; i
       return { tier: 3.5, numVal: 999999999, name };
     }
 
-    // Tier 3.9: Exact Product Name match (exact, no-space, or special-char-clean)
-    if (name === q || (qNoSpace.length > 0 && nameNoSpace === qNoSpace) || (qClean.length > 0 && nameClean === qClean)) {
+    // Tier 3.8: Exact verbatim Product Name match
+    if (name === q || (qNoSpace.length > 0 && nameNoSpace === qNoSpace)) {
+      return { tier: 3.8, numVal: 999999999, name };
+    }
+
+    // Tier 3.9: Exact Product Name match (ignoring special chars and spaces)
+    if (qClean.length > 0 && nameClean === qClean) {
       return { tier: 3.9, numVal: 999999999, name };
     }
 

@@ -114,7 +114,7 @@ export function initDb() {
 
   // Register string cleaner function for special-character insensitive searches
   try {
-    db.function('CLEAN_STR', (str: unknown) => {
+    db.function('CLEAN_STR', { deterministic: true }, (str: unknown) => {
       if (typeof str !== 'string' && typeof str !== 'number') return '';
       return String(str).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     });
@@ -146,6 +146,7 @@ export function initDb() {
         purchase_price REAL NOT NULL DEFAULT 0,
         offer_price REAL,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -173,6 +174,7 @@ export function initDb() {
         discount_flat REAL,
         offer_price REAL,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         billing_type TEXT DEFAULT 'PIECE',
         grade_id TEXT,
         pricing_mode TEXT DEFAULT 'FIXED_PRICE',
@@ -212,6 +214,7 @@ export function initDb() {
         return_deduction REAL DEFAULT 0,
         return_invoice_number TEXT,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -302,6 +305,7 @@ export function initDb() {
         notes TEXT,
         last_transaction_date DATETIME,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -322,6 +326,7 @@ export function initDb() {
         created_by TEXT,
         created_by_name TEXT,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -346,6 +351,7 @@ export function initDb() {
         current_stock REAL DEFAULT 0,
         unit TEXT DEFAULT 'Kgs',
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -367,6 +373,7 @@ export function initDb() {
         scrap_invoice_number TEXT,
         payment_status TEXT DEFAULT 'CASH',
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -611,6 +618,7 @@ export function initDb() {
         current_points_balance REAL NOT NULL DEFAULT 0,
         last_purchase_date DATETIME,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -651,6 +659,7 @@ export function initDb() {
         is_enabled INTEGER DEFAULT 1,
         sort_order INTEGER DEFAULT 0,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -683,6 +692,7 @@ export function initDb() {
         sort_order INTEGER NOT NULL DEFAULT 0,
         is_default INTEGER DEFAULT 0,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -696,6 +706,7 @@ export function initDb() {
         pricing_tier_id TEXT NOT NULL,
         price REAL NOT NULL DEFAULT 0,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -712,6 +723,7 @@ export function initDb() {
         combo_price REAL NOT NULL DEFAULT 0,
         is_active INTEGER DEFAULT 1,
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         description TEXT,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -744,6 +756,7 @@ export function initDb() {
         monthly_salary REAL DEFAULT 0,
         status TEXT DEFAULT 'ACTIVE',
         is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1249,6 +1262,7 @@ export function initDb() {
               discount_flat REAL,
               offer_price REAL,
               is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
               billing_type TEXT DEFAULT 'PIECE',
               grade_id TEXT,
               pricing_mode TEXT DEFAULT 'FIXED_PRICE',
@@ -1296,6 +1310,7 @@ export function initDb() {
               purchase_price REAL NOT NULL DEFAULT 0,
               offer_price REAL,
               is_deleted INTEGER DEFAULT 0,
+        deleted_at DATETIME,
               sync_status TEXT DEFAULT 'SYNCED',
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -2123,6 +2138,7 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       supply_type: "TEXT DEFAULT 'INTRA'",
       actual_refund_paid: 'REAL DEFAULT 0',
       due_date: 'DATETIME',
+      deleted_at: 'DATETIME',
     };
 
     for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
@@ -2138,6 +2154,7 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
 
     const itemCols = d.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: any) => c.name);
     const itemColsToEnsure: Record<string, string> = {
+      is_deleted: 'INTEGER DEFAULT 0',
       pieces_sold: 'INTEGER',
       is_service_item: 'INTEGER DEFAULT 0',
       combo_id: 'TEXT',

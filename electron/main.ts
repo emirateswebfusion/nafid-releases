@@ -718,14 +718,6 @@ app.whenReady().then(async () => {
       _db.prepare("UPDATE invoices SET subtotal = 0 WHERE sync_status = 'PENDING' AND (subtotal IS NULL OR subtotal < 0)").run();
       // Self-heal: fix any PENDING invoices with missing/null received_amount
       _db.prepare("UPDATE invoices SET received_amount = 0 WHERE sync_status = 'PENDING' AND (received_amount IS NULL OR received_amount < 0)").run();
-      // Self-heal: ensure grand_total reflects net total after discounts
-      _db.prepare(`
-        UPDATE invoices 
-        SET grand_total = MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0))
-        WHERE (COALESCE(discount_total, 0) > 0 OR COALESCE(points_redeemed_discount, 0) > 0 OR COALESCE(scrap_deduction, 0) > 0 OR COALESCE(return_deduction, 0) > 0)
-          AND grand_total > (COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0) + 0.01)
-      `).run();
-      
       // Self-heal: fix any invoices with literal string 'null' or empty string in split_details
       _db.prepare("UPDATE invoices SET split_details = NULL WHERE split_details = 'null' OR split_details = 'undefined' OR split_details = ''").run();
       
@@ -1285,7 +1277,7 @@ ipcMain.handle('db:debugSyncState', (event, tenant_id: string) => {
 
 function buildProductSearchConditions(search: string, tablePrefix: string = 'p.') {
   const cleanSearch = String(search).trim();
-  const tokens = cleanSearch.split(/\s+/).filter(w => w.length > 0);
+  const wordTokens = cleanSearch.split(/[^\p{L}\p{N}]+/gu).filter(w => w.length > 0);
   const p = tablePrefix;
 
   const buildSingleFieldGroup = (val: string) => {
@@ -1304,23 +1296,23 @@ function buildProductSearchConditions(search: string, tablePrefix: string = 'p.'
     return { sql, params };
   };
 
-  if (tokens.length <= 1) {
-    const single = buildSingleFieldGroup(cleanSearch);
+  const fullGroup = buildSingleFieldGroup(cleanSearch);
+
+  if (wordTokens.length <= 1) {
     return {
-      sql: `(${single.sql} OR ${p}product_id = ?)`,
-      params: [...single.params, cleanSearch]
+      sql: `(${fullGroup.sql} OR ${p}product_id = ?)`,
+      params: [...fullGroup.params, cleanSearch]
     };
   }
 
   const tokenClauses: string[] = [];
   const tokenParams: any[] = [];
-  for (const token of tokens) {
+  for (const token of wordTokens) {
     const tGroup = buildSingleFieldGroup(token);
     tokenClauses.push(tGroup.sql);
     tokenParams.push(...tGroup.params);
   }
 
-  const fullGroup = buildSingleFieldGroup(cleanSearch);
   const sql = `((${tokenClauses.join(' AND ')}) OR ${fullGroup.sql} OR ${p}product_id = ?)`;
   const params = [...tokenParams, ...fullGroup.params, cleanSearch];
 
@@ -1476,11 +1468,12 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
             `WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR REPLACE(p.sku_barcode, ' ', '') = ? OR REPLACE(p.item_code, ' ', '') = ? OR CLEAN_STR(p.sku_barcode) = ? OR CLEAN_STR(p.item_code) = ? THEN 1 ` +
             `WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 2 ` +
             `WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 3 ` +
-            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 4 ` +
+            `WHEN LOWER(p.name) = LOWER(?) OR REPLACE(p.name, ' ', '') = ? OR CLEAN_STR(p.name) = ? THEN 4 ` +
             `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 5 ` +
-            `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 6 ` +
+            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 6 ` +
             `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 7 ` +
-            `ELSE 8 ` +
+            `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 8 ` +
+            `ELSE 9 ` +
           `END ASC, ` +
           `p.name COLLATE NOCASE ASC, ` +
           `p.product_id ASC`;
@@ -1488,6 +1481,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
           cleanSearch, cleanSearch, cleanSearchNoSpace, cleanSearchNoSpace, cleanSearchClean, cleanSearchClean,
           `${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`, `${cleanSearchClean}%`,
           `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearchClean}%`,
+          cleanSearch, cleanSearchNoSpace, cleanSearchClean,
           `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`,
           `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
           `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`,
@@ -3652,7 +3646,7 @@ export function syncInvoiceCreditLedger(
 
     recalcPartyBalances(db, targetPartyId);
   } catch (err: any) {
-    console.error('[syncInvoiceCreditLedger] Error:', err);
+    console.error(`[syncInvoiceCreditLedger] Failed for invoice ${invoice.invoice_number || invoice.invoice_id || '?'} (tenant ${invoice.tenant_id || 'global'}):`, err);
   }
 }
 
@@ -4568,7 +4562,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       }
     }
 
-    const nowTimestamp = localTimestamp();
+    const nowTimestamp = invoice.created_at
+      ? (isNaN(new Date(invoice.created_at).getTime()) ? localTimestamp() : new Date(invoice.created_at).toISOString())
+      : localTimestamp();
     checkoutCreatedAt = nowTimestamp;
 
     // Loyalty Points Processing
@@ -5593,7 +5589,12 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     } else if (accounting_view === 'TAX_FILING') {
       query += " AND i.invoice_type = 'GST'";
     } else if (accounting_view === 'ALL') {
-      // Do not filter out conversion copies
+      // Do not filter out conversion copies for the full ledger. When a product-level
+      // tax rate filter is active, the synthetic GST copies are excluded so the list
+      // matches the de-duplicated summary and product totals.
+      if (tax_rate_percent !== undefined && tax_rate_percent !== '' && tax_rate_percent !== 'all') {
+        query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
+      }
     } else {
       // Default to REAL_SALES: Show genuine counter transactions
       query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
@@ -5693,9 +5694,10 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
               THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
-            ELSE MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+            ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ), 0) as totalSales,
+        COALESCE(SUM(MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
         COUNT(1) as totalInvoices,
         COALESCE(SUM(i.tax_total), 0) as totalTax,
         COALESCE(SUM(i.discount_total), 0) as totalDiscount
@@ -5710,9 +5712,12 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
               THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
-            ELSE MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+            ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ELSE 0 END), 0) as totalSales,
+        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN
+          MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
+        ELSE 0 END), 0) as totalSalesBeforeDeductions,
         COUNT(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 1 END) as totalInvoices,
         COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.tax_total ELSE 0 END), 0) as totalTax,
         COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.discount_total ELSE 0 END), 0) as totalDiscount
@@ -5785,15 +5790,16 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
 
     const row = db.prepare(query).get(...params) as any;
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
+    const totalSalesBeforeDeductions = row ? Number(row.totalSalesBeforeDeductions) || 0 : 0;
     const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
     const totalTax = row ? Number(row.totalTax) || 0 : 0;
     const totalDiscount = row ? Number(row.totalDiscount ?? row.discount_total) || 0 : 0;
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
 
-    return { totalSales, totalInvoices, totalTax, totalDiscount, avgOrder };
+    return { totalSales, totalSalesBeforeDeductions, totalInvoices, totalTax, totalDiscount, avgOrder };
   } catch (error: any) {
     console.error('[db:getInvoicesSummary] Error:', error);
-    return { totalSales: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
+    return { totalSales: 0, totalSalesBeforeDeductions: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
   }
 });
 
@@ -5803,7 +5809,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const dateStr = localDate(new Date(), tenantId);
     const { startUtc, endUtc } = getUtcRangeForStoreDateRange(dateStr, dateStr, tenantId);
     const row = db.prepare(`
-      SELECT COALESCE(SUM(MIN(grand_total, MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
+      SELECT COALESCE(SUM(MAX(0, COALESCE(grand_total, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
@@ -5904,19 +5910,20 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   }
   const oldCash = getCashAmountFromInvoice(existingInv);
 
+  const finalReceivedAmount = payload.received_amount !== undefined ? payload.received_amount : (existingInv?.received_amount ?? null);
+  const finalActualRefundPaid = payload.actual_refund_paid !== undefined ? payload.actual_refund_paid : (existingInv?.actual_refund_paid ?? 0);
+  const finalBalanceAmount = payload.balance_amount !== undefined ? payload.balance_amount : (existingInv?.balance_amount ?? null);
+
   // Deduplication guard: block duplicate update calls within a 4-second window for the same invoice
   const itemsSig = (items || []).map((i: any) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
-  const updateCacheKey = `update:${existingInv.tenant_id || payload.tenant_id}:${payload.invoice_id}:${invoice.grand_total}:${itemsSig}`;
+  const headerSig = JSON.stringify(invoice);
+  const updateCacheKey = `update:${existingInv.tenant_id || payload.tenant_id}:${payload.invoice_id}:${invoice.grand_total}:${itemsSig}:${headerSig}`;
   const now = Date.now();
   const cachedUpdate = recentCheckoutsCache.get(updateCacheKey);
   if (cachedUpdate && (now - cachedUpdate.timestamp < 4000)) {
     console.warn(`[db:updateInvoice] Duplicate update request blocked within 4s window for invoice ${payload.invoice_id}. Returning previous result.`);
     return cachedUpdate.result;
   }
-
-  const finalReceivedAmount = payload.received_amount !== undefined ? payload.received_amount : (existingInv?.received_amount ?? null);
-  const finalActualRefundPaid = payload.actual_refund_paid !== undefined ? payload.actual_refund_paid : (existingInv?.actual_refund_paid ?? 0);
-  const finalBalanceAmount = payload.balance_amount !== undefined ? payload.balance_amount : (existingInv?.balance_amount ?? null);
 
   const transaction = db.transaction(() => {
     const customerId = upsertCustomerRecord(
@@ -5929,6 +5936,10 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
     // 1. Get old items for stock adjustment
     const oldItems = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(payload.invoice_id) as any[];
+
+    const updatedCreatedAt = (invoice as any).created_at
+      ? (isNaN(new Date((invoice as any).created_at).getTime()) ? null : new Date((invoice as any).created_at).toISOString())
+      : null;
 
     // 2. Update invoice header
     db.prepare(`
@@ -5945,6 +5956,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         points_redeemed_discount = COALESCE(?, points_redeemed_discount),
         previous_points_balance = COALESCE(?, previous_points_balance),
         remaining_points_balance = COALESCE(?, remaining_points_balance),
+        created_at = COALESCE(?, created_at),
         sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `).run(
@@ -5968,6 +5980,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       (invoice as any).points_redeemed_discount ?? null,
       (invoice as any).previous_points_balance ?? null,
       (invoice as any).remaining_points_balance ?? null,
+      updatedCreatedAt,
       payload.invoice_id
     );
 
@@ -6051,7 +6064,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       split_details: (invoice as any).split_details || (payload as any).split_details || existingInv.split_details,
       user_id: payload.role,
       user_name: payload.role,
-      created_at: existingInv.created_at,
+      created_at: updatedCreatedAt || existingInv.created_at,
       is_staff: Boolean((payload as any).is_staff || (payload as any).isStaffCustomer || existingInv.is_staff),
       staff_id: (payload as any).staff_id || null,
     });
@@ -6150,14 +6163,17 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     transaction();
 
     const newCash = getCashAmountFromInvoice(payload);
+    const effectiveInvDate = (invoice as any).created_at
+      ? (isNaN(new Date((invoice as any).created_at).getTime()) ? existingInv.created_at : new Date((invoice as any).created_at).toISOString())
+      : existingInv.created_at;
     if (existingInv) {
-      adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
+      adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, effectiveInvDate, oldCash, newCash);
     }
 
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
-    const res = { success: true, created_at: existingInv?.created_at };
+    const res = { success: true, created_at: effectiveInvDate };
     recentCheckoutsCache.set(updateCacheKey, { timestamp: now, result: res });
     if (recentCheckoutsCache.size > 100) {
       for (const [k, v] of recentCheckoutsCache.entries()) {
@@ -6859,6 +6875,10 @@ ipcMain.handle('db:previewConvertBosToGst', (event, payload: {
       taxable_amount: number;
       tax_amount: number;
       converted_grand_total: number;
+      points_discount: number;
+      scrap_deduction: number;
+      return_deduction: number;
+      deductions_total: number;
       has_real_gst: boolean;
       has_paper: boolean;
       skipped_items: string[];
@@ -7074,7 +7094,14 @@ ipcMain.handle('db:previewConvertBosToGst', (event, payload: {
       const taxableAmount = newSubtotal - newDiscountTotal;
       const effectiveTaxRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
       const adjustedTax = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
-      const convertedGrandTotal = convertedItemCount > 0 ? Math.round((taxableAmount + adjustedTax) * 100) / 100 : Number(inv.grand_total) || 0;
+      const pointsDiscount = Math.max(0, Number(inv.points_redeemed_discount) || 0);
+      const scrapDeduction = inv.scrap_invoice_number ? Math.max(0, Number(inv.scrap_deduction) || 0) : 0;
+      const returnDeduction = inv.return_invoice_number ? Math.max(0, Number(inv.return_deduction) || 0) : 0;
+      const deductionsTotal = Math.round((pointsDiscount + scrapDeduction + returnDeduction) * 100) / 100;
+      const grossConvertedTotal = Math.round((taxableAmount + adjustedTax) * 100) / 100;
+      const convertedGrandTotal = convertedItemCount > 0
+        ? Math.max(0, Math.round((grossConvertedTotal - deductionsTotal) * 100) / 100)
+        : Number(inv.grand_total) || 0;
 
       totalBosAmount += Number(inv.grand_total) || 0;
       totalTaxableAmount += taxableAmount;
@@ -7091,6 +7118,10 @@ ipcMain.handle('db:previewConvertBosToGst', (event, payload: {
         taxable_amount: taxableAmount,
         tax_amount: adjustedTax,
         converted_grand_total: convertedGrandTotal,
+        points_discount: pointsDiscount,
+        scrap_deduction: scrapDeduction,
+        return_deduction: returnDeduction,
+        deductions_total: deductionsTotal,
         has_real_gst: hasRealGst,
         has_paper: hasPaper,
         skipped_items: skippedItems,
@@ -7114,7 +7145,7 @@ ipcMain.handle('db:previewConvertBosToGst', (event, payload: {
   }
 });
 
-ipcMain.handle('db:convertBosToGst', (event, payload: {
+ipcMain.handle('db:convertBosToGst', async (event, payload: {
   invoice_ids: string[];
   tenant_id: string;
   user_id: string;
@@ -7154,6 +7185,23 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
       }
 
       try {
+        const numberInvoice: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(invoice_id);
+        let preallocatedInvoiceNumber = '';
+        if (numberInvoice && numberInvoice.invoice_type !== 'GST' && !numberInvoice.converted_to_invoice_id) {
+          const numberTid = numberInvoice.tenant_id || payload.tenant_id || 'global';
+          const numberTripleRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(numberTid, 'three_invoice_series')
+            || db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
+          const numberTriple = numberTripleRow ? parseSetting(numberTripleRow) : null;
+          const numberIsB2B = Boolean(numberInvoice.customer_gstin && String(numberInvoice.customer_gstin).trim() !== '');
+          const numberSeries = numberTriple?.enabled ? (numberIsB2B ? 'gst_b2b' : 'gst_b2c') : 'gst';
+          const numberConfigKey = numberSeries === 'gst_b2b' ? 'gst_b2b_invoice_counter_config'
+            : numberSeries === 'gst_b2c' ? 'gst_b2c_invoice_counter_config'
+            : 'gst_invoice_counter_config';
+          const localNext = peekGuaranteedNextInvoiceNumber(db, numberTid, numberConfigKey);
+          const serverAllocation = await requestServerInvoiceNumber(db, numberTid, numberSeries, numberConfigKey, localNext.counter, 1500);
+          if (serverAllocation.success) preallocatedInvoiceNumber = serverAllocation.invoiceNumber;
+        }
+
         const invoice = db.transaction(() => {
           // Get the invoice
           const inv: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(invoice_id);
@@ -7186,7 +7234,9 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             }
           }
 
-          const { invoiceNumber: newInvoiceNumber } = getGuaranteedNextInvoiceNumber(db, tid, configKey);
+          const { invoiceNumber: newInvoiceNumber } = preallocatedInvoiceNumber
+            ? { invoiceNumber: preallocatedInvoiceNumber }
+            : getGuaranteedNextInvoiceNumber(db, tid, configKey);
 
           // Get invoice items
           const items: any[] = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
@@ -7399,7 +7449,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               quantity: qtyToConvert,
               is_service_item: item.is_service_item ? 1 : 0,
               newUnitPrice: finalUnitPrice,
-              newTotal: itemTotal,
+              newTotal: itemTaxable,
               newTaxAmount: itemTax,
               taxRate: Number(taxRate) || 0,
               bosUnitPrice: Number(item.unit_price) || 0,
@@ -7434,7 +7484,12 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const taxableAmount = newSubtotal - newDiscountTotal;
           const effectiveTaxRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
           const adjustedTax = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
-          const newGrandTotal = Math.round((taxableAmount + adjustedTax) * 100) / 100;
+          const pointsDiscount = Math.max(0, Number(inv.points_redeemed_discount) || 0);
+          const scrapDeduction = inv.scrap_invoice_number ? Math.max(0, Number(inv.scrap_deduction) || 0) : 0;
+          const returnDeduction = inv.return_invoice_number ? Math.max(0, Number(inv.return_deduction) || 0) : 0;
+          const deductionsTotal = Math.round((pointsDiscount + scrapDeduction + returnDeduction) * 100) / 100;
+          const grossGrandTotal = Math.round((taxableAmount + adjustedTax) * 100) / 100;
+          const newGrandTotal = Math.max(0, Math.round((grossGrandTotal - deductionsTotal) * 100) / 100);
 
           const newInvoiceId = crypto.randomUUID();
 
@@ -7444,8 +7499,11 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const convSgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
           const convIgstTotal = isInterStateConv ? adjustedTax : 0;
 
-          const wasFullyPaid = (Number(inv.balance_amount) || 0) <= 0 && (Number(inv.grand_total) || 0) > 0;
-          const newReceivedAmount = wasFullyPaid ? newGrandTotal : Math.min(Number(inv.received_amount) || 0, newGrandTotal);
+          const originalReceived = Number(inv.received_amount) || 0;
+          const wasFullyPaid = (Number(inv.grand_total) || 0) > 0
+            && (Number(inv.balance_amount) || 0) <= 0
+            && (String(inv.payment_method || '').toUpperCase() !== 'PENDING' || originalReceived > 0);
+          const newReceivedAmount = wasFullyPaid ? newGrandTotal : Math.min(originalReceived, newGrandTotal);
           const newBalanceAmount = Math.max(0, Math.round((newGrandTotal - newReceivedAmount) * 100) / 100);
 
           // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
@@ -7463,9 +7521,11 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               sync_status,
               converted_from_invoice_id, converted_from_invoice_number,
               cgst_total, sgst_total, igst_total, supply_type,
+              points_redeemed, points_redeemed_discount,
+              scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number,
               created_at
             )
-            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             newInvoiceId,
             inv.tenant_id,
@@ -7497,6 +7557,12 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             convSgstTotal,
             convIgstTotal,
             convSupplyType,
+            inv.points_redeemed ?? null,
+            pointsDiscount > 0 ? pointsDiscount : null,
+            scrapDeduction > 0 ? scrapDeduction : null,
+            scrapDeduction > 0 ? (inv.scrap_invoice_number || null) : null,
+            returnDeduction > 0 ? returnDeduction : null,
+            returnDeduction > 0 ? (inv.return_invoice_number || null) : null,
             actualBillDate
           );
 
@@ -8415,12 +8481,30 @@ function getOrInitTerminalCode(db: any): string {
   return code;
 }
 
-ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
+async function requestServerInvoiceNumber(
+  db: any,
+  tenantId: string,
+  series: string | undefined,
+  configKey: string,
+  start?: number,
+  timeoutMs: number = 3000
+): Promise<{ success: true; invoiceNumber: string } | { success: false; error: string; offline: boolean }> {
   try {
-    const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
 
     let prefix = `${terminalCode}-`;
+    if (configKey !== 'invoice_counter_config') {
+      const prefixRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+      if (prefixRow) {
+        try {
+          const parsed = JSON.parse(prefixRow.value);
+          if (parsed?.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+            prefix = String(parsed.prefix).endsWith('-') ? String(parsed.prefix) : `${parsed.prefix}-`;
+          }
+        } catch {}
+      }
+    }
+
     if (series === 'gst_b2b' || series === 'gst_b2c') {
       const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
       const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
@@ -8437,19 +8521,23 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     const token = config?.jwt_token || (isLan ? 'lan-local-token' : '');
     if (!token) return { success: false, error: 'No auth token', offline: true };
 
-    // Primary API URL (either Local Master LAN host http://<ip>:3888 or Cloud API)
     const apiUrl = (endpoints.primaryUrl || process.env.VENDORA_CLOUD_API || '').replace(/\/$/, '');
-    const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
+    const search = new URLSearchParams({ terminal_code: terminalCode, prefix });
+    if (series) search.set('series', series);
+    if (typeof start === 'number' && Number.isFinite(start) && start >= 1) {
+      search.set('start', String(Math.floor(start)));
+    }
+    const url = `${apiUrl}/api/invoices/next-number?${search.toString()}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) return { success: false, error: `Server returned ${response.status}`, offline: true };
     const data = await response.json();
+    if (!data?.invoiceNumber) return { success: false, error: 'Server returned no invoice number', offline: false };
 
     // Sync local counter to server value so peek and header badge show the correct next number
-    const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
     const countMatch = String(data.invoiceNumber).match(/(\d+)$/);
     if (countMatch) {
       const serverCounter = parseInt(countMatch[1], 10);
@@ -8472,6 +8560,17 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     }
 
     return { success: true, invoiceNumber: data.invoiceNumber };
+  } catch (error: any) {
+    console.error('[requestServerInvoiceNumber]', error);
+    return { success: false, error: 'Operation failed', offline: true };
+  }
+}
+
+ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, series, start }: { tenant_id: string; series?: string; start?: number }) => {
+  try {
+    const db = getDb();
+    const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+    return await requestServerInvoiceNumber(db, tenant_id || 'global', series, configKey, start);
   } catch (error: any) {
     console.error('[db:getNextServerInvoiceNumber]', error);
     return { success: false, error: 'Operation failed', offline: true };
@@ -8537,7 +8636,7 @@ function peekGuaranteedNextInvoiceNumber(
   tenantId: string,
   configKey: string = 'invoice_counter_config',
   overrideDefaultPrefix?: string
-): { invoiceNumber: string } {
+): { invoiceNumber: string; counter: number; prefix: string } {
   const terminalCode = getOrInitTerminalCode(db);
   const fallbackPrefix = (
     configKey === 'gst_b2b_invoice_counter_config' ? 'B2B-' :
@@ -8573,7 +8672,7 @@ function peekGuaranteedNextInvoiceNumber(
     candidate = `${prefix}${String(counter).padStart(3, '0')}`;
   }
 
-  return { invoiceNumber: candidate };
+  return { invoiceNumber: candidate, counter, prefix };
 }
 
 ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
@@ -8593,7 +8692,7 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
     const db = getDb();
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
     const result = peekGuaranteedNextInvoiceNumber(db, tenant_id || 'global', configKey);
-    return { success: true, invoiceNumber: result.invoiceNumber };
+    return { success: true, invoiceNumber: result.invoiceNumber, counter: result.counter, prefix: result.prefix };
   } catch (error: any) {
     console.error('[db:peekNextInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
@@ -12048,6 +12147,327 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id, phone
   }
 });
 
+// db:getDeletedInvoices
+ipcMain.handle('db:getDeletedInvoices', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    const tid = tenantId || 'global';
+    const cols = db.prepare('PRAGMA table_info(invoices)').all() as any[];
+    const hasDeletedAt = cols.some(c => c.name === 'deleted_at');
+    const orderClause = hasDeletedAt ? 'ORDER BY COALESCE(deleted_at, updated_at) DESC' : 'ORDER BY updated_at DESC';
+    const deletedAtCol = hasDeletedAt ? ', deleted_at' : ', updated_at AS deleted_at';
+    return db.prepare(`
+      SELECT invoice_id, invoice_number, customer_name, customer_phone, grand_total,
+             payment_method, invoice_type, created_at, updated_at${deletedAtCol}
+      FROM invoices
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+        AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')
+      ${orderClause}
+      LIMIT 500
+    `).all(tid);
+  } catch (error: any) {
+    console.error('[db:getDeletedInvoices]', error);
+    return [];
+  }
+});
+
+// db:restoreInvoice - reverses soft-delete and restores stock
+ipcMain.handle('db:restoreInvoice', (event, invoice_id: string) => {
+  try {
+    const db = getDb();
+    let restoredInv: any = null;
+    let oldCash = 0;
+
+    db.transaction(() => {
+      const inv = db.prepare('SELECT * FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
+      if (!inv) throw new Error('Invoice not found');
+      restoredInv = inv;
+      oldCash = getCashAmountFromInvoice(inv);
+
+      const isConversionCopy = !!(inv && (inv.converted_from_invoice_id || inv.converted_from_invoice_number));
+
+      if (!isConversionCopy) {
+        const items = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(invoice_id) as any[];
+        for (const item of items) {
+          // Deduct stock back (re-apply the sale)
+          db.prepare("UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?")
+            .run(item.quantity, item.product_id, inv.tenant_id);
+        }
+      }
+
+      try { db.prepare("UPDATE invoice_items SET is_deleted = 0, sync_status = 'PENDING' WHERE invoice_id = ?").run(invoice_id); } catch (e) {}
+      
+      const invCols = db.prepare('PRAGMA table_info(invoices)').all() as any[];
+      const hasDeletedAt = invCols.some(c => c.name === 'deleted_at');
+      if (hasDeletedAt) {
+        db.prepare("UPDATE invoices SET is_deleted = 0, deleted_at = NULL, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
+      } else {
+        db.prepare("UPDATE invoices SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
+      }
+
+      // Re-link converted copy if applicable
+      if (isConversionCopy && inv.converted_from_invoice_id) {
+        db.prepare(`
+          UPDATE invoices SET
+            converted_to_invoice_id = ?,
+            converted_to_invoice_number = ?,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+          WHERE invoice_id = ?
+        `).run(inv.invoice_id, inv.invoice_number, inv.converted_from_invoice_id);
+      }
+
+      // Restore related party_ledger entries
+      if (inv.invoice_number) {
+        const invNum = String(inv.invoice_number).trim();
+        db.prepare(`
+          UPDATE party_ledger
+          SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
+            AND is_deleted = 1
+        `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
+      }
+    })();
+
+    if (restoredInv) {
+      syncInvoiceCreditLedger(db, restoredInv, false);
+      adjustPaymentSourcesForInvoice(db, restoredInv.tenant_id, restoredInv, false);
+      if (oldCash > 0) {
+        adjustCashDrawerForInvoice(db, restoredInv.tenant_id, restoredInv.created_at, 0, oldCash);
+      }
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:restoreInvoice]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+});
+
+// db:getDeletedProducts
+ipcMain.handle('db:getDeletedProducts', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    const tid = tenantId || 'global';
+    return db.prepare(`
+      SELECT product_id, name, COALESCE(sku_barcode, '') AS barcode, category, current_stock, base_price, updated_at
+      FROM products
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+      ORDER BY updated_at DESC
+      LIMIT 500
+    `).all(tid);
+  } catch (error: any) {
+    console.error('[db:getDeletedProducts]', error);
+    return [];
+  }
+});
+
+// db:restoreProduct
+ipcMain.handle('db:restoreProduct', (event, product_id: string) => {
+  try {
+    const db = getDb();
+    db.prepare("UPDATE products SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?").run(product_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:restoreProduct]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// db:getDeletedCustomers
+ipcMain.handle('db:getDeletedCustomers', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    const tid = tenantId || 'global';
+    return db.prepare(`
+      SELECT customer_id, name, phone, '' AS email, current_points_balance, updated_at
+      FROM customers
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+      ORDER BY updated_at DESC
+      LIMIT 500
+    `).all(tid);
+  } catch (error: any) {
+    console.error('[db:getDeletedCustomers]', error);
+    return [];
+  }
+});
+
+// db:restoreCustomer
+ipcMain.handle('db:restoreCustomer', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      db.prepare("UPDATE customers SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND (tenant_id = ? OR tenant_id = 'global')").run(customer_id, tenant_id);
+      db.prepare("UPDATE parties SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ? AND (tenant_id = ? OR tenant_id = 'global')").run(customer_id, tenant_id);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:restoreCustomer]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// db:getDeletedParties
+ipcMain.handle('db:getDeletedParties', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    const tid = tenantId || 'global';
+    return db.prepare(`
+      SELECT party_id, name, phone, address, balance, balance_type, party_type, updated_at
+      FROM parties
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+        AND (party_type IS NULL OR party_type != 'CUSTOMER')
+      ORDER BY updated_at DESC
+      LIMIT 500
+    `).all(tid);
+  } catch (error: any) {
+    console.error('[db:getDeletedParties]', error);
+    return [];
+  }
+});
+
+// db:hardDeleteInvoice - permanent delete (already soft-deleted)
+ipcMain.handle('db:hardDeleteInvoice', (event, invoice_id: string) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      try { db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id); } catch (e) {}
+      db.prepare('DELETE FROM invoices WHERE invoice_id = ? AND is_deleted = 1').run(invoice_id);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:hardDeleteInvoice]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// db:hardDeleteProduct - permanent delete (already soft-deleted)
+ipcMain.handle('db:hardDeleteProduct', (event, product_id: string) => {
+  try {
+    const db = getDb();
+    db.prepare('DELETE FROM products WHERE product_id = ? AND is_deleted = 1').run(product_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:hardDeleteProduct]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// db:hardDeleteCustomer - permanent delete (already soft-deleted)
+ipcMain.handle('db:hardDeleteCustomer', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      db.prepare("DELETE FROM customers WHERE customer_id = ? AND (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1").run(customer_id, tenant_id);
+      db.prepare("DELETE FROM parties WHERE party_id = ? AND (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1").run(customer_id, tenant_id);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:hardDeleteCustomer]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// db:hardDeleteParty - permanent delete (already soft-deleted)
+ipcMain.handle('db:hardDeleteParty', (event, party_id: string) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      db.prepare('DELETE FROM party_ledger WHERE party_id = ? AND is_deleted = 1').run(party_id);
+      db.prepare('DELETE FROM parties WHERE party_id = ? AND is_deleted = 1').run(party_id);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:hardDeleteParty]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// db:getRecycleBinSummary
+ipcMain.handle('db:getRecycleBinSummary', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    const tid = tenantId || 'global';
+
+    const invRow = db.prepare(`
+      SELECT COUNT(*) AS count, COALESCE(SUM(grand_total), 0) AS total
+      FROM invoices
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+        AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')
+    `).get(tid) as any;
+
+    const prodRow = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM products
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+    `).get(tid) as any;
+
+    const custRow = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM customers
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+    `).get(tid) as any;
+
+    const partyRow = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM parties
+      WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+        AND (party_type IS NULL OR party_type != 'CUSTOMER')
+    `).get(tid) as any;
+
+    return {
+      invoices: invRow?.count || 0,
+      invoicesValue: invRow?.total || 0,
+      products: prodRow?.count || 0,
+      customers: custRow?.count || 0,
+      parties: partyRow?.count || 0,
+    };
+  } catch (error: any) {
+    console.error('[db:getRecycleBinSummary]', error);
+    return { invoices: 0, invoicesValue: 0, products: 0, customers: 0, parties: 0 };
+  }
+});
+
+// db:emptyRecycleBin
+ipcMain.handle('db:emptyRecycleBin', (event, payload: { category: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const tid = payload?.tenant_id || 'global';
+    const cat = payload?.category || 'ALL';
+
+    db.transaction(() => {
+      if (cat === 'SALES_BILLS' || cat === 'ALL') {
+        const delInvs = db.prepare(`
+          SELECT invoice_id FROM invoices 
+          WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+        `).all(tid) as any[];
+        for (const row of delInvs) {
+          try { db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(row.invoice_id); } catch (e) {}
+          db.prepare('DELETE FROM invoices WHERE invoice_id = ?').run(row.invoice_id);
+        }
+      }
+
+      if (cat === 'PRODUCTS' || cat === 'ALL') {
+        db.prepare(`DELETE FROM products WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1`).run(tid);
+      }
+
+      if (cat === 'CUSTOMERS' || cat === 'ALL') {
+        db.prepare(`DELETE FROM customers WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1`).run(tid);
+        db.prepare(`DELETE FROM parties WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1 AND party_type = 'CUSTOMER'`).run(tid);
+      }
+
+      if (cat === 'PARTIES' || cat === 'ALL') {
+        db.prepare(`DELETE FROM parties WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1 AND (party_type IS NULL OR party_type != 'CUSTOMER')`).run(tid);
+      }
+    })();
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:emptyRecycleBin]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
   try {
     const db = getDb();
@@ -12069,7 +12489,7 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
           restoreStockStmt.run(item.quantity, item.product_id, inv.tenant_id);
         }
       }
-      db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);
+      try { db.prepare("UPDATE invoice_items SET is_deleted = 1, sync_status = 'PENDING' WHERE invoice_id = ?").run(invoice_id); } catch (e) {}
 
       // If a copy was deleted, un-supersede its BoS so it can be converted again
       if (isConversionCopy && inv) {
@@ -12095,7 +12515,7 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
         `).run(inv.converted_to_invoice_id);
       }
 
-      db.prepare("UPDATE invoices SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
+      db.prepare("UPDATE invoices SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
 
       // Soft-delete party_ledger entries immediately within transaction
       if (existingInv && existingInv.invoice_number) {

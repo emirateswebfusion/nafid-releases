@@ -7,7 +7,7 @@ import {
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, MessageSquare, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil, Shield, Percent, Coins,
-  ArrowLeft, ArrowRight
+  ArrowLeft, ArrowRight, Calendar
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
+import { SingleDatePicker } from './ui/SingleDatePicker';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../utils/whatsappBillHelper';
@@ -499,6 +500,36 @@ function ItemRateInput({
       </div>
     </div>
   );
+}
+
+function toLocalDatetimeInputString(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const YYYY = d.getFullYear();
+  const MM = pad(d.getMonth() + 1);
+  const DD = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  return `${YYYY}-${MM}-${DD}T${hh}:${mm}`;
+}
+
+function formatDisplayBillDate(dateInput: string | null | undefined): { text: string; isToday: boolean; isCustom: boolean } {
+  const now = new Date();
+  if (!dateInput) {
+    const formatted = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return { text: formatted, isToday: true, isCustom: false };
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) {
+    const formatted = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return { text: formatted, isToday: true, isCustom: false };
+  }
+  const isToday = d.toDateString() === now.toDateString();
+  const datePart = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return { text: `${datePart}, ${timePart}`, isToday, isCustom: true };
 }
 
 interface ItemTotalInputProps {
@@ -1456,6 +1487,8 @@ export function BillingPage() {
   const [returnSearchResults, setReturnSearchResults] = useState<any[]>([]);
   const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<any | null>(null);
   const [returnProcessing, setReturnProcessing] = useState(false);
+  const returnProcessingRef = useRef(false);
+  const pendingCheckoutSaveOnlyRef = useRef<boolean | null>(null);
   const [returnProcessed, setReturnProcessed] = useState(false);
 
   const [terminalCodeState, setTerminalCodeState] = useState('POS1');
@@ -2641,7 +2674,7 @@ export function BillingPage() {
           if (!q) return false;
           const qNoSpace = q.replace(/\s+/g, '');
           const qClean = cleanSearchText(q);
-          const qWords = q.split(/\s+/).filter(w => w.length > 0);
+          const qWords = q.split(/[^\p{L}\p{N}]+/gu).filter(w => w.length > 0);
 
           const rawFields = [
             String(p.sku_barcode || '').toLowerCase(),
@@ -3730,12 +3763,31 @@ export function BillingPage() {
           else if (pmUpper === 'SPLIT') finalSplitDetails.cash = amt;
         }
 
+        const editPartyKey = `${(invoice.customer_name || '').trim().toLowerCase()}|${(invoice.customer_phone || '').trim()}`;
+        let editingInvoiceContribution = 0;
+        if (pmUpper === 'CREDIT') {
+          editingInvoiceContribution = grandTotalVal - (Number(invoice.received_amount) || 0);
+        } else if (pmUpper === 'SPLIT') {
+          const nonCreditPaid = (Number(parsedSplitDetails?.cash) || 0)
+            + (Number(parsedSplitDetails?.card) || 0)
+            + (Number(parsedSplitDetails?.upi) || 0)
+            + (Number(parsedSplitDetails?.cheque) || 0)
+            + (Number(parsedSplitDetails?.bank_transfer || parsedSplitDetails?.bank) || 0);
+          const splitCreditVal = Number(parsedSplitDetails?.credit) || 0;
+          if (splitCreditVal > 0) editingInvoiceContribution = grandTotalVal - nonCreditPaid;
+        }
+
         // Set customer info, payment details, and split details on active tab
         updateActiveTab({
+          customerId: invoice.customer_id || '',
+          manualTotalOverride: null,
+          editingInvoiceContribution,
+          editingInvoicePartyKey: editPartyKey,
           customerName: invoice.customer_name || '',
           customerPhone: invoice.customer_phone || '',
           customerGstin: invoice.customer_gstin || '',
           customerAddress: invoice.customer_address || '',
+          billDate: invoice.created_at || null,
           paymentMethod: pmUpper,
           receivedAmount: Number(invoice.received_amount) || 0,
           actualRefundPaid: Number(invoice.actual_refund_paid) || 0,
@@ -5948,6 +6000,7 @@ export function BillingPage() {
     if (isCheckingOutRef.current) return;
     isCheckingOutRef.current = true;
 
+    const checkoutTabId = activeTabId;
     let scrapPrintSuccess = true;
     let printSuccess = true;
 
@@ -6181,12 +6234,12 @@ export function BillingPage() {
         setCheckoutSuccess(saveOnly || !scrapPrintSuccess ? 'saved' : 'printed');
         setTimeout(async () => {
           const tabsCount = useTabStore.getState().tabs.length;
-          const currentActiveId = activeTabId;
+          const targetTabId = checkoutTabId;
           const stayInScrap = uiConfig.stayInScrapModeAfterPrint ?? false;
 
           if (tabsCount > 1 && !stayInScrap) {
             setIsScrapMode(false);
-            closeTab(currentActiveId);
+            closeTab(targetTabId);
           } else {
             clearCart();
             useCartStore.getState().setEditingInvoice(null, null, null);
@@ -6213,6 +6266,7 @@ export function BillingPage() {
       // ── Normal Mode Checkout ──
       const flags = useFeatureFlagsStore.getState().flags;
       if (flags?.biller_pin && !useCartStore.getState().billerStaffId) {
+        pendingCheckoutSaveOnlyRef.current = saveOnly;
         setIsBillerPinModalOpen(true);
         return;
       }
@@ -6290,7 +6344,8 @@ export function BillingPage() {
       if (isEditing && editingInvoiceNumber) {
         invoice_number = editingInvoiceNumber;
       } else {
-        const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global', series });
+        const localPeek = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+        const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global', series, start: localPeek?.counter });
         if (serverResult.success && serverResult.invoiceNumber) {
           invoice_number = serverResult.invoiceNumber;
         } else {
@@ -6489,7 +6544,35 @@ export function BillingPage() {
       const cleanCustName = (customerName || '').trim();
       const cleanCustPhone = (customerPhone || '').trim();
       const matchedParty = findMatchingParty(cleanCustName, cleanCustPhone);
-      const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) : 0;
+      const currentPartyKey = `${cleanCustName.toLowerCase()}|${cleanCustPhone}`;
+      const isStaffParty = String(matchedParty?.party_type || '').toUpperCase() === 'STAFF';
+      const editingContribution = isEditing && !isStaffParty && activeTab?.editingInvoicePartyKey === currentPartyKey
+        ? (Number(activeTab?.editingInvoiceContribution) || 0)
+        : 0;
+      const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) - editingContribution : 0;
+      const splitCreditAmount = Number(splitDetails?.credit) || 0;
+      const isSplitCreditBill = effectiveFinalPaymentMethod === 'SPLIT' && splitCreditAmount > 0;
+      const splitNonCreditPaid = (Number(splitDetails?.cash) || 0)
+        + (Number(splitDetails?.card) || 0)
+        + (Number(splitDetails?.upi) || 0)
+        + (Number(splitDetails?.cheque) || 0)
+        + (Number(splitDetails?.bank_transfer) || 0);
+      const newPartyContribution = effectiveFinalPaymentMethod === 'CREDIT'
+        ? Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0))
+        : isSplitCreditBill
+        ? Math.max(0, effectiveGrandTotal - splitNonCreditPaid)
+        : 0;
+      const partyNewBalance = partyOldBalance + newPartyContribution;
+      const tracksPartyBalance = partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || isSplitCreditBill;
+      const splitDetailsForSave: SplitDetails = { ...(splitDetails || {}) };
+      if (effectiveFinalPaymentMethod !== 'SPLIT') {
+        splitDetailsForSave.cash = 0;
+        splitDetailsForSave.card = 0;
+        splitDetailsForSave.upi = 0;
+        splitDetailsForSave.cheque = 0;
+        splitDetailsForSave.bank_transfer = 0;
+        if (effectiveFinalPaymentMethod !== 'CREDIT') splitDetailsForSave.credit = 0;
+      }
 
       // ── Credit Limit & Credit Period Enforcement ──────────────────────────────
       // Determine how much of THIS bill is on credit
@@ -6517,14 +6600,14 @@ export function BillingPage() {
       }
 
       // Block checkout if the party's credit balance would exceed their limit.
-      if (matchedParty && Number(matchedParty.credit_limit) > 0 && billCreditAmount > 0) {
+      if (matchedParty && Number(matchedParty.credit_limit) > 0 && newPartyContribution > 0) {
         const creditLimit = Number(matchedParty.credit_limit);
-        const projectedBalance = partyOldBalance + billCreditAmount;
+        const projectedBalance = partyOldBalance + newPartyContribution;
         if (projectedBalance > creditLimit) {
           const excess = projectedBalance - creditLimit;
           const fmtNum = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           setHardwareError(
-            `Credit Limit Exceeded for ${matchedParty.name}! Limit: ₹${fmtNum(creditLimit)}, Current Due: ₹${fmtNum(partyOldBalance)}, Bill Credit: ₹${fmtNum(billCreditAmount)}. Exceeds limit by ₹${fmtNum(excess)} — Cannot complete bill.`
+            `Credit Limit Exceeded for ${matchedParty.name}! Limit: �,1${fmtNum(creditLimit)}, Current Due: �,1${fmtNum(partyOldBalance)}, Bill Credit: �,1${fmtNum(newPartyContribution)}. Exceeds limit by �,1${fmtNum(excess)} �?" Cannot complete bill.`
           );
           return;
         }
@@ -6567,33 +6650,29 @@ export function BillingPage() {
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveReceivedAmount,
-              balanceAmount: partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0),
-              customerBalance: partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0),
+              balanceAmount: partyNewBalance,
+              customerBalance: partyNewBalance,
               paymentMethod: 'CREDIT',
             }
           : (effectiveFinalPaymentMethod === 'CASH' && !isPaymentPending)
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
               receivedAmount: effectiveReceivedAmount,
-              balanceAmount: partyOldBalance !== 0
-                ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
-                : effectiveBalanceAmount,
-              customerBalance: partyOldBalance !== 0
-                ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
-                : undefined,
+              balanceAmount: partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount,
+              customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
               paymentMethod: 'CASH',
             }
-          : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+          : isSplitCreditBill
           ? {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              receivedAmount: effectiveGrandTotal - (Number(splitDetails?.credit) || 0),
-              balanceAmount: partyOldBalance + (Number(splitDetails?.credit) || 0),
-              customerBalance: partyOldBalance + (Number(splitDetails?.credit) || 0),
+              receivedAmount: effectiveGrandTotal - splitCreditAmount,
+              balanceAmount: partyNewBalance,
+              customerBalance: partyNewBalance,
               paymentMethod: 'SPLIT',
             }
           : {
               oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              customerBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
+              customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
               ...(effectiveFinalPaymentMethod === 'SPLIT' ? { receivedAmount: effectiveReceivedAmount } : {}),
               paymentMethod: effectiveFinalPaymentMethod,
             }
@@ -6636,22 +6715,21 @@ export function BillingPage() {
           invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
           permissions: useAuthStore.getState().permissions || [],
           user_id: userId || undefined,
+          created_at: activeTab?.billDate || undefined,
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
           received_amount: effectiveReceivedAmount,
           balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
-            ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
-            : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
-            ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
-            : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
+            ? partyNewBalance
+            : isSplitCreditBill
+            ? partyNewBalance
+            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount),
           split_details: {
-            ...((effectiveFinalPaymentMethod === 'SPLIT' || (splitDetails && Number(splitDetails.credit) > 0)) ? (splitDetails || {}) : (splitDetails || {})),
+            ...splitDetailsForSave,
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
             ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
-              ? { new_due: (effectiveFinalPaymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
-              : {})
+            ...(tracksPartyBalance ? { new_due: partyNewBalance } : {})
           },
           customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
@@ -6683,24 +6761,23 @@ export function BillingPage() {
           invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset',
           biller_staff_id: useCartStore.getState().billerStaffId || null,
           sales_staff_id: useCartStore.getState().salesStaffId || null,
+          created_at: activeTab?.billDate || undefined,
           invoice_number,
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
           split_details: {
-            ...((effectiveFinalPaymentMethod === 'SPLIT' || (splitDetails && Number(splitDetails.credit) > 0)) ? (splitDetails || {}) : (splitDetails || {})),
+            ...splitDetailsForSave,
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
             ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)
-              ? { new_due: (effectiveFinalPaymentMethod === 'SPLIT' ? (partyOldBalance + (Number(splitDetails?.credit) || 0)) : (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))) }
-              : {})
+            ...(tracksPartyBalance ? { new_due: partyNewBalance } : {})
           },
           received_amount: effectiveReceivedAmount,
           balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
-            ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0))
-            : (effectiveFinalPaymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
-            ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
-            : (partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount),
+            ? partyNewBalance
+            : isSplitCreditBill
+            ? partyNewBalance
+            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount),
           customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           is_staff: Boolean(activeTab?.isStaffCustomer),
@@ -6746,7 +6823,7 @@ export function BillingPage() {
       // credit for a future bill. Editing a bill never re-consumes credit.
       if (!isEditing && storeReturnDeduction > 0 && storeReturnInvoiceNumber && window.electronAPI) {
         try {
-          const consumed = Math.min(storeReturnDeduction, grandTotal);
+          const consumed = Math.min(storeReturnDeduction, returnConsumed > 0 ? returnConsumed : grandTotal);
           await window.electronAPI.dbSettleReturnInvoice({
             tenant_id: tenantId || 'global',
             return_number: storeReturnInvoiceNumber,
@@ -6861,11 +6938,11 @@ export function BillingPage() {
             })),
             grandTotal: effectiveGrandTotal,
             receivedAmount: effectiveReceivedAmount,
-            balanceAmount: (partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || (splitDetails && Number(splitDetails.credit) > 0)) ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : effectiveBalanceAmount,
+            balanceAmount: tracksPartyBalance ? partyNewBalance : effectiveBalanceAmount,
             paymentMethod: effectiveFinalPaymentMethod,
             dueDate: (receiptData as any).dueDate,
             creditPeriodDays: (receiptData as any).creditPeriodDays,
-            customerBalance: partyOldBalance !== 0 ? (partyOldBalance + effectiveGrandTotal - (effectiveReceivedAmount || 0)) : undefined,
+            customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
           });
 
           window.electronAPI.whatsappSendInvoice({
@@ -6891,12 +6968,12 @@ export function BillingPage() {
         .catch(console.error);
       setTimeout(async () => {
         const tabsCount = useTabStore.getState().tabs.length;
-        const currentActiveId = activeTabId;
+        const targetTabId = checkoutTabId;
         if (invoiceType === 'GST') {
           setInvoiceType('BILL_OF_SUPPLY');
         }
         if (tabsCount > 1) {
-          closeTab(currentActiveId);
+          closeTab(targetTabId);
         } else {
           clearCart();
           clearScrapDeduction();
@@ -6904,7 +6981,7 @@ export function BillingPage() {
           setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
           setShowLoyaltyRedemption(false);
           setPointsToRedeem(0);
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, actualRefundPaid: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', customerId: '', manualTotalOverride: null, editingInvoiceContribution: 0, editingInvoicePartyKey: '', billDate: null, paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, actualRefundPaid: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
           syncActiveSnapshot();
           await reserveInvoiceNumberForTab();
           const tab = getActiveTab();
@@ -6926,15 +7003,21 @@ export function BillingPage() {
   // ── Return Mode: process return from cart items (replaces old 2-phase flow) ──
   const handleProcessReturnFromCart = async (saveOnly = false) => {
     if (!window.electronAPI) return;
+    if (returnProcessingRef.current) return;
+    returnProcessingRef.current = true;
+
     if (!selectedReturnInvoice) {
+      returnProcessingRef.current = false;
       setHardwareError('No original invoice selected for return.');
       return;
     }
     const returnCartItems = items.filter(i => i.isReturnItem && Number(i.quantity) > 0);
     if (returnCartItems.length === 0) {
+      returnProcessingRef.current = false;
       setHardwareError('No return items selected in cart.');
       return;
     }
+    const returnTabId = activeTabId;
     setReturnProcessing(true);
     try {
       const tid = tenantId || 'global';
@@ -7078,7 +7161,7 @@ export function BillingPage() {
 
         if (tabsCount > 1 && !stayInReturn) {
           setReturnMode(false);
-          closeTab(currentActiveId);
+          closeTab(returnTabId);
         } else {
           if (stayInReturn) {
             setReturnMode(true);
@@ -7098,6 +7181,7 @@ export function BillingPage() {
       console.error('Return processing failed', e);
       setHardwareError('Return processing failed. Please try again.');
     } finally {
+      returnProcessingRef.current = false;
       setReturnProcessing(false);
     }
   };
@@ -8351,7 +8435,16 @@ export function BillingPage() {
             )}
           />
         </div>
-        <CustomerOutstandingBadge partyObj={findMatchingParty(customerName, customerPhone)} />
+        <CustomerOutstandingBadge partyObj={(() => {
+          const p = findMatchingParty(customerName, customerPhone);
+          if (!p) return null;
+          const key = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;
+          const isStaff = String(p.party_type || '').toUpperCase() === 'STAFF';
+          const contribution = editingActive && !isStaff && activeTab?.editingInvoicePartyKey === key
+            ? (Number(activeTab?.editingInvoiceContribution) || 0)
+            : 0;
+          return { name: p.name, phone: p.phone, balance: (Number(p.balance) || 0) - contribution };
+        })()} />
         {loyaltyEnabled && !isScrapMode && !isQuotationMode && (loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim())) && (
           <div className="flex items-center shrink-0">
             <div
@@ -8373,10 +8466,20 @@ export function BillingPage() {
         const party = findMatchingParty(customerName, customerPhone);
         if (!party || !(Number(party.credit_limit) > 0)) return null;
         const limit = Number(party.credit_limit);
-        const currentBal = Number(party.balance) || 0;
+        const key = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;
+        const isStaff = String(party.party_type || '').toUpperCase() === 'STAFF';
+        const editingContribution = editingActive && !isStaff && activeTab?.editingInvoicePartyKey === key
+          ? (Number(activeTab?.editingInvoiceContribution) || 0)
+          : 0;
+        const currentBal = (Number(party.balance) || 0) - editingContribution;
+        const splitPaid = (Number(splitDetails.cash) || 0)
+          + (Number(splitDetails.card) || 0)
+          + (Number(splitDetails.upi) || 0)
+          + (Number(splitDetails.cheque) || 0)
+          + (Number(splitDetails.bank_transfer) || 0);
         const billCredit = paymentMethod === 'CREDIT'
-          ? Math.max(0, displayGrandTotal)
-          : Math.max(0, Number(splitDetails.credit) || 0);
+          ? Math.max(0, displayGrandTotal - (Number(receivedAmount) || 0))
+          : Math.max(0, displayGrandTotal - splitPaid);
         const projected = currentBal + billCredit;
         const available = Math.max(0, limit - currentBal);
         const exceeded = projected > limit;
@@ -8505,6 +8608,12 @@ export function BillingPage() {
             )}
           </div>
         )}
+        <SingleDatePicker
+          value={activeTab?.billDate}
+          onChange={val => updateActiveTab({ billDate: val })}
+          isEditing={Boolean(editingActive)}
+          align="right"
+        />
       </div>
       <div className="flex items-center gap-2 flex-wrap mt-2">
         <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border">
@@ -8611,7 +8720,12 @@ export function BillingPage() {
 
   const renderErpGridB2CWorkspace = () => {
     const selectedParty = findMatchingParty(customerName, customerPhone);
-    const partyBalance = selectedParty ? Number(selectedParty.balance || 0) : 0;
+    const uiPartyKey = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;
+    const uiIsStaffParty = String(selectedParty?.party_type || '').toUpperCase() === 'STAFF';
+    const uiEditingContribution = editingActive && !uiIsStaffParty && activeTab?.editingInvoicePartyKey === uiPartyKey
+      ? (Number(activeTab?.editingInvoiceContribution) || 0)
+      : 0;
+    const partyBalance = selectedParty ? (Number(selectedParty.balance) || 0) - uiEditingContribution : 0;
     
     // Focused row item for live stock row indicator
     const activeRowItem = items.find(i => i.product_id === focusedRowProductId) || items[items.length - 1];
@@ -8652,12 +8766,15 @@ export function BillingPage() {
 
             {/* Date */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">Date</label>
-              <input
-                type="text"
-                readOnly
-                value={new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                className="w-full px-2.5 py-1.5 bg-muted/50 border border-border rounded-lg font-mono font-bold text-foreground text-xs"
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">
+                Date
+              </label>
+              <SingleDatePicker
+                value={activeTab?.billDate}
+                onChange={val => updateActiveTab({ billDate: val })}
+                isEditing={Boolean(editingActive)}
+                triggerClassName="w-full py-1.5"
+                align="left"
               />
             </div>
 
@@ -9269,9 +9386,6 @@ export function BillingPage() {
               )}>
                 {isReturnMode ? (nextReturnNumber || '') : isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
               </span>
-              <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
-                {isAdminRole(authRole) ? formatRoleName(authRole) : (userName || currentUserRole || 'Staff')}
-              </span>
             </div>
           </div>
         </div>
@@ -9283,6 +9397,7 @@ export function BillingPage() {
             Boolean(customerPhone?.trim()) ||
             Boolean(customerAddress?.trim()) ||
             Boolean(customerGstin?.trim()) ||
+            Boolean(activeTab?.billDate) ||
             Boolean(activeTab?.customerId) ||
             Boolean(activeTab?.description?.trim()) ||
             (discountValue && Number(discountValue) > 0) ||
@@ -9333,6 +9448,7 @@ export function BillingPage() {
                   customerPhone: '', 
                   customerGstin: '', 
                   customerAddress: '', 
+                  billDate: null,
                   description: '',
                   transporterName: '',
                   vehicleNumber: '',
@@ -12369,7 +12485,12 @@ export function BillingPage() {
                   : ((receivedAmount && receivedAmount > 0) ? receivedAmount : displayGrandTotal);
 
                 const selectedPartyObj = findMatchingParty(customerName, customerPhone);
-                const partyOldBalance = selectedPartyObj ? (Number(selectedPartyObj.balance) || 0) : 0;
+                const uiPartyKey = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;
+                const uiIsStaffParty = String(selectedPartyObj?.party_type || '').toUpperCase() === 'STAFF';
+                const uiEditingContribution = editingActive && !uiIsStaffParty && activeTab?.editingInvoicePartyKey === uiPartyKey
+                  ? (Number(activeTab?.editingInvoiceContribution) || 0)
+                  : 0;
+                const partyOldBalance = selectedPartyObj ? (Number(selectedPartyObj.balance) || 0) - uiEditingContribution : 0;
                 const isCreditCustomer = partyOldBalance !== 0 || paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && Number(splitDetails?.credit) > 0);
 
                 if (isCreditCustomer) {
@@ -13832,10 +13953,18 @@ export function BillingPage() {
       <BillerPinModal
         isOpen={isBillerPinModalOpen}
         tenantId={tenantId || 'global'}
-        onClose={() => setIsBillerPinModalOpen(false)}
+        onClose={() => {
+          pendingCheckoutSaveOnlyRef.current = null;
+          setIsBillerPinModalOpen(false);
+        }}
         onVerified={(staff) => {
           useCartStore.getState().setBillerStaff(staff.staff_id, staff.name);
           setIsBillerPinModalOpen(false);
+          const saveOnlyMode = pendingCheckoutSaveOnlyRef.current ?? false;
+          pendingCheckoutSaveOnlyRef.current = null;
+          setTimeout(() => {
+            handleCheckout(saveOnlyMode);
+          }, 50);
         }}
       />
     </div>

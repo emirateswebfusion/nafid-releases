@@ -72,11 +72,19 @@ test('Default configuration and checklist have expected structure', () => {
   assert.strictEqual(DEFAULT_CONFIG.checklist.cashBalances, true, 'Default cash balances checklist should be true');
   assert.strictEqual(DEFAULT_CHECKLIST.purchases, false, 'Default purchases should be false');
 
-  assert.strictEqual(CHECKLIST_DEFINITIONS.length, 16, 'Should have 16 checklist item definitions');
+  assert.strictEqual(CHECKLIST_DEFINITIONS.length, 30, 'Should have 30 checklist item definitions');
   const allKeys = Object.keys(ALL_CHECKLIST_SELECTED);
-  assert.strictEqual(allKeys.length, 16, 'ALL_CHECKLIST_SELECTED should have 16 keys');
+  assert.strictEqual(allKeys.length, 30, 'ALL_CHECKLIST_SELECTED should have 30 keys');
   Object.values(ALL_CHECKLIST_SELECTED).forEach((v) => assert.strictEqual(v, true));
   Object.values(ALL_CHECKLIST_CLEARED).forEach((v) => assert.strictEqual(v, false));
+  assert.strictEqual(DEFAULT_CHECKLIST.expensesList, true, 'Default expensesList should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.cashInList, true, 'Default cashInList should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.partyTransactions, true, 'Default partyTransactions should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.staffTransactions, true, 'Default staffTransactions should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.scrap, true, 'Default scrap should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.paymentCash, true, 'Default paymentCash should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.paymentUpi, true, 'Default paymentUpi should be true');
+  assert.strictEqual(DEFAULT_CHECKLIST.paymentCard, true, 'Default paymentCard should be true');
 });
 
 // ── Test 2: Phone Number Sanitization & Validation ──────────────
@@ -149,9 +157,12 @@ function createTestDb() {
       received_amount REAL DEFAULT 0,
       user_id TEXT,
       actual_refund_paid REAL DEFAULT 0,
+      scrap_deduction REAL DEFAULT 0,
       invoice_type TEXT DEFAULT 'tax_invoice',
       is_held INTEGER DEFAULT 0,
       is_deleted INTEGER DEFAULT 0,
+      converted_from_invoice_id TEXT,
+      converted_to_invoice_id TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       settled_at DATETIME
     );
@@ -167,6 +178,13 @@ function createTestDb() {
       transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS parties (
+      party_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS party_ledger (
       ledger_id TEXT PRIMARY KEY,
       party_id TEXT NOT NULL,
@@ -175,8 +193,48 @@ function createTestDb() {
       description TEXT NOT NULL,
       credit_amount REAL NOT NULL DEFAULT 0,
       debit_amount REAL NOT NULL DEFAULT 0,
+      payment_method TEXT,
       running_balance REAL NOT NULL,
       is_deleted INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS staff (
+      staff_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      staff_code TEXT,
+      name TEXT NOT NULL,
+      phone TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS staff_transactions (
+      transaction_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      staff_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      payment_method TEXT DEFAULT 'CASH',
+      notes TEXT,
+      transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS scrap_categories (
+      scrap_category_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      unit TEXT DEFAULT 'Kgs'
+    );
+
+    CREATE TABLE IF NOT EXISTS scrap_transactions (
+      transaction_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      scrap_category_id TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      rate REAL NOT NULL,
+      total_amount REAL NOT NULL,
+      party_name TEXT,
+      is_deleted INTEGER DEFAULT 0,
+      transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS returns (
@@ -305,20 +363,39 @@ test('Accurately aggregates POS transactions, sales, and drawer reconciliation',
     VALUES ('inv4', 'global', 'POS2-2002', 280, 20, 0, 300, 'CREDIT', 'u1', '${dateStr} 15:30:00', '${dateStr} 15:30:00')
   `).run();
 
-  // Seed Cash Transactions: Cash In 500, Cash Out 200
+  // Seed Cash Transactions: Cash In 500, Cash Out 200 (Tea & Snacks), Cash Out 10 (tea)
   db.prepare(`
-    INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, transaction_date)
-    VALUES ('tx1', 'global', 'd1', 'CASH_IN', 500, 'Opening Till Deposit', '${dateStr} 09:00:00')
+    INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, transaction_date)
+    VALUES ('tx1', 'global', 'd1', 'CASH_IN', 500, 'Opening Till Deposit', 'Morning Float', '${dateStr} 09:00:00')
   `).run();
   db.prepare(`
-    INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, transaction_date)
-    VALUES ('tx2', 'global', 'd1', 'CASH_OUT', 200, 'Tea & Snacks', '${dateStr} 16:00:00')
+    INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, transaction_date)
+    VALUES ('tx2', 'global', 'd1', 'CASH_OUT', 200, 'Snacks', 'Tea & Snacks', '${dateStr} 16:00:00')
+  `).run();
+  db.prepare(`
+    INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, transaction_date)
+    VALUES ('tx3', 'global', 'd1', 'CASH_OUT', 10, 'Refreshment', 'tea', '${dateStr} 16:30:00')
   `).run();
 
-  // Seed Party Ledger: Customer payment collected 400
+  // Seed Parties & Party Ledger: Customer payment collected 400 from Suhaib
+  db.prepare(`INSERT INTO parties (party_id, tenant_id, name) VALUES ('p1', 'global', 'Suhaib')`).run();
   db.prepare(`
     INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance)
     VALUES ('pl1', 'p1', 'global', '${dateStr} 17:00:00', 'Got Cash from Customer', 400, 0, 600)
+  `).run();
+
+  // Seed Staff & Staff Transactions: Advance of 500
+  db.prepare(`INSERT INTO staff (staff_id, tenant_id, staff_code, name) VALUES ('s1', 'global', 'EMP-01', 'Rahul')`).run();
+  db.prepare(`
+    INSERT INTO staff_transactions (transaction_id, tenant_id, staff_id, type, amount, notes, transaction_date)
+    VALUES ('st1', 'global', 's1', 'Advance', 500, 'Emergency', '${dateStr} 17:30:00')
+  `).run();
+
+  // Seed Scrap Categories & Transactions: 20 Kgs Iron @ 30 = 600
+  db.prepare(`INSERT INTO scrap_categories (scrap_category_id, tenant_id, name, unit) VALUES ('sc1', 'global', 'Iron Scrap', 'Kgs')`).run();
+  db.prepare(`
+    INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, transaction_date)
+    VALUES ('sct1', 'global', 'PURCHASE', 'sc1', 20, 30, 600, 'Scrap Yard', '${dateStr} 18:00:00')
   `).run();
 
   // Seed Returns: 1 return of 150
@@ -358,13 +435,31 @@ test('Accurately aggregates POS transactions, sales, and drawer reconciliation',
 
   // Transactions & operations
   assert.strictEqual(summary.totalCashIn, 500);
-  assert.strictEqual(summary.totalCashOut, 200);
-  assert.strictEqual(summary.totalExpenses, 200);
+  assert.strictEqual(summary.totalCashOut, 210);
+  assert.strictEqual(summary.totalExpenses, 210);
   assert.strictEqual(summary.customerPaymentsCollected, 400);
   assert.strictEqual(summary.returnsCount, 1);
   assert.strictEqual(summary.returnsAmount, 150);
   assert.strictEqual(summary.purchasesCount, 1);
   assert.strictEqual(summary.purchasesAmount, 1200);
+
+  // Itemized lists assertions
+  assert.strictEqual(summary.expensesItems.length, 2, 'Should have 2 expense items');
+  assert.ok(summary.expensesItems.some((e) => e.description === 'tea' && e.amount === 10), 'tea-10 should be present');
+  assert.strictEqual(summary.cashInItems.length, 1, 'Should have 1 cash in item');
+  assert.strictEqual(summary.cashInItems[0].amount, 500);
+
+  assert.strictEqual(summary.partyTransactionItems.length, 1, 'Should have 1 party transaction');
+  assert.strictEqual(summary.partyTransactionItems[0].partyName, 'Suhaib');
+  assert.strictEqual(summary.partyTransactionItems[0].amount, 400);
+
+  assert.strictEqual(summary.staffTransactionItems.length, 1, 'Should have 1 staff transaction');
+  assert.strictEqual(summary.staffTransactionItems[0].staffName, 'Rahul');
+  assert.strictEqual(summary.staffTransactionItems[0].amount, 500);
+
+  assert.strictEqual(summary.scrapSummary.count, 1, 'Should have 1 scrap item');
+  assert.strictEqual(summary.scrapSummary.totalAmount, 600);
+  assert.strictEqual(summary.scrapSummary.items[0].categoryName, 'Iron Scrap');
 
   // Multi-counter aggregation
   assert.strictEqual(summary.countersSummary.length, 2, 'Should detect POS1 and POS2 counters');
@@ -376,6 +471,18 @@ test('Accurately aggregates POS transactions, sales, and drawer reconciliation',
   assert.strictEqual(pos1.netSales, 1500, 'POS1 sales should be 1500');
   assert.strictEqual(pos2.invoiceCount, 2, 'POS2 should have 2 invoices');
   assert.strictEqual(pos2.netSales, 800, 'POS2 sales should be 800');
+
+  // Verify formatClosingWhatsAppMessage generates itemized sections
+  const msg = formatClosingWhatsAppMessage(summary, DEFAULT_CHECKLIST);
+  assert.ok(msg.includes('EXPENSES LIST:'), 'Should include EXPENSES LIST');
+  assert.ok(msg.includes('tea: *₹10.00*'), 'Should include tea: *₹10.00*');
+  assert.ok(msg.includes('CASH IN ENTRIES:'), 'Should include CASH IN ENTRIES');
+  assert.ok(msg.includes('PARTY TRANSACTIONS:'), 'Should include PARTY TRANSACTIONS');
+  assert.ok(msg.includes('-Suhaib : *₹400.00*'), 'Should include -Suhaib : *₹400.00*');
+  assert.ok(msg.includes('STAFF TRANSACTIONS:'), 'Should include STAFF TRANSACTIONS');
+  assert.ok(msg.includes('-Rahul : *₹500.00* (Advance) - Emergency'), 'Should include Rahul staff entry');
+  assert.ok(msg.includes('SCRAP ENTRIES:'), 'Should include SCRAP ENTRIES');
+  assert.ok(msg.includes('Iron Scrap (20 Kgs @ ₹30.00): *₹600.00*'), 'Should include Iron Scrap details');
 });
 
 // ── Test 5: Checklist Filtering in Message Formatting ───────────
@@ -389,8 +496,15 @@ test('Formats WhatsApp message honoring checklist selections', () => {
   assert.ok(fullMsg.includes('SALES SUMMARY'));
   assert.ok(fullMsg.includes('PAYMENT BREAKDOWN'));
   assert.ok(fullMsg.includes('CREDIT & COLLECTIONS'));
-  assert.ok(fullMsg.includes('CASH DRAWER RECONCILIATION'));
-  assert.ok(fullMsg.includes('CASH TRANSACTIONS & EXPENSES'));
+  assert.ok(fullMsg.includes('EXPENSES LIST:'));
+  assert.ok(fullMsg.includes('tea: *₹10.00*'), 'Real-time preview should show tea - 10');
+  assert.ok(fullMsg.includes('CASH IN ENTRIES:'));
+  assert.ok(fullMsg.includes('PARTY TRANSACTIONS:'));
+  assert.ok(fullMsg.includes('-Suhaib : *₹1,000.00*'), 'Real-time preview should show -Suhaib : 1000');
+  assert.ok(fullMsg.includes('STAFF TRANSACTIONS:'));
+  assert.ok(fullMsg.includes('-Rahul : *₹500.00* (Advance)'), 'Real-time preview should show -Rahul : 500 (Advance)');
+  assert.ok(fullMsg.includes('SCRAP ENTRIES:'));
+  assert.ok(fullMsg.includes('Iron Scrap (20 Kgs @ ₹30.00): *₹600.00*'), 'Real-time preview should show Iron Scrap');
   assert.ok(fullMsg.includes('RETURNS & REFUNDS'));
   assert.ok(fullMsg.includes('PURCHASES'));
   assert.ok(fullMsg.includes('MULTI-COUNTER BREAKDOWN'));
@@ -406,9 +520,34 @@ test('Formats WhatsApp message honoring checklist selections', () => {
   assert.ok(minMsg.includes('SALES SUMMARY'));
   assert.ok(minMsg.includes('CASH DRAWER RECONCILIATION'));
   assert.ok(!minMsg.includes('PAYMENT BREAKDOWN'), 'Payment breakdown should NOT be included');
+  assert.ok(!minMsg.includes('EXPENSES LIST'), 'Expenses list should NOT be included');
+  assert.ok(!minMsg.includes('CASH IN ENTRIES'), 'Cash in list should NOT be included');
+  assert.ok(!minMsg.includes('PARTY TRANSACTIONS'), 'Party transactions should NOT be included');
+  assert.ok(!minMsg.includes('STAFF TRANSACTIONS'), 'Staff transactions should NOT be included');
+  assert.ok(!minMsg.includes('SCRAP ENTRIES'), 'Scrap entries should NOT be included');
   assert.ok(!minMsg.includes('RETURNS & REFUNDS'), 'Returns should NOT be included');
   assert.ok(!minMsg.includes('PURCHASES'), 'Purchases should NOT be included');
   assert.ok(!minMsg.includes('MULTI-COUNTER BREAKDOWN'), 'Counter breakdown should NOT be included');
+
+  // Case C: Granular Payment Methods Selection
+  // Enable Payment Methods master, but uncheck UPI and Bank Transfer
+  const customPaymentChecklist = {
+    ...ALL_CHECKLIST_SELECTED,
+    paymentMethods: true,
+    paymentCash: true,
+    paymentUpi: false,
+    paymentCard: true,
+    paymentBank: false,
+    paymentCheque: false,
+    paymentCredit: true,
+  };
+  const granularMsg = generateWhatsAppClosingMessage(sample, customPaymentChecklist);
+  assert.ok(granularMsg.includes('PAYMENT BREAKDOWN'));
+  assert.ok(granularMsg.includes('• Cash:'), 'Cash should be present');
+  assert.ok(granularMsg.includes('• Card / POS:'), 'Card should be present');
+  assert.ok(!granularMsg.includes('• UPI / QR:'), 'UPI should be excluded when paymentUpi is false');
+  assert.ok(!granularMsg.includes('• Bank Transfer:'), 'Bank transfer should be excluded when paymentBank is false');
+  assert.ok(!granularMsg.includes('• Cheque:'), 'Cheque should be excluded when paymentCheque is false');
 });
 
 // ── Test 6: Deduplication and Report Logging ────────────────────
@@ -471,6 +610,143 @@ test('Records report delivery failure and updates on retry', () => {
   assert.strictEqual(row.whatsapp_message_id, 'wa-msg-123');
   assert.strictEqual(row.error_message, null);
   assert.strictEqual(row.retry_count, 1);
+});
+
+// ── Test 8: Page Reopen & Settings Persistence Verification ──────
+test('Feature remains enabled and properly configured when page is reopened', () => {
+  const { db } = createTestDb();
+
+  // 1. Enable feature with owner phone and custom checklist
+  const saveResult = saveShopClosingConfig(
+    db,
+    'global',
+    {
+      enabled: true,
+      ownerPhone: '+91 98765 12345',
+      sendTiming: 'BOTH',
+      scheduledTime: '21:30',
+      checklist: {
+        ...DEFAULT_CHECKLIST,
+        expensesList: true,
+        scrap: true,
+        partyTransactions: true,
+      },
+    },
+    'ADMIN'
+  );
+  assert.strictEqual(saveResult.success, true);
+  assert.strictEqual(saveResult.config.enabled, true);
+
+  // 2. Simulate SettingsManager reopening page:
+  // Re-read settings table as settingsGetAll / shopClosingGetConfig does
+  const storedRow = db.prepare(`SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'shop_closing_whatsapp_config'`).get();
+  assert.ok(storedRow && storedRow.value, 'Setting must exist in settings table');
+  const parsedFromSettings = JSON.parse(storedRow.value);
+  assert.strictEqual(parsedFromSettings.enabled, true, 'Stored JSON must have enabled: true');
+  assert.strictEqual(parsedFromSettings.ownerPhone, '+919876512345');
+
+  // Re-read via getShopClosingConfig
+  const reopenedConfig = getShopClosingConfig(db, 'global');
+  assert.strictEqual(reopenedConfig.enabled, true, 'Reopened config must preserve enabled: true');
+  assert.strictEqual(reopenedConfig.ownerPhone, '+919876512345');
+  assert.strictEqual(reopenedConfig.sendTiming, 'BOTH');
+  assert.strictEqual(reopenedConfig.scheduledTime, '21:30');
+  assert.strictEqual(reopenedConfig.checklist.expensesList, true);
+  assert.strictEqual(reopenedConfig.checklist.scrap, true);
+  assert.strictEqual(reopenedConfig.checklist.partyTransactions, true);
+
+  // 3. Simulate consumer inspecting res.config or res directly
+  const res = { ...reopenedConfig, success: true, config: reopenedConfig };
+  const loadedCfg = (res && res.config) ? res.config : res;
+  assert.strictEqual(loadedCfg.enabled, true, 'Config extraction must evaluate enabled to true');
+});
+
+// ── Test 9: Deduplication of Converted Invoices & Gross Sales Accuracy ──────
+test('Excludes converted invoices (converted_from_invoice_id) to prevent duplicate sales and Gross Sales inflation', () => {
+  const { db } = createTestDb();
+  const dateStr = '2026-10-18';
+
+  // Seed user & shop settings
+  db.prepare(`INSERT INTO users (user_id, name, role) VALUES ('u1', 'Rahul Cashier', 'STAFF')`).run();
+  db.prepare(`INSERT INTO settings (tenant_id, key, value) VALUES ('global', 'shop_name', '"Super Mart"')`).run();
+
+  // Invoice 1: Original Bill of Supply (B2C) - 1000 Rs
+  db.prepare(`
+    INSERT INTO invoices (invoice_id, tenant_id, invoice_number, subtotal, tax_total, discount_total, grand_total, payment_method, user_id, invoice_type, converted_to_invoice_id, created_at, settled_at)
+    VALUES ('bos1', 'global', 'BOS-001', 1000, 0, 0, 1000, 'CASH', 'u1', 'BILL_OF_SUPPLY', 'gst1', '${dateStr} 10:00:00', '${dateStr} 10:00:00')
+  `).run();
+
+  // Invoice 2: Converted GST Copy of Invoice 1 - 1000 Rs (same transaction converted for tax filing)
+  db.prepare(`
+    INSERT INTO invoices (invoice_id, tenant_id, invoice_number, subtotal, tax_total, discount_total, grand_total, payment_method, user_id, invoice_type, converted_from_invoice_id, created_at, settled_at)
+    VALUES ('gst1', 'global', 'GST-001', 952.38, 47.62, 0, 1000, 'CASH', 'u1', 'GST', 'bos1', '${dateStr} 10:00:00', '${dateStr} 10:00:00')
+  `).run();
+
+  // Invoice 3: Independent GST Invoice with discount (Subtotal 500, Disc 50, Tax 22.50, Grand Total 472.50)
+  db.prepare(`
+    INSERT INTO invoices (invoice_id, tenant_id, invoice_number, subtotal, tax_total, discount_total, grand_total, payment_method, user_id, invoice_type, created_at, settled_at)
+    VALUES ('gst2', 'global', 'GST-002', 500, 22.50, 50, 472.50, 'UPI', 'u1', 'GST', '${dateStr} 12:00:00', '${dateStr} 12:00:00')
+  `).run();
+
+  // Build summary data
+  const summary = buildShopClosingSummaryData(db, 'global', dateStr);
+
+  // Total invoices should be 2 (bos1 and gst2), NOT 3 (gst1 must be excluded as it is a conversion copy)
+  assert.strictEqual(summary.totalInvoices, 2, 'Total invoices must exclude converted copy gst1');
+
+  // Net sales should be 1000 + 472.50 = 1472.50 (NOT 2472.50)
+  assert.strictEqual(summary.netSales, 1472.50, 'Net sales must not double-count converted invoice');
+
+  // Total discount should be 50
+  assert.strictEqual(summary.totalDiscount, 50, 'Total discount should be 50');
+
+  // Gross Sales should be Net Sales + Total Discount = 1472.50 + 50 = 1522.50
+  assert.strictEqual(summary.grossSales, 1522.50, 'Gross sales should be exactly Net Sales + Total Discount');
+
+  // Payment breakdown cash should be 1000, UPI should be 472.50
+  assert.strictEqual(summary.paymentBreakdown.cash, 1000, 'Cash sales should not double count converted invoice');
+  assert.strictEqual(summary.paymentBreakdown.upi, 472.50, 'UPI sales should be 472.50');
+});
+
+// ── Test 10: Real-Time Preview Response and Dynamic Toggles ──────────────
+test('Real-time preview generates valid WhatsApp message reflecting all dynamic toggles', () => {
+  const sample = getSampleClosingSummary('Galaxy Electronics');
+
+  // Test 10.1: Default Checklist Preview contains all sections
+  const defaultMsg = generateWhatsAppClosingMessage(sample, DEFAULT_CHECKLIST);
+  assert.ok(defaultMsg.includes('SHOP CLOSING OVERVIEW'), 'Preview must have header');
+  assert.ok(defaultMsg.includes('Galaxy Electronics'), 'Preview must show shop name');
+  assert.ok(defaultMsg.includes('• Net Sales: *₹41,500.00*'), 'Preview must show Net Sales');
+  assert.ok(defaultMsg.includes('• Gross Sales: ₹42,850.00'), 'Preview must show Gross Sales');
+  assert.ok(defaultMsg.includes('• Total Discount: -₹1,350.00'), 'Preview must show Total Discount');
+  assert.ok(defaultMsg.includes('• Cash: *₹18,450.00*'), 'Preview must show Cash breakdown');
+  assert.ok(defaultMsg.includes('• UPI / QR: *₹14,200.00*'), 'Preview must show UPI breakdown');
+  assert.ok(defaultMsg.includes('• Card / POS: *₹6,350.00*'), 'Preview must show Card breakdown');
+  assert.ok(defaultMsg.includes('tea: *₹10.00*'), 'Preview must show tea expense item');
+  assert.ok(defaultMsg.includes('• Opening Float Deposit: *+₹1,000.00*'), 'Preview must show Cash In item');
+  assert.ok(defaultMsg.includes('• -Suhaib : *₹1,000.00* (Got Cash)'), 'Preview must show Party transaction');
+  assert.ok(defaultMsg.includes('• -Rahul : *₹500.00* (Advance) - Emergency'), 'Preview must show Staff transaction');
+  assert.ok(defaultMsg.includes('Iron Scrap (20 Kgs @ ₹30.00): *₹600.00*'), 'Preview must show Scrap item');
+
+  // Test 10.2: Dynamically toggle individual sub-options
+  // E.g., user turns off UPI, Card, Gross Sales and tea expenses list
+  const customizedChecklist = {
+    ...DEFAULT_CHECKLIST,
+    grossSales: false,
+    paymentUpi: false,
+    paymentCard: false,
+    expensesList: false,
+    scrap: false,
+  };
+  const dynamicPreview = generateWhatsAppClosingMessage(sample, customizedChecklist);
+  assert.ok(dynamicPreview.includes('• Net Sales: *₹41,500.00*'), 'Net sales must still be present');
+  assert.ok(!dynamicPreview.includes('• Gross Sales:'), 'Gross sales must be hidden when toggle is off');
+  assert.ok(dynamicPreview.includes('• Cash: *₹18,450.00*'), 'Cash must still be shown');
+  assert.ok(!dynamicPreview.includes('• UPI / QR:'), 'UPI must be hidden when paymentUpi is false');
+  assert.ok(!dynamicPreview.includes('• Card / POS:'), 'Card must be hidden when paymentCard is false');
+  assert.ok(!dynamicPreview.includes('EXPENSES LIST:'), 'Expenses list must be hidden when expensesList is false');
+  assert.ok(!dynamicPreview.includes('SCRAP ENTRIES:'), 'Scrap entries must be hidden when scrap is false');
+  assert.ok(dynamicPreview.includes('• -Suhaib : *₹1,000.00*'), 'Party transaction must still be present');
 });
 
 console.log('====================================================');

@@ -6,6 +6,7 @@ import { BillingPage } from './components/BillingPage';
 import { ComboManager } from './components/ComboManager';
 import { InventoryManager } from './components/InventoryManager';
 import { SalesHistory } from './components/SalesHistory';
+import { RecycleBin } from './components/RecycleBin';
 import { StaffManager } from './components/StaffManager';
 import { SettingsManager } from './components/SettingsManager';
 import { SettingsGrades } from './components/SettingsGrades';
@@ -116,6 +117,8 @@ function App() {
   const [showComboManager, setShowComboManager] = useState(false);
   const [showStockReport, setShowStockReport] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [recycleBinCategory, setRecycleBinCategory] = useState<'SALES_BILLS' | 'PRODUCTS' | 'CUSTOMERS' | 'PARTIES'>('SALES_BILLS');
   const [showStaffManager, setShowStaffManager] = useState(false);
   const [showSettingsManager, setShowSettingsManager] = useState(false);
   const [showSettingsGrades, setShowSettingsGrades] = useState(false);
@@ -352,6 +355,9 @@ function App() {
       if (key === 'ai_assistant') {
         return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
       }
+      if (key === 'recycle_bin') {
+        return featureFlagsRef.current ? featureFlagsRef.current.recycle_bin !== false : true;
+      }
       return Boolean(featureFlagsRef.current?.[key]);
     };
     const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
@@ -432,6 +438,7 @@ function App() {
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
@@ -454,6 +461,7 @@ function App() {
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
@@ -474,6 +482,7 @@ function App() {
       if (!canOpen('returns')) return;
       useCartStore.getState().setRole('BILLER');
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowStaffManager(false);
@@ -500,6 +509,7 @@ function App() {
       useCartStore.getState().setQuotationMode(false);
       useCartStore.getState().setIsScrapMode(true);
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowStaffManager(false);
@@ -521,6 +531,7 @@ function App() {
     const handleOpenEditBill = () => {
       useCartStore.getState().setRole('BILLER');
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowStaffManager(false);
@@ -548,6 +559,7 @@ function App() {
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
@@ -572,6 +584,7 @@ function App() {
       setShowInventoryManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
+      setShowRecycleBin(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
@@ -610,6 +623,16 @@ function App() {
     window.addEventListener('open-financial-report', handleOpenFinancialReport);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
+    const handleOpenRecycleBin = (e?: Event) => {
+      const ce = e as CustomEvent;
+      if (ce?.detail?.initialCategory) {
+        setRecycleBinCategory(ce.detail.initialCategory);
+      } else {
+        setRecycleBinCategory('SALES_BILLS');
+      }
+      setShowRecycleBin(true);
+    };
+    window.addEventListener('open-recycle-bin', handleOpenRecycleBin);
     window.addEventListener('open-staff-manager', handleOpenStaff);
     window.addEventListener('open-settings-manager', handleOpenSettings);
     window.addEventListener('open-settings-grades', handleOpenSettingsGrades);
@@ -844,6 +867,17 @@ function App() {
       ) : showSettingsPricingTiers ? (
         <PermissionGuard permission="combos.view" onBack={() => setShowSettingsPricingTiers(false)}>
           <PricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
+        </PermissionGuard>
+      ) : showRecycleBin ? (
+        <PermissionGuard permission="sales.view" onBack={() => setShowRecycleBin(false)}>
+          <RecycleBin
+            initialCategory={recycleBinCategory}
+            onClose={() => setShowRecycleBin(false)}
+            onNavigateToSalesHistory={() => {
+              setShowRecycleBin(false);
+              setShowSalesHistory(true);
+            }}
+          />
         </PermissionGuard>
       ) : showSalesHistory ? (
         <PermissionGuard permission="sales.view" onBack={() => setShowSalesHistory(false)}>

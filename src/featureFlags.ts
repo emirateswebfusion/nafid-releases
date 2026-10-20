@@ -23,7 +23,8 @@ export type FeatureKey =
   | 'sales_history'
   | 'loyalty'
   | 'ecommerce'
-  | 'ai_assistant';
+  | 'ai_assistant'
+  | 'recycle_bin';
 
 export type FeatureFlags = Record<FeatureKey, boolean>;
 
@@ -59,6 +60,7 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'sales_staff', label: 'Enable Customer Handler / Sales Staff', desc: 'Allow selecting customer handler / sales staff on billing for sales attribution' },
   { key: 'staff_credit_billing', label: 'Show Staff in Billing & Ledger', desc: 'Show staff in customer search and record staff credit purchases directly in staff ledger' },
   { key: 'sales_history', label: 'Sales History', desc: 'Review past transactions and reports' },
+  { key: 'recycle_bin', label: 'Recycle Bin', desc: 'Restore accidentally deleted bills, inventory items, and customer contacts' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
   ...(isAiAssistantAvailable ? [
     { key: 'ai_assistant' as FeatureKey, label: 'AI Business Assistant', desc: 'Smart AI chatbot for sales analytics, stock alerts, credit reports & commands' }
@@ -91,6 +93,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   sales_history: true,
   loyalty: true,
   ai_assistant: isAiAssistantAvailable,
+  recycle_bin: true,
 };
 
 export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {

@@ -45,7 +45,8 @@ import {
 } from '../utils/emergencyPurge';
 import {
   type ShopClosingOverviewConfig,
-  DEFAULT_SHOP_CLOSING_CONFIG
+  DEFAULT_SHOP_CLOSING_CONFIG,
+  DEFAULT_CHECKLIST
 } from '../utils/shopClosingHelper';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
@@ -261,7 +262,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changingPass, setChangingPass] = useState(false);
   const [confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen] = useState(false);
-  const [appVersion, setAppVersion] = useState('v2.0.5');
+  const [appVersion, setAppVersion] = useState('v2.0.6');
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
   });
@@ -1125,11 +1126,38 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setEmergencyPanicConfig(finalEmergencyPanic);
 
       let finalShopClosing = DEFAULT_SHOP_CLOSING_CONFIG;
+      const rawClosingSetting = allSettings['shop_closing_whatsapp_config'];
+      if (rawClosingSetting) {
+        try {
+          const parsed = typeof rawClosingSetting === 'string' ? JSON.parse(rawClosingSetting) : rawClosingSetting;
+          if (parsed && typeof parsed === 'object') {
+            finalShopClosing = {
+              ...DEFAULT_SHOP_CLOSING_CONFIG,
+              ...parsed,
+              checklist: {
+                ...DEFAULT_CHECKLIST,
+                ...(parsed.checklist || {}),
+              },
+            };
+          }
+        } catch (e) {
+          console.warn('[SettingsManager] Failed to parse shop_closing_whatsapp_config from allSettings:', e);
+        }
+      }
+
       if (window.electronAPI?.shopClosingGetConfig) {
         try {
           const res = await window.electronAPI.shopClosingGetConfig({ tenant_id: currentTenant });
-          if (res && res.success && res.config) {
-            finalShopClosing = { ...DEFAULT_SHOP_CLOSING_CONFIG, ...res.config };
+          const cfg = (res && res.config) ? res.config : res;
+          if (cfg && typeof cfg === 'object' && ('enabled' in cfg || 'ownerPhone' in cfg || 'sendTiming' in cfg)) {
+            finalShopClosing = {
+              ...DEFAULT_SHOP_CLOSING_CONFIG,
+              ...cfg,
+              checklist: {
+                ...DEFAULT_CHECKLIST,
+                ...(cfg.checklist || {}),
+              },
+            };
           }
         } catch (e) {
           console.warn('[SettingsManager] Failed to load shop closing config:', e);
@@ -3936,6 +3964,105 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
 
                   <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs", whatsNewLang === 'ml' && "font-malayalam")}>
+                    {/* Recycle Bin & Safe Recovery */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'റീസൈക്കിൾ ബിൻ & സുരക്ഷിത വീണ്ടെടുക്കൽ' : 'Recycle Bin & Safe Restore'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'പുതിയത്' : 'New'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Undo Delete for Bills, Stock & Contacts</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'അബദ്ധത്തിൽ ഡിലീറ്റ് ചെയ്ത സെയിൽസ് ബില്ലുകൾ, ഇൻവെന്ററി ഉൽപ്പന്നങ്ങൾ, കസ്റ്റമർമാർ, പാർട്ടികൾ എന്നിവ ഒരൊറ്റ ക്ലിക്കിലൂടെ തിരികെ റീസ്റ്റോർ ചെയ്യാം. സ്റ്റോക്ക് അളവും കൃത്യമായി പുനഃസ്ഥാപിക്കപ്പെടും.'
+                            : 'Safely recover deleted sales invoices, inventory items, customer profiles, and ledger parties with one-click restore and automatic stock balance reconciliation.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Custom Billing Date & Time Picker */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-indigo-500/40 hover:bg-indigo-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'കസ്റ്റം ബിൽ ഡേറ്റ് & ടൈം' : 'Custom Bill Date & Time'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'ബില്ലിംഗ്' : 'Billing'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold pl-4 -mt-0.5">Calendar & Time Selector for Past Bills</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'കഴിഞ്ഞ ദിവസങ്ങളിലെ പഴയ ബില്ലുകൾ അടിക്കുമ്പോൾ തീയതിയും സമയവും കൃത്യമായി തിരഞ്ഞെടുക്കാൻ ബില്ലിംഗ് സ്ക്രീനിൽ മനോഹരമായ കലണ്ടറും ടൈം സെലക്ടറും ലഭ്യമാക്കി.'
+                            : 'Set custom invoice dates and timestamps directly from the billing screen with a modern calendar picker and quick Today/Yesterday presets.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Instant Zero-Lag Sales History */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'തത്സമയ സെയിൽസ് ഹിസ്റ്ററി & പ്രിവ്യൂ' : 'Zero-Lag Sales History'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'വേഗത' : 'Speed'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold pl-4 -mt-0.5">Instant Bill Drawer & Smart Hover Caching</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'പഴയ ബില്ലുകൾ ക്ലിക്ക് ചെയ്യുമ്പോൾ കാത്തിരിപ്പില്ലാതെ തൽക്ഷണം സൈഡ് പാനൽ തുറക്കുന്നു. ഇൻ-മെമ്മറി പ്രീ-ഫെച്ചിംഗ് വഴി ബില്ലുകൾ മിന്നൽ വേഗത്തിൽ പരിശോധിക്കാം.'
+                            : 'Past bills open instantly with zero loading delay thanks to background hover prefetching and intelligent in-memory drawer caching.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Enhanced WhatsApp Closing Report Customization */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'വിശദമായ വാട്സാപ്പ് ക്ലോസിംഗ് റിപ്പോർട്ട്' : 'Advanced WhatsApp Closing'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'വാട്സാപ്പ്' : 'WhatsApp'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Granular Section & Sub-Item Toggles</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഷോപ്പ് ക്ലോസിംഗ് വാട്സാപ്പ് മെസ്സേജിൽ ഏതൊക്കെ വിഭാഗങ്ങൾ വേണമെന്ന് (സെയിൽസ് സംഗ്രഹം, ബില്ലർ കണക്കുകൾ, ചിലവുകൾ, സ്ക്രാപ്പ്, ലെഡ്ജർ) വ്യക്തിഗതമായി ടിക്ക് ചെയ്ത് തിരഞ്ഞെടുക്കാം.'
+                            : 'Fine-tune end-of-day WhatsApp closing summaries by toggling exact sections and sub-metrics including cashier breakdown, expenses, scrap, and credit collections.'}
+                        </p>
+                      </div>
+                    </div>
                     {/* 1. Bill of Supply to GST Convert Corrected */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
                       <div className="space-y-1">

@@ -9,7 +9,14 @@ import {
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
-import { getSalesHistoryAmount } from '../utils/salesHistoryAmount';
+import { getSalesHistoryAmount, getInvoiceNetTotal, getInvoicePreDeductionTotal } from '../utils/salesHistoryAmount';
+import {
+  buildInvoiceProductRows,
+  buildTaxFilteredProductRows,
+  sortInvoicesByInvoiceNumber,
+  type InvoiceProductRow,
+  type InvoiceProductTotals,
+} from '../utils/salesHistoryTax';
 import { 
   type StaffDataMaskingConfig, 
   DEFAULT_STAFF_DATA_MASKING_CONFIG, 
@@ -101,22 +108,6 @@ function formatGroupDate(dateStr?: string) {
   } catch {
     return '-';
   }
-}
-
-function getInvoiceNetTotal(inv: any): number {
-  if (!inv) return 0;
-  const sub = Number(inv.subtotal) || 0;
-  const tax = Number(inv.tax_total) || 0;
-  const disc = Number(inv.discount_total) || 0;
-  const pts = Number(inv.points_redeemed_discount) || 0;
-  const scrap = Number(inv.scrap_deduction) || 0;
-  const ret = Number(inv.return_deduction) || 0;
-  const computedNet = Math.max(0, sub + tax - disc - pts - scrap - ret);
-  const gt = Number(inv.grand_total) || 0;
-  if (gt > 0 && gt <= computedNet + 0.01) {
-    return gt;
-  }
-  return computedNet;
 }
 
 // For SPLIT invoices filtered by a specific payment method, return only that payment's portion.
@@ -272,7 +263,7 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 /* ─── Invoice Row ─── */
-function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload, onPrint }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: any) => void; onPrint?: (inv: any) => void }) {
+function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload, onPrint }: { inv: any; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: any) => void; onPrint?: (inv: any) => void }) {
   const { date, time } = formatDate(inv.created_at);
   const _isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
@@ -283,6 +274,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
   return (
     <tr
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
       className={clsx(
         'group cursor-pointer transition-all duration-150 border-b border-border last:border-0',
         isSelected
@@ -475,7 +467,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
 export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  const { tenantId, role } = useAuthStore();
+  const { tenantId, role, permissions } = useAuthStore();
   const [maskingConfig, setMaskingConfig] = useState<StaffDataMaskingConfig>(DEFAULT_STAFF_DATA_MASKING_CONFIG);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -500,6 +492,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [reprintSuccess, setReprintSuccess] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const selectedInvoiceIdRef = useRef<string | null>(null);
+
+  // High-performance in-memory cache for instant zero-lag bill drawer rendering
+  const invoiceDetailsCache = useRef<Map<string, {
+    items: any[];
+    returned: any[];
+    canReturn: boolean;
+    promise?: Promise<{ items: any[]; returned: any[]; canReturn: boolean }>;
+  }>>(new Map());
+  const productsCacheRef = useRef<Map<string, any>>(new Map());
+  const combosCacheRef = useRef<{ data: any[]; timestamp: number } | null>(null);
+  const prefetchInvoiceRef = useRef<(id: string) => void>(() => {});
   const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
   const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT'>('CASH');
   const [collectReceivedAmount, setCollectReceivedAmount] = useState(0);
@@ -510,7 +513,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [upiSources, setUpiSources] = useState<any[]>([]);
   const [collectUpiSourceId, setCollectUpiSourceId] = useState<string>('');
   const LIMIT = 30;
-  const [dbSummary, setDbSummary] = useState<{ totalSales: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number } | null>(null);
+  const [dbSummary, setDbSummary] = useState<{ totalSales: number; totalSalesBeforeDeductions?: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number } | null>(null);
+  const [taxProductRows, setTaxProductRows] = useState<InvoiceProductRow[]>([]);
+  const [taxProductTotals, setTaxProductTotals] = useState<InvoiceProductTotals | null>(null);
+  const [taxProductLoading, setTaxProductLoading] = useState(false);
+  const taxProductRequestRef = useRef(0);
+  const taxFilterActive = taxPercentageFilter !== '' && taxPercentageFilter !== 'all';
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
@@ -547,6 +555,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       taxable_amount?: number;
       tax_amount?: number;
       converted_grand_total: number;
+      points_discount?: number;
+      scrap_deduction?: number;
+      return_deduction?: number;
+      deductions_total?: number;
       has_real_gst: boolean;
       has_paper: boolean;
       skipped_items: string[];
@@ -725,7 +737,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           const taxable = newSubtotal - discount;
           const effRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
           const adjTax = Math.round(taxable * effRate * 100) / 100;
-          const convTotal = items.length > 0 ? Math.round((taxable + adjTax) * 100) / 100 : Number(inv.grand_total) || 0;
+          const pointsDiscount = Math.max(0, Number(inv.points_redeemed_discount) || 0);
+          const scrapDeduction = inv.scrap_invoice_number ? Math.max(0, Number(inv.scrap_deduction) || 0) : 0;
+          const returnDeduction = inv.return_invoice_number ? Math.max(0, Number(inv.return_deduction) || 0) : 0;
+          const deductionsTotal = Math.round((pointsDiscount + scrapDeduction + returnDeduction) * 100) / 100;
+          const grossTotal = Math.round((taxable + adjTax) * 100) / 100;
+          const convTotal = items.length > 0
+            ? Math.max(0, Math.round((grossTotal - deductionsTotal) * 100) / 100)
+            : Number(inv.grand_total) || 0;
 
           totalBos += Number(inv.grand_total) || 0;
           totalTaxable += taxable;
@@ -739,6 +758,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             taxable_amount: taxable,
             tax_amount: adjTax,
             converted_grand_total: convTotal,
+            points_discount: pointsDiscount,
+            scrap_deduction: scrapDeduction,
+            return_deduction: returnDeduction,
+            deductions_total: deductionsTotal,
             has_real_gst: hasRealGst,
             has_paper: hasPaper,
             skipped_items: skippedItems,
@@ -868,6 +891,53 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     return () => { cancelled = true; };
   }, [selectionMode, invoices.length]);
 
+  const loadTaxProductRows = async (filters: any, targetRate: string) => {
+    if (!window.electronAPI?.dbGetInvoices || !window.electronAPI?.dbGetInvoiceItems) return;
+    const requestId = ++taxProductRequestRef.current;
+    setTaxProductLoading(true);
+    try {
+      const data = await window.electronAPI.dbGetInvoices({ ...filters, limit: 100000, offset: 0 });
+      if (!Array.isArray(data)) {
+        if (requestId === taxProductRequestRef.current) {
+          setTaxProductRows([]);
+          setTaxProductTotals(null);
+        }
+        return;
+      }
+
+      const scopedData = filters?.accounting_view === 'TAX_FILING'
+        ? data
+        : data.filter((inv: any) => !inv.converted_from_invoice_id);
+
+      const itemsByInvoice: Record<string, any[]> = {};
+      await Promise.all(scopedData.map(async (inv: any) => {
+        try {
+          const invoiceItems = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+          itemsByInvoice[inv.invoice_id] = Array.isArray(invoiceItems) ? invoiceItems : [];
+        } catch {
+          itemsByInvoice[inv.invoice_id] = [];
+        }
+      }));
+
+      if (requestId !== taxProductRequestRef.current) return;
+      const result = buildTaxFilteredProductRows(
+        sortInvoicesByInvoiceNumber(scopedData),
+        itemsByInvoice,
+        Number(targetRate)
+      );
+      setTaxProductRows(result.rows);
+      setTaxProductTotals(result.totals);
+    } catch (err) {
+      console.error('[SalesHistory] Failed to load GST product rows:', err);
+      if (requestId === taxProductRequestRef.current) {
+        setTaxProductRows([]);
+        setTaxProductTotals(null);
+      }
+    } finally {
+      if (requestId === taxProductRequestRef.current) setTaxProductLoading(false);
+    }
+  };
+
   const loadInvoices = async (reset = false) => {
     if (!reset && isFetching) return;
     setIsFetching(true);
@@ -915,9 +985,28 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           setDbSummary(summaryRes);
         }
 
+        if (reset) {
+          if (taxFilterActive) {
+            void loadTaxProductRows(filters, taxPercentageFilter);
+          } else {
+            taxProductRequestRef.current++;
+            setTaxProductRows([]);
+            setTaxProductTotals(null);
+            setTaxProductLoading(false);
+          }
+        }
+
         if (Array.isArray(data)) {
           if (reset) {
             setInvoices(data);
+            // Pre-warm top 5 most recent bills quietly so clicking any recent bill is 100% instant
+            if (data.length > 0) {
+              setTimeout(() => {
+                data.slice(0, 5).forEach((item: any) => {
+                  if (item?.invoice_id) prefetchInvoiceRef.current(item.invoice_id);
+                });
+              }, 200);
+            }
           }
           else {
             setInvoices(prev => {
@@ -989,35 +1078,49 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         Boolean(i?.combo_id || i?.isCombo || (i?.combo_details && i.combo_details !== 'null'))
       );
       if (mightHaveCombos && window.electronAPI?.dbGetComboOffers) {
-        try {
-          const allCombos = await withTimeout(
-            window.electronAPI.dbGetComboOffers({ tenant_id: effectiveTenantId }),
-            2000,
-            []
-          );
-          if (Array.isArray(allCombos)) combosList = allCombos;
-        } catch {
-          // ignore combo lookup failure
+        if (combosCacheRef.current && Date.now() - combosCacheRef.current.timestamp < 60000) {
+          combosList = combosCacheRef.current.data;
+        } else {
+          try {
+            const allCombos = await withTimeout(
+              window.electronAPI.dbGetComboOffers({ tenant_id: effectiveTenantId }),
+              1500,
+              []
+            );
+            if (Array.isArray(allCombos)) {
+              combosList = allCombos;
+              combosCacheRef.current = { data: allCombos, timestamp: Date.now() };
+            }
+          } catch {
+            // ignore combo lookup failure
+          }
         }
       }
 
       const nonService = invoiceItems.filter((i: any) => !i?.is_service_item);
       const productIds = [...new Set(nonService.map((i: any) => i?.product_id).filter(Boolean))] as string[];
-      const productMap: Record<string, any> = {};
-      if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+      const missingProductIds = productIds.filter(id => !productsCacheRef.current.has(id));
+
+      if (missingProductIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
         try {
           const products = await withTimeout(
-            window.electronAPI.dbGetProductsByIds({ tenant_id: effectiveTenantId, product_ids: productIds }),
-            2000,
+            window.electronAPI.dbGetProductsByIds({ tenant_id: effectiveTenantId, product_ids: missingProductIds }),
+            1500,
             []
           );
           if (Array.isArray(products)) {
-            products.forEach((p: any) => { if (p?.product_id) productMap[p.product_id] = p; });
+            products.forEach((p: any) => { if (p?.product_id) productsCacheRef.current.set(p.product_id, p); });
           }
         } catch {
           // ignore product lookup failures
         }
       }
+
+      const productMap: Record<string, any> = {};
+      productIds.forEach(id => {
+        const p = productsCacheRef.current.get(id);
+        if (p) productMap[id] = p;
+      });
 
       return invoiceItems.map(item => {
         try {
@@ -1104,18 +1207,23 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
   };
 
-  const handleSelectInvoice = async (inv: any) => {
-    if (!inv || !inv.invoice_id) return;
-    selectedInvoiceIdRef.current = inv.invoice_id;
-    setSelectedInvoice(inv);
-    setDrawerOpen(true);
-    setItemsLoading(true);
-    setItems([]);
-    try {
-      if (window.electronAPI) {
+  const fetchInvoiceDetails = useCallback(async (invoiceId: string): Promise<{ items: any[]; returned: any[]; canReturn: boolean }> => {
+    const cached = invoiceDetailsCache.current.get(invoiceId);
+    if (cached && !cached.promise) {
+      return cached;
+    }
+    if (cached?.promise) {
+      return cached.promise;
+    }
+
+    const promise = (async () => {
+      if (!window.electronAPI) {
+        return { items: [], returned: [], canReturn: true };
+      }
+      try {
         const [data, returned] = await Promise.all([
           withTimeout(
-            window.electronAPI.dbGetInvoiceItems(inv.invoice_id).catch((err: any) => {
+            window.electronAPI.dbGetInvoiceItems(invoiceId).catch((err: any) => {
               console.error('[SalesHistory] dbGetInvoiceItems error:', err);
               return [];
             }),
@@ -1123,7 +1231,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             []
           ),
           withTimeout(
-            window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id).catch((err: any) => {
+            window.electronAPI.dbGetAlreadyReturnedQuantities(invoiceId).catch((err: any) => {
               console.error('[SalesHistory] dbGetAlreadyReturnedQuantities error:', err);
               return [];
             }),
@@ -1132,14 +1240,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           ),
         ]);
 
-        if (selectedInvoiceIdRef.current !== inv.invoice_id) return;
-
         const invoiceItems = Array.isArray(data) ? data : [];
-        const enriched = await enrichItemsWithMrp(invoiceItems);
-
-        if (selectedInvoiceIdRef.current !== inv.invoice_id) return;
-
-        setItems(enriched);
         const returnedMap: Record<string, number> = {};
         (Array.isArray(returned) ? returned : []).forEach((r: any) => {
           if (r?.invoice_item_id) {
@@ -1149,8 +1250,79 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const fullyReturned = invoiceItems.length > 0 && invoiceItems.every((item: any) =>
           Number(item.quantity) - (returnedMap[item.item_id] || 0) <= 0
         );
-        setCanReturn(!fullyReturned);
+
+        const result = {
+          items: invoiceItems,
+          returned: Array.isArray(returned) ? returned : [],
+          canReturn: !fullyReturned,
+        };
+
+        invoiceDetailsCache.current.set(invoiceId, result);
+
+        // Pre-enrich with MRP and combos in background
+        enrichItemsWithMrp(invoiceItems).then((enriched) => {
+          if (Array.isArray(enriched) && enriched.length > 0) {
+            const entry = invoiceDetailsCache.current.get(invoiceId);
+            if (entry) {
+              entry.items = enriched;
+            }
+            if (selectedInvoiceIdRef.current === invoiceId) {
+              setItems(enriched);
+            }
+          }
+        }).catch(() => {});
+
+        return result;
+      } catch (e) {
+        invoiceDetailsCache.current.delete(invoiceId);
+        throw e;
       }
+    })();
+
+    invoiceDetailsCache.current.set(invoiceId, { items: [], returned: [], canReturn: true, promise });
+    return promise;
+  }, []);
+
+  const prefetchInvoice = useCallback((invoiceId: string) => {
+    if (!invoiceId) return;
+    const cached = invoiceDetailsCache.current.get(invoiceId);
+    if (!cached) {
+      fetchInvoiceDetails(invoiceId).catch(() => {});
+    }
+  }, [fetchInvoiceDetails]);
+  prefetchInvoiceRef.current = prefetchInvoice;
+
+  const handleSelectInvoice = async (inv: any) => {
+    if (!inv || !inv.invoice_id) return;
+    selectedInvoiceIdRef.current = inv.invoice_id;
+    setSelectedInvoice(inv);
+
+    const cached = invoiceDetailsCache.current.get(inv.invoice_id);
+    if (cached && !cached.promise && cached.items.length > 0) {
+      // 0ms INSTANT LOAD! Everything is already present in memory
+      setItems(cached.items);
+      setCanReturn(cached.canReturn);
+      setItemsLoading(false);
+      setDrawerOpen(true);
+      return;
+    }
+
+    if (cached?.items && cached.items.length > 0) {
+      setItems(cached.items);
+      setCanReturn(cached.canReturn);
+      setItemsLoading(false);
+    } else {
+      setItems([]);
+      setItemsLoading(true);
+    }
+    setDrawerOpen(true);
+
+    try {
+      const details = await fetchInvoiceDetails(inv.invoice_id);
+      if (selectedInvoiceIdRef.current !== inv.invoice_id) return;
+      setItems(details.items);
+      setCanReturn(details.canReturn);
+      setItemsLoading(false);
     } catch (err) {
       console.error('[SalesHistory] handleSelectInvoice error:', err);
       if (selectedInvoiceIdRef.current === inv.invoice_id) {
@@ -1240,16 +1412,42 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
   };
 
-  const summary = dbSummary || {
-    totalSales: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
-    totalInvoices: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).length,
-    totalTax: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
-    totalDiscount: invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id).reduce((s, i) => s + (i.discount_total || 0), 0),
-    avgOrder: (() => {
-      const live = invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id);
-      return live.length > 0 ? live.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0) / live.length : 0;
-    })(),
+  const liveInvoicesForSummary = invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id);
+  const fallbackSummary = {
+    totalSales: liveInvoicesForSummary.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
+    totalSalesBeforeDeductions: liveInvoicesForSummary.reduce((s, i) => s + getInvoicePreDeductionTotal(i), 0),
+    totalInvoices: liveInvoicesForSummary.length,
+    totalTax: liveInvoicesForSummary.reduce((s, i) => s + (i.tax_total || 0), 0),
+    totalDiscount: liveInvoicesForSummary.reduce((s, i) => s + (i.discount_total || 0), 0),
+    avgOrder: 0,
   };
+  fallbackSummary.avgOrder = fallbackSummary.totalInvoices > 0
+    ? fallbackSummary.totalSales / fallbackSummary.totalInvoices
+    : 0;
+
+  const baseSummary = dbSummary
+    ? { ...dbSummary, totalSalesBeforeDeductions: dbSummary.totalSalesBeforeDeductions ?? fallbackSummary.totalSalesBeforeDeductions }
+    : fallbackSummary;
+
+  const summary = taxFilterActive
+    ? {
+        totalSales: taxProductTotals?.netRevenue ?? 0,
+        totalSalesBeforeDeductions: taxProductTotals?.totalSales ?? 0,
+        totalInvoices: taxProductTotals?.invoiceCount ?? 0,
+        totalTax: taxProductTotals?.totalTax ?? 0,
+        totalDiscount: taxProductTotals?.totalDiscount ?? 0,
+        avgOrder: taxProductTotals && taxProductTotals.invoiceCount > 0
+          ? taxProductTotals.netRevenue / taxProductTotals.invoiceCount
+          : 0,
+      }
+    : baseSummary;
+
+  const summaryLoading = loading || (taxFilterActive && taxProductLoading);
+
+  const conversionDeductionsTotal = conversionPreview?.invoices?.reduce(
+    (sum, inv) => sum + (Number(inv.deductions_total) || 0),
+    0
+  ) || 0;
 
   const isStaff = isStaffRole(role);
   const shouldMask = shouldApplyStaffMasking(role, maskingConfig);
@@ -1257,6 +1455,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const maskedRevenue = useMemo(() => {
     return calculateMaskedSalesRevenue(summary.totalSales, maskingConfig, isStaff);
   }, [summary.totalSales, maskingConfig, isStaff]);
+
+  const maskedTotalSales = useMemo(() => {
+    return calculateMaskedSalesRevenue(summary.totalSalesBeforeDeductions, maskingConfig, isStaff);
+  }, [summary.totalSalesBeforeDeductions, maskingConfig, isStaff]);
 
   const maskedAvgOrder = useMemo(() => {
     if (maskedRevenue.isHidden) return { displayAmount: 0, isHidden: true, isMasked: true };
@@ -1646,6 +1848,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       } catch {}
     }
     localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
+    invoiceDetailsCache.current.delete(selectedInvoice.invoice_id);
     onClose();
     if (isAdminRole(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 50);
@@ -1662,10 +1865,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     try {
       const result = await window.electronAPI.dbDeleteInvoice(selectedInvoice.invoice_id);
       if (result.success) {
+        invoiceDetailsCache.current.delete(selectedInvoice.invoice_id);
         setDeleteConfirmOpen(false);
         setDrawerOpen(false);
         setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
         loadInvoices(true);
+        showToast('Invoice moved to Recycle Bin (can be restored anytime)', 'success');
       } else {
         showToast('Delete failed: ' + (result.error || 'Unknown error'), 'error');
       }
@@ -1710,6 +1915,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       });
 
       if (result.success) {
+        invoiceDetailsCache.current.delete(selectedInvoice.invoice_id);
         setCollectPaymentSuccess(true);
         // Refresh the selected invoice to show updated payment
         setSelectedInvoice({
@@ -1751,20 +1957,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
         : (invoiceTypeFilter || undefined);
 
-      const [data, shopStateVal] = await Promise.all([
-        window.electronAPI.dbGetInvoices({
-          user_id: userId, tenant_id: tenantId, role,
-          limit: 99999, offset: 0,
-          search: search || undefined,
-          payment_method: paymentFilter || undefined,
-          invoice_type: effectiveInvoiceType,
-          tax_rate_percent: taxPercentageFilter || undefined,
-          filterDate: filterDate || undefined,
-          filterDateEnd: filterDateEnd || undefined,
-          accounting_view: accountingView,
-        }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }).catch(() => '') || '',
-      ]);
+      const data = await window.electronAPI.dbGetInvoices({
+        user_id: userId, tenant_id: tenantId, role,
+        limit: 99999, offset: 0,
+        search: search || undefined,
+        payment_method: paymentFilter || undefined,
+        invoice_type: effectiveInvoiceType,
+        tax_rate_percent: taxPercentageFilter || undefined,
+        filterDate: filterDate || undefined,
+        filterDateEnd: filterDateEnd || undefined,
+        accounting_view: accountingView,
+      });
 
       if (!Array.isArray(data) || data.length === 0) {
         setExportStatusMsg('No records to export');
@@ -1825,7 +2028,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         'IGST %',
         'IGST (₹)',
         'Item Total (₹)',
-        'Invoice Grand Total (₹)',
+        taxFilterActive ? 'Filtered Product Total (₹)' : 'Invoice Grand Total (₹)',
         'Biller Name',
         'Description / Remarks'
       ];
@@ -1838,21 +2041,23 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       let totalSgstSum = 0;
       let totalIgstSum = 0;
       let totalItemSum = 0;
+      let totalInvoiceGrandSum = 0;
 
-      const targetTaxRate = taxPercentageFilter ? Number(taxPercentageFilter) : null;
+      const targetTaxRate = taxFilterActive ? Number(taxPercentageFilter) : null;
+      const exportData = taxFilterActive && accountingView === 'ALL'
+        ? data.filter((inv: any) => !inv.converted_from_invoice_id)
+        : data;
+      const sortedData = sortInvoicesByInvoiceNumber(exportData);
 
-      for (const inv of data) {
+      for (const inv of sortedData) {
         const { date, time } = formatDate(inv.created_at);
         const typeLabel = getTypeLabel(inv);
-        const isInterState = (inv.supply_type === 'INTER') ||
-          Boolean(shopStateVal && inv.customer_state && (shopStateVal.trim().toUpperCase() !== inv.customer_state.trim().toUpperCase()));
 
         let items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
         if (!Array.isArray(items)) items = [];
 
-        // If items exist, get any missing HSN codes from products if needed
         const missingHsnProductIds = items.filter((it: any) => !it.hsn_sac_code && it.product_id).map((it: any) => it.product_id);
-        let fallbackProductMap: Record<string, any> = {};
+        const fallbackProductMap: Record<string, any> = {};
         if (missingHsnProductIds.length > 0) {
           try {
             const fetched = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: missingHsnProductIds });
@@ -1862,115 +2067,31 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           } catch {}
         }
 
-        if (items.length > 0) {
-          for (const item of items) {
-            const unitPrice = Number(item.unit_price) || 0;
-            const quantity = Number(item.quantity) || 0;
-            const itemTotal = Number(item.total) || 0;
-            const itemTax = Number(item.tax_amount) || 0;
-            const hsn = item.hsn_sac_code || fallbackProductMap[item.product_id]?.hsn_sac_code || '';
-            const uom = item.uom || fallbackProductMap[item.product_id]?.uom || 'PCS';
+        const productRows = buildInvoiceProductRows(inv, items);
+        const rowsToExport = targetTaxRate !== null
+          ? productRows.filter(row => Math.round(row.gstRate) === Math.round(targetTaxRate))
+          : productRows;
 
-            // Calculate GST rates and taxable amount
-            const itemCgstR = Number(item.cgst_rate) || 0;
-            const itemSgstR = Number(item.sgst_rate) || 0;
-            const itemIgstR = Number(item.igst_rate) || 0;
-            const directRate = (itemCgstR + itemSgstR + itemIgstR) || Number(item.tax_rate) || Number(fallbackProductMap[item.product_id]?.tax_rate_percent) || 0;
+        if (rowsToExport.length === 0) continue;
 
-            let taxableAmt = Math.round((itemTotal - itemTax) * 100) / 100;
-            if (taxableAmt <= 0 && unitPrice > 0) {
-              taxableAmt = Math.round(unitPrice * quantity * 100) / 100;
-            }
+        if (targetTaxRate === null) {
+          totalInvoiceGrandSum += getInvoiceNetTotal(inv);
+        }
 
-            let effectiveGstRate = directRate;
-            if (effectiveGstRate <= 0 && taxableAmt > 0 && itemTax > 0) {
-              effectiveGstRate = Math.round((itemTax / taxableAmt) * 100 * 10) / 10;
-            }
+        for (const row of rowsToExport) {
+          const item = row.item || {};
+          const hsn = row.hsn || fallbackProductMap[item.product_id]?.hsn_sac_code || '';
+          const uom = item.uom || item.unit || fallbackProductMap[item.product_id]?.uom || row.uom || 'PCS';
+          const invoiceTotal = targetTaxRate === null ? getInvoiceNetTotal(inv) : row.total;
 
-            if (targetTaxRate !== null && Math.round(effectiveGstRate) !== Math.round(targetTaxRate)) {
-              continue;
-            }
-
-            let cgstRate = itemCgstR;
-            let sgstRate = itemSgstR;
-            let igstRate = itemIgstR;
-            let cgstAmt = Number(item.cgst_amount) || 0;
-            let sgstAmt = Number(item.sgst_amount) || 0;
-            let igstAmt = Number(item.igst_amount) || 0;
-
-            if (inv.invoice_type === 'GST' || itemTax > 0) {
-              if (isInterState) {
-                if (igstRate <= 0) igstRate = effectiveGstRate;
-                if (igstAmt <= 0) igstAmt = itemTax;
-                cgstRate = 0; sgstRate = 0; cgstAmt = 0; sgstAmt = 0;
-              } else {
-                if (cgstRate <= 0 && effectiveGstRate > 0) cgstRate = Math.round((effectiveGstRate / 2) * 10) / 10;
-                if (sgstRate <= 0 && effectiveGstRate > 0) sgstRate = Math.round((effectiveGstRate / 2) * 10) / 10;
-                if (cgstAmt <= 0 && itemTax > 0) cgstAmt = Math.round((itemTax / 2) * 100) / 100;
-                if (sgstAmt <= 0 && itemTax > 0) sgstAmt = Math.round((itemTax / 2) * 100) / 100;
-                igstRate = 0; igstAmt = 0;
-              }
-            } else {
-              effectiveGstRate = 0;
-              cgstRate = 0; sgstRate = 0; igstRate = 0;
-              cgstAmt = 0; sgstAmt = 0; igstAmt = 0;
-            }
-
-            totalQtySum += quantity;
-            totalTaxableSum += taxableAmt;
-            totalGstSum += itemTax;
-            totalCgstSum += cgstAmt;
-            totalSgstSum += sgstAmt;
-            totalIgstSum += igstAmt;
-            totalItemSum += itemTotal;
-
-            itemRows.push([
-              escape(inv.invoice_number),
-              escape(date),
-              escape(time),
-              escape(typeLabel),
-              escape(inv.customer_name || 'Walk-in'),
-              escape(inv.customer_phone || '-'),
-              escape(inv.customer_gstin || '-'),
-              escape(inv.customer_state || '-'),
-              escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || 'CASH'),
-              escape(item.name || 'Item'),
-              escape(hsn || '-'),
-              escape(quantity.toFixed(3)),
-              escape(uom),
-              escape(unitPrice.toFixed(2)),
-              escape('0.00'),
-              escape(taxableAmt.toFixed(2)),
-              escape(effectiveGstRate > 0 ? `${effectiveGstRate}%` : '0%'),
-              escape(itemTax.toFixed(2)),
-              escape(cgstRate > 0 ? `${cgstRate}%` : '0%'),
-              escape(cgstAmt.toFixed(2)),
-              escape(sgstRate > 0 ? `${sgstRate}%` : '0%'),
-              escape(sgstAmt.toFixed(2)),
-              escape(igstRate > 0 ? `${igstRate}%` : '0%'),
-              escape(igstAmt.toFixed(2)),
-              escape(itemTotal.toFixed(2)),
-              escape((Number(inv.grand_total) || 0).toFixed(2)),
-              escape(inv.biller_name || ''),
-              escape(inv.description || inv.notes || ''),
-            ]);
-          }
-        } else {
-          // If invoice has no line items, output 1 row with invoice-level totals
-          const sub = Number(inv.subtotal) || 0;
-          const tax = Number(inv.tax_total) || 0;
-          const grand = Number(inv.grand_total) || 0;
-          let effRate = sub > 0 ? Math.round((tax / sub) * 100 * 10) / 10 : 0;
-          let cgst = Number(inv.cgst_total) || (isInterState ? 0 : Math.round((tax / 2) * 100) / 100);
-          let sgst = Number(inv.sgst_total) || (isInterState ? 0 : Math.round((tax / 2) * 100) / 100);
-          let igst = Number(inv.igst_total) || (isInterState ? tax : 0);
-
-          totalTaxableSum += sub;
-          totalGstSum += tax;
-          totalCgstSum += cgst;
-          totalSgstSum += sgst;
-          totalIgstSum += igst;
-          totalItemSum += grand;
+          totalQtySum += row.quantity;
+          totalTaxableSum += row.taxable;
+          totalGstSum += row.tax;
+          totalCgstSum += row.cgstAmount;
+          totalSgstSum += row.sgstAmount;
+          totalIgstSum += row.igstAmount;
+          totalItemSum += row.total;
+          if (targetTaxRate !== null) totalInvoiceGrandSum += row.total;
 
           itemRows.push([
             escape(inv.invoice_number),
@@ -1982,23 +2103,23 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             escape(inv.customer_gstin || '-'),
             escape(inv.customer_state || '-'),
             escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || 'CASH'),
-            escape('General Bill Item'),
-            escape('-'),
-            escape('1.000'),
-            escape('PCS'),
-            escape(sub.toFixed(2)),
-            escape((Number(inv.discount_total) || 0).toFixed(2)),
-            escape(sub.toFixed(2)),
-            escape(effRate > 0 ? `${effRate}%` : '0%'),
-            escape(tax.toFixed(2)),
-            escape(!isInterState && effRate > 0 ? `${effRate / 2}%` : '0%'),
-            escape(cgst.toFixed(2)),
-            escape(!isInterState && effRate > 0 ? `${effRate / 2}%` : '0%'),
-            escape(sgst.toFixed(2)),
-            escape(isInterState && effRate > 0 ? `${effRate}%` : '0%'),
-            escape(igst.toFixed(2)),
-            escape(grand.toFixed(2)),
-            escape(grand.toFixed(2)),
+            escape(row.name || 'Item'),
+            escape(hsn || '-'),
+            escape(row.quantity.toFixed(3)),
+            escape(uom),
+            escape(row.unitPrice.toFixed(2)),
+            escape(row.discount.toFixed(2)),
+            escape(row.taxable.toFixed(2)),
+            escape(row.gstRate > 0 ? `${row.gstRate}%` : '0%'),
+            escape(row.tax.toFixed(2)),
+            escape(row.cgstRate > 0 ? `${row.cgstRate}%` : '0%'),
+            escape(row.cgstAmount.toFixed(2)),
+            escape(row.sgstRate > 0 ? `${row.sgstRate}%` : '0%'),
+            escape(row.sgstAmount.toFixed(2)),
+            escape(row.igstRate > 0 ? `${row.igstRate}%` : '0%'),
+            escape(row.igstAmount.toFixed(2)),
+            escape(row.total.toFixed(2)),
+            escape(invoiceTotal.toFixed(2)),
             escape(inv.biller_name || ''),
             escape(inv.description || inv.notes || ''),
           ]);
@@ -2032,7 +2153,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           escape(''),
           escape(totalIgstSum.toFixed(2)),
           escape(totalItemSum.toFixed(2)),
-          escape(totalItemSum.toFixed(2)),
+          escape(totalInvoiceGrandSum.toFixed(2)),
           escape(''),
           escape(''),
         ]);
@@ -2178,6 +2299,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               />
             )}
 
+            {hasPermission({ role, permissions }, 'sales.view') && (
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('open-recycle-bin', { detail: { initialCategory: 'SALES_BILLS' } }));
+                }}
+                title="Open Recycle Bin to view and restore deleted bills"
+                className="h-8.5 px-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25 hover:bg-rose-500/20 active:scale-95 shrink-0 shadow-2xs hover:shadow-rose-500/10"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Recycle Bin</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleExportCSV}
@@ -2230,7 +2365,22 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         )}
                       </div>
                       <span className="text-xs font-black font-mono tabular-nums leading-tight block mt-0.5 text-emerald-600 dark:text-emerald-400">
-                        {loading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)}
+                        {summaryLoading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* KPI: Total Sales */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[155px] transition-all">
+                    <div className="p-1.5 rounded-lg shrink-0 bg-teal-500/10 text-teal-500">
+                      <Layers className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        Total Sales
+                      </span>
+                      <span className="text-xs font-black font-mono tabular-nums leading-tight block mt-0.5 text-teal-600 dark:text-teal-400">
+                        {summaryLoading ? '…' : maskedTotalSales.isHidden ? '••••••••' : formatCurrency(maskedTotalSales.displayAmount)}
                       </span>
                     </div>
                   </div>
@@ -2245,7 +2395,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         {accountingView === 'TAX_FILING' ? 'Avg GST Invoice' : accountingView === 'REAL_SALES' ? 'Avg BOS Order' : 'Avg Order Value'}
                       </span>
                       <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums leading-tight block mt-0.5">
-                        {loading ? '…' : maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)}
+                        {summaryLoading ? '…' : maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)}
                       </span>
                     </div>
                   </div>
@@ -2260,7 +2410,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         {accountingView === 'TAX_FILING' ? 'Declared GST Tax' : 'Total Tax'}
                       </span>
                       <span className="text-xs font-black text-violet-600 dark:text-violet-400 font-mono tabular-nums leading-tight block mt-0.5">
-                        {loading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)}
+                        {summaryLoading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)}
                       </span>
                     </div>
                   </div>
@@ -2275,7 +2425,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         {accountingView === 'TAX_FILING' ? 'GST Invoices' : accountingView === 'REAL_SALES' ? 'BOS Invoices' : 'Total Invoices'}
                       </span>
                       <span className="text-xs font-black text-foreground font-mono tabular-nums leading-tight block mt-0.5">
-                        {loading ? '…' : `${summary.totalInvoices} Bills`}
+                        {summaryLoading ? '…' : `${summary.totalInvoices} Bills`}
                       </span>
                     </div>
                   </div>
@@ -2511,10 +2661,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 )}
               </div>
               <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
-                {loading ? '…' : invoices.length === summary.totalInvoices ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}` : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
+                {summaryLoading
+                  ? '…'
+                  : taxFilterActive
+                    ? `${taxProductRows.length} product${taxProductRows.length !== 1 ? 's' : ''} from ${summary.totalInvoices} bill${summary.totalInvoices !== 1 ? 's' : ''}`
+                    : invoices.length === summary.totalInvoices
+                      ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}`
+                      : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
               </div>
 
-              {enableConvertToGst && isAdminRole(useAuthStore.getState().role) && (
+              {!taxFilterActive && enableConvertToGst && isAdminRole(useAuthStore.getState().role) && (
                 !selectionMode ? (
                   <button
                     type="button"
@@ -2585,7 +2741,84 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             </div>
           {/* Table */}
           <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
-            {loading ? (
+            {taxFilterActive ? (
+              taxProductLoading ? (
+                <table className="w-full">
+                  <tbody>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={i} className="border-b border-border">
+                        <td className="px-4 py-3.5"><Skeleton className="h-3 w-20" /></td>
+                        <td className="px-4 py-3.5"><Skeleton className="h-3 w-24" /></td>
+                        <td className="px-4 py-3.5"><Skeleton className="h-3 w-40" /></td>
+                        <td className="px-4 py-3.5"><Skeleton className="h-5 w-14 rounded-full" /></td>
+                        <td className="px-4 py-3.5 text-right"><Skeleton className="h-4 w-16 ml-auto" /></td>
+                        <td className="px-4 py-3.5 text-right"><Skeleton className="h-4 w-16 ml-auto" /></td>
+                        <td className="px-4 py-3.5 text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : taxProductRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-4 text-center py-20">
+                  <div className="w-16 h-16 rounded-2xl bg-muted/40 border border-border flex items-center justify-center">
+                    <Percent className="w-7 h-7 text-muted-foreground/50" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground/60">No products found for {taxPercentageFilter}% GST</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+                  </div>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="sticky top-0 z-10 bg-muted/60 border-b border-border">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice</th>
+                      <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date &amp; Time</th>
+                      <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Product</th>
+                      <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">GST</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Taxable</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">GST Amt</th>
+                      <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {taxProductRows.map((row, index) => {
+                      const formatted = formatDate(row.createdAt);
+                      return (
+                        <tr
+                          key={`${row.invoiceId}-${row.item?.item_id || index}`}
+                          onClick={() => handleSelectInvoice(row.invoice)}
+                          className="cursor-pointer transition-colors hover:bg-primary/5"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="font-mono font-black text-xs text-foreground">{row.invoiceNumber}</div>
+                            <div className="text-[10px] text-muted-foreground font-semibold truncate max-w-[150px]">{row.invoice?.customer_name || 'Walk-in Customer'}</div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            <div className="font-bold text-foreground">{formatted.date}</div>
+                            <div>{formatted.time}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-xs text-foreground">{row.name}</div>
+                            {row.hsn && <div className="text-[10px] font-mono text-muted-foreground">HSN: {row.hsn}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/25">
+                              {row.gstRate}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-foreground">{row.quantity} <span className="text-[10px] text-muted-foreground">{row.uom}</span></td>
+                          <td className="px-4 py-3 text-right text-xs font-mono font-bold text-foreground">{formatCurrency(row.taxable)}</td>
+                          <td className="px-4 py-3 text-right text-xs font-mono font-bold text-violet-600 dark:text-violet-400">{formatCurrency(row.tax)}</td>
+                          <td className="px-4 py-3 text-right text-xs font-mono font-black text-foreground">{formatCurrency(row.total)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )
+            ) : loading ? (
               <table className="w-full">
                 <tbody>
                   {Array.from({ length: 8 }).map((_, i) => (
@@ -2654,6 +2887,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           key={inv.invoice_id}
                           inv={inv}
                           isSelected={selectedInvoice?.invoice_id === inv.invoice_id}
+                          onMouseEnter={() => prefetchInvoice(inv.invoice_id)}
                           onClick={() => {
                             if (selectionMode) {
                               if (inv.invoice_type === 'BILL_OF_SUPPLY' && convertibleMap[inv.invoice_id]) {
@@ -2714,7 +2948,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       ) : (
         <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full">
           {/* Top Stat Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard 
               icon={IndianRupee} 
               label="Total Revenue" 
@@ -2722,6 +2956,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               colorClass="text-emerald-500" 
               bgClass="bg-emerald-500/10" 
               sub={maskedRevenue.isHidden ? 'Protected' : `${summary.totalInvoices} settled invoices`} 
+            />
+            <StatCard 
+              icon={Layers} 
+              label="Total Sales" 
+              value={maskedTotalSales.isHidden ? '••••••••' : formatCurrency(maskedTotalSales.displayAmount)} 
+              colorClass="text-teal-500" 
+              bgClass="bg-teal-500/10" 
+              sub="Before scrap / returns" 
             />
             <StatCard 
               icon={TrendingUp} 
@@ -2833,13 +3075,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   const isKnownExcluded = convertibleMap[selectedInvoice.invoice_id] === false;
                   const isEligible = isBos && isNotConverted && !isKnownExcluded && (
                     convertibleMap[selectedInvoice.invoice_id] === true ||
-                    items.length === 0 ||
-                    items.some((it: any) => 
+                    (items.length > 0 && items.some((it: any) => 
                       Number(it?.tax_amount) > 0 || 
                       Number(it?.cgst_rate) > 0 || 
                       Boolean(it?.hsn_sac_code) || 
                       Number(it?.product_tax_rate_percent) > 0
-                    )
+                    )) ||
+                    (itemsLoading && convertibleMap[selectedInvoice.invoice_id] !== false)
                   );
 
                   if (!enableConvertToGst || !isEligible || !isAdminRole(useAuthStore.getState().role)) return null;
@@ -3075,6 +3317,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   const rawNewDue = sd?.new_due ?? sd?.new_balance ?? sd?.customerBalance ?? (selectedInvoice as any).customer_balance ?? (selectedInvoice as any).new_due;
                   const received = Number(selectedInvoice.received_amount) || 0;
                   const balance = Number(selectedInvoice.balance_amount) || 0;
+                  const changeReturned = Math.max(0, received - (Number(selectedInvoice.grand_total) || 0));
                   const isCredit = selectedInvoice.payment_method === 'CREDIT';
                   const isPending = selectedInvoice.payment_method === 'PENDING';
                   const customerName = String(selectedInvoice.customer_name || '').trim();
@@ -3139,10 +3382,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                             <span className="font-bold text-foreground">{formatCurrency(received)}</span>
                           </div>
                         )}
-                        {!isCredit && balance > 0 && (
+                        {!isCredit && changeReturned > 0 && (
                           <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold">
                             <span>Change Returned:</span>
-                            <span>{formatCurrency(balance)}</span>
+                            <span>{formatCurrency(changeReturned)}</span>
                           </div>
                         )}
                       </div>
@@ -3175,9 +3418,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
             {/* Items */}
             {(() => {
-              const isGstBill = selectedInvoice.invoice_type === 'GST' || 
-                                Number(selectedInvoice.tax_total) > 0 || 
-                                items.some((it: any) => Number(it?.tax_amount) > 0 || Number(it?.cgst_rate) > 0 || Number(it?.tax_rate) > 0);
+              const isGstBill = selectedInvoice.invoice_type === 'GST';
 
               return (
                 <div>
@@ -3429,9 +3670,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   <div className="px-4 py-3 space-y-2 bg-card">
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground font-semibold">Subtotal</span>
-                      <span className="font-bold text-foreground">{formatCurrency(sub)}</span>
+                      <span className="font-bold text-foreground">
+                        {formatCurrency(selectedInvoice.invoice_type === 'BILL_OF_SUPPLY' ? (sub + tax) : sub)}
+                      </span>
                     </div>
-                    {tax > 0 && (() => {
+                    {selectedInvoice.invoice_type === 'GST' && tax > 0 && (() => {
                       const effTaxRate = sub > 0 ? Math.round((tax / sub) * 100 * 10) / 10 : 0;
                       const isInter = selectedInvoice.supply_type === 'INTER';
                       let cgst = Number(selectedInvoice.cgst_total) || 0;
@@ -3879,8 +4122,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
                   <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
                     {conversionTaxMode === 'EXCLUSIVE'
-                      ? '➕ Tax Exclusive: GST is calculated and added on top of the base prices. The total invoice amount will increase by the GST amount.'
-                      : '🏷️ Tax Inclusive: Grand total stays fixed, and GST is back-calculated from the price.'}
+                      ? 'Tax Exclusive: GST is calculated and added on top of the base prices. The total invoice amount will increase by the GST amount.'
+                      : 'Tax Inclusive: Grand total stays fixed, and GST is back-calculated from the price.'}
                   </p>
                 </div>
               </div>
@@ -3968,6 +4211,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                               )}>
                                 GST: {conversionTaxMode === 'EXCLUSIVE' ? '+' : ''}{formatCurrency(invPreview.tax_amount)}
                               </span>
+                              {Number(invPreview.deductions_total) > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-rose-500 font-bold">
+                                    −{formatCurrency(invPreview.deductions_total)}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -4005,11 +4256,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   </span>
                 </div>
 
+                {conversionDeductionsTotal > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-rose-500">Less: Points / Scrap / Returns</span>
+                    <span className="font-mono font-black text-rose-500">
+                      −{formatCurrency(conversionDeductionsTotal)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-2 border-t border-border/80">
                   <div>
                     <span className="text-xs font-black text-foreground uppercase tracking-wider block">Estimated GST Total</span>
                     <span className="text-[10px] text-muted-foreground">
                       {conversionTaxMode === 'EXCLUSIVE' ? 'Base + GST Amount' : 'Fixed Total (MRP)'}
+                      {conversionDeductionsTotal > 0 ? ' − deductions' : ''}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -4114,9 +4375,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               Are you sure?
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              This will permanently delete invoice <strong>{selectedInvoice?.invoice_number}</strong> 
+              This will move to Recycle Bin invoice <strong>{selectedInvoice?.invoice_number}</strong> 
               {selectedInvoice?.customer_name && <> for <strong>{selectedInvoice.customer_name}</strong></>}.
-              Stock quantities will be restored.
+              Stock quantities will be returned. You can restore it anytime from the Recycle Bin.
             </p>
           </div>
 
@@ -4138,7 +4399,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               {deleteSaving ? (
                 <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> <span>Deleting...</span></>
               ) : (
-                <><Trash2 className="w-3.5 h-3.5" /> <span>Delete Invoice</span></>
+                <><Trash2 className="w-3.5 h-3.5" /> <span>Move to Recycle Bin</span></>
               )}
             </button>
           </div>

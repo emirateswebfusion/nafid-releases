@@ -22,6 +22,7 @@ export const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'staff',
   'combo-offers',
   'history',
+  'recycle-bin',
 ];
 
 export function getDashboardCardsStorageKey(

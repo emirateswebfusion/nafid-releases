@@ -28,18 +28,26 @@ export function getSalesHistoryAmount(inv: any): SalesHistoryAmountSummary {
   return { amount: getInvoiceNetTotal(inv), refund: false, discount, refundDifference: 0 };
 }
 
-function getInvoiceNetTotal(inv: any): number {
+export function getInvoicePreDeductionTotal(inv: any): number {
   if (!inv) return 0;
+  const subtotal = Number(inv.subtotal) || 0;
+  const tax = Number(inv.tax_total) || 0;
+  const discount = Number(inv.discount_total) || 0;
+  const pointsDiscount = Number(inv.points_redeemed_discount) || 0;
+  return Math.max(0, subtotal + tax - discount - pointsDiscount);
+}
+
+export function getInvoiceNetTotal(inv: any): number {
+  if (!inv) return 0;
+  const storedNet = Number(inv.grand_total);
+  if (inv.grand_total != null && Number.isFinite(storedNet)) {
+    return Math.max(0, storedNet);
+  }
   const subtotal = Number(inv.subtotal) || 0;
   const tax = Number(inv.tax_total) || 0;
   const discount = Number(inv.discount_total) || 0;
   const pointsDiscount = Number(inv.points_redeemed_discount) || 0;
   const scrap = Number(inv.scrap_deduction) || 0;
   const returned = Number(inv.return_deduction) || 0;
-  const computedNet = Math.max(0, subtotal + tax - discount - pointsDiscount - scrap - returned);
-  const grandTotal = Number(inv.grand_total) || 0;
-  if (grandTotal > 0 && grandTotal <= computedNet + 0.01) {
-    return grandTotal;
-  }
-  return computedNet;
+  return Math.max(0, subtotal + tax - discount - pointsDiscount - scrap - returned);
 }

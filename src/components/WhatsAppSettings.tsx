@@ -180,12 +180,12 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   // Load Shop Closing Configuration
   const loadClosingConfig = useCallback(async () => {
-    if (isControlledClosing) return;
     if (!window.electronAPI?.shopClosingGetConfig) return;
     setLoadingClosing(true);
     try {
-      const cfg = await window.electronAPI.shopClosingGetConfig({ tenant_id: effectiveTenantId });
-      if (cfg) {
+      const res = await window.electronAPI.shopClosingGetConfig({ tenant_id: effectiveTenantId });
+      const cfg = (res && res.config) ? res.config : res;
+      if (cfg && typeof cfg === 'object') {
         setClosingConfig({
           ...DEFAULT_SHOP_CLOSING_CONFIG,
           ...cfg,
@@ -336,12 +336,27 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   };
 
   // ── Shop Closing Overview Handlers ───────────────────────────────────────
-  const handleToggleClosingFeature = (enabled: boolean) => {
+  const handleToggleClosingFeature = async (enabled: boolean) => {
     if (!isAdmin) {
       setMsg({ text: 'Admin privileges required to change this setting.', type: 'error' });
       return;
     }
-    setClosingConfig((prev) => ({ ...prev, enabled }));
+    const updated = { ...closingConfig, enabled };
+    setClosingConfig(updated);
+
+    // Auto-persist toggle immediately to database so that even if the page is reopened without pressing Save,
+    // the enabled/disabled state is permanently persisted!
+    try {
+      if (window.electronAPI?.shopClosingSaveConfig) {
+        await window.electronAPI.shopClosingSaveConfig({
+          tenant_id: effectiveTenantId,
+          config: updated,
+          user_role: role,
+        });
+      }
+    } catch (err: any) {
+      console.error('[WhatsAppSettings] Auto-save toggle error:', err);
+    }
   };
 
   const handlePhoneChange = (val: string) => {
@@ -365,13 +380,29 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   const handleChecklistToggle = (key: keyof ShopClosingChecklist) => {
     if (!isAdmin) return;
-    setClosingConfig((prev) => ({
-      ...prev,
-      checklist: {
-        ...prev.checklist,
-        [key]: !prev.checklist[key],
-      },
-    }));
+    setClosingConfig((prev) => {
+      const nextVal = !prev.checklist[key];
+      const newChecklist = { ...prev.checklist, [key]: nextVal };
+
+      // If user toggled a parent group header (e.g. paymentMethods or sales), also sync all its children
+      const children = CHECKLIST_DEFINITIONS.filter((def) => def.parentKey === key);
+      if (children.length > 0) {
+        children.forEach((child) => {
+          (newChecklist as any)[child.key] = nextVal;
+        });
+      }
+
+      // If user turned on a child option, ensure its parent group toggle is also enabled
+      const currentDef = CHECKLIST_DEFINITIONS.find((def) => def.key === key);
+      if (currentDef && currentDef.parentKey && nextVal === true) {
+        (newChecklist as any)[currentDef.parentKey] = true;
+      }
+
+      return {
+        ...prev,
+        checklist: newChecklist,
+      };
+    });
   };
 
   const handleSelectAllChecklist = () => {
@@ -1185,36 +1216,160 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                   </span>
                 </div>
 
-                {/* Categorized Checklist Items */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {CHECKLIST_DEFINITIONS.map((def) => {
-                    const isChecked = Boolean(closingConfig.checklist?.[def.key]);
+                {/* Categorized Checklist Items Grouped by Domain */}
+                <div className="space-y-4 pt-1">
+                  {[
+                    {
+                      groupId: 'core',
+                      title: '1. General & Shift Information',
+                      subtitle: 'Basic closing metadata, cashier, register status & terminal details',
+                      keys: ['dateTime', 'closingStatus', 'counterDetails', 'closingStaff'] as (keyof ShopClosingChecklist)[],
+                    },
+                    {
+                      groupId: 'sales',
+                      title: '2. Sales Summary & Breakdown',
+                      subtitle: 'Invoices count, net sales, pre-discount gross sales, discounts, and tax',
+                      keys: ['invoices', 'sales'] as (keyof ShopClosingChecklist)[],
+                      subItems: [
+                        { key: 'grossSales' as keyof ShopClosingChecklist, parentKey: 'sales' as keyof ShopClosingChecklist },
+                        { key: 'totalDiscount' as keyof ShopClosingChecklist, parentKey: 'sales' as keyof ShopClosingChecklist },
+                        { key: 'taxCollected' as keyof ShopClosingChecklist, parentKey: 'sales' as keyof ShopClosingChecklist },
+                      ],
+                    },
+                    {
+                      groupId: 'payments',
+                      title: '3. Payment Methods Breakdown',
+                      subtitle: 'Select which payment modes to include or exclude in the closing summary',
+                      keys: ['paymentMethods'] as (keyof ShopClosingChecklist)[],
+                      subItems: [
+                        { key: 'paymentCash' as keyof ShopClosingChecklist, parentKey: 'paymentMethods' as keyof ShopClosingChecklist },
+                        { key: 'paymentUpi' as keyof ShopClosingChecklist, parentKey: 'paymentMethods' as keyof ShopClosingChecklist },
+                        { key: 'paymentCard' as keyof ShopClosingChecklist, parentKey: 'paymentMethods' as keyof ShopClosingChecklist },
+                        { key: 'paymentBank' as keyof ShopClosingChecklist, parentKey: 'paymentMethods' as keyof ShopClosingChecklist },
+                        { key: 'paymentCheque' as keyof ShopClosingChecklist, parentKey: 'paymentMethods' as keyof ShopClosingChecklist },
+                        { key: 'paymentCredit' as keyof ShopClosingChecklist, parentKey: 'paymentMethods' as keyof ShopClosingChecklist },
+                      ],
+                    },
+                    {
+                      groupId: 'cash',
+                      title: '4. Cash Drawer, Cash Flow & Expenses',
+                      subtitle: 'Drawer reconciliation, variance, cash-in entries and itemized store expenses',
+                      keys: ['cashBalances', 'cashDifferences', 'cashInOut', 'cashInList', 'expenses', 'expensesList'] as (keyof ShopClosingChecklist)[],
+                    },
+                    {
+                      groupId: 'ops',
+                      title: '5. Credit, Ledger, Staff & Operations',
+                      subtitle: 'Credit sales, ledger payments, party & staff lists, scrap, returns and supplier purchases',
+                      keys: ['creditSales', 'customerPayments', 'partyTransactions', 'staffTransactions', 'scrap', 'returns', 'refunds', 'purchases'] as (keyof ShopClosingChecklist)[],
+                    },
+                  ].map((group) => {
                     return (
-                      <label
-                        key={def.key}
-                        className={clsx(
-                          'flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer select-none',
-                          isChecked
-                            ? 'bg-card border-border/80 shadow-xs'
-                            : 'bg-muted/10 border-border/40 opacity-70'
-                        )}
+                      <div
+                        key={group.groupId}
+                        className="p-3.5 rounded-xl bg-card border border-border/70 space-y-3"
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          disabled={!isAdmin || !closingConfig.enabled}
-                          onChange={() => handleChecklistToggle(def.key)}
-                          className="mt-0.5 rounded border-border text-primary focus:ring-primary/20 h-4 w-4 shrink-0"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="text-xs font-bold text-foreground block leading-tight">
-                            {def.label}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground block leading-tight">
-                            {def.description}
-                          </span>
+                        <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                          <div>
+                            <span className="text-xs font-black uppercase tracking-wider text-foreground block">
+                              {group.title}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground block">
+                              {group.subtitle}
+                            </span>
+                          </div>
                         </div>
-                      </label>
+
+                        {/* Primary Items Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {group.keys.map((k) => {
+                            const def = CHECKLIST_DEFINITIONS.find((d) => d.key === k);
+                            if (!def) return null;
+                            const isChecked = Boolean(closingConfig.checklist?.[k]);
+                            const isMasterGroup = k === 'paymentMethods' || k === 'sales';
+
+                            return (
+                              <label
+                                key={k}
+                                className={clsx(
+                                  'flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer select-none',
+                                  isChecked
+                                    ? isMasterGroup
+                                      ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/20'
+                                      : 'bg-muted/30 border-border/80'
+                                    : 'bg-muted/10 border-border/40 opacity-70'
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={!isAdmin || !closingConfig.enabled}
+                                  onChange={() => handleChecklistToggle(k)}
+                                  className="mt-0.5 rounded border-border text-primary focus:ring-primary/20 h-4 w-4 shrink-0"
+                                />
+                                <div className="space-y-0.5">
+                                  <span className="text-xs font-bold text-foreground block leading-tight flex items-center gap-1.5">
+                                    {def.label}
+                                    {isMasterGroup && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-primary/10 text-primary font-bold uppercase">
+                                        Group
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground block leading-tight">
+                                    {def.description}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        {/* Granular Sub-Items (Indented underneath parent group) */}
+                        {group.subItems && group.subItems.length > 0 && (
+                          <div className="pl-3.5 border-l-2 border-primary/30 mt-2 space-y-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                              Sub-Options (Include / Exclude individually):
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {group.subItems.map((sub) => {
+                                const def = CHECKLIST_DEFINITIONS.find((d) => d.key === sub.key);
+                                if (!def) return null;
+                                const isChecked = Boolean(closingConfig.checklist?.[sub.key]);
+                                const parentChecked = Boolean(closingConfig.checklist?.[sub.parentKey]);
+
+                                return (
+                                  <label
+                                    key={sub.key}
+                                    className={clsx(
+                                      'flex items-start gap-2 p-2 rounded-lg border text-left transition-all cursor-pointer select-none',
+                                      !parentChecked && 'opacity-50',
+                                      isChecked && parentChecked
+                                        ? 'bg-background border-border shadow-2xs'
+                                        : 'bg-muted/10 border-border/30 opacity-60'
+                                    )}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      disabled={!isAdmin || !closingConfig.enabled}
+                                      onChange={() => handleChecklistToggle(sub.key)}
+                                      className="mt-0.5 rounded border-border text-primary focus:ring-primary/20 h-3.5 w-3.5 shrink-0"
+                                    />
+                                    <div className="space-y-0.5">
+                                      <span className="text-[11px] font-semibold text-foreground block leading-tight">
+                                        {def.label}
+                                      </span>
+                                      <span className="text-[9px] text-muted-foreground block leading-tight">
+                                        {def.description}
+                                      </span>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -1276,17 +1431,15 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
                     {sendingTest ? 'Dispatching Test...' : 'Send Test Report to WhatsApp'}
                   </Button>
 
-                  {!isControlledClosing && (
-                    <Button
-                      onClick={handleSaveClosingConfig}
-                      disabled={savingClosing || !isAdmin}
-                      variant="outline"
-                      className="w-full text-xs font-bold py-2.5 rounded-xl border-border hover:bg-muted text-foreground cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {savingClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      {savingClosing ? 'Saving Changes...' : 'Save Closing Settings'}
-                    </Button>
-                  )}
+                  <Button
+                    onClick={handleSaveClosingConfig}
+                    disabled={savingClosing || !isAdmin}
+                    variant="outline"
+                    className="w-full text-xs font-bold py-2.5 rounded-xl border-border hover:bg-muted text-foreground cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {savingClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {savingClosing ? 'Saving Changes...' : 'Save Closing Settings'}
+                  </Button>
                 </div>
               </div>
 

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-    ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt,
+    ShoppingCart, Banknote, Package, Tags, BarChart3, FileText, Receipt,
     ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes,
-    TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark, LayoutGrid, Grid3x3,
+    TrendingUp, Settings, LogOut, Sun, Moon, Landmark, LayoutGrid, Grid3x3,
     Bot, Globe, Megaphone, SlidersHorizontal, GripVertical, ChevronLeft, ChevronRight,
-    RotateCcw, Check
+    RotateCcw, Check, Layers, BookOpen, ClipboardList, RefreshCcw, UserCog, Archive, ArrowRight
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -217,8 +217,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'E-Commerce Portal',
             desc: 'FusionCart online vendor portal, catalog sync & orders',
             icon: Globe,
-            color: 'text-emerald-500',
-            bgColor: 'bg-emerald-500/10',
+            color: 'text-sky-500',
+            bgColor: 'bg-sky-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-ecommerce-portal')),
             perm: 'products.view',
             badge: 'NEW'
@@ -248,8 +248,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Categories & Grades',
             desc: 'Configure category classifications, grade rules, purchase price, and MRP',
             icon: Tags,
-            color: 'text-indigo-500',
-            bgColor: 'bg-indigo-500/10',
+            color: 'text-fuchsia-500',
+            bgColor: 'bg-fuchsia-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-settings-grades')),
             perm: 'products.view'
         },
@@ -257,7 +257,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             id: 'pricing-tiers',
             title: 'Pricing Tiers',
             desc: 'Create dynamic price tiers (Retail, Wholesale…) and set per-tier prices',
-            icon: BadgePercent,
+            icon: Layers,
             color: 'text-violet-500',
             bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-settings-pricing-tiers')),
@@ -268,8 +268,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Financial Report',
             desc: 'View P&L statement, revenue breakdown, GST liability & profit margins',
             icon: Landmark,
-            color: 'text-emerald-500',
-            bgColor: 'bg-emerald-500/10',
+            color: 'text-green-600',
+            bgColor: 'bg-green-600/10',
             action: () => window.dispatchEvent(new CustomEvent('open-financial-report')),
             perm: 'reports.financial'
         },
@@ -287,7 +287,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             id: 'quotations',
             title: 'Quotations',
             desc: 'Create and manage A4 quotations',
-            icon: FileText,
+            icon: ClipboardList,
             color: 'text-blue-500',
             bgColor: 'bg-blue-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-quotation-manager')),
@@ -308,8 +308,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Warranty Bills',
             desc: 'Register and print warranty certificates',
             icon: ShieldCheck,
-            color: 'text-violet-500',
-            bgColor: 'bg-violet-500/10',
+            color: 'text-lime-600',
+            bgColor: 'bg-lime-600/10',
             action: () => window.dispatchEvent(new CustomEvent('open-warranty-manager')),
             perm: 'warranties.view'
         },
@@ -327,9 +327,9 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             id: 'scrap',
             title: 'Scrap Management',
             desc: 'Track scrap purchases, sales & profit',
-            icon: Trash2,
-            color: 'text-orange-500',
-            bgColor: 'bg-orange-500/10',
+            icon: Archive,
+            color: 'text-stone-500',
+            bgColor: 'bg-stone-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-scrap-manager')),
             perm: 'scrap.view'
         }] : []),
@@ -337,7 +337,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             id: 'parties',
             title: 'Ledger',
             desc: 'Track credit parties, balances, and payments',
-            icon: Handshake,
+            icon: BookOpen,
             color: 'text-rose-500',
             bgColor: 'bg-rose-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-parties-manager')),
@@ -348,8 +348,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Payment Methods',
             desc: 'Manage bank accounts, cards & UPI ids for receiving payments',
             icon: Wallet,
-            color: 'text-teal-500',
-            bgColor: 'bg-teal-500/10',
+            color: 'text-teal-600',
+            bgColor: 'bg-teal-600/10',
             action: () => window.dispatchEvent(new CustomEvent('open-payments-page')),
             perm: 'settings.view'
         },
@@ -367,9 +367,9 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             id: 'staff',
             title: 'Staff Administration',
             desc: 'Manage biller accounts and permissions',
-            icon: Users,
-            color: 'text-indigo-500',
-            bgColor: 'bg-indigo-500/10',
+            icon: UserCog,
+            color: 'text-slate-500',
+            bgColor: 'bg-slate-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-staff-manager')),
             perm: 'users.view'
         },
@@ -378,8 +378,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Combo Offers',
             desc: 'Create and manage product bundles and combo offers',
             icon: Boxes,
-            color: 'text-purple-500',
-            bgColor: 'bg-purple-500/10',
+            color: 'text-violet-600',
+            bgColor: 'bg-violet-600/10',
             action: () => window.dispatchEvent(new CustomEvent('open-combo-manager')),
             perm: 'combos.view'
         },
@@ -388,9 +388,19 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Sales History',
             desc: 'Review past transactions and reports',
             icon: TrendingUp,
-            color: 'text-amber-500',
-            bgColor: 'bg-amber-500/10',
+            color: 'text-amber-600',
+            bgColor: 'bg-amber-600/10',
             action: () => window.dispatchEvent(new CustomEvent('open-sales-history')),
+            perm: 'sales.view'
+        },
+        {
+            id: 'recycle-bin',
+            title: 'Recycle Bin',
+            desc: 'Recover deleted bills, inventory items & contacts',
+            icon: RefreshCcw,
+            color: 'text-red-500',
+            bgColor: 'bg-red-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-recycle-bin')),
             perm: 'sales.view'
         },
     ];
@@ -415,6 +425,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         customers: 'customers',
         staff: 'staff',
         history: 'sales_history',
+        'recycle-bin': 'recycle_bin',
     };
 
     // Sort cards according to user's custom sequence
@@ -433,8 +444,12 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             if (!isAiAssistantAvailable || (featureFlags && featureFlags.ai_assistant === false)) return false;
         } else if (featureFlags) {
             if (c.id === 'cashier' && !featureFlags.cash_settlement) return false;
-            const f = FEATURE_BY_CARD[c.id];
-            if (f && !featureFlags[f]) return false;
+            if (c.id === 'recycle-bin') {
+                if (featureFlags.recycle_bin === false) return false;
+            } else {
+                const f = FEATURE_BY_CARD[c.id];
+                if (f && !featureFlags[f]) return false;
+            }
         }
 
         // 2. Permission check

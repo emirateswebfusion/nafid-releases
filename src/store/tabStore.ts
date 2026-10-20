@@ -37,6 +37,7 @@ export interface TabSnapshot {
   pendingScrapInvoiceToEdit: string | null;
   manualTotalOverride?: number | null;
   isB2B?: boolean;
+  billDate?: string | null;
 }
 
 export interface Tab {
@@ -48,6 +49,7 @@ export interface Tab {
   customerPhone: string;
   customerGstin: string;
   customerAddress: string;
+  billDate?: string | null;
   description?: string;
   transporterName?: string;
   vehicleNumber?: string;
@@ -62,7 +64,9 @@ export interface Tab {
   splitDetails?: SplitDetails;
   receivedAmount: number;
   manualTotalOverride?: number | null;
-  /** Actual physical cash refunded to customer — may differ from computed refundAmount */
+  editingInvoiceContribution?: number;
+  editingInvoicePartyKey?: string;
+  /** Actual physical cash refunded to customer �?" may differ from computed refundAmount */
   actualRefundPaid: number;
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;
@@ -113,6 +117,7 @@ function getSnapshotFromCartStore(cartState: any): TabSnapshot {
     pendingScrapInvoiceToEdit: cartState.pendingScrapInvoiceToEdit,
     manualTotalOverride: useTabStore?.getState?.()?.getActiveTab?.()?.manualTotalOverride ?? null,
     isB2B: useTabStore?.getState?.()?.getActiveTab?.()?.isB2B ?? false,
+    billDate: useTabStore?.getState?.()?.getActiveTab?.()?.billDate ?? null,
   };
 }
 
@@ -143,6 +148,9 @@ function applySnapshotToCartStore(snapshot: TabSnapshot) {
   }
   if (snapshot.isB2B !== undefined) {
     useTabStore.getState().updateActiveTab({ isB2B: snapshot.isB2B });
+  }
+  if (snapshot.billDate !== undefined) {
+    useTabStore.getState().updateActiveTab({ billDate: snapshot.billDate });
   }
 }
 
@@ -209,6 +217,7 @@ function createDefaultTab(): Tab {
     customerPhone: '',
     customerGstin: '',
     customerAddress: '',
+    billDate: null,
     isB2B: false,
     description: '',
     paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
@@ -360,10 +369,13 @@ export const useTabStore = create<TabState>((set, get) => ({
   updateActiveTab: (updates) => {
     const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
-      'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
-      'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
-      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
+      'title', 'customerId', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
+      'billDate',
+      'description', 'transporterName', 'vehicleNumber', 'transporterDocNo', 'transporterDocDate',
+      'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
+      'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
+      'reservedInvoiceNumber', 'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
+      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
@@ -378,10 +390,13 @@ export const useTabStore = create<TabState>((set, get) => ({
   updateTabById: (id, updates) => {
     const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
-      'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
-      'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
-      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
+      'title', 'customerId', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
+      'billDate',
+      'description', 'transporterName', 'vehicleNumber', 'transporterDocNo', 'transporterDocDate',
+      'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
+      'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
+      'reservedInvoiceNumber', 'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
+      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
