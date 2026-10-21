@@ -51,6 +51,10 @@ import { ItemRateInput } from './billing/ui/ItemRateInput';
 import { ItemTotalInput } from './billing/ui/ItemTotalInput';
 import { CustomerOutstandingBadge } from './billing/ui/CustomerOutstandingBadge';
 import { BillDescriptionCard } from './billing/ui/BillDescriptionCard';
+import { TransportDetailsModal } from './billing/modals/TransportDetailsModal';
+import { HeldBillsModal } from './billing/modals/HeldBillsModal';
+import { ScrapInvoiceViewModal } from './billing/modals/ScrapInvoiceViewModal';
+import { CreateNewGradeModal } from './billing/modals/CreateNewGradeModal';
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
@@ -11988,161 +11992,25 @@ export function BillingPage() {
       </div>
 
       {/* ─── Held Bills / Drafts Modal ─── */}
-      <Modal
+      <HeldBillsModal
         isOpen={showHeldBillsPanel}
         onClose={() => setShowHeldBillsPanel(false)}
-        title={
-          <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <PauseCircle className="w-5 h-5 text-amber-500" />
-            <span>Held Bills / Drafts ({heldBills.length})</span>
-          </div>
-        }
-      >
-        <div className="space-y-3 min-w-[540px] max-w-2xl text-foreground">
-          {heldBillsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-            </div>
-          ) : heldBills.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground space-y-2">
-              <PauseCircle className="w-10 h-10 mx-auto text-muted-foreground/40" />
-              <p className="font-bold text-sm text-foreground/80">No Held Bills</p>
-              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                When you click <strong className="text-foreground">Hold (F3)</strong> on active items in cart, they will be saved here so you can resume them anytime within 24 hours.
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-[60vh] overflow-y-auto space-y-2.5 pr-1">
-              {heldBills.map((bill: any) => {
-                const billId = bill.invoice_id || bill.id;
-                const invNum = bill.invoice_number || bill.id?.substring(0, 8) || 'HLD';
-                const createdTime = bill.created_at ? parseUTCDate(bill.created_at).toLocaleString('en-IN', { timeZone: getStoreTimezone() }) : (bill.heldAt ? parseUTCDate(bill.heldAt).toLocaleString('en-IN', { timeZone: getStoreTimezone() }) : '');
-                const totalAmt = Number(bill.grand_total) || 0;
-                const itemCount = Array.isArray(bill.items) ? bill.items.length : 0;
-                const customer = bill.customer_name || bill.customerName || (bill.customer_phone || bill.customerPhone ? (bill.customer_phone || bill.customerPhone) : 'Walk-in Customer');
-
-                return (
-                  <div key={billId} className="flex items-center justify-between p-3.5 bg-card border border-border/80 hover:border-amber-500/50 rounded-2xl transition-all duration-200 shadow-2xs group gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-sm text-foreground">{invNum}</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">HELD</span>
-                        <span className="text-xs text-muted-foreground">{createdTime}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        <span>👤 <strong className="text-foreground/80">{customer}</strong></span>
-                        {itemCount > 0 && <span>• {itemCount} Item{itemCount > 1 ? 's' : ''}</span>}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <div className="text-base font-black text-foreground">{formatCurrency(totalAmt)}</div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleRecallHeldBill(bill)}
-                          className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
-                          title="Resume / Recall Bill"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                          <span>Take / Resume</span>
-                        </button>
-                        <button
-                          onClick={() => handleReleaseHeldBill(billId)}
-                          className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95 cursor-pointer"
-                          title="Discard / Delete Held Bill"
-                        >
-                          <Trash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Modal>
+        heldBills={heldBills}
+        heldBillsLoading={heldBillsLoading}
+        handleRecallHeldBill={handleRecallHeldBill}
+        handleReleaseHeldBill={handleReleaseHeldBill}
+      />
 
       {/* ─── Scrap Invoice View Modal ─── */}
-      <Modal
+      <ScrapInvoiceViewModal
         isOpen={showScrapInvoiceView}
-        onClose={() => { setShowScrapInvoiceView(false); setScrapInvoiceViewData(null); }}
-        title={
-          <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <Recycle className="w-5 h-5 text-orange-500" />
-            <span>Scrap Invoice {scrapInvoiceViewData?.invoiceNumber || ''}</span>
-          </div>
-        }
-      >
-        <div className="space-y-4 min-w-[520px] text-foreground">
-          {scrapInvoiceViewLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-5 h-5 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
-            </div>
-          ) : scrapInvoiceViewData ? (
-            <>
-              <div className="flex items-center justify-between p-4 bg-orange-500/5 border border-orange-500/20 rounded-2xl">
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Deduction</p>
-                  <p className="text-2xl font-black text-orange-500 mt-1">{formatCurrency(scrapInvoiceViewData.totalAmount)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
-                  <p className="text-sm font-bold text-foreground mt-1">{scrapInvoiceViewData.invoiceNumber}</p>
-                </div>
-              </div>
-
-              <div className="border border-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
-                  <div className="col-span-4">Category</div>
-                  <div className="col-span-2 text-right">Qty</div>
-                  <div className="col-span-2 text-right">Rate</div>
-                  <div className="col-span-2 text-right">Total</div>
-                  <div className="col-span-2 text-center">Date</div>
-                </div>
-                <div className="divide-y divide-border max-h-[320px] overflow-y-auto">
-                  {scrapInvoiceViewData.transactions.length === 0 ? (
-                    <div className="py-8 text-center text-muted-foreground text-sm">No transactions found</div>
-                  ) : scrapInvoiceViewData.transactions.map((tx: any) => (
-                    <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
-                      <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
-                      <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>
-                      <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
-                      <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
-                      <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {scrapInvoiceViewData.transactions.length > 0 && (
-                <div className="flex justify-end pt-1">
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-muted-foreground font-semibold">Total Items:</span>
-                    <span className="font-bold">{scrapInvoiceViewData.transactions.length}</span>
-                    <span className="text-muted-foreground/40">|</span>
-                    <span className="text-muted-foreground font-semibold">Grand Total:</span>
-                    <span className="font-black text-lg text-orange-600">{formatCurrency(scrapInvoiceViewData.totalAmount)}</span>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="py-8 text-center text-muted-foreground text-sm">No data found for this scrap invoice</div>
-          )}
-
-          <div className="flex justify-end pt-2 border-t border-border">
-            <button
-              onClick={() => { setShowScrapInvoiceView(false); setScrapInvoiceViewData(null); }}
-              className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => {
+          setShowScrapInvoiceView(false);
+          setScrapInvoiceViewData(null);
+        }}
+        loading={scrapInvoiceViewLoading}
+        data={scrapInvoiceViewData}
+      />
 
       {/* ─── Return Deduction Dropdown (fixed position) ─── */}
       {returnDeductionResults.length > 0 && returnDeductionDropdownStyle && (
@@ -12907,108 +12775,19 @@ export function BillingPage() {
         </>
       )}
       <div ref={gradeFormDialogRef}>
-        {newProductIsAddingGrade && (
-          <Modal
-            isOpen={newProductIsAddingGrade}
-            onClose={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-            title="Create New Grade"
-            className="max-w-lg backdrop-blur-none"
-            overlayClassName="z-[110]"
-            closeButton={
-              <button type="button" onClick={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-                title="Close">
-                <X className="w-4 h-4 text-destructive" />
-              </button>
-            }
-          >
-          <div className="space-y-3" onKeyDown={handleFormKeyDown} data-enter-nav>
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
-              Grade for category: <span className="font-bold text-foreground">{newProductCategory}</span>
-            </p>
-            <section className="bg-background border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
-                  <Tag className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">Grade Details</span>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Grade Name *</label>
-                  <input
-                    autoFocus
-                    placeholder="e.g. Grade A, Scrap, Heavy"
-                    value={newProductGradeForm.grade_name}
-                    onChange={e => setNewProductGradeForm({ ...newProductGradeForm, grade_name: e.target.value })}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase (₹)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number" step="0.01"
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        placeholder="0.00"
-                        value={newProductGradeForm.purchase_price}
-                        onChange={e => setNewProductGradeForm({ ...newProductGradeForm, purchase_price: e.target.value })}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Base MRP (₹/Kg)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number" step="0.01"
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        placeholder="0.00"
-                        value={newProductGradeForm.rate}
-                        onChange={e => setNewProductGradeForm({ ...newProductGradeForm, rate: e.target.value })}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Offer (₹)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number" step="0.01"
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        placeholder="0.00"
-                        value={newProductGradeForm.offer_price}
-                        onChange={e => setNewProductGradeForm({ ...newProductGradeForm, offer_price: e.target.value })}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-            <div className="flex justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                data-enter-submit
-                onClick={handleCreateNewGrade}
-                disabled={newProductSavingGrade || !newProductGradeForm.grade_name.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/95 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-              >
-                {newProductSavingGrade ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Check className="w-3.5 h-3.5" />
-                )}
-                Save Grade
-              </button>
-            </div>
-          </div>
-        </Modal>
-        )}
+        <CreateNewGradeModal
+          isOpen={newProductIsAddingGrade}
+          onClose={() => {
+            setNewProductIsAddingGrade(false);
+            setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
+          }}
+          category={newProductCategory}
+          form={newProductGradeForm}
+          setForm={setNewProductGradeForm}
+          onKeyDown={handleFormKeyDown}
+          onSubmit={handleCreateNewGrade}
+          saving={newProductSavingGrade}
+        />
       </div>
       {cashRegisterOpen && (
         <CashierSettlement onClose={() => setCashRegisterOpen(false)} />
@@ -13141,83 +12920,12 @@ export function BillingPage() {
         </>
       )}
 
-      {showTransportModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/30">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <Truck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-foreground">Transporter & E-Way Bill Details</h3>
-                  <p className="text-xs text-muted-foreground">Add transport information for GST Boxed invoices</p>
-                </div>
-              </div>
-              <button onClick={() => setShowTransportModal(false)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider block border-b border-border/60 pb-1">Transporter Information</span>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Transporter Name</label>
-                    <input type="text" value={activeTab?.transporterName || ''} onChange={(e) => updateActiveTab({ transporterName: e.target.value })} placeholder="e.g. Sanjay Transportation" className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Vehicle Number</label>
-                    <input type="text" value={activeTab?.vehicleNumber || ''} onChange={(e) => updateActiveTab({ vehicleNumber: e.target.value.toUpperCase() })} placeholder="e.g. KL-07-AB-1234" className="w-full text-xs font-mono font-medium uppercase bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Transporter Doc / LR No.</label>
-                    <input type="text" value={activeTab?.transporterDocNo || ''} onChange={(e) => updateActiveTab({ transporterDocNo: e.target.value })} placeholder="e.g. DOC12345" className="w-full text-xs font-mono font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Transporter Doc Date</label>
-                    <input type="date" value={activeTab?.transporterDocDate || ''} onChange={(e) => updateActiveTab({ transporterDocDate: e.target.value })} className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">E-Way Bill Number</label>
-                    <input type="text" value={activeTab?.ewayBillNo || ''} onChange={(e) => updateActiveTab({ ewayBillNo: e.target.value })} placeholder="e.g. 101019999999" className="w-full text-xs font-mono font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">E-Way Bill Date</label>
-                    <input type="date" value={activeTab?.ewayBillDate || ''} onChange={(e) => updateActiveTab({ ewayBillDate: e.target.value })} className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider block border-b border-border/60 pb-1">Separate Shipping Details (Optional)</span>
-                <div className="space-y-2.5">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Shipping Recipient Name</label>
-                    <input type="text" value={activeTab?.shippingName || ''} onChange={(e) => updateActiveTab({ shippingName: e.target.value })} placeholder="Same as customer name if left blank" className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Shipping Address</label>
-                    <input type="text" value={activeTab?.shippingAddress || ''} onChange={(e) => updateActiveTab({ shippingAddress: e.target.value })} placeholder="Full delivery address" className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
-              <button type="button" onClick={() => { updateActiveTab({ transporterName: '', vehicleNumber: '', transporterDocNo: '', transporterDocDate: '', ewayBillNo: '', ewayBillDate: '', shippingName: '', shippingAddress: '', shippingGstin: '' }); setShowTransportModal(false); }} className="px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">Clear All</button>
-              <button type="button" onClick={() => setShowTransportModal(false)} className="px-4 py-2 text-xs font-bold bg-primary text-primary-foreground rounded-xl shadow-xs hover:bg-primary/90 cursor-pointer">Save & Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TransportDetailsModal
+        isOpen={showTransportModal}
+        onClose={() => setShowTransportModal(false)}
+        activeTab={activeTab}
+        updateActiveTab={updateActiveTab}
+      />
 
       <BillerPinModal
         isOpen={isBillerPinModalOpen}
