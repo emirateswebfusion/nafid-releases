@@ -21,74 +21,12 @@ import { sortProductsBySearchPriority } from '../utils/productSort';
 import { parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 
-// ─── Types ─────────────────────────────────────────────────────────────────
-interface Product {
-  product_id: string;
-  tenant_id: string;
-  name: string;
-  item_code: string;
-  sku_barcode: string;
-  category: string;
-  brand_manufacturer: string;
-  uom: string;
-  purchase_price: number;
-  base_price: number;
-  current_stock: number;
-  reorder_level: number;
-  is_gst_applicable: number;
-  hsn_sac_code: string;
-  tax_rate_percent: number;
-  domain_attributes: string; // JSON string from SQLite
-  discount_percent?: number | null;
-  discount_flat?: number | null;
-  offer_price?: number | null;
-  billing_type?: string;
-  grade_id?: string;
-  pricing_mode?: string;
-  is_service_item?: number;
-  sync_status: string;
-  created_at?: string;
-  updated_at?: string;
-  paper_stock?: number;
-  gst_purchase_price?: number;
-  paper_mrp?: number;
-}
-
-const isGstProduct = (product: Pick<Product, 'is_gst_applicable' | 'hsn_sac_code'>) =>
-  Number(product.is_gst_applicable) === 1 || String(product.hsn_sac_code || '').trim() !== '';
-
-const DEFAULT_FORM = {
-  item_code: '',
-  sku_barcode: '',
-  name: '',
-  category: '',
-  brand_manufacturer: '',
-  uom: 'Pcs',
-  purchase_price: '' as string | number,
-  base_price: '' as string | number,
-  current_stock: '' as string | number,
-  reorder_level: '' as string | number,
-  is_gst_applicable: false,
-  gst_type: 'REAL' as 'REAL' | 'PAPER',
-  hsn_sac_code: '',
-  tax_rate_percent: 0,
-  domain_attributes: {} as Record<string, any>,
-  discount_percent: '' as string | number | null,
-  discount_flat: '' as string | number | null,
-  offer_price: '' as string | number | null,
-  billing_type: 'PIECE',
-  grade_id: '',
-  pricing_mode: 'FIXED_PRICE',
-  show_gst_purchase: false,
-  gst_same_as_current: false,
-  gst_purchase_price: '' as string | number,
-  gst_purchase_quantity: '' as string | number,
-  gst_supplier_id: '',
-  gst_supplier_name: '',
-  gst_bill_number: '',
-  gst_bill_date: new Date().toLocaleDateString('en-CA'),
-  gst_purchase_is_dummy: false,
-};
+import { type Product, isGstProduct, DEFAULT_FORM, DomainField } from './inventory/inventoryHelpers';
+import { CreateGradeModal } from './inventory/modals/CreateGradeModal';
+import { AdjustStockModal } from './inventory/modals/AdjustStockModal';
+import { BarcodePrintModal } from './inventory/modals/BarcodePrintModal';
+import { DeleteProductModal } from './inventory/modals/DeleteProductModal';
+import { BulkDeleteProductsModal } from './inventory/modals/BulkDeleteProductsModal';
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
@@ -3147,412 +3085,55 @@ return (
         </div>
       )}
 
-      {isAddingGrade && (
-        <Modal
-          isOpen={isAddingGrade}
-          onClose={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-          title="Create New Grade"
-          className="max-w-lg backdrop-blur-none"
-          closeButton={
-            <RedCrossButton
-              onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-            />
-          }
-        >
-          <div className="space-y-3" onKeyDown={handleFormKeyDown} data-enter-nav>
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
-              Grade for category: <span className="font-bold text-foreground">{formData.category}</span>
-            </p>
-            <section className="bg-background border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
-                  <Tag className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">Grade Details</span>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Grade Name *</label>
-                  <input
-                    autoFocus
-                    placeholder="e.g. Grade A, Scrap, Heavy"
-                    value={newGradeForm.grade_name}
-                    onChange={e => setNewGradeForm({ ...newGradeForm, grade_name: e.target.value })}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase (₹)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number" step="0.01"
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        placeholder="0.00"
-                        value={newGradeForm.purchase_price}
-                        onChange={e => setNewGradeForm({ ...newGradeForm, purchase_price: e.target.value })}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Base MRP (₹/Kg)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number" step="0.01"
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        placeholder="0.00"
-                        value={newGradeForm.rate}
-                        onChange={e => setNewGradeForm({ ...newGradeForm, rate: e.target.value })}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Offer (₹)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number" step="0.01"
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        placeholder="0.00"
-                        value={newGradeForm.offer_price}
-                        onChange={e => setNewGradeForm({ ...newGradeForm, offer_price: e.target.value })}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                data-enter-submit
-                onClick={handleCreateGrade}
-                disabled={savingGrade || !newGradeForm.grade_name.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/95 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-              >
-                {savingGrade ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Check className="w-3.5 h-3.5" />
-                )}
-                Save Grade
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <CreateGradeModal
+        isOpen={isAddingGrade}
+        onClose={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+        category={formData.category}
+        newGradeForm={newGradeForm}
+        setNewGradeForm={setNewGradeForm}
+        handleCreateGrade={handleCreateGrade}
+        savingGrade={savingGrade}
+        handleFormKeyDown={handleFormKeyDown}
+      />
 
-      {adjustModal && (
-        <Modal
-          isOpen={true}
-          onClose={() => setAdjustModal(null)}
-          title="Adjust Stock"
-          className="max-w-md"
-          closeButton={null}
-        >
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-bold text-foreground truncate">{adjustModal.product.name}</p>
-                <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                  {adjustModal.product.sku_barcode || adjustModal.product.item_code}
-                </p>
-              </div>
-              <div className="shrink-0 text-right bg-muted/40 border border-border rounded-xl px-3 py-1.5">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Stock</p>
-                <p className="text-sm font-black text-foreground">
-                  {Number(adjustModal.product.current_stock).toFixed(['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(adjustModal.product.uom) ? 3 : 0)} {adjustModal.product.uom}
-                </p>
-              </div>
-            </div>
+      <AdjustStockModal
+        adjustModal={adjustModal}
+        setAdjustModal={setAdjustModal}
+        adjustAmount={adjustAmount}
+        setAdjustAmount={setAdjustAmount}
+        adjustPcs={adjustPcs}
+        setAdjustPcs={setAdjustPcs}
+        adjustCurrentPcs={adjustCurrentPcs}
+        confirmAdjustStock={confirmAdjustStock}
+        adjustingStockId={adjustingStockId}
+      />
 
-            <div className="grid grid-cols-2 gap-2 bg-muted/40 border border-border rounded-xl p-1">
-              <button
-                onClick={() => setAdjustModal({ ...adjustModal, mode: 'add' })}
-                className={clsx(
-                  'px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer',
-                  adjustModal.mode === 'add'
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background'
-                )}
-              >
-                + Add
-              </button>
-              <button
-                onClick={() => setAdjustModal({ ...adjustModal, mode: 'reduce' })}
-                className={clsx(
-                  'px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer',
-                  adjustModal.mode === 'reduce'
-                    ? 'bg-red-500 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background'
-                )}
-              >
-                − Reduce
-              </button>
-            </div>
+      <BarcodePrintModal
+        printModalProduct={printModalProduct}
+        onClose={() => { setPrintModalProduct(null); setStatusMessage(null); }}
+        labelCodeType={labelCodeType}
+        printPrice={printPrice}
+        setPrintPrice={setPrintPrice}
+        printQuantity={printQuantity}
+        setPrintQuantity={setPrintQuantity}
+        printProductLabel={printProductLabel}
+        grades={grades}
+      />
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                    {adjustModal.product.uom}
-                  </label>
-                  <input
-                    autoFocus
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputMode="decimal"
-                    onWheel={e => (e.target as HTMLInputElement).blur()}
-                    value={adjustAmount}
-                    onChange={e => setAdjustAmount(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
-                    placeholder={`0.000`}
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
-                  />
-                  <p className="text-[10px] text-muted-foreground/70 font-semibold mt-1">
-                    Current: {Number(adjustModal.product.current_stock).toFixed(3)} {adjustModal.product.uom}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                    Pcs
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    onWheel={e => (e.target as HTMLInputElement).blur()}
-                    value={adjustPcs}
-                    onChange={e => setAdjustPcs(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
-                    placeholder="0"
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
-                  />
-                  <p className="text-[10px] text-muted-foreground/70 font-semibold mt-1">
-                    Current: {adjustCurrentPcs} Pcs
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 font-semibold">
-                {(() => {
-                  const kgAmt = parseFloat(adjustAmount);
-                  const pcsAmt = parseFloat(adjustPcs);
-                  const hasKg = !isNaN(kgAmt) && kgAmt > 0;
-                  const hasPcs = !isNaN(pcsAmt) && pcsAmt > 0;
-                  if (!hasKg && !hasPcs) return 'Enter an amount in weight or pcs to see the new stock';
-                  const sign = adjustModal.mode === 'add' ? 1 : -1;
-                  const newKg = hasKg ? Number(adjustModal.product.current_stock) + sign * kgAmt : Number(adjustModal.product.current_stock);
-                  const newPcs = hasPcs ? adjustCurrentPcs + sign * pcsAmt : adjustCurrentPcs;
-                  if (newKg < 0 || newPcs < 0) return 'Resulting stock would be negative';
-                  return `New stock: ${newKg.toFixed(3)} ${adjustModal.product.uom}${hasPcs ? ` • ${newPcs} Pcs` : ''}`;
-                })()}
-              </p>
-            </div>
+      <DeleteProductModal
+        deleteConfirmProduct={deleteConfirmProduct}
+        onClose={() => setDeleteConfirmProduct(null)}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
+      />
 
-            <div className="flex items-center justify-end border-t border-border mt-1 pt-4">
-              <button
-                onClick={confirmAdjustStock}
-                disabled={adjustingStockId === adjustModal.product.product_id}
-                className={clsx(
-                  'px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50',
-                  adjustModal.mode === 'add'
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    : 'bg-red-500 hover:bg-red-600 text-white'
-                )}
-              >
-                {adjustingStockId === adjustModal.product.product_id ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  adjustModal.mode === 'add' ? <Plus className="w-4 h-4" /> : <Minus className="w-4 h-4" />
-                )}
-                {adjustModal.mode === 'add' ? 'Add' : 'Reduce'} Stock
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {printModalProduct && (
-        <Modal
-          isOpen={true}
-          onClose={() => { setPrintModalProduct(null); setStatusMessage(null); }}
-          className="max-w-lg"
-          closeButton={null}
-        >
-          <div className="flex flex-col">
-            {/* ── Label Preview Card ── */}
-            <div className="px-6 pt-6 pb-4">
-              <div className="bg-white rounded-2xl border-2 border-dashed border-muted-foreground/25 p-6 flex flex-col items-center text-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.02)_10px,rgba(0,0,0,0.02)_20px)]" />
-                <div className="relative">
-                  {labelCodeType === 'qrcode' ? (
-                    <QRCodePreview barcode={printModalProduct.sku_barcode} />
-                  ) : (
-                    <Barcode value={printModalProduct.sku_barcode} height={50} displayValue={false} margin={0} width={1.8} background="transparent" />
-                  )}
-                  <p className="font-bold text-gray-800 text-lg mt-3 tracking-tight">{printModalProduct.name}</p>
-                  <p className="font-mono text-sm text-gray-500 tracking-wider mt-0.5">{printModalProduct.sku_barcode}</p>
-                  <div className={clsx(
-                    "mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold",
-                    printPrice ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-muted text-muted-foreground border border-border"
-                  )}>
-                    <span>MRP:</span>
-                    <span className="text-sm">
-                      ₹{(() => {
-                        const g = printModalProduct.grade_id ? grades.find(gr => gr.grade_id === printModalProduct.grade_id) : null;
-                        const gr = g ? Number(g.rate) : null;
-                        return (gr !== null && printModalProduct.pricing_mode === 'GRADE_RATE' ? gr : Number(printModalProduct.base_price)).toFixed(2);
-                      })()}
-                    </span>
-                  </div>
-                  {!printPrice && (
-                    <div className="mt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-                      Price Hidden
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Settings ── */}
-            <div className="px-6 pb-2 space-y-3">
-              <div className="grid grid-cols-[1fr_auto] gap-4 items-end">
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Number of Labels</label>
-                  <div className="flex items-center gap-2 bg-background border border-border rounded-xl p-1 pl-3 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
-                    <span className="text-muted-foreground text-sm font-semibold shrink-0">
-                      <Printer className="w-4 h-4 inline -mt-0.5 mr-1.5" />
-                      ×
-                    </span>
-                    <input
-                      type="number"
-                      min="1"
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      value={printQuantity}
-                      onChange={e => setPrintQuantity(e.target.value === '' ? '' : e.target.value)}
-                      className="w-16 bg-transparent text-foreground focus:outline-none text-center font-bold text-lg no-spinners py-1.5"
-                    />
-                  </div>
-                </div>
-                <label className="flex items-center gap-3 bg-muted/30 border border-border rounded-xl px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors select-none">
-                  <input
-                    type="checkbox"
-                    checked={printPrice}
-                    onChange={e => setPrintPrice(e.target.checked)}
-                    className="w-4 h-4 accent-primary rounded cursor-pointer"
-                  />
-                  <span className="text-sm font-semibold text-foreground">Show Price</span>
-                </label>
-              </div>
-            </div>
-
-            {/* ── Status & Actions ── */}
-            <div className="flex items-center justify-end px-6 py-4 border-t border-border mt-3">
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => printProductLabel(printModalProduct)}
-                  className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print {printQuantity !== '' && Number(printQuantity) > 1 ? `${printQuantity} Labels` : 'Label'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ─── CONFIRM DELETE MODAL ─── */}
-      {deleteConfirmProduct && (
-        <Modal
-          isOpen={!!deleteConfirmProduct}
-          onClose={() => !isDeleting && setDeleteConfirmProduct(null)}
-          title="Confirm Delete"
-          className="max-w-md"
-        >
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3.5 bg-destructive/10 text-destructive rounded-xl border border-destructive/20">
-              <AlertTriangle className="w-6 h-6 shrink-0" />
-              <div>
-                <p className="font-bold text-sm">Delete Product?</p>
-                <p className="text-xs text-muted-foreground mt-0.5">This action cannot be undone.</p>
-              </div>
-            </div>
-            <p className="text-sm text-foreground">
-              Are you sure you want to delete <span className="font-bold text-foreground">"{deleteConfirmProduct.name}"</span>?
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash className="w-4 h-4" />
-                    <span>Delete Product</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ─── CONFIRM BULK DELETE MODAL ─── */}
-      {showBulkDeleteConfirm && (
-        <Modal
-          isOpen={showBulkDeleteConfirm}
-          onClose={() => !isBulkDeleting && setShowBulkDeleteConfirm(false)}
-          title={`Confirm Bulk Delete (${selectedProductIds.size})`}
-          className="max-w-md"
-        >
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3.5 bg-destructive/10 text-destructive rounded-xl border border-destructive/20">
-              <AlertTriangle className="w-6 h-6 shrink-0" />
-              <div>
-                <p className="font-bold text-sm">Delete {selectedProductIds.size} Products?</p>
-                <p className="text-xs text-muted-foreground mt-0.5">This action will remove all selected products from inventory.</p>
-              </div>
-            </div>
-            <p className="text-sm text-foreground">
-              Are you sure you want to permanently delete <span className="font-bold text-destructive">{selectedProductIds.size}</span> selected product(s)? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleConfirmBulkDelete}
-                disabled={isBulkDeleting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {isBulkDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Deleting {selectedProductIds.size}...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash className="w-4 h-4" />
-                    <span>Delete {selectedProductIds.size} Items</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <BulkDeleteProductsModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        selectedCount={selectedProductIds.size}
+        onConfirm={handleConfirmBulkDelete}
+        isBulkDeleting={isBulkDeleting}
+      />
 
       {/* ─── FLOATING TOASTS ─── */}
       <div className="fixed bottom-5 left-5 z-[9999] flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
@@ -3590,23 +3171,3 @@ return (
   );
 }
 
-// ─── Helper sub-components ───────────────────────────────────────────────────
-function QRCodePreview({ barcode }: { barcode: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    QRCode.toDataURL(barcode, { width: 120, margin: 1 })
-      .then(u => setUrl(u))
-      .catch(() => setUrl(null));
-  }, [barcode]);
-  if (!url) return <div style={{ width: '100px', height: '50px', background: '#f0f0f0' }} />;
-  return <img src={url} alt="QR" style={{ width: '100px', height: '100px', imageRendering: 'pixelated' }} />;
-}
-
-function DomainField({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
-  return (
-    <div>
-      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all shadow-sm" />
-    </div>
-  );
-}
