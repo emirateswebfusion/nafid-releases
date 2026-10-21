@@ -463,6 +463,7 @@ function setupCSP() {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https:",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com https:",
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -482,7 +483,7 @@ function setupCSP() {
   }
 
   if (isDev) {
-    directives.push("script-src 'self' 'unsafe-inline'");
+    directives.push("script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:");
     const devUrl = process.env.ELECTRON_DEV_SERVER_URL;
     if (devUrl) {
       try {
@@ -5583,11 +5584,13 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     // Accounting View filter:
     // - TAX_FILING: Official GST invoices meant for government/tax filing (both direct GST and BoS-converted GST copies)
     // - ALL: Complete unfiltered ledger (both original counter sales and GST filing copies)
-    // - REAL_SALES (Default): Real operational counter sales. Excludes synthetic tax conversion copies so cash & sales are 100% accurate!
+    // - REAL_SALES: Bill of Supply (BOS) counter sales only. Strictly excludes GST (B2C and B2B) bills!
     if (invoice_id) {
       // If directly looking up an invoice by ID, do not restrict by accounting view
     } else if (accounting_view === 'TAX_FILING') {
       query += " AND i.invoice_type = 'GST'";
+    } else if (accounting_view === 'REAL_SALES') {
+      query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
     } else if (accounting_view === 'ALL') {
       // Do not filter out conversion copies for the full ledger. When a product-level
       // tax rate filter is active, the synthetic GST copies are excluded so the list
@@ -5687,6 +5690,7 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
       : null;
 
     const isTaxFiling = accounting_view === 'TAX_FILING';
+    const isBosOnly = accounting_view === 'REAL_SALES';
 
     let query = isTaxFiling ? `
       SELECT 
@@ -5705,6 +5709,24 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
         AND (i.invoice_type = 'GST')
+        AND (i.is_held IS NULL OR i.is_held = 0)
+    ` : isBosOnly ? `
+      SELECT 
+        COALESCE(SUM(
+          CASE
+            WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+              THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
+            ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+          END
+        ), 0) as totalSales,
+        COALESCE(SUM(MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
+        COUNT(1) as totalInvoices,
+        COALESCE(SUM(i.tax_total), 0) as totalTax,
+        COALESCE(SUM(i.discount_total), 0) as totalDiscount
+      FROM invoices i 
+      WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
+        AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+        AND (i.invoice_type = 'BILL_OF_SUPPLY')
         AND (i.is_held IS NULL OR i.is_held = 0)
     ` : `
       SELECT 

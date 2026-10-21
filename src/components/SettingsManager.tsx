@@ -262,7 +262,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changingPass, setChangingPass] = useState(false);
   const [confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen] = useState(false);
-  const [appVersion, setAppVersion] = useState('v2.0.6');
+  const [appVersion, setAppVersion] = useState('v2.0.7');
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
   });
@@ -3964,14 +3964,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
 
                   <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs", whatsNewLang === 'ml' && "font-malayalam")}>
-                    {/* Recycle Bin & Safe Recovery */}
+                    {/* 1. Real Sales / Bill of Supply Mode in Sales History */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-1.5">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
                             <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'റീസൈക്കിൾ ബിൻ & സുരക്ഷിത വീണ്ടെടുക്കൽ' : 'Recycle Bin & Safe Restore'}
+                              {whatsNewLang === 'ml' ? 'റിയൽ കൗണ്ടർ സെയിൽസ് & BOS ഫിൽട്ടർ' : 'Real Counter Sales (BOS Mode)'}
                             </p>
                           </div>
                           <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
@@ -3979,17 +3979,67 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                           </span>
                         </div>
                         {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Undo Delete for Bills, Stock & Contacts</p>
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Strict BOS Counter Isolation & Accurate Totals</p>
                         )}
                         <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
                           {whatsNewLang === 'ml'
-                            ? 'അബദ്ധത്തിൽ ഡിലീറ്റ് ചെയ്ത സെയിൽസ് ബില്ലുകൾ, ഇൻവെന്ററി ഉൽപ്പന്നങ്ങൾ, കസ്റ്റമർമാർ, പാർട്ടികൾ എന്നിവ ഒരൊറ്റ ക്ലിക്കിലൂടെ തിരികെ റീസ്റ്റോർ ചെയ്യാം. സ്റ്റോക്ക് അളവും കൃത്യമായി പുനഃസ്ഥാപിക്കപ്പെടും.'
+                            ? 'സെയിൽസ് ഹിസ്റ്ററിയിൽ "Real Sales (BOS)" മോഡ് തിരഞ്ഞെടുത്താൽ യഥാർത്ഥ കൗണ്ടർ ബില്ലുകൾ (Bill of Supply) മാത്രമേ ലിസ്റ്റ് ചെയ്യൂ. ടാക്സ് ഫയലിംഗ് കോപ്പികളും GST ബില്ലുകളും പൂർണ്ണമായി ഒഴിവാക്കി കൃത്യമായ കച്ചവട സംഗ്രഹം ലഭ്യമാക്കുന്നു.'
+                            : 'In Sales History, selecting "Real Sales (BOS)" strictly isolates pure counter Bill of Supply transactions, completely filtering out synthetic GST copies and direct tax invoices for 100% accurate daily counter revenue.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 2. Interactive Tax Rate Filters with One-Click Clear */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-violet-500/40 hover:bg-violet-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'ടാക്സ് റേറ്റ് ഫിൽട്ടറും വൺ-ക്ലിക്ക് റീസെറ്റും' : 'GST Tax Rate Filter & Quick Reset'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'റിപ്പോർട്ടിംഗ്' : 'Tax Reports'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold pl-4 -mt-0.5">5%, 12%, 18%, 28% Breakdown with Dismiss Pill</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ടാക്സ് ഫയലിംഗ് മോഡിൽ ഉൽപ്പന്നങ്ങളെ നികുതി നിരക്കനുസരിച്ച് (0%, 5%, 12%, 18%, 28%) വേർതിരിച്ചു കാണാം. സജീവമായ ഫിൽട്ടർ പെട്ടെന്ന് ഒഴിവാക്കാൻ വൺ-ക്ലിക്ക് ക്ലിയർ ബാഡ്ജും സജ്ജമാക്കി.'
+                            : 'Filter itemized sales by exact GST tax slabs (0%, 5%, 12%, 18%, 28%) with instant product-level breakdown, item counts, and a one-click dismiss pill to return to full invoices list.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 3. Recycle Bin & Safe Recovery */}
+                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-rose-500/40 hover:bg-rose-500/[0.02] transition-all flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                            <p className="font-bold text-foreground text-xs truncate">
+                              {whatsNewLang === 'ml' ? 'റീസൈക്കിൾ ബിൻ & സുരക്ഷിത വീണ്ടെടുക്കൽ' : 'Recycle Bin & Safe Restore'}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            {whatsNewLang === 'ml' ? 'റിക്കവറി' : 'Recovery'}
+                          </span>
+                        </div>
+                        {whatsNewLang === 'ml' && (
+                          <p className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold pl-4 -mt-0.5">Undo Delete for Bills, Stock & Contacts</p>
+                        )}
+                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                          {whatsNewLang === 'ml'
+                            ? 'ഡിലീറ്റ് ചെയ്ത സെയിൽസ് ബില്ലുകൾ, ഇൻവെന്ററി ഉൽപ്പന്നങ്ങൾ, കസ്റ്റമർമാർ, പാർട്ടികൾ എന്നിവ ഒരൊറ്റ ക്ലിക്കിലൂടെ തിരികെ റീസ്റ്റോർ ചെയ്യാം. സ്റ്റോക്ക് അളവും കൃത്യമായി പുനഃസ്ഥാപിക്കപ്പെടും.'
                             : 'Safely recover deleted sales invoices, inventory items, customer profiles, and ledger parties with one-click restore and automatic stock balance reconciliation.'}
                         </p>
                       </div>
                     </div>
 
-                    {/* Custom Billing Date & Time Picker */}
+                    {/* 4. Custom Billing Date & Time Picker */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-indigo-500/40 hover:bg-indigo-500/[0.02] transition-all flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-1.5">
@@ -4008,13 +4058,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         )}
                         <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
                           {whatsNewLang === 'ml'
-                            ? 'കഴിഞ്ഞ ദിവസങ്ങളിലെ പഴയ ബില്ലുകൾ അടിക്കുമ്പോൾ തീയതിയും സമയവും കൃത്യമായി തിരഞ്ഞെടുക്കാൻ ബില്ലിംഗ് സ്ക്രീനിൽ മനോഹരമായ കലണ്ടറും ടൈം സെലക്ടറും ലഭ്യമാക്കി.'
+                            ? 'പഴയ തീയതികളിൽ ബിൽ അടിക്കുമ്പോൾ തീയതിയും സമയവും കൃത്യമായി തിരഞ്ഞെടുക്കാൻ ബില്ലിംഗ് സ്ക്രീനിൽ മനോഹരമായ കലണ്ടറും ടൈം സെലക്ടറും ലഭ്യമാക്കി.'
                             : 'Set custom invoice dates and timestamps directly from the billing screen with a modern calendar picker and quick Today/Yesterday presets.'}
                         </p>
                       </div>
                     </div>
 
-                    {/* Instant Zero-Lag Sales History */}
+                    {/* 5. Instant Zero-Lag Sales History */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-1.5">
@@ -4039,352 +4089,27 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       </div>
                     </div>
 
-                    {/* Enhanced WhatsApp Closing Report Customization */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'വിശദമായ വാട്സാപ്പ് ക്ലോസിംഗ് റിപ്പോർട്ട്' : 'Advanced WhatsApp Closing'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'വാട്സാപ്പ്' : 'WhatsApp'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Granular Section & Sub-Item Toggles</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഷോപ്പ് ക്ലോസിംഗ് വാട്സാപ്പ് മെസ്സേജിൽ ഏതൊക്കെ വിഭാഗങ്ങൾ വേണമെന്ന് (സെയിൽസ് സംഗ്രഹം, ബില്ലർ കണക്കുകൾ, ചിലവുകൾ, സ്ക്രാപ്പ്, ലെഡ്ജർ) വ്യക്തിഗതമായി ടിക്ക് ചെയ്ത് തിരഞ്ഞെടുക്കാം.'
-                            : 'Fine-tune end-of-day WhatsApp closing summaries by toggling exact sections and sub-metrics including cashier breakdown, expenses, scrap, and credit collections.'}
-                        </p>
-                      </div>
-                    </div>
-                    {/* 1. Bill of Supply to GST Convert Corrected */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ബിൽ ഓഫ് സപ്ലൈ ➔ GST കൺവേർഷൻ' : 'Bill of Supply → GST Convert'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'കറക്ഷൻ' : 'Corrected'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Tax-Inclusive Margin & Real Sales Fix</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'എസ്റ്റിമേറ്റ് / ബിൽ ഓഫ് സപ്ലൈ ബില്ലുകൾ GST ടാക്സ് ഇൻവോയ്സിലേക്ക് മാറ്റുന്നതിൽ കൃത്യമായ ലാഭവിഹിതവും (Profit %) ടാക്സ്-ഇൻക്ലൂസീവ് കണക്കുകൂട്ടലുകളും ഉറപ്പാക്കി. കൺവേർട്ട് ചെയ്ത ബില്ലുകൾ സെയിൽസ് റിപ്പോർട്ടിൽ ഇരട്ടിപ്പായി വരുന്നത് തടയുകയും, GST ഫയലിംഗ് കോപ്പികൾ കൃത്യമായി രേഖപ്പെടുത്തുകയും ചെയ്യുന്നു.'
-                            : 'Corrected and perfected Bill of Supply to GST conversion with accurate tax-inclusive profit margins, automatic sequential GST invoice generation, statutory tax copy tagging, and prevention of duplicate sales in revenue reports.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 2. E-Commerce Storefront Added */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ഇ-കൊമേഴ്‌സ് പോർട്ടൽ' : 'E-Commerce Storefront'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'പുതിയത്' : 'Added'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold pl-4 -mt-0.5">Online Store & Real-Time Stock Sync</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഷോപ്പിനായി സ്വന്തം ഓൺലൈൻ സ്റ്റോറും ഇ-കൊമേഴ്‌സ് പോർട്ടലും POS-ൽ സജ്ജമാക്കി. ഓൺലൈൻ ഓർഡറുകൾ തത്സമയം സ്വീകരിക്കാനും, ഓർഡർ സ്റ്റാറ്റസ് പ്രോസസ്സ് ചെയ്യാനും, കടയിലെയും ഓൺലൈനിലെയും സ്റ്റോക്ക് ഒരേപോലെ ലൈവായി സിങ്ക് ചെയ്യാനും സാധിക്കും.'
-                            : 'Launch and manage your online store directly within Nafid POS. Features real-time catalog and inventory synchronization, incoming web order alerts, order fulfillment tracking, and unified multi-channel stock deduction.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 3. Digital Ads Feature Added */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-purple-500/40 hover:bg-purple-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ഡിജിറ്റൽ പരസ്യ ബോർഡ്' : 'Digital Ads & Promo Display'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'പുതിയത്' : 'Added'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold pl-4 -mt-0.5">Customer Screen & Counter Display Ads</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'കൗണ്ടറിലെ കസ്റ്റമർ ഡിസ്പ്ലേ സ്ക്രീനുകളിലും ടാബ്‌ലറ്റുകളിലും ഷോപ്പിലെ ഓഫറുകൾ, വിശേഷാൽ ഡിസ്കൗണ്ടുകൾ, ഉൽപ്പന്ന പരസ്യങ്ങൾ എന്നിവ മനോഹരമായ ബാനറുകളായും ഓട്ടോമാറ്റിക് സ്ലൈഡ്‌ഷോയായും പ്രദർശിപ്പിക്കാം.'
-                            : 'Promote high-margin products, seasonal discounts, and brand announcements on secondary customer-facing screens or counter tablets with scheduling, animated transitions, and full-screen promo playback.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Digital Warranty Certificates (Bill Number & Brand) */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-violet-500/40 hover:bg-violet-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'വാറന്റി കാർഡുകൾ (Bill No & Brand)' : 'Warranty Cards (Bill No & Brand)'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'വാറന്റി' : 'Warranty'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold pl-4 -mt-0.5">A4 Certificates & Brand Tracking</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഉല്പന്നങ്ങൾക്ക് ബിൽ നമ്പറും ബ്രാൻഡും (Brand) രേഖപ്പെടുത്തി കൃത്യമായ A4 വാറന്റി കാർഡുകൾ നൽകാം. ബിൽ നമ്പർ വഴിയോ ബ്രാൻഡ് വഴിയോ വാറന്റികൾ തത്സമയം സെർച്ച് ചെയ്യാനും തൽക്ഷണം ക്ലൗഡിലേക്ക് സിങ്ക് ചെയ്യാനും സാധിക്കും.'
-                            : 'Issue and print official A4 warranty certificates with dedicated Bill Number and Brand fields. Search warranties instantly by bill number, brand, or customer phone with real-time cloud synchronization.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Customer Loyalty Points & Instant Redemption */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-amber-500/40 hover:bg-amber-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'കസ്റ്റമർ ലോയൽറ്റി & ഡയനാമിക് റിഡംപ്ഷൻ' : 'Customer Loyalty & Unified Redemption'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'ലോയൽറ്റി' : 'Loyalty'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold pl-4 -mt-0.5">Real-Time Points, Alt+L Shortcut & Unified Deduction</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഓരോ പർച്ചേസിലും കസ്റ്റമർമാർക്ക് പോയിന്റുകൾ നൽകാം (₹X = 1 Pt). ബില്ലിംഗിൽ കസ്റ്റമറെ സെലക്ട് ചെയ്യുമ്പോൾ ഫോൺ നമ്പറിന് തൊട്ടടുത്ത് തന്നെ പോയിന്റ് ബാലൻസ് കാണാം. താഴെ സ്ക്രാപ്പ്/റിട്ടേൺ ഡിഡക്ഷനുകൾക്കൊപ്പമുള്ള ഏകീകൃത പാനലിൽ "Alt+L" ഷോർട്ട്‌കട്ട് വഴിയോ ടാബ് വഴിയോ പോയിന്റ് ഇൻപുട്ടിലേക്ക് മാറി, പോയിന്റുകൾ നേരിട്ട് ടൈപ്പ് ചെയ്തോ "Max" ബട്ടൺ വഴിയോ തത്സമയം ബിൽ തുകയിൽ നിന്ന് കുറയ്ക്കാം. കസ്റ്റമർ പേജിൽ ലെഡ്ജർ ഹിസ്റ്ററിയും മാനുവൽ അഡ്ജസ്റ്റ്മെന്റും ലഭ്യമാണ്.'
-                            : 'Award customer loyalty points on purchases (₹X = 1 Pt). When selecting a customer during billing, their points balance appears right beside the phone number. Seamlessly redeem points using the unified dynamic deduction bar via "Alt+L" shortcut or tab, with direct numeric entry and a quick "Max" button to deduct cash value in real time. Includes full points audit ledger and manual adjustments in Customers Page.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Dashboard Card Reordering & Customizer */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-indigo-500/40 hover:bg-indigo-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ഡാഷ്‌ബോർഡ് കാർഡ് റീ-ഓർഡർ' : 'Dashboard Card Reorder'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'കസ്റ്റമൈസേഷൻ' : 'Customization'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Drag & Drop Card Sequence</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഓണർക്കും സ്റ്റാഫിനും സ്വന്തം ഇഷ്ടപ്രകാരം POS ഡാഷ്‌ബോർഡിലെ കാർഡുകൾ (Billing, Cashier, Inventory...) ഡ്രാഗ് ചെയ്തും ആരോ ബട്ടണുകൾ വഴിയും റീ-ഓർഡർ ചെയ്യാം. കസ്റ്റം റീസെറ്റ് ഡയലോഗും ലഭ്യമാണ്.'
-                            : 'Owners and staff can dynamically reorder POS dashboard cards (Billing, Cashier, Inventory...) via drag-and-drop or position arrows, with user profile sync and a custom reset dialog.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Theme & Typography Architecture */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-primary/40 hover:bg-primary/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-primary shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'തീം, കളർ & ടൈപ്പോഗ്രാഫി' : 'Theme & Typography Studio'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'കസ്റ്റമൈസേഷൻ' : 'Design Studio'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Colors, Fonts & Admin Surface Tones</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ബ്രാൻഡ് കളർ, ഫോണ്ട് സ്റ്റാക്കുകൾ, റീഡിംഗ് സൈസ് എന്നിവ മാറ്റാം. അഡ്മിന് ലൈറ്റ്-ഡാർക്ക് തീമുകളുടെ ബേസ് കളർ (Zero-Blue ന്യൂട്രൽ സിങ്ക്, വാം പേപ്പർ, ഒഎൽഇഡി പിച്ച് ബ്ലാക്ക്) അല്ലെങ്കിൽ കസ്റ്റം കളർ നൽകാം.'
-                            : 'Calibrate primary brand colors, typography font stacks, and reading density. Admins can customize non-bluish Light and Dark theme base surfaces (Neutral Zinc, Warm Paper, Pitch Black OLED) or custom HEX colors.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 1. Automated Shop Closing Reports */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ഷോപ്പ് ക്ലോസിംഗ് റിപ്പോർട്ട്' : 'Automated Shop Closing'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'വാട്സാപ്പ്' : 'WhatsApp'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Automated WhatsApp Report</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ദിവസേന കടയടയ്ക്കുമ്പോൾ ക്യാഷ് കൗണ്ട്, ബില്ലർ തിരിച്ചുള്ള സെയിൽസ്, ക്രെഡിറ്റ് പിരിവ്, ചിലവുകൾ എന്നിവ അടങ്ങിയ കൃത്യമായ സംഗ്രഹം ഓട്ടോമാറ്റിക്കായി വാട്സാപ്പിൽ ലഭിക്കുന്നു.'
-                            : 'End-of-day closing summaries sent automatically to WhatsApp with cash reconciliation, multi-biller sales, credit collections, and expense totals.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 2. Emergency Reset & Panic Shield */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-rose-500/40 hover:bg-rose-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'എമർജൻസി പാനിക് ഷീൽഡ്' : 'Emergency Panic Shield'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'സുരക്ഷ' : 'Security'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Kill Switch & Audit Protection</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'പെട്ടെന്നുള്ള പരിശോധനകളിലും ഓഡിറ്റുകളിലും രഹസ്യ പാനിക് ക്ലിക്കിലൂടെയോ ഹോട്ട്കീ വഴിയോ ഡാറ്റ സുരക്ഷിതമായി ലോക്ക് ചെയ്യാനും അടിയന്തരമായി മായ്ക്കാനും സാധിക്കും.'
-                            : 'Covert kill-switch panic triggers and selective database purge safeguards with passcode protection to protect confidential records during urgent audits.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 3. Staff Data Masking */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-amber-500/40 hover:bg-amber-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'സ്റ്റാഫ് ഡാറ്റ മാസ്കിംഗ്' : 'Staff Data Masking'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'പ്രൈവസി' : 'Privacy'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Purchase Cost & Profit Privacy</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ബില്ലിംഗ് ക്യാഷ്യർമാരിൽ നിന്നും സാധനങ്ങളുടെ വാങ്ങൽ വില (Purchase Price), ലാഭവിഹിതം (Profit Margin), മൊത്തം വിറ്റുവരവ് കണക്കുകൾ എന്നിവ പൂർണ്ണമായും മറച്ചുവെക്കാം.'
-                            : 'Shield store profits and supplier costs by masking wholesale purchase prices, profit margins, and total revenue figures from cashier staff accounts.'}
-                        </p>
-                      </div>
-                    </div>
-
-
-                    {/* 5. Offline AI Assistant & Analytics */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-cyan-500/40 hover:bg-cyan-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-cyan-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ഓഫ്‌ലൈൻ AI അസിസ്റ്റന്റ്' : 'Offline AI Intelligence'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'AI ഓഫ്‌ലൈൻ' : 'AI Offline'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Zero-Internet Natural Queries</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഇന്റർനെറ്റ് ഇല്ലാതെ തന്നെ പഴയ ബില്ലുകൾ കണ്ടെത്താനും, കച്ചവട കണക്കുകളും സ്റ്റോക്ക് വിവരങ്ങളും ലളിതമായ ചോദ്യങ്ങളിലൂടെ നേരിട്ട് ചോദിച്ചറിയാനും സാധിക്കുന്നു.'
-                            : 'Audit sales history, search customer bills, and query inventory trends using conversational natural language with zero cloud latency.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 6. Dynamic Tiered Pricing & PDF Ledgers */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'പ്രൈസിംഗ് ടയർ & PDF ലെഡ്ജർ' : 'Tiered Pricing & Ledgers'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'അക്കൗണ്ട്സ്' : 'Accounts'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">Wholesale Tiers & Statements</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'റീട്ടെയിൽ, ഹോൾസെയിൽ, VIP കസ്റ്റമർമാർക്ക് പ്രത്യേക വിലകൾ ഓട്ടോമാറ്റിക്കായി നൽകാനും, അക്കൗണ്ട് ഇടപാടുകളുടെ വ്യക്തമായ PDF ലെഡ്ജർ സ്റ്റേറ്റ്മെന്റ് പ്രിന്റ് ചെയ്യാനും സാധിക്കും.'
-                            : 'Automatically apply wholesale or VIP pricing tiers to customer carts and export beautifully formatted PDF account ledger statements.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 7. Thermal Printer Alignment & Left Margin Offset */}
+                    {/* 6. Advanced WhatsApp Closing Report Customization */}
                     <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-teal-500/40 hover:bg-teal-500/[0.02] transition-all flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-1.5">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0"></span>
                             <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'തെർമൽ പ്രിന്റർ അലൈൻമെന്റ് & ഓഫ്സെറ്റ്' : 'Thermal Printer Alignment & Offset'}
+                              {whatsNewLang === 'ml' ? 'വിശദമായ വാട്സാപ്പ് ക്ലോസിംഗ് റിപ്പോർട്ട്' : 'Advanced WhatsApp Closing'}
                             </p>
                           </div>
                           <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'ഹാർഡ്‌വെയർ' : 'Hardware'}
+                            {whatsNewLang === 'ml' ? 'വാട്സാപ്പ്' : 'WhatsApp'}
                           </span>
                         </div>
                         {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-primary/80 font-semibold pl-4 -mt-0.5">POS80 & 80mm Margin Calibration</p>
+                          <p className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold pl-4 -mt-0.5">Granular Section & Sub-Item Toggles</p>
                         )}
                         <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
                           {whatsNewLang === 'ml'
-                            ? 'POSPrinter POS80 ഉൾപ്പെടെയുള്ള 80mm തെർമൽ പ്രിന്ററുകളിൽ വിൻഡോസ് ഡ്രൈവർ കാരണം പ്രിന്റ് ഒരു വശത്തേക്ക് മാറിപ്പോകുന്ന പ്രശ്നം പരിഹരിക്കാൻ Left Margin Offset ക്രമീകരണവും കൃത്യമായ പേജ് ഫോർമാറ്റിംഗും ലഭ്യമാക്കി.'
-                            : 'Added precision left-margin offset calibration and continuous roll layout fixes for 80mm thermal receipt printers (including POSPrinter POS80) to eliminate rightward shifts without affecting other printers.'}
+                            ? 'ഷോപ്പ് ക്ലോസിംഗ് വാട്സാപ്പ് മെസ്സേജിൽ ഏതൊക്കെ വിഭാഗങ്ങൾ വേണമെന്ന് (സെയിൽസ് സംഗ്രഹം, ബില്ലർ കണക്കുകൾ, ചിലവുകൾ, സ്ക്രാപ്പ്, ലെഡ്ജർ) വ്യക്തിഗതമായി ടിക്ക് ചെയ്ത് തിരഞ്ഞെടുക്കാം.'
+                            : 'Fine-tune end-of-day WhatsApp closing summaries by toggling exact sections and sub-metrics including cashier breakdown, expenses, scrap, and credit collections.'}
                         </p>
                       </div>
                     </div>

@@ -1,3 +1,16 @@
+# Nafid POS v2.0.7 Release Notes
+
+## What's Changed
+- **Real Counter Sales (BOS Mode) & Isolated Accounting**: Added dedicated Bill of Supply filtering in Sales History to view and calculate exclusively non-tax counter transactions for accurate internal ledger audits without mixing GST tax bills.
+- **GST Tax Rate Filter & Quick Reset**: Filter sales records instantaneously by individual GST tax slabs (0%, 5%, 12%, 18%, 28%) with visual indicator pills and one-click filter clear.
+- **Streamlined What's New Interface in Settings**: Redesigned What's New under Appearance to show exclusively relevant, user-focused new features in bilingual English & Malayalam, removing all outdated legacy items.
+- **Recycle Bin & Safe Restore**: Recover deleted invoices, items, and contacts with automatic inventory stock reconciliation.
+- **Custom Billing Date & Time Picker**: Enter backdated transactions with the interactive calendar and time picker directly from the main billing screen.
+- **Zero-Lag Sales History Drawer**: Instant side-drawer invoice inspection powered by predictive hover caching.
+- **Advanced WhatsApp Closing Summary**: Customizable shop closing reports with toggles for cashier breakdown, expense details, scrap transactions, and party ledger collections.
+- **Automated Windows Installer Deployment**: Packaged installer `Nafid-Setup-2.0.7.exe` with updated auto-update block map.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.6...v2.0.7
+
 # Nafid POS v2.0.6 Release Notes
 
 ## What's Changed

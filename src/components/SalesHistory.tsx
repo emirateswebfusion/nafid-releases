@@ -518,7 +518,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [taxProductTotals, setTaxProductTotals] = useState<InvoiceProductTotals | null>(null);
   const [taxProductLoading, setTaxProductLoading] = useState(false);
   const taxProductRequestRef = useRef(0);
-  const taxFilterActive = taxPercentageFilter !== '' && taxPercentageFilter !== 'all';
+  const taxFilterActive = accountingView !== 'REAL_SALES' && taxPercentageFilter !== '' && taxPercentageFilter !== 'all';
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
@@ -821,10 +821,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig, accountingView]);
 
   useEffect(() => {
-    if (invoiceTypeFilter === 'BILL_OF_SUPPLY' && taxPercentageFilter !== '') {
+    if ((accountingView === 'REAL_SALES' || invoiceTypeFilter === 'BILL_OF_SUPPLY') && taxPercentageFilter !== '') {
       setTaxPercentageFilter('');
     }
-  }, [invoiceTypeFilter, taxPercentageFilter]);
+  }, [accountingView, invoiceTypeFilter, taxPercentageFilter]);
 
   useEffect(() => {
     getUpiPageConfig(useAuthStore.getState().tenantId || 'global').then(setUpiPageConfig);
@@ -907,7 +907,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
       const scopedData = filters?.accounting_view === 'TAX_FILING'
         ? data
-        : data.filter((inv: any) => !inv.converted_from_invoice_id);
+        : filters?.accounting_view === 'REAL_SALES'
+          ? data.filter((inv: any) => inv.invoice_type === 'BILL_OF_SUPPLY')
+          : data.filter((inv: any) => !inv.converted_from_invoice_id);
 
       const itemsByInvoice: Record<string, any[]> = {};
       await Promise.all(scopedData.map(async (inv: any) => {
@@ -950,7 +952,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
       const effectiveInvoiceType = hasGstInvoicesOnly
         ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
-        : (invoiceTypeFilter || undefined);
+        : accountingView === 'REAL_SALES'
+          ? 'BILL_OF_SUPPLY'
+          : (invoiceTypeFilter || undefined);
 
       const isStaffUser = isStaffRole(role);
       const shouldMaskStaff = shouldApplyStaffMasking(role, maskingConfig);
@@ -967,7 +971,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           user_id: userId, tenant_id: tenantId, role,
           search: debouncedSearch || undefined, payment_method: paymentFilter || undefined,
           invoice_type: effectiveInvoiceType,
-          tax_rate_percent: taxPercentageFilter || undefined,
+          tax_rate_percent: accountingView === 'REAL_SALES' ? undefined : (taxPercentageFilter || undefined),
           filterDate: effectiveFilterDate, filterDateEnd: effectiveFilterDateEnd,
           accounting_view: accountingView,
         };
@@ -1399,7 +1403,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         // Synchronize accounting view so the underlying list matches the active document
         if (match.invoice_type === 'BILL_OF_SUPPLY' && accountingView === 'TAX_FILING') {
           setAccountingView('REAL_SALES');
-        } else if (match.invoice_type === 'GST' && accountingView === 'REAL_SALES' && match.converted_from_invoice_id) {
+        } else if (match.invoice_type === 'GST' && accountingView === 'REAL_SALES') {
           setAccountingView('TAX_FILING');
         }
         await handleSelectInvoice(match);
@@ -1412,7 +1416,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
   };
 
-  const liveInvoicesForSummary = invoices.filter(i => accountingView === 'TAX_FILING' ? i.invoice_type === 'GST' : !i.converted_from_invoice_id);
+  const liveInvoicesForSummary = invoices.filter(i =>
+    accountingView === 'TAX_FILING'
+      ? i.invoice_type === 'GST'
+      : accountingView === 'REAL_SALES'
+        ? i.invoice_type === 'BILL_OF_SUPPLY'
+        : !i.converted_from_invoice_id
+  );
   const fallbackSummary = {
     totalSales: liveInvoicesForSummary.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
     totalSalesBeforeDeductions: liveInvoicesForSummary.reduce((s, i) => s + getInvoicePreDeductionTotal(i), 0),
@@ -1955,7 +1965,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
       const effectiveInvoiceType = hasGstInvoicesOnly
         ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
-        : (invoiceTypeFilter || undefined);
+        : accountingView === 'REAL_SALES'
+          ? 'BILL_OF_SUPPLY'
+          : (invoiceTypeFilter || undefined);
 
       const data = await window.electronAPI.dbGetInvoices({
         user_id: userId, tenant_id: tenantId, role,
@@ -1963,7 +1975,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         search: search || undefined,
         payment_method: paymentFilter || undefined,
         invoice_type: effectiveInvoiceType,
-        tax_rate_percent: taxPercentageFilter || undefined,
+        tax_rate_percent: accountingView === 'REAL_SALES' ? undefined : (taxPercentageFilter || undefined),
         filterDate: filterDate || undefined,
         filterDateEnd: filterDateEnd || undefined,
         accounting_view: accountingView,
@@ -2514,7 +2526,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               <div className="inline-flex items-center bg-muted/80 dark:bg-muted/40 p-1 rounded-2xl border border-border/80 shadow-inner gap-1 backdrop-blur-xs shrink-0">
                 <button
                   type="button"
-                  onClick={() => setAccountingView('REAL_SALES')}
+                  onClick={() => {
+                    setAccountingView('REAL_SALES');
+                    setInvoiceTypeFilter('');
+                    setTaxPercentageFilter('');
+                  }}
                   className={clsx(
                     'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-2 cursor-pointer active:scale-[0.97] select-none',
                     accountingView === 'REAL_SALES'
@@ -2533,7 +2549,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAccountingView('TAX_FILING')}
+                  onClick={() => {
+                    setAccountingView('TAX_FILING');
+                    if (invoiceTypeFilter === 'BILL_OF_SUPPLY') setInvoiceTypeFilter('');
+                    setTaxPercentageFilter('');
+                  }}
                   className={clsx(
                     'px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center cursor-pointer active:scale-[0.97] select-none',
                     accountingView === 'TAX_FILING'
@@ -2546,7 +2566,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAccountingView('ALL')}
+                  onClick={() => {
+                    setAccountingView('ALL');
+                    setTaxPercentageFilter('');
+                  }}
                   className={clsx(
                     'px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 flex items-center gap-1 cursor-pointer active:scale-[0.97] select-none',
                     accountingView === 'ALL'
@@ -2608,7 +2631,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   triggerClassName="rounded-xl h-8.5 border px-3 transition-all bg-background border-border/80 hover:bg-muted/30"
                 />
                 <span className="w-px h-5 bg-border/60 mx-1 shrink-0" />
-                {(() => {
+                {accountingView !== 'REAL_SALES' && (() => {
+                  const typeOptions = accountingView === 'TAX_FILING'
+                    ? [
+                        { value: '', label: 'All GST Types' },
+                        { value: 'GST_B2B', label: 'B2B' },
+                        { value: 'GST_B2C', label: 'B2C' },
+                      ]
+                    : [
+                        { value: '', label: 'All Types' },
+                        { value: 'GST_B2B', label: 'B2B' },
+                        { value: 'GST_B2C', label: 'B2C' },
+                        { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
+                      ];
+
                   const typeChipColors: Record<string, { bg: string; text: string; border: string }> = {
                     '': { bg: 'bg-background border-border/80 hover:bg-muted/30', text: 'text-foreground', border: 'border-border/80' },
                     GST_B2B: { bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/25' },
@@ -2620,12 +2656,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <Select
                       value={invoiceTypeFilter}
                       onChange={setInvoiceTypeFilter}
-                      options={[
-                        { value: '', label: 'All Types' },
-                        { value: 'GST_B2B', label: 'B2B' },
-                        { value: 'GST_B2C', label: 'B2C' },
-                        { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
-                      ]}
+                      options={typeOptions}
                       size="xs"
                       className="w-40"
                       triggerClassName={clsx('rounded-xl h-8.5 border px-3 transition-all font-semibold', colors.bg, colors.text, colors.border)}
@@ -2643,28 +2674,53 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     />
                   );
                 })()}
-                {invoiceTypeFilter !== 'BILL_OF_SUPPLY' && (
-                  <Select
-                    value={taxPercentageFilter}
-                    onChange={setTaxPercentageFilter}
-                    options={TAX_RATES}
-                    size="xs"
-                    className="w-28"
-                    triggerClassName="rounded-xl h-8.5 border px-3 transition-all bg-background border-border/80 hover:bg-muted/30 font-semibold"
-                    renderOption={(opt) => (
-                      <span className="flex items-center gap-2 text-xs font-bold text-foreground">
-                        <Percent className="w-3 h-3 text-muted-foreground" />
-                        {opt.label}
-                      </span>
+                {accountingView !== 'REAL_SALES' && invoiceTypeFilter !== 'BILL_OF_SUPPLY' && (
+                  <>
+                    <Select
+                      value={taxPercentageFilter}
+                      onChange={setTaxPercentageFilter}
+                      options={TAX_RATES}
+                      size="xs"
+                      className="w-28"
+                      triggerClassName="rounded-xl h-8.5 border px-3 transition-all bg-background border-border/80 hover:bg-muted/30 font-semibold"
+                      renderOption={(opt) => (
+                        <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                          <Percent className="w-3 h-3 text-muted-foreground" />
+                          {opt.label}
+                        </span>
+                      )}
+                    />
+                    {taxFilterActive && (
+                      <button
+                        type="button"
+                        onClick={() => setTaxPercentageFilter('')}
+                        className="h-8.5 px-2.5 rounded-xl text-xs font-bold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/25 hover:bg-violet-500/20 active:scale-95 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
+                        title="Clear GST tax rate filter and return to bills list"
+                      >
+                        <span>{taxPercentageFilter}% GST</span>
+                        <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                      </button>
                     )}
-                  />
+                  </>
                 )}
               </div>
               <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
                 {summaryLoading
                   ? '…'
                   : taxFilterActive
-                    ? `${taxProductRows.length} product${taxProductRows.length !== 1 ? 's' : ''} from ${summary.totalInvoices} bill${summary.totalInvoices !== 1 ? 's' : ''}`
+                    ? (
+                      <span className="flex items-center gap-2">
+                        <span>{`${taxProductRows.length} product${taxProductRows.length !== 1 ? 's' : ''} from ${summary.totalInvoices} bill${summary.totalInvoices !== 1 ? 's' : ''}`}</span>
+                        <button
+                          type="button"
+                          onClick={() => setTaxPercentageFilter('')}
+                          className="px-2 py-0.5 rounded-md bg-muted hover:bg-muted/80 text-[10px] font-bold text-foreground hover:text-destructive transition-colors cursor-pointer border border-border/60"
+                          title="Clear tax rate filter"
+                        >
+                          Clear
+                        </button>
+                      </span>
+                    )
                     : invoices.length === summary.totalInvoices
                       ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}`
                       : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
