@@ -70,7 +70,7 @@ npm run package:win    # rebuild natives + build + electron-builder
 
 | Item | State | Next step |
 |---|---|---|
-| `BillingPage.tsx` (8.4k lines, 130+ `useState`) | Views, modals, deduction editor, pricing/checkout line builders and the checkout use-case extracted | Move tab/number reservation and deduction search state into hooks; then the keyboard handler |
+| `BillingPage.tsx` (6.9k lines, 130+ `useState`) | Views (cart, totals, payment, search bar, customer details, ERP grid layout), modals, deduction editor, pricing/checkout line builders and the checkout use-case extracted | Group customer and search state into hooks (`useBillingCustomer`, `useProductSearch`) so the views take one object instead of 37–68 props; then tab/number reservation and the keyboard handler |
 | Other oversized screens | Capped by the guard | Split into `views/` per tab/section when touched |
 | Main process layering | **Done:** IPC registration-only (0 SQL); services all < 800 lines; ~560 statements + 18 filter builders in `db/statements`; staff/offline-auth/purge use-cases moved out of `localDb.ts` (now connection + schema, 2.2k) | Move the last 6 date-range builders (resolve the date range in the service, pass it in) |
 | Checkout | **Done:** `handleCheckout` moved to `billing/checkout/` (`createCheckoutHandler`, `runScrapCheckout` + tests); payloads identical to HEAD in 4 browser scenarios | Split the sales path further (validation → payload → persist → print) with unit tests per step |

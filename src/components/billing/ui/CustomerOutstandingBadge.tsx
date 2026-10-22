@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
-export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; phone?: string; balance?: number } | null }) {
+export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; phone?: string | null; balance?: number } | null }) {
   const [activeParty, setActiveParty] = useState(partyObj);
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
