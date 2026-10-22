@@ -1,8 +1,7 @@
 import React from 'react';
-import { Zap, Power, CheckCircle2, AlertCircle, TrendingUp, Handshake, Layers, Check, FileText, Wallet } from 'lucide-react';
+import { Power, AlertCircle, TrendingUp, Handshake, Layers, Check, FileText, Wallet } from 'lucide-react';
 import clsx from 'clsx';
-import { FEATURE_LIST, type FeatureFlags, type FeatureKey, useFeatureFlagsStore, sanitizeFeatureFlags } from '../../../featureFlags';
-import { Modal } from '../../ui/Modal';
+import { FEATURE_LIST, type FeatureFlags, useFeatureFlagsStore, sanitizeFeatureFlags } from '../../../featureFlags';
 
 export interface FeaturesTabProps {
   featureFlags: any;

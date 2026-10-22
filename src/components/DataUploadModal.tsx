@@ -1,15 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Upload, Download, FileSpreadsheet, FileText, CheckCircle2, 
-  AlertCircle, X, RefreshCw, Layers, ArrowRight, Table, AlertTriangle,
-  Info, HelpCircle, FileCheck, Check, ListOrdered
-} from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, FileSpreadsheet, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Table, AlertTriangle, FileCheck, ListOrdered } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuthStore } from '../store/authStore';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
+import { hasBridge } from '../data/client';
+import { partiesApi } from '../data/parties';
+import { pricingTiersApi } from '../data/pricingTiers';
+import { productsApi } from '../data/products';
+import { staffApi } from '../data/staff';
 
 export type UploadEntityType = 'products' | 'suppliers' | 'customers' | 'staff';
 
@@ -163,7 +164,7 @@ const PRODUCT_HEADER_MAP: Record<string, string> = {
 
 // ─── Dynamic Tier Header Matcher (Zero Hardcoding) ───────────────────────────
 
-export function resolveDynamicTierName(
+function resolveDynamicTierName(
   header: string,
   existingTiers: Array<{ pricing_tier_id?: string; name: string }> = []
 ): string | null {
@@ -389,7 +390,7 @@ export function DataUploadModal({
   const [entityType, setEntityType] = useState<UploadEntityType>(defaultEntity);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [, setLoading] = useState<boolean>(false);
   const [importing, setImporting] = useState<boolean>(false);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -405,9 +406,9 @@ export function DataUploadModal({
       setFileName('');
       setMessage(null);
 
-      if (window.electronAPI?.dbGetPricingTiers) {
+      if (hasBridge('dbGetPricingTiers')) {
         const tid = tenantId || 'global';
-        window.electronAPI.dbGetPricingTiers(tid).then((res: any) => {
+        pricingTiersApi.getPricingTiers(tid).then((res: any) => {
           if (Array.isArray(res)) {
             setAvailableTiers(res.filter((t: any) => !t.is_deleted));
           }
@@ -708,8 +709,8 @@ export function DataUploadModal({
           tier_prices: r.data.tier_prices || {}
         }));
 
-        if (window.electronAPI?.dbBulkImportProducts) {
-          const res = await window.electronAPI.dbBulkImportProducts(payload);
+        if (hasBridge('dbBulkImportProducts')) {
+          const res = await productsApi.bulkImportProducts(payload);
           if (res.success) {
             setMessage({ type: 'success', text: `Successfully imported ${payload.length} products!` });
             if (onImportSuccess) onImportSuccess(payload.length, 'products');
@@ -739,14 +740,14 @@ export function DataUploadModal({
           created_by_name: user?.name || null
         }));
 
-        if (window.electronAPI?.dbBulkImportParties) {
-          await window.electronAPI.dbBulkImportParties(partyPayload);
+        if (hasBridge('dbBulkImportParties')) {
+          await partiesApi.bulkImportParties(partyPayload);
         }
 
-        if (window.electronAPI?.dbSaveStaff) {
+        if (hasBridge('dbSaveStaff')) {
           for (const r of validRows) {
             try {
-              await window.electronAPI.dbSaveStaff({
+              await staffApi.saveStaff({
                 tenant_id: tid,
                 name: r.data.name,
                 phone: r.data.phone || undefined,
@@ -785,8 +786,8 @@ export function DataUploadModal({
           created_by_name: user?.name || null
         }));
 
-        if (window.electronAPI?.dbBulkImportParties) {
-          const res = await window.electronAPI.dbBulkImportParties(payload);
+        if (hasBridge('dbBulkImportParties')) {
+          const res = await partiesApi.bulkImportParties(payload);
           if (res.success) {
             setMessage({ type: 'success', text: `Successfully imported ${payload.length} ${entityType}!` });
             if (onImportSuccess) onImportSuccess(payload.length, entityType);

@@ -1,19 +1,14 @@
-import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
-import { useCartStore } from '../store/cartStore';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, Loader2, Layers, Upload, ChevronDown } from 'lucide-react';
-import Barcode from 'react-barcode';
+import { PackagePlus, Pencil, Save, Search, Plus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Loader2, Layers, Upload } from 'lucide-react';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import Papa from 'papaparse';
-import { Modal } from './ui/Modal';
 import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
-import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
-import { ScrollText } from './ScrollText';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { formatRoleName, isAdminRole } from '../utils/permissions';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
@@ -21,7 +16,7 @@ import { sortProductsBySearchPriority } from '../utils/productSort';
 import { parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 
-import { type Product, isGstProduct, DEFAULT_FORM, DomainField } from './inventory/inventoryHelpers';
+import { type Product, isGstProduct, DEFAULT_FORM, toInventoryProducts } from './inventory/inventoryHelpers';
 import { InventoryTableView } from './inventory/views/InventoryTableView';
 import { InventoryFormView } from './inventory/views/InventoryFormView';
 import { CreateGradeModal } from './inventory/modals/CreateGradeModal';
@@ -29,11 +24,19 @@ import { AdjustStockModal } from './inventory/modals/AdjustStockModal';
 import { BarcodePrintModal } from './inventory/modals/BarcodePrintModal';
 import { DeleteProductModal } from './inventory/modals/DeleteProductModal';
 import { BulkDeleteProductsModal } from './inventory/modals/BulkDeleteProductsModal';
+import { listProducts, countProducts, getProductPricing, setProductPricing, createProduct, updateProduct, deleteProduct, bulkDeleteProducts, adjustStock } from '../data/products';
+import { listGrades, createGrade } from '../data/grades';
+import { listPricingTiers } from '../data/pricingTiers';
+import { listParties, partiesApi } from '../data/parties';
+import { getSetting, settingsApi } from '../data/settings';
+import { isDesktopRuntime, hasBridge } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { printingApi } from '../data/printing';
+import { purchasesApi } from '../data/purchases';
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { shopDomain } = useCartStore();
   const { tenantId } = useAuthStore();
 
   const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
@@ -54,28 +57,28 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
-  const [showZeroPaperStock, setShowZeroPaperStock] = useState(false);
+  const [, setShowZeroPaperStock] = useState(false);
   const [showPaperOnlyProducts, setShowPaperOnlyProducts] = useState(true);
-  const [showProductGstBadge, setShowProductGstBadge] = useState(true);
+  const [, setShowProductGstBadge] = useState(true);
   const [showPriceTiersInInventory, setShowPriceTiersInInventory] = useState(true);
 
   useEffect(() => {
     const loadSettings = () => {
-      if (window.electronAPI?.settingsGet) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
+      if (isDesktopRuntime()) {
+        getSetting<boolean>({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
         }).catch(() => {});
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock' }).then(val => {
+        getSetting<boolean>({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setShowZeroPaperStock(Boolean(val));
         }).catch(() => {});
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_paper_only_products' }).then(val => {
+        getSetting<boolean>({ tenant_id: tenantId || 'global', key: 'show_paper_only_products' }).then(val => {
           if (val !== null && val !== undefined) setShowPaperOnlyProducts(Boolean(val));
         }).catch(() => {});
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge' }).then(val => {
+        getSetting<boolean | string>({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge' }).then(val => {
           if (val === 'false' || val === false) setShowProductGstBadge(false);
           else setShowProductGstBadge(true);
         }).catch(() => {});
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory' }).then(val => {
+        getSetting<boolean | string>({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory' }).then(val => {
           if (val === 'false' || val === false) setShowPriceTiersInInventory(false);
           else setShowPriceTiersInInventory(true);
         }).catch(() => {});
@@ -150,8 +153,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return existingCategories.filter(c => c.toLowerCase().includes(query));
   }, [existingCategories, formData.category]);
 
-  const configuredCategories = existingCategories;
-
   const categoryGrades = grades.filter(g => (g.category || '').trim().toLowerCase() === (formData.category || '').trim().toLowerCase());
 
   const [offset, setOffset] = useState(0);
@@ -220,8 +221,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   // Sync listener — auto-refresh silently, using refs so current search/
   // filter state is preserved even though this effect runs only once.
   useEffect(() => {
-    if (window.electronAPI) {
-      const unsub = window.electronAPI.onSyncDataUpdated(() => {
+    if (isDesktopRuntime()) {
+      const unsub = bridgeEvents.onSyncDataUpdated(() => {
         console.log('[InventoryManager] Data updated via sync. Auto-refreshing...');
         loadProducts(true);
       });
@@ -258,7 +259,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       const targetId = lastInteractedProductId.current;
       if (targetId) {
         setHighlightedProductId(targetId);
-        const timer = setTimeout(() => setHighlightedProductId(null), 3000);
+        setTimeout(() => setHighlightedProductId(null), 3000);
       }
 
       const restore = () => {
@@ -297,9 +298,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   }, [view]);
 
   const refreshProductPricing = useCallback(async () => {
-    if (window.electronAPI?.dbGetProductPricing) {
+    if (isDesktopRuntime()) {
       try {
-        const rows = await window.electronAPI.dbGetProductPricing(tenantId || 'global');
+        const rows = await getProductPricing(tenantId || 'global');
         if (Array.isArray(rows)) {
           const map: Record<string, Record<string, number>> = {};
           for (const r of rows) {
@@ -317,39 +318,39 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   }, [tenantId]);
 
   useEffect(() => {
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       refreshProductPricing();
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' })
-        .then((val: any) => {
+      getSetting<string>({ tenant_id: tenantId || 'global', key: 'inventory_default_view' })
+        .then((val) => {
           if (val === 'estimate' || val === 'gst' || val === 'combined') setViewMode(val);
         })
         .catch(console.error);
 
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' })
+      getSetting<Record<string, string>>({ tenant_id: tenantId || 'global', key: 'price_coding' })
         .then(res => {
           if (res) setPriceCoding(res);
         })
         .catch(console.error);
 
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_code_type' })
+      getSetting<CodeType>({ tenant_id: tenantId || 'global', key: 'label_code_type' })
         .then(res => {
           if (res === 'barcode' || res === 'qrcode') setLabelCodeType(res);
         })
         .catch(console.error);
 
-      window.electronAPI.dbGetGrades(tenantId || 'global')
+      listGrades(tenantId || 'global')
         .then(res => {
           if (Array.isArray(res)) setGrades(res);
         })
         .catch(console.error);
 
-      window.electronAPI.dbGetPricingTiers(tenantId || 'global')
+      listPricingTiers(tenantId || 'global')
         .then(res => {
           if (Array.isArray(res)) setPricingTiers(res);
         })
         .catch(console.error);
 
-      window.electronAPI.dbGetParties(tenantId || 'global')
+      listParties(tenantId || 'global')
         .then(res => {
           if (Array.isArray(res)) setSuppliers(res);
         })
@@ -358,8 +359,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   }, [tenantId]);
 
   useEffect(() => {
-    if (view === 'add' && window.electronAPI) {
-      const getNumFn = window.electronAPI.dbPeekNextPurchaseBillNumber || window.electronAPI.dbGetNextPurchaseBillNumber;
+    if (view === 'add' && isDesktopRuntime()) {
+      const getNumFn = hasBridge('dbPeekNextPurchaseBillNumber') ? purchasesApi.peekNextPurchaseBillNumber : purchasesApi.getNextPurchaseBillNumber;
       getNumFn({ tenant_id: tenantId || 'global', bill_type: 'GST' })
         .then(res => {
           if (res.success && res.billNumber) {
@@ -414,7 +415,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setIsFetching(true);
 
     try {
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         const { tenantId } = useAuthStore.getState();
         // Always read the latest values from refs to avoid stale-closure bugs
         const currentSearch = searchQueryRef.current;
@@ -426,8 +427,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         const isGstParam = currentViewMode === 'gst' ? true : currentViewMode === 'estimate' ? false : undefined;
         const currentOffset = reset ? 0 : offsetRef.current;
 
-        const productsPromise = window.electronAPI.dbGetProducts({
-          tenant_id: tenantId,
+        const productsPromise = listProducts({
+          tenant_id: tenantId || 'global',
           limit: LIMIT,
           offset: currentOffset,
           search: currentSearch,
@@ -436,10 +437,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           filterDateEnd: currentFilterDateEnd,
           stockStatus: currentStockFilter,
           isGst: isGstParam
-        });
+        }).then(toInventoryProducts);
 
-        const countPromise = reset ? window.electronAPI.dbGetProductsCount({
-          tenant_id: tenantId,
+        const countPromise = reset ? countProducts({
+          tenant_id: tenantId || 'global',
           search: currentSearch,
           filterDate: currentFilterDate,
           filterDateEnd: currentFilterDateEnd,
@@ -497,14 +498,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
     if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
     nameSearchTimeout.current = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!isDesktopRuntime()) return;
       const { tenantId } = useAuthStore.getState();
-      const products = await window.electronAPI.dbGetProducts({
-        tenant_id: tenantId,
+      const products = toInventoryProducts(await listProducts({
+        tenant_id: tenantId || 'global',
         search: formData.name,
         limit: 8,
         sortBy: 'name'
-      });
+      }));
       if (Array.isArray(products)) {
         setNameSuggestions(products.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
         setSelectedNameIndex(0);
@@ -633,10 +634,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const openAdd = async () => {
     let nextBarcode = '';
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const lastProduct = await window.electronAPI.dbGetProducts({
-          tenant_id: tenantId,
+        const lastProduct = await listProducts({
+          tenant_id: tenantId || 'global',
           limit: 1,
           sortBy: 'created_at'
         });
@@ -742,9 +743,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       gst_bill_date: new Date().toLocaleDateString('en-CA'),
       gst_purchase_is_dummy: false,
     });
-    if (window.electronAPI) {
-      window.electronAPI.dbGetProductPricing(tenantId || 'global')
-        .then((rows: any[]) => {
+    if (isDesktopRuntime()) {
+      getProductPricing(tenantId || 'global')
+        .then((rows) => {
           if (Array.isArray(rows)) {
             const mine: Record<string, string> = {};
             for (const r of rows) {
@@ -764,8 +765,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       const curPur = (product as any).gst_purchase_price ?? daParsed.gst_purchase_price ?? daParsed.paper_purchase_price ?? '';
       const curMrp = (product as any).paper_mrp ?? daParsed.paper_mrp ?? daParsed.paper_base_price ?? '';
 
-      if (isProductPaper && (!curPur || !curMrp) && window.electronAPI.dbGetPurchaseBillProducts) {
-        window.electronAPI.dbGetPurchaseBillProducts({
+      if (isProductPaper && (!curPur || !curMrp) && hasBridge('dbGetPurchaseBillProducts')) {
+        purchasesApi.getPurchaseBillProducts({
           tenant_id: tenantId || 'global',
           search: product.name,
           limit: 10
@@ -809,8 +810,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     if (!deleteConfirmProduct) return;
     setIsDeleting(true);
     try {
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbDeleteProduct(deleteConfirmProduct.product_id);
+      if (isDesktopRuntime()) {
+        const res = await deleteProduct(deleteConfirmProduct.product_id);
         if (res.success) {
           setProducts(prev => prev.filter(p => p.product_id !== deleteConfirmProduct.product_id));
           setTotalCount(prev => prev !== null ? Math.max(0, prev - 1) : null);
@@ -918,8 +919,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     if (ids.length === 0) return;
     setIsBulkDeleting(true);
     try {
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbBulkDeleteProducts(ids);
+      if (isDesktopRuntime()) {
+        const res = await bulkDeleteProducts(ids);
         if (res.success) {
           const deleteSet = new Set(ids);
           setProducts(prev => prev.filter(p => !deleteSet.has(p.product_id)));
@@ -949,10 +950,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   };
 
   const applyStockAdjust = async (product: Product, delta: number, pcsDelta?: number): Promise<boolean> => {
-    if (!window.electronAPI) return false;
+    if (!isDesktopRuntime()) return false;
     setAdjustingStockId(product.product_id);
     try {
-      const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta, pcsDelta });
+      const res = await adjustStock({ product_id: product.product_id, delta, pcsDelta });
       if (res.success) {
         setProducts(prev => prev.map(p => {
           if (p.product_id !== product.product_id) return p;
@@ -1111,9 +1112,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const handleCreateSupplier = async () => {
     if (!newSupplierName.trim()) return;
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const partyId = uuidv4();
-      const res = await window.electronAPI.dbAddParty({
+      const res = await partiesApi.addParty({
         party_id: partyId,
         tenant_id: tenantId,
         name: newSupplierName.trim(),
@@ -1150,7 +1151,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setSavingGrade(true);
     const { tenantId } = useAuthStore.getState();
     const gradeId = uuidv4();
-    const res = await window.electronAPI.dbAddGrade({
+    const res = await createGrade({
       grade_id: gradeId,
       tenant_id: tenantId || '',
       category: formData.category.trim(),
@@ -1160,7 +1161,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       offer_price: newGradeForm.offer_price === '' ? null : Number(newGradeForm.offer_price),
     });
     if (res.success) {
-      const fresh = await window.electronAPI.dbGetGrades(tenantId || 'global');
+      const fresh = await listGrades(tenantId || 'global');
       if (Array.isArray(fresh)) setGrades(fresh);
       handleInputChange('grade_id', gradeId);
       handleInputChange('base_price', Number(newGradeForm.rate) || 0);
@@ -1242,7 +1243,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     if (!formData.sku_barcode) return;
     setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
     
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const appliedGrade = formData.grade_id ? grades.find(g => g.grade_id === formData.grade_id) : null;
       const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
       const effectiveMrp = gradeRate !== null && formData.pricing_mode === 'GRADE_RATE' 
@@ -1281,7 +1282,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       const cleanName = (formData.name || '').replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
       localStorage.setItem('printBarcodeName', cleanName);
 
-      const res = await window.electronAPI.printBarcode(
+      const res = await printingApi.printBarcode(
         tenantId || 'global', 
         formData.sku_barcode, 
         printPrice ? effectiveMrp : undefined, 
@@ -1309,7 +1310,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     if (!p.sku_barcode) return;
     setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
     
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
       const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
       const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
@@ -1348,7 +1349,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       const cleanName = (p.name || '').replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
       localStorage.setItem('printBarcodeName', cleanName);
 
-      const res = await window.electronAPI.printBarcode(
+      const res = await printingApi.printBarcode(
         tenantId || 'global', 
         p.sku_barcode, 
         printPrice ? effectiveMrp : undefined, 
@@ -1376,19 +1377,19 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const downloadCsv = async () => {
     setStatusMessage({ text: 'Generating CSV...', type: 'success' });
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const { tenantId } = useAuthStore.getState();
       const tid = tenantId || 'global';
       const [result, tiersRes, pricingRows] = await Promise.all([
-        window.electronAPI.dbGetProducts({
+        listProducts({
           tenant_id: tid,
           filterDate: filterDate,
           filterDateEnd: filterDateEnd,
           stockStatus: stockFilterRef.current,
           limit: 100000 
-        }),
-        window.electronAPI.dbGetPricingTiers ? window.electronAPI.dbGetPricingTiers(tid) : Promise.resolve([]),
-        window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([])
+        }).then(toInventoryProducts),
+        listPricingTiers(tid),
+        getProductPricing(tid)
       ]);
 
       if (Array.isArray(result) && result.length > 0) {
@@ -1574,10 +1575,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       pricing_mode: formData.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
     };
 
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const res = view === 'edit'
-        ? await window.electronAPI.dbUpdateProduct(payload)
-        : await window.electronAPI.dbAddProduct(payload);
+        ? await updateProduct(payload)
+        : await createProduct(payload);
 
       if (res.success) {
         // If GST Purchase details provided, create a purchase bill entry
@@ -1589,7 +1590,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           const gstTotal = gstQty * gstPrice;
           const supplierName = formData.gst_supplier_name || (suppliers.find(s => s.party_id === formData.gst_supplier_id)?.name) || 'Unknown Supplier';
 
-          await window.electronAPI.dbAddPurchaseBill({
+          await purchasesApi.addPurchaseBill({
             purchase_bill_id: purchaseBillId,
             tenant_id: tenantId,
             bill_number: formData.gst_bill_number || `TEMP-${Date.now()}`,
@@ -1630,7 +1631,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           price: price === '' ? null : Number(price),
         }));
         if (tierRows.length > 0) {
-          await window.electronAPI.dbSetProductPricing({
+          await setProductPricing({
             tenant_id: tenantId || 'unset',
             product_id: payload.product_id,
             pricing: tierRows,
@@ -1640,9 +1641,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         // Auto-register custom categories in the Categories & Grades page so they can be managed there
         if (normalizedCategory && !existingCategories.some(c => c.toLowerCase() === normalizedCategory.toLowerCase())) {
           const cat = normalizedCategory;
-          const existing = await window.electronAPI.dbGetGrades(tenantId || 'global');
+          const existing = await listGrades(tenantId || 'global');
           if (Array.isArray(existing) && !existing.some(g => (g.category || '').trim().toLowerCase() === cat.toLowerCase() && !String(g.grade_name || '').trim())) {
-            const gradeRes = await window.electronAPI.dbAddGrade({
+            const gradeRes = await createGrade({
               grade_id: uuidv4(),
               tenant_id: tenantId || '',
               category: cat,
@@ -1652,7 +1653,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               offer_price: formData.offer_price === '' || formData.offer_price === null || formData.offer_price === undefined ? null : Number(formData.offer_price),
             });
             if (gradeRes.success) {
-              const fresh = await window.electronAPI.dbGetGrades(tenantId || 'global');
+              const fresh = await listGrades(tenantId || 'global');
               if (Array.isArray(fresh)) setGrades(fresh);
             }
           }
@@ -1679,8 +1680,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
     setLoading(false);
   };
-
-
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -1806,7 +1805,7 @@ return (
                     value={viewMode}
                     onChange={v => {
                       setViewMode(v as any);
-                      window.electronAPI?.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: v }).catch(console.error);
+                      settingsApi.set({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: v }).catch(console.error);
                     }}
                     options={[
                       { value: 'estimate', label: 'Estimate' },

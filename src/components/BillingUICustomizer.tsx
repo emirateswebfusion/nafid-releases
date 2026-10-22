@@ -1,28 +1,9 @@
 import { useState, useEffect } from 'react';
-import { 
-  POS_LAYOUT_MODELS_DATA, 
-  DEFAULT_BILLING_UI_CONFIG,
-  DEFAULT_HEADER_BUTTON_CONFIG,
-  QUICK_PAGES_LIST,
-  INTERNAL_HEADER_BUTTON_CAPACITY,
-  isHeaderButtonVisible,
-  getTotalSelectedHeaderButtonsCount,
-  useBillingUIStore,
-  type BillingUIConfig, 
-  type POSLayoutModel,
-  type HeaderButtonConfig,
-  type QuickPageKey,
-  type EntryFieldKey,
-  type EntryFieldFlowPreset,
-  ENTRY_FIELD_FLOW_PRESETS
-} from '../store/billingUIStore';
-import { 
-  LayoutGrid, Columns, Sliders, RotateCcw, Check, 
-  Eye, Monitor, Touchpad, Layers, Save, Undo2, X, AlertCircle,
-  ShoppingCart, DollarSign, User, Search, Plus, Scale, Clock,
-  FileText, ArrowLeftRight, Recycle, Banknote, Store, TrendingUp, PauseCircle, Truck, Settings, BookOpen, Users, Package, Shield, UserCheck, CreditCard, Tag, Percent, Printer
-} from 'lucide-react';
+import { POS_LAYOUT_MODELS_DATA, DEFAULT_BILLING_UI_CONFIG, DEFAULT_HEADER_BUTTON_CONFIG, QUICK_PAGES_LIST, INTERNAL_HEADER_BUTTON_CAPACITY, isHeaderButtonVisible, getTotalSelectedHeaderButtonsCount, useBillingUIStore, type BillingUIConfig, type POSLayoutModel, type EntryFieldKey, type EntryFieldFlowPreset, ENTRY_FIELD_FLOW_PRESETS } from '../store/billingUIStore';
+import { LayoutGrid, Columns, Sliders, RotateCcw, Check, Eye, Touchpad, X, AlertCircle, DollarSign, User, Search, Plus, Scale, FileText, ArrowLeftRight, Recycle, Banknote, Store, TrendingUp, PauseCircle, Truck, Settings, BookOpen, Package, CreditCard, Tag, Percent, Printer } from 'lucide-react';
 import clsx from 'clsx';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 
 interface BillingUICustomizerProps {
   config: BillingUIConfig;
@@ -53,8 +34,8 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
   const handleResetToFactoryDefaults = () => {
     onChange(DEFAULT_BILLING_UI_CONFIG);
     useBillingUIStore.getState().resetConfig();
-    if (window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
+    if (hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
     }
   };
 

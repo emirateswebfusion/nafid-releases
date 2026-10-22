@@ -1,5 +1,5 @@
 import { numberToIndianWords } from './receiptGenerator';
-export { numberToIndianWords };
+import { formatCurrency } from './money';
 
 export interface QuotationPrintItem {
   name: string;
@@ -82,11 +82,6 @@ function escapeHtml(s: unknown): string {
     .replace(/'/g, '&#039;');
 }
 
-function formatCurrency(val: number): string {
-  const num = Number(val) || 0;
-  return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function formatNumber(val: number): string {
   const num = Number(val) || 0;
   if (num % 1 === 0) return num.toString();
@@ -121,20 +116,20 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
       dAmt = (Number(item.base_price) * (dPct / 100)) * qty;
     }
 
-    let taxableVal = (item.taxable_amount != null && Number(item.taxable_amount) > 0)
+    const taxableVal = (item.taxable_amount != null && Number(item.taxable_amount) > 0)
       ? Number(item.taxable_amount)
       : (rate * qty > 0 ? (rate * qty) : lineTotal);
     const taxRate = Number(item.tax_rate_percent) || 0;
     const halfRate = taxRate / 2;
 
-    let cgstRate = item.cgst_rate != null ? Number(item.cgst_rate) : (isInterState ? 0 : halfRate);
-    let cgstAmt = item.cgst_amount != null ? Number(item.cgst_amount) : (isInterState ? 0 : Math.round(taxableVal * (halfRate / 100) * 100) / 100);
+    const cgstRate = item.cgst_rate != null ? Number(item.cgst_rate) : (isInterState ? 0 : halfRate);
+    const cgstAmt = item.cgst_amount != null ? Number(item.cgst_amount) : (isInterState ? 0 : Math.round(taxableVal * (halfRate / 100) * 100) / 100);
 
-    let sgstRate = item.sgst_rate != null ? Number(item.sgst_rate) : (isInterState ? 0 : halfRate);
-    let sgstAmt = item.sgst_amount != null ? Number(item.sgst_amount) : (isInterState ? 0 : Math.round(taxableVal * (halfRate / 100) * 100) / 100);
+    const sgstRate = item.sgst_rate != null ? Number(item.sgst_rate) : (isInterState ? 0 : halfRate);
+    const sgstAmt = item.sgst_amount != null ? Number(item.sgst_amount) : (isInterState ? 0 : Math.round(taxableVal * (halfRate / 100) * 100) / 100);
 
-    let igstRate = item.igst_rate != null ? Number(item.igst_rate) : (isInterState ? taxRate : 0);
-    let igstAmt = item.igst_amount != null ? Number(item.igst_amount) : (isInterState ? Math.round(taxableVal * (taxRate / 100) * 100) / 100 : 0);
+    const igstRate = item.igst_rate != null ? Number(item.igst_rate) : (isInterState ? taxRate : 0);
+    const igstAmt = item.igst_amount != null ? Number(item.igst_amount) : (isInterState ? Math.round(taxableVal * (taxRate / 100) * 100) / 100 : 0);
 
     return {
       ...item,

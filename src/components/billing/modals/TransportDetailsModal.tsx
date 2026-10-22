@@ -1,4 +1,3 @@
-import React from 'react';
 import { Truck, X } from 'lucide-react';
 
 interface TransportDetailsModalProps {

@@ -8,6 +8,7 @@ import { useCartStore, type CartItem } from '../../../store/cartStore';
 import { useTabStore } from '../../../store/tabStore';
 import { formatCurrency } from '../BillingConstants';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
+import { listRate, resolveLinePrice } from '../../../utils/linePricing';
 
 type NumericMap = Record<string, number>;
 type StringMap = Record<string, string>;
@@ -204,7 +205,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 bg-violet-500/10 border border-violet-500/30 rounded-lg py-0.5 shrink-0">
-                    <span className="text-[10px] text-muted-foreground font-black uppercase pl-2">â‚¹</span>
+                    <span className="text-[10px] text-muted-foreground font-black uppercase pl-2">₹</span>
                     <input type="number" step="any" min="0"
                       className="w-24 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       value={serviceAmount || ''}
@@ -430,18 +431,8 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                 (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
               );
 
-              const catalogPriceScrapDisp = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-                : item.catalog_discount_flat != null ? rate + Number(item.catalog_discount_flat)
-                : item.catalog_discount_percent != null ? rate * (1 + Number(item.catalog_discount_percent) / 100)
-                : rate;
-              const isAdhocOfferSD = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-              const isAdhocDiscFlatSD = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-              const isAdhocDiscPctSD = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-              let effectivePrice = catalogPriceScrapDisp;
-              if (isAdhocOfferSD) { effectivePrice = Number(item.offer_price); }
-              else if (isAdhocDiscFlatSD) { effectivePrice = catalogPriceScrapDisp + Number(item.discount_flat); }
-              else if (isAdhocDiscPctSD) { effectivePrice = catalogPriceScrapDisp * (1 + Number(item.discount_percent) / 100); }
-              effectivePrice = Math.max(effectivePrice, 0);
+              const effectivePriceInfo = resolveLinePrice(item, rate, 'scrap');
+              const effectivePrice = effectivePriceInfo.unitRate;
               const total = effectivePrice * qty;
 
               return (
@@ -495,10 +486,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                         }
                         onChange={e => {
                           const val = e.target.value;
-                          const scrapConvPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-                            : item.catalog_discount_flat != null ? rate + Number(item.catalog_discount_flat)
-                            : item.catalog_discount_percent != null ? rate * (1 + Number(item.catalog_discount_percent) / 100)
-                            : rate;
+                          const scrapConvPrice = resolveLinePrice(item, rate, 'scrap').catalogRate;
                           if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                             setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                             setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
@@ -529,10 +517,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                         }
                         onChange={e => {
                           const val = e.target.value;
-                          const scrapConvPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-                            : item.catalog_discount_flat != null ? rate + Number(item.catalog_discount_flat)
-                            : item.catalog_discount_percent != null ? rate * (1 + Number(item.catalog_discount_percent) / 100)
-                            : rate;
+                          const scrapConvPrice = resolveLinePrice(item, rate, 'scrap').catalogRate;
                           if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                             setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                             setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
@@ -550,7 +535,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                         onKeyDown={e => {
                           handleDiscFlatKeyDown(e, item.product_id);
                         }}
-                        placeholder="+â‚¹"
+                        placeholder="+₹"
                       />
                       {hasAdHocBonus && (
                         <button
@@ -564,7 +549,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                           className="h-7 w-6 flex items-center justify-center text-[9px] font-bold text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
                           title="Clear item extra"
                         >
-                          âœ•
+                          ✕
                         </button>
                       )}
                     </div>
@@ -604,7 +589,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
               );
             }
 
-            const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
+            const rate = listRate(item);
             const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
             const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
             const piecesPerKg = Number(item.pieces_per_kg) || 1;
@@ -612,22 +597,12 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
             const pieces = isPiecesWeight ? (item.pieces_override ?? 1) : 0;
             const qty = weightKg;
 
-            const catalogPriceItem = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-              : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-              : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-              : rate;
-            const isAdhocOfferI = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-            const isAdhocDiscFlatI = item.discount_flat != null && item.discount_flat !== item.catalog_discount_flat;
-            const isAdhocDiscPctI = item.discount_percent != null && item.discount_percent !== item.catalog_discount_percent;
-            let effectivePrice = catalogPriceItem;
-            if (isAdhocOfferI) { effectivePrice = Number(item.offer_price); }
-            else if (isAdhocDiscFlatI) { effectivePrice = catalogPriceItem - Number(item.discount_flat); }
-            else if (isAdhocDiscPctI) { effectivePrice = catalogPriceItem * (1 - Number(item.discount_percent) / 100); }
-            effectivePrice = Math.max(effectivePrice, 0);
+            const effectivePriceInfo = resolveLinePrice(item, rate);
+            const effectivePrice = effectivePriceInfo.unitRate;
             const pricePerPiece = isPiecesWeight ? effectivePrice / piecesPerKg : null;
             const total = effectivePrice * qty;
 
-            // Explicit discount flag â€” avoids floating-point comparison bugs
+            // Explicit discount flag — avoids floating-point comparison bugs
             const hasItemDiscount = (rate * qty > total + 0.005) || !!(
               (item.offer_price !== null && item.offer_price !== undefined) ||
               (item.discount_flat !== null && item.discount_flat !== undefined) ||
@@ -951,10 +926,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                       }
                       onChange={e => {
                         const val = e.target.value;
-                        const convCatalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-                          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-                          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-                          : rate;
+                        const convCatalogPrice = resolveLinePrice(item, rate).catalogRate;
                         if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                           setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                           setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
@@ -989,10 +961,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                       }
                       onChange={e => {
                         const val = e.target.value;
-                        const convCatalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-                          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-                          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-                          : rate;
+                        const convCatalogPrice = resolveLinePrice(item, rate).catalogRate;
                         if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                           setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                           setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
@@ -1014,7 +983,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                       onKeyDown={e => {
                         handleDiscFlatKeyDown(e, item.product_id);
                       }}
-                      placeholder="â‚¹"
+                      placeholder="₹"
                     />
                     {hasAdHocDiscount && (
                       <button
@@ -1028,7 +997,7 @@ export const BillingCartView: React.FC<BillingCartViewProps> = ({
                         className="h-7 w-6 flex items-center justify-center text-[9px] font-bold text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
                         title="Clear ad-hoc billing discount"
                       >
-                        âœ•
+                        ✕
                       </button>
                     )}
                   </div>

@@ -1,20 +1,13 @@
 import { generateQuotationHtml, type QuotationPrintData } from '../utils/quotationHtmlGenerator';
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import {
-  Search, X, Package, Recycle, RotateCcw, Plus, CreditCard,
-  Store, LogOut, Settings, Phone, User, Scale,
-  Banknote, Smartphone, QrCode, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Save, ArrowLeftRight, MessageSquare, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, ChevronRight, Truck, Shield, Coins,
-  ArrowLeft, ArrowRight, Calendar
-} from 'lucide-react';
+import { Search, X, Package, Recycle, RotateCcw, Plus, CreditCard, Store, Settings, Phone, User, Banknote, Smartphone, QrCode, BookOpen, AlertCircle, CheckCircle2, Building, TrendingUp, FileText, Clock, MapPin, Save, ArrowLeftRight, Loader2, Layers, Users, PauseCircle, Truck, Shield, Coins } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
-import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 import { SingleDatePicker } from './ui/SingleDatePicker';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
@@ -24,26 +17,19 @@ import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper
 import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
-import { useFeatureFlagsStore, type FeatureFlags } from '../featureFlags';
+import { useFeatureFlagsStore } from '../featureFlags';
 import { sortProductsBySearchPriority, cleanSearchText } from '../utils/productSort';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
+import { getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
+import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
+import { buildQuotationLines } from '../utils/checkoutLines';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
-import { isAdminRole, formatRoleName } from '../utils/permissions';
+import { isAdminRole } from '../utils/permissions';
 import { sortTiersWithMrp, MRP_TIER_ID } from '../utils/pricingTierHelper';
-import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST, INTERNAL_HEADER_BUTTON_CAPACITY, type EntryFieldKey, type EntryFieldFlowPreset, ENTRY_FIELD_FLOW_PRESETS } from '../store/billingUIStore';
+import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST } from '../store/billingUIStore';
 
-
-import {
-  INDIAN_STATES,
-  PAYMENT_OPTIONS,
-  type PaymentMethod,
-  formatCurrency,
-  toLocalDatetimeInputString,
-  formatDisplayBillDate,
-  detectScannerBurst
-} from './billing/BillingConstants';
+import { INDIAN_STATES, PAYMENT_OPTIONS, type PaymentMethod, formatCurrency, detectScannerBurst } from './billing/BillingConstants';
 import { CustomerOutstandingBadge } from './billing/ui/CustomerOutstandingBadge';
 import { TransportDetailsModal } from './billing/modals/TransportDetailsModal';
 import { HeldBillsModal } from './billing/modals/HeldBillsModal';
@@ -54,40 +40,39 @@ import { UpiAccountSelectModal } from './billing/modals/UpiAccountSelectModal';
 import { BillingCartView } from './billing/views/BillingCartView';
 import { BillingPaymentPanel } from './billing/views/BillingPaymentPanel';
 import { BillingTotalsPanel } from './billing/views/BillingTotalsPanel';
+import { cashierApi } from '../data/cashier';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { combosApi } from '../data/combos';
+import { customersApi } from '../data/customers';
+import { bridgeEvents } from '../data/events';
+import { gradesApi } from '../data/grades';
+import { invoicesApi } from '../data/invoices';
+import { paymentSourcesApi } from '../data/paymentSources';
+import { pricingTiersApi } from '../data/pricingTiers';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
+import { purchasesApi } from '../data/purchases';
+import { quotationsApi } from '../data/quotations';
+import { returnsApi } from '../data/returns';
+import { scrapApi } from '../data/scrap';
+import { staffApi } from '../data/staff';
+import { whatsappApi } from '../data/whatsapp';
+
+import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../data/settings';
+import { listProducts, getProductsByIds } from '../data/products';
+import { listParties } from '../data/parties';
+import { listInvoices, getInvoiceItems } from '../data/invoices';
+import { listRate, resolveLinePrice } from '../utils/linePricing';
+import { createCheckoutHandler } from './billing/checkout/checkoutHandler';
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
 
   // Helper to get effective entry field flow from config
-  const getEntryFieldFlow = useCallback((): EntryFieldKey[] => {
-    if (uiConfig.entryFieldFlowPreset === 'custom' && uiConfig.entryFieldFlowCustom) {
-      return uiConfig.entryFieldFlowCustom;
-    }
-    const preset = uiConfig.entryFieldFlowPreset || 'full';
-    return ENTRY_FIELD_FLOW_PRESETS[preset] || ENTRY_FIELD_FLOW_PRESETS.full;
-  }, [uiConfig.entryFieldFlowPreset, uiConfig.entryFieldFlowCustom]);
 
   // Helper to check if a field is in the flow
-  const isFieldInFlow = useCallback((field: EntryFieldKey): boolean => {
-    return getEntryFieldFlow().includes(field);
-  }, [getEntryFieldFlow]);
 
   // Helper to get next field in flow
-  const getNextFieldInFlow = useCallback((currentField: EntryFieldKey, isWeightItem: boolean): EntryFieldKey | null => {
-    const flow = getEntryFieldFlow();
-    const currentIndex = flow.indexOf(currentField);
-    if (currentIndex === -1) return null;
-    
-    // For weight items, 'weight' comes after 'qty' in the flow
-    // We need to check if the next field should be 'weight' instead
-    for (let i = currentIndex + 1; i < flow.length; i++) {
-      const nextField = flow[i];
-      // Skip 'weight' if not a weight item
-      if (nextField === 'weight' && !isWeightItem) continue;
-      return nextField;
-    }
-    return null;
-  }, [getEntryFieldFlow]);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
@@ -119,15 +104,46 @@ export function BillingPage() {
 
   const {
     items, lastAddedProductId, invoiceType, setInvoiceType, clearCart, setDiscount,
-    currentUserRole, setRole, discountType, discountValue,
-    addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice, updatePiecesOverride, updateItemPricingTier,
-    customerState, setCustomerState,
+    setRole, discountType, discountValue,
+    addItem, updateQuantity, removeItem, updatePiecesOverride, customerState, setCustomerState,
     scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
     setScrapDeduction, clearScrapDeduction,
     returnDeduction: storeReturnDeduction, returnInvoiceNumber: storeReturnInvoiceNumber,
     setReturnDeduction, clearReturnDeduction,
-    editingInvoiceId: editingActive, editingInvoiceNumber, setEditingInvoice,
-  } = useCartStore();
+    editingInvoiceId: editingActive, editingInvoiceNumber,
+  } = useCartStore(useShallow((state) => ({
+    items: state.items,
+    lastAddedProductId: state.lastAddedProductId,
+    invoiceType: state.invoiceType,
+    setInvoiceType: state.setInvoiceType,
+    clearCart: state.clearCart,
+    setDiscount: state.setDiscount,
+    currentUserRole: state.currentUserRole,
+    setRole: state.setRole,
+    discountType: state.discountType,
+    discountValue: state.discountValue,
+    addItem: state.addItem,
+    updateQuantity: state.updateQuantity,
+    removeItem: state.removeItem,
+    updateItemDiscount: state.updateItemDiscount,
+    removeItemDiscount: state.removeItemDiscount,
+    updateItemOfferPrice: state.updateItemOfferPrice,
+    updatePiecesOverride: state.updatePiecesOverride,
+    updateItemPricingTier: state.updateItemPricingTier,
+    customerState: state.customerState,
+    setCustomerState: state.setCustomerState,
+    scrapDeduction: state.scrapDeduction,
+    scrapInvoiceNumber: state.scrapInvoiceNumber,
+    setScrapDeduction: state.setScrapDeduction,
+    clearScrapDeduction: state.clearScrapDeduction,
+    returnDeduction: state.returnDeduction,
+    returnInvoiceNumber: state.returnInvoiceNumber,
+    setReturnDeduction: state.setReturnDeduction,
+    clearReturnDeduction: state.clearReturnDeduction,
+    editingInvoiceId: state.editingInvoiceId,
+    editingInvoiceNumber: state.editingInvoiceNumber,
+    setEditingInvoice: state.setEditingInvoice,
+  })));
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const receivedInputRef = useRef<HTMLInputElement | null>(null);
@@ -146,12 +162,10 @@ export function BillingPage() {
   const syncActiveSnapshot = useTabStore(s => s.syncActiveSnapshot);
   const getActiveTab = useTabStore(s => s.getActiveTab);
   const activeTab = tabs.find(t => t.id === activeTabId);
-  const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
+  const { shopName, role: authRole, tenantId, userId, userName } = useAuthStore();
   const shopDomain = useCartStore(s => s.shopDomain);
   const scaleLiveWeight = useScaleStore(s => s.liveWeight);
   const scaleReading = useScaleStore(s => s.reading);
-  const setScaleReading = useScaleStore(s => s.setReading);
-  const lockScaleWeight = useScaleStore(s => s.lockWeight);
   const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
   const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
 
@@ -172,8 +186,6 @@ export function BillingPage() {
   // without every keystroke triggering a cross-field recalculation.
   const [localPcsStr, setLocalPcsStr] = useState<Record<string, string>>({});
   const [localKgStr, setLocalKgStr] = useState<Record<string, string>>({});
-  const [localPcPriceStr, setLocalPcPriceStr] = useState<Record<string, string>>({});
-  const [localKgRateStr, setLocalKgRateStr] = useState<Record<string, string>>({});
 
   // Pricing tier state
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
@@ -254,30 +266,6 @@ export function BillingPage() {
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal, extraBonus, returnDeduction: _cartReturnDeduction } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
-  const _totalItemSavings = items.reduce((sum, item) => {
-    if (item.isScrap) return sum;
-    const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
-    const qty = Number(item.quantity) || 0;
-    const rawTotal = rate * qty;
-    const catalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-      : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-      : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-      : rate;
-    const isAdhocOffer = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-    const isAdhocDiscFlat = item.discount_flat != null && item.discount_flat !== item.catalog_discount_flat;
-    const isAdhocDiscPct = item.discount_percent != null && item.discount_percent !== item.catalog_discount_percent;
-    let effectivePrice = catalogPrice;
-    if (isAdhocOffer) {
-      effectivePrice = Number(item.offer_price);
-    } else if (isAdhocDiscFlat) {
-      effectivePrice = catalogPrice - Number(item.discount_flat);
-    } else if (isAdhocDiscPct) {
-      effectivePrice = catalogPrice * (1 - Number(item.discount_percent) / 100);
-    }
-    effectivePrice = Math.max(effectivePrice, 0);
-    const total = effectivePrice * qty;
-    return sum + (rawTotal - total);
-  }, 0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isProductSearching, setIsProductSearching] = useState(false);
@@ -288,7 +276,6 @@ export function BillingPage() {
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [showSplitModal, setShowSplitModal] = useState(false);
   const [showTransportModal, setShowTransportModal] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
@@ -325,14 +312,13 @@ export function BillingPage() {
   const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [isPastBillMode, setIsPastBillMode] = useState(false);
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
-  const getNumericPart = (s: string) => (s.match(/\d+/g) || []).join('');
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
   const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
 
   // Return deduction search (similar to scrap deduction search)
   const [returnDeductionSearchQuery, setReturnDeductionSearchQuery] = useState('');
   const [returnDeductionResults, setReturnDeductionResults] = useState<any[]>([]);
-  const [returnDeductionSearchMode, setReturnDeductionSearchMode] = useState(false);
+  const [, setReturnDeductionSearchMode] = useState(false);
   const [deductionTabMode, setDeductionTabMode] = useState<'scrap' | 'return' | 'points'>('scrap');
 
   // Loyalty points state
@@ -348,11 +334,8 @@ export function BillingPage() {
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
 
   // Modern ERP B2C Grid States (Acro / Tally Desktop ERP Model)
-  const [erpVoucherNo, setErpVoucherNo] = useState('');
   const [erpNarration, setErpNarration] = useState('');
   const [erpSalesRep, setErpSalesRep] = useState('');
-  const [erpCooly, setErpCooly] = useState<number | string>('');
-  const [erpFreight, setErpFreight] = useState<number | string>('');
   const [focusedRowProductId, setFocusedRowProductId] = useState<string | null>(null);
 
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
@@ -579,7 +562,6 @@ export function BillingPage() {
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
-  const _gstSeries = invoiceType === 'GST' && enableThreeInvoiceSeries;
 
   // Mode flags from cartStore (must be before any destructuring that references them)
   const isReturnMode = useCartStore(s => s.isReturnMode);
@@ -619,7 +601,6 @@ export function BillingPage() {
   const isScrapModuleEnabled = enableScrap && (!featureFlags || featureFlags.scrap !== false);
   const isReturnModuleEnabled = !featureFlags || featureFlags.returns !== false;
   const isLoyaltyModuleEnabled = loyaltyEnabled && (!featureFlags || featureFlags.loyalty !== false);
-  const effectiveReturnSearchMode = isScrapModuleEnabled ? returnDeductionSearchMode : true;
   const effectiveDeductionMode: 'scrap' | 'return' | 'points' = useMemo(() => {
     if (deductionTabMode === 'scrap' && !isScrapModuleEnabled) {
       if (isReturnModuleEnabled) return 'return';
@@ -774,31 +755,31 @@ export function BillingPage() {
     let quotationNumber = '';
     let returnNumber = '';
     const allTabs = useTabStore.getState().tabs;
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const series = enableThreeInvoiceSeries ? 'normal' : undefined;
       try {
-        const r = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+        const r = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
         if (r?.success && r.invoiceNumber) {
           const reserved = allTabs.map(t => t.reservedInvoiceNumber);
           billNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
         }
       } catch { }
       try {
-        const r = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
+        const r = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
         if (r?.success && r.invoiceNumber) {
           const reserved = allTabs.map(t => t.reservedScrapInvoiceNumber);
           scrapNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
         }
       } catch { }
       try {
-        const r = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
+        const r = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
         if (r?.success && r.quotationNumber) {
           const reserved = allTabs.map(t => t.reservedQuotationNumber);
           quotationNumber = getNextOffsetInvoiceNumber(r.quotationNumber, reserved);
         }
       } catch { }
       try {
-        const r = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
+        const r = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
         if (r?.success && r.returnNumber) {
           const reserved = allTabs.map(t => t.reservedReturnNumber);
           returnNumber = getNextOffsetInvoiceNumber(r.returnNumber, reserved);
@@ -859,7 +840,7 @@ export function BillingPage() {
     : null;
 
     const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     const tab = getActiveTab();
     if (!tab) return;
     if (isScrapMode || isQuotationMode || isReturnMode || tab.snapshot?.isQuotationMode) return;
@@ -868,7 +849,7 @@ export function BillingPage() {
     try {
       const tabIsB2B = (invoiceType === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(tab?.isB2B));
       const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (tabIsB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (invoiceType === 'GST' ? 'gst' : undefined);
-      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+      const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         const allTabs = useTabStore.getState().tabs;
         const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedInvoiceNumber);
@@ -897,7 +878,7 @@ export function BillingPage() {
       const tab = getActiveTab();
       const tabIsB2B = (type === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(tab?.isB2B));
       const series = enableThreeInvoiceSeries ? (type === 'GST' ? (tabIsB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (type === 'GST' ? 'gst' : undefined);
-      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+      const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         const allTabs = useTabStore.getState().tabs;
         const otherTabsReserved = allTabs.filter(t => t?.id !== tab?.id).map(t => t.reservedInvoiceNumber);
@@ -913,13 +894,13 @@ export function BillingPage() {
   };
 
   const reserveScrapInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     const tab = getActiveTab();
     if (!tab) return;
     if (editingActive) return;
 
     try {
-      const result = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
+      const result = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
       if (result.success && result.invoiceNumber) {
         const allTabs = useTabStore.getState().tabs;
         const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedScrapInvoiceNumber);
@@ -939,13 +920,13 @@ export function BillingPage() {
   }, [getActiveTab, updateActiveTab, editingActive]);
 
   const reserveQuotationNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     const tab = getActiveTab();
     if (!tab) return;
     if (editingQuotationId) return;
 
     try {
-      const result = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
+      const result = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
       if (result.success && result.quotationNumber) {
         const allTabs = useTabStore.getState().tabs;
         const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedQuotationNumber);
@@ -966,12 +947,12 @@ export function BillingPage() {
   }, [getActiveTab, updateActiveTab, editingQuotationId]);
 
   const reserveReturnNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     const tab = getActiveTab();
     if (!tab) return;
 
     try {
-      const result = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
+      const result = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
       if (result.success && result.returnNumber) {
         const allTabs = useTabStore.getState().tabs;
         const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedReturnNumber);
@@ -995,7 +976,6 @@ export function BillingPage() {
   // pending ADJUST_BILL credit for a future bill (not cash-refunded). Only scrap
   // credit excess is refunded as cash (existing behavior).
   const returnConsumed = Math.min(storeReturnDeduction || 0, grandTotal);
-  const scrapConsumed = Math.min(storeScrapDeduction || 0, Math.max(0, grandTotal - returnConsumed));
   const refundAmount = !isScrapMode ? Math.max(0, totalDeductions - grandTotal) : 0;
 
   const returnSubtotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
@@ -1028,7 +1008,6 @@ export function BillingPage() {
     (isGrandTotalOverridden ? activeTab.manualTotalOverride! : rawDisplayGrandTotal) - pointsRedeemedDiscountCalc
   );
   const balanceAmount = receivedAmount - displayGrandTotal;
-  const _bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
 
   const startEditingTotal = useCallback(() => {
     if (isScrapMode || isReturnMode || items.length === 0) return;
@@ -1307,94 +1286,94 @@ export function BillingPage() {
   }, [activeTabId, uiConfig.entryFocusOrder]);
 
   useEffect(() => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setProductPricingMapLoaded(false);
-    window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
-    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
+    productsApi.ensureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
+    getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
       if (typeof v === 'string' && v.trim()) {
         setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
       }
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
       const resolved = typeof v === 'string' && v.trim() ? v.trim() : (shopName || '');
       setShopNameState(resolved);
       if (resolved) useAuthStore.setState({ shopName: resolved });
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
       setShopGstin(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
       setShopAddress(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
       setShopPhone(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_state' }).then((v: any) => {
       setShopState(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled' }).then((v: any) => {
       if (v !== undefined && v !== null) setQuotationGstEnabledSetting(v !== 'false' && v !== false);
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v: any) => {
       setShopEmail(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_website' }).then((v: any) => {
       setShopWebsite(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
       setUpiId(typeof v === 'string' ? v : '');
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
       if (typeof v === 'string') setBankNameState(v);
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
       if (typeof v === 'string') setBankAccountState(v);
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
       if (typeof v === 'string') setBankIfscState(v);
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
       if (typeof v === 'string') setBankBranchState(v);
     });
     getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
-    if (window.electronAPI?.dbPaymentGetSources) {
-      window.electronAPI.dbPaymentGetSources(tenantId || 'global').then((sources: any[]) => {
+    if (hasBridge('dbPaymentGetSources')) {
+      paymentSourcesApi.getSources(tenantId || 'global').then((sources: any[]) => {
         if (Array.isArray(sources)) {
           setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
       }).catch(() => {});
     }
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableRealPaperStock(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowPaperInGstSetting(Boolean(v));
       else setShowPaperInGstSetting(true);
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowPaperInEstSetting(Boolean(v));
       else setShowPaperInEstSetting(false);
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
     loadFlags(tenantId || 'global');
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' }).then((v: any) => {
       if (v !== null && v !== undefined) setAutoPrintBarcode(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
+    getSetting({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
     });
     const reloadLoyaltyConfig = () => {
       Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
+        getSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
+        getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
       ]).then(([rawCfg, rawFlags]: [any, any]) => {
         let cfg = rawCfg;
         if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
@@ -1423,7 +1402,7 @@ export function BillingPage() {
       }).catch(() => {});
     };
     reloadLoyaltyConfig();
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
       if (v?.billSettings?.bosTaxRatePercent != null) {
         setBosTaxRatePercent(Number(v.billSettings.bosTaxRatePercent));
       }
@@ -1435,8 +1414,8 @@ export function BillingPage() {
       }
     });
     Promise.all([
-      window.electronAPI.dbGetPricingTiers(tenantId || 'global'),
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'mrp_sort_order' })
+      pricingTiersApi.getPricingTiers(tenantId || 'global'),
+      getSetting({ tenant_id: tenantId || 'global', key: 'mrp_sort_order' })
     ])
       .then(([res, mrpSortRes]: [any, any]) => {
         if (Array.isArray(res)) {
@@ -1451,7 +1430,7 @@ export function BillingPage() {
         }
       })
       .catch(console.error);
-    window.electronAPI.dbGetProductPricing(tenantId || 'global')
+    pricingTiersApi.getProductPricing(tenantId || 'global')
       .then((rows: any) => {
         if (Array.isArray(rows)) {
           const map: Record<string, Record<string, number>> = {};
@@ -1464,22 +1443,22 @@ export function BillingPage() {
         }
       })
       .catch(console.error);
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override' })
+    getSetting({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override' })
       .then((v: any) => {
         if (v !== null && v !== undefined) setAllowBillerOverride(Boolean(v));
       })
       .catch(console.error);
-    window.electronAPI.dbGetParties(tenantId || 'global')
+    listParties(tenantId || 'global')
       .then((res: any) => {
         if (Array.isArray(res)) setPartiesForTier(res);
       })
       .catch(console.error);
 
-    const unsubSync = window.electronAPI?.onSyncDataUpdated?.(() => {
+    const unsubSync = bridgeEvents.onSyncDataUpdated(() => {
       const tid = tenantId || 'global';
       Promise.all([
-        window.electronAPI.dbGetPricingTiers(tid),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'mrp_sort_order' })
+        pricingTiersApi.getPricingTiers(tid),
+        getSetting({ tenant_id: tid, key: 'mrp_sort_order' })
       ])
         .then(([res, mrpSortRes]: [any, any]) => {
           if (Array.isArray(res)) {
@@ -1495,7 +1474,7 @@ export function BillingPage() {
         })
         .catch(console.error);
 
-      window.electronAPI.dbGetProductPricing(tid)
+      pricingTiersApi.getProductPricing(tid)
         .then((rows: any) => {
           if (Array.isArray(rows)) {
             const map: Record<string, Record<string, number>> = {};
@@ -1521,8 +1500,8 @@ export function BillingPage() {
       const newCode = e?.detail?.terminalCode;
       if (newCode) {
         setTerminalCodeState(newCode);
-      } else if (window.electronAPI) {
-        window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
+      } else if (isDesktopRuntime()) {
+        getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
           if (typeof v === 'string' && v.trim()) {
             setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
           }
@@ -1531,44 +1510,44 @@ export function BillingPage() {
       if (e?.detail?.shopName) {
         setShopNameState(e.detail.shopName);
         useAuthStore.setState({ shopName: e.detail.shopName });
-      } else if (window.electronAPI) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
+      } else if (isDesktopRuntime()) {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
           if (typeof v === 'string' && v.trim()) {
             setShopNameState(v.trim());
             useAuthStore.setState({ shopName: v.trim() });
           }
         });
       }
-      if (window.electronAPI) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
+      if (isDesktopRuntime()) {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
           if (typeof v === 'string') setShopAddress(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
           if (typeof v === 'string') setShopPhone(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
           if (typeof v === 'string') setShopGstin(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
           if (typeof v === 'string') setBankNameState(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
           if (typeof v === 'string') setBankAccountState(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
           if (typeof v === 'string') setBankIfscState(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
           if (typeof v === 'string') setBankBranchState(v);
         });
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
           if (v?.billSettings?.showDescription !== undefined) {
             setShowDescriptionState(v.billSettings.showDescription !== false);
           }
         });
         Promise.all([
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
+          getSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
+          getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
         ]).then(([rawCfg, rawFlags]: [any, any]) => {
           let cfg = rawCfg;
           if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
@@ -1613,7 +1592,7 @@ export function BillingPage() {
     if (prevIsB2B.current !== isB2B) {
       prevIsB2B.current = isB2B;
       const series = isB2B ? 'gst_b2b' : 'gst_b2c';
-      window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }).then(result => {
+      invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }).then(result => {
         if (result.success && result.invoiceNumber) {
           updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
         }
@@ -1657,25 +1636,25 @@ export function BillingPage() {
       let baseQuotation = '';
       let baseReturn = '';
 
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         try {
           const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
-          const r = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+          const r = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
           if (r?.success && r.invoiceNumber) baseNormal = r.invoiceNumber;
         } catch {}
 
         try {
-          const r = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
+          const r = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
           if (r?.success && r.invoiceNumber) baseScrap = r.invoiceNumber;
         } catch {}
 
         try {
-          const r = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
+          const r = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
           if (r?.success && r.quotationNumber) baseQuotation = r.quotationNumber;
         } catch {}
 
         try {
-          const r = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
+          const r = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
           if (r?.success && r.returnNumber) baseReturn = r.returnNumber;
         } catch {}
       }
@@ -1742,9 +1721,9 @@ export function BillingPage() {
   const pendingScrapInvoiceToEdit = useCartStore(s => s.pendingScrapInvoiceToEdit);
 
   const loadScrapInvoiceForEdit = useCallback(async (invNum: string) => {
-    if (!invNum || !window.electronAPI) return;
+    if (!invNum || !isDesktopRuntime()) return;
     const tid = tenantId || 'global';
-    const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tid, scrap_invoice_number: invNum });
+    const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tid, scrap_invoice_number: invNum });
     if (!detail || !detail.transactions || detail.transactions.length === 0) return;
 
     // Explicitly disable Return, Quotation & Past Bill modes first
@@ -1863,7 +1842,7 @@ export function BillingPage() {
     setIsProductSearching(true);
     let isCurrent = true;
     const t = setTimeout(async () => {
-      if (!window.electronAPI) {
+      if (!isDesktopRuntime()) {
         setIsProductSearching(false);
         return;
       }
@@ -1877,8 +1856,8 @@ export function BillingPage() {
 
       try {
         const [products, combos] = await Promise.all([
-          window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
-          window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: trimmed, only_active: true }),
+          listProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
+          combosApi.getComboOffers({ tenant_id: tenantId, search: trimmed, only_active: true }),
         ]);
 
         if (!isCurrent) return;
@@ -2007,8 +1986,8 @@ export function BillingPage() {
 
   // Fetch categories & grades immediately so options are ready instantly when form opens
   const loadCategoriesAndGrades = useCallback(() => {
-    if (!window.electronAPI || !tenantId) return;
-    window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 500 })
+    if (!isDesktopRuntime() || !tenantId) return;
+    listProducts({ tenant_id: tenantId, limit: 500 })
       .then((res: any[]) => {
         if (Array.isArray(res)) {
           const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
@@ -2016,7 +1995,7 @@ export function BillingPage() {
         }
       })
       .catch(console.error);
-    window.electronAPI.dbGetGrades(tenantId)
+    gradesApi.getGrades(tenantId)
       .then((res: any[]) => {
         if (Array.isArray(res)) setNewProductGrades(res);
       })
@@ -2034,24 +2013,24 @@ export function BillingPage() {
   }, [showProductCreateForm, loadCategoriesAndGrades]);
 
   useEffect(() => {
-    if (!window.electronAPI || !tenantId) {
+    if (!isDesktopRuntime() || !tenantId) {
       setProductPriceCoding(null);
       return;
     }
-    window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'price_coding' })
+    getSetting({ tenant_id: tenantId, key: 'price_coding' })
       .then((value: any) => setProductPriceCoding(value && typeof value === 'object' ? value : null))
       .catch(() => setProductPriceCoding(null));
   }, [tenantId]);
 
   // Fetch most sold products for 3-column express layout
   useEffect(() => {
-    if (!window.electronAPI || !tenantId) return;
+    if (!isDesktopRuntime() || !tenantId) return;
     let cancelled = false;
 
     const fetchMostSold = async () => {
       try {
-        if (window.electronAPI.dbGetProductSalesSummary) {
-          const summary = await window.electronAPI.dbGetProductSalesSummary({ tenant_id: tenantId || 'global' });
+        if (hasBridge('dbGetProductSalesSummary')) {
+          const summary = await productsApi.getProductSalesSummary({ tenant_id: tenantId || 'global' });
           if (!cancelled && Array.isArray(summary) && summary.length > 0) {
             const sorted = summary
               .filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge')
@@ -2062,7 +2041,7 @@ export function BillingPage() {
             }
           }
         }
-        const prods = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 30 });
+        const prods = await listProducts({ tenant_id: tenantId, limit: 30 });
         if (!cancelled && Array.isArray(prods)) {
           setMostSoldProducts(prods.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
         }
@@ -2079,9 +2058,9 @@ export function BillingPage() {
   useEffect(() => {
     if (!isScrapMode || searchQuery.length < 2) { setScrapSearchResults([]); return; }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!isDesktopRuntime()) return;
       const { tenantId } = useAuthStore.getState();
-      const cats = await window.electronAPI.dbGetScrapCategoriesBySearch({ tenant_id: tenantId || '', search: searchQuery });
+      const cats = await scrapApi.getScrapCategoriesBySearch({ tenant_id: tenantId || '', search: searchQuery });
       if (Array.isArray(cats)) {
         setScrapSearchResults(cats);
       }
@@ -2093,9 +2072,9 @@ export function BillingPage() {
   useEffect(() => {
     if (!isPastBillMode || searchQuery.length < 2) { setPastBillResults([]); return; }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!isDesktopRuntime()) return;
       const tid = tenantId || 'global';
-      const invoices = await window.electronAPI.dbGetInvoices({
+      const invoices = await listInvoices({
         tenant_id: tid,
         search: searchQuery.trim(),
         limit: 10,
@@ -2112,9 +2091,9 @@ export function BillingPage() {
   useEffect(() => {
     if (!isReturnMode || searchQuery.length < 2) { setReturnSearchResults([]); return; }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!isDesktopRuntime()) return;
       const tid = tenantId || 'global';
-      const invoices = await window.electronAPI.dbGetReturnableInvoices({
+      const invoices = await returnsApi.getReturnableInvoices({
         tenant_id: tid,
         search: searchQuery.trim(),
         limit: 10,
@@ -2130,9 +2109,9 @@ export function BillingPage() {
   useEffect(() => {
     if (storeScrapDeduction > 0 || scrapDeductionSearchQuery.length < 1) { setScrapDeductionResults([]); return; }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!isDesktopRuntime()) return;
       const tid = tenantId || 'global';
-      const list = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tid });
+      const list = await scrapApi.getScrapInvoiceList({ tenant_id: tid });
       if (Array.isArray(list)) {
         const q = scrapDeductionSearchQuery.toUpperCase();
         const getNumPart = getNumericPart;
@@ -2164,9 +2143,9 @@ export function BillingPage() {
   useEffect(() => {
     if (storeReturnDeduction > 0 || returnDeductionSearchQuery.length < 1) { setReturnDeductionResults([]); return; }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
+      if (!isDesktopRuntime()) return;
       const tid = tenantId || 'global';
-      const list = await window.electronAPI.dbGetPendingReturnInvoices({ tenant_id: tid });
+      const list = await returnsApi.getPendingReturnInvoices({ tenant_id: tid });
       if (Array.isArray(list)) {
         const q = returnDeductionSearchQuery.toUpperCase();
         const getNumPart = getNumericPart;
@@ -2208,8 +2187,8 @@ export function BillingPage() {
 
   // Load all existing customers for fast autocomplete
   useEffect(() => {
-    if (window.electronAPI?.dbGetCustomers) {
-      window.electronAPI.dbGetCustomers({ tenant_id: tenantId || 'global' })
+    if (hasBridge('dbGetCustomers')) {
+      customersApi.getCustomers({ tenant_id: tenantId || 'global' })
         .then((data: any) => {
           if (Array.isArray(data)) {
             setAllCustomersList(data);
@@ -2221,8 +2200,8 @@ export function BillingPage() {
 
   // Load all active staff when staff credit billing feature flag is enabled
   useEffect(() => {
-    if (featureFlags?.staff_credit_billing && window.electronAPI?.dbGetStaff) {
-      window.electronAPI.dbGetStaff({ tenant_id: tenantId || 'global', status: 'ACTIVE' })
+    if (featureFlags?.staff_credit_billing && hasBridge('dbGetStaff')) {
+      staffApi.getStaff({ tenant_id: tenantId || 'global', status: 'ACTIVE' })
         .then((data: any) => {
           if (Array.isArray(data)) {
             setAllStaffList(data);
@@ -2238,13 +2217,13 @@ export function BillingPage() {
   useEffect(() => {
     const nameQuery = customerName.trim();
     const phoneQuery = customerPhone.trim();
-    if ((!nameQuery && !phoneQuery) || !window.electronAPI) {
+    if ((!nameQuery && !phoneQuery) || !isDesktopRuntime()) {
       setCustomerSearchResults([]);
       return;
     }
     const t = setTimeout(async () => {
       try {
-        const results = await window.electronAPI.dbFindCustomers({
+        const results = await customersApi.findCustomers({
           tenant_id: tenantId || 'global',
           name: nameQuery || undefined,
           phone: phoneQuery || undefined,
@@ -2453,8 +2432,8 @@ export function BillingPage() {
         }
       } else if (cleanPhone || cleanName) {
         // Query backend directly if not loaded in memory yet
-        if (window.electronAPI?.dbFindCustomers) {
-          window.electronAPI.dbFindCustomers({
+        if (hasBridge('dbFindCustomers')) {
+          customersApi.findCustomers({
             tenant_id: tenantId || 'global',
             phone: cleanPhone || undefined,
             name: cleanName || undefined,
@@ -2720,10 +2699,10 @@ export function BillingPage() {
 
     // Editing must preserve the barcode belonging to the selected cart product.
     // Barcode generation here is only a convenience for a new product.
-    if (!editingProductId && window.electronAPI && tenantId) {
+    if (!editingProductId && isDesktopRuntime() && tenantId) {
       (async () => {
         try {
-          const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId });
+          const gen = await productsApi.generateBarcode({ tenant_id: tenantId });
           if (!cancelled && gen?.success && gen?.barcode) {
             setNewProductBarcode(gen.barcode);
           }
@@ -2755,9 +2734,9 @@ export function BillingPage() {
         setIsLoadingEditBill(true);
 
         let invoice = localInvoice;
-        if (window.electronAPI?.dbGetInvoices && localInvoice?.invoice_id) {
+        if (localInvoice?.invoice_id) {
           try {
-            const fetched = await window.electronAPI.dbGetInvoices({ search: localInvoice.invoice_number || localInvoice.invoice_id, tenant_id: localInvoice.tenant_id });
+            const fetched = await listInvoices({ search: localInvoice.invoice_number || localInvoice.invoice_id, tenant_id: localInvoice.tenant_id });
             if (Array.isArray(fetched) && fetched.length > 0) {
               const exact = fetched.find((i: any) => i.invoice_id === localInvoice.invoice_id);
               if (exact) {
@@ -2781,7 +2760,7 @@ export function BillingPage() {
         const productMap: Record<string, any> = {};
         if (productIds.length > 0) {
           try {
-            const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+            const products = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
             if (Array.isArray(products)) {
               products.forEach((p: any) => { productMap[p.product_id] = p; });
             }
@@ -3092,11 +3071,11 @@ export function BillingPage() {
       try {
         const { invoice } = JSON.parse(raw);
         if (!invoice?.invoice_id) return;
-        if (!window.electronAPI) return;
+        if (!isDesktopRuntime()) return;
 
         const [rawItems, returnedQtys] = await Promise.all([
-          window.electronAPI.dbGetInvoiceItems(invoice.invoice_id),
-          window.electronAPI.dbGetAlreadyReturnedQuantities(invoice.invoice_id),
+          getInvoiceItems(invoice.invoice_id),
+          returnsApi.getAlreadyReturnedQuantities(invoice.invoice_id),
         ]);
 
         if (!Array.isArray(rawItems) || rawItems.length === 0) {
@@ -3143,9 +3122,9 @@ export function BillingPage() {
         // Enrich with catalog product details if available
         const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
         const productMap: Record<string, any> = {};
-        if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+        if (productIds.length > 0) {
           try {
-            const prods = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+            const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
             if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
           } catch (e) {}
         }
@@ -3489,9 +3468,9 @@ export function BillingPage() {
   };
 
   const generateProductBarcode = async () => {
-    if (!window.electronAPI || !tenantId) return;
+    if (!isDesktopRuntime() || !tenantId) return;
     try {
-      const result = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+      const result = await productsApi.generateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
       if (result.success && result.barcode) {
         setNewProductBarcode(`${result.barcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`);
       }
@@ -3501,10 +3480,10 @@ export function BillingPage() {
   };
 
   const handleCreateNewGrade = async () => {
-    if (!window.electronAPI || !tenantId || !newProductCategory.trim() || !newProductGradeForm.grade_name.trim()) return;
+    if (!isDesktopRuntime() || !tenantId || !newProductCategory.trim() || !newProductGradeForm.grade_name.trim()) return;
     setNewProductSavingGrade(true);
     const gradeId = uuidv4();
-    const res = await window.electronAPI.dbAddGrade({
+    const res = await gradesApi.addGrade({
       grade_id: gradeId,
       tenant_id: tenantId,
       category: newProductCategory.trim(),
@@ -3514,7 +3493,7 @@ export function BillingPage() {
       offer_price: Number(newProductGradeForm.offer_price) || 0,
     });
     if (res.success) {
-      const fresh = await window.electronAPI.dbGetGrades(tenantId);
+      const fresh = await gradesApi.getGrades(tenantId);
       if (Array.isArray(fresh)) setNewProductGrades(fresh);
       setNewProductGradeId(gradeId);
       setNewProductBasePrice(String(Number(newProductGradeForm.rate) || 0));
@@ -3556,11 +3535,11 @@ export function BillingPage() {
     setEditingProductId(item.product_id);
     let prodDetails: any = null;
     let productPricingRows: any[] = [];
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const tid = tenantId || 'global';
       const [productResult, pricingResult] = await Promise.allSettled([
-        window.electronAPI.dbGetProductsByIds({ tenant_id: tid, product_ids: [item.product_id] }),
-        window.electronAPI.dbGetProductPricing(tid),
+        getProductsByIds({ tenant_id: tid, product_ids: [item.product_id] }),
+        pricingTiersApi.getProductPricing(tid),
       ]);
       if (productResult.status === 'fulfilled' && Array.isArray(productResult.value) && productResult.value.length > 0) {
         prodDetails = productResult.value[0];
@@ -3626,7 +3605,7 @@ export function BillingPage() {
   };
 
   const handleCreateAndAddProduct = async (retries = 3, isAutoGenerated = false, asTemp = false) => {
-    if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
+    if (!isDesktopRuntime() || !tenantId || !newProductName.trim()) return;
     const purchasePrice = Number(newProductPurchasePrice) || 0;
     const basePrice = newProductBasePrice.trim() === '' ? 0 : Number(newProductBasePrice);
     const qty = Number(newProductStock) || 0;
@@ -3670,7 +3649,7 @@ export function BillingPage() {
       let finalBarcode = newProductBarcode.trim();
       if (!finalBarcode) {
         try {
-          const generated = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+          const generated = await productsApi.generateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
           if (!generated.success || !generated.barcode) throw new Error(generated.error || 'Barcode could not be generated');
           finalBarcode = `${generated.barcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`;
         } catch (error: any) {
@@ -3684,8 +3663,8 @@ export function BillingPage() {
         price: price.trim() === '' ? null : Number(price),
       }));
 
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbUpdateProduct({
+      if (isDesktopRuntime()) {
+        const res = await productsApi.updateProduct({
           ...(editingProductSnapshot || {}),
           product_id: editingProductId,
           tenant_id: tenantId,
@@ -3718,7 +3697,7 @@ export function BillingPage() {
         }
 
         if (tierRows.length > 0) {
-          const pricingResult = await window.electronAPI.dbSetProductPricing({
+          const pricingResult = await pricingTiersApi.setProductPricing({
             tenant_id: tenantId,
             product_id: editingProductId,
             pricing: tierRows,
@@ -3813,7 +3792,7 @@ export function BillingPage() {
     const productId = uuidv4();
     let finalBarcode = newProductBarcode.trim();
     if (!finalBarcode) {
-      const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+      const gen = await productsApi.generateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
       const generatedBarcode = (gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`;
       finalBarcode = `${generatedBarcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`;
     }
@@ -3831,7 +3810,7 @@ export function BillingPage() {
       domainAttrsObj.gst_type = newProductIsDummy ? 'PAPER' : 'REAL';
     }
 
-    const res = await window.electronAPI.dbAddProduct({
+    const res = await productsApi.addProduct({
       product_id: productId,
       tenant_id: tenantId,
       name: newProductName.trim(),
@@ -3863,7 +3842,7 @@ export function BillingPage() {
         price: price.trim() === '' ? null : Number(price),
       }));
       if (tierRows.length > 0) {
-        const pricingResult = await window.electronAPI.dbSetProductPricing({
+        const pricingResult = await pricingTiersApi.setProductPricing({
           tenant_id: tenantId,
           product_id: productId,
           pricing: tierRows,
@@ -3884,7 +3863,7 @@ export function BillingPage() {
         const purchaseBillId = uuidv4();
         const itemId = uuidv4();
         const totalAmt = qty * purchasePrice;
-        await window.electronAPI.dbAddPurchaseBill({
+        await purchasesApi.addPurchaseBill({
           purchase_bill_id: purchaseBillId,
           tenant_id: tenantId,
           bill_number: `AUTO-BILL-${Date.now()}`,
@@ -3910,8 +3889,8 @@ export function BillingPage() {
         });
       }
 
-      if (autoPrintBarcode && window.electronAPI && finalBarcode) {
-        window.electronAPI.printBarcode(tenantId, finalBarcode, basePrice > 0 ? basePrice : undefined, newProductName.trim(), 1).then((r: any) => {
+      if (autoPrintBarcode && isDesktopRuntime() && finalBarcode) {
+        printingApi.printBarcode(tenantId, finalBarcode, basePrice > 0 ? basePrice : undefined, newProductName.trim(), 1).then((r: any) => {
           if (!r?.success) console.warn('[BillingPage] Auto barcode print failed:', r?.error || 'No barcode printer configured');
         }).catch((e: any) => console.warn('[BillingPage] Auto barcode print error:', e?.message || e));
       }
@@ -3988,14 +3967,14 @@ export function BillingPage() {
 
   // Load invoice items into cart for return processing (like scrap loads categories)
   const handleSelectReturnInvoice = async (inv: any) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setSearchQuery('');
     setReturnSearchResults([]);
     setSelectedReturnInvoice(inv);
     try {
       const [rawItems, returnedQtys] = await Promise.all([
-        window.electronAPI.dbGetInvoiceItems(inv.invoice_id),
-        window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id),
+        getInvoiceItems(inv.invoice_id),
+        returnsApi.getAlreadyReturnedQuantities(inv.invoice_id),
       ]);
       const returnedMap: Record<string, number> = {};
       (returnedQtys || []).forEach((r: any) => {
@@ -4053,9 +4032,9 @@ export function BillingPage() {
       // Enrich with catalog product details if available
       const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
       const productMap: Record<string, any> = {};
-      if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+      if (productIds.length > 0) {
         try {
-          const prods = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+          const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
           if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
         } catch (e) {}
       }
@@ -4144,10 +4123,10 @@ export function BillingPage() {
         
         if (Array.isArray(qItems)) {
           const productIds = qItems.map((i: any) => i.product_id).filter(Boolean);
-          let productsMap: Record<string, any> = {};
-          if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+          const productsMap: Record<string, any> = {};
+          if (productIds.length > 0) {
             try {
-              const prods = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+              const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
               if (Array.isArray(prods)) {
                 prods.forEach((p: any) => { productsMap[p.product_id] = p; });
               }
@@ -4323,13 +4302,13 @@ export function BillingPage() {
 
   // Past bill selection: load selected invoice into cart for editing
   const handleSelectPastBill = async (invoice: any) => {
-    if (!invoice || !window.electronAPI) return;
+    if (!invoice || !isDesktopRuntime()) return;
     try {
       let invId = invoice.invoice_id || invoice.id;
       let fullInvoice = invoice;
 
       if (!invId && invoice.invoice_number) {
-        const fetched = await window.electronAPI.dbGetInvoices({ search: invoice.invoice_number, tenant_id: invoice.tenant_id || tenantId });
+        const fetched = await listInvoices({ search: invoice.invoice_number, tenant_id: invoice.tenant_id || tenantId });
         if (Array.isArray(fetched) && fetched.length > 0) {
           const matched = fetched.find((i: any) => i.invoice_number === invoice.invoice_number) || fetched[0];
           invId = matched.invoice_id;
@@ -4342,7 +4321,7 @@ export function BillingPage() {
         return;
       }
 
-      const items = await window.electronAPI.dbGetInvoiceItems(invId);
+      const items = await getInvoiceItems(invId);
       if (!Array.isArray(items) || items.length === 0) {
         setHardwareError('Invoice has no items');
         return;
@@ -4365,7 +4344,7 @@ export function BillingPage() {
   };
 
   useEffect(() => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
 
     const playBeep = () => {
       try {
@@ -4384,7 +4363,7 @@ export function BillingPage() {
       }
     };
 
-    const unsubscribe = window.electronAPI.onBarcodeScanned(async (code: string) => {
+    const unsubscribe = bridgeEvents.onBarcodeScanned(async (code: string) => {
       if (!code) return;
       console.log("[BillingPage] Barcode scanned from hardware:", code);
       
@@ -4392,7 +4371,7 @@ export function BillingPage() {
       if (isReturnMode) {
         // Search invoices for returns
         try {
-          const invoices = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId, search: code });
+          const invoices = await listInvoices({ tenant_id: tenantId, search: code });
           if (Array.isArray(invoices) && invoices.length > 0) {
             // Find an exact match by invoice number
             const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
@@ -4410,7 +4389,7 @@ export function BillingPage() {
       } else if (isPastBillMode) {
         // Search past bills by invoice number
         try {
-          const invoices = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId, search: code });
+          const invoices = await listInvoices({ tenant_id: tenantId, search: code });
           if (Array.isArray(invoices) && invoices.length > 0) {
             const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
             if (exactMatch) {
@@ -4427,7 +4406,7 @@ export function BillingPage() {
       } else {
         // Normal billing mode: search product by barcode/item_code
         try {
-          const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code });
+          const products = await listProducts({ tenant_id: tenantId, barcode: code });
           if (Array.isArray(products) && products.length > 0) {
             handleSelectProduct(products[0]);
             playBeep();
@@ -4454,118 +4433,6 @@ export function BillingPage() {
     };
   }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, syncActiveSnapshot]);
 
-  const handleReturnFromPastBill = async (invoice: any) => {
-    if (!window.electronAPI) return;
-    try {
-      const [rawItems, returnedQtys] = await Promise.all([
-        window.electronAPI.dbGetInvoiceItems(invoice.invoice_id),
-        window.electronAPI.dbGetAlreadyReturnedQuantities(invoice.invoice_id),
-      ]);
-      if (!Array.isArray(rawItems) || rawItems.length === 0) {
-        setHardwareError('Invoice has no items');
-        return;
-      }
-      const returnedMap: Record<string, number> = {};
-      (returnedQtys || []).forEach((r: any) => {
-        returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
-      });
-      const invSubtotal = Number(invoice.subtotal) || (rawItems || []).reduce((s: number, i: any) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
-      const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
-      const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
-
-      const enriched = (rawItems || []).map((item: any) => {
-        const origPrice = Number(item.unit_price) || 0;
-        const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
-        const origTax = Number(item.tax_amount) || 0;
-        const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
-        return {
-          ...item,
-          unit_price: effPrice,
-          rawUnitPrice: origPrice,
-          tax_amount: effTax,
-          already_returned: returnedMap[item.item_id] || 0,
-          available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
-        };
-      }).filter((item: any) => item.available_to_return > 0);
-
-      if (enriched.length === 0) { setHardwareError('All items already returned'); return; }
-
-      // Enrich with product data (gst_percent, uom, hsn)
-      const productIds: string[] = [...new Set(enriched.map((i: any) => i.product_id).filter(Boolean))];
-      const productMap: Record<string, any> = {};
-      if (productIds.length > 0) {
-        try {
-          const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
-          if (Array.isArray(products)) { products.forEach((p: any) => { productMap[p.product_id] = p; }); }
-        } catch {}
-      }
-
-      setSearchQuery('');
-      setPastBillResults([]);
-      setIsPastBillMode(false);
-      clearCart();
-      await reserveReturnNumberForTab();
-      setReturnMode(true);
-      const cartItems = enriched.map((item: any) => {
-        const p = productMap[item.product_id];
-        let piecesPerKg = item.pieces_per_kg || p?.pieces_per_kg;
-        if (!piecesPerKg && p?.domain_attributes) {
-          try {
-            const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-            const storedPpk = Number(da.pcs_per_kg) || 0;
-            const totalPcs = Number(da.pcs) || 0;
-            const stockKg = Number(p.current_stock) || 0;
-            piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
-          } catch {
-            piecesPerKg = 1;
-          }
-        }
-
-        const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
-        const effectiveUom = item.uom || p?.uom || 'PCS';
-        const isWeightType = item.billing_type === 'WEIGHT' || p?.billing_type === 'WEIGHT' || weightUoms.includes(effectiveUom.toLowerCase());
-
-        return {
-          product_id: item.product_id,
-          name: item.name,
-          quantity: item.available_to_return,
-          base_price: Number(item.unit_price) || 0,
-          purchase_price: Number(p?.purchase_price ?? item.unit_price) || 0,
-          tax_rate_percent: Number(p?.tax_rate_percent ?? (p as any)?.gst_percent ?? item.tax_rate_percent ?? item.gst_percent ?? 0),
-          billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || p?.billing_type || 'PIECE'),
-          pricing_mode: 'FIXED',
-          isReturnItem: true,
-          invoiceItemId: item.item_id,
-          originalQuantity: Number(item.quantity) || 0,
-          availableToReturn: item.available_to_return,
-          alreadyReturned: item.already_returned,
-          originalUnitPrice: Number(item.unit_price) || 0,
-          rawUnitPrice: Number(item.rawUnitPrice ?? item.unit_price) || 0,
-          originalTaxAmount: Number(item.tax_amount) || 0,
-          returnSourceInvoiceId: invoice.invoice_id,
-          returnSourceInvoiceNumber: invoice.invoice_number,
-          uom: effectiveUom,
-          pieces_per_kg: piecesPerKg || 1,
-          pieces_override: Number(item.pieces_override ?? item.pieces ?? 1),
-          hsn: p?.hsn || '',
-          brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || null,
-        };
-      });
-      for (const ci of cartItems) {
-        addItem(ci);
-      }
-      setSelectedReturnInvoice({
-        invoice_id: invoice.invoice_id,
-        invoice_number: invoice.invoice_number,
-        customer_name: invoice.customer_name,
-        customer_phone: invoice.customer_phone,
-      });
-    } catch (e) {
-      setHardwareError('Failed to load invoice for return');
-      console.error(e);
-    }
-  };
-
   // Auto-dismiss hardware error after 3 seconds
   useEffect(() => {
     if (!hardwareError) return;
@@ -4578,16 +4445,16 @@ export function BillingPage() {
       setHardwareError('Cart is empty. Add items to quotation.');
       return;
     }
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setQuotationSaving(true);
     setHardwareError(null);
     try {
       const tid = tenantId || '';
-      let quotationId = editingQuotationId || uuidv4();
+      const quotationId = editingQuotationId || uuidv4();
       let quotationNumber = editingQuotationNumber || '';
 
       if (!editingQuotationId) {
-        const numRes = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: 'global' });
+        const numRes = await quotationsApi.getNextQuotationNumber({ tenant_id: 'global' });
         if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
         quotationNumber = numRes.quotationNumber || '';
       }
@@ -4596,64 +4463,7 @@ export function BillingPage() {
       const isGstQuotation = quotationGstEnabledSetting || invoiceType === 'GST' || hasGstItems;
       const isInterState = isGstQuotation && Boolean(customerState && shopState && customerState.trim().toLowerCase() !== shopState.trim().toLowerCase());
 
-      const qItems = items.map(item => {
-        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
-        const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-          : rate;
-        const isAdhocOfferC = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-        const isAdhocDiscFlatC = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-        const isAdhocDiscPctC = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-        let effectiveRate = catalogPriceChk;
-        if (isAdhocOfferC) {
-          effectiveRate = Number(item.offer_price);
-        } else if (isAdhocDiscFlatC) {
-          effectiveRate = catalogPriceChk - Number(item.discount_flat);
-        } else if (isAdhocDiscPctC) {
-          effectiveRate = catalogPriceChk * (1 - Number(item.discount_percent) / 100);
-        }
-        effectiveRate = Math.max(effectiveRate, 0);
-
-        const qty = Number(item.quantity) || 0;
-        const amount = effectiveRate * qty;
-        const dAmt = Math.max(0, (rate - effectiveRate) * qty);
-
-        const itemTaxRate = isGstQuotation && (item as any).is_gst_applicable !== false ? (Number(item.tax_rate_percent) || 0) : 0;
-        const itemTax = isGstQuotation ? Math.round(amount * (itemTaxRate / 100) * 100) / 100 : 0;
-        const halfRate = itemTaxRate / 2;
-        const cgst_rate = isInterState ? 0 : halfRate;
-        const sgst_rate = isInterState ? 0 : halfRate;
-        const igst_rate = isInterState ? itemTaxRate : 0;
-        const cgst_amount = isInterState ? 0 : Math.round((itemTax / 2) * 100) / 100;
-        const sgst_amount = isInterState ? 0 : Math.round((itemTax / 2) * 100) / 100;
-        const igst_amount = isInterState ? itemTax : 0;
-
-        return {
-          item_id: item.item_id || uuidv4(),
-          product_id: item.product_id,
-          name: item.name,
-          quantity: qty,
-          weight: item.billing_type === 'WEIGHT' ? qty : 0,
-          rate: effectiveRate,
-          base_price: rate,
-          discount_flat: item.discount_flat ?? null,
-          discount_percent: item.discount_percent ?? null,
-          offer_price: item.offer_price ?? null,
-          discount_amount: dAmt,
-          hsn_code: item.hsn_sac_code || (item as any).hsn_code || (item as any).hsn || null,
-          uom: item.uom || item.unit || (item.billing_type === 'WEIGHT' ? 'KG' : 'PCS'),
-          taxable_amount: amount,
-          tax_rate_percent: itemTaxRate,
-          cgst_rate,
-          cgst_amount,
-          sgst_rate,
-          sgst_amount,
-          igst_rate,
-          igst_amount,
-          amount,
-        };
-      });
+      const qItems = buildQuotationLines(items, { isGstQuotation, isInterState });
 
       const qSubtotal = qItems.reduce((s, i) => s + i.amount, 0);
       const qDiscountTotal = qItems.reduce((s, i) => s + (i.discount_amount || 0), 0);
@@ -4682,10 +4492,10 @@ export function BillingPage() {
 
       if (editingQuotationId) {
         // Update existing quotation
-        await window.electronAPI.dbUpdateQuotation(quotationPayload);
+        await quotationsApi.updateQuotation(quotationPayload);
       } else {
         // Save new quotation
-        await window.electronAPI.dbSaveQuotation(quotationPayload);
+        await quotationsApi.saveQuotation(quotationPayload);
       }
 
       if (shouldPrint) {
@@ -4743,7 +4553,7 @@ export function BillingPage() {
         const fullHtml = generateQuotationHtml(printData);
 
         try {
-          const printRes = await window.electronAPI.printA4Html(tid, fullHtml);
+          const printRes = await printingApi.printA4Html(tid, fullHtml);
           if (!printRes.success) {
             const pw = window.open('', '_blank');
             if (pw) {
@@ -4886,9 +4696,9 @@ export function BillingPage() {
       } else {
         // Normal billing / quotation mode:
         const trimmedQuery = searchQuery.trim();
-        if (trimmedQuery.length >= 1 && window.electronAPI) {
+        if (trimmedQuery.length >= 1 && isDesktopRuntime()) {
           try {
-            const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: trimmedQuery });
+            const products = await listProducts({ tenant_id: tenantId, barcode: trimmedQuery });
             if (Array.isArray(products) && products.length > 0) {
               e.preventDefault();
               // handleSelectProduct already schedules a 50ms timeout to focus the qty input.
@@ -5206,16 +5016,6 @@ export function BillingPage() {
     }
   };
 
-  const handleTierKeyDown = (e: React.KeyboardEvent, productId: string) => {
-    if (e.key === 'Enter' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      focusNextCartField('tier', productId);
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      focusPrevCartField('tier', productId);
-    }
-  };
-
   const handleTotalInputKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter' || e.key === 'ArrowRight') {
       e.preventDefault();
@@ -5246,1019 +5046,13 @@ export function BillingPage() {
     }
   };
 
-  const handleCheckout = async (saveOnly = false) => {
-    if (items.length === 0) {
-      setHardwareError('Cart is empty. Add items to checkout.');
-      setTimeout(() => setHardwareError(null), 4000);
-      return;
-    }
-    if (!window.electronAPI) return;
-    if (isCheckingOutRef.current) return;
-    isCheckingOutRef.current = true;
-
-    const checkoutTabId = activeTabId;
-    let scrapPrintSuccess = true;
-    let printSuccess = true;
-
-    const cartStore = useCartStore.getState();
-    const editingInvoiceId = cartStore.editingInvoiceId;
-    const editingInvoiceNumber = cartStore.editingInvoiceNumber;
-    const editingInvoiceRole = cartStore.editingInvoiceRole;
-
-    setIsCheckingOut(true);
-    setHardwareError(null);
-
-    try {
-      if (isScrapMode) {
-        let scrapInvoiceNum = editingInvoiceNumber;
-        const finalScrapGrandTotal = scrapTotal + extraBonus;
-
-        if (scrapPaymentStatus === 'CREDIT') {
-          if (!customerName.trim() || !customerPhone.trim()) {
-            setHardwareError('Please enter Customer Name and Phone Number for Credit payment');
-            return;
-          }
-        }
-
-        if (editingInvoiceNumber) {
-          const scrapItemsForUpdate = items.map(item => {
-            const rawRate = item.base_price;
-            const catalogPriceScrap1 = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-              : item.catalog_discount_flat != null ? rawRate + Number(item.catalog_discount_flat)
-              : item.catalog_discount_percent != null ? rawRate * (1 + Number(item.catalog_discount_percent) / 100)
-              : rawRate;
-            const isAdhocOfferS1 = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-            const isAdhocDiscFlatS1 = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-            const isAdhocDiscPctS1 = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-            let effectiveRate = catalogPriceScrap1;
-            if (isAdhocOfferS1) {
-              effectiveRate = Number(item.offer_price);
-            } else if (isAdhocDiscFlatS1) {
-              effectiveRate = catalogPriceScrap1 + Number(item.discount_flat);
-            } else if (isAdhocDiscPctS1) {
-              effectiveRate = catalogPriceScrap1 * (1 + Number(item.discount_percent) / 100);
-            }
-            return {
-              scrap_category_id: item.scrap_category_id || item.product_id,
-              quantity: Number(item.quantity) || 0,
-              rate: Math.max(effectiveRate, 0),
-              notes: '',
-            };
-          });
-
-          const result = await window.electronAPI.dbUpdateScrapInvoiceFull({
-            tenant_id: tenantId || 'global',
-            scrap_invoice_number: editingInvoiceNumber,
-            party_name: customerName || null,
-            customer_phone: customerPhone || null,
-            customer_address: customerAddress || null,
-            payment_status: scrapPaymentStatus,
-            items: scrapItemsForUpdate,
-          });
-
-          if (!result.success) {
-            setHardwareError(`Failed to update scrap invoice: ${result.error}`);
-            return;
-          }
-        } else {
-          const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: 'global' });
-          if (!numRes.success || !numRes.invoiceNumber) {
-            setHardwareError('Failed to generate scrap invoice number');
-            return;
-          }
-          scrapInvoiceNum = numRes.invoiceNumber;
-
-          for (const item of items) {
-            const rawRate = item.base_price;
-            const catalogPriceScrap2 = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-              : item.catalog_discount_flat != null ? rawRate + Number(item.catalog_discount_flat)
-              : item.catalog_discount_percent != null ? rawRate * (1 + Number(item.catalog_discount_percent) / 100)
-              : rawRate;
-            const isAdhocOfferS2 = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-            const isAdhocDiscFlatS2 = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-            const isAdhocDiscPctS2 = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-            let effectiveRate = catalogPriceScrap2;
-            if (isAdhocOfferS2) {
-              effectiveRate = Number(item.offer_price);
-            } else if (isAdhocDiscFlatS2) {
-              effectiveRate = catalogPriceScrap2 + Number(item.discount_flat);
-            } else if (isAdhocDiscPctS2) {
-              effectiveRate = catalogPriceScrap2 * (1 + Number(item.discount_percent) / 100);
-            }
-            effectiveRate = Math.max(effectiveRate, 0);
-            const qty = Number(item.quantity) || 0;
-            const totalAmount = effectiveRate * qty;
-
-            const result = await window.electronAPI.dbAddScrapTransaction({
-              transaction_id: uuidv4(),
-              tenant_id: tenantId || 'unset',
-              type: 'PURCHASE',
-              scrap_category_id: item.scrap_category_id,
-              quantity: qty,
-              rate: effectiveRate,
-              total_amount: totalAmount,
-              party_name: customerName || null,
-              customer_phone: customerPhone || null,
-              customer_address: customerAddress || null,
-              notes: '',
-              scrap_invoice_number: scrapInvoiceNum || '',
-              payment_status: scrapPaymentStatus,
-            });
-            if (!result.success) {
-              setHardwareError(`Failed to save scrap item: ${result.error}`);
-              return;
-            }
-          }
-        }
-
-        // CREDIT scrap → record in party ledger (idempotent per invoice; non-CREDIT removes it)
-        await window.electronAPI.dbUpsertScrapCreditLedger({
-          tenant_id: tenantId || 'unset',
-          scrap_invoice_number: scrapInvoiceNum || '',
-          payment_status: scrapPaymentStatus,
-          party_name: customerName || null,
-          customer_phone: customerPhone || null,
-          customer_address: customerAddress || null,
-          user_id: userId || undefined,
-          user_name: userName || undefined,
-        }).catch(() => {});
-
-        // Print scrap receipt (skip if saveOnly)
-        scrapPrintSuccess = true;
-        if (!saveOnly) {
-          const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-          const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
-          const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-          const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
-          const thermalStyle = printFmt?.style || 'standard';
-
-          // Group scrap items by category for receipt
-          const scrapGrouped = items.reduce((acc, item) => {
-            const key = item.scrap_category_id || item.product_id;
-            const rawRate = item.base_price;
-            const catalogPriceScrapGrp = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-              : item.catalog_discount_flat != null ? rawRate + Number(item.catalog_discount_flat)
-              : item.catalog_discount_percent != null ? rawRate * (1 + Number(item.catalog_discount_percent) / 100)
-              : rawRate;
-            const isAdhocOfferSG = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-            const isAdhocDiscFlatSG = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-            const isAdhocDiscPctSG = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-            let effectiveRate = catalogPriceScrapGrp;
-            if (isAdhocOfferSG) {
-              effectiveRate = Number(item.offer_price);
-            } else if (isAdhocDiscFlatSG) {
-              effectiveRate = catalogPriceScrapGrp + Number(item.discount_flat);
-            } else if (isAdhocDiscPctSG) {
-              effectiveRate = catalogPriceScrapGrp * (1 + Number(item.discount_percent) / 100);
-            }
-            effectiveRate = Math.max(effectiveRate, 0);
-            const qty = Number(item.quantity) || 0;
-
-            if (!acc[key]) {
-              acc[key] = { name: item.name, quantity: 0, unit_price: effectiveRate, total: 0 };
-            }
-            acc[key].quantity += qty;
-            acc[key].total += effectiveRate * qty;
-            if (acc[key].quantity > 0) {
-              acc[key].unit_price = acc[key].total / acc[key].quantity;
-            }
-            return acc;
-          }, {} as Record<string, { name: string; quantity: number; unit_price: number; total: number }>);
-          const scrapReceiptItems = Object.values(scrapGrouped).map(item => ({
-            name: item.name,
-            quantity: item.quantity.toFixed(3),
-            unit_price: item.unit_price,
-            total: item.total,
-          }));
-
-          const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
-          const cartState = useCartStore.getState();
-          const receiptData: ReceiptData = {
-            shopName: scrapBillSettings.showShopName !== false ? (shopNameState || shopName || 'My Shop') : '',
-            shopGstin: scrapBillSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-            shopAddress: scrapBillSettings.showShopAddress !== false ? (shopAddress || undefined) : undefined,
-            shopPhone: scrapBillSettings.showPhone !== false ? (shopPhone || undefined) : undefined,
-            upiId: undefined,
-            showUpiQr: false,
-            showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-            showPriceOverrideMrp: printFmt?.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
-            invoiceNumber: scrapInvoiceNum || '',
-            invoiceType: 'SCRAP',
-            date: formatBillDateTime(new Date()),
-            billerName: scrapBillSettings.showBillerName !== false ? (userName || authRole || undefined) : undefined,
-            items: scrapReceiptItems,
-            subtotal: scrapTotal,
-            tax: 0,
-            discount: discount,
-            discountType: cartState.discountType,
-            discountValue: cartState.discountValue,
-            grandTotal: finalScrapGrandTotal,
-            extraBonus: extraBonus,
-            customerName: scrapBillSettings.showCustomerName !== false ? (customerName || undefined) : undefined,
-            customerPhone: scrapBillSettings.showCustomerPhone !== false ? (customerPhone || undefined) : undefined,
-            customerAddress: scrapBillSettings.showCustomerAddress !== false ? (customerAddress || undefined) : undefined,
-            customerState: scrapBillSettings.showCustomerState !== false ? (customerState || undefined) : undefined,
-            billSettings: scrapBillSettings,
-          };
-
-          const scrapReceiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
-          if (printResult?.skipped) {
-            scrapPrintSuccess = false;
-            setHardwareError(formatPrinterError('No printer configured'));
-            setTimeout(() => setHardwareError(null), 5000);
-          } else if (printResult && !printResult.success) {
-            scrapPrintSuccess = false;
-            setHardwareError(formatPrinterError(printResult.error));
-            setTimeout(() => setHardwareError(null), 5000);
-          }
-        }
-
-        // Cash drawer: record CASH_OUT for scrap cash payments
-        if (scrapPaymentStatus === 'CASH' && window.electronAPI) {
-          await window.electronAPI.dbCashierAddTransaction({
-            tenant_id: tenantId || 'unset',
-            type: 'CASH_OUT',
-            amount: finalScrapGrandTotal,
-            category: 'Scrap Purchase',
-            notes: `Scrap purchase ${scrapInvoiceNum}`,
-            user_id: userId || 'unset',
-            user_name: userName || undefined,
-          }).catch(() => {});
-        }
-
-        setCheckoutSuccess(saveOnly || !scrapPrintSuccess ? 'saved' : 'printed');
-        setTimeout(async () => {
-          const tabsCount = useTabStore.getState().tabs.length;
-          const targetTabId = checkoutTabId;
-          const stayInScrap = uiConfig.stayInScrapModeAfterPrint ?? false;
-
-          if (tabsCount > 1 && !stayInScrap) {
-            setIsScrapMode(false);
-            closeTab(targetTabId);
-          } else {
-            clearCart();
-            useCartStore.getState().setEditingInvoice(null, null, null);
-            updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
-            
-            if (stayInScrap) {
-              setIsScrapMode(true);
-              await reserveScrapInvoiceNumberForTab(true);
-            } else {
-              setIsScrapMode(false);
-              await Promise.all([reserveScrapInvoiceNumberForTab(true), reserveInvoiceNumberForTab(true)]);
-              const tab = getActiveTab();
-              if (tab?.reservedInvoiceNumber) {
-                updateActiveTab({ title: tab.reservedInvoiceNumber });
-              }
-            }
-            syncActiveSnapshot();
-          }
-          setCheckoutSuccess(false); // scrap mode reset
-        }, 1800);
-        return;
-      }
-
-      // ── Normal Mode Checkout ──
-      const flags = useFeatureFlagsStore.getState().flags;
-      if (flags?.biller_pin && !useCartStore.getState().billerStaffId) {
-        pendingCheckoutSaveOnlyRef.current = saveOnly;
-        setIsBillerPinModalOpen(true);
-        return;
-      }
-      // Read PCS directly from DOM input elements (100% reliable — avoids ALL React state closure/batching issues)
-      const pcsSnapshot: Record<string, number> = {};
-      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
-      items.forEach(item => {
-        const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
-        const domInput = isPiecesWeight ? pcsRefs.current[item.product_id] : qtyRefs.current[item.product_id];
-        if (domInput) {
-          const domVal = domInput.value.replace(/[^\d]/g, '');
-          const parsed = parseInt(domVal, 10);
-          if (!isNaN(parsed) && parsed >= 0) {
-            pcsSnapshot[item.product_id] = parsed;
-            return;
-          }
-        }
-        const strVal = localPcsStr[item.product_id];
-        if (strVal !== undefined && strVal !== '') {
-          const parsed = parseInt(strVal, 10);
-          if (!isNaN(parsed) && parsed >= 0) {
-            pcsSnapshot[item.product_id] = parsed;
-            return;
-          }
-        }
-        pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
-      });
-
-      if (invoiceType === 'GST' && isB2B && !isQuotationMode && !isReturnMode && !isScrapMode) {
-        if (!(customerGstin || '').trim()) {
-          setHardwareError('Customer GSTIN is required for B2B GST Tax Invoices under GST rules.');
-          return;
-        }
-        if (!(customerName || '').trim() || !(customerPhone || '').trim() || !(customerAddress || '').trim()) {
-          setHardwareError('Customer Name, Mobile Phone, and Address are required for GST Tax Invoices under GST rules.');
-          return;
-        }
-      }
-
-      if (paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)) {
-        if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
-          setHardwareError('Please enter Customer Name and Phone Number for Credit');
-          return;
-        }
-      }
-
-      if (paymentMethod === 'SPLIT') {
-        const totalSplitEntered = splitTotal + (Number(splitDetails?.credit) || 0);
-        if (totalSplitEntered <= 0) {
-          setHardwareError('Please enter split payment breakdown amounts for Cash, Card, UPI, or Credit');
-          return;
-        }
-        if (displayGrandTotal > 0 && totalSplitEntered < displayGrandTotal && Math.abs(displayGrandTotal - totalSplitEntered) > 0.01) {
-          const shortfall = (displayGrandTotal - totalSplitEntered).toFixed(2);
-          setHardwareError(`Split payment total (₹${totalSplitEntered.toFixed(2)}) is less than Grand Total (₹${displayGrandTotal.toFixed(2)}). Remaining shortfall: ₹${shortfall}`);
-          return;
-        }
-      }
-
-      const isEditing = !!editingInvoiceId;
-
-      const pointsRedeemedCalc = loyaltyEnabled && pointsToRedeem > 0 ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0) : 0;
-      const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
-      const effectiveGrandTotal = displayGrandTotal;
-
-      const effectiveFinalPaymentMethod = paymentMethod === 'SPLIT' ? 'SPLIT' : paymentMethod;
-      const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
-      const defaultFullPaid = (effectiveFinalPaymentMethod === 'CASH' || effectiveFinalPaymentMethod === 'UPI' || effectiveFinalPaymentMethod === 'CARD') ? effectiveGrandTotal : 0;
-      const effectiveReceivedAmount = isPaymentPending ? 0 : (effectiveFinalPaymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
-      const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
-
-      const invoice_id = isEditing ? editingInvoiceId : uuidv4();
-      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (isB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (invoiceType === 'GST' ? 'gst' : undefined);
-      let invoice_number: string;
-      if (isEditing && editingInvoiceNumber) {
-        invoice_number = editingInvoiceNumber;
-      } else {
-        const localPeek = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-        const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global', series, start: localPeek?.counter });
-        if (serverResult.success && serverResult.invoiceNumber) {
-          invoice_number = serverResult.invoiceNumber;
-        } else {
-          const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-          invoice_number = localResult.success && localResult.invoiceNumber
-            ? localResult.invoiceNumber
-            : `${terminalCodeState || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
-        }
-      }
-
-      // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
-      const regularCartItems = items.filter(item => !item.isScrap);
-      // Determine supply type (intra vs inter-state) once for the whole invoice
-      const _shopStateCart = useCartStore.getState().shopState || '';
-      const _customerStateCart = customerState || '';
-      const _isInterState = invoiceType === 'GST'
-        && _shopStateCart.trim().toUpperCase() !== ''
-        && _customerStateCart.trim().toUpperCase() !== ''
-        && _shopStateCart.trim().toUpperCase() !== _customerStateCart.trim().toUpperCase();
-      const _supplyType: 'INTRA' | 'INTER' = _isInterState ? 'INTER' : 'INTRA';
-
-      const checkoutItems = regularCartItems.map(item => {
-        if (item.isServiceItem) {
-          const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
-          return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true, cgst_rate: 0, sgst_rate: 0, igst_rate: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, hsn_sac_code: null, supply_type: _supplyType };
-        }
-
-        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
-        const qty = Number(item.quantity) || 0;
-
-        const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-          : rate;
-        const isAdhocOfferC = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-        const isAdhocDiscFlatC = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-        const isAdhocDiscPctC = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-        let effectiveRate = catalogPriceChk;
-        if (isAdhocOfferC) {
-          effectiveRate = Number(item.offer_price);
-        } else if (isAdhocDiscFlatC) {
-          effectiveRate = catalogPriceChk - Number(item.discount_flat);
-        } else if (isAdhocDiscPctC) {
-          effectiveRate = catalogPriceChk * (1 - Number(item.discount_percent) / 100);
-        }
-        effectiveRate = Math.max(effectiveRate, 0);
-
-        const total = effectiveRate * qty;
-        const unitPrice = qty > 0 ? total / qty : effectiveRate;
-        const itemTax = invoiceType === 'GST' ? total * (item.tax_rate_percent / 100)
-          : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
-            ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
-            : 0);
-        const pieces_sold = pcsSnapshot[item.product_id] ?? 1;
-
-        // ── GST split (Indian GST Act compliance) ────────────────────────────────
-        // INTRA-state → CGST = rate/2, SGST = rate/2; INTER-state → IGST = rate
-        const taxRatePercent = invoiceType === 'GST' ? (item.tax_rate_percent || 0) : (bosTaxRatePercent || 0);
-        const halfRate = taxRatePercent / 2;
-        const round2 = (n: number) => Math.round(n * 100) / 100;
-        let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
-        let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
-        if (itemTax > 0) {
-          if (_supplyType === 'INTER') {
-            igst_rate = taxRatePercent;
-            igst_amount = round2(itemTax);
-          } else {
-            cgst_rate = halfRate;
-            sgst_rate = halfRate;
-            cgst_amount = round2(itemTax / 2);
-            sgst_amount = round2(itemTax / 2);
-          }
-        }
-        // ─────────────────────────────────────────────────────────────────────────
-
-        return {
-          item_id: item.item_id || uuidv4(),
-          product_id: item.product_id,
-          name: item.name,
-          quantity: qty,
-          unit_price: unitPrice,
-          tax_amount: itemTax,
-          total,
-          pieces_sold,
-          billing_type: item.billing_type,
-          uom: item.uom || item.unit,
-          // GST split
-          cgst_rate, sgst_rate, igst_rate,
-          cgst_amount, sgst_amount, igst_amount,
-          hsn_sac_code: item.hsn_sac_code || null,
-          supply_type: _supplyType,
-        };
-      });
-
-      // Build receipt display items
-      const receiptItems = regularCartItems.map(item => {
-        if (item.isServiceItem) {
-          const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
-          return { name: item.name, quantity: 1, unit_price: servicePrice, total: servicePrice, originalRate: undefined, discountLabel: 'Service' };
-        }
-
-        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
-        const qty = Number(item.quantity) || 0;
-        const catalogPriceRec = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-          : rate;
-        const isAdhocOfferRec = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-        const isAdhocDiscFlatRec = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-        const isAdhocDiscPctRec = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-        let effectiveRate = catalogPriceRec;
-        if (isAdhocOfferRec) {
-          effectiveRate = Number(item.offer_price);
-        } else if (isAdhocDiscFlatRec) {
-          effectiveRate = catalogPriceRec - Number(item.discount_flat);
-        } else if (isAdhocDiscPctRec) {
-          effectiveRate = catalogPriceRec * (1 - Number(item.discount_percent) / 100);
-        }
-        effectiveRate = Math.max(effectiveRate, 0);
-        const total = effectiveRate * qty;
-        const unitPrice = qty > 0 ? total / qty : effectiveRate;
-        const mrpRate = (item.original_base_price != null && Number(item.original_base_price) > rate)
-          ? Number(item.original_base_price)
-          : rate;
-        let originalRate: number | undefined;
-        let discountLabel: string | undefined;
-        if (isAdhocOfferRec) {
-          originalRate = mrpRate;
-          discountLabel = 'Offer';
-        } else if (isAdhocDiscFlatRec) {
-          originalRate = mrpRate;
-          discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
-        } else if (isAdhocDiscPctRec) {
-          originalRate = mrpRate;
-          discountLabel = `${item.discount_percent}% OFF`;
-        } else if (catalogPriceRec < mrpRate) {
-          originalRate = mrpRate;
-          discountLabel = 'Offer';
-        } else if (mrpRate > effectiveRate + 0.005) {
-          originalRate = mrpRate;
-          discountLabel = 'Offer';
-        }
-        const isPriceOverride = isAdhocOfferRec || isAdhocDiscFlatRec || isAdhocDiscPctRec || Boolean(item.is_tier_overridden) || (mrpRate > effectiveRate + 0.005 && catalogPriceRec >= mrpRate);
-        const pcsVal = pcsSnapshot[item.product_id] ?? item.pieces_override;
-        return {
-          name: item.name,
-          quantity: qty,
-          unit_price: unitPrice,
-          total,
-          originalRate,
-          discountLabel,
-          isPriceOverride,
-          brand: item.brand_manufacturer || undefined,
-          billing_type: item.billing_type,
-          pieces_sold: pcsVal != null ? Number(pcsVal) : undefined,
-          pieces_override: pcsVal != null ? Number(pcsVal) : undefined,
-          pieces_per_kg: item.pieces_per_kg,
-          unit: item.unit || item.uom,
-          isCombo: item.isCombo,
-          combo_items: item.combo_items,
-        };
-      });
-
-      const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-      const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
-
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const printFmt = parsePrintFormat(printFmtRaw);
-      const openCashDrawerOnPending = printFmt.openCashDrawerOnPending === true;
-      const isHalfA4 = printFmt.format === 'half-a4';
-      const isA4 = printFmt.format === 'a4';
-      const isGstOrB2B = invoiceType === 'GST' || isB2B;
-      const useA4 = isGstOrB2B || isA4 || isHalfA4;
-      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
-
-      const state = useCartStore.getState();
-      // Calculate loyalty points
-      const previousPointsBalance = Number(loyaltyCustomerData.pointsBalance) || 0;
-      const hasCustomerForPoints = Boolean(loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim()));
-      const shouldAwardPointsNow = paymentMethod !== 'PENDING' || loyaltyAwardOnPending;
-      const pointsEarned = loyaltyEnabled && hasCustomerForPoints && shouldAwardPointsNow
-        ? Math.floor(displayGrandTotal / (loyaltyEarningRate > 0 ? loyaltyEarningRate : 100))
-        : 0;
-      const pointsRedeemed = loyaltyEnabled && pointsToRedeem > 0
-        ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0)
-        : 0;
-      const pointsRedeemedDiscount = pointsRedeemed * loyaltyRedemptionRate;
-      const remainingPointsBalance = previousPointsBalance + pointsEarned - pointsRedeemed;
-      // Adjust grand total for points redemption discount (already calculated above as effectiveGrandTotal)
-
-      // Pass grand total BEFORE scrap deduction so the receipt can properly show
-      // the scrap deduction line and compute the correct final grand total.
-      // Without this fix, scrap deduction was subtracted twice (here and in receiptGenerator).
-      const grandTotalBeforeScrap = Math.max(0, (isGrandTotalOverridden ? (activeTab!.manualTotalOverride! + (storeScrapDeduction || 0) + (storeReturnDeduction || 0)) : grandTotal) - pointsRedeemedDiscount);
-
-      const cleanCustName = (customerName || '').trim();
-      const cleanCustPhone = (customerPhone || '').trim();
-      const matchedParty = findMatchingParty(cleanCustName, cleanCustPhone);
-      const currentPartyKey = `${cleanCustName.toLowerCase()}|${cleanCustPhone}`;
-      const isStaffParty = String(matchedParty?.party_type || '').toUpperCase() === 'STAFF';
-      const editingContribution = isEditing && !isStaffParty && activeTab?.editingInvoicePartyKey === currentPartyKey
-        ? (Number(activeTab?.editingInvoiceContribution) || 0)
-        : 0;
-      const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) - editingContribution : 0;
-      const splitCreditAmount = Number(splitDetails?.credit) || 0;
-      const isSplitCreditBill = effectiveFinalPaymentMethod === 'SPLIT' && splitCreditAmount > 0;
-      const splitNonCreditPaid = (Number(splitDetails?.cash) || 0)
-        + (Number(splitDetails?.card) || 0)
-        + (Number(splitDetails?.upi) || 0)
-        + (Number(splitDetails?.cheque) || 0)
-        + (Number(splitDetails?.bank_transfer) || 0);
-      const newPartyContribution = effectiveFinalPaymentMethod === 'CREDIT'
-        ? Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0))
-        : isSplitCreditBill
-        ? Math.max(0, effectiveGrandTotal - splitNonCreditPaid)
-        : 0;
-      const partyNewBalance = partyOldBalance + newPartyContribution;
-      const tracksPartyBalance = partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || isSplitCreditBill;
-      const splitDetailsForSave: SplitDetails = { ...(splitDetails || {}) };
-      if (effectiveFinalPaymentMethod !== 'SPLIT') {
-        splitDetailsForSave.cash = 0;
-        splitDetailsForSave.card = 0;
-        splitDetailsForSave.upi = 0;
-        splitDetailsForSave.cheque = 0;
-        splitDetailsForSave.bank_transfer = 0;
-        if (effectiveFinalPaymentMethod !== 'CREDIT') splitDetailsForSave.credit = 0;
-      }
-
-      // ── Credit Limit & Credit Period Enforcement ──────────────────────────────
-      // Determine how much of THIS bill is on credit
-      let billCreditAmount = 0;
-      if (effectiveFinalPaymentMethod === 'CREDIT') {
-        billCreditAmount = Math.max(0, effectiveGrandTotal);
-      } else if (effectiveFinalPaymentMethod === 'SPLIT') {
-        billCreditAmount = Math.max(0, Number(splitDetails.credit) || 0);
-      }
-
-      // Check credit period expiry restriction (Cash purchases remain 100% available)
-      if (billCreditAmount > 0 && matchedParty) {
-        const creditPeriodEnabled = Boolean((matchedParty as any).credit_period_enabled);
-        const restrictOnExpiry = (matchedParty as any).restrict_on_credit_expiry !== false && (matchedParty as any).restrict_on_credit_expiry !== 0;
-        const hasOverdue = Boolean((matchedParty as any).has_overdue);
-
-        if (creditPeriodEnabled && restrictOnExpiry && hasOverdue) {
-          const overdueCount = (matchedParty as any).overdue_bills_count || 1;
-          const overdueAmt = (matchedParty as any).overdue_amount ? ` (₹${Number((matchedParty as any).overdue_amount).toFixed(2)})` : '';
-          setHardwareError(
-            `Credit purchases restricted for ${matchedParty.name}! Customer has ${overdueCount} overdue bill${overdueCount !== 1 ? 's' : ''}${overdueAmt} exceeding credit period. Please collect outstanding dues or switch to Cash/Card/UPI.`
-          );
-          return;
-        }
-      }
-
-      // Block checkout if the party's credit balance would exceed their limit.
-      if (matchedParty && Number(matchedParty.credit_limit) > 0 && newPartyContribution > 0) {
-        const creditLimit = Number(matchedParty.credit_limit);
-        const projectedBalance = partyOldBalance + newPartyContribution;
-        if (projectedBalance > creditLimit) {
-          const excess = projectedBalance - creditLimit;
-          const fmtNum = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          setHardwareError(
-            `Credit Limit Exceeded for ${matchedParty.name}! Limit: �,1${fmtNum(creditLimit)}, Current Due: �,1${fmtNum(partyOldBalance)}, Bill Credit: �,1${fmtNum(newPartyContribution)}. Exceeds limit by �,1${fmtNum(excess)} �?" Cannot complete bill.`
-          );
-          return;
-        }
-      }
-      // ─────────────────────────────────────────────────────────────────────────
-
-      const receiptData: ReceiptData = {
-        shopName: (invoiceType === 'GST' || billSettings.showShopName !== false) ? (shopNameState || shopName || 'My Shop') : '',
-        shopGstin: (invoiceType === 'GST' || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
-        shopState: (invoiceType === 'GST' || billSettings.showShopState !== false) ? (state.shopState || undefined) : undefined,
-        shopAddress: (invoiceType === 'GST' || billSettings.showShopAddress !== false) ? (shopAddress || undefined) : undefined,
-        shopPhone: (invoiceType === 'GST' || billSettings.showPhone !== false) ? (shopPhone || undefined) : undefined,
-        shopEmail: shopEmail || undefined,
-        shopWebsite: shopWebsite || undefined,
-        bankName: bankNameState || undefined,
-        bankAccount: bankAccountState || undefined,
-        bankIfsc: bankIfscState || undefined,
-        bankBranch: bankBranchState || undefined,
-        upiId: upiId || undefined,
-        showUpiQr: showUpiQr,
-        showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-        showPriceOverrideMrp: printFmt?.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
-        invoiceNumber: invoice_number, date: formatBillDateTime(new Date()),
-        billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
-        items: receiptItems,
-        subtotal, tax: totalTax,
-        cgst: invoiceType === 'GST' ? cgst : (billSettings.showBosTaxBreakup ? cgst : undefined),
-        sgst: invoiceType === 'GST' ? sgst : (billSettings.showBosTaxBreakup ? sgst : undefined),
-        igst: invoiceType === 'GST' ? igst : (billSettings.showBosTaxBreakup ? igst : undefined),
-        discount, discountType: state.discountType,
-        discountValue: state.discountValue, grandTotal: grandTotalBeforeScrap,
-        pointsEarned: pointsEarned > 0 ? pointsEarned : undefined,
-        previousPointsBalance: previousPointsBalance > 0 ? previousPointsBalance : undefined,
-        pointsRedeemed: pointsRedeemed > 0 ? pointsRedeemed : undefined,
-        pointsRedeemedDiscount: pointsRedeemedDiscount > 0 ? pointsRedeemedDiscount : undefined,
-        remainingPointsBalance: remainingPointsBalance > 0 ? remainingPointsBalance : undefined,
-        scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
-        returnDeduction: storeReturnDeduction || undefined, returnInvoiceNumber: storeReturnInvoiceNumber || undefined,
-        ...(effectiveFinalPaymentMethod === 'CREDIT'
-          ? {
-              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              receivedAmount: effectiveReceivedAmount,
-              balanceAmount: partyNewBalance,
-              customerBalance: partyNewBalance,
-              paymentMethod: 'CREDIT',
-            }
-          : (effectiveFinalPaymentMethod === 'CASH' && !isPaymentPending)
-          ? {
-              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              receivedAmount: effectiveReceivedAmount,
-              balanceAmount: partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount,
-              customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
-              paymentMethod: 'CASH',
-            }
-          : isSplitCreditBill
-          ? {
-              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              receivedAmount: effectiveGrandTotal - splitCreditAmount,
-              balanceAmount: partyNewBalance,
-              customerBalance: partyNewBalance,
-              paymentMethod: 'SPLIT',
-            }
-          : {
-              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
-              customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
-              ...(effectiveFinalPaymentMethod === 'SPLIT' ? { receivedAmount: effectiveReceivedAmount } : {}),
-              paymentMethod: effectiveFinalPaymentMethod,
-            }
-        ),
-        invoiceType,
-        customerName: customerName || undefined,
-        customerPhone: customerPhone || undefined,
-        customerAddress: customerAddress || undefined,
-        customerGstin: customerGstin?.trim() || undefined,
-        transporterName: activeTab?.transporterName || undefined,
-        vehicleNumber: activeTab?.vehicleNumber || undefined,
-        transporterDocNo: activeTab?.transporterDocNo || undefined,
-        transporterDocDate: activeTab?.transporterDocDate || undefined,
-        ewayBillNo: activeTab?.ewayBillNo || undefined,
-        ewayBillDate: activeTab?.ewayBillDate || undefined,
-        shippingName: activeTab?.shippingName || undefined,
-        shippingAddress: activeTab?.shippingAddress || undefined,
-        shippingGstin: activeTab?.shippingGstin || undefined,
-        customerState: customerState || undefined,
-        description: activeTab?.description || undefined,
-        notes: activeTab?.description || undefined,
-        billSettings,
-        isB2B,
-        a5Orientation: printFmt.a5Orientation || 'horizontal',
-        ...(billCreditAmount > 0 && matchedParty && (matchedParty as any).credit_period_enabled ? {
-          dueDate: (() => {
-            const days = Number((matchedParty as any).credit_period_days) || 30;
-            const d = new Date();
-            d.setDate(d.getDate() + days);
-            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-          })(),
-          creditPeriodDays: Number((matchedParty as any).credit_period_days) || 30,
-        } : {}),
-      };
-
-      let result: any;
-      const wantsLoyalty = loyaltyEnabled && !!(customerName || '').trim() && (!!(customerPhone || '').trim() || !!(customerAddress || '').trim() || loyaltyCustomerData.customerId);
-      if (isEditing) {
-        result = await window.electronAPI.dbUpdateInvoice({
-          invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
-          permissions: useAuthStore.getState().permissions || [],
-          user_id: userId || undefined,
-          created_at: activeTab?.billDate || undefined,
-          subtotal, tax_total: totalTax, discount_total: discount,
-          discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
-          received_amount: effectiveReceivedAmount,
-          balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
-            ? partyNewBalance
-            : isSplitCreditBill
-            ? partyNewBalance
-            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount),
-          split_details: {
-            ...splitDetailsForSave,
-            ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
-            ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(tracksPartyBalance ? { new_due: partyNewBalance } : {})
-          },
-          customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
-          customer_name: customerName || null, customer_phone: customerPhone || null,
-          is_staff: Boolean(activeTab?.isStaffCustomer),
-          staff_id: activeTab?.staffId || (activeTab?.isStaffCustomer ? activeTab.customerId : null),
-          customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
-          customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
-          customer_address: customerAddress || null,
-          description: activeTab?.description || null,
-          notes: activeTab?.description || null,
-          scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
-          return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
-          actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
-            ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount)
-            : 0,
-          // GST totals for edited invoice
-          cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
-          items: checkoutItems,
-          loyalty_enabled: wantsLoyalty,
-          loyalty_customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
-          points_earned: pointsEarned,
-          points_redeemed: pointsRedeemed,
-          points_redeemed_discount: pointsRedeemedDiscount,
-          previous_points_balance: previousPointsBalance,
-          remaining_points_balance: remainingPointsBalance,
-        });
-      } else {
-        result = await window.electronAPI.dbCheckout({
-          invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset',
-          biller_staff_id: useCartStore.getState().billerStaffId || null,
-          sales_staff_id: useCartStore.getState().salesStaffId || null,
-          created_at: activeTab?.billDate || undefined,
-          invoice_number,
-          invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
-          discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
-          split_details: {
-            ...splitDetailsForSave,
-            ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
-            ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(tracksPartyBalance ? { new_due: partyNewBalance } : {})
-          },
-          received_amount: effectiveReceivedAmount,
-          balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
-            ? partyNewBalance
-            : isSplitCreditBill
-            ? partyNewBalance
-            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount),
-          customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
-          customer_name: customerName || null, customer_phone: customerPhone || null,
-          is_staff: Boolean(activeTab?.isStaffCustomer),
-          staff_id: activeTab?.staffId || (activeTab?.isStaffCustomer ? activeTab.customerId : null),
-          customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
-          customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
-          customer_address: customerAddress || null,
-          description: activeTab?.description || null,
-          notes: activeTab?.description || null,
-          scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
-          return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
-          actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
-            ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount)
-            : 0,
-          // GST invoice-level totals (Indian GST Act compliance)
-          cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
-          items: checkoutItems,
-          scrap_items: [],
-          loyalty_enabled: wantsLoyalty,
-          loyalty_customer_id: loyaltyCustomerData.customerId,
-          points_earned: pointsEarned,
-          points_redeemed: pointsRedeemed,
-          points_redeemed_discount: pointsRedeemedDiscount,
-          previous_points_balance: previousPointsBalance,
-          remaining_points_balance: remainingPointsBalance,
-        });
-      }
-      if (!result.success) {
-        setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`);
-        return;
-      }
-
-      // Ensure receipt printing and activeTab title use the exact confirmed invoice_number returned by DB/checkout
-      const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
-      invoice_number = confirmedInvoiceNumber;
-      receiptData.invoiceNumber = confirmedInvoiceNumber;
-      if (result && result.created_at) {
-        receiptData.date = formatBillDateTime(result.created_at);
-      }
-
-      // Consume ADJUST_BILL return credit. Only the portion actually applied to this
-      // bill (clamped to the bill total) is settled; any leftover stays as pending
-      // credit for a future bill. Editing a bill never re-consumes credit.
-      if (!isEditing && storeReturnDeduction > 0 && storeReturnInvoiceNumber && window.electronAPI) {
-        try {
-          const consumed = Math.min(storeReturnDeduction, returnConsumed > 0 ? returnConsumed : grandTotal);
-          await window.electronAPI.dbSettleReturnInvoice({
-            tenant_id: tenantId || 'global',
-            return_number: storeReturnInvoiceNumber,
-            adjusted_invoice_number: invoice_number,
-            amount: consumed,
-          });
-        } catch (e) {
-          console.error('Failed to settle ADJUST_BILL return credit:', e);
-        }
-      }
-
-      // Auto-record cash out if there was a leftover refund amount and payment method is CASH.
-      // refundAmount only covers SCRAP credit excess — ADJUST_BILL leftover stays as credit.
-      if (refundAmount > 0 && paymentMethod === 'CASH' && window.electronAPI) {
-        try {
-          await window.electronAPI.dbCashierAddTransaction({
-            tenant_id: tenantId || 'global',
-            type: 'CASH_OUT',
-            amount: refundAmount,
-            category: 'CREDIT_REFUND',
-            notes: `Refund leftover credits for invoice ${invoice_number}`,
-            user_id: userId,
-            user_name: useAuthStore.getState().userName || undefined
-          });
-        } catch (e) {
-          console.error('Failed to log auto cash-out for scrap refund:', e);
-        }
-      }
-
-      // Update tab title to reflect the completed invoice number
-      updateActiveTab({ title: invoice_number });
-
-      // If this was a quotation being billed, mark it as CONVERTED
-      if (editingQuotationId) {
-        try {
-          await window.electronAPI.dbUpdateQuotationStatus({
-            quotation_id: editingQuotationId,
-            status: 'CONVERTED',
-            converted_to_invoice: 1,
-            invoice_id,
-          });
-        } catch (e) {
-          console.error('Failed to update quotation status', e);
-        }
-      }
-
-      // ── Print receipt AFTER successful save (non-fatal) ──
-      printSuccess = true;
-      if (!saveOnly) {
-        try {
-          if (useA4) {
-            const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-            const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-            const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-            if (!printResult.success) {
-              printSuccess = false;
-              if ((printResult as any).useDefaultDialog) {
-                const pw = window.open('', '_blank');
-                if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
-              } else {
-                setHardwareError(formatPrinterError(printResult.error));
-                setTimeout(() => setHardwareError(null), 5000);
-              }
-            }
-          } else {
-            const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : width;
-            const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
-            const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-            const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-            if (!printResult.success) {
-              printSuccess = false;
-              console.warn('[Checkout] Print failed (invoice saved):', printResult.error);
-              setHardwareError(formatPrinterError(printResult.error));
-              setTimeout(() => setHardwareError(null), 5000);
-            } else if (printResult.skipped) {
-              printSuccess = false;
-              setHardwareError(formatPrinterError('No printer configured'));
-              setTimeout(() => setHardwareError(null), 5000);
-            }
-          }
-          if (!isPaymentPending || openCashDrawerOnPending) {
-            window.electronAPI.openCashDrawer(tenantId || 'global').catch(() => {});
-          }
-        } catch (printErr: any) {
-          printSuccess = false;
-          console.warn('[Checkout] Print error (invoice already saved):', printErr);
-          setHardwareError(formatPrinterError(printErr.message));
-          setTimeout(() => setHardwareError(null), 5000);
-        }
-      }
-
-      setCheckoutSuccess(saveOnly || !printSuccess ? 'saved' : 'printed');
-
-      // ── Send Bill via WhatsApp (Automatic if enabled & phone present) ──
-      const isAutoWhatsApp = localStorage.getItem('auto_whatsapp_send') === 'true';
-      const custPhone = (customerPhone || activeTab?.customerPhone || '').trim();
-      if (isAutoWhatsApp && custPhone && window.electronAPI?.whatsappSendInvoice) {
-        try {
-          const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-          const fullHtml = generateInvoiceHtml(receiptData, invStyle as any);
-          const waMessage = formatWhatsAppBillMessage({
-            shopName: receiptData.shopName || shopName || 'Store',
-            invoiceNumber: confirmedInvoiceNumber,
-            date: receiptData.date || new Date().toLocaleDateString('en-IN'),
-            customerName: customerName || undefined,
-            customerPhone: custPhone,
-            items: (receiptItems || []).map((i: any) => ({
-              name: i.name,
-              quantity: i.quantity,
-              unit_price: Number(i.unit_price) || 0,
-              total: Number(i.total) || 0
-            })),
-            grandTotal: effectiveGrandTotal,
-            receivedAmount: effectiveReceivedAmount,
-            balanceAmount: tracksPartyBalance ? partyNewBalance : effectiveBalanceAmount,
-            paymentMethod: effectiveFinalPaymentMethod,
-            dueDate: (receiptData as any).dueDate,
-            creditPeriodDays: (receiptData as any).creditPeriodDays,
-            customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
-          });
-
-          window.electronAPI.whatsappSendInvoice({
-            phone: custPhone,
-            message: waMessage,
-            htmlContent: fullHtml,
-            fileName: `Invoice_${confirmedInvoiceNumber}.pdf`
-          }).catch((err) => console.warn('[WhatsApp Auto Send Error]:', err));
-        } catch (e) {
-          console.warn('[WhatsApp Build Error]:', e);
-        }
-      }
-
-      // Notify the cashier settlement page (if open) to refresh instantly
-      try {
-        window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
-      } catch (e) { /* ignore */ }
-      // Refresh parties list so party balances update immediately
-      window.electronAPI.dbGetParties(tenantId || 'global')
-        .then((res: any) => {
-          if (Array.isArray(res)) setPartiesForTier(res);
-        })
-        .catch(console.error);
-      setTimeout(async () => {
-        const tabsCount = useTabStore.getState().tabs.length;
-        const targetTabId = checkoutTabId;
-        if (invoiceType === 'GST') {
-          setInvoiceType('BILL_OF_SUPPLY');
-        }
-        if (tabsCount > 1) {
-          closeTab(targetTabId);
-        } else {
-          clearCart();
-          clearScrapDeduction();
-          clearReturnDeduction();
-          setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
-          setShowLoyaltyRedemption(false);
-          setPointsToRedeem(0);
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', customerId: '', manualTotalOverride: null, editingInvoiceContribution: 0, editingInvoicePartyKey: '', billDate: null, paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, actualRefundPaid: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
-          syncActiveSnapshot();
-          await reserveInvoiceNumberForTab();
-          const tab = getActiveTab();
-          if (tab?.reservedInvoiceNumber) {
-            updateActiveTab({ title: tab.reservedInvoiceNumber });
-          }
-        }
-        setCheckoutSuccess(false); // normal mode reset
-      }, 1800);
-    } catch (err: any) {
-      console.error('[Checkout Error]', err);
-      setHardwareError(`Checkout failed: ${err?.message || 'Unexpected error'}`);
-    } finally {
-      isCheckingOutRef.current = false;
-      setIsCheckingOut(false);
-    }
-  };
+  const handleCheckout = createCheckoutHandler({
+    items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, scrapTotal, extraBonus, scrapPaymentStatus, customerName, customerPhone, tenantId, customerAddress, userId, userName, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, uiConfig, setIsScrapMode, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveScrapInvoiceNumberForTab, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod, splitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem,
+  });
 
   // ── Return Mode: process return from cart items (replaces old 2-phase flow) ──
   const handleProcessReturnFromCart = async (saveOnly = false) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     if (returnProcessingRef.current) return;
     returnProcessingRef.current = true;
 
@@ -6277,7 +5071,7 @@ export function BillingPage() {
     setReturnProcessing(true);
     try {
       const tid = tenantId || 'global';
-      const numRes = await window.electronAPI.dbGetNextReturnNumber({ tenant_id: tid });
+      const numRes = await returnsApi.getNextReturnNumber({ tenant_id: tid });
       const returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RTN-${Date.now()}`;
       const returnSubtotal = returnCartItems.reduce((s, item) => s + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0), 0);
       const returnTaxTotal = returnCartItems.reduce((s, item) => {
@@ -6296,7 +5090,7 @@ export function BillingPage() {
         total: (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0),
       }));
 
-      const result = await window.electronAPI.dbCreateReturn({
+      const result = await returnsApi.createReturn({
         return_id: uuidv4(),
         invoice_id: selectedReturnInvoice.invoice_id,
         tenant_id: tid,
@@ -6321,7 +5115,7 @@ export function BillingPage() {
 
       if (returnRefundMethod === 'CASH') {
         try {
-          await window.electronAPI.dbCashierAddTransaction({
+          await cashierApi.addTransaction({
             tenant_id: tid,
             type: 'CASH_OUT',
             amount: returnSubtotal + returnTaxTotal,
@@ -6338,8 +5132,8 @@ export function BillingPage() {
       }
 
       if (!saveOnly) {
-        const cfg = await window.electronAPI.settingsGet({ tenant_id: tid, key: 'receipt_printer_config' });
-        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tid, key: 'print_format' });
+        const cfg = await getSetting<ReceiptPrinterConfig>({ tenant_id: tid, key: 'receipt_printer_config' });
+        const printFmt = await getSetting<PrintFormatSettings>({ tenant_id: tid, key: 'print_format' });
         const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : (cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8);
         const thermalStyle = printFmt?.style || 'standard';
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
@@ -6365,7 +5159,7 @@ export function BillingPage() {
           billSettings,
         };
         const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await window.electronAPI.printReceipt(tid, receiptText);
+        const printResult = await printingApi.printReceipt(tid, receiptText);
         if (printResult?.skipped) {
           setHardwareError(formatPrinterError('No printer configured'));
           setTimeout(() => setHardwareError(null), 5000);
@@ -6376,7 +5170,7 @@ export function BillingPage() {
       }
 
       // Refresh parties list so party balances update immediately
-      window.electronAPI.dbGetParties(tid)
+      listParties(tid)
         .then((res: any) => {
           if (Array.isArray(res)) setPartiesForTier(res);
         })
@@ -6392,7 +5186,6 @@ export function BillingPage() {
       setTimeout(async () => {
         setReturnProcessed(false);
         const tabsCount = useTabStore.getState().tabs.length;
-        const currentActiveId = activeTabId;
         const stayInReturn = uiConfig.stayInReturnModeAfterPrint ?? false;
 
         setSelectedReturnInvoice(null);
@@ -6456,7 +5249,7 @@ export function BillingPage() {
       setTimeout(() => setHardwareError(null), 4000);
       return;
     }
-    if (!window.electronAPI?.whatsappSendInvoice) {
+    if (!hasBridge('whatsappSendInvoice')) {
       setHardwareError('WhatsApp service not available in this environment');
       setTimeout(() => setHardwareError(null), 3500);
       return;
@@ -6464,7 +5257,7 @@ export function BillingPage() {
 
     setIsSendingWhatsApp(true);
     try {
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
@@ -6475,7 +5268,7 @@ export function BillingPage() {
 
       const billNo = activeTab?.reservedInvoiceNumber || activeTab?.title || 'ACTIVE';
       const receiptItems = items.map(item => {
-        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
+        const rate = listRate(item);
         const qty = Number(item.quantity) || 0;
         const total = rate * qty;
         return {
@@ -6530,7 +5323,7 @@ export function BillingPage() {
         paymentMethod,
       });
 
-      const sendRes = await window.electronAPI.whatsappSendInvoice({
+      const sendRes = await whatsappApi.sendInvoice({
         phone: custPhone,
         message: waMessage,
         htmlContent: fullHtml,
@@ -6559,7 +5352,7 @@ export function BillingPage() {
 
   // Load active held bills from backend
   const loadHeldBills = useCallback(async () => {
-    if (!window.electronAPI) {
+    if (!isDesktopRuntime()) {
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const now = Date.now();
       const valid = stored.filter((b: any) => {
@@ -6574,7 +5367,7 @@ export function BillingPage() {
     }
     setHeldBillsLoading(true);
     try {
-      const bills = await window.electronAPI.dbGetHeldBills({ tenant_id: tenantId || 'global' });
+      const bills = await invoicesApi.getHeldBills({ tenant_id: tenantId || 'global' });
       if (Array.isArray(bills)) {
         setHeldBills(bills);
       }
@@ -6587,8 +5380,8 @@ export function BillingPage() {
 
   // Auto-expire stale holds on mount
   useEffect(() => {
-    if (!window.electronAPI) return;
-    window.electronAPI.dbExpireStaleHeldBills({ tenant_id: tenantId || 'global' }).catch(() => {});
+    if (!isDesktopRuntime()) return;
+    invoicesApi.expireStaleHeldBills({ tenant_id: tenantId || 'global' }).catch(() => {});
     loadHeldBills();
   }, [tenantId, loadHeldBills]);
 
@@ -6604,7 +5397,7 @@ export function BillingPage() {
     if (items.length === 0) return;
     // Don't allow holding in scrap or return mode
     if (isScrapMode || isReturnMode || isQuotationMode) return;
-    if (!window.electronAPI) {
+    if (!isDesktopRuntime()) {
       // Fallback for non-electron: save to localStorage
       const bill = { id: uuidv4(), heldAt: new Date().toISOString(), items: [...items], invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
@@ -6620,25 +5413,11 @@ export function BillingPage() {
     const invoice_number = `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-HLD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const lineItems = items.map((item) => {
-      const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
+      const rate = listRate(item);
       const qty = Number(item.quantity) || 0;
-      const catalogPriceLine = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-        : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-        : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-        : rate;
-      const isAdhocOfferL = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-      const isAdhocDiscFlatL = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-      const isAdhocDiscPctL = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-      let effectiveRate = catalogPriceLine;
-      if (isAdhocOfferL) {
-        effectiveRate = Number(item.offer_price);
-      } else if (isAdhocDiscFlatL) {
-        effectiveRate = catalogPriceLine - Number(item.discount_flat);
-      } else if (isAdhocDiscPctL) {
-        effectiveRate = catalogPriceLine * (1 - Number(item.discount_percent) / 100);
-      }
-      effectiveRate = Math.max(effectiveRate, 0);
-      let itemTotal = effectiveRate * qty;
+      const effectiveRateInfo = resolveLinePrice(item, rate);
+      const effectiveRate = effectiveRateInfo.unitRate;
+      const itemTotal = effectiveRate * qty;
       const taxAmount = invoiceType === 'GST' ? itemTotal * (item.tax_rate_percent / 100) : 0;
       return {
         item_id: uuidv4(),
@@ -6655,7 +5434,7 @@ export function BillingPage() {
       };
     });
 
-    const result = await window.electronAPI.dbHoldBill({
+    const result = await invoicesApi.holdBill({
       invoice_id,
       tenant_id: tenantId || 'global',
       user_id: userId || 'unknown',
@@ -6696,7 +5475,7 @@ export function BillingPage() {
 
   // Recall a held bill — load its items back into cart
   const handleRecallHeldBill = async (heldInvoice: any) => {
-    if (!window.electronAPI) {
+    if (!isDesktopRuntime()) {
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const target = stored.find((b: any) => b.id === (heldInvoice.id || heldInvoice.invoice_id));
       if (target) {
@@ -6724,7 +5503,7 @@ export function BillingPage() {
     setHeldBillsLoading(true);
     try {
       const targetId = heldInvoice.invoice_id || heldInvoice.id;
-      const result = await window.electronAPI.dbRecallHeldBill({ invoice_id: targetId });
+      const result = await invoicesApi.recallHeldBill({ invoice_id: targetId });
       if (!result.success) {
         setHardwareError(result.error || 'Failed to recall held bill');
         return;
@@ -6844,7 +5623,7 @@ export function BillingPage() {
 
   // Release (delete) a held bill — revert stock, mark as expired
   const handleReleaseHeldBill = async (invoiceId: string) => {
-    if (!window.electronAPI) {
+    if (!isDesktopRuntime()) {
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const remaining = stored.filter((b: any) => b.id !== invoiceId);
       localStorage.setItem('vendora-held-bills', JSON.stringify(remaining));
@@ -6852,7 +5631,7 @@ export function BillingPage() {
       return;
     }
     try {
-      const result = await window.electronAPI.dbReleaseHeldBill({ invoice_id: invoiceId });
+      const result = await invoicesApi.releaseHeldBill({ invoice_id: invoiceId });
       if (result.success) {
         loadHeldBills();
       } else {
@@ -7068,7 +5847,7 @@ export function BillingPage() {
     },
     'Alt+5': () => {
       const prevMethod = paymentMethod;
-      let initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, cheque: 0, credit: 0, bank_transfer: 0 };
+      const initialSplit: SplitDetails = { cash: 0, card: 0, upi: 0, cheque: 0, credit: 0, bank_transfer: 0 };
       if (displayGrandTotal > 0) {
         if (prevMethod === 'UPI') initialSplit.upi = displayGrandTotal;
         else if (prevMethod === 'CARD') initialSplit.card = displayGrandTotal;
@@ -7786,7 +6565,7 @@ export function BillingPage() {
               <p className="text-[11px] font-semibold leading-snug">
                 {isCreditTx && isRestricted ? (
                   <span className="text-rose-700 dark:text-rose-400 font-extrabold">
-                    🚫 Further credit purchases are restricted for this customer until overdue bills are settled. Switch to Cash/Card/UPI.
+                    ðŸš« Further credit purchases are restricted for this customer until overdue bills are settled. Switch to Cash/Card/UPI.
                   </span>
                 ) : (
                   <span>
@@ -7852,7 +6631,7 @@ export function BillingPage() {
               disabled={!canOverrideTier}
             />
             {!canOverrideTier && (
-              <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
+              <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">ðŸ”’ locked</span>
             )}
           </div>
         )}
@@ -7896,7 +6675,7 @@ export function BillingPage() {
                   onClick={() => {
                     updateActiveTab({ isB2B: false, customerGstin: '' });
                     if (enableThreeInvoiceSeries) {
-                      window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2c' }).then(result => {
+                      invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2c' }).then(result => {
                         if (result.success && result.invoiceNumber) {
                           updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
                         }
@@ -7918,7 +6697,7 @@ export function BillingPage() {
                   onClick={() => {
                     updateActiveTab({ isB2B: true });
                     if (enableThreeInvoiceSeries) {
-                      window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2b' }).then(result => {
+                      invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2b' }).then(result => {
                         if (result.success && result.invoiceNumber) {
                           updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
                         }
@@ -7987,12 +6766,6 @@ export function BillingPage() {
     let totCgst = 0;
     let totIgst = 0;
     let totNet = 0;
-
-    const coolyVal = Number(erpCooly) || 0;
-    const freightVal = Number(erpFreight) || 0;
-    const netPayableWithAddons = grandTotal + coolyVal + freightVal;
-    const changeDue = Math.max(0, Number(receivedAmount || 0) - netPayableWithAddons);
-    const balDue = Math.max(0, netPayableWithAddons - Number(receivedAmount || 0));
 
     return (
       <div className="flex flex-col flex-1 overflow-hidden bg-background">
@@ -8319,7 +7092,7 @@ export function BillingPage() {
                             const q = scrapDeductionSearchQuery.trim();
                             if (!q) return;
                             try {
-                              const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                              const res = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
                               if (res && res.totalAmount) {
                                 if (res.paymentStatus === 'SETTLED') {
                                   setHardwareError(`Scrap credit ${q} already redeemed.`);
@@ -8363,7 +7136,7 @@ export function BillingPage() {
                             const q = returnDeductionSearchQuery.trim();
                             if (!q) return;
                             try {
-                              const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                              const res = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
                               if (res && res.grand_total) {
                                 const remaining = res.grand_total - (res.adjusted_amount || 0);
                                 if (remaining > 0) {
@@ -8678,10 +7451,10 @@ export function BillingPage() {
                 setShowLoyaltyRedemption(false);
                 setPointsToRedeem(0);
                 let normalInvoiceNumber = '';
-                if (window.electronAPI) {
+                if (isDesktopRuntime()) {
                   try {
                     const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? 'gst_b2c' : 'normal') : undefined;
-                    const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+                    const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
                     if (result.success && result.invoiceNumber) {
                       normalInvoiceNumber = result.invoiceNumber;
                     }
@@ -9066,7 +7839,6 @@ export function BillingPage() {
             effectiveDeductionMode={effectiveDeductionMode}
             fillRestForField={fillRestForField}
             focusDescriptionOrDiscount={focusDescriptionOrDiscount}
-            getNumericPart={getNumericPart}
             handleSplitInputKeyDown={handleSplitInputKeyDown}
             isLoyaltyModuleEnabled={isLoyaltyModuleEnabled}
             isReturnModuleEnabled={isReturnModuleEnabled}
@@ -9133,7 +7905,6 @@ export function BillingPage() {
             extraBonus={extraBonus}
             findMatchingParty={findMatchingParty}
             focusDescriptionOrDiscount={focusDescriptionOrDiscount}
-            getNumericPart={getNumericPart}
             grandTotal={grandTotal}
             handleCheckout={handleCheckout}
             handleHoldBill={handleHoldBill}
@@ -9242,19 +8013,16 @@ export function BillingPage() {
                 key={r.return_number}
                 onClick={async () => {
                   try {
-                    const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: r.return_number });
-                    if (res && res.grand_total) {
-                      const remaining = res.grand_total - (res.adjusted_amount || 0);
-                      if (remaining > 0) {
-                        setReturnDeduction(remaining, r.return_number);
-                        setReturnDeductionSearchQuery('');
-                        setReturnDeductionResults([]);
-                        setReturnDeductionDropdownStyle(null);
-                      } else {
-                        setHardwareError('Return already fully adjusted');
-                      }
+                    const credit = await lookupReturnCredit(tenantId || '', r.return_number);
+                    if (credit.status === 'found') {
+                      setReturnDeduction(credit.amount, credit.number);
+                      setReturnDeductionSearchQuery('');
+                      setReturnDeductionResults([]);
+                      setReturnDeductionDropdownStyle(null);
+                    } else if (credit.status === 'error') {
+                      setHardwareError(credit.message);
                     }
-                  } catch (e) {
+                  } catch {
                     setHardwareError('Failed to fetch return');
                   }
                 }}
@@ -9284,20 +8052,16 @@ export function BillingPage() {
                 key={inv.invoice_number}
                 onClick={async () => {
                   try {
-                    const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: inv.invoice_number });
-                    if (res && res.totalAmount) {
-                      if (res.paymentStatus === 'SETTLED') {
-                        setHardwareError(`Scrap credit ${inv.invoice_number} has already been redeemed.`);
-                        return;
-                      }
-                      setScrapDeduction(res.totalAmount, inv.invoice_number);
+                    const credit = await lookupScrapCredit(tenantId || '', inv.invoice_number);
+                    if (credit.status === 'found') {
+                      setScrapDeduction(credit.amount, credit.number);
                       setScrapDeductionSearchQuery('');
                       setScrapDeductionResults([]);
                       setScrapDeductionDropdownStyle(null);
                     } else {
-                      setHardwareError('Scrap invoice not found');
+                      setHardwareError(credit.status === 'error' ? credit.message : 'Scrap invoice not found');
                     }
-                  } catch (e) {
+                  } catch {
                     setHardwareError('Failed to fetch scrap invoice');
                   }
                 }}

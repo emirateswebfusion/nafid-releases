@@ -27,3 +27,17 @@ export function getNextOffsetInvoiceNumber(baseNum: string, existingNums: (strin
 
   return `${prefix}${String(baseVal).padStart(padLen, '0')}`;
 }
+
+/** All digits of a document number joined: `SCR-0012/B` → `0012`. Used for loose number search. */
+export function getNumericPart(value: string): string {
+  return (value.match(/\d+/g) || []).join('');
+}
+
+/**
+ * Loose document-number match used by deduction/return search: true when the query's digits
+ * appear in the candidate's digits. A query without digits never matches.
+ */
+export function matchesDocumentNumber(candidate: string, query: string): boolean {
+  const q = getNumericPart(query);
+  return q.length > 0 && getNumericPart(candidate).includes(q);
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   AlertTriangle, Shield, Key, Zap, CheckCircle2, Lock, 
   RotateCcw, MousePointerClick, RefreshCw, AlertOctagon, Terminal
@@ -12,6 +12,8 @@ import {
   type EmergencyWipeCommand 
 } from '../utils/emergencyPurge';
 import { useAuthStore } from '../store/authStore';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 
 const HOTKEY_OPTIONS = [
   { value: 'Ctrl+Alt+Shift+X', label: 'Ctrl + Alt + Shift + X (Recommended)' },
@@ -27,7 +29,7 @@ export interface EmergencyPurgeSettingsProps {
 }
 
 export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnChange }: EmergencyPurgeSettingsProps = {}) {
-  const { tenantId, role, userName, email } = useAuthStore();
+  const { tenantId, userName, email } = useAuthStore();
   const [internalConfig, setInternalConfig] = useState<EmergencyPanicConfig>(DEFAULT_EMERGENCY_PANIC_CONFIG);
   const [terminalCode, setTerminalCode] = useState<string>('POS1');
   const [saving, setSaving] = useState(false);
@@ -53,16 +55,16 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
   const [wipeSignalSent, setWipeSignalSent] = useState(false);
 
   useEffect(() => {
-    if (window.electronAPI?.settingsGet) {
+    if (hasBridge('settingsGet')) {
       if (!isControlled) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY })
+        settingsApi.get({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY })
           .then((val: any) => {
             if (val) setInternalConfig(parseEmergencyPanicConfig(val));
           })
           .catch(() => {});
       }
 
-      window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' })
+      settingsApi.get({ tenant_id: 'global', key: 'terminal_code' })
         .then((tc: any) => {
           if (tc) setTerminalCode(String(tc).trim());
         })
@@ -71,7 +73,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
   }, [tenantId]);
 
   const handleSaveConfig = async () => {
-    if (!window.electronAPI?.settingsSet) return;
+    if (!hasBridge('settingsSet')) return;
     setSaving(true);
     setSaveSuccess(false);
 
@@ -81,7 +83,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
         updated_at: new Date().toISOString(),
       };
 
-      await window.electronAPI.settingsSet({
+      await settingsApi.set({
         tenant_id: tenantId || 'global',
         key: EMERGENCY_PANIC_CONFIG_KEY,
         value: updatedConfig,
@@ -115,8 +117,8 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
         status: 'PENDING',
       };
 
-      if (window.electronAPI?.settingsSet) {
-        await window.electronAPI.settingsSet({
+      if (hasBridge('settingsSet')) {
+        await settingsApi.set({
           tenant_id: tenantId || 'global',
           key: EMERGENCY_WIPE_COMMAND_KEY,
           value: command,

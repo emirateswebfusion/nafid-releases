@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3, Building2, ArrowLeft, ShoppingCart, Tag, Percent, EyeOff, Shield, Lock } from 'lucide-react';
+import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3, Building2, ArrowLeft, ShoppingCart, Tag, Percent, Shield, Lock } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
@@ -14,6 +14,14 @@ import {
   shouldApplyStaffMasking, 
   calculateMaskedStockValuation 
 } from '../utils/staffDataMasking';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { gradesApi } from '../data/grades';
+import { partiesApi } from '../data/parties';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
+import { purchasesApi } from '../data/purchases';
+import { settingsApi } from '../data/settings';
+import { formatCurrency } from '../utils/money';
 
 interface Product {
   product_id: string;
@@ -71,7 +79,7 @@ const reportCache = new Map<string, { products: Product[]; grades: any[]; timest
 
 export function StockReport({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { shopName, tenantId, role, permissions } = useAuthStore();
+  const { shopName, tenantId, role } = useAuthStore();
   const [maskingConfig, setMaskingConfig] = useState<StaffDataMaskingConfig>(DEFAULT_STAFF_DATA_MASKING_CONFIG);
   const [products, setProducts] = useState<Product[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
@@ -95,12 +103,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
   useEffect(() => {
     const loadSettings = () => {
-      if (window.electronAPI?.settingsGet) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
+      if (hasBridge('settingsGet')) {
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
         }).catch(() => {});
 
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then(val => {
+        settingsApi.get({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then(val => {
           if (val) setMaskingConfig(parseStaffDataMaskingConfig(val));
         }).catch(() => {});
       }
@@ -118,10 +126,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const cacheKey = tenantId || 'global';
 
   const buildProductSupplierMap = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     try {
-      if (window.electronAPI.dbGetProductSuppliers) {
-        const rawMap = await window.electronAPI.dbGetProductSuppliers(cacheKey);
+      if (hasBridge('dbGetProductSuppliers')) {
+        const rawMap = await purchasesApi.getProductSuppliers(cacheKey);
         const map = new Map<string, Set<string>>();
         for (const [pid, suppliers] of Object.entries(rawMap || {})) {
           map.set(pid, new Set(suppliers));
@@ -129,11 +137,11 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         setProductSupplierMap(map);
         return;
       }
-      const bills = await window.electronAPI.dbGetPurchaseBills({ tenant_id: cacheKey, limit: 500 });
+      const bills = await purchasesApi.getPurchaseBills({ tenant_id: cacheKey, limit: 500 });
       if (!Array.isArray(bills)) return;
       const map = new Map<string, Set<string>>();
       const itemPromises = bills.map(bill =>
-        window.electronAPI!.dbGetPurchaseBillItems(bill.purchase_bill_id)
+        purchasesApi.getPurchaseBillItems(bill.purchase_bill_id)
           .then(items => {
             if (!Array.isArray(items)) return;
             const supplier = bill.supplier_name || 'Unknown';
@@ -167,11 +175,11 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     else setLoading(true);
 
     try {
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         const [prodRes, gradeRes, partiesRes] = await Promise.all([
-          window.electronAPI.dbGetProducts({ tenant_id: cacheKey, limit: 100000 }).catch(() => null),
-          window.electronAPI.dbGetGrades(cacheKey).catch(() => null),
-          window.electronAPI.dbGetParties(cacheKey).catch(() => null),
+          productsApi.getProducts({ tenant_id: cacheKey, limit: 100000 }).catch(() => null),
+          gradesApi.getGrades(cacheKey).catch(() => null),
+          partiesApi.getParties(cacheKey).catch(() => null),
         ]);
         if (Array.isArray(prodRes) && Array.isArray(gradeRes)) {
           const nonServiceProducts = prodRes.filter((p: any) => Number(p.is_service_item) !== 1);
@@ -181,7 +189,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           setLastUpdated(new Date());
         }
         if (Array.isArray(partiesRes)) setParties(partiesRes);
-        window.electronAPI.dbGetProductBillQuantities(cacheKey)
+        productsApi.getProductBillQuantities(cacheKey)
           .then(res => setBillQuantities(Array.isArray(res) ? res : []))
           .catch(() => {});
         // Build product-supplier map in the background
@@ -200,17 +208,17 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   }, [loadData]);
 
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' })
+    if (isDesktopRuntime()) {
+      settingsApi.get({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' })
         .then((val: any) => {
           if (val === 'estimate' || val === 'gst' || val === 'combined') { setViewMode(val); return; }
           // Fallback: if GSTIN is set, default to GST tab; otherwise Estimate
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
+          settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
             .then((gstin: any) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
             .catch(() => {});
         })
         .catch(() => {
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
+          settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
             .then((gstin: any) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
             .catch(() => {});
         });
@@ -218,10 +226,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   }, [tenantId]);
 
   useEffect(() => {
-    if (!window.electronAPI || reportTab !== 'sales') return;
+    if (!isDesktopRuntime() || reportTab !== 'sales') return;
     let cancelled = false;
     setSalesLoading(true);
-    window.electronAPI.dbGetProductSalesSummary({ tenant_id: tenantId || 'global' })
+    productsApi.getProductSalesSummary({ tenant_id: tenantId || 'global' })
       .then((res) => {
         if (!cancelled && Array.isArray(res))
           setSalesSummary(res.filter((r: any) => Number(r.is_service_item) !== 1 && (r.name || '') !== 'Service Charge'));
@@ -246,8 +254,6 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     bos: salesSummary.reduce((s, r) => s + Number(r.bos_qty), 0),
     bosProducts: salesSummary.filter(r => Number(r.bos_qty) > 0).length,
   }), [salesSummary]);
-
-  const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
 
   const gradeMap = useMemo(() => new Map(grades.map(g => [g.grade_id, g])), [grades]);
   const billQtyMap = useMemo(() => new Map(billQuantities.map(b => [b.product_id, b])), [billQuantities]);
@@ -458,7 +464,6 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     return calculateMaskedStockValuation(totalPurchaseValue, maskingConfig, isStaff);
   }, [totalPurchaseValue, maskingConfig, isStaff]);
 
-
   const handleDownloadCsv = () => {
     const headers = ['Product', 'Category', 'Grade', 'Stock'];
     if (viewMode !== 'estimate') headers.push('GST Qty');
@@ -615,8 +620,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         </body>
       </html>`;
 
-    if (window.electronAPI) {
-      const printResult = await window.electronAPI.printA4Html(tenantId || 'global', html);
+    if (isDesktopRuntime()) {
+      const printResult = await printingApi.printA4Html(tenantId || 'global', html);
       if (!printResult.success) {
         const pw = window.open('', '_blank');
         if (pw) { pw.document.write(html); pw.document.close(); setTimeout(() => pw.print(), 500); }
@@ -1179,7 +1184,6 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               </div>
             </div>
           )}
-
 
           {/* Detailed Table */}
           <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm bg-card border border-border rounded-[28px] shadow-sm overflow-hidden select-none">

@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import crypto from 'crypto';
 import { sendWhatsAppBill } from './whatsappService';
+import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
 
 export interface ShopClosingChecklist {
   sales: boolean;
@@ -46,7 +47,7 @@ export interface ShopClosingOverviewConfig {
   checklist: ShopClosingChecklist;
 }
 
-export const DEFAULT_CHECKLIST: ShopClosingChecklist = {
+const DEFAULT_CHECKLIST: ShopClosingChecklist = {
   dateTime: true,
   closingStatus: true,
   counterDetails: true,
@@ -79,7 +80,7 @@ export const DEFAULT_CHECKLIST: ShopClosingChecklist = {
   purchases: false,
 };
 
-export const DEFAULT_CONFIG: ShopClosingOverviewConfig = {
+const DEFAULT_CONFIG: ShopClosingOverviewConfig = {
   enabled: false,
   ownerPhone: '',
   sendTiming: 'IMMEDIATELY',
@@ -98,12 +99,12 @@ function formatCurrency(amount: number | null | undefined): string {
   return isNegative ? `-₹${absFormatted}` : `₹${absFormatted}`;
 }
 
-export function cleanPhoneNumber(phone: string): string {
+function cleanPhoneNumber(phone: string): string {
   if (!phone) return '';
   return phone.replace(/[^0-9+]/g, '').trim();
 }
 
-export function isValidPhoneNumber(phone: string): boolean {
+function isValidPhoneNumber(phone: string): boolean {
   const cleaned = phone.replace(/[^0-9]/g, '');
   return cleaned.length >= 8 && cleaned.length <= 15;
 }
@@ -111,11 +112,10 @@ export function isValidPhoneNumber(phone: string): boolean {
 /**
  * Read configuration from settings table
  */
-export function getShopClosingConfig(db: any, tenantId: string = 'global'): ShopClosingOverviewConfig {
+function getShopClosingConfig(db: any, tenantId: string = 'global'): ShopClosingOverviewConfig {
   try {
     const tid = tenantId || 'global';
-    let row = db
-      .prepare(`SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'shop_closing_whatsapp_config' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 2 END) ASC, updated_at DESC LIMIT 1`)
+    const row = shopClosingReportSql.findOneSettingByKey(db)
       .get(tid, tid) as any;
 
     if (row && row.value) {
@@ -138,7 +138,7 @@ export function getShopClosingConfig(db: any, tenantId: string = 'global'): Shop
 /**
  * Save configuration to settings table (Admin check enforced)
  */
-export function saveShopClosingConfig(
+function saveShopClosingConfig(
   db: any,
   tenantId: string = 'global',
   config: Partial<ShopClosingOverviewConfig>,
@@ -165,14 +165,7 @@ export function saveShopClosingConfig(
     const tid = tenantId || 'global';
     const valString = JSON.stringify(updated);
 
-    db.prepare(`
-      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-      VALUES (?, 'shop_closing_whatsapp_config', ?, 'PENDING', CURRENT_TIMESTAMP)
-      ON CONFLICT(tenant_id, key) DO UPDATE SET
-        value = EXCLUDED.value,
-        sync_status = 'PENDING',
-        updated_at = CURRENT_TIMESTAMP
-    `).run(tid, valString);
+    shopClosingReportSql.upsertSetting(db).run(tid, valString);
 
     return { success: true, config: updated };
   } catch (err: any) {
@@ -184,7 +177,7 @@ export function saveShopClosingConfig(
 /**
  * Build consolidated summary data from POS database
  */
-export function buildShopClosingSummaryData(
+function buildShopClosingSummaryData(
   db: any,
   tenantId: string = 'global',
   businessDate?: string,
@@ -213,8 +206,7 @@ export function buildShopClosingSummaryData(
   // Get Shop Name
   let shopName = 'Nafid Store';
   try {
-    const shopRow = db
-      .prepare(`SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'shop_name' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 2 END) ASC LIMIT 1`)
+    const shopRow = shopClosingReportSql.findOneSettingByKeyShopName(db)
       .get(tid, tid) as any;
     if (shopRow?.value) {
       try {
@@ -229,8 +221,7 @@ export function buildShopClosingSummaryData(
   // Get Terminal Code
   let counterCode = 'POS 1';
   try {
-    const termRow = db
-      .prepare(`SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'terminal_code' LIMIT 1`)
+    const termRow = shopClosingReportSql.findOneSettingByKeyTerminalCode(db)
       .get(tid) as any;
     if (termRow?.value) {
       try {
@@ -246,13 +237,7 @@ export function buildShopClosingSummaryData(
   let drawer = providedDrawer;
   if (!drawer) {
     try {
-      drawer = db
-        .prepare(`
-          SELECT * FROM cash_drawer
-          WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-            AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)
-          ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, created_at DESC LIMIT 1
-        `)
+      drawer = shopClosingReportSql.findOneCashDrawerByBusinessDate(db)
         .get(tid, bDate, altDate, bDate, dateLike, bDate) as any;
     } catch {}
   }
@@ -284,13 +269,13 @@ export function buildShopClosingSummaryData(
   let staffName = closedByName || '';
   if (!staffName && drawer?.closed_by) {
     try {
-      const userRow = db.prepare(`SELECT name, role FROM users WHERE user_id = ?`).get(drawer.closed_by) as any;
+      const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.closed_by) as any;
       if (userRow) staffName = userRow.name || '';
     } catch {}
   }
   if (!staffName && drawer?.opened_by) {
     try {
-      const userRow = db.prepare(`SELECT name, role FROM users WHERE user_id = ?`).get(drawer.opened_by) as any;
+      const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.opened_by) as any;
       if (userRow) staffName = userRow.name || '';
     } catch {}
   }
@@ -331,26 +316,7 @@ export function buildShopClosingSummaryData(
   const counterGroupMap: Record<string, { counterCode: string; billerName?: string; invoiceCount: number; netSales: number; cashSales: number }> = {};
 
   try {
-    const invoices = db
-      .prepare(`
-        SELECT i.*, u.name AS staff_user_name
-        FROM invoices i
-        LEFT JOIN users u ON i.user_id = u.user_id
-        WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL)
-          AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT')
-          AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
-          AND (i.is_held IS NULL OR i.is_held = 0)
-          AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-          AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')
-          AND (
-            date(COALESCE(i.settled_at, i.created_at)) = ?
-            OR date(COALESCE(i.settled_at, i.created_at)) = ?
-            OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
-            OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
-            OR COALESCE(i.settled_at, i.created_at) LIKE ?
-          )
-        ORDER BY COALESCE(i.settled_at, i.created_at) ASC
-      `)
+    const invoices = shopClosingReportSql.findInvoicesByConvertedFrom_(db)
       .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
 
     if (Array.isArray(invoices)) {
@@ -464,20 +430,7 @@ export function buildShopClosingSummaryData(
   const expensesItems: Array<{ description: string; amount: number; time?: string }> = [];
 
   try {
-    const txRows = db
-      .prepare(`
-        SELECT type, amount, category, notes, transaction_date
-        FROM cash_transactions
-        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-          AND (
-            date(transaction_date) = ?
-            OR date(transaction_date) = ?
-            OR substr(transaction_date, 1, 10) = ?
-            OR substr(transaction_date, 1, 10) = ?
-            OR transaction_date LIKE ?
-          )
-        ORDER BY transaction_date ASC
-      `)
+    const txRows = shopClosingReportSql.findCashTransactions(db)
       .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
 
     if (Array.isArray(txRows)) {
@@ -515,27 +468,7 @@ export function buildShopClosingSummaryData(
   const partyTransactionItems: Array<{ partyName: string; type: 'Got Cash' | 'Gave Cash' | string; amount: number; description?: string }> = [];
 
   try {
-    const plRows = db
-      .prepare(`
-        SELECT pl.party_id, pl.credit_amount, pl.debit_amount, pl.description, pl.transaction_date,
-               p.name AS party_name
-        FROM party_ledger pl
-        LEFT JOIN parties p ON pl.party_id = p.party_id
-        WHERE (pl.tenant_id = ? OR pl.tenant_id = 'global' OR pl.tenant_id IS NULL)
-          AND (
-            date(pl.transaction_date) = ?
-            OR date(pl.transaction_date) = ?
-            OR substr(pl.transaction_date, 1, 10) = ?
-            OR substr(pl.transaction_date, 1, 10) = ?
-            OR pl.transaction_date LIKE ?
-          )
-          AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
-          AND (pl.description NOT LIKE '%Opening Balance%' OR pl.description IS NULL)
-          AND (pl.description NOT LIKE 'Credit Sale%' OR pl.description IS NULL)
-          AND (pl.description NOT LIKE 'Cash Sale%' OR pl.description IS NULL)
-          AND (pl.description NOT LIKE 'Payment received (%) for %' OR pl.description IS NULL)
-        ORDER BY pl.transaction_date ASC
-      `)
+    const plRows = shopClosingReportSql.findPartyLedger(db)
       .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
 
     if (Array.isArray(plRows)) {
@@ -579,22 +512,7 @@ export function buildShopClosingSummaryData(
   // 5. Staff transactions
   const staffTransactionItems: Array<{ staffName: string; type: string; amount: number; notes?: string }> = [];
   try {
-    const stRows = db
-      .prepare(`
-        SELECT st.staff_id, st.type, st.amount, st.notes, st.transaction_date,
-               s.name AS staff_name
-        FROM staff_transactions st
-        LEFT JOIN staff s ON st.staff_id = s.staff_id
-        WHERE (st.tenant_id = ? OR st.tenant_id = 'global' OR st.tenant_id IS NULL)
-          AND (
-            date(st.transaction_date) = ?
-            OR date(st.transaction_date) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR st.transaction_date LIKE ?
-          )
-        ORDER BY st.transaction_date ASC
-      `)
+    const stRows = shopClosingReportSql.findStaffTransactions(db)
       .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
 
     if (Array.isArray(stRows)) {
@@ -624,23 +542,7 @@ export function buildShopClosingSummaryData(
   };
 
   try {
-    const scrapRows = db
-      .prepare(`
-        SELECT st.quantity, st.rate, st.total_amount, st.party_name, st.type,
-               sc.name AS category_name, sc.unit
-        FROM scrap_transactions st
-        LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
-        WHERE (st.tenant_id = ? OR st.tenant_id = 'global' OR st.tenant_id IS NULL)
-          AND (st.is_deleted IS NULL OR st.is_deleted = 0)
-          AND (
-            date(st.transaction_date) = ?
-            OR date(st.transaction_date) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR st.transaction_date LIKE ?
-          )
-        ORDER BY st.transaction_date ASC
-      `)
+    const scrapRows = shopClosingReportSql.findScrapTransactions(db)
       .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
 
     if (Array.isArray(scrapRows)) {
@@ -660,22 +562,7 @@ export function buildShopClosingSummaryData(
     }
 
     // Also check invoices for scrap deductions
-    const invScrapRow = db
-      .prepare(`
-        SELECT COUNT(*) AS inv_scrap_count, COALESCE(SUM(scrap_deduction), 0) AS total_inv_scrap
-        FROM invoices
-        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-          AND scrap_deduction > 0
-          AND (is_deleted IS NULL OR is_deleted = 0)
-          AND (converted_from_invoice_id IS NULL OR converted_from_invoice_id = '')
-          AND (
-            date(COALESCE(settled_at, created_at)) = ?
-            OR date(COALESCE(settled_at, created_at)) = ?
-            OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
-            OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
-            OR COALESCE(settled_at, created_at) LIKE ?
-          )
-      `)
+    const invScrapRow = shopClosingReportSql.countInvoicesByConvertedFrom_(db)
       .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
 
     if (invScrapRow && Number(invScrapRow.total_inv_scrap) > 0) {
@@ -700,19 +587,7 @@ export function buildShopClosingSummaryData(
   let returnsCount = 0;
   let returnsAmount = 0;
   try {
-    const retRow = db
-      .prepare(`
-        SELECT COUNT(*) AS ret_count, COALESCE(SUM(grand_total), 0) AS ret_total
-        FROM returns
-        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id IS NULL)
-          AND (
-            date(return_date) = ?
-            OR date(return_date) = ?
-            OR substr(return_date, 1, 10) = ?
-            OR substr(return_date, 1, 10) = ?
-            OR return_date LIKE ?
-          )
-      `)
+    const retRow = shopClosingReportSql.countReturns(db)
       .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
 
     if (retRow) {
@@ -729,7 +604,7 @@ export function buildShopClosingSummaryData(
   try {
     let amountCol = 'grand_total';
     try {
-      const tableInfo = db.prepare(`PRAGMA table_info(purchase_bills)`).all() as any[];
+      const tableInfo = shopClosingReportSql.pragmaTableInfo(db).all() as any[];
       const colNames = (tableInfo || []).map((c: any) => c.name);
       if (colNames.includes('total_amount')) {
         amountCol = 'total_amount';
@@ -824,7 +699,7 @@ export function buildShopClosingSummaryData(
 /**
  * Format the WhatsApp closing message based on checklist
  */
-export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopClosingChecklist): string {
+function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopClosingChecklist): string {
   const lines: string[] = [];
 
   // Header
@@ -1114,15 +989,7 @@ export async function sendShopClosingReport({
   // Deduplication check: avoid spamming owner multiple times for the same business date & trigger
   if (!force) {
     try {
-      const recent = db
-        .prepare(`
-          SELECT id, status, created_at FROM shop_closing_reports
-          WHERE (tenant_id = ? OR tenant_id = 'global')
-            AND business_date = ?
-            AND trigger_type = ?
-            AND status = 'SENT'
-          ORDER BY created_at DESC LIMIT 1
-        `)
+      const recent = shopClosingReportSql.findOneShopClosingReportByBusinessDateAndTriggerType(db)
         .get(tid, bDate, triggerType) as any;
 
       if (recent) {
@@ -1139,12 +1006,7 @@ export async function sendShopClosingReport({
 
   // Log as PENDING
   try {
-    db.prepare(`
-      INSERT INTO shop_closing_reports (
-        id, tenant_id, business_date, trigger_type, terminal_code, recipient_phone,
-        summary_data, checklist_config, message_text, status, retry_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0)
-    `).run(
+    shopClosingReportSql.insertShopClosingReport(db).run(
       reportId,
       tid,
       bDate,
@@ -1168,11 +1030,7 @@ export async function sendShopClosingReport({
 
     if (res.success) {
       try {
-        db.prepare(`
-          UPDATE shop_closing_reports
-          SET status = 'SENT', whatsapp_message_id = ?, sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `).run(res.messageId || null, reportId);
+        shopClosingReportSql.updateShopClosingReportById(db).run(res.messageId || null, reportId);
       } catch {}
 
       notifyRendererReportsUpdated();
@@ -1180,11 +1038,7 @@ export async function sendShopClosingReport({
     } else {
       const errorMsg = res.error || 'WhatsApp message dispatch failed.';
       try {
-        db.prepare(`
-          UPDATE shop_closing_reports
-          SET status = 'FAILED', error_message = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `).run(errorMsg, reportId);
+        shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage(db).run(errorMsg, reportId);
       } catch {}
 
       notifyRendererReportsUpdated();
@@ -1193,11 +1047,7 @@ export async function sendShopClosingReport({
   } catch (err: any) {
     const errorMsg = err?.message || 'Unexpected error sending WhatsApp report.';
     try {
-      db.prepare(`
-        UPDATE shop_closing_reports
-        SET status = 'FAILED', error_message = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(errorMsg, reportId);
+      shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage(db).run(errorMsg, reportId);
     } catch {}
 
     notifyRendererReportsUpdated();
@@ -1208,9 +1058,9 @@ export async function sendShopClosingReport({
 /**
  * Retry failed report
  */
-export async function retryShopClosingReport(db: any, reportId: string): Promise<{ success: boolean; error?: string }> {
+async function retryShopClosingReport(db: any, reportId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const row = db.prepare(`SELECT * FROM shop_closing_reports WHERE id = ?`).get(reportId) as any;
+    const row = shopClosingReportSql.findShopClosingReportsById(db).get(reportId) as any;
     if (!row) return { success: false, error: 'Report record not found' };
 
     const res = await sendWhatsAppBill({
@@ -1219,20 +1069,12 @@ export async function retryShopClosingReport(db: any, reportId: string): Promise
     });
 
     if (res.success) {
-      db.prepare(`
-        UPDATE shop_closing_reports
-        SET status = 'SENT', whatsapp_message_id = ?, error_message = NULL, sent_at = CURRENT_TIMESTAMP, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(res.messageId || null, reportId);
+      shopClosingReportSql.updateShopClosingReportByIdSent(db).run(res.messageId || null, reportId);
 
       notifyRendererReportsUpdated();
       return { success: true };
     } else {
-      db.prepare(`
-        UPDATE shop_closing_reports
-        SET status = 'FAILED', error_message = ?, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(res.error || 'Retry failed', reportId);
+      shopClosingReportSql.updateShopClosingReportByIdFailed(db).run(res.error || 'Retry failed', reportId);
 
       notifyRendererReportsUpdated();
       return { success: false, error: res.error };
@@ -1245,15 +1087,10 @@ export async function retryShopClosingReport(db: any, reportId: string): Promise
 /**
  * Query report history
  */
-export function getShopClosingHistory(db: any, tenantId: string = 'global', limit: number = 30): any[] {
+function getShopClosingHistory(db: any, tenantId: string = 'global', limit: number = 30): any[] {
   try {
     const tid = tenantId || 'global';
-    return db
-      .prepare(`
-        SELECT * FROM shop_closing_reports
-        WHERE tenant_id = ? OR tenant_id = 'global'
-        ORDER BY created_at DESC LIMIT ?
-      `)
+    return shopClosingReportSql.findShopClosingReports(db)
       .all(tid, limit) as any[];
   } catch (err: any) {
     console.error('[ShopClosing] getShopClosingHistory error:', err.message);
@@ -1277,7 +1114,7 @@ function notifyRendererReportsUpdated() {
 let scheduledTimer: NodeJS.Timeout | null = null;
 let lastScheduledCheckDate: string = '';
 
-export function startShopClosingScheduler(
+function startShopClosingScheduler(
   db: any,
   getTenantIdFn?: () => string,
   reconcileCashDrawerFn?: (db: any, tid: string, drawer: any) => any,
@@ -1310,15 +1147,7 @@ export function startShopClosingScheduler(
       // Compare current store time with scheduled time
       if (timeParts >= config.scheduledTime) {
         // Check if scheduled report was already sent for today
-        const existing = db
-          .prepare(`
-            SELECT id FROM shop_closing_reports
-            WHERE (tenant_id = ? OR tenant_id = 'global')
-              AND business_date = ?
-              AND trigger_type = 'SCHEDULED'
-              AND status = 'SENT'
-            LIMIT 1
-          `)
+        const existing = shopClosingReportSql.findOneShopClosingReportByBusinessDateAndTriggerTypeSent(db)
           .get(tid, storeBusinessDate) as any;
 
         if (!existing && lastScheduledCheckDate !== `${storeBusinessDate}_${config.scheduledTime}`) {

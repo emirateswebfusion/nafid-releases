@@ -2,13 +2,19 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from '../store/tabStore';
-import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, Plus, Eye, Building2 } from 'lucide-react';
+import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, Plus, Eye } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 import { generateQuotationHtml, type QuotationPrintData, type QuotationPrintItem } from '../utils/quotationHtmlGenerator';
 import { numberToIndianWords, parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { RedCrossButton } from './ui/RedCrossButton';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { printingApi } from '../data/printing';
+import { quotationsApi } from '../data/quotations';
+import { settingsApi } from '../data/settings';
+import { formatCurrency } from '../utils/money';
 
 interface Quotation {
   quotation_id: string;
@@ -54,7 +60,7 @@ interface QuotationItem {
 
 export function QuotationManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { shopName, tenantId, role: authRole, userName } = useAuthStore();
+  const { shopName, tenantId, userName } = useAuthStore();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -100,21 +106,21 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
   useEffect(() => {
     loadQuotations();
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const tid = tenantId || 'global';
       Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_address' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_phone' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_gstin' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_state' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_email' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'bank_name' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'bank_account_number' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'bank_ifsc' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'bank_branch' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'upi_id' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'quotation_gst_enabled' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'print_format' }),
+        settingsApi.get({ tenant_id: tid, key: 'shop_address' }),
+        settingsApi.get({ tenant_id: tid, key: 'shop_phone' }),
+        settingsApi.get({ tenant_id: tid, key: 'shop_gstin' }),
+        settingsApi.get({ tenant_id: tid, key: 'shop_state' }),
+        settingsApi.get({ tenant_id: tid, key: 'shop_email' }),
+        settingsApi.get({ tenant_id: tid, key: 'bank_name' }),
+        settingsApi.get({ tenant_id: tid, key: 'bank_account_number' }),
+        settingsApi.get({ tenant_id: tid, key: 'bank_ifsc' }),
+        settingsApi.get({ tenant_id: tid, key: 'bank_branch' }),
+        settingsApi.get({ tenant_id: tid, key: 'upi_id' }),
+        settingsApi.get({ tenant_id: tid, key: 'quotation_gst_enabled' }),
+        settingsApi.get({ tenant_id: tid, key: 'print_format' }),
       ]).then(([addr, ph, gst, st, em, bName, bAcc, bIfsc, bBranch, upi, qGst, pFmt]) => {
         if (addr) setShopAddress(addr);
         if (ph) setShopPhone(ph);
@@ -136,8 +142,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
         setQuotationGstEnabledSetting(gstFlag);
       }).catch(err => console.error('[QuotationManager] Failed to load shop settings:', err));
     }
-    if (window.electronAPI?.onSyncDataUpdated) {
-      const unsub = window.electronAPI.onSyncDataUpdated(() => {
+    if (hasBridge('onSyncDataUpdated')) {
+      const unsub = bridgeEvents.onSyncDataUpdated(() => {
         loadQuotations();
       });
       return () => {
@@ -149,9 +155,9 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   const loadQuotations = async () => {
     setLoading(true);
     try {
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         const tid = tenantId || 'global';
-        const qs = await window.electronAPI.dbGetQuotations({ tenant_id: tid });
+        const qs = await quotationsApi.getQuotations({ tenant_id: tid });
         if (Array.isArray(qs)) {
           setQuotations(qs);
           localStorage.setItem('nafid_quotations_cache', JSON.stringify(qs));
@@ -166,8 +172,6 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     }
     setLoading(false);
   };
-
-  const formatCurrency = (amount: number) => `\u20B9${(Number(amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const handleCreateNewQuotation = () => {
     useCartStore.getState().setRole('BILLER');
@@ -233,8 +237,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     setSelectedQuotation(q);
 
     let itemsToSet: QuotationItem[] = [];
-    if (window.electronAPI) {
-      const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
+    if (isDesktopRuntime()) {
+      const its = await quotationsApi.getQuotationItems(q.quotation_id);
       if (Array.isArray(its) && its.length > 0) {
         itemsToSet = its;
       } else if (Array.isArray((q as any).items) && (q as any).items.length > 0) {
@@ -333,8 +337,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
     const fullHtml = generateQuotationHtml(printData);
 
-    if (window.electronAPI) {
-      const printResult = await window.electronAPI.printA4Html(tenantId || 'global', fullHtml);
+    if (isDesktopRuntime()) {
+      const printResult = await printingApi.printA4Html(tenantId || 'global', fullHtml);
       if (!printResult.success) {
         const pw = window.open('', '_blank');
         if (pw) { pw.document.write(fullHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
@@ -353,8 +357,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     const defaultFilename = `Quotation_${selectedQuotation.quotation_number || 'Detail'}.pdf`;
     const fullHtml = generateQuotationHtml(printData);
 
-    if (window.electronAPI?.exportA4Pdf) {
-      const res = await window.electronAPI.exportA4Pdf(tenantId || 'global', fullHtml, defaultFilename);
+    if (hasBridge('exportA4Pdf')) {
+      const res = await printingApi.exportA4Pdf(tenantId || 'global', fullHtml, defaultFilename);
       if (!res.success && res.error) {
         setStatusMessage({ text: `Export PDF failed: ${res.error}`, type: 'error' });
       }
@@ -378,8 +382,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       variant: 'blue',
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        if (window.electronAPI) {
-          const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
+        if (isDesktopRuntime()) {
+          const its = await quotationsApi.getQuotationItems(q.quotation_id);
           if (Array.isArray(its)) {
             localStorage.setItem('editQuotationData', JSON.stringify({ quotation: q, items: its }));
             window.dispatchEvent(new CustomEvent('open-quotation-edit'));
@@ -399,8 +403,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       variant: 'red',
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        if (window.electronAPI) {
-          const res = await window.electronAPI.dbDeleteQuotation(q.quotation_id);
+        if (isDesktopRuntime()) {
+          const res = await quotationsApi.deleteQuotation(q.quotation_id);
           if (res.success) {
             setStatusMessage({ text: `Quotation ${q.quotation_number} deleted`, type: 'success' });
             setQuotations(prev => {
@@ -428,8 +432,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       variant: 'emerald',
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        if (window.electronAPI) {
-          const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
+        if (isDesktopRuntime()) {
+          const its = await quotationsApi.getQuotationItems(q.quotation_id);
           if (Array.isArray(its)) {
             localStorage.setItem('editQuotationData', JSON.stringify({ quotation: q, items: its, convertToInvoice: true }));
             window.dispatchEvent(new CustomEvent('open-quotation-edit'));

@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron';
 import fs from 'node:fs';
-import { getDb, localSaveUser, localAuthenticateUser } from '../db/localDb.js';
+import { localSaveUser, localAuthenticateUser } from '../services/localAuthService.js';
 import { setSyncActive } from '../sync/syncWorker.js';
+import * as syncService from '../services/syncService.js';
 import {
   getConfigPath,
   getEncryptedPath,
@@ -10,7 +11,7 @@ import {
   readAuthPayload,
   clearOfflineSession,
   readOfflineSession,
-} from './common.js';
+} from '../services/authStorage.js';
 
 export function registerAuthHandlers(): void {
   ipcMain.removeHandler('auth:saveToken');
@@ -71,11 +72,7 @@ export function registerAuthHandlers(): void {
 
       // Keep sync worker alive if terminal is configured for LAN or HYBRID peer sync
       try {
-        const db = getDb();
-        const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' LIMIT 1`).get() as { value: string } | undefined;
-        const netConfig = row?.value ? (typeof row.value === 'string' ? JSON.parse(row.value) : row.value) : null;
-        const isLanActive = netConfig && (netConfig.syncMode === 'LAN' || netConfig.syncMode === 'HYBRID');
-        if (isLanActive) {
+        if (syncService.isLanSyncConfigured()) {
           setSyncActive(true);
         } else {
           setSyncActive(false);

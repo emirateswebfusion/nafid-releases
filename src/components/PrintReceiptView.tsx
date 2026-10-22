@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import Barcode from 'react-barcode';
 import { useAuthStore } from '../store/authStore';
+import { hasBridge } from '../data/client';
+import { printingApi } from '../data/printing';
+import { settingsApi } from '../data/settings';
 
 const FONT_MAP: Record<string, string> = {
   courier: 'Consolas, "Courier New", monospace',
@@ -91,8 +94,8 @@ export function PrintReceiptView({ text }: { text: string }) {
   const isQrReady = qrPayloads.length === 0 || qrPayloads.every((payload) => Boolean(qrImages[payload]));
 
   useEffect(() => {
-    if (!text && window.electronAPI?.getReceiptText) {
-      window.electronAPI.getReceiptText().then((t: string) => {
+    if (!text && hasBridge('getReceiptText')) {
+      printingApi.getReceiptText().then((t: string) => {
         if (t) setReceiptText(t);
       });
     }
@@ -102,7 +105,7 @@ export function PrintReceiptView({ text }: { text: string }) {
     (async () => {
       try {
         const tenantId = useAuthStore.getState().tenantId;
-        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+        const printFmt = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'print_format' });
         if (printFmt?.receiptFont && FONT_MAP[printFmt.receiptFont]) {
           setFontFamily(FONT_MAP[printFmt.receiptFont]);
         }
@@ -121,9 +124,9 @@ export function PrintReceiptView({ text }: { text: string }) {
     const fireReady = () => {
       if (fired) return;
       fired = true;
-      if (window.electronAPI?.printReady) {
+      if (hasBridge('printReady')) {
         const contentHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
-        window.electronAPI.printReady(contentHeight);
+        printingApi.printReady(contentHeight);
       }
     };
 

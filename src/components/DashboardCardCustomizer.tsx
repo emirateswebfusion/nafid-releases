@@ -50,7 +50,7 @@ export interface CardMetaItem {
   shortcut?: string;
 }
 
-export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
+const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
   billing: {
     title: 'Billing',
     desc: 'Create new invoices and manage sales',
@@ -222,7 +222,7 @@ export function DashboardCardCustomizer({
 }: DashboardCardCustomizerProps) {
   const { tenantId, userId, role } = useAuthStore();
   const { flags: featureFlags } = useFeatureFlagsStore();
-  const { cardOrder, setCardOrder, moveCard, resetToDefault } = useDashboardCardsStore();
+  const { cardOrder, setCardOrder, moveCard } = useDashboardCardsStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);

@@ -4,13 +4,14 @@ import { getStoreTimezone } from '../utils/timezoneHelper';
 import { useAuthStore } from '../store/authStore';
 import { Plus, Search, Printer, Shield, ShieldCheck, Trash, Trash2, AlertCircle, RefreshCw, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
+import { isDesktopRuntime } from '../data/client';
+import { warrantiesApi } from '../data/warranties';
 
 interface Warranty {
   warranty_id: string;
@@ -62,8 +63,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const loadWarranties = async () => {
     setLoading(true);
     try {
-      if (window.electronAPI) {
-        const ws = await window.electronAPI.dbGetWarranties({ tenant_id: tenantId || '' });
+      if (isDesktopRuntime()) {
+        const ws = await warrantiesApi.getWarranties({ tenant_id: tenantId || '' });
         if (Array.isArray(ws)) setWarranties(ws);
       }
     } catch (err) {
@@ -77,8 +78,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
       setStatusMessage({ text: 'Customer name, product name, and purchase date are required', type: 'error' });
       return;
     }
-    if (window.electronAPI) {
-      const res = await window.electronAPI.dbSaveWarranty({
+    if (isDesktopRuntime()) {
+      const res = await warrantiesApi.saveWarranty({
         warranty_id: uuidv4(),
         tenant_id: tenantId,
         ...form,
@@ -122,8 +123,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     if (!warrantyToDelete) return;
     setDeleteSaving(true);
     try {
-      if (window.electronAPI) {
-        await window.electronAPI.dbDeleteWarranty(warrantyToDelete.warranty_id);
+      if (isDesktopRuntime()) {
+        await warrantiesApi.deleteWarranty(warrantyToDelete.warranty_id);
         setStatusMessage({ text: 'Warranty deleted', type: 'success' });
         setDeleteConfirmOpen(false);
         setWarrantyToDelete(null);

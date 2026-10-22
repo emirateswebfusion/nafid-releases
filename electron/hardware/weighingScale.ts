@@ -1,10 +1,11 @@
 import { app, BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb';
+import * as weighingScaleSql from '../db/statements/weighingScale.js';
 
 function getScaleConfig() {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE key = 'scale_config'").get();
+    const row: any = weighingScaleSql.findSettingsByKey(db).get();
     return row ? JSON.parse(row.value) : { path: 'COM3', baudRate: 9600 };
   } catch {
     return { path: 'COM3', baudRate: 9600 };

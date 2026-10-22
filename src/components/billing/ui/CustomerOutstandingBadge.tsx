@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AlertCircle, User, Phone } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { formatCurrency } from '../BillingConstants';
 
 export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: string; phone?: string; balance?: number } | null }) {
   const [activeParty, setActiveParty] = useState(partyObj);

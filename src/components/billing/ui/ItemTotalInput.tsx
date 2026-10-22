@@ -1,7 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { Tag } from 'lucide-react';
-import { detectScannerBurst } from '../BillingConstants';
 
 export interface ItemTotalInputProps {
   productId: string;

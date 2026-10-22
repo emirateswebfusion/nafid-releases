@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 
 export type TerminologyPreset = 'SIMPLE' | 'ACCOUNTING' | 'CASHFLOW' | 'CUSTOM';
 
@@ -114,7 +116,7 @@ function loadStoredCustomLabels(): TerminologyCustomLabels {
   return DEFAULT_CUSTOM_LABELS;
 }
 
-export function computeLabels(preset: TerminologyPreset, customLabels: TerminologyCustomLabels): TerminologyLabels {
+function computeLabels(preset: TerminologyPreset, customLabels: TerminologyCustomLabels): TerminologyLabels {
   if (preset === 'CUSTOM') {
     return {
       receivable: customLabels.receivable || DEFAULT_CUSTOM_LABELS.receivable,
@@ -152,8 +154,8 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_KEY_PRESET, preset);
     } catch {}
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: STORAGE_KEY_PRESET, value: preset }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: STORAGE_KEY_PRESET, value: preset }).catch(() => {});
     }
     const labels = computeLabels(preset, get().customLabels);
     set({ preset, labels });
@@ -164,8 +166,8 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_KEY_CUSTOM, JSON.stringify(updated));
     } catch {}
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM, value: updated }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM, value: updated }).catch(() => {});
     }
     const labels = computeLabels(get().preset, updated);
     set({ customLabels: updated, labels });
@@ -185,11 +187,11 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
   }
 }));
 
-export async function hydrateTerminologyFromDB() {
-  if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+async function hydrateTerminologyFromDB() {
+  if (typeof window !== 'undefined' && hasBridge('settingsGet')) {
     try {
-      const storedPreset = await window.electronAPI.settingsGet({ tenant_id: 'global', key: STORAGE_KEY_PRESET });
-      const storedCustom = await window.electronAPI.settingsGet({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM });
+      const storedPreset = await settingsApi.get({ tenant_id: 'global', key: STORAGE_KEY_PRESET });
+      const storedCustom = await settingsApi.get({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM });
       
       let nextPreset = useTerminologyStore.getState().preset;
       let nextCustom = useTerminologyStore.getState().customLabels;

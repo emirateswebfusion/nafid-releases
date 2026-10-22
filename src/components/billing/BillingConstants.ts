@@ -7,6 +7,7 @@ import {
   Banknote,
   Split
 } from 'lucide-react';
+import { formatCurrency as formatMoney } from '../../utils/money';
 
 export const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -42,12 +43,12 @@ export const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeo
   { value: 'SPLIT', label: 'Split', icon: Split, color: 'text-purple-500' },
 ];
 
-export function formatCurrency(amount: any): string {
-  const num = Number(amount || 0);
-  return `\u20B9${(isNaN(num) ? 0 : num).toFixed(2)}`;
+/** Billing screens show compact, ungrouped amounts (₹1234.50). */
+export function formatCurrency(amount: unknown): string {
+  return formatMoney(amount, { grouping: false });
 }
 
-export const scannerBurstTracker: Record<string, { count: number; lastTime: number; snapshot: number | string }> = {};
+const scannerBurstTracker: Record<string, { count: number; lastTime: number; snapshot: number | string }> = {};
 
 export function detectScannerBurst(
   _keyTimes: Record<string, number>,
@@ -71,7 +72,6 @@ export function detectScannerBurst(
   }
   return false;
 }
-
 
 export function toLocalDatetimeInputString(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return '';

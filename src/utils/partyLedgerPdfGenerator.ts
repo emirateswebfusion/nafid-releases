@@ -2,7 +2,7 @@ import { parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from './timezoneHelper';
 import type { TerminologyLabels } from '../store/terminologyStore';
 
-export const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
+const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
   receivable: "You'll Get",
   payable: "You'll Give",
   received: "Got Cash",
@@ -94,7 +94,7 @@ export interface PartyLedgerPdfOptions {
 /**
  * Format number in Indian currency style: e.g. 13,95,252.00
  */
-export function formatIndianCurrency(amount: number | string | null | undefined): string {
+function formatIndianCurrency(amount: number | string | null | undefined): string {
   const num = Number(amount) || 0;
   const abs = Math.abs(num);
   const formatted = abs.toLocaleString('en-IN', {
@@ -107,7 +107,7 @@ export function formatIndianCurrency(amount: number | string | null | undefined)
 /**
  * Extract YYYY-MM-DD in the store timezone for accurate boundary comparison
  */
-export function getLocalDateString(dateInput: string | Date, tz: string): string {
+function getLocalDateString(dateInput: string | Date, tz: string): string {
   try {
     const d = typeof dateInput === 'string' ? parseUTCDate(dateInput) : dateInput;
     if (isNaN(d.getTime())) return '';
@@ -318,8 +318,6 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
     shopPhone,
     shopEmail,
     shopGstin,
-    shopState,
-    shopLogoUrl,
     party,
     filter,
     terminology,

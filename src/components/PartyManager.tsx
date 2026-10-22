@@ -1,26 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { useThemeStore } from '../store/themeStore';
 import { useTerminologyStore } from '../store/terminologyStore';
 import { fetchApi } from '../lib/api';
 import { isAdminRole, hasPermission } from '../utils/permissions';
-import {
-  Search, Loader2, UserPlus, Handshake,
-  Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
-  Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
-  UserCircle, Banknote, FileText, Phone, MapPin,
-  TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
-  CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
-  Trash2, RefreshCw, ArrowLeft, Link, QrCode, Share2, XCircle, Copy, Check,
-  Eye, Printer, Receipt, Edit3, LayoutList, Table, Upload, ArrowUpDown, ArrowUp, ArrowDown, Clock, AlertTriangle, FileDown,
-} from 'lucide-react';
-import clsx from 'clsx';
+import { UserPlus, Handshake, PlusCircle, ArrowLeft, Link, Upload } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
-import { Skeleton } from './ui/Skeleton';
-import { Select } from './ui/Select';
-import { Modal } from './ui/Modal';
 import { DeleteTxModal } from './party/modals/DeleteTxModal';
 import { DeletePartyModal } from './party/modals/DeletePartyModal';
 import { PartyConnectModal } from './party/modals/PartyConnectModal';
@@ -32,12 +18,20 @@ import { PartyFormView } from './party/views/PartyFormView';
 import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
-import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getAppTimeFormat, parseUTCDate, formatBillDateTime, generateReceiptText } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
-import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { formatWhatsAppLedgerTxMessage, formatWhatsAppStatementMessage } from '../utils/whatsappBillHelper';
 import { calculateLedgerStatement, generatePartyLedgerHtml, type LedgerEntryData } from '../utils/partyLedgerPdfGenerator';
+import { cashierApi } from '../data/cashier';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { invoicesApi } from '../data/invoices';
+import { partiesApi } from '../data/parties';
+import { pricingTiersApi } from '../data/pricingTiers';
+import { printingApi } from '../data/printing';
+import { returnsApi } from '../data/returns';
+import { scrapApi } from '../data/scrap';
+import { settingsApi } from '../data/settings';
+import { whatsappApi } from '../data/whatsapp';
 
 interface Party {
   party_id: string;
@@ -78,12 +72,6 @@ type LedgerEntry = LedgerEntryData;
 
 type View = 'list' | 'ledger' | 'party_form' | 'tx_form';
 
-const formatDate = (d: string) => {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
-};
-
 const formatDateTime = (d: string) => {
   if (!d) return '—';
   const tz = getStoreTimezone();
@@ -103,34 +91,8 @@ const toUtcIso = (naive: string): string | undefined => {
 // for the datetime-local input when editing an entry. SQLite stores UTC wall
 // time without a marker (e.g. "2026-08-16 17:55:00"), so parseUTCDate treats
 // unmarked values as UTC and converts them to the user's local time.
-const toLocalInputValue = (iso: string): string => {
-  const d = parseUTCDate(iso);
-  if (isNaN(d.getTime())) return iso.slice(0, 16);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 // Generate a consistent hue from a party name
-const nameToHue = (name: string) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return Math.abs(hash) % 360;
-};
-
-const getInitials = (name: string) =>
-  name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-
-const PaymentMethodIcon = ({ method }: { method: string }) => {
-  const map: Record<string, React.JSX.Element> = {
-    CASH: <Wallet className="w-3.5 h-3.5" />,
-    BANK_TRANSFER: <Building2 className="w-3.5 h-3.5" />,
-    UPI: <Smartphone className="w-3.5 h-3.5" />,
-    CARD: <CreditCard className="w-3.5 h-3.5" />,
-    CHEQUE: <Receipt className="w-3.5 h-3.5" />,
-    OTHER: <MoreHorizontal className="w-3.5 h-3.5" />,
-  };
-  return map[method] ?? <MoreHorizontal className="w-3.5 h-3.5" />;
-};
 
 export function PartyManager({
   onClose,
@@ -143,8 +105,6 @@ export function PartyManager({
 }) {
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName, role, shopName } = useAuthStore();
-  const { theme } = useThemeStore();
-  const isDark = theme === 'dark';
   const tLabels = useTerminologyStore(state => state.labels);
   const isOwner = !role || ['OWNER', 'ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN', 'STAFF', 'BILLER', 'CASHIER'].includes(role.toUpperCase());
 
@@ -223,7 +183,6 @@ export function PartyManager({
   const [partyNameForConnect, setPartyNameForConnect] = useState('');
   const [myConnectCode, setMyConnectCode] = useState<string>('');
   const [copiedMyCode, setCopiedMyCode] = useState(false);
-
 
   const fetchMyConnectCode = useCallback(async () => {
     try {
@@ -482,8 +441,8 @@ export function PartyManager({
       let invoiceItems: any[] = [];
 
       for (const term of candidateTerms) {
-        if (window.electronAPI?.dbGetInvoices) {
-          const res = await window.electronAPI.dbGetInvoices({ search: term, tenant_id: tId });
+        if (hasBridge('dbGetInvoices')) {
+          const res = await invoicesApi.getInvoices({ search: term, tenant_id: tId });
           if (Array.isArray(res) && res.length > 0) {
             const match = res.find(inv =>
               String(inv.invoice_number).toLowerCase() === term.toLowerCase() ||
@@ -493,11 +452,11 @@ export function PartyManager({
             break;
           }
         }
-        if (!foundInvoice && window.electronAPI?.dbGetReturnInvoiceByNumber && (term.toUpperCase().startsWith('RTN-') || term.toUpperCase().startsWith('RET-'))) {
+        if (!foundInvoice && hasBridge('dbGetReturnInvoiceByNumber') && (term.toUpperCase().startsWith('RTN-') || term.toUpperCase().startsWith('RET-'))) {
           try {
-            const ret = await window.electronAPI.dbGetReturnInvoiceByNumber({ tenant_id: tId, return_number: term });
+            const ret = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tId, return_number: term });
             if (ret && ret.invoice_id) {
-              const res = await window.electronAPI.dbGetInvoices({ search: ret.invoice_id, tenant_id: tId });
+              const res = await invoicesApi.getInvoices({ search: ret.invoice_id, tenant_id: tId });
               if (Array.isArray(res) && res.length > 0) {
                 foundInvoice = res.find((inv: any) => inv.invoice_id === ret.invoice_id) || res[0];
                 break;
@@ -518,8 +477,8 @@ export function PartyManager({
       }
 
       if (!foundInvoice && selectedParty) {
-        if (window.electronAPI?.dbGetInvoices) {
-          const res = await window.electronAPI.dbGetInvoices({ tenant_id: tId, limit: 100 });
+        if (hasBridge('dbGetInvoices')) {
+          const res = await invoicesApi.getInvoices({ tenant_id: tId, limit: 100 });
           if (Array.isArray(res)) {
             const entryAmt = entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount;
             const match = res.find(inv => {
@@ -543,8 +502,8 @@ export function PartyManager({
 
       if (foundInvoice) {
         setViewingInvoice(foundInvoice);
-        if (window.electronAPI?.dbGetInvoiceItems) {
-          const items = await window.electronAPI.dbGetInvoiceItems(foundInvoice.invoice_id);
+        if (hasBridge('dbGetInvoiceItems')) {
+          const items = await invoicesApi.getInvoiceItems(foundInvoice.invoice_id);
           if (Array.isArray(items)) invoiceItems = items;
         } else {
           try {
@@ -556,8 +515,8 @@ export function PartyManager({
       } else {
         let foundScrap: any = null;
         for (const term of candidateTerms) {
-          if (window.electronAPI?.dbGetScrapInvoiceByNumber) {
-            const scrap = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tId, scrap_invoice_number: term });
+          if (hasBridge('dbGetScrapInvoiceByNumber')) {
+            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId, scrap_invoice_number: term });
             if (scrap && scrap.scrap_invoice_number) {
               foundScrap = scrap;
               break;
@@ -590,7 +549,7 @@ export function PartyManager({
 
   const handlePrintBillInModal = async () => {
     if (viewingInvoice) {
-      if (window.electronAPI?.printReceipt) {
+      if (hasBridge('printReceipt')) {
         try {
           const tId = tenantId || 'global';
           const receiptText = generateReceiptText({
@@ -612,19 +571,19 @@ export function PartyManager({
             discount: Number(viewingInvoice.discount_amount || viewingInvoice.discount || 0),
             paymentMethod: viewingInvoice.payment_method || 'CASH',
           });
-          await window.electronAPI.printReceipt(tId, receiptText);
+          await printingApi.printReceipt(tId, receiptText);
           showStatus('Receipt sent to printer', 'success');
         } catch {
           showStatus('Failed to print receipt', 'error');
         }
       }
     } else if (viewingLedgerVoucher) {
-      if (window.electronAPI?.printReceipt) {
+      if (hasBridge('printReceipt')) {
         try {
           const tId = tenantId || 'global';
           const amt = viewingLedgerVoucher.credit_amount > 0 ? viewingLedgerVoucher.credit_amount : viewingLedgerVoucher.debit_amount;
           const receiptText = `================================\n        PAYMENT VOUCHER         \n================================\nRef #: ${viewingLedgerVoucher.reference_number || viewingLedgerVoucher.ledger_id.slice(0, 8)}\nDate: ${formatDateTime(viewingLedgerVoucher.transaction_date)}\nParty: ${selectedParty?.name || ''}\nPhone: ${selectedParty?.phone || ''}\nType: ${viewingLedgerVoucher.credit_amount > 0 ? 'CREDIT SALE (GIVEN)' : 'PAYMENT (RECEIVED)'}\nPayment Mode: ${viewingLedgerVoucher.payment_method || 'CASH'}\n--------------------------------\nAmount: RS. ${amt.toFixed(2)}\nRunning Bal: RS. ${Math.abs(viewingLedgerVoucher.running_balance).toFixed(2)}\nNote: ${viewingLedgerVoucher.description || ''}\n================================\n`;
-          await window.electronAPI.printReceipt(tId, receiptText);
+          await printingApi.printReceipt(tId, receiptText);
           showStatus('Voucher sent to printer', 'success');
         } catch {
           showStatus('Failed to print voucher', 'error');
@@ -643,8 +602,8 @@ export function PartyManager({
     try {
       let itemsToEdit = viewingInvoiceItems;
       if (!itemsToEdit || itemsToEdit.length === 0) {
-        if (window.electronAPI?.dbGetInvoiceItems) {
-          const data = await window.electronAPI.dbGetInvoiceItems(viewingInvoice.invoice_id);
+        if (hasBridge('dbGetInvoiceItems')) {
+          const data = await invoicesApi.getInvoiceItems(viewingInvoice.invoice_id);
           itemsToEdit = Array.isArray(data) ? data : [];
         }
       }
@@ -671,13 +630,13 @@ export function PartyManager({
   };
 
   const loadPartySettings = useCallback(async () => {
-    if (!tenantId || !window.electronAPI) return;
+    if (!tenantId || !isDesktopRuntime()) return;
     try {
       const [gstVal, estVal, waEnabledVal, waIncShopVal] = await Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_gst_balance' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'enable_party_estimate_balance' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'ledger_whatsapp_enabled' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'ledger_whatsapp_include_shop' }),
+        settingsApi.get({ tenant_id: tenantId, key: 'enable_party_gst_balance' }),
+        settingsApi.get({ tenant_id: tenantId, key: 'enable_party_estimate_balance' }),
+        settingsApi.get({ tenant_id: tenantId, key: 'ledger_whatsapp_enabled' }),
+        settingsApi.get({ tenant_id: tenantId, key: 'ledger_whatsapp_include_shop' }),
       ]);
       const isPartyFirstRun = gstVal === undefined && estVal === undefined;
       const g = isPartyFirstRun ? true : Boolean(gstVal);
@@ -690,8 +649,8 @@ export function PartyManager({
       if (waIncShopVal !== null && waIncShopVal !== undefined) {
         setLedgerWhatsappIncludeShop(Boolean(waIncShopVal));
       }
-      if (window.electronAPI.settingsGetAll) {
-        const all = await window.electronAPI.settingsGetAll({ tenant_id: tenantId || 'global' });
+      if (hasBridge('settingsGetAll')) {
+        const all = await settingsApi.getAll({ tenant_id: tenantId || 'global' });
         if (all) {
           setShopDetails({
             shopName: all['shop_name'] || '',
@@ -739,7 +698,7 @@ export function PartyManager({
       const targetId = lastInteractedPartyId.current;
       if (targetId) {
         setHighlightedPartyId(targetId);
-        const timer = setTimeout(() => setHighlightedPartyId(null), 3000);
+        setTimeout(() => setHighlightedPartyId(null), 3000);
         const targetIdx = parties.findIndex(p => p.party_id === targetId);
         if (targetIdx >= 0 && targetIdx >= visibleCount) {
           setVisibleCount(Math.ceil((targetIdx + 1) / 50) * 50);
@@ -811,7 +770,7 @@ export function PartyManager({
     if (!tenantId) return;
     setLoading(true);
     try {
-      const data = await window.electronAPI.dbGetParties(tenantId);
+      const data = await partiesApi.getParties(tenantId);
       const list = Array.isArray(data) ? data : [];
       setParties(list);
       fetchPendingRequests();
@@ -834,13 +793,13 @@ export function PartyManager({
 
   useEffect(() => {
     if (!tenantId) return;
-    window.electronAPI.dbGetPricingTiers(tenantId)
+    pricingTiersApi.getPricingTiers(tenantId)
       .then(res => {
         if (Array.isArray(res)) setPricingTiers(res);
       })
       .catch(console.error);
 
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'custom_party_categories' })
+    settingsApi.get({ tenant_id: tenantId || 'global', key: 'custom_party_categories' })
       .then((val: any) => {
         if (val) {
           try {
@@ -855,7 +814,7 @@ export function PartyManager({
   const loadLedger = async (partyId: string) => {
     setLedgerLoading(true);
     try {
-      const data = await window.electronAPI.dbGetPartyLedger(partyId);
+      const data = await partiesApi.getPartyLedger(partyId);
       if (data && !Array.isArray(data) && (data as any).error) {
         showStatus('Ledger: ' + (data as any).error, 'error');
       } else {
@@ -1026,7 +985,7 @@ export function PartyManager({
           whatsapp_alerts_enabled: partyForm.whatsapp_alerts_enabled,
         };
 
-        const res = await window.electronAPI.dbUpdateParty(updatedFields);
+        const res = await partiesApi.updateParty(updatedFields);
         if (res && res.success === false) {
           showStatus(res.error || 'Failed to update party', 'error');
           setIsSavingParty(false);
@@ -1055,7 +1014,7 @@ export function PartyManager({
         setParties(prev => prev.map(p => p.party_id === editingParty.party_id ? { ...p, ...statePartyUpdate } : p));
         showStatus('Party updated successfully', 'success');
       } else {
-        const res = await window.electronAPI.dbAddParty({
+        const res = await partiesApi.addParty({
           party_id: uuidv4(),
           tenant_id: tenantId,
           name: partyForm.name.trim(),
@@ -1089,7 +1048,7 @@ export function PartyManager({
         if (!allCustomCategories.map(c => c.toLowerCase()).includes(catName.toLowerCase())) {
           const updated = [...allCustomCategories, catName];
           setSavedCustomCategories(updated);
-          window.electronAPI.settingsSet({
+          settingsApi.set({
             tenant_id: tenantId || 'global',
             key: 'custom_party_categories',
             value: JSON.stringify(updated)
@@ -1123,7 +1082,7 @@ export function PartyManager({
     if (!partyToDelete || !isOwner) return;
     setDeletePartySaving(true);
     try {
-      await window.electronAPI.dbDeleteParty(partyToDelete.party_id);
+      await partiesApi.deleteParty(partyToDelete.party_id);
       showStatus('Party deleted', 'success');
       setParties(prev => prev.filter(p => p.party_id !== partyToDelete.party_id));
       setDeletePartyModalOpen(false);
@@ -1142,7 +1101,7 @@ export function PartyManager({
       showStatus('WhatsApp alert not sent: Party phone number is missing', 'error');
       return;
     }
-    if (!window.electronAPI?.whatsappSendInvoice) {
+    if (!hasBridge('whatsappSendInvoice')) {
       showStatus('WhatsApp service not available', 'error');
       return;
     }
@@ -1164,7 +1123,7 @@ export function PartyManager({
         includeShopName: ledgerWhatsappIncludeShop,
       });
 
-      const res = await window.electronAPI.whatsappSendInvoice({
+      const res = await whatsappApi.sendInvoice({
         phone,
         message: waMsg,
       });
@@ -1212,8 +1171,8 @@ export function PartyManager({
       const endTag = ledgerEndDate || 'Current';
       const defaultFilename = `Statement_${pClean}_${startTag}_to_${endTag}.pdf`;
 
-      if (window.electronAPI?.exportA4Pdf) {
-        const res = await window.electronAPI.exportA4Pdf(
+      if (hasBridge('exportA4Pdf')) {
+        const res = await printingApi.exportA4Pdf(
           tenantId || 'global',
           htmlContent,
           defaultFilename,
@@ -1294,8 +1253,8 @@ export function PartyManager({
         lastDate: statementData.periodLabel,
       });
 
-      if (window.electronAPI?.whatsappSendInvoice) {
-        const res = await window.electronAPI.whatsappSendInvoice({
+      if (hasBridge('whatsappSendInvoice')) {
+        const res = await whatsappApi.sendInvoice({
           phone,
           message: summaryMsg,
           htmlContent,
@@ -1338,7 +1297,7 @@ export function PartyManager({
     setIsSavingTx(true);
     try {
       if (editingTx) {
-        await window.electronAPI.dbUpdatePartyLedgerEntry({
+        await partiesApi.updatePartyLedgerEntry({
           ledger_id: editingTx.ledger_id,
           party_id: selectedParty.party_id,
           amount: parsedAmount,
@@ -1351,7 +1310,7 @@ export function PartyManager({
         });
         showStatus('Transaction updated', 'success');
       } else {
-        await window.electronAPI.dbAddPartyLedgerEntry({
+        await partiesApi.addPartyLedgerEntry({
           ledger_id: uuidv4(),
           party_id: selectedParty.party_id,
           tenant_id: tenantId,
@@ -1368,7 +1327,7 @@ export function PartyManager({
 
         if (txForm.payment_method === 'CASH') {
           const cashType = txForm.transaction_type === 'CREDIT' ? 'CASH_OUT' : 'CASH_IN';
-          await window.electronAPI.dbCashierAddTransaction({
+          await cashierApi.addTransaction({
             tenant_id: tenantId!,
             type: cashType,
             amount: parsedAmount,
@@ -1406,8 +1365,8 @@ export function PartyManager({
                 includeShopName: ledgerWhatsappIncludeShop,
               });
 
-              if (window.electronAPI?.whatsappSendInvoice) {
-                const waRes = await window.electronAPI.whatsappSendInvoice({
+              if (hasBridge('whatsappSendInvoice')) {
+                const waRes = await whatsappApi.sendInvoice({
                   phone: partyPhone,
                   message: waMsg,
                 });
@@ -1451,7 +1410,7 @@ export function PartyManager({
     setDeleteTxSaving(true);
     try {
       setLedger(prev => prev.filter(e => e.ledger_id !== txToDelete.ledger_id));
-      await window.electronAPI.dbDeletePartyLedgerEntry(txToDelete.ledger_id, selectedParty.party_id);
+      await partiesApi.deletePartyLedgerEntry(txToDelete.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
       setDeleteTxModalOpen(false);
       setTxToDelete(null);

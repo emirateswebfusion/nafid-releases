@@ -1,13 +1,10 @@
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { invoicesApi } from '../data/invoices';
+import { settingsApi } from '../data/settings';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import {
-    ShoppingCart, Banknote, Package, Tags, BarChart3, FileText, Receipt,
-    ShieldCheck, Shield, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes,
-    TrendingUp, Settings, LogOut, Sun, Moon, Landmark, LayoutGrid, Grid3x3,
-    Bot, Globe, Megaphone, SlidersHorizontal, GripVertical, ChevronLeft, ChevronRight,
-    RotateCcw, Check, Layers, BookOpen, ClipboardList, RefreshCcw, UserCog, Archive, ArrowRight
-} from 'lucide-react';
+import { ShoppingCart, Banknote, Package, Tags, BarChart3, Receipt, ShieldCheck, Shield, Undo2, Wallet, UserCheck, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, Landmark, LayoutGrid, Grid3x3, Bot, Globe, Megaphone, SlidersHorizontal, GripVertical, ChevronLeft, ChevronRight, RotateCcw, Check, Layers, BookOpen, ClipboardList, RefreshCcw, UserCog, Archive, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import { useFeatureFlagsStore, cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../featureFlags';
 import { hasPermission, isAdminRole, formatRoleName } from '../utils/permissions';
@@ -58,7 +55,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [invoiceCount, setInvoiceCount] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
     const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | 'NONE' | null>(null);
-    const [syncMode, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
+    const [, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
     const [enableScrap, setEnableScrap] = useState(false);
     const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
     const [gridMode, setGridMode] = useState<'2COL' | '3COL'>('2COL');
@@ -73,8 +70,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         loadCardOrder,
         setCardOrder,
         isEditMode,
-        setIsEditMode,
-        resetToDefault
+        setIsEditMode
     } = useDashboardCardsStore();
 
     useEffect(() => {
@@ -82,8 +78,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     }, [tenantId, userId, role, loadCardOrder]);
 
     useEffect(() => {
-        if (!window.electronAPI || !tenantId) return;
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'network_sync_config' }).then((cfg: any) => {
+        if (!isDesktopRuntime() || !tenantId) return;
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'network_sync_config' }).then((cfg: any) => {
             if (cfg && cfg.syncMode) setSyncMode(cfg.syncMode);
         }).catch(() => {});
     }, [tenantId]);
@@ -99,13 +95,13 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     }, []);
 
     useEffect(() => {
-        if (!window.electronAPI || !tenantId) return;
+        if (!isDesktopRuntime() || !tenantId) return;
         loadFlags(tenantId);
     }, [tenantId, loadFlags]);
 
     const loadStats = useCallback(async () => {
-        if (!window.electronAPI?.dbGetDashboardStats || !tenantId) return;
-        const result = await window.electronAPI.dbGetDashboardStats(tenantId);
+        if (!hasBridge('dbGetDashboardStats') || !tenantId) return;
+        const result = await invoicesApi.getDashboardStats(tenantId);
         if (result.success) {
             setTotalSales(result.totalSales ?? 0);
             setInvoiceCount(result.invoiceCount ?? 0);
@@ -117,17 +113,17 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     }, [loadStats]);
 
     useEffect(() => {
-        if (!window.electronAPI) return;
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+        if (!isDesktopRuntime()) return;
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
             if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
         });
     }, [tenantId]);
 
     useEffect(() => {
-        if (!window.electronAPI) return;
+        if (!isDesktopRuntime()) return;
 
-        if (window.electronAPI.onSyncCycleComplete) {
-            window.electronAPI.onSyncCycleComplete(() => {
+        if (hasBridge('onSyncCycleComplete')) {
+            bridgeEvents.onSyncCycleComplete(() => {
                 const t = Date.now();
                 setLastSyncTime(t);
                 setDisplayTime('just now');
@@ -135,8 +131,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             });
         }
 
-        if (window.electronAPI.onSyncDataUpdated) {
-            window.electronAPI.onSyncDataUpdated(() => {
+        if (hasBridge('onSyncDataUpdated')) {
+            bridgeEvents.onSyncDataUpdated(() => {
                 loadStats();
             });
         }
@@ -149,8 +145,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     }, [setLastSyncTime, loadStats]);
 
     useEffect(() => {
-        if (window.electronAPI?.onOnlineStatus) {
-            window.electronAPI.onOnlineStatus((online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => {
+        if (hasBridge('onOnlineStatus')) {
+            bridgeEvents.onOnlineStatus((online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => {
                 setIsOnline(online);
                 if (route) setActiveRoute(route);
             });

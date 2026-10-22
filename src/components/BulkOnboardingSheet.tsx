@@ -8,6 +8,10 @@ import { RedCrossButton } from './ui/RedCrossButton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
+import { isDesktopRuntime } from '../data/client';
+import { gradesApi } from '../data/grades';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
 
 interface RowData {
   id: string;
@@ -61,9 +65,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   }, []);
 
   const loadGrades = async () => {
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const data = await window.electronAPI.dbGetGrades(tenantId || 'global');
+        const data = await gradesApi.getGrades(tenantId || 'global');
         if (Array.isArray(data)) {
           setGrades(data);
           const uniqueCats = Array.from(new Set(data.map(g => g.category)));
@@ -76,9 +80,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   const loadPendingPrintCount = async () => {
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const pending = await window.electronAPI.dbGetPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, dateEnd: printDateEnd || undefined, only_pending: printOnlyPending });
+        const pending = await productsApi.getPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, dateEnd: printDateEnd || undefined, only_pending: printOnlyPending });
         setPendingPrintCount(pending.length);
         setPrintLimit(pending.length);
       } catch (err) {
@@ -311,9 +315,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
   const getNextBarcode = async () => {
     let nextBarcode = '1';
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const lastProduct = await window.electronAPI.dbGetProducts({
+        const lastProduct = await productsApi.getProducts({
           tenant_id: tenantId,
           limit: 1,
           sortBy: 'created_at'
@@ -407,9 +411,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       });
     }
 
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const res = await window.electronAPI.dbBulkImportProducts(productsToInsert);
+        const res = await productsApi.bulkImportProducts(productsToInsert);
         if (res.success) {
           setMessage({ type: 'success', text: `Successfully imported ${productsToInsert.length} products.` });
           setRows([createEmptyRow()]);
@@ -433,10 +437,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   const confirmResetPending = async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setResetPrintSaving(true);
     try {
-      const res = await window.electronAPI.dbResetPrintStatus(tenantId || 'global');
+      const res = await productsApi.resetPrintStatus(tenantId || 'global');
       if (res.success) {
         setPrintStatusMsg({ type: 'success', text: 'All pending items marked as printed.' });
         loadPendingPrintCount();
@@ -453,7 +457,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   const handleBulkPrint = async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     if (printLimit <= 0) {
        setPrintStatusMsg({ type: 'error', text: 'Please specify a valid number of products to print.' });
        return;
@@ -463,7 +467,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setPrintStatusMsg({ type: 'info', text: 'Preparing print job...' });
 
     try {
-      const pendingProducts = await window.electronAPI.dbGetPendingPrintProducts({
+      const pendingProducts = await productsApi.getPendingPrintProducts({
         tenant_id: tenantId || 'global',
         limit: printLimit,
         date: printDate || undefined,
@@ -513,14 +517,14 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         };
       });
 
-      const printRes = await window.electronAPI.printBulkBarcodes(tenantId || 'global', printItems);
+      const printRes = await printingApi.printBulkBarcodes(tenantId || 'global', printItems);
       const printedBarcodes = (printRes as any).printed as string[] | undefined;
 
       if (printRes.success) {
         const ids = printedBarcodes
           ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
           : pendingProducts.map(p => p.product_id);
-        const updateRes = await window.electronAPI.dbUpdatePrintStatus(ids);
+        const updateRes = await productsApi.updatePrintStatus(ids);
         if (updateRes.success) {
           setPrintStatusMsg({ type: 'success', text: `Successfully sent labels for ${ids.length} products to printer.` });
           loadPendingPrintCount();
@@ -532,7 +536,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
           ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
           : [];
         if (printedIds.length > 0) {
-          const updateRes = await window.electronAPI.dbUpdatePrintStatus(printedIds);
+          const updateRes = await productsApi.updatePrintStatus(printedIds);
           setPrintStatusMsg({ type: 'error', text: updateRes.success
             ? `Print stopped: ${printRes.error}. ${printedIds.length} products marked printed; remaining stay pending — fix printer and print again.`
             : `Print stopped: ${printRes.error}. Also failed to update status: ${updateRes.error}` });

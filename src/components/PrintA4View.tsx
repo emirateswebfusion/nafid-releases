@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { printingApi } from '../data/printing';
 
 function sanitizeHtml(html: string): string {
   // Strip script blocks
@@ -22,8 +24,8 @@ export function PrintA4View() {
     document.body.style.backgroundColor = '#ffffff';
     document.body.style.color = '#000000';
 
-    if (window.electronAPI && window.electronAPI.getA4Html) {
-      window.electronAPI.getA4Html().then((html: string) => {
+    if (isDesktopRuntime() && hasBridge('getA4Html')) {
+      printingApi.getA4Html().then((html: string) => {
         if (html) setHtmlContent(html);
       });
     }
@@ -32,8 +34,8 @@ export function PrintA4View() {
   useEffect(() => {
     if (!htmlContent) return;
     const timer = setTimeout(() => {
-      if (window.electronAPI && window.electronAPI.printReady) {
-        window.electronAPI.printReady();
+      if (isDesktopRuntime() && hasBridge('printReady')) {
+        printingApi.printReady();
       }
     }, 200);
     return () => clearTimeout(timer);

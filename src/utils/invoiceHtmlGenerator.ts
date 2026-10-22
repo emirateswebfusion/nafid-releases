@@ -212,7 +212,7 @@ export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'boxe
   return generateStandardHtml(data, title);
 }
 
-export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
+function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
   const isB2B = data.isB2B === true;
   const isGstBill = data.invoiceType === 'GST' || isB2B;
   const bs = getEffectiveBillSettings(data.billSettings, isGstBill);

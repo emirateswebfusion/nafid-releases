@@ -1,15 +1,7 @@
 import React from 'react';
-import {
-  Link, CheckCircle2, X, Search, Loader2, UserPlus,
-  Activity, TrendingUp, TrendingDown, AlertTriangle, Tag, Layers,
-  BookOpen, PlusCircle, MinusCircle, Phone, Pencil, Trash,
-  ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Table,
-  Clock, CreditCard, Calendar
-} from 'lucide-react';
+import { Link, CheckCircle2, X, Search, Loader2, UserPlus, Activity, TrendingUp, TrendingDown, AlertTriangle, Tag, BookOpen, Phone, Pencil, Trash, ChevronRight, LayoutList, Table, Clock, CreditCard, Calendar } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
-import { Select } from '../../ui/Select';
-import { RedCrossButton } from '../../ui/RedCrossButton';
 import { formatDate, getInitials, nameToHue } from '../partyHelpers';
 
 export interface PartyListViewProps {
@@ -573,7 +565,6 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                   const balance = getPartyBalance(party);
                   const isReceivable = balance > 0;
                   const isPayable = balance < 0;
-                  const _isSettled = balance === 0;
                   return (
                     <div
                       key={party.party_id}

@@ -1,12 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { 
-  Users, UserPlus, Mail, Shield, Save, Loader2, Trash, X, 
-  Search, SlidersHorizontal, User, CheckCircle2, Check,
-  AlertCircle, Edit, KeyRound, Landmark, Lock, Eye, EyeOff, DollarSign,
-  FileText, RefreshCw, Calendar, BookOpen, Banknote, Clock, ArrowUpRight,
-  ArrowDownLeft, History, Plus, Phone, Award, UserCheck, UserX, CreditCard, ChevronRight, Upload
-} from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Save, Loader2, X, Search, SlidersHorizontal, User, CheckCircle2, Check, AlertCircle, Edit, KeyRound, Lock, Eye, EyeOff, DollarSign, Calendar, BookOpen, Plus, Phone, Award, UserCheck, UserX, CreditCard, Upload } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -19,6 +13,12 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { PermissionSelector } from './PermissionSelector';
 import { useFeatureFlagsStore } from '../featureFlags';
+import { authApi } from '../data/auth';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
+import { staffApi } from '../data/staff';
+import { whatsappApi } from '../data/whatsapp';
+import { formatCurrency } from '../utils/money';
 
 interface StaffMember {
   staff_id: string;
@@ -51,14 +51,6 @@ interface SavedSystemAccount {
 // Cloud API URL — set VITE_CLOUD_API in .env
 const CLOUD_API = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
-function formatCurrency(amount: number | null | undefined): string {
-  if (amount == null || Number.isNaN(amount)) return '₹0.00';
-  const isNegative = amount < 0;
-  const absAmount = Math.abs(amount);
-  const formatted = absAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return isNegative ? `-₹${formatted}` : `₹${formatted}`;
-}
-
 export function StaffManager({ onClose }: { onClose: () => void }) {
   useCloseOnEscape(onClose);
   const { token, tenantId, userId } = useAuthStore();
@@ -79,8 +71,6 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTxnModal, setShowTxnModal] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [showAccountModal, setShowAccountModal] = useState(false);
 
   // Form states
   const [saving, setSaving] = useState(false);
@@ -114,14 +104,6 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
     notes: '',
   });
 
-  // Account linking form
-  const [accountData, setAccountData] = useState({
-    email: '',
-    password: '',
-    role: 'STAFF' as 'ADMIN' | 'STAFF',
-    permissions: [] as string[],
-  });
-
   // Detail Data for Selected Staff
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
@@ -144,8 +126,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
     if (!tenantId) return;
     setLoading(true);
     try {
-      if (window.electronAPI?.dbGetStaff) {
-        const rows = await window.electronAPI.dbGetStaff({ tenant_id: tenantId, search: searchQuery, status: statusFilter });
+      if (hasBridge('dbGetStaff')) {
+        const rows = await staffApi.getStaff({ tenant_id: tenantId, search: searchQuery, status: statusFilter });
         const list = Array.isArray(rows) ? rows : [];
         setStaffList(list);
         if (!selectedStaffId && list.length > 0) {
@@ -192,12 +174,12 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
   const loadStaffDetails = useCallback(async () => {
     if (!selectedStaffId || !tenantId) return;
     try {
-      if (window.electronAPI?.dbGetStaffLedger) {
-        const ledger = await window.electronAPI.dbGetStaffLedger({ tenant_id: tenantId, staff_id: selectedStaffId });
+      if (hasBridge('dbGetStaffLedger')) {
+        const ledger = await staffApi.getStaffLedger({ tenant_id: tenantId, staff_id: selectedStaffId });
         setLedgerEntries(Array.isArray(ledger) ? ledger : []);
       }
-      if (window.electronAPI?.dbGetStaffAttendance) {
-        const att = await window.electronAPI.dbGetStaffAttendance({ tenant_id: tenantId, staff_id: selectedStaffId, month: selectedMonth });
+      if (hasBridge('dbGetStaffAttendance')) {
+        const att = await staffApi.getStaffAttendance({ tenant_id: tenantId, staff_id: selectedStaffId, month: selectedMonth });
         setAttendanceRecords(Array.isArray(att) ? att : []);
       }
     } catch (err) {
@@ -378,8 +360,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
     let profileSaved = false;
     let savedStaff: any;
     try {
-      if (window.electronAPI?.dbSaveStaff) {
-        savedStaff = await window.electronAPI.dbSaveStaff({
+      if (hasBridge('dbSaveStaff')) {
+        savedStaff = await staffApi.saveStaff({
           staff_id: formData.staff_id || undefined,
           tenant_id: tenantId,
           name: formData.name.trim(),
@@ -440,8 +422,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
             user_id: accountUserId,
             biller_pin: formData.biller_pin.trim() || undefined,
           };
-          if (window.electronAPI?.dbSaveStaff) {
-            await window.electronAPI.dbSaveStaff(linkedStaff);
+          if (hasBridge('dbSaveStaff')) {
+            await staffApi.saveStaff(linkedStaff);
           } else {
             const linkResponse = await fetch(`${CLOUD_API}/api/staff`, {
               method: 'POST',
@@ -453,8 +435,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
           }
         }
 
-        if (window.electronAPI?.authSaveLocalUser && accountUserId) {
-          await window.electronAPI.authSaveLocalUser({
+        if (hasBridge('authSaveLocalUser') && accountUserId) {
+          await authApi.saveLocalUser({
             user_id: accountUserId,
             tenant_id: tenantId,
             name: formData.name.trim(),
@@ -500,14 +482,14 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
       setStatusMessage({ text: 'Staff member does not have a phone number saved', type: 'error' });
       return;
     }
-    if (!window.electronAPI?.whatsappSendInvoice) {
+    if (!hasBridge('whatsappSendInvoice')) {
       setStatusMessage({ text: 'WhatsApp service not available', type: 'error' });
       return;
     }
 
     setIsSendingWhatsApp(true);
     try {
-      const shopNameVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' });
+      const shopNameVal = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_name' });
       const storeName = shopNameVal || 'My Shop';
 
       const waMsg = formatWhatsAppStaffSalaryMessage({
@@ -518,7 +500,7 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
         currentBalance: selectedStaff.current_balance,
       });
 
-      const res = await window.electronAPI.whatsappSendInvoice({
+      const res = await whatsappApi.sendInvoice({
         phone,
         message: waMsg,
       });
@@ -539,8 +521,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
   const handleToggleStatus = async (staffMember: StaffMember) => {
     const newStatus = staffMember.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     try {
-      if (window.electronAPI?.dbSaveStaff) {
-        await window.electronAPI.dbSaveStaff({
+      if (hasBridge('dbSaveStaff')) {
+        await staffApi.saveStaff({
           staff_id: staffMember.staff_id,
           tenant_id: tenantId!,
           name: staffMember.name,
@@ -570,8 +552,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
       status: selectedStaff.status,
     };
     try {
-      if (window.electronAPI?.dbSaveStaff) {
-        await window.electronAPI.dbSaveStaff(payload);
+      if (hasBridge('dbSaveStaff')) {
+        await staffApi.saveStaff(payload);
       } else {
         const response = await fetch(`${CLOUD_API}/api/staff`, {
           method: 'POST',
@@ -598,8 +580,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
     }
     setSaving(true);
     try {
-      if (window.electronAPI?.dbAddStaffTransaction) {
-        const res = await window.electronAPI.dbAddStaffTransaction({
+      if (hasBridge('dbAddStaffTransaction')) {
+        const res = await staffApi.addStaffTransaction({
           tenant_id: tenantId,
           staff_id: selectedStaffId,
           type: txnData.type,
@@ -629,8 +611,8 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
   const handleMarkAttendance = async (staffId: string, date: string, status: 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LEAVE' | 'HOLIDAY') => {
     if (!tenantId) return;
     try {
-      if (window.electronAPI?.dbSaveStaffAttendance) {
-        await window.electronAPI.dbSaveStaffAttendance({
+      if (hasBridge('dbSaveStaffAttendance')) {
+        await staffApi.saveStaffAttendance({
           tenant_id: tenantId,
           staff_id: staffId,
           date,

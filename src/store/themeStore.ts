@@ -1,18 +1,20 @@
 import { create } from 'zustand';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 
-export const FONT_SCALE_KEY = 'vendora-font-scale';
-export const PRIMARY_COLOR_KEY = 'vendora-primary-color';
-export const FONT_FAMILY_KEY = 'vendora-font-family';
-export const LIGHT_THEME_BASE_KEY = 'vendora-light-theme-base';
-export const DARK_THEME_BASE_KEY = 'vendora-dark-theme-base';
+const FONT_SCALE_KEY = 'vendora-font-scale';
+const PRIMARY_COLOR_KEY = 'vendora-primary-color';
+const FONT_FAMILY_KEY = 'vendora-font-family';
+const LIGHT_THEME_BASE_KEY = 'vendora-light-theme-base';
+const DARK_THEME_BASE_KEY = 'vendora-dark-theme-base';
 
-export const MIN_FONT_SCALE = 70;
-export const MAX_FONT_SCALE = 140;
+const MIN_FONT_SCALE = 70;
+const MAX_FONT_SCALE = 140;
 export const DEFAULT_FONT_SCALE = 100;
 export const DEFAULT_PRIMARY_COLOR = '#2563eb';
 export const DEFAULT_FONT_FAMILY = 'Plus Jakarta Sans';
-export const DEFAULT_LIGHT_THEME_BASE = 'neutral-zinc';
-export const DEFAULT_DARK_THEME_BASE = 'charcoal-zinc';
+const DEFAULT_LIGHT_THEME_BASE = 'neutral-zinc';
+const DEFAULT_DARK_THEME_BASE = 'charcoal-zinc';
 
 export interface ColorPreset {
   id: string;
@@ -244,7 +246,7 @@ export const FONT_PRESETS: FontPreset[] = [
   },
 ];
 
-export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const clean = hex.replace('#', '').trim();
   if (clean.length === 3) {
     return {
@@ -271,7 +273,7 @@ export function getForegroundForColor(hex: string): string {
   return yiq >= 165 ? '#0f172a' : '#ffffff';
 }
 
-export function createCustomSurfaceTheme(bgHex: string, isDark: boolean): SurfaceThemePreset {
+function createCustomSurfaceTheme(bgHex: string, isDark: boolean): SurfaceThemePreset {
   const cleanBg = bgHex.startsWith('#') ? bgHex : `#${bgHex}`;
   const rgb = hexToRgb(cleanBg) || (isDark ? { r: 10, g: 10, b: 10 } : { r: 244, g: 244, b: 245 });
 
@@ -323,7 +325,7 @@ export function createCustomSurfaceTheme(bgHex: string, isDark: boolean): Surfac
   }
 }
 
-export function resolveSurfacePreset(idOrHex: string, isDark: boolean): SurfaceThemePreset {
+function resolveSurfacePreset(idOrHex: string, isDark: boolean): SurfaceThemePreset {
   const presets = isDark ? DARK_THEME_PRESETS : LIGHT_THEME_PRESETS;
   const found = presets.find(p => p.id === idOrHex || p.bg.toLowerCase() === idOrHex.toLowerCase());
   if (found) return found;
@@ -333,7 +335,7 @@ export function resolveSurfacePreset(idOrHex: string, isDark: boolean): SurfaceT
   return presets[0];
 }
 
-export function applyThemeBases(lightIdOrHex: string, darkIdOrHex: string) {
+function applyThemeBases(lightIdOrHex: string, darkIdOrHex: string) {
   if (typeof document === 'undefined') return;
   const light = resolveSurfacePreset(lightIdOrHex, false);
   const dark = resolveSurfacePreset(darkIdOrHex, true);
@@ -405,13 +407,13 @@ export function applyThemeBases(lightIdOrHex: string, darkIdOrHex: string) {
   document.documentElement.style.setProperty('--muted', active.muted);
 }
 
-export function applyFontScale(scale: number) {
+function applyFontScale(scale: number) {
   if (typeof document === 'undefined') return;
   const factor = scale / 100;
   document.documentElement.style.setProperty('--font-scale', factor.toString());
 }
 
-export function applyPrimaryColor(colorHex: string) {
+function applyPrimaryColor(colorHex: string) {
   if (typeof document === 'undefined') return;
   const cleanHex = colorHex.startsWith('#') ? colorHex : `#${colorHex}`;
   const root = document.documentElement;
@@ -430,7 +432,7 @@ export function applyPrimaryColor(colorHex: string) {
   }
 }
 
-export function applyFontFamily(fontIdOrCss: string) {
+function applyFontFamily(fontIdOrCss: string) {
   if (typeof document === 'undefined') return;
   const preset = FONT_PRESETS.find(f => f.id === fontIdOrCss || f.name === fontIdOrCss);
   const cssValue = preset ? preset.cssValue : fontIdOrCss;
@@ -525,8 +527,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   setTheme: (theme) => {
     localStorage.setItem('vendora-theme', theme);
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'vendora-theme', value: theme }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: 'vendora-theme', value: theme }).catch(() => {});
     }
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
@@ -537,8 +539,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'light' ? 'dark' : 'light';
     localStorage.setItem('vendora-theme', newTheme);
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'vendora-theme', value: newTheme }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: 'vendora-theme', value: newTheme }).catch(() => {});
     }
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(newTheme);
@@ -549,8 +551,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   setFontScale: (scale) => {
     const clamped = Math.max(MIN_FONT_SCALE, Math.min(MAX_FONT_SCALE, scale));
     localStorage.setItem(FONT_SCALE_KEY, clamped.toString());
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: FONT_SCALE_KEY, value: clamped }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: FONT_SCALE_KEY, value: clamped }).catch(() => {});
     }
     applyFontScale(clamped);
     set({ fontScale: clamped });
@@ -571,8 +573,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   setPrimaryColor: (color) => {
     const clean = color.startsWith('#') ? color : `#${color}`;
     localStorage.setItem(PRIMARY_COLOR_KEY, clean);
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: PRIMARY_COLOR_KEY, value: clean }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: PRIMARY_COLOR_KEY, value: clean }).catch(() => {});
     }
     applyPrimaryColor(clean);
     set({ primaryColor: clean });
@@ -580,8 +582,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   setFontFamily: (font) => {
     localStorage.setItem(FONT_FAMILY_KEY, font);
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: FONT_FAMILY_KEY, value: font }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: FONT_FAMILY_KEY, value: font }).catch(() => {});
     }
     applyFontFamily(font);
     set({ fontFamily: font });
@@ -590,8 +592,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   setLightThemeBase: (presetIdOrHex) => {
     const val = presetIdOrHex.trim();
     localStorage.setItem(LIGHT_THEME_BASE_KEY, val);
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: LIGHT_THEME_BASE_KEY, value: val }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: LIGHT_THEME_BASE_KEY, value: val }).catch(() => {});
     }
     applyThemeBases(val, get().darkThemeBase);
     set({ lightThemeBase: val });
@@ -600,8 +602,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   setDarkThemeBase: (presetIdOrHex) => {
     const val = presetIdOrHex.trim();
     localStorage.setItem(DARK_THEME_BASE_KEY, val);
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: DARK_THEME_BASE_KEY, value: val }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: DARK_THEME_BASE_KEY, value: val }).catch(() => {});
     }
     applyThemeBases(get().lightThemeBase, val);
     set({ darkThemeBase: val });
@@ -616,33 +618,33 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 }));
 
-export async function hydrateThemeFromDB() {
-  if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+async function hydrateThemeFromDB() {
+  if (typeof window !== 'undefined' && hasBridge('settingsGet')) {
     try {
-      const storedTheme = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'vendora-theme' });
+      const storedTheme = await settingsApi.get({ tenant_id: 'global', key: 'vendora-theme' });
       if (storedTheme === 'light' || storedTheme === 'dark') {
         useThemeStore.getState().setTheme(storedTheme);
       }
-      const storedScale = await window.electronAPI.settingsGet({ tenant_id: 'global', key: FONT_SCALE_KEY });
+      const storedScale = await settingsApi.get({ tenant_id: 'global', key: FONT_SCALE_KEY });
       if (storedScale !== null && storedScale !== undefined) {
         const val = Number(storedScale);
         if (!isNaN(val) && val >= MIN_FONT_SCALE && val <= MAX_FONT_SCALE) {
           useThemeStore.getState().setFontScale(val);
         }
       }
-      const storedColor = await window.electronAPI.settingsGet({ tenant_id: 'global', key: PRIMARY_COLOR_KEY });
+      const storedColor = await settingsApi.get({ tenant_id: 'global', key: PRIMARY_COLOR_KEY });
       if (storedColor && typeof storedColor === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(storedColor.trim())) {
         useThemeStore.getState().setPrimaryColor(storedColor.trim());
       }
-      const storedFont = await window.electronAPI.settingsGet({ tenant_id: 'global', key: FONT_FAMILY_KEY });
+      const storedFont = await settingsApi.get({ tenant_id: 'global', key: FONT_FAMILY_KEY });
       if (storedFont && typeof storedFont === 'string' && storedFont.trim()) {
         useThemeStore.getState().setFontFamily(storedFont.trim());
       }
-      const storedLightBase = await window.electronAPI.settingsGet({ tenant_id: 'global', key: LIGHT_THEME_BASE_KEY });
+      const storedLightBase = await settingsApi.get({ tenant_id: 'global', key: LIGHT_THEME_BASE_KEY });
       if (storedLightBase && typeof storedLightBase === 'string' && storedLightBase.trim()) {
         useThemeStore.getState().setLightThemeBase(storedLightBase.trim());
       }
-      const storedDarkBase = await window.electronAPI.settingsGet({ tenant_id: 'global', key: DARK_THEME_BASE_KEY });
+      const storedDarkBase = await settingsApi.get({ tenant_id: 'global', key: DARK_THEME_BASE_KEY });
       if (storedDarkBase && typeof storedDarkBase === 'string' && storedDarkBase.trim()) {
         useThemeStore.getState().setDarkThemeBase(storedDarkBase.trim());
       }

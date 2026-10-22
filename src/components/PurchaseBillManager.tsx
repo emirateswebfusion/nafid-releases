@@ -18,6 +18,14 @@ import { DateRangeFilter } from './ui/DateRangeFilter';
 import { parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { cleanSearchText, sortProductsBySearchPriority } from '../utils/productSort';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { gradesApi } from '../data/grades';
+import { partiesApi } from '../data/parties';
+import { pricingTiersApi } from '../data/pricingTiers';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
+import { purchasesApi } from '../data/purchases';
+import { settingsApi } from '../data/settings';
 
 interface PurchaseBill {
   purchase_bill_id: string;
@@ -98,7 +106,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'GST' | 'ESTIMATE' | 'PAPER'>('ALL');
-  const [filterInvoice, setFilterInvoice] = useState<'ALL' | 'WITH' | 'WITHOUT'>('ALL');
+  const [filterInvoice] = useState<'ALL' | 'WITH' | 'WITHOUT'>('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewingBill, setViewingBill] = useState<PurchaseBill | null>(null);
@@ -230,14 +238,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   };
 
   const loadBillSummaries = async (bills: PurchaseBill[]) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     const gstBills = bills.filter(b => b.bill_type === 'GST');
     if (gstBills.length === 0) {
       const summaries: Record<string, any> = {};
       const estBills = bills.filter(b => b.bill_type === 'ESTIMATE');
       if (estBills.length > 0) {
         const estResults = await Promise.allSettled(
-          estBills.map(b => window.electronAPI!.dbGetPurchaseBillItems(b.purchase_bill_id))
+          estBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
         );
         estBills.forEach((bill, idx) => {
           const items: any[] = (estResults[idx] as any)?.value || [];
@@ -260,7 +268,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       return;
     }
     const results = await Promise.allSettled(
-      gstBills.map(b => window.electronAPI!.dbGetPurchaseBillItems(b.purchase_bill_id))
+      gstBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
     );
     const summaries: Record<string, any> = {};
     gstBills.forEach((bill, idx) => {
@@ -290,7 +298,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     const estBills = bills.filter(b => b.bill_type === 'ESTIMATE');
     if (estBills.length > 0) {
       const estResults = await Promise.allSettled(
-        estBills.map(b => window.electronAPI!.dbGetPurchaseBillItems(b.purchase_bill_id))
+        estBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
       );
       estBills.forEach((bill, idx) => {
         const items: any[] = (estResults[idx] as any)?.value || [];
@@ -313,9 +321,9 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   };
 
   const loadBills = async () => {
-    if (!window.electronAPI || !tenantId) return;
+    if (!isDesktopRuntime() || !tenantId) return;
     setLoading(true);
-    const result = await window.electronAPI.dbGetPurchaseBills({
+    const result = await purchasesApi.getPurchaseBills({
       tenant_id: tenantId,
       search: searchQuery || undefined,
       limit: 100,
@@ -330,8 +338,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   useEffect(() => { loadBills(); }, [tenantId, searchQuery]);
 
   useEffect(() => {
-    if (showAddForm && window.electronAPI && tenantId) {
-      window.electronAPI.dbGetParties(tenantId)
+    if (showAddForm && isDesktopRuntime() && tenantId) {
+      partiesApi.getParties(tenantId)
         .then(res => { if (Array.isArray(res)) setSuppliers(res.filter(party => String(party.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER')); })
         .catch(console.error);
     }
@@ -357,8 +365,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const handleViewBill = async (bill: PurchaseBill) => {
     setViewingBill(bill);
     setLoadingViewingItems(true);
-    if (window.electronAPI) {
-      const items = await window.electronAPI.dbGetPurchaseBillItems(bill.purchase_bill_id);
+    if (isDesktopRuntime()) {
+      const items = await purchasesApi.getPurchaseBillItems(bill.purchase_bill_id);
       if (Array.isArray(items)) {
         setViewingBillItems(items);
       } else {
@@ -391,8 +399,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     if (!billToDelete) return;
     setDeleteSaving(true);
     try {
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbDeletePurchaseBill(billToDelete.purchase_bill_id);
+      if (isDesktopRuntime()) {
+        const res = await purchasesApi.deletePurchaseBill(billToDelete.purchase_bill_id);
         if (res.success) {
           setBills(prev => prev.filter(b => b.purchase_bill_id !== billToDelete.purchase_bill_id));
           setStatusMessage({ text: 'Purchase bill deleted', type: 'success' });
@@ -414,8 +422,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     try {
       let items = itemsToPrint;
       if (!items || items.length === 0) {
-        if (window.electronAPI) {
-          items = await window.electronAPI.dbGetPurchaseBillItems(billToPrint.purchase_bill_id);
+        if (isDesktopRuntime()) {
+          items = await purchasesApi.getPurchaseBillItems(billToPrint.purchase_bill_id);
         }
       }
       if (!items) items = [];
@@ -425,12 +433,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       let shopPhone = '';
       let shopGstin = '';
 
-      if (window.electronAPI?.settingsGet) {
+      if (hasBridge('settingsGet')) {
         const [sName, sAddr, sPh, sGstin] = await Promise.all([
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+          settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+          settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+          settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+          settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
         ]);
         if (sName) shopName = sName;
         if (sAddr) shopAddress = sAddr;
@@ -444,8 +452,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         items
       );
 
-      if (window.electronAPI?.printA4Html) {
-        const res = await window.electronAPI.printA4Html(tenantId || 'global', htmlContent);
+      if (hasBridge('printA4Html')) {
+        const res = await printingApi.printA4Html(tenantId || 'global', htmlContent);
         if (!res?.success) {
           const pw = window.open('', '_blank');
           if (pw) {
@@ -475,9 +483,9 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     try {
       const billGstMap: Record<string, { sgst: number; cgst: number }> = {};
       const gstBills = filteredBills.filter(b => b.bill_type === 'GST');
-      if (gstBills.length > 0 && window.electronAPI) {
+      if (gstBills.length > 0 && isDesktopRuntime()) {
         const results = await Promise.all(
-          gstBills.map(b => window.electronAPI!.dbGetPurchaseBillItems(b.purchase_bill_id))
+          gstBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
         );
         gstBills.forEach((bill, idx) => {
           const items: PurchaseBillItem[] = Array.isArray(results[idx]) ? results[idx] as PurchaseBillItem[] : [];
@@ -584,11 +592,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
   const handleCreateParty = async () => {
     if (!newPartyForm.name.trim()) { setStatusMessage({ text: 'Supplier name is required', type: 'error' }); setTimeout(() => setStatusMessage(null), 3000); return; }
-    if (!window.electronAPI || !tenantId || !userId) return;
+    if (!isDesktopRuntime() || !tenantId || !userId) return;
     setIsSavingParty(true);
     try {
       const partyId = uuidv4();
-      await window.electronAPI.dbAddParty({
+      await partiesApi.addParty({
         party_id: partyId,
         tenant_id: tenantId,
         name: newPartyForm.name.trim(),
@@ -605,7 +613,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       setStatusMessage({ text: 'Party created successfully', type: 'success' });
       setTimeout(() => setStatusMessage(null), 3000);
       // Refresh suppliers and auto-select
-      const updated = await window.electronAPI.dbGetParties(tenantId);
+      const updated = await partiesApi.getParties(tenantId);
       if (Array.isArray(updated)) setSuppliers(updated.filter(party => String(party.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER'));
       setSupplierName(newPartyForm.name.trim());
       setSupplierId(partyId);
@@ -654,8 +662,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         if (ok) savedCount++;
       } else {
         // If activeRef has no items, but otherRef has items, delete the original bill
-        if (otherRef.current?.hasItems && window.electronAPI) {
-          await window.electronAPI.dbDeletePurchaseBill(editingBill.purchase_bill_id);
+        if (otherRef.current?.hasItems && isDesktopRuntime()) {
+          await purchasesApi.deletePurchaseBill(editingBill.purchase_bill_id);
         }
       }
 
@@ -1234,7 +1242,6 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           </div>
         </div>
       )}
-
 
       {/* ── Purchase Bill Detail — Centered Wide Dialog ── */}
       {viewingBill !== null && (
@@ -1864,7 +1871,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [manualRoundOff, setManualRoundOff] = useState<string>('');
   const [createdProductIds, setCreatedProductIds] = useState<string[]>([]);
   const [showCleanupModal, setShowCleanupModal] = useState(false);
-  const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null);
+  const [pendingCloseAction] = useState<(() => void) | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
@@ -1954,8 +1961,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   useEffect(() => {
     const loadRealPaperSetting = () => {
-      if (window.electronAPI?.settingsGet) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
+      if (hasBridge('settingsGet')) {
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
           if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
         }).catch(() => {});
       }
@@ -1987,9 +1994,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setNewProductPcs('');
     setShowProductCreateForm(true);
     // Populate full product details (MRP/Sale Price, Offer Price, Discounts, Stock, etc.)
-    if (window.electronAPI && tenantId) {
+    if (isDesktopRuntime() && tenantId) {
       try {
-        const product = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] });
+        const product = await productsApi.getProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] });
         const p = Array.isArray(product) ? product[0] : null;
         if (p) {
           setNewProductName(p.name ?? item.name);
@@ -2019,8 +2026,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         }
       } catch { /* non-fatal: keep bill-line values */ }
     }
-    if (window.electronAPI && tenantId) {
-      window.electronAPI.dbGetProductPricing(tenantId)
+    if (isDesktopRuntime() && tenantId) {
+      pricingTiersApi.getProductPricing(tenantId)
         .then((rows: any[]) => {
           if (Array.isArray(rows)) {
             const mine: Record<string, string> = {};
@@ -2040,8 +2047,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     try {
       const inOtherSection = (getOtherSectionItems ? getOtherSectionItems() : []).some(i => i.product_id === item.product_id);
       let hasEstimateBills = false;
-      if (window.electronAPI && tenantId) {
-        const res = await window.electronAPI.dbProductHasEstimateBills({ product_id: item.product_id, tenant_id: tenantId });
+      if (isDesktopRuntime() && tenantId) {
+        const res = await productsApi.productHasEstimateBills({ product_id: item.product_id, tenant_id: tenantId });
         hasEstimateBills = !!(res && res.success && res.hasEstimate);
       }
       setSharedEstimateMode(inOtherSection || hasEstimateBills);
@@ -2054,8 +2061,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       setInvoiceNumber(editingData.invoice_number || '');
       setPaymentType((editingData.payment_type || 'CASH') as any);
       setBillItems([]);
-      if (window.electronAPI && tenantId) {
-        window.electronAPI.dbGetPurchaseBillItems(editingData.purchase_bill_id)
+      if (isDesktopRuntime() && tenantId) {
+        purchasesApi.getPurchaseBillItems(editingData.purchase_bill_id)
           .then(items => {
             if (Array.isArray(items)) {
               const mapped = items.map((item: any) => ({
@@ -2103,8 +2110,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     } else {
       setBillItems([]);
       setManualRoundOff('');
-      if (window.electronAPI && tenantId) {
-        const getNumFn = window.electronAPI.dbPeekNextPurchaseBillNumber || window.electronAPI.dbGetNextPurchaseBillNumber;
+      if (isDesktopRuntime() && tenantId) {
+        const getNumFn = hasBridge('dbPeekNextPurchaseBillNumber') ? purchasesApi.peekNextPurchaseBillNumber : purchasesApi.getNextPurchaseBillNumber;
         getNumFn({ tenant_id: tenantId, bill_type: type })
           .then(res => {
             if (res.success && res.billNumber) {
@@ -2115,16 +2122,16 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           .catch(console.error);
       }
     }
-    if (window.electronAPI && tenantId) {
-      window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'price_coding' })
+    if (isDesktopRuntime() && tenantId) {
+      settingsApi.get({ tenant_id: tenantId, key: 'price_coding' })
         .then(res => { if (res) setPriceCoding(res); })
         .catch(console.error);
     }
   }, [tenantId, editingData, type]);
 
   useEffect(() => {
-    if (window.electronAPI && tenantId && showProductCreateForm) {
-      window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 200 })
+    if (isDesktopRuntime() && tenantId && showProductCreateForm) {
+      productsApi.getProducts({ tenant_id: tenantId, limit: 200 })
         .then((res: any[]) => {
           if (Array.isArray(res)) {
             const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
@@ -2132,12 +2139,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           }
         })
           .catch(console.error);
-      window.electronAPI.dbGetGrades(tenantId)
+      gradesApi.getGrades(tenantId)
         .then((res: any[]) => {
           if (Array.isArray(res)) setNewProductGrades(res);
         })
         .catch(console.error);
-      window.electronAPI.dbGetPricingTiers(tenantId)
+      pricingTiersApi.getPricingTiers(tenantId)
         .then((res: any[]) => {
           if (Array.isArray(res)) setPricingTiers(res);
         })
@@ -2172,7 +2179,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   useEffect(() => {
     const query = productSearch.trim();
-    if (!window.electronAPI || !tenantId || !query) {
+    if (!isDesktopRuntime() || !tenantId || !query) {
       setProducts([]);
       setHighlightedProductIndex(0);
       setIsSearchingProducts(false);
@@ -2183,7 +2190,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setIsSearchingProducts(true);
     const timer = window.setTimeout(async () => {
       try {
-        const result = await window.electronAPI!.dbGetPurchaseBillProducts({
+        const result = await purchasesApi.getPurchaseBillProducts({
           tenant_id: tenantId,
           search: query,
           limit: 500,
@@ -2363,20 +2370,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     );
   };
 
-  const handleGstApplicableChange = (val: boolean) => {
-    const oldGst = newProductIsGstApplicable;
-    setNewProductIsGstApplicable(val);
-    if (!priceCoding || type === 'ESTIMATE' || sharedEstimateMode) return;
-    const base = Number(newProductPurchasePrice) || 0;
-    if (base <= 0) return;
-    const rate = newProductTaxRate || 0;
-    const toEffective = (g: boolean) => g && rate > 0 ? Math.round(base * (1 + rate / 100) * 100) / 100 : base;
-    applyBarcodePriceCode(
-      encodePrice(toEffective(oldGst)),
-      encodePrice(toEffective(val))
-    );
-  };
-
   const handleDiscountPercentChange = (val: string) => {
     if (val === '') {
       setNewProductDiscountPercent('');
@@ -2416,9 +2409,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   };
 
   const autoGenerateBarcode = async () => {
-    if (!window.electronAPI || !tenantId) return;
+    if (!isDesktopRuntime() || !tenantId) return;
     const priceCode = getPriceCode();
-    const res = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined, strip_suffix: priceCode || undefined });
+    const res = await productsApi.generateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined, strip_suffix: priceCode || undefined });
     if (res.success && res.barcode) {
       setNewProductBarcode(res.barcode + priceCode);
     }
@@ -2456,10 +2449,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   };
 
   const handleCreateNewGrade = async () => {
-    if (!window.electronAPI || !tenantId || !newProductCategory.trim() || !newProductGradeForm.grade_name.trim()) return;
+    if (!isDesktopRuntime() || !tenantId || !newProductCategory.trim() || !newProductGradeForm.grade_name.trim()) return;
     setNewProductSavingGrade(true);
     const gradeId = uuidv4();
-    const res = await window.electronAPI.dbAddGrade({
+    const res = await gradesApi.addGrade({
       grade_id: gradeId,
       tenant_id: tenantId,
       category: newProductCategory.trim(),
@@ -2469,7 +2462,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       offer_price: Number(newProductGradeForm.offer_price) || 0,
     });
     if (res.success) {
-      const fresh = await window.electronAPI.dbGetGrades(tenantId);
+      const fresh = await gradesApi.getGrades(tenantId);
       if (Array.isArray(fresh)) setNewProductGrades(fresh);
       setNewProductGradeId(gradeId);
       if (!newProductBasePrice && newProductGradeForm.rate) setNewProductBasePrice(newProductGradeForm.rate);
@@ -2502,7 +2495,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   };
 
   const handleCreateAndAddProduct = async (retries = 3) => {
-    if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
+    if (!isDesktopRuntime() || !tenantId || !newProductName.trim()) return;
 
     // EDIT MODE — update existing product
     if (editingProductItemId) {
@@ -2517,7 +2510,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       const stockToPreserve = originalProductStock ?? 0;
       let domainAttrsObj: Record<string, any> = {};
       try {
-        const existingProduct = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [editingProductItemId] });
+        const existingProduct = await productsApi.getProductsByIds({ tenant_id: tenantId, product_ids: [editingProductItemId] });
         if (Array.isArray(existingProduct) && existingProduct[0]?.domain_attributes) {
           domainAttrsObj = typeof existingProduct[0].domain_attributes === 'string'
             ? JSON.parse(existingProduct[0].domain_attributes)
@@ -2547,7 +2540,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           delete domainAttrsObj.gst_purchase_price;
         }
       }
-      const res = await window.electronAPI.dbUpdateProduct({
+      const res = await productsApi.updateProduct({
         product_id: editingProductItemId,
         tenant_id: tenantId,
         name: newProductName.trim(),
@@ -2577,7 +2570,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           price: price === '' ? null : Number(price),
         }));
         if (tierRows.length > 0) {
-          await window.electronAPI.dbSetProductPricing({
+          await pricingTiersApi.setProductPricing({
             tenant_id: tenantId,
             product_id: editingProductItemId,
             pricing: tierRows,
@@ -2614,7 +2607,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     let finalBarcode = newProductBarcode;
     if (!finalBarcode) {
       const priceCode = getPriceCode();
-      const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined, strip_suffix: priceCode || undefined });
+      const gen = await productsApi.generateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined, strip_suffix: priceCode || undefined });
       finalBarcode = ((gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`) + priceCode;
     }
     const purchasePrice = Number(newProductPurchasePrice) || 0;
@@ -2643,7 +2636,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         }
       }
     }
-    const res = await window.electronAPI.dbAddProduct({
+    const res = await productsApi.addProduct({
       product_id: productId,
       tenant_id: tenantId,
       name: newProductName.trim(),
@@ -2676,7 +2669,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         price: price === '' ? null : Number(price),
       }));
       if (tierRows.length > 0) {
-        await window.electronAPI.dbSetProductPricing({
+        await pricingTiersApi.setProductPricing({
           tenant_id: tenantId,
           product_id: productId,
           pricing: tierRows,
@@ -2738,12 +2731,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const otherItems = getOtherSectionItems ? getOtherSectionItems() : [];
     const otherProductIds = new Set(otherItems.map(i => i.product_id));
 
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
 
       let finalBillNumber = billNumber;
-      if (!editingData && window.electronAPI && tenantId) {
+      if (!editingData && isDesktopRuntime() && tenantId) {
         try {
-          const res = await window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId, bill_type: type });
+          const res = await purchasesApi.getNextPurchaseBillNumber({ tenant_id: tenantId, bill_type: type });
           if (res && res.success && res.billNumber) {
             if (!billNumber || billNumber === peekedBillNumber || billNumber.startsWith('AUTO-')) {
               finalBillNumber = res.billNumber;
@@ -2786,8 +2779,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       };
 
       const res = editingData
-        ? await window.electronAPI.dbUpdatePurchaseBill(payload)
-        : await window.electronAPI.dbAddPurchaseBill(payload);
+        ? await purchasesApi.updatePurchaseBill(payload)
+        : await purchasesApi.addPurchaseBill(payload);
 
       if (res.success) {
         setCreatedProductIds([]);
@@ -2858,8 +2851,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       setTimeout(() => firstInputRef.current?.focus(), 50);
       // Auto-generate barcode — match billing page behavior: increment last product's barcode number.
       // Only for NEW products; editing an existing product must keep its own barcode.
-      if (!editingProductItemId && window.electronAPI && tenantId && !newProductBarcode) {
-        window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' })
+      if (!editingProductItemId && isDesktopRuntime() && tenantId && !newProductBarcode) {
+        productsApi.getProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' })
           .then((lastProduct: any[]) => {
             if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
               const lastBarcode = lastProduct[0].sku_barcode;
@@ -4034,13 +4027,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               <button
                 type="button"
                 onClick={async () => {
-                  if (window.electronAPI && createdProductIds.length > 0) {
+                  if (isDesktopRuntime() && createdProductIds.length > 0) {
                     try {
-                      if (window.electronAPI.dbBulkDeleteProducts) {
-                        await window.electronAPI.dbBulkDeleteProducts(createdProductIds);
-                      } else if (window.electronAPI.dbDeleteProduct) {
+                      if (hasBridge('dbBulkDeleteProducts')) {
+                        await productsApi.bulkDeleteProducts(createdProductIds);
+                      } else if (hasBridge('dbDeleteProduct')) {
                         for (const pid of createdProductIds) {
-                          await window.electronAPI.dbDeleteProduct(pid);
+                          await productsApi.deleteProduct(pid);
                         }
                       }
                     } catch (e) {

@@ -3,12 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { isAdminRole, hasPermission } from '../utils/permissions';
-import {
-  Search, ChevronLeft, User, UserCheck, UserPlus, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
-  ShoppingBag, GitMerge, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2,
-  Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save, Download, Printer, FileText,
-  RotateCw, Plus, SlidersHorizontal
-} from 'lucide-react';
+import { Search, User, UserCheck, UserPlus, X, Phone, MapPin, Receipt, Star, Calendar, Gift, LogOut, ShoppingBag, GitMerge, Clock, ChevronRight, CreditCard, Award, TrendingUp, ExternalLink, Eye, Building2, Trash2, AlertTriangle, Loader2, Edit3, Filter, FilterX, Tag, Save, Download, FileText, RotateCw, Plus, SlidersHorizontal } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
@@ -20,6 +15,15 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { combosApi } from '../data/combos';
+import { customersApi } from '../data/customers';
+import { invoicesApi } from '../data/invoices';
+import { partiesApi } from '../data/parties';
+import { pricingTiersApi } from '../data/pricingTiers';
+import { printingApi } from '../data/printing';
+import { settingsApi } from '../data/settings';
+import { formatCurrency } from '../utils/money';
 
 interface PricingTier {
   pricing_tier_id: string;
@@ -143,10 +147,6 @@ type InvoiceStyle = 'standard' | 'boxed' | 'modern' | 'classic' | 'half-a4';
 
 type ComboItemLine = { product_id: string; quantity: number; product_name?: string };
 type ComboOffer = { combo_id?: string; name?: string; items?: ComboItemLine[] };
-
-function formatCurrency(amount: number): string {
-  return `\u20B9${(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatDate(d: string) {
   if (!d) return '—';
@@ -357,10 +357,10 @@ export function CustomersPage({
   };
 
   const handleConfirmDeleteCustomer = async () => {
-    if (!customerToDelete || !tenantId || !window.electronAPI?.dbDeleteCustomer) return;
+    if (!customerToDelete || !tenantId || !hasBridge('dbDeleteCustomer')) return;
     setDeleteSaving(true);
     try {
-      const res = await window.electronAPI.dbDeleteCustomer({
+      const res = await customersApi.deleteCustomer({
         customer_id: customerToDelete.customer_id,
         tenant_id: tenantId,
       });
@@ -404,7 +404,7 @@ export function CustomersPage({
   };
 
   const handleConfirmAddCustomer = async () => {
-    if (!tenantId || !window.electronAPI?.dbCreateCustomer) return;
+    if (!tenantId || !hasBridge('dbCreateCustomer')) return;
     if (!addForm.name.trim()) {
       showStatus('Customer name is required', 'error');
       return;
@@ -413,7 +413,7 @@ export function CustomersPage({
     try {
       const parsedCreditLimit = Math.max(0, parseFloat(addForm.credit_limit) || 0);
       const parsedCreditPeriodDays = Math.max(1, parseInt(addForm.credit_period_days, 10) || 30);
-      const res = await window.electronAPI.dbCreateCustomer({
+      const res = await customersApi.createCustomer({
         tenant_id: tenantId,
         name: addForm.name.trim(),
         phone: addForm.phone.trim() || null,
@@ -461,7 +461,7 @@ export function CustomersPage({
   };
 
   const handleConfirmEditCustomer = async () => {
-    if (!editingCustomer || !tenantId || !window.electronAPI?.dbUpdateCustomer) return;
+    if (!editingCustomer || !tenantId || !hasBridge('dbUpdateCustomer')) return;
     if (!editForm.name.trim()) {
       showStatus('Customer name is required', 'error');
       return;
@@ -470,7 +470,7 @@ export function CustomersPage({
     try {
       const parsedCreditLimit = Math.max(0, parseFloat(editForm.credit_limit) || 0);
       const parsedCreditPeriodDays = Math.max(1, parseInt(editForm.credit_period_days, 10) || 30);
-      const res = await window.electronAPI.dbUpdateCustomer({
+      const res = await customersApi.updateCustomer({
         customer_id: editingCustomer.customer_id,
         tenant_id: tenantId,
         name: editForm.name.trim(),
@@ -511,9 +511,9 @@ export function CustomersPage({
   };
 
   const loadPricingTiers = useCallback(async () => {
-    if (!tenantId || !window.electronAPI) return;
+    if (!tenantId || !isDesktopRuntime()) return;
     try {
-      const tiers = await window.electronAPI.dbGetPricingTiers(tenantId);
+      const tiers = await pricingTiersApi.getPricingTiers(tenantId);
       setPricingTiers(Array.isArray(tiers) ? tiers : []);
     } catch {
       // silent fail
@@ -521,14 +521,14 @@ export function CustomersPage({
   }, [tenantId]);
 
   const loadCustomers = useCallback(async (isInitialLoad = false) => {
-    if (!tenantId || !window.electronAPI) return;
+    if (!tenantId || !isDesktopRuntime()) return;
     if (isInitialLoad) {
       setLoading(true);
     } else {
       setFilterLoading(true);
     }
     try {
-      const custPromise = window.electronAPI.dbGetCustomers({
+      const custPromise = customersApi.getCustomers({
         tenant_id: tenantId,
         search: debouncedSearchQuery || undefined,
         active: filterActive || undefined,
@@ -538,7 +538,7 @@ export function CustomersPage({
       });
 
       const partyPromise = (isInitialLoad || partiesRef.current.length === 0)
-        ? window.electronAPI.dbGetParties(tenantId).catch(() => [])
+        ? partiesApi.getParties(tenantId).catch(() => [])
         : Promise.resolve(null);
 
       const [custData, partyData] = await Promise.all([custPromise, partyPromise]);
@@ -567,10 +567,10 @@ export function CustomersPage({
   }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier, filterOverdue]);
 
   const handleCleanDuplicates = async () => {
-    if (!tenantId || !window.electronAPI?.dbDeduplicateCustomers) return;
+    if (!tenantId || !hasBridge('dbDeduplicateCustomers')) return;
     try {
       setCleaningDuplicates(true);
-      const res = await window.electronAPI.dbDeduplicateCustomers(tenantId);
+      const res = await customersApi.deduplicateCustomers(tenantId);
       if (res.success) {
         showStatus(`Merged ${res.merged_customers || 0} duplicate customer(s) & ${res.merged_parties || 0} duplicate ledger record(s)`, 'success');
         await loadCustomers(false);
@@ -584,8 +584,14 @@ export function CustomersPage({
     }
   };
 
+  // Initial load once; the filter effect skips its mount run so customers/parties are not fetched twice.
+  const filtersMountedRef = useRef(false);
   useEffect(() => { loadCustomers(true); }, []);
-  useEffect(() => { loadCustomers(false); setVisibleCount(50); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  useEffect(() => {
+    if (!filtersMountedRef.current) { filtersMountedRef.current = true; return; }
+    loadCustomers(false);
+    setVisibleCount(50);
+  }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
   useEffect(() => { loadPricingTiers(); }, [loadPricingTiers]);
 
   // ── Intersection Observer & Scroll for infinite scrolling ──
@@ -627,12 +633,12 @@ export function CustomersPage({
   }, [customers.length]);
 
   useEffect(() => {
-    if (!window.electronAPI) return;
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v: any) => {
+    if (!isDesktopRuntime()) return;
+    settingsApi.get({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v: any) => {
       if (v && typeof v === 'object' && v.enabled !== undefined) {
         setLoyaltyEnabled(Boolean(v.enabled));
       } else {
-        window.electronAPI!.settingsGet({ tenant_id: tenantId || 'global', key: 'feature_flags' }).then((flags: any) => {
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'feature_flags' }).then((flags: any) => {
           if (flags && typeof flags.loyalty === 'boolean') {
             setLoyaltyEnabled(flags.loyalty);
           }
@@ -659,7 +665,7 @@ export function CustomersPage({
       const targetId = lastInteractedCustomerId.current;
       if (targetId) {
         setHighlightedCustomerId(targetId);
-        const timer = setTimeout(() => setHighlightedCustomerId(null), 3000);
+        setTimeout(() => setHighlightedCustomerId(null), 3000);
       }
 
       const restore = () => {
@@ -718,16 +724,16 @@ export function CustomersPage({
     setInvoicesLoading(true);
     setLoyaltyTxsLoading(true);
 
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     try {
       const [invData, loyaltyData] = await Promise.all([
-        window.electronAPI.dbGetCustomerInvoices({
+        customersApi.getCustomerInvoices({
           customer_id: customer.customer_id,
           tenant_id: tenantId,
           phone: customer.phone,
           name: customer.name,
         }),
-        window.electronAPI.dbGetCustomerLoyaltyTransactions({ customer_id: customer.customer_id, tenant_id: tenantId }),
+        customersApi.getCustomerLoyaltyTransactions({ customer_id: customer.customer_id, tenant_id: tenantId }),
       ]);
       setInvoices(Array.isArray(invData) ? invData : []);
       setLoyaltyTxs(Array.isArray(loyaltyData) ? loyaltyData : []);
@@ -740,7 +746,7 @@ export function CustomersPage({
   };
 
   const handleAdjustPointsSubmit = async () => {
-    if (!selectedCustomer || !window.electronAPI) return;
+    if (!selectedCustomer || !isDesktopRuntime()) return;
     const pts = Number(adjustPointsValue);
     if (!pts || pts <= 0) {
       showStatus('Please enter a valid points amount', 'error');
@@ -749,7 +755,7 @@ export function CustomersPage({
     const signedPts = adjustPointsType === 'ADD' ? pts : -pts;
     setAdjustPointsLoading(true);
     try {
-      const res = await window.electronAPI.dbAdjustCustomerLoyaltyPoints({
+      const res = await customersApi.adjustCustomerLoyaltyPoints({
         customer_id: selectedCustomer.customer_id,
         tenant_id: tenantId || 'global',
         points: signedPts,
@@ -762,8 +768,8 @@ export function CustomersPage({
         setAdjustPointsValue('');
         setAdjustPointsReason('');
         const [updatedCustList, updatedTxs] = await Promise.all([
-          window.electronAPI.dbGetCustomers(tenantId),
-          window.electronAPI.dbGetCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId }),
+          customersApi.getCustomers(tenantId),
+          customersApi.getCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId }),
         ]);
         if (Array.isArray(updatedCustList)) {
           setCustomers(updatedCustList);
@@ -782,17 +788,17 @@ export function CustomersPage({
   };
 
   const handleRecalculateCustomerPoints = async () => {
-    if (!selectedCustomer || !window.electronAPI) return;
+    if (!selectedCustomer || !isDesktopRuntime()) return;
     setRecalculatingPoints(true);
     try {
-      const res = await window.electronAPI.dbRecalculateCustomerLoyaltyPoints({
+      const res = await customersApi.recalculateCustomerLoyaltyPoints({
         tenant_id: tenantId || 'global',
       });
       if (res.success) {
         showStatus(`Points recalculated successfully! (${res.updatedCount || 0} customers updated)`, 'success');
         const [updatedCustList, updatedTxs] = await Promise.all([
-          window.electronAPI.dbGetCustomers(tenantId),
-          window.electronAPI.dbGetCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId }),
+          customersApi.getCustomers(tenantId),
+          customersApi.getCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId }),
         ]);
         if (Array.isArray(updatedCustList)) {
           setCustomers(updatedCustList);
@@ -831,8 +837,8 @@ export function CustomersPage({
     setViewingInvoice(inv);
     setItemsLoading(true);
     try {
-      if (window.electronAPI?.dbGetInvoiceItems) {
-        const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+      if (hasBridge('dbGetInvoiceItems')) {
+        const items = await invoicesApi.getInvoiceItems(inv.invoice_id);
         setInvoiceItems(Array.isArray(items) ? items : []);
       } else {
         setInvoiceItems([]);
@@ -854,8 +860,8 @@ export function CustomersPage({
     try {
       let itemsToEdit = invoiceItems;
       if (!itemsToEdit || itemsToEdit.length === 0) {
-        if (window.electronAPI?.dbGetInvoiceItems) {
-          const data = await window.electronAPI.dbGetInvoiceItems(viewingInvoice.invoice_id);
+        if (hasBridge('dbGetInvoiceItems')) {
+          const data = await invoicesApi.getInvoiceItems(viewingInvoice.invoice_id);
           itemsToEdit = Array.isArray(data) ? data : [];
         }
       }
@@ -910,18 +916,18 @@ export function CustomersPage({
   const loadBillConfig = async (): Promise<BillConfig> => {
     const tId = tenantId || 'global';
     const [shopNameVal, shopAddr, shopPh, shopGstin, shopStateVal, upiVal, showQr, printFmtRaw, receiptConfig, shopEmailVal, shopWebsiteVal, combosRaw] = await Promise.all([
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_name' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_address' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_phone' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_gstin' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_state' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'upi_id' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'show_upi_qr' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'print_format' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'receipt_printer_config' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_email' }),
-      window.electronAPI.settingsGet({ tenant_id: tId, key: 'shop_website' }),
-      window.electronAPI.dbGetComboOffers({ tenant_id: tId }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_name' }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_address' }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_phone' }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_gstin' }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_state' }),
+      settingsApi.get({ tenant_id: tId, key: 'upi_id' }),
+      settingsApi.get({ tenant_id: tId, key: 'show_upi_qr' }),
+      settingsApi.get({ tenant_id: tId, key: 'print_format' }),
+      settingsApi.get({ tenant_id: tId, key: 'receipt_printer_config' }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_email' }),
+      settingsApi.get({ tenant_id: tId, key: 'shop_website' }),
+      combosApi.getComboOffers({ tenant_id: tId }),
     ]);
     const printFmt = parsePrintFormat(printFmtRaw);
     const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
@@ -933,7 +939,7 @@ export function CustomersPage({
   const buildInvoiceData = async (inv: InvoiceRecord, cfg: BillConfig) => {
     let items: InvoiceItemRow[];
     try {
-      const data = window.electronAPI?.dbGetInvoiceItems ? await window.electronAPI.dbGetInvoiceItems(inv.invoice_id) : [];
+      const data = hasBridge('dbGetInvoiceItems') ? await invoicesApi.getInvoiceItems(inv.invoice_id) : [];
       items = Array.isArray(data) ? data : [];
     } catch {
       items = [];
@@ -1241,8 +1247,8 @@ export function CustomersPage({
 </body>
 </html>`;
 
-      if (window.electronAPI?.printA4Html) {
-        const res = await window.electronAPI.printA4Html(tenantId || 'global', combinedHtml);
+      if (hasBridge('printA4Html')) {
+        const res = await printingApi.printA4Html(tenantId || 'global', combinedHtml);
         if (!res?.success && (res as any)?.useDefaultDialog) {
           const pw = window.open('', '_blank', 'width=900,height=700');
           if (pw) {

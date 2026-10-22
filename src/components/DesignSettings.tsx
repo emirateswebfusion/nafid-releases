@@ -1,23 +1,6 @@
 import { useState, useId } from 'react';
-import {
-  Palette, Type, RotateCcw, Check, Sun, Moon,
-  Sliders, Eye, Tag, CreditCard, Sparkles,
-  Barcode, CheckCircle2, Shield, Lock, Layers
-} from 'lucide-react';
-import {
-  useThemeStore,
-  COLOR_PRESETS,
-  FONT_PRESETS,
-  LIGHT_THEME_PRESETS,
-  DARK_THEME_PRESETS,
-  DEFAULT_PRIMARY_COLOR,
-  DEFAULT_FONT_FAMILY,
-  DEFAULT_FONT_SCALE,
-  getForegroundForColor,
-  type ColorPreset,
-  type FontPreset,
-  type SurfaceThemePreset
-} from '../store/themeStore';
+import { Palette, RotateCcw, Check, Sun, Moon, Eye, Tag, CreditCard, Barcode, CheckCircle2, Shield, Lock } from 'lucide-react';
+import { useThemeStore, COLOR_PRESETS, FONT_PRESETS, LIGHT_THEME_PRESETS, DARK_THEME_PRESETS, DEFAULT_PRIMARY_COLOR, getForegroundForColor, type ColorPreset, type FontPreset, type SurfaceThemePreset } from '../store/themeStore';
 import { useAuthStore } from '../store/authStore';
 import { isAdminRole } from '../utils/permissions';
 import clsx from 'clsx';

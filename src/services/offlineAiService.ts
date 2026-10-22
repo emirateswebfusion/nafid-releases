@@ -1,3 +1,13 @@
+import { cashierApi } from '../data/cashier';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { customersApi } from '../data/customers';
+import { invoicesApi } from '../data/invoices';
+import { partiesApi } from '../data/parties';
+import { productsApi } from '../data/products';
+import { purchasesApi } from '../data/purchases';
+import { returnsApi } from '../data/returns';
+import { syncApi } from '../data/sync';
+import { formatCurrency } from '../utils/money';
 /**
  * Nafid POS Offline AI Assistant — Complete Unified Intelligence Engine
  * 100% Offline-First, Zero External API Dependency, Deterministic Local Database Execution.
@@ -36,26 +46,25 @@ export interface CapabilityDefinition {
   handler: string;
 }
 
-export function formatINR(val: number | string | null | undefined): string {
-  const num = Number(val || 0);
-  return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatINR(val: number | string | null | undefined): string {
+  return formatCurrency(val);
 }
 
-export function formatQty(val: number | string | null | undefined): string {
+function formatQty(val: number | string | null | undefined): string {
   const num = Number(val || 0);
   return num.toLocaleString('en-IN', { maximumFractionDigits: 3 });
 }
 
-export function isMalayalam(text: string): boolean {
+function isMalayalam(text: string): boolean {
   return /[\u0D00-\u0D7F]/.test(text || '');
 }
 
-export const pad = (n: number) => String(n).padStart(2, '0');
+const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
  * Stage A: Input Normalization Pipeline
  */
-export function normalizeInput(text: string): string {
+function normalizeInput(text: string): string {
   if (!text) return '';
   let str = text.toLowerCase().trim();
   str = str.replace(/\s+/g, ' ');
@@ -69,7 +78,7 @@ export function normalizeInput(text: string): string {
 /**
  * Deterministic Date Range Resolver
  */
-export function resolveDateRange(
+function resolveDateRange(
   type: string,
   customFrom?: string,
   customTo?: string,
@@ -211,7 +220,7 @@ export function resolveDateRange(
 /**
  * Natural Language Date Extractor
  */
-export function extractDateFromText(text: string): { fromDate?: string; toDate?: string; specificDate?: string; label?: string } {
+function extractDateFromText(text: string): { fromDate?: string; toDate?: string; specificDate?: string; label?: string } {
   if (!text) return {};
   const lower = text.toLowerCase();
 
@@ -350,94 +359,10 @@ export interface ParsedOfflineIntent {
   clarificationRequired?: boolean;
 }
 
-export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
-  SALES_TODAY: { id: 'SALES_TODAY', domain: 'SALES', description: "Today's sales revenue, invoice count, and payment breakdown", requiredFields: ['grand_total', 'created_at'], handler: 'SALES_TODAY' },
-  SALES_PERIOD: { id: 'SALES_PERIOD', domain: 'SALES', description: 'Sales performance for a predefined time period', requiredFields: ['grand_total', 'created_at'], handler: 'SALES_PERIOD' },
-  SALES_HOURLY: { id: 'SALES_HOURLY', domain: 'SALES', description: 'Hourly sales analysis for today', requiredFields: ['grand_total', 'created_at'], handler: 'SALES_HOURLY' },
-  COMPARE_SALES: { id: 'COMPARE_SALES', domain: 'SALES', description: 'Comparative variance between two reporting periods', requiredFields: ['grand_total', 'created_at'], handler: 'COMPARE_SALES' },
-  SALES_INVOICE_COUNT: { id: 'SALES_INVOICE_COUNT', domain: 'SALES', description: 'Number of invoices generated in a period', requiredFields: ['invoice_id'], handler: 'SALES_INVOICE_COUNT' },
-  SALES_AVERAGE_TICKET: { id: 'SALES_AVERAGE_TICKET', domain: 'SALES', description: 'Average transaction ticket value', requiredFields: ['grand_total'], handler: 'SALES_AVERAGE_TICKET' },
-  SALES_AVERAGE_DAILY: { id: 'SALES_AVERAGE_DAILY', domain: 'SALES', description: 'Average daily sales revenue and bills/day', requiredFields: ['grand_total', 'created_at'], handler: 'SALES_AVERAGE_DAILY' },
-  SALES_UNIQUE_CUSTOMERS: { id: 'SALES_UNIQUE_CUSTOMERS', domain: 'SALES', description: 'Count of unique buyers in period', requiredFields: ['customer_phone', 'customer_name'], handler: 'SALES_UNIQUE_CUSTOMERS' },
-  SALES_INVOICE_EXTREMES: { id: 'SALES_INVOICE_EXTREMES', domain: 'SALES', description: 'Highest or lowest single invoice', requiredFields: ['grand_total'], handler: 'SALES_INVOICE_EXTREMES' },
-  SALES_PAYMENT_METHODS: { id: 'SALES_PAYMENT_METHODS', domain: 'SALES', description: 'Sales breakdown by tender (Cash, Card, UPI, Credit, Split)', requiredFields: ['payment_method', 'split_details', 'grand_total'], handler: 'SALES_PAYMENT_METHODS' },
-  SALES_CREDIT_OUTSTANDING: { id: 'SALES_CREDIT_OUTSTANDING', domain: 'SALES', description: 'Outstanding unpaid credit from invoices', requiredFields: ['grand_total', 'payment_method'], handler: 'SALES_CREDIT_OUTSTANDING' },
-  SALES_GROSS_NET: { id: 'SALES_GROSS_NET', domain: 'SALES', description: 'Gross sales, discounts, returns, and net sales reconciliation', requiredFields: ['grand_total', 'discount_total', 'tax_total'], handler: 'SALES_GROSS_NET' },
-  SALES_INVOICE_TYPES: { id: 'SALES_INVOICE_TYPES', domain: 'SALES', description: 'Breakdown by invoice type (GST, Bill of Supply)', requiredFields: ['invoice_type', 'grand_total'], handler: 'SALES_INVOICE_TYPES' },
-  SALES_HIGHEST_DAY: { id: 'SALES_HIGHEST_DAY', domain: 'SALES', description: 'Highest or lowest revenue day in a period', requiredFields: ['created_at', 'grand_total'], handler: 'SALES_HIGHEST_DAY' },
-  SALES_HIGHEST_MONTH: { id: 'SALES_HIGHEST_MONTH', domain: 'SALES', description: 'Highest or lowest revenue month across all time or a specific year', requiredFields: ['created_at', 'grand_total'], handler: 'SALES_HIGHEST_MONTH' },
-  SALES_DAILY_TREND: { id: 'SALES_DAILY_TREND', domain: 'SALES', description: 'Daily sales trend across calendar days', requiredFields: ['created_at', 'grand_total'], handler: 'SALES_DAILY_TREND' },
-  SALES_BILLER_STAFF: { id: 'SALES_BILLER_STAFF', domain: 'SALES', description: 'Sales aggregated by cashier/biller staff', requiredFields: ['user_id', 'biller_staff_id'], handler: 'SALES_BILLER_STAFF' },
-  SALES_CUSTOMER_LEVEL: { id: 'SALES_CUSTOMER_LEVEL', domain: 'SALES', description: 'Customer sales volume and spending rankings', requiredFields: ['customer_name', 'customer_phone', 'grand_total'], handler: 'SALES_CUSTOMER_LEVEL' },
-  SALES_CANCELLED_INVOICES: { id: 'SALES_CANCELLED_INVOICES', domain: 'SALES', description: 'Cancelled and voided invoices count and amount', requiredFields: ['is_deleted', 'invoice_type'], handler: 'SALES_CANCELLED_INVOICES' },
-  TOP_SELLING_PRODUCTS: { id: 'TOP_SELLING_PRODUCTS', domain: 'SALES', description: 'Best-selling products by quantity and revenue', requiredFields: ['product_id', 'quantity', 'total'], handler: 'TOP_SELLING_PRODUCTS' },
-  
-  // Expenses (4.1)
-  EXPENSES_SUMMARY: { id: 'EXPENSES_SUMMARY', domain: 'EXPENSES', description: 'Total operating expenses and payouts for a period', requiredFields: ['amount', 'type', 'transaction_date'], handler: 'EXPENSES_SUMMARY' },
-  EXPENSES_BY_CATEGORY: { id: 'EXPENSES_BY_CATEGORY', domain: 'EXPENSES', description: 'Expenses grouped by category with % share', requiredFields: ['category', 'amount'], handler: 'EXPENSES_BY_CATEGORY' },
-  EXPENSES_LARGEST: { id: 'EXPENSES_LARGEST', domain: 'EXPENSES', description: 'Largest recorded expense payouts in a period', requiredFields: ['amount', 'category', 'notes'], handler: 'EXPENSES_LARGEST' },
-  EXPENSES_COMPARE: { id: 'EXPENSES_COMPARE', domain: 'EXPENSES', description: 'Expense variance comparison between periods', requiredFields: ['amount', 'transaction_date'], handler: 'EXPENSES_COMPARE' },
-  EXPENSES_CASH_TODAY: { id: 'EXPENSES_CASH_TODAY', domain: 'EXPENSES', description: 'Cash paid out for expenses today from register', requiredFields: ['amount', 'type', 'transaction_date'], handler: 'EXPENSES_CASH_TODAY' },
-
-  // Inventory & Stock (4.2)
-  INVENTORY_OUT_OF_STOCK: { id: 'INVENTORY_OUT_OF_STOCK', domain: 'INVENTORY', description: 'Products with current stock <= 0', requiredFields: ['current_stock'], handler: 'INVENTORY_OUT_OF_STOCK' },
-  INVENTORY_LOW_STOCK: { id: 'INVENTORY_LOW_STOCK', domain: 'INVENTORY', description: 'Products at or below reorder level', requiredFields: ['current_stock', 'reorder_level'], handler: 'INVENTORY_LOW_STOCK' },
-  INVENTORY_TOTAL_VALUE: { id: 'INVENTORY_TOTAL_VALUE', domain: 'INVENTORY', description: 'Total inventory valuation at cost and retail', requiredFields: ['current_stock', 'purchase_price', 'base_price'], handler: 'INVENTORY_TOTAL_VALUE' },
-  INVENTORY_PRODUCT_STOCK: { id: 'INVENTORY_PRODUCT_STOCK', domain: 'INVENTORY', description: 'Real-time stock level of a specific product', requiredFields: ['name', 'current_stock'], handler: 'INVENTORY_PRODUCT_STOCK' },
-  INVENTORY_TOP_STOCK: { id: 'INVENTORY_TOP_STOCK', domain: 'INVENTORY', description: 'Products with highest stock quantities', requiredFields: ['current_stock'], handler: 'INVENTORY_TOP_STOCK' },
-  INVENTORY_NON_SELLING: { id: 'INVENTORY_NON_SELLING', domain: 'INVENTORY', description: 'Products that have not sold recently', requiredFields: ['product_id', 'created_at'], handler: 'INVENTORY_NON_SELLING' },
-  INVENTORY_BY_CATEGORY: { id: 'INVENTORY_BY_CATEGORY', domain: 'INVENTORY', description: 'Stock quantities and item counts by category', requiredFields: ['category', 'current_stock'], handler: 'INVENTORY_BY_CATEGORY' },
-
-  // Purchases & Supplier Bills (4.3)
-  PURCHASES_SUMMARY: { id: 'PURCHASES_SUMMARY', domain: 'PURCHASES', description: 'Total purchases and supplier bills for a period', requiredFields: ['total_amount', 'bill_date'], handler: 'PURCHASES_SUMMARY' },
-  PURCHASES_BY_SUPPLIER: { id: 'PURCHASES_BY_SUPPLIER', domain: 'PURCHASES', description: 'Purchases grouped by supplier name', requiredFields: ['supplier_name', 'total_amount'], handler: 'PURCHASES_BY_SUPPLIER' },
-  PURCHASES_UNPAID: { id: 'PURCHASES_UNPAID', domain: 'PURCHASES', description: 'Unpaid and credit supplier purchase bills', requiredFields: ['payment_type', 'total_amount'], handler: 'PURCHASES_UNPAID' },
-  PURCHASES_PRODUCT_HISTORY: { id: 'PURCHASES_PRODUCT_HISTORY', domain: 'PURCHASES', description: 'Purchase history and latest purchase price of a product', requiredFields: ['purchase_price', 'quantity'], handler: 'PURCHASES_PRODUCT_HISTORY' },
-  PURCHASES_COMPARE: { id: 'PURCHASES_COMPARE', domain: 'PURCHASES', description: 'Comparison between current and previous month purchases', requiredFields: ['total_amount', 'bill_date'], handler: 'PURCHASES_COMPARE' },
-
-  // Customer & Supplier Ledger (4.4)
-  CUSTOMER_CREDIT_LIST: { id: 'CUSTOMER_CREDIT_LIST', domain: 'LEDGER', description: 'Customer credit receivables summary and ranking', requiredFields: ['balance', 'party_type'], handler: 'CUSTOMER_CREDIT_LIST' },
-  SUPPLIER_PAYABLES_TOTAL: { id: 'SUPPLIER_PAYABLES_TOTAL', domain: 'LEDGER', description: 'Total payables owed to suppliers and supplier list', requiredFields: ['balance', 'party_type'], handler: 'SUPPLIER_PAYABLES_TOTAL' },
-  PARTY_BALANCE: { id: 'PARTY_BALANCE', domain: 'LEDGER', description: 'Outstanding balance of a specific customer or supplier', requiredFields: ['balance', 'name'], handler: 'PARTY_BALANCE' },
-  PARTY_LEDGER: { id: 'PARTY_LEDGER', domain: 'LEDGER', description: 'Detailed ledger statement entries for a customer/supplier', requiredFields: ['debit_amount', 'credit_amount', 'running_balance'], handler: 'PARTY_LEDGER' },
-
-  // Cash Register & Cash Drawer (4.5)
-  CASH_DRAWER_CURRENT: { id: 'CASH_DRAWER_CURRENT', domain: 'CASH_DRAWER', description: 'Current cash drawer balance, opening cash, and status', requiredFields: ['current_cash', 'opening_balance', 'status'], handler: 'CASH_DRAWER_CURRENT' },
-  CASH_DRAWER_MOVEMENTS: { id: 'CASH_DRAWER_MOVEMENTS', domain: 'CASH_DRAWER', description: "Today's cash drawer inflows, outflows, and sales", requiredFields: ['cash_sales', 'cash_in', 'cash_out'], handler: 'CASH_DRAWER_MOVEMENTS' },
-  CASH_DRAWER_EXPECTED_VS_ACTUAL: { id: 'CASH_DRAWER_EXPECTED_VS_ACTUAL', domain: 'CASH_DRAWER', description: 'Expected closing cash vs actual counted cash with variance', requiredFields: ['expected_closing', 'actual_cash'], handler: 'CASH_DRAWER_EXPECTED_VS_ACTUAL' },
-  CASH_DRAWER_SETTLEMENTS: { id: 'CASH_DRAWER_SETTLEMENTS', domain: 'CASH_DRAWER', description: 'Day settlement history and closing records', requiredFields: ['business_date', 'actual_cash'], handler: 'CASH_DRAWER_SETTLEMENTS' },
-
-  // Bills, Payments & Receivables (4.6)
-  BILLS_UNPAID: { id: 'BILLS_UNPAID', domain: 'BILLS', description: 'Unpaid and credit invoices with outstanding dues', requiredFields: ['balance_amount', 'grand_total'], handler: 'BILLS_UNPAID' },
-  BILLS_PARTIALLY_PAID: { id: 'BILLS_PARTIALLY_PAID', domain: 'BILLS', description: 'Invoices with partial payments received', requiredFields: ['received_amount', 'balance_amount'], handler: 'BILLS_PARTIALLY_PAID' },
-  BILLS_SPLIT_PAYMENTS: { id: 'BILLS_SPLIT_PAYMENTS', domain: 'BILLS', description: 'Invoices settled across multiple payment methods', requiredFields: ['payment_method', 'split_details'], handler: 'BILLS_SPLIT_PAYMENTS' },
-
-  // Sales Returns, Discounts, Loyalty (4.7)
-  RETURNS_SUMMARY: { id: 'RETURNS_SUMMARY', domain: 'RETURNS_LOYALTY', description: 'Sales returns and refund totals for a period', requiredFields: ['grand_total', 'return_date'], handler: 'RETURNS_SUMMARY' },
-  RETURNS_ITEMS: { id: 'RETURNS_ITEMS', domain: 'RETURNS_LOYALTY', description: 'Items and quantities returned by customers', requiredFields: ['name', 'quantity', 'total'], handler: 'RETURNS_ITEMS' },
-  RETURNS_BY_METHOD: { id: 'RETURNS_BY_METHOD', domain: 'RETURNS_LOYALTY', description: 'Refund amounts grouped by payment method', requiredFields: ['refund_method', 'grand_total'], handler: 'RETURNS_BY_METHOD' },
-  DISCOUNTS_SUMMARY: { id: 'DISCOUNTS_SUMMARY', domain: 'RETURNS_LOYALTY', description: 'Total discounts and high-discount invoices', requiredFields: ['discount_total'], handler: 'DISCOUNTS_SUMMARY' },
-  LOYALTY_POINTS: { id: 'LOYALTY_POINTS', domain: 'RETURNS_LOYALTY', description: 'Customer loyalty points balance, earned, and redeemed', requiredFields: ['current_points_balance'], handler: 'LOYALTY_POINTS' },
-
-  // Product Pricing (4.8)
-  PRODUCT_PRICE_LOOKUP: { id: 'PRODUCT_PRICE_LOOKUP', domain: 'PRICING', description: 'Product retail, wholesale, purchase price and GST rate', requiredFields: ['base_price', 'purchase_price'], handler: 'PRODUCT_PRICE_LOOKUP' },
-  PRODUCT_BARCODE_LOOKUP: { id: 'PRODUCT_BARCODE_LOOKUP', domain: 'PRICING', description: 'Barcode and item code product lookup', requiredFields: ['sku_barcode', 'item_code'], handler: 'PRODUCT_BARCODE_LOOKUP' },
-
-  // Diagnostics & Help (4.9)
-  DIAGNOSTIC_DEDUPLICATION_CHECK: { id: 'DIAGNOSTIC_DEDUPLICATION_CHECK', domain: 'DIAGNOSTICS', description: 'Audit of converted bills deduplication in sales reporting', requiredFields: ['converted_to_invoice_id'], handler: 'DIAGNOSTIC_DEDUPLICATION_CHECK' },
-  DIAGNOSTIC_PAYMENT_RECONCILIATION: { id: 'DIAGNOSTIC_PAYMENT_RECONCILIATION', domain: 'DIAGNOSTICS', description: 'Reconciliation of invoice totals against tender allocations', requiredFields: ['grand_total', 'split_details'], handler: 'DIAGNOSTIC_PAYMENT_RECONCILIATION' },
-  AI_CAPABILITIES_EXPLANATION: { id: 'AI_CAPABILITIES_EXPLANATION', domain: 'HELP', description: 'Deterministic offline architecture and zero cloud AI verification', requiredFields: [], handler: 'AI_CAPABILITIES_EXPLANATION' },
-  AI_HELP_REPORTS: { id: 'AI_HELP_REPORTS', domain: 'HELP', description: 'Directory of supported offline business intelligence reports', requiredFields: [], handler: 'AI_HELP_REPORTS' },
-  CLARIFICATION_REQUIRED: { id: 'CLARIFICATION_REQUIRED', domain: 'HELP', description: 'Guides user when question is ambiguous or lacks required time period', requiredFields: [], handler: 'CLARIFICATION_REQUIRED' },
-  UNSUPPORTED_REQUEST: { id: 'UNSUPPORTED_REQUEST', domain: 'HELP', description: 'Explicit transparent refusal and guidance for out-of-scope non-POS tasks', requiredFields: [], handler: 'UNSUPPORTED_REQUEST' },
-};
-
-
-
 /**
  * Offline AI Assistant Intent Parser
  */
-export class OfflineAiIntentParser {
+class OfflineAiIntentParser {
   static parse(message: string, history: any[] = []): ParsedOfflineIntent {
     const raw = message.trim();
     const text = normalizeInput(message);
@@ -1628,19 +1553,16 @@ export class OfflineAiIntentParser {
   }
 }
 
-
-
 /**
  * Offline AI Query Processor
- * Executes against local SQLite database via window.electronAPI
+ * Executes against local SQLite database via isDesktopRuntime()
  */
 export async function processOfflineAiQuery(
   queryText: string,
   tenantId: string,
   history: any[] = []
 ): Promise<OfflineAiResponse> {
-  const electronAPI = (window as any).electronAPI;
-  if (!electronAPI || !tenantId) {
+  if (!isDesktopRuntime() || !tenantId) {
     throw new Error('Local SQLite database connection is unavailable.');
   }
 
@@ -1650,7 +1572,7 @@ export async function processOfflineAiQuery(
   // Helper to fetch filtered invoices with safe fallback
   const fetchInvoices = async (fromDate: string, toDate: string): Promise<any[]> => {
     try {
-      const invs = await electronAPI.dbGetInvoices({
+      const invs = await invoicesApi.getInvoices({
         tenant_id: tenantId,
         filterDate: fromDate,
         filterDateEnd: toDate,
@@ -1664,9 +1586,9 @@ export async function processOfflineAiQuery(
 
   // Helper to get aggregated summary
   const fetchSummary = async (fromDate: string, toDate: string) => {
-    if (electronAPI.dbGetInvoicesSummary) {
+    if (hasBridge('dbGetInvoicesSummary')) {
       try {
-        const res = await electronAPI.dbGetInvoicesSummary({
+        const res = await invoicesApi.getInvoicesSummary({
           tenant_id: tenantId,
           filterDate: fromDate,
           filterDateEnd: toDate,
@@ -1692,16 +1614,16 @@ export async function processOfflineAiQuery(
   // Safe fetch helper for cash transactions
   const fetchCashTransactions = async (fromDate?: string, toDate?: string): Promise<any[]> => {
     try {
-      if (electronAPI.dbCashierGetDayTransactions) {
-        const res = await electronAPI.dbCashierGetDayTransactions({
+      if (hasBridge('dbCashierGetDayTransactions')) {
+        const res = await cashierApi.getDayTransactions({
           tenant_id: tenantId,
           from_date: fromDate,
           to_date: toDate,
         });
         if (Array.isArray(res)) return res;
       }
-      if (electronAPI.dbCashierGetTransactions) {
-        const res = await electronAPI.dbCashierGetTransactions({ tenant_id: tenantId });
+      if (hasBridge('dbCashierGetTransactions')) {
+        const res = await cashierApi.getTransactions({ tenant_id: tenantId });
         if (Array.isArray(res)) return res;
       }
       return [];
@@ -1714,8 +1636,8 @@ export async function processOfflineAiQuery(
   // Safe fetch helper for products
   const fetchProducts = async (): Promise<any[]> => {
     try {
-      if (electronAPI.dbGetProducts) {
-        const res = await electronAPI.dbGetProducts({ tenant_id: tenantId });
+      if (hasBridge('dbGetProducts')) {
+        const res = await productsApi.getProducts({ tenant_id: tenantId });
         return Array.isArray(res) ? res : [];
       }
       return [];
@@ -1728,8 +1650,8 @@ export async function processOfflineAiQuery(
   // Safe fetch helper for purchase bills
   const fetchPurchaseBills = async (search?: string): Promise<any[]> => {
     try {
-      if (electronAPI.dbGetPurchaseBills) {
-        const res = await electronAPI.dbGetPurchaseBills({ tenant_id: tenantId, search, limit: 100 });
+      if (hasBridge('dbGetPurchaseBills')) {
+        const res = await purchasesApi.getPurchaseBills({ tenant_id: tenantId, search, limit: 100 });
         return Array.isArray(res) ? res : [];
       }
       return [];
@@ -1742,8 +1664,8 @@ export async function processOfflineAiQuery(
   // Safe fetch helper for parties
   const fetchParties = async (): Promise<any[]> => {
     try {
-      if (electronAPI.dbGetParties) {
-        const res = await electronAPI.dbGetParties(tenantId);
+      if (hasBridge('dbGetParties')) {
+        const res = await partiesApi.getParties(tenantId);
         return Array.isArray(res) ? res : [];
       }
       return [];
@@ -1756,8 +1678,8 @@ export async function processOfflineAiQuery(
   // Safe fetch helper for returns
   const fetchReturns = async (): Promise<any[]> => {
     try {
-      if (electronAPI.dbGetReturns) {
-        const res = await electronAPI.dbGetReturns({ tenant_id: tenantId });
+      if (hasBridge('dbGetReturns')) {
+        const res = await returnsApi.getReturns({ tenant_id: tenantId });
         return Array.isArray(res) ? res : [];
       }
       return [];
@@ -1770,8 +1692,8 @@ export async function processOfflineAiQuery(
   // Safe fetch helper for cash drawer
   const fetchCashDrawer = async (bDate?: string): Promise<any> => {
     try {
-      if (electronAPI.dbCashierGetDrawer) {
-        const res = await electronAPI.dbCashierGetDrawer({ tenant_id: tenantId, business_date: bDate });
+      if (hasBridge('dbCashierGetDrawer')) {
+        const res = await cashierApi.getDrawer({ tenant_id: tenantId, business_date: bDate });
         return res;
       }
       return null;
@@ -1861,7 +1783,7 @@ export async function processOfflineAiQuery(
 
         const chartItems = Object.values(hourlyBuckets).filter(b => b.sales > 0 || (Number(b.hour.slice(0, 2)) >= 9 && Number(b.hour.slice(0, 2)) <= now.getHours()));
 
-        let md = isMal
+        const md = isMal
           ? `### ⏱️ മണിക്കൂർ തിരിച്ചുള്ള സെയിൽസ് (Hourly Sales)\n\n` +
             `* **കഴിഞ്ഞ 1 മണിക്കൂറിലെ വിൽപ്പന (Last 1 Hour):** **${formatINR(lastHourSales)}** (${lastHourInvs.length} ബില്ലുകൾ)\n` +
             `* **ഇന്നത്തെ ആകെ വിൽപ്പന:** **${formatINR(validInvs.reduce((acc: number, i: any) => acc + (Number(i.grand_total) || 0), 0))}**\n\n`
@@ -1983,7 +1905,7 @@ export async function processOfflineAiQuery(
           ? (isMal ? 'വളർച്ച (+ 📈)' : 'Growth (+ 📈)')
           : (isMal ? 'കുറവ് (- 📉)' : 'Decline (- 📉)');
 
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ വിൽപ്പന താരതമ്യ റിപ്പോർട്ട് (Sales Comparison)\n` +
             `**${curRange.label}**-ഉം **${prevRange.label}**-ഉം തമ്മിലുള്ള വിശകലനം:\n\n` +
             `| സൂചിക | ${curRange.label} | ${prevRange.label} | വ്യത്യാസം |\n` +
@@ -2015,7 +1937,7 @@ export async function processOfflineAiQuery(
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const summary = await fetchSummary(range.fromDate, range.toDate);
 
-        let md = isMal
+        const md = isMal
           ? `### 🧾 ബില്ലുകളുടെ എണ്ണം — ${range.label}\n\n` +
             `* **ആകെ അടിച്ച ബില്ലുകൾ (Total Invoices):** **${summary.totalInvoices} ബില്ലുകൾ**\n` +
             `* **ആകെ വിൽപ്പന തുക:** **${formatINR(summary.totalSales)}**\n` +
@@ -2032,7 +1954,7 @@ export async function processOfflineAiQuery(
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const summary = await fetchSummary(range.fromDate, range.toDate);
 
-        let md = isMal
+        const md = isMal
           ? `### 🎟️ ശരാശരി ബിൽ തുക (Average Ticket Value)\n\n` +
             `* **കാലയളവ്:** ${range.label}\n` +
             `* **ശരാശരി ബിൽ തുക (Average Ticket):** **${formatINR(summary.avgOrder)}**\n` +
@@ -2054,7 +1976,7 @@ export async function processOfflineAiQuery(
         const avgDailySales = summary.totalSales / days;
         const avgDailyBills = Math.round((summary.totalInvoices / days) * 10) / 10;
 
-        let md = isMal
+        const md = isMal
           ? `### 📅 പ്രതിദിന ശരാശരി വിൽപ്പന — ${range.label}\n\n` +
             `* **പ്രതിദിന ശരാശരി വരുമാനം:** **${formatINR(avgDailySales)}**\n` +
             `* **പ്രതിദിന ശരാശരി ബില്ലുകൾ:** **${avgDailyBills} ബില്ലുകൾ/ദിവസം**\n` +
@@ -2083,7 +2005,7 @@ export async function processOfflineAiQuery(
 
         const totalUnique = customerSet.size;
 
-        let md = isMal
+        const md = isMal
           ? `### 👥 ഉപഭോക്താക്കളുടെ എണ്ണം — ${range.label}\n\n` +
             `* **വ്യത്യസ്ത കസ്റ്റമർമാർ (Unique Customers):** **${totalUnique} പേർ**\n` +
             `* **വാക്ക്-ഇൻ ബില്ലുകൾ:** ${walkinCount} എണ്ണം\n` +
@@ -2104,7 +2026,7 @@ export async function processOfflineAiQuery(
         if (parsed.params.minAmount) {
           const threshold = parsed.params.minAmount;
           const filtered = validInvs.filter((i: any) => Number(i.grand_total) >= threshold);
-          let md = isMal
+          const md = isMal
             ? `### 🧾 ₹${threshold.toLocaleString()}-ൽ കൂടുതൽ തുകയുള്ള ബില്ലുകൾ (${range.label})\n\n` +
               `* **ആകെ എണ്ണം:** **${filtered.length} ബില്ലുകൾ**\n`
             : `### 🧾 Invoices Greater Than ₹${threshold.toLocaleString()} (${range.label})\n\n` +
@@ -2215,7 +2137,7 @@ export async function processOfflineAiQuery(
         const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
         const pm = calculatePaymentBreakdown(validInvs);
 
-        let md = isMal
+        const md = isMal
           ? `### 📒 ഇൻവോയ്സ് ക്രെഡിറ്റ് കുടിശ്ശിക\n\n` +
             `* **ആകെ ലഭിക്കാനുള്ള ക്രെഡിറ്റ് തുക:** **${formatINR(pm.credit)}**\n`
           : `### 📒 Outstanding Credit from Invoices\n\n` +
@@ -2229,7 +2151,7 @@ export async function processOfflineAiQuery(
         const summary = await fetchSummary(range.fromDate, range.toDate);
         const gross = summary.totalSales + summary.totalDiscount;
 
-        let md = isMal
+        const md = isMal
           ? `### 📊 ഗ്രോസ് vs നെറ്റ് സെയിൽസ് — ${range.label}\n\n` +
             `* **ഗ്രോസ് സെയിൽസ് (ഡിസ്കൗണ്ടിന് മുൻപ്):** **${formatINR(gross)}**\n` +
             `* **നൽകിയ ആകെ ഡിസ്കൗണ്ട്:** **${formatINR(summary.totalDiscount)}**\n` +
@@ -2506,8 +2428,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'SALES_CANCELLED_INVOICES': {
-        const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
-        let md = isMal
+        const md = isMal
           ? `### 🚫 റദ്ദാക്കിയ ബില്ലുകൾ (Cancelled Invoices)\n\n* **റദ്ദാക്കിയ ബില്ലുകളുടെ എണ്ണം:** **0 bills**\n`
           : `### 🚫 Cancelled / Voided Invoices\n\n* **Cancelled Invoices Today:** **0 bills**\n`;
         return { content: md, intent: parsed.intent };
@@ -2516,9 +2437,9 @@ export async function processOfflineAiQuery(
       case 'TOP_SELLING_PRODUCTS': {
         const range = resolveDateRange(parsed.params.rangeType || (parsed.params.customFrom ? 'custom' : 'today'), parsed.params.customFrom, parsed.params.customTo, isMal);
         let summaryList: any[] = [];
-        if (electronAPI.dbGetProductSalesSummary) {
+        if (hasBridge('dbGetProductSalesSummary')) {
           try {
-            summaryList = await electronAPI.dbGetProductSalesSummary({
+            summaryList = await productsApi.getProductSalesSummary({
               tenant_id: tenantId,
               fromDate: range.fromDate,
               toDate: range.toDate,
@@ -2591,7 +2512,7 @@ export async function processOfflineAiQuery(
         const count = expenseTxs.length;
         const avg = count > 0 ? totalExpense / count : 0;
 
-        let md = isMal
+        const md = isMal
           ? `### 💸 ചെലവ് റിപ്പോർട്ട് — ${range.label}\n\n` +
             `* **ആകെ ചെലവുകൾ (Total Expenses):** **${formatINR(totalExpense)}**\n` +
             `* **ഇടപാടുകളുടെ എണ്ണം:** **${count} എണ്ണം**\n` +
@@ -2671,7 +2592,7 @@ export async function processOfflineAiQuery(
         const prevTotal = prevTxs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
         const diff = curTotal - prevTotal;
 
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ ചെലവ് താരതമ്യ റിപ്പോർട്ട് (Month vs Last Month)\n\n` +
             `* **ഈ മാസം:** **${formatINR(curTotal)}**\n` +
             `* **കഴിഞ്ഞ മാസം:** **${formatINR(prevTotal)}**\n` +
@@ -2689,7 +2610,7 @@ export async function processOfflineAiQuery(
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
         const todayCashOut = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 💵 ഇന്ന് നൽകിയ ക്യാഷ് ചെലവുകൾ\n\n* **ഇന്നത്തെ ആകെ ക്യാഷ് ചെലവ്:** **${formatINR(todayCashOut)}**\n`
           : `### 💵 Cash Paid Out for Expenses Today\n\n* **Total Cash Paid Out Today:** **${formatINR(todayCashOut)}**\n`;
 
@@ -2754,7 +2675,7 @@ export async function processOfflineAiQuery(
           }
         });
 
-        let md = isMal
+        const md = isMal
           ? `### 📦 ആകെ ഇൻവെന്ററി മൂല്യം (Total Inventory Valuation)\n\n` +
             `* **പർച്ചേസ് കോസ്റ്റ് അടിസ്ഥാനത്തിൽ (Cost Valuation):** **${formatINR(costVal)}**\n` +
             `* **റീട്ടെയിൽ വിൽപ്പന വില അടിസ്ഥാനത്തിൽ (Retail Value):** **${formatINR(retailVal)}**\n` +
@@ -2779,7 +2700,7 @@ export async function processOfflineAiQuery(
         }
 
         const p = matched[0];
-        let md = isMal
+        const md = isMal
           ? `### 🔍 ഉൽപ്പന്ന സ്റ്റോക്ക് വിവരം: **${p.name}**\n\n` +
             `* **നിലവിലെ സ്റ്റോക്ക്:** **${p.current_stock || 0} ${p.uom || 'units'}**\n` +
             `* **റീട്ടെയിൽ വില:** ${formatINR(p.base_price)}\n` +
@@ -2829,7 +2750,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'INVENTORY_NON_SELLING': {
-        let md = isMal
+        const md = isMal
           ? `### ⏳ കഴിഞ്ഞ 30 ദിവസമായി വിൽപ്പന നടക്കാത്ത ഉൽപ്പന്നങ്ങൾ\n\n* വിറ്റഴിക്കപ്പെടാത്ത ഉൽപ്പന്നങ്ങൾ പരിശോധിച്ചു. വിശദമായ സ്ലോ-മൂവിംഗ് റിപ്പോർട്ട് ലഭ്യം.\n`
           : `### ⏳ Non-Selling & Slow Moving Products\n\n* Evaluated inventory movement over the last 30 days. Active slow-moving tracking enabled.\n`;
         return { content: md, intent: parsed.intent };
@@ -2850,7 +2771,7 @@ export async function processOfflineAiQuery(
         const count = filtered.length;
         const avg = count > 0 ? total / count : 0;
 
-        let md = isMal
+        const md = isMal
           ? `### 📦 പർച്ചേസ് സംഗ്രഹം — ${range.label}\n\n` +
             `* **ആകെ പർച്ചേസ് തുക:** **${formatINR(total)}**\n` +
             `* **പർച്ചേസ് ബില്ലുകൾ:** **${count} എണ്ണം**\n` +
@@ -2897,7 +2818,7 @@ export async function processOfflineAiQuery(
         const unpaid = bills.filter((b: any) => b.payment_type === 'CREDIT' || String(b.payment_type).toLowerCase().includes('pending'));
         const total = unpaid.reduce((a: number, b: any) => a + (Number(b.total_amount) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 📒 പണം നൽകാനുള്ള പർച്ചേസ് ബില്ലുകൾ (Unpaid Purchases)\n\n` +
             `* **ആകെ ബില്ലുകൾ:** **${unpaid.length} എണ്ണം**\n` +
             `* **നൽകാനുള്ള ആകെ തുക:** **${formatINR(total)}**\n`
@@ -2909,14 +2830,14 @@ export async function processOfflineAiQuery(
       }
 
       case 'PURCHASES_PRODUCT_HISTORY': {
-        let md = isMal
+        const md = isMal
           ? `### 🔍 ഉൽപ്പന്ന പർച്ചേസ് ചരിത്രം\n\n* ഉൽപ്പന്നത്തിന്റെ മുൻകാല പർച്ചേസ് വിവരങ്ങൾ പരിശോധിച്ചു.\n`
           : `### 🔍 Product Purchase History & Latest Price\n\n* Retrieved purchase bill items history for verified product pricing records.\n`;
         return { content: md, intent: parsed.intent };
       }
 
       case 'PURCHASES_COMPARE': {
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ പർച്ചേസ് താരതമ്യം (This Month vs Last Month)\n\n* ഈ മാസത്തെയും കഴിഞ്ഞ മാസത്തെയും പർച്ചേസ് കണക്കുകൾ ഒത്തുനോക്കി.\n`
           : `### ⚖️ Monthly Purchases Comparison\n\n* Evaluated purchase variance between current and previous month records.\n`;
         return { content: md, intent: parsed.intent };
@@ -2927,8 +2848,8 @@ export async function processOfflineAiQuery(
       // ──────────────────────────────────────────────────────────────────────
       case 'CUSTOMER_CREDIT_LIST': {
         const minAmount = parsed.params.minAmount || 0;
-        const partiesPromise = electronAPI.dbGetParties ? electronAPI.dbGetParties(tenantId).catch(() => []) : Promise.resolve([]);
-        const customersPromise = electronAPI.dbGetCustomers ? electronAPI.dbGetCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+        const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId).catch(() => []) : Promise.resolve([]);
+        const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
         const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
         const debtors: Array<{ name: string; phone: string; balance: number }> = [];
@@ -2995,7 +2916,7 @@ export async function processOfflineAiQuery(
         const suppliers = parties.filter((p: any) => p.party_type === 'SUPPLIER' || p.balance_type === 'CREDIT');
         const total = suppliers.reduce((a: number, s: any) => a + Math.abs(Number(s.balance) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 🏭 സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക (Payables)\n\n` +
             `* **ആകെ സപ്ലയർ കുടിശ്ശിക:** **${formatINR(total)}**\n` +
             `* **സപ്ലയർമാരുടെ എണ്ണം:** **${suppliers.length} accounts**\n`
@@ -3009,8 +2930,8 @@ export async function processOfflineAiQuery(
       case 'PARTY_BALANCE':
       case 'PARTY_LEDGER': {
         const queryTerm = (parsed.params.searchQuery || '').trim();
-        const partiesPromise = electronAPI.dbGetParties ? electronAPI.dbGetParties(tenantId).catch(() => []) : Promise.resolve([]);
-        const customersPromise = electronAPI.dbGetCustomers ? electronAPI.dbGetCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+        const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId).catch(() => []) : Promise.resolve([]);
+        const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
         const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
         const qLower = queryTerm.toLowerCase();
@@ -3039,9 +2960,9 @@ export async function processOfflineAiQuery(
           `* **Phone Number:** ${target.phone || 'N/A'}\n` +
           `* **Current Balance:** **${formatINR(absBal)}** (${balDesc})\n`;
 
-        if (target.party_id && electronAPI.dbGetPartyLedger) {
+        if (target.party_id && hasBridge('dbGetPartyLedger')) {
           try {
-            const entries = await electronAPI.dbGetPartyLedger(target.party_id);
+            const entries = await partiesApi.getPartyLedger(target.party_id);
             if (entries && entries.length > 0) {
               md += `\n#### Recent Transactions:\n` +
                 `| Date | Description | Debit (-) | Credit (+) | Running Balance |\n` +
@@ -3087,7 +3008,7 @@ export async function processOfflineAiQuery(
           };
         }
 
-        let md = isMal
+        const md = isMal
           ? `### 💵 ക്യാഷ് ഡ്രോയർ നില (Cash Drawer Status)\n\n` +
             `* **ഡ്രോയർ സ്റ്റാറ്റസ്:** **${drawer.status || 'OPEN'}**\n` +
             `* **ബിസിനസ്സ് തിയതി:** ${drawer.business_date || 'Today'}\n` +
@@ -3116,7 +3037,7 @@ export async function processOfflineAiQuery(
           drawer = { cash_in: cashIn, cash_out: cashOut, cash_sales: pm.cash };
         }
 
-        let md = isMal
+        const md = isMal
           ? `### 🔄 ഇന്നത്തെ ക്യാഷ് വരവ്-ചെലവുകൾ (Drawer Movements)\n\n` +
             `* **ക്യാഷ് ഇൻ (Cash In):** **${formatINR(drawer?.cash_in || 0)}**\n` +
             `* **ക്യാഷ് ഔട്ട് (Cash Out):** **${formatINR(drawer?.cash_out || 0)}**\n` +
@@ -3142,7 +3063,7 @@ export async function processOfflineAiQuery(
           drawer = { expected_closing: currentCash, actual_cash: currentCash };
         }
 
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ ക്യാഷ് സെറ്റിൽമെന്റ് താരതമ്യം\n\n` +
             `* **പ്രതീക്ഷിച്ച ക്ലോസിംഗ് ക്യാഷ്:** **${formatINR(drawer?.expected_closing || 0)}**\n` +
             `* **എണ്ണിയ യഥാർത്ഥ ക്യാഷ്:** **${formatINR(drawer?.actual_cash || 0)}**\n` +
@@ -3157,9 +3078,9 @@ export async function processOfflineAiQuery(
 
       case 'CASH_DRAWER_PENDING_UNSETTLED': {
         let pendingInvs: any[] = [];
-        if (electronAPI.dbCashierGetPendingInvoices) {
+        if (hasBridge('dbCashierGetPendingInvoices')) {
           try {
-            pendingInvs = await electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId });
+            pendingInvs = await cashierApi.getPendingInvoices({ tenant_id: tenantId });
           } catch {}
         }
         let md = isMal
@@ -3179,13 +3100,13 @@ export async function processOfflineAiQuery(
       case 'CASH_DRAWER_UNSETTLED_STATUS': {
         const todayStr = new Date().toISOString().slice(0, 10);
         let settlements: any[] = [];
-        if (electronAPI.dbCashierGetDaySettlements) {
+        if (hasBridge('dbCashierGetDaySettlements')) {
           try {
-            settlements = await electronAPI.dbCashierGetDaySettlements({ tenant_id: tenantId, business_date: todayStr });
+            settlements = await cashierApi.getDaySettlements({ tenant_id: tenantId, business_date: todayStr });
           } catch {}
         }
         const isSettled = settlements.length > 0;
-        let md = isMal
+        const md = isMal
           ? `### 📑 ഇന്നത്തെ ക്യാഷ് രജിസ്റ്റർ സെറ്റിൽമെന്റ് നില\n\n* **സെറ്റിൽമെന്റ് നില:** **${isSettled ? 'ഇന്നത്തെ ക്ലോസിംഗ് പൂർത്തിയായി ✅' : 'ക്ലോസ് ചെയ്തിട്ടില്ല (തുറന്നിരിക്കുന്നു 🟢)'}**\n* **പൂർത്തിയായ സെറ്റിൽമെന്റുകൾ:** **${settlements.length} എണ്ണം**\n`
           : `### 📑 Cash Register Day Settlement Status\n\n* **Today's Settlement Status:** **${isSettled ? 'Day Closed & Settled ✅' : 'Open / Unsettled (Shift Active 🟢)'}**\n* **Completed Settlements Recorded:** **${settlements.length} registers**\n`;
         return { content: md, intent: parsed.intent };
@@ -3218,7 +3139,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'CASH_DRAWER_SETTLEMENTS': {
-        let md = isMal
+        const md = isMal
           ? `### 📑 ദിവസ ക്ലോസിംഗ് സെറ്റിൽമെന്റ് ഹിസ്റ്ററി\n\n* ക്യാഷ് ഡ്രോയർ ക്ലോസിംഗ് ഹിസ്റ്ററിയും ഓഡിറ്റ് ലോഗുകളും പരിശോധിച്ചു.\n`
           : `### 📑 Day Closing Settlements History\n\n* Evaluated cash drawer settlement history and audit logs.\n`;
         return { content: md, intent: parsed.intent };
@@ -3231,7 +3152,7 @@ export async function processOfflineAiQuery(
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
         const unpaid = invs.filter((i: any) => !i.converted_to_invoice_id && (Number(i.balance_amount) > 0 || i.payment_method === 'CREDIT'));
 
-        let md = isMal
+        const md = isMal
           ? `### 📒 പണം ലഭിക്കാനുള്ള ബില്ലുകൾ (Unpaid Bills)\n\n` +
             `* **ആകെ ബാക്കി നിൽക്കുന്ന ബില്ലുകൾ:** **${unpaid.length} bills**\n`
           : `### 📒 Unpaid Invoices & Receivables\n\n` +
@@ -3244,7 +3165,7 @@ export async function processOfflineAiQuery(
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
         const partial = invs.filter((i: any) => !i.converted_to_invoice_id && Number(i.received_amount) > 0 && Number(i.balance_amount) > 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 📒 ഭാഗികമായി പണം ലഭിച്ച ബില്ലുകൾ (Partially Paid Bills)\n\n` +
             `* **ആകെ ബില്ലുകൾ:** **${partial.length} bills**\n`
           : `### 📒 Partially Paid Invoices\n\n` +
@@ -3265,7 +3186,7 @@ export async function processOfflineAiQuery(
         });
         const total = filtered.reduce((a: number, r: any) => a + (Number(r.grand_total) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 🔄 സെയിൽസ് റിട്ടേൺസ് സംഗ്രഹം — ${range.label}\n\n` +
             `* **ആകെ റിട്ടേൺ ബില്ലുകൾ:** **${filtered.length} എണ്ണം**\n` +
             `* **തിരിച്ചുനൽകിയ ആകെ തുക:** **${formatINR(total)}**\n`
@@ -3285,10 +3206,10 @@ export async function processOfflineAiQuery(
         });
 
         const itemMap: Record<string, { name: string; quantity: number; total: number }> = {};
-        if (electronAPI.dbGetReturnItems) {
+        if (hasBridge('dbGetReturnItems')) {
           for (const ret of filtered.slice(0, 50)) {
             try {
-              const items = await electronAPI.dbGetReturnItems(ret.return_id);
+              const items = await returnsApi.getReturnItems(ret.return_id);
               if (Array.isArray(items)) {
                 items.forEach((it: any) => {
                   const name = it.product_name || it.name || 'Unnamed Product';
@@ -3353,7 +3274,7 @@ export async function processOfflineAiQuery(
         const minAmt = parsed.params.minAmount || 500;
         const highDiscInvs = invs.filter((i: any) => Number(i.discount_total) >= minAmt);
 
-        let md = isMal
+        const md = isMal
           ? `### 🏷️ ഡിസ്കൗണ്ട് റിപ്പോർട്ട് — ${range.label}\n\n` +
             `* **₹${minAmt}-ൽ കൂടുതൽ ഡിസ്കൗണ്ട് നൽകിയ ബില്ലുകൾ:** **${highDiscInvs.length} ബില്ലുകൾ**\n`
           : `### 🏷️ Invoice Discounts Report — ${range.label}\n\n` +
@@ -3363,7 +3284,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'LOYALTY_POINTS': {
-        let md = isMal
+        const md = isMal
           ? `### 🎁 കസ്റ്റമർ ലോയൽറ്റി പോയിന്റുകൾ\n\n* ലോയൽറ്റി റിവാർഡ് പോയിന്റുകൾ കസ്റ്റമർ അക്കൗണ്ടുമായി ബന്ധിപ്പിച്ചിരിക്കുന്നു.\n`
           : `### 🎁 Customer Loyalty Points\n\n* Active loyalty program tracking points earned and redeemed.\n`;
         return { content: md, intent: parsed.intent };
@@ -3382,7 +3303,7 @@ export async function processOfflineAiQuery(
         }
 
         const p = matched[0];
-        let md = isMal
+        const md = isMal
           ? `### 🏷️ വില വിവരങ്ങൾ: **${p.name}**\n\n` +
             `* **റീട്ടെയിൽ വില (MRP / Base Price):** **${formatINR(p.base_price)}**\n` +
             `* **പർച്ചേസ് വില:** ${formatINR(p.purchase_price)}\n` +
@@ -3409,7 +3330,7 @@ export async function processOfflineAiQuery(
         }
 
         const p = matched[0];
-        let md = isMal
+        const md = isMal
           ? `### 🔍 ബാർകോഡ് ഉൽപ്പന്നം: **${p.name}**\n\n` +
             `* **ബാർകോഡ്:** ${p.sku_barcode || '—'}\n` +
             `* **വില:** **${formatINR(p.base_price)}**\n` +
@@ -3429,7 +3350,7 @@ export async function processOfflineAiQuery(
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
         const convertedHoldBills = invs.filter((i: any) => i.converted_to_invoice_id);
 
-        let md = isMal
+        const md = isMal
           ? `### 🛡️ ഡാറ്റാബേസ് സമഗ്രതാ പരിശോധന (Deduplication Audit)\n\n` +
             `* **പരിശോധിച്ച ആകെ ബില്ലുകൾ:** **${invs.length} എണ്ണം**\n` +
             `* **കൺവെർട്ട് ചെയ്ത ഹോൾഡ് / ക്വട്ടേഷൻ ബില്ലുകൾ:** **${convertedHoldBills.length} എണ്ണം**\n` +
@@ -3448,7 +3369,7 @@ export async function processOfflineAiQuery(
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
         const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD'].includes(i.invoice_type));
 
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ പേയ്‌മെന്റ് അലോക്കേഷൻ റീകൺസിലിയേഷൻ\n\n` +
             `* **പരിശോധിച്ച ബില്ലുകൾ:** **${validInvs.length} എണ്ണം**\n` +
             `* **അലോക്കേഷൻ പൊരുത്തക്കേടുകൾ:** **0 (പൂർണ്ണമായും കൃത്യം ✅)**\n\n` +
@@ -3488,7 +3409,7 @@ export async function processOfflineAiQuery(
         const netRevenue = Math.max(0, summary.totalSales - totalReturns);
         const netCashFlow = netRevenue - totalExpense;
 
-        let md = isMal
+        const md = isMal
           ? `### 📑 സമഗ്ര ദിന ബിസിനസ്സ് റിപ്പോർട്ട് (${range.label})\n\n` +
             `| പ്രധാന സൂചികകൾ | എണ്ണം | ആകെ തുക |\n` +
             `| :--- | :--- | :--- |\n` +
@@ -3656,7 +3577,7 @@ export async function processOfflineAiQuery(
         const outOfStock = products.filter((p: any) => (Number(p.stock_quantity) || 0) <= 0);
         const lowStock = inStock.filter((p: any) => (Number(p.stock_quantity) || 0) <= (Number(p.min_stock_alert) || 5));
 
-        let md = isMal
+        const md = isMal
           ? `### 📦 ഇൻവെന്ററി ആകെ ഉൽപ്പന്നങ്ങൾ\n\n` +
             `* **ആകെ കാറ്റലോഗ് ഉൽപ്പന്നങ്ങൾ:** **${totalItems} എണ്ണം**\n` +
             `* **സ്റ്റോക്കുള്ള ഉൽപ്പന്നങ്ങൾ:** **${inStock.length} ഇനങ്ങൾ**\n` +
@@ -3751,8 +3672,8 @@ export async function processOfflineAiQuery(
       }
 
       case 'CUSTOMER_OVERDUE_LIST': {
-        const partiesPromise = electronAPI.dbGetParties ? electronAPI.dbGetParties(tenantId).catch(() => []) : Promise.resolve([]);
-        const customersPromise = electronAPI.dbGetCustomers ? electronAPI.dbGetCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+        const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId).catch(() => []) : Promise.resolve([]);
+        const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
         const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
         const overdue: Array<{ name: string; phone: string; balance: number }> = [];
@@ -3796,7 +3717,7 @@ export async function processOfflineAiQuery(
         const collections = txs.filter((t: any) => t.type === 'CASH_IN' || t.transaction_type === 'CASH_IN' || t.category === 'CUSTOMER_PAYMENT');
         const total = collections.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 💵 ഇന്ന് കസ്റ്റമർമാരിൽ നിന്ന് ശേഖരിച്ച പണം\n\n* **ആകെ ശേഖരിച്ച തുക:** **${formatINR(total)}**\n* **രസീതുകൾ:** **${collections.length} എണ്ണം**\n`
           : `### 💵 Customer Debt Payments Collected Today\n\n* **Total Amount Collected Today:** **${formatINR(total)}**\n* **Receipts Count:** **${collections.length} transactions**\n`;
 
@@ -3808,7 +3729,7 @@ export async function processOfflineAiQuery(
         const invs = await fetchInvoices(range.fromDate, range.toDate);
         const pm = calculatePaymentBreakdown(invs);
 
-        let md = isMal
+        const md = isMal
           ? `### 📒 ഇന്ന് നൽകിയ കസ്റ്റമർ ക്രെഡിറ്റ് (Credit Sales Today)\n\n* **ആകെ ക്രെഡിറ്റ് തുക:** **${formatINR(pm.credit)}**\n`
           : `### 📒 Credit Extended to Customers Today\n\n* **Total Credit Sales Today:** **${formatINR(pm.credit)}**\n`;
 
@@ -3821,7 +3742,7 @@ export async function processOfflineAiQuery(
         const supplierTxs = txs.filter((t: any) => (t.type === 'CASH_OUT' || t.transaction_type === 'CASH_OUT') && (t.category === 'SUPPLIER_PAYMENT' || t.party_type === 'SUPPLIER'));
         const total = supplierTxs.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### 🏢 ഇന്ന് സപ്ലയർമാർക്ക് നൽകിയ പണം\n\n* **ആകെ നൽകിയ തുക:** **${formatINR(total)}**\n* **ഇടപാടുകൾ:** **${supplierTxs.length} എണ്ണം**\n`
           : `### 🏢 Supplier Payments Disbursed Today\n\n* **Total Paid to Suppliers Today:** **${formatINR(total)}**\n* **Transactions:** **${supplierTxs.length} vouchers**\n`;
 
@@ -3831,15 +3752,15 @@ export async function processOfflineAiQuery(
       case 'SYSTEM_SYNC_STATUS': {
         let pendingCount = 0;
         try {
-          if (electronAPI.syncGetPending) {
-            const p = await electronAPI.syncGetPending({ tenant_id: tenantId });
-            pendingCount = Array.isArray(p) ? p.length : (p?.count || 0);
+          if (hasBridge('syncGetPending')) {
+            const p = await syncApi.syncGetPending({ tenant_id: tenantId });
+            pendingCount = Array.isArray(p) ? p.length : ((p as { count?: number } | null)?.count || 0);
           }
         } catch {}
 
         const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-        let md = isMal
+        const md = isMal
           ? `### 🔄 സിസ്റ്റം സമന്വയ നില (Multi-Counter Sync Status)\n\n` +
             `* **ലോക്കൽ സ്റ്റേഷൻ (Master POS):** സജീവം (Active - Local SQLite)\n` +
             `* **പെൻഡിംഗ് സമന്വയം (Pending Records):** **${pendingCount} എണ്ണം**\n` +
@@ -3860,7 +3781,7 @@ export async function processOfflineAiQuery(
       case 'SYSTEM_SETTINGS_BUSINESS_DATE': {
         const todayDate = new Date().toISOString().substring(0, 10);
 
-        let md = isMal
+        const md = isMal
           ? `### ⚙️ ബിസിനസ്സ് തീയതി ക്രമീകരണം (Business Date Configuration)\n\n` +
             `**അതെ, പ്രതിദിന റിപ്പോർട്ടുകൾ സിസ്റ്റം ക്രമീകരണങ്ങളിലെ ബിസിനസ്സ് തീയതി കൃത്യമായി പാലിക്കുന്നു.**\n\n` +
             `* **നിലവിലെ സജീവ ബിസിനസ്സ് തീയതി:** **${todayDate}**\n` +
@@ -3882,7 +3803,7 @@ export async function processOfflineAiQuery(
         const holdInvs = invs.filter((i: any) => ['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
         const convertedQuotes = invs.filter((i: any) => !!i.converted_to_invoice_id);
 
-        let md = isMal
+        const md = isMal
           ? `### 🔍 കാണാതായ ഇടപാടുകളുടെ പരിശോധന (Transaction Audit)\n\n` +
             `* **ഇന്ന് രേഖപ്പെടുത്തിയ ആകെ റെക്കോർഡുകൾ:** **${invs.length} എണ്ണം**\n` +
             `* **സെയിൽസ് റിപ്പോർട്ടിൽ ഉൾപ്പെടുത്തിയ ബില്ലുകൾ:** **${validInvs.length} എണ്ണം**\n` +
@@ -3909,7 +3830,7 @@ export async function processOfflineAiQuery(
         const computedSum = validInvs.reduce((acc: number, inv: any) => acc + (Number(inv.grand_total) || 0), 0);
         const diff = Math.abs(computedSum - summary.totalSales);
 
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ സെയിൽസ് തുക പരിശോധനാ റിപ്പോർട്ട്\n\n` +
             `* **വ്യക്തിഗത ഇൻവോയ്സുകളുടെ ആകെത്തുക:** **${formatINR(computedSum)}** (${validInvs.length} ബില്ലുകൾ)\n` +
             `* **റിപ്പോർട്ട് ചെയ്ത ആകെ സെയിൽസ്:** **${formatINR(summary.totalSales)}**\n` +
@@ -3930,7 +3851,7 @@ export async function processOfflineAiQuery(
         const expenseTxs = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
         const sumLineItems = expenseTxs.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
 
-        let md = isMal
+        const md = isMal
           ? `### ⚖️ ചെലവ് ഇടപാടുകളുടെ പരിശോധനാ റിപ്പോർട്ട്\n\n` +
             `* **ഇന്നത്തെ ചെലവ് വൗച്ചറുകൾ:** **${expenseTxs.length} എണ്ണം**\n` +
             `* **ഓരോ വൗച്ചറുകളുടെയും ആകെത്തുക:** **${formatINR(sumLineItems)}**\n` +
@@ -3954,7 +3875,7 @@ export async function processOfflineAiQuery(
           return isNaN(gt) || gt < 0 || i.grand_total === null || i.grand_total === undefined;
         });
 
-        let md = isMal
+        const md = isMal
           ? `### 🛡️ ഇൻവോയ്സ് തുകകളുടെ കൃത്യത പരിശോധന\n\n` +
             `* **പരിശോധിച്ച ആകെ ബില്ലുകൾ:** **${invs.length} എണ്ണം**\n` +
             `* **തുക അപൂർണ്ണമായതോ തെറ്റായതോ ആയ ബില്ലുകൾ:** **${corrupted.length} എണ്ണം**\n\n` +
@@ -3977,7 +3898,7 @@ export async function processOfflineAiQuery(
         });
         const duplicates = Object.entries(numCount).filter(([_, count]) => count > 1);
 
-        let md = isMal
+        const md = isMal
           ? `### 🔍 ഡ്യൂപ്ലിക്കേറ്റ് ഇൻവോയ്സ് പരിശോധന\n\n` +
             `* **പരിശോധിച്ച ബില്ലുകൾ:** **${invs.length} എണ്ണം**\n` +
             `* **ഡ്യൂപ്ലിക്കേറ്റ് ബിൽ നമ്പറുകൾ:** **${duplicates.length} എണ്ണം**\n\n` +
@@ -4011,7 +3932,7 @@ export async function processOfflineAiQuery(
         const dupSkus = Object.entries(skuMap).filter(([_, list]) => list.length > 1);
         const dupNames = Object.entries(nameMap).filter(([_, list]) => list.length > 1);
 
-        let md = isMal
+        const md = isMal
           ? `### 🔍 ഡ്യൂപ്ലിക്കേറ്റ് ഉൽപ്പന്ന പരിശോധന\n\n` +
             `* **പരിശോധിച്ച ആകെ ഉൽപ്പന്നങ്ങൾ:** **${products.length} എണ്ണം**\n` +
             `* **ഡ്യൂപ്ലിക്കേറ്റ് ബാർകോഡുകൾ:** **${dupSkus.length} എണ്ണം**\n` +
@@ -4064,7 +3985,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'AI_HELP_REPORTS': {
-        let md = isMal
+        const md = isMal
           ? `### 💡 ലഭ്യമായ ഓഫ്‌ലൈൻ റിപ്പോർട്ടുകൾ (Supported POS Intelligence)\n\n` +
             `1. **സെയിൽസ് & റവന്യൂ:** ഇന്നത്തെ വിൽപ്പന, പ്രതിമാസ വിൽപ്പന, ക്യാഷ്/ക്രെഡിറ്റ് വിഹിതം, ശരാശരി ടിക്കറ്റ്, ദിവസേനയുള്ള ട്രെൻഡ്, ബില്ലർ തിരിച്ചുള്ള വിൽപ്പന.\n` +
             `2. **ചെലവുകൾ (Expenses):** ഇന്നത്തെ ചെലവുകൾ, കാറ്റഗറി തിരിച്ചുള്ള ചെലവുകൾ, വലിയ ചെലവുകൾ, ക്യാഷ് പേഔട്ടുകൾ.\n` +

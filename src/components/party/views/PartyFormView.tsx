@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  UserCircle, Tag, Phone, MapPin, FileText, Building2,
-  Wallet, CreditCard, Clock, AlertCircle, Save, Loader2,
-  X, Banknote, Link, Layers
-} from 'lucide-react';
+import { UserCircle, Tag, Phone, MapPin, FileText, CreditCard, Clock, Save, Loader2, Banknote, Link, Layers } from 'lucide-react';
 import clsx from 'clsx';
 import { Select } from '../../ui/Select';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';

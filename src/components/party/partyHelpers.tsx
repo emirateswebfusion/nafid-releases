@@ -16,12 +16,6 @@ export const formatDateTime = (d: string) => {
   return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 };
 
-export const toUtcIso = (naive: string): string | undefined => {
-  if (!naive) return undefined;
-  const d = new Date(naive);
-  return isNaN(d.getTime()) ? undefined : d.toISOString();
-};
-
 export const toLocalInputValue = (iso: string): string => {
   const d = parseUTCDate(iso);
   if (isNaN(d.getTime())) return iso.slice(0, 16);

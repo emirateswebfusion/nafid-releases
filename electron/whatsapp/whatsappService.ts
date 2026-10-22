@@ -23,7 +23,6 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 // Track if we've shown QR code and are waiting for scan
-let qrShown = false;
 
 // Helper to notify all renderer windows about WhatsApp state changes
 function broadcastWhatsAppState() {
@@ -59,7 +58,7 @@ function formatToWhatsAppJid(phone: string): string {
 }
 
 // Initialize Baileys WhatsApp Connection
-export async function startWhatsAppConnection(): Promise<void> {
+async function startWhatsAppConnection(): Promise<void> {
   try {
     const baileys = await getBaileys();
     const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
@@ -91,7 +90,6 @@ export async function startWhatsAppConnection(): Promise<void> {
         try {
           currentQrBase64 = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
           connectionStatus = 'connecting';
-          qrShown = true;
           broadcastWhatsAppState();
         } catch (err) {
           console.error('[WhatsApp] QR generate error:', err);
@@ -106,7 +104,6 @@ export async function startWhatsAppConnection(): Promise<void> {
         currentQrBase64 = null;
         connectionStatus = 'disconnected';
         connectedPhone = null;
-        qrShown = false;
         sock = null;
         broadcastWhatsAppState();
 
@@ -129,7 +126,6 @@ export async function startWhatsAppConnection(): Promise<void> {
         console.log('[WhatsApp] Connection established successfully! QR scanned, waiting for session sync...');
         reconnectAttempts = 0;
         currentQrBase64 = null;
-        qrShown = false;
 
         // Transition to syncing state - QR scanned, now waiting for session to fully stabilize
         connectionStatus = 'syncing';
@@ -153,13 +149,12 @@ export async function startWhatsAppConnection(): Promise<void> {
     console.error('[WhatsApp] startWhatsAppConnection error:', error);
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
-    qrShown = false;
     broadcastWhatsAppState();
   }
 }
 
 // Disconnect / Log out
-export async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
+async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
   try {
     if (sock) {
       try {
@@ -176,7 +171,6 @@ export async function logoutWhatsApp(): Promise<{ success: boolean; error?: stri
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
     connectedPhone = null;
-    qrShown = false;
     broadcastWhatsAppState();
     return { success: true };
   } catch (error: any) {
@@ -186,7 +180,7 @@ export async function logoutWhatsApp(): Promise<{ success: boolean; error?: stri
 }
 
 // Helper to generate PDF Buffer from HTML content using a headless BrowserWindow
-export async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
+async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
   const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
   const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
   const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;

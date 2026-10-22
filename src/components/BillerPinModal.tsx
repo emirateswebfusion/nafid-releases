@@ -4,6 +4,8 @@ import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
+import { hasBridge } from '../data/client';
+import { staffApi } from '../data/staff';
 
 interface BillerPinModalProps {
   isOpen: boolean;
@@ -44,8 +46,8 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
     setError('');
 
     try {
-      if (window.electronAPI?.dbVerifyBillerPin) {
-        const res = await window.electronAPI.dbVerifyBillerPin({ tenant_id: tenantId, pin: fullPin });
+      if (hasBridge('dbVerifyBillerPin')) {
+        const res = await staffApi.verifyBillerPin({ tenant_id: tenantId, pin: fullPin });
         if (res.success && res.staff) {
           setSuccess(true);
           setTimeout(() => {

@@ -1,15 +1,17 @@
 import { useAuthStore } from '../store/authStore';
+import { authApi } from '../data/auth';
+import { hasBridge } from '../data/client';
 
 // API base URL — set VITE_CLOUD_API in .env
-export const API_BASE = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   let token = useAuthStore.getState().token;
   
   // Auto-recover token from stored Electron config if state was cleared
-  if (!token && typeof window !== 'undefined' && window.electronAPI?.authGetToken) {
+  if (!token && typeof window !== 'undefined' && hasBridge('authGetToken')) {
     try {
-      const stored = await window.electronAPI.authGetToken();
+      const stored = await authApi.getToken();
       if (stored?.jwt_token) {
         token = stored.jwt_token;
         useAuthStore.setState({ token: stored.jwt_token });

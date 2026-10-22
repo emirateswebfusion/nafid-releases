@@ -1,33 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  QrCode,
-  Smartphone,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  PowerOff,
-  ShieldCheck,
-  Loader2,
-  WifiSync,
-  BookOpen,
-  Check,
-  Settings,
-  RotateCcw,
-  Store,
-  Clock,
-  Send,
-  CheckSquare,
-  Square,
-  History,
-  AlertTriangle,
-  ShieldAlert,
-  Phone,
-  ListChecks,
-  Copy,
-  Layers,
-  ChevronDown,
-  ChevronUp
-} from 'lucide-react';
+import { QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, PowerOff, ShieldCheck, Loader2, WifiSync, BookOpen, Check, RotateCcw, Store, Clock, Send, CheckSquare, Square, History, ShieldAlert, Phone, ListChecks, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -35,21 +7,11 @@ import { FloatToast } from './ui/FloatToast';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { useAuthStore } from '../store/authStore';
 import { isAdminRole } from '../utils/permissions';
-import {
-  type ShopClosingOverviewConfig,
-  type ShopClosingChecklist,
-  type ShopClosingSendTiming,
-  DEFAULT_SHOP_CLOSING_CONFIG,
-  DEFAULT_CHECKLIST,
-  ALL_CHECKLIST_SELECTED,
-  ALL_CHECKLIST_CLEARED,
-  CHECKLIST_DEFINITIONS,
-  cleanPhoneNumber,
-  isValidPhoneNumber,
-  getSampleClosingSummary,
-  generateWhatsAppClosingMessage,
-  formatCurrency,
-} from '../utils/shopClosingHelper';
+import { type ShopClosingOverviewConfig, type ShopClosingChecklist, type ShopClosingSendTiming, DEFAULT_SHOP_CLOSING_CONFIG, DEFAULT_CHECKLIST, ALL_CHECKLIST_SELECTED, ALL_CHECKLIST_CLEARED, CHECKLIST_DEFINITIONS, isValidPhoneNumber, getSampleClosingSummary, generateWhatsAppClosingMessage } from '../utils/shopClosingHelper';
+import { hasBridge } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { settingsApi } from '../data/settings';
+import { whatsappApi } from '../data/whatsapp';
 
 type WhatsAppStatus = 'disconnected' | 'connecting' | 'syncing' | 'connected';
 
@@ -111,7 +73,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const [showConfirmDisconnect, setShowConfirmDisconnect] = useState<boolean>(false);
 
   // ── Shop Closing Overview State ──────────────────────────────────────────
-  const [loadingClosing, setLoadingClosing] = useState<boolean>(false);
+  const [, setLoadingClosing] = useState<boolean>(false);
   const [savingClosing, setSavingClosing] = useState<boolean>(false);
   const [sendingTest, setSendingTest] = useState<boolean>(false);
   const [previewText, setPreviewText] = useState<string>('');
@@ -123,9 +85,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   useEffect(() => {
     // Initial status check
-    if (window.electronAPI?.whatsappGetStatus) {
-      window.electronAPI
-        .whatsappGetStatus()
+    if (hasBridge('whatsappGetStatus')) {
+      whatsappApi.getStatus()
         .then((res) => {
           if (res) {
             setStatus(res.status);
@@ -137,8 +98,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     }
 
     // Subscribe to real-time status updates
-    if (window.electronAPI?.onWhatsAppStatusUpdate) {
-      const unsubscribe = window.electronAPI.onWhatsAppStatusUpdate((data) => {
+    if (hasBridge('onWhatsAppStatusUpdate')) {
+      const unsubscribe = bridgeEvents.onWhatsAppStatusUpdate((data) => {
         setStatus(data.status);
         setQrCode(data.qrCode);
         setPhone(data.phone);
@@ -157,11 +118,11 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   }, []);
 
   useEffect(() => {
-    if (window.electronAPI?.settingsGet) {
+    if (hasBridge('settingsGet')) {
       Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_enabled' }),
-        window.electronAPI.settingsGet({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_include_shop' }),
-        window.electronAPI.settingsGet({ tenant_id: effectiveTenantId, key: 'shop_name' }),
+        settingsApi.get({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_enabled' }),
+        settingsApi.get({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_include_shop' }),
+        settingsApi.get({ tenant_id: effectiveTenantId, key: 'shop_name' }),
       ])
         .then(([enabledVal, includeShopVal, shopVal]) => {
           if (enabledVal !== null && enabledVal !== undefined) {
@@ -180,10 +141,10 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   // Load Shop Closing Configuration
   const loadClosingConfig = useCallback(async () => {
-    if (!window.electronAPI?.shopClosingGetConfig) return;
+    if (!hasBridge('shopClosingGetConfig')) return;
     setLoadingClosing(true);
     try {
-      const res = await window.electronAPI.shopClosingGetConfig({ tenant_id: effectiveTenantId });
+      const res = await whatsappApi.shopClosingGetConfig({ tenant_id: effectiveTenantId });
       const cfg = (res && res.config) ? res.config : res;
       if (cfg && typeof cfg === 'object') {
         setClosingConfig({
@@ -204,10 +165,10 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
   // Load Shop Closing Delivery History
   const loadClosingHistory = useCallback(async () => {
-    if (!window.electronAPI?.shopClosingGetHistory) return;
+    if (!hasBridge('shopClosingGetHistory')) return;
     setLoadingHistory(true);
     try {
-      const history = await window.electronAPI.shopClosingGetHistory({ tenant_id: effectiveTenantId, limit: 15 });
+      const history = await whatsappApi.shopClosingGetHistory({ tenant_id: effectiveTenantId, limit: 15 });
       if (Array.isArray(history)) {
         setClosingHistory(history);
       }
@@ -222,8 +183,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     loadClosingConfig();
     loadClosingHistory();
 
-    if (window.electronAPI?.onShopClosingUpdated) {
-      const unsubscribe = window.electronAPI.onShopClosingUpdated(() => {
+    if (hasBridge('onShopClosingUpdated')) {
+      const unsubscribe = bridgeEvents.onShopClosingUpdated(() => {
         loadClosingHistory();
       });
       return () => {
@@ -236,8 +197,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const refreshPreview = useCallback(async (cfgToUse: ShopClosingOverviewConfig) => {
     setPreviewLoading(true);
     try {
-      if (window.electronAPI?.shopClosingGetPreview) {
-        const res = await window.electronAPI.shopClosingGetPreview({
+      if (hasBridge('shopClosingGetPreview')) {
+        const res = await whatsappApi.shopClosingGetPreview({
           tenant_id: effectiveTenantId,
           checklist: cfgToUse.checklist,
         });
@@ -263,8 +224,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const handleToggleLedgerAlerts = async (enabled: boolean) => {
     setLedgerAlertsEnabled(enabled);
     try {
-      if (window.electronAPI?.settingsSet) {
-        await window.electronAPI.settingsSet({
+      if (hasBridge('settingsSet')) {
+        await settingsApi.set({
           tenant_id: effectiveTenantId,
           key: 'ledger_whatsapp_enabled',
           value: enabled,
@@ -285,8 +246,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const handleToggleIncludeShopName = async (include: boolean) => {
     setIncludeShopName(include);
     try {
-      if (window.electronAPI?.settingsSet) {
-        await window.electronAPI.settingsSet({
+      if (hasBridge('settingsSet')) {
+        await settingsApi.set({
           tenant_id: effectiveTenantId,
           key: 'ledger_whatsapp_include_shop',
           value: include,
@@ -308,7 +269,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setLoading(true);
     setMsg(null);
     try {
-      const res = await window.electronAPI.whatsappConnect();
+      const res = await whatsappApi.connect();
       if (!res.success) {
         setMsg({ text: 'Failed to initiate WhatsApp connection', type: 'error' });
       }
@@ -323,7 +284,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     setShowConfirmDisconnect(false);
     setLoading(true);
     try {
-      await window.electronAPI.whatsappDisconnect();
+      await whatsappApi.disconnect();
       setStatus('disconnected');
       setQrCode(null);
       setPhone(null);
@@ -347,8 +308,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
     // Auto-persist toggle immediately to database so that even if the page is reopened without pressing Save,
     // the enabled/disabled state is permanently persisted!
     try {
-      if (window.electronAPI?.shopClosingSaveConfig) {
-        await window.electronAPI.shopClosingSaveConfig({
+      if (hasBridge('shopClosingSaveConfig')) {
+        await whatsappApi.shopClosingSaveConfig({
           tenant_id: effectiveTenantId,
           config: updated,
           user_role: role,
@@ -432,8 +393,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
     setSavingClosing(true);
     try {
-      if (window.electronAPI?.shopClosingSaveConfig) {
-        const res = await window.electronAPI.shopClosingSaveConfig({
+      if (hasBridge('shopClosingSaveConfig')) {
+        const res = await whatsappApi.shopClosingSaveConfig({
           tenant_id: effectiveTenantId,
           config: closingConfig,
           user_role: role,
@@ -465,8 +426,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
     setSendingTest(true);
     try {
-      if (window.electronAPI?.shopClosingSendReport) {
-        const res = await window.electronAPI.shopClosingSendReport({
+      if (hasBridge('shopClosingSendReport')) {
+        const res = await whatsappApi.shopClosingSendReport({
           tenant_id: effectiveTenantId,
           trigger_type: 'MANUAL',
           force: true,
@@ -491,8 +452,8 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const handleRetryReport = async (reportId: string) => {
     setRetryingId(reportId);
     try {
-      if (window.electronAPI?.shopClosingRetry) {
-        const res = await window.electronAPI.shopClosingRetry({ report_id: reportId });
+      if (hasBridge('shopClosingRetry')) {
+        const res = await whatsappApi.shopClosingRetry({ report_id: reportId });
         if (res && res.success) {
           setMsg({ text: 'Report retry sent successfully!', type: 'success' });
           loadClosingHistory();

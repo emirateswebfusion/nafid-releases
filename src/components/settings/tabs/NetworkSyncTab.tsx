@@ -1,9 +1,10 @@
 import React from 'react';
-import { Cloud, Wifi, Database, AlertCircle, CheckCircle2, Loader2, Globe, HelpCircle, Copy, Check, RefreshCw, BookOpen, Handshake, ChevronRight, Lock } from 'lucide-react';
+import { Cloud, Wifi, CheckCircle2, Globe, HelpCircle, RefreshCw, BookOpen, ChevronRight, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
-import { Modal } from '../../ui/Modal';
+import { hasBridge } from '../../../data/client';
+import { syncApi } from '../../../data/sync';
 
 export interface NetworkSyncTabProps {
   activeSection: string;
@@ -53,17 +54,17 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
   setMessage,
 }) => {
   const handleManualQueueDrain = async () => {
-    if (!window.electronAPI?.drainPendingCloudQueue) return;
+    if (!hasBridge('drainPendingCloudQueue')) return;
     setDrainingQueue(true);
     try {
-      const res = await window.electronAPI.drainPendingCloudQueue();
+      const res = await syncApi.drainPendingCloudQueue();
       if (res.success) {
         setMessage({ type: 'success', text: 'Queue drain completed' });
       } else {
         setMessage({ type: 'error', text: `Queue drain error: ${res.error || 'Failed'}` });
       }
-      if (window.electronAPI?.getCloudAccessState) {
-        const newState = await window.electronAPI.getCloudAccessState();
+      if (hasBridge('getCloudAccessState')) {
+        const newState = await syncApi.getCloudAccessState();
         if (newState) setEffectiveCloudState(newState);
       }
     } catch (err: any) {
@@ -80,8 +81,8 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
     const port = Number(lanPort) || 3888;
 
     try {
-      if (window.electronAPI?.testNetworkConnection) {
-        const result = await window.electronAPI.testNetworkConnection({
+      if (hasBridge('testNetworkConnection')) {
+        const result = await syncApi.testNetworkConnection({
           syncMode,
           lanRole,
           lanHostIp: cleanHost,

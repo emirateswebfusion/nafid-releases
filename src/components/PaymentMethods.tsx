@@ -2,21 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { Skeleton } from '../components/ui/Skeleton';
 import clsx from 'clsx';
 import { parseUTCDate, getAppTimeFormat } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { getUpiPageConfig, saveUpiPageConfig, type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../utils/upiConfig';
-import {
-  Landmark, CreditCard, Smartphone, Plus, Pencil, Trash2, X, ArrowDownToLine,
-  ArrowUpFromLine, Star, History, Wallet, CheckCircle2, AlertCircle, Search,
-  Copy, Check, Lightbulb, PlusCircle, Lock, ShieldCheck, ArrowUpRight, Layers, ShoppingCart,
-  FileText, Settings2, ToggleLeft, ToggleRight, RefreshCw, Loader2
-} from 'lucide-react';
+import { Landmark, CreditCard, Smartphone, Plus, Pencil, Trash2, X, ArrowDownToLine, ArrowUpFromLine, Star, History, Wallet, AlertCircle, Search, Copy, Check, Lightbulb, PlusCircle, Lock, ShieldCheck, ArrowUpRight, Layers, ShoppingCart, Settings2, RefreshCw, Loader2 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
+import { hasBridge } from '../data/client';
+import { paymentSourcesApi } from '../data/paymentSources';
+import { formatCurrency } from '../utils/money';
 
 type View = 'list' | 'form' | 'transactions';
 
@@ -50,9 +47,6 @@ interface SourceTransaction {
   running_balance: number;
   entered_by_name?: string | null;
 }
-
-const formatCurrency = (amount: number | undefined | null) =>
-  amount == null || isNaN(amount) ? '₹0.00' : `\u20B9${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
@@ -159,8 +153,8 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
   const loadSources = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      if (window.electronAPI?.dbPaymentGetSources) {
-        const res = await window.electronAPI.dbPaymentGetSources(tenantId || '');
+      if (hasBridge('dbPaymentGetSources')) {
+        const res = await paymentSourcesApi.getSources(tenantId || '');
         if (Array.isArray(res)) setSources(res);
       }
       const config = await getUpiPageConfig(tenantId || '');
@@ -237,7 +231,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     setIsSaving(true);
     try {
       if (editing) {
-        const res = await window.electronAPI!.dbPaymentUpdateSource({
+        const res = await paymentSourcesApi.updateSource({
           ...editing,
           name: form.name.trim(),
           bank_name: form.bank_name.trim(),
@@ -256,7 +250,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
         }
         showMessage('Payment method updated successfully');
       } else {
-        const res = await window.electronAPI!.dbPaymentAddSource({
+        const res = await paymentSourcesApi.addSource({
           name: form.name.trim(),
           type: form.type,
           bank_name: form.bank_name.trim(),
@@ -300,7 +294,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     }));
 
     try {
-      const res = await window.electronAPI!.dbPaymentUpdateSource({
+      const res = await paymentSourcesApi.updateSource({
         ...s,
         is_default: true,
         tenant_id: tenantId,
@@ -330,7 +324,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     setSources(prev => prev.map(item => item.source_id === s.source_id ? { ...item, is_enabled: nextState ? 1 : 0 } : item));
 
     try {
-      const res = await window.electronAPI!.dbPaymentUpdateSource({
+      const res = await paymentSourcesApi.updateSource({
         ...s,
         is_enabled: nextState,
         tenant_id: tenantId,
@@ -365,7 +359,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     if (!sourceToDelete) return;
     setDeleteSaving(true);
     try {
-      const res = await window.electronAPI!.dbPaymentDeleteSource({ source_id: sourceToDelete.source_id, tenant_id: tenantId || '' });
+      const res = await paymentSourcesApi.deleteSource({ source_id: sourceToDelete.source_id, tenant_id: tenantId || '' });
       if (res.success) {
         showMessage('Payment method deleted');
         setDeleteConfirmOpen(false);
@@ -389,7 +383,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     setTxForm({ type: 'CASH_IN', amount: '', category: '', notes: '', reference_number: '' });
     setLoadingTx(true);
     try {
-      const res = await window.electronAPI!.dbPaymentGetTransactions({ source_id: s.source_id, tenant_id: tenantId || '' });
+      const res = await paymentSourcesApi.getTransactions({ source_id: s.source_id, tenant_id: tenantId || '' });
       setTransactions(Array.isArray(res) ? res : []);
     } catch {
       setTransactions([]);
@@ -407,7 +401,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     }
     setIsSavingTx(true);
     try {
-      const res = await window.electronAPI!.dbPaymentAddTransaction({
+      const res = await paymentSourcesApi.addTransaction({
         tenant_id: tenantId,
         source_id: selectedSource.source_id,
         type: txForm.type,

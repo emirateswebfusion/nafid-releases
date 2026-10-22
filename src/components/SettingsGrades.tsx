@@ -13,6 +13,8 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Badge } from './ui/Badge';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
+import { isDesktopRuntime } from '../data/client';
+import { gradesApi } from '../data/grades';
 
 interface Grade {
   grade_id: string;
@@ -46,10 +48,10 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   }, []);
 
   const loadGrades = async () => {
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       setLoading(true);
       const { tenantId } = useAuthStore.getState();
-      const res = await window.electronAPI.dbGetGrades(tenantId || '');
+      const res = await gradesApi.getGrades(tenantId || '');
       if (Array.isArray(res)) {
         setGrades(res);
       }
@@ -111,7 +113,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       purchase_price: newForm.purchase_price,
       offer_price: newForm.offer_price
     };
-    const res = await window.electronAPI.dbAddGrade(grade);
+    const res = await gradesApi.addGrade(grade);
     if (res.success) {
       setIsAdding(false);
       setNewForm({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: null });
@@ -133,7 +135,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
     }
     setError(null);
     setOperating(true);
-    const res = await window.electronAPI.dbUpdateGrade({
+    const res = await gradesApi.updateGrade({
       grade_id: id,
       category: editForm.category.trim(),
       grade_name: editForm.grade_name.trim(),
@@ -157,7 +159,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   const confirmDeleteGrade = async () => {
     if (!gradeToDelete) return;
     setOperating(true);
-    const res = await window.electronAPI.dbDeleteGrade(gradeToDelete.grade_id);
+    const res = await gradesApi.deleteGrade(gradeToDelete.grade_id);
     if (res.success) {
       setGradeToDelete(null);
       await loadGrades();
@@ -178,7 +180,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
     const targetGrades = grades.filter(g => g.category === oldCategory);
     const results = await Promise.all(
       targetGrades.map(g =>
-        window.electronAPI.dbUpdateGrade({
+        gradesApi.updateGrade({
           grade_id: g.grade_id,
           category: newName,
           grade_name: g.grade_name,
@@ -206,7 +208,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
     setConfirmDeleteCategory(null);
     const targetGrades = grades.filter(g => g.category === category);
     const results = await Promise.all(
-      targetGrades.map(g => window.electronAPI.dbDeleteGrade(g.grade_id))
+      targetGrades.map(g => gradesApi.deleteGrade(g.grade_id))
     );
     const failed = results.filter(r => !r.success);
     if (failed.length === 0) {

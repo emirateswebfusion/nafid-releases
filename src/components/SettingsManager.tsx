@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import {
-  Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
-  Key, Tags, Building, Receipt, Usb, Landmark,
-  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
-  Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff, Palette,
-  Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
-  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen, Handshake, QrCode, MessageSquare,
-  Zap, Wrench, Wallet, Layers, Bell, AlertOctagon, LayoutGrid
-} from 'lucide-react';
+import { Settings, Printer, Save, Loader2, CheckCircle2, AlertCircle, Wifi, Smartphone, X, EyeOff, Palette, Store, Package, Monitor, ChevronRight, Shield, FileText, Clock, Power, Copy, Check, BookOpen, Layers, AlertOctagon, LayoutGrid } from 'lucide-react';
+import { setSetting } from '../data/settings';
 import { DashboardCardCustomizer } from './DashboardCardCustomizer';
 import { BillingUICustomizer } from './BillingUICustomizer';
 import { LedgerTerminologySettings } from './LedgerTerminologySettings';
@@ -25,19 +18,15 @@ import { NetworkSyncTab } from './settings/tabs/NetworkSyncTab';
 import { HardwareSettingsTab } from './settings/tabs/HardwareSettingsTab';
 import { useBillingUIStore, DEFAULT_BILLING_UI_CONFIG, DEFAULT_HEADER_BUTTON_CONFIG, type BillingUIConfig } from '../store/billingUIStore';
 import { useCartStore } from '../store/cartStore';
-import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { fetchApi } from '../lib/api';
-import { Input } from './ui/Input';
-import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
-import { WhatsAppSettings } from './WhatsAppSettings';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { isAdminRole } from '../utils/permissions';
 import {
@@ -59,40 +48,18 @@ import {
 } from '../utils/shopClosingHelper';
 
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
-import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../featureFlags';
+import { CODE_TYPE_CONFIGS, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, wereFeatureFlagsStored, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../featureFlags';
 import { useTabStore } from '../store/tabStore';
-import { SUPPORTED_TIMEZONES, getStoreTimezone, setStoreTimezone } from '../utils/timezoneHelper';
-
-const INDIAN_STATES = [
-  { code: 'MH', name: 'Maharashtra' },
-  { code: 'DL', name: 'Delhi' },
-  { code: 'KA', name: 'Karnataka' },
-  { code: 'TN', name: 'Tamil Nadu' },
-  { code: 'TS', name: 'Telangana' },
-  { code: 'AP', name: 'Andhra Pradesh' },
-  { code: 'GJ', name: 'Gujarat' },
-  { code: 'WB', name: 'West Bengal' },
-  { code: 'UP', name: 'Uttar Pradesh' },
-  { code: 'HR', name: 'Haryana' },
-  { code: 'KL', name: 'Kerala' },
-  { code: 'MP', name: 'Madhya Pradesh' },
-  { code: 'RJ', name: 'Rajasthan' },
-  { code: 'PB', name: 'Punjab' },
-  { code: 'BR', name: 'Bihar' },
-  { code: 'OD', name: 'Odisha' },
-  { code: 'AS', name: 'Assam' },
-  { code: 'UT', name: 'Uttarakhand' },
-  { code: 'GA', name: 'Goa' },
-];
-
-const FONT_OPTIONS = [
-  { id: 'courier', name: 'Courier New', family: '"Courier New", monospace' },
-  { id: 'consolas', name: 'Consolas', family: 'Consolas, monospace' },
-  { id: 'lucida', name: 'Lucida Console', family: '"Lucida Console", monospace' },
-  { id: 'lucida-sans', name: 'Lucida Sans Typewriter', family: '"Lucida Sans Typewriter", "Lucida Console", monospace' },
-  { id: 'monospace', name: 'System Monospace', family: 'monospace' },
-] as const;
+import { getStoreTimezone, setStoreTimezone } from '../utils/timezoneHelper';
+import { appApi, logError } from '../data/app';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
+import { settingsApi } from '../data/settings';
+import { syncApi } from '../data/sync';
+import { whatsappApi } from '../data/whatsapp';
 
 interface SidebarItem {
   id: string;
@@ -179,54 +146,6 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
   },
 ];
 
-function formatTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes === 1) return '1 min ago';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours === 1) return '1 hour ago';
-  return `${hours} hours ago`;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-}
-
-function DefaultStockReportViewSelector({ value, onChange }: { value: string; onChange: (val: string) => void }) {
-  const options = [
-    { id: 'estimate', label: 'Estimate Only', desc: 'Non-GST products' },
-    { id: 'gst', label: 'GST Only', desc: 'GST enabled products' },
-    { id: 'combined', label: 'Estimate & GST', desc: 'All products combined' },
-  ] as const;
-
-  return (
-    <div className="grid grid-cols-3 gap-x-3">
-      {options.map(opt => (
-        <button
-          key={opt.id}
-          type="button"
-          onClick={() => onChange(opt.id)}
-          className={clsx(
-            'flex flex-col items-center justify-center p-3 text-center rounded-xl border transition-all cursor-pointer',
-            value === opt.id
-              ? 'bg-primary/10 border-primary text-primary font-extrabold shadow-sm'
-              : 'bg-background border-border text-muted-foreground hover:border-primary/30 hover:text-foreground'
-          )}
-        >
-          <span className="text-xs font-bold">{opt.label}</span>
-          <span className="text-[10px] opacity-75 mt-0.5">{opt.desc}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { role, updateDomain, tenantId } = useAuthStore();
@@ -251,13 +170,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const [printersLoading, setPrintersLoading] = useState(false);
-  const { shopDomain } = useCartStore();
+  const shopDomain = useCartStore((state) => state.shopDomain);
   const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
   const [autoWhatsAppSend, setAutoWhatsAppSend] = useState<boolean>(() => localStorage.getItem('auto_whatsapp_send') === 'true');
   const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
   const [activeWhatsAppTab, setActiveWhatsAppTab] = useState<'qr' | 'settings' | 'closing'>('qr');
   const [whatsNewLang, setWhatsNewLang] = useState<'ml' | 'en'>(() => (localStorage.getItem('nafid_whats_new_lang') as 'ml' | 'en') || 'ml');
-  const { fontScale, increaseFontScale, decreaseFontScale, setFontScale, primaryColor, fontFamily } = useThemeStore();
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
@@ -393,8 +311,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const initialSnapshot = useRef<string>('');
 
   useEffect(() => {
-    if (window.electronAPI?.appGetNetworkDetails) {
-      window.electronAPI.appGetNetworkDetails().then((details) => {
+    if (hasBridge('appGetNetworkDetails')) {
+      appApi.getNetworkDetails().then((details) => {
         if (details && details.ip) {
           setNetworkDetails(details);
           if (details.ip && details.ip !== '192.168.1.100') {
@@ -402,8 +320,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           }
         }
       }).catch(() => {});
-    } else if (window.electronAPI?.appGetLocalIp) {
-      window.electronAPI.appGetLocalIp().then((ip) => {
+    } else if (hasBridge('appGetLocalIp')) {
+      appApi.getLocalIp().then((ip) => {
         if (ip) {
           setDetectedLocalIp(ip);
           setNetworkDetails(prev => ({
@@ -414,13 +332,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         }
       }).catch(() => {});
     }
-    if (window.electronAPI?.getCloudAccessState) {
-      window.electronAPI.getCloudAccessState().then((state: any) => {
+    if (hasBridge('getCloudAccessState')) {
+      syncApi.getCloudAccessState().then((state: any) => {
         if (state) setEffectiveCloudState(state);
       }).catch(() => {});
     }
-    if (window.electronAPI?.onCloudStateChanged) {
-      const unsub = window.electronAPI.onCloudStateChanged((state: any) => {
+    if (hasBridge('onCloudStateChanged')) {
+      const unsub = bridgeEvents.onCloudStateChanged((state: any) => {
         if (state) setEffectiveCloudState(state);
       });
       return unsub;
@@ -429,148 +347,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
   const [showLanHelpModal, setShowLanHelpModal] = useState(false);
   const [copiedFirewallCmd, setCopiedFirewallCmd] = useState(false);
-
-  const handleManualQueueDrain = async () => {
-    if (!window.electronAPI?.drainPendingCloudQueue) return;
-    setDrainingQueue(true);
-    try {
-      const res = await window.electronAPI.drainPendingCloudQueue();
-      if (res.success) {
-        setMessage({ type: 'success', text: 'Queue drain completed' });
-      } else {
-        setMessage({ type: 'error', text: `Queue drain error: ${res.error || 'Failed'}` });
-      }
-      if (window.electronAPI?.getCloudAccessState) {
-        const newState = await window.electronAPI.getCloudAccessState();
-        if (newState) setEffectiveCloudState(newState);
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: `Queue drain error: ${err.message}` });
-    } finally {
-      setDrainingQueue(false);
-    }
-  };
-
-  const handleTestNetworkConnection = async () => {
-    setTestingNetwork(true);
-    setMessage({ type: 'success', text: 'Testing network connection...' });
-    const cleanHost = lanHostIp.trim().replace(/^https?:\/\//i, '').replace(/:\d+$/, '').replace(/\/.*$/, '');
-    const port = Number(lanPort) || 3888;
-
-    try {
-      if (window.electronAPI?.testNetworkConnection) {
-        const result = await window.electronAPI.testNetworkConnection({
-          syncMode,
-          lanRole,
-          lanHostIp: cleanHost,
-          lanPort: port,
-        });
-        if (result.ok) {
-          setMessage({ type: 'success', text: result.message || 'Connection test successful' });
-        } else {
-          setMessage({ type: 'error', text: result.error || 'Connection failed' });
-        }
-      } else {
-        // Cloud API URL — set VITE_CLOUD_API in .env
-        const defaultCloud = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
-        if (syncMode === 'LAN' || syncMode === 'HYBRID') {
-          if (lanRole === 'PRIMARY') {
-            const hostIp = detectedLocalIp || cleanHost || '192.168.1.100';
-            setMessage({
-              type: 'success',
-              text: `Wifi Sync Active — This PC is Primary Master Server (IP: ${hostIp}, Port ${port})`
-            });
-          } else {
-            const host = cleanHost || '192.168.1.100';
-            try {
-              const res = await fetch(`http://${host}:${port}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
-              if (res.ok) {
-                setMessage({
-                  type: 'success',
-                  text: `Wifi Sync Active — Connected to Primary Master Server (${host})`
-                });
-              } else if (syncMode === 'HYBRID') {
-                try {
-                  const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
-                  if (cloudRes.ok) {
-                    setMessage({
-                      type: 'success',
-                      text: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
-                    });
-                  } else {
-                    setMessage({
-                      type: 'error',
-                      text: `Sync Inactive — Master Server (${host}) returned status ${res.status} & Cloud API unreachable.`
-                    });
-                  }
-                } catch {
-                  setMessage({
-                    type: 'error',
-                    text: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
-                  });
-                }
-              } else {
-                setMessage({
-                  type: 'error',
-                  text: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
-                });
-              }
-            } catch {
-              if (syncMode === 'HYBRID') {
-                try {
-                  const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
-                  if (cloudRes.ok) {
-                    setMessage({
-                      type: 'success',
-                      text: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
-                    });
-                  } else {
-                    setMessage({
-                      type: 'error',
-                      text: `Sync Inactive — Could not connect to Master Server at ${host}:${port} or Cloud API. Operating offline.`
-                    });
-                  }
-                } catch {
-                  setMessage({
-                    type: 'error',
-                    text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
-                  });
-                }
-              } else {
-                setMessage({
-                  type: 'error',
-                  text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
-                });
-              }
-            }
-          }
-        } else {
-          try {
-            const res = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
-            if (res.ok) {
-              setMessage({
-                type: 'success',
-                text: `Cloud Sync Active — Connected to Cloud API server`
-              });
-            } else {
-              setMessage({
-                type: 'error',
-                text: `Sync Inactive — Could not reach Cloud API server (${defaultCloud}). Operating in Offline Mode.`
-              });
-            }
-          } catch {
-            setMessage({
-              type: 'error',
-              text: `Sync Inactive — Could not reach Cloud API server (${defaultCloud}). Operating in Offline Mode.`
-            });
-          }
-        }
-      }
-    } finally {
-      setTestingNetwork(false);
-      setTimeout(() => setMessage(null), 5000);
-    }
-  };
 
   const buildSettingsSnapshot = (overrides: Record<string, any> = {}) => JSON.stringify({
     barcodePrinter: overrides.barcodePrinter !== undefined ? overrides.barcodePrinter : barcodePrinter,
@@ -687,20 +463,20 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   }, []);
 
   useEffect(() => {
-    if (!window.electronAPI) return;
-    if (window.electronAPI.onUpdateStatus) {
-      window.electronAPI.onUpdateStatus((status: string) => {
+    if (!isDesktopRuntime()) return;
+    if (hasBridge('onUpdateStatus')) {
+      bridgeEvents.onUpdateStatus((status: string) => {
         if (status === 'ready-to-install') { setUpdateReady(true); setIsDownloading(false); setDownloadProgress(null); setUpdateStatus('Update ready to install'); }
         else if (status === 'update-available') { setUpdateStatus('Update available'); }
         else if (status === 'error') { setIsDownloading(false); setUpdateStatus('Download failed'); }
         else { setUpdateStatus(status); }
       });
     }
-    if (window.electronAPI.onUpdateProgress) {
-      window.electronAPI.onUpdateProgress((progress) => { setDownloadProgress(progress); });
+    if (hasBridge('onUpdateProgress')) {
+      bridgeEvents.onUpdateProgress((progress) => { setDownloadProgress(progress); });
     }
-    if (window.electronAPI.onUpdateInfo) {
-      window.electronAPI.onUpdateInfo((info: any) => {
+    if (hasBridge('onUpdateInfo')) {
+      bridgeEvents.onUpdateInfo((info: any) => {
         if (info) {
           setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
           // The main process already starts the download automatically when update-available fires.
@@ -711,19 +487,19 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         }
       });
     }
-    window.electronAPI.appCheckForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
+    appApi.checkForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
   }, []);
 
   const loadSettings = async () => {
-    window.electronAPI?.logError?.('[SettingsManager] loadSettings STARTED');
-    if (!window.electronAPI) {
+    logError('[SettingsManager] loadSettings STARTED');
+    if (!isDesktopRuntime()) {
       setLoading(false);
       return;
     }
     try {
       const { tenantId } = useAuthStore.getState();
       const currentTenant = tenantId || 'global';
-      window.electronAPI?.logError?.(`[SettingsManager] tenantId: ${currentTenant}`);
+      logError(`[SettingsManager] tenantId: ${currentTenant}`);
 
       fetchApi('/settings/connect-code')
         .then((res: any) => {
@@ -737,9 +513,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       // 1. Fetch all settings in a single batch query, or parallel fallback
       let allSettings: Record<string, any> = {};
-      if (typeof window.electronAPI.settingsGetAll === 'function') {
+      if (hasBridge('settingsGetAll')) {
         try {
-          allSettings = await window.electronAPI.settingsGetAll({ tenant_id: currentTenant }) || {};
+          allSettings = await settingsApi.getAll({ tenant_id: currentTenant }) || {};
         } catch (err) {
           console.warn('[SettingsManager] settingsGetAll failed, falling back to parallel fetch', err);
         }
@@ -767,7 +543,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
         const results = await Promise.allSettled(
           keysToFetch.map(key =>
-            window.electronAPI!.settingsGet({
+            settingsApi.get({
               tenant_id: globalOnlyKeys.has(key) ? 'global' : currentTenant,
               key
             })
@@ -1014,7 +790,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       if (!termCode || termCode.length === 0) {
         const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
         termCode = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-        window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: termCode }).catch(() => {});
+        setSetting({ tenant_id: 'global', key: 'terminal_code', value: termCode }).catch(() => {});
       }
       const finalTermCode = termCode;
 
@@ -1154,9 +930,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         }
       }
 
-      if (window.electronAPI?.shopClosingGetConfig) {
+      if (hasBridge('shopClosingGetConfig')) {
         try {
-          const res = await window.electronAPI.shopClosingGetConfig({ tenant_id: currentTenant });
+          const res = await whatsappApi.shopClosingGetConfig({ tenant_id: currentTenant });
           const cfg = (res && res.config) ? res.config : res;
           if (cfg && typeof cfg === 'object' && ('enabled' in cfg || 'ownerPhone' in cfg || 'sendTiming' in cfg)) {
             finalShopClosing = {
@@ -1332,20 +1108,20 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       // Settings loaded: dismiss skeleton loader immediately (<30ms)
       setLoading(false);
-      window.electronAPI?.logError?.('[SettingsManager] loadSettings COMPLETED SUCCESS');
+      logError('[SettingsManager] loadSettings COMPLETED SUCCESS');
 
       // 2. Non-blocking asynchronous background jobs: Printers, Version, Service Charge Item
       // A. Printers (Windows Print Spooler enumeration can take several seconds - do NOT block UI)
       fetchPrinters(false);
 
       // B. App Version
-      window.electronAPI.appGetVersion().then((v: string) => {
+      appApi.getVersion().then((v: string) => {
         if (v) setAppVersion(`v${v}`);
       }).catch(() => {});
 
       // C. Service Charge Product & Barcode
-      window.electronAPI.dbEnsureServiceItem({ tenant_id: currentTenant })
-        .then(() => window.electronAPI.dbGetProducts({ tenant_id: currentTenant, search: 'Service Charge' }))
+      productsApi.ensureServiceItem({ tenant_id: currentTenant })
+        .then(() => productsApi.getProducts({ tenant_id: currentTenant, search: 'Service Charge' }))
         .then((svcProducts: any) => {
           const svcProd = Array.isArray(svcProducts)
             ? svcProducts
@@ -1365,16 +1141,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         .catch((err: any) => console.error('[SettingsManager] Failed to load Service Charge settings', err));
 
     } catch (err: any) {
-      window.electronAPI?.logError?.('[SettingsManager] ERROR in loadSettings: ' + (err?.message || String(err)));
+      logError('[SettingsManager] ERROR in loadSettings: ' + (err?.message || String(err)));
       setLoading(false);
     }
   };
 
   const fetchPrinters = async (showToast = false) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setPrintersLoading(true);
     try {
-      const pr = await window.electronAPI.getPrinters();
+      const pr = await printingApi.getPrinters();
       const printerList = Array.isArray(pr) ? pr : [];
       setOsPrinters(printerList);
 
@@ -1414,7 +1190,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   };
 
   const handleSave = async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setSaving(true); setMessage(null);
     try {
       const { tenantId } = useAuthStore.getState();
@@ -1474,88 +1250,88 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const sanitizedFlags = sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS);
 
       const checks: { promise: Promise<any>; name: string }[] = [
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'party_estimate' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config', value: formattedReceiptPrinter }), name: 'receipt' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'a4_printer_config', value: a4Printer }), name: 'a4' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'scale_config', value: scale }), name: 'scale' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'price_coding', value: priceCoding }), name: 'price_coding' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_gstin', value: shopGstin }), name: 'gstin' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_state', value: shopState }), name: 'state' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_name', value: shopNameLocal }), name: 'name' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'party_estimate' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'receipt_printer_config', value: formattedReceiptPrinter }), name: 'receipt' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'a4_printer_config', value: a4Printer }), name: 'a4' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'scale_config', value: scale }), name: 'scale' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'price_coding', value: priceCoding }), name: 'price_coding' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin', value: shopGstin }), name: 'gstin' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_state', value: shopState }), name: 'state' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_name', value: shopNameLocal }), name: 'name' },
         ...(tenantId && tenantId !== 'global' ? [
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_name', value: shopNameLocal }), name: 'name_global' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_address', value: shopAddress }), name: 'address_global' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_phone', value: shopPhone }), name: 'phone_global' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_email', value: shopEmail }), name: 'email_global' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_website', value: shopWebsite }), name: 'website_global' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_gstin', value: shopGstin }), name: 'gstin_global' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_state', value: shopState }), name: 'state_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_name', value: shopNameLocal }), name: 'name_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_address', value: shopAddress }), name: 'address_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_phone', value: shopPhone }), name: 'phone_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_email', value: shopEmail }), name: 'email_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_website', value: shopWebsite }), name: 'website_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_gstin', value: shopGstin }), name: 'gstin_global' },
+          { promise: setSetting({ tenant_id: 'global', key: 'shop_state', value: shopState }), name: 'state_global' },
         ] : []),
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_address', value: shopAddress }), name: 'address' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_email', value: shopEmail }), name: 'email' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_website', value: shopWebsite }), name: 'website' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_name', value: bankName }), name: 'bank_name' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_account_number', value: bankAccount }), name: 'bank_account_number' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_ifsc', value: bankIfsc }), name: 'bank_ifsc' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_branch', value: bankBranch }), name: 'bank_branch' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(sanitizedFlags.scrap) }), name: 'enable_scrap' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: sanitizedFlags.cash_register }), name: 'show_cash_register' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...sanitizedFlags } }), name: 'feature_flags' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive', value: gstConversionTaxInclusive }), name: 'gst_conversion_tax_inclusive' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: Boolean(sanitizedFlags.loyalty), earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1, awardPointsOnPending: Boolean(loyaltyAwardOnPending) } }), name: 'loyalty_config' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_open_cash_drawer', value: autoOpenCashDrawer }), name: 'auto_open_cash_drawer' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled', value: billSettings.quotationGstEnabled !== false }), name: 'quotation_gst_enabled' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'default_opening_balance', value: defaultOpeningBalance === '' ? 0 : (Number(defaultOpeningBalance) || 0) }), name: 'default_opening_balance' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0, billSettings, scrapBillSettings } }), name: 'print_format' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${computedScrapPrefix}-`, counter: finalScrapCounter } }), name: 'scrap_invoice_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${computedQuotationPrefix}-`, counter: finalQuotationCounter } }), name: 'quotation_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'purchase_bill_counter', value: { prefix: `${computedPurchaseBillPrefix}-`, counter: finalPurchaseBillCounter } }), name: 'purchase_bill_counter' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_address', value: shopAddress }), name: 'address' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_email', value: shopEmail }), name: 'email' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'shop_website', value: shopWebsite }), name: 'website' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'bank_name', value: bankName }), name: 'bank_name' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number', value: bankAccount }), name: 'bank_account_number' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc', value: bankIfsc }), name: 'bank_ifsc' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'bank_branch', value: bankBranch }), name: 'bank_branch' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(sanitizedFlags.scrap) }), name: 'enable_scrap' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: sanitizedFlags.cash_register }), name: 'show_cash_register' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...sanitizedFlags } }), name: 'feature_flags' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive', value: gstConversionTaxInclusive }), name: 'gst_conversion_tax_inclusive' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: Boolean(sanitizedFlags.loyalty), earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1, awardPointsOnPending: Boolean(loyaltyAwardOnPending) } }), name: 'loyalty_config' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'auto_open_cash_drawer', value: autoOpenCashDrawer }), name: 'auto_open_cash_drawer' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled', value: billSettings.quotationGstEnabled !== false }), name: 'quotation_gst_enabled' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'default_opening_balance', value: defaultOpeningBalance === '' ? 0 : (Number(defaultOpeningBalance) || 0) }), name: 'default_opening_balance' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0, billSettings, scrapBillSettings } }), name: 'print_format' },
+        { promise: setSetting({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
+        { promise: setSetting({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
+        { promise: setSetting({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
+        { promise: setSetting({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${computedScrapPrefix}-`, counter: finalScrapCounter } }), name: 'scrap_invoice_counter' },
+        { promise: setSetting({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${computedQuotationPrefix}-`, counter: finalQuotationCounter } }), name: 'quotation_counter' },
+        { promise: setSetting({ tenant_id: 'global', key: 'purchase_bill_counter', value: { prefix: `${computedPurchaseBillPrefix}-`, counter: finalPurchaseBillCounter } }), name: 'purchase_bill_counter' },
         ...(tenantId && tenantId !== 'global' ? [
-          { promise: window.electronAPI.settingsSet({ tenant_id: tenantId, key: 'purchase_bill_counter', value: { prefix: `${computedPurchaseBillPrefix}-`, counter: finalPurchaseBillCounter } }), name: 'purchase_bill_counter_tenant' },
+          { promise: setSetting({ tenant_id: tenantId, key: 'purchase_bill_counter', value: { prefix: `${computedPurchaseBillPrefix}-`, counter: finalPurchaseBillCounter } }), name: 'purchase_bill_counter_tenant' },
         ] : []),
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? finalB2bCounter : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? finalB2cCounter : 1 } }), name: 'three_invoice_series' },
+        { promise: setSetting({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? finalB2bCounter : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? finalB2cCounter : 1 } }), name: 'three_invoice_series' },
         ...(enableThreeInvoiceSeries ? [
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: finalB2bCounter } }), name: 'gst_b2b_invoice' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config', value: { prefix: `${b2cPrefix}-`, counter: finalB2cCounter } }), name: 'gst_b2c_invoice' },
+          { promise: setSetting({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: finalB2bCounter } }), name: 'gst_b2b_invoice' },
+          { promise: setSetting({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config', value: { prefix: `${b2cPrefix}-`, counter: finalB2cCounter } }), name: 'gst_b2c_invoice' },
         ] : []),
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge', value: showProductGstBadge ? 'true' : 'false' }), name: 'show_product_gst_badge' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory', value: showPriceTiersInInventory ? 'true' : 'false' }), name: 'show_price_tiers_in_inventory' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_fully_paid_cash_in_ledger', value: showFullyPaidCashInLedger }), name: 'show_fully_paid_cash_in_ledger' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock', value: enableRealPaperStock }), name: 'enable_real_paper_stock' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst', value: showPaperStockInGst }), name: 'show_paper_stock_in_gst' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate', value: showPaperStockInEstimate }), name: 'show_paper_stock_in_estimate' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock', value: showZeroPaperStock }), name: 'show_zero_paper_stock' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_paper_only_products', value: showPaperOnlyProducts }), name: 'show_paper_only_products' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst', value: enableConvertToGst }), name: 'enable_convert_to_gst' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY, value: JSON.stringify(staffDataMaskingConfig) }), name: 'staff_data_masking' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY, value: { ...emergencyPanicConfig, updated_at: new Date().toISOString() } }), name: 'emergency_panic_config' },
-        ...(window.electronAPI?.shopClosingSaveConfig ? [{
-          promise: window.electronAPI.shopClosingSaveConfig({
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge', value: showProductGstBadge ? 'true' : 'false' }), name: 'show_product_gst_badge' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory', value: showPriceTiersInInventory ? 'true' : 'false' }), name: 'show_price_tiers_in_inventory' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_fully_paid_cash_in_ledger', value: showFullyPaidCashInLedger }), name: 'show_fully_paid_cash_in_ledger' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock', value: enableRealPaperStock }), name: 'enable_real_paper_stock' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst', value: showPaperStockInGst }), name: 'show_paper_stock_in_gst' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate', value: showPaperStockInEstimate }), name: 'show_paper_stock_in_estimate' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock', value: showZeroPaperStock }), name: 'show_zero_paper_stock' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_paper_only_products', value: showPaperOnlyProducts }), name: 'show_paper_only_products' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst', value: enableConvertToGst }), name: 'enable_convert_to_gst' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY, value: JSON.stringify(staffDataMaskingConfig) }), name: 'staff_data_masking' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY, value: { ...emergencyPanicConfig, updated_at: new Date().toISOString() } }), name: 'emergency_panic_config' },
+        ...(hasBridge('shopClosingSaveConfig') ? [{
+          promise: whatsappApi.shopClosingSaveConfig({
             tenant_id: tenantId || 'global',
             config: shopClosingConfig,
             user_role: role,
           }),
           name: 'shop_closing_config'
         }] : []),
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
       for (const { promise, name } of checks) {
@@ -1587,7 +1363,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           sku_barcode: serviceChargeBarcode,
           sync_status: 'PENDING'
         };
-        const updateRes = await window.electronAPI.dbUpdateProduct(updatedProduct);
+        const updateRes = await productsApi.updateProduct(updatedProduct);
         if (!updateRes.success) {
           throw new Error(`service_charge: ${updateRes.error || 'Failed to update barcode'}`);
         }
@@ -1720,16 +1496,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     setSaving(false);
   };
 
-  const handleInstallUpdate = () => { setUpdateStatus('Restarting to install update...'); window.electronAPI?.appInstallUpdate(); };
+  const handleInstallUpdate = () => { setUpdateStatus('Restarting to install update...'); appApi.installUpdate(); };
 
   const handleRetryDownload = () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setUpdateStatus(null);
     setUpdateInfo(null);
     setIsDownloading(false);
     setDownloadProgress(null);
     setUpdateReady(false);
-    window.electronAPI.appCheckForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
+    appApi.checkForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -1833,10 +1609,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const activeItem = (SIDEBAR_GROUPS || []).flatMap(g => g?.items || []).find(i => i?.id === activeSection);
 
   const renderSectionContent = (sectionId: string) => {
-    const productTabs = [
-      { id: 'coding', label: 'Price Coding', icon: Key, ownerOnly: true },
-      { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
-    ].filter(t => !t.ownerOnly || isAdminRole(role));
 
     switch (sectionId) {
       case 'emergency_purge':
@@ -2088,7 +1860,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       {renderMessage()}
       {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
 
-      {/* â”€â”€ Premium Header â”€â”€ */}
+      {/* ── Premium Header ── */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative shrink-0">
@@ -2129,10 +1901,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         </div>
       </header>
 
-      {/* â”€â”€ Sidebar + Content â”€â”€ */}
+      {/* ── Sidebar + Content ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* â”€â”€ Left Sidebar Navigation â”€â”€ */}
+        {/* ── Left Sidebar Navigation ── */}
         <aside className="w-56 lg:w-64 shrink-0 bg-muted/30 border-r border-border overflow-y-auto hidden md:block">
           <nav className="py-4 px-3.5 space-y-6">
             {SIDEBAR_GROUPS.map((group) => {
@@ -2180,7 +1952,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </nav>
         </aside>
 
-        {/* â”€â”€ Mobile Section Picker â”€â”€ */}
+        {/* ── Mobile Section Picker ── */}
         <div className="md:hidden shrink-0 border-b border-border bg-muted/20 overflow-x-auto">
           <div className="flex gap-1.5 p-2 whitespace-nowrap">
             {SIDEBAR_GROUPS.flatMap(g => g.items).filter(item => !item.ownerOnly || isAdminRole(role)).map((item) => {
@@ -2247,7 +2019,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             </div>
 
           </div>
-
 
         </main>
       </div>

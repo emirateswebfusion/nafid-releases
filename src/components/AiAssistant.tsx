@@ -1,27 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  Plus,
-  ArrowUp,
-  Trash2,
-  Copy,
-  Check,
-  Volume2,
-  VolumeX,
-  FileSpreadsheet,
-  PanelLeftClose,
-  PanelLeft,
-  X,
-  Wifi,
-  WifiOff,
-  BarChart3,
-  RefreshCw,
-  TrendingUp,
-  Package,
-  Users,
-  DollarSign,
-  Pencil,
-  RotateCcw
-} from 'lucide-react';
+import { Plus, ArrowUp, Trash2, Copy, Check, Volume2, VolumeX, FileSpreadsheet, PanelLeftClose, PanelLeft, X, BarChart3, RefreshCw, TrendingUp, Package, Users, DollarSign, Pencil } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { processOfflineAiQuery } from '../services/offlineAiService';
 import { useAuthStore } from '../store/authStore';
@@ -37,6 +15,7 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from 'recharts';
+import { formatCurrency as formatINR } from '../utils/money';
 
 interface ChatMessage {
   id: string;
@@ -58,10 +37,6 @@ interface Conversation {
   title: string;
   createdAt: number;
   messages: ChatMessage[];
-}
-
-function formatINR(val: number | undefined): string {
-  return '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function humanizeKey(key: string): string {
@@ -260,8 +235,6 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
-
-
 
   const handleCreateNewChat = () => {
     // If the active conversation is already empty, do not create another one
@@ -1111,7 +1084,6 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
                     <Plus className="w-4 h-4" />
                   </button>
 
-
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1219,4 +1191,3 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
   );
 }
 
-export default AiAssistant;

@@ -1,3 +1,4 @@
+import { formatCurrency } from './money';
 /**
  * Shop Closing Overview Configuration & Helper Utilities
  * Nafid POS - WhatsApp Integration
@@ -300,18 +301,7 @@ export const CHECKLIST_DEFINITIONS: ChecklistItemDefinition[] = [
   { key: 'purchases', label: 'Supplier Purchases', description: 'Total supplier purchase bills recorded today', category: 'ops' },
 ];
 
-/**
- * Format currency amount helper (INR ₹)
- */
-export function formatCurrency(amount: number | null | undefined): string {
-  const num = Number(amount) || 0;
-  const isNegative = num < 0;
-  const absFormatted = Math.abs(num).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return isNegative ? `-₹${absFormatted}` : `₹${absFormatted}`;
-}
+export { formatCurrency };
 
 /**
  * Clean phone number helper

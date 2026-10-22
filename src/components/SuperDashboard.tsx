@@ -2,15 +2,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { fetchApi } from '../lib/api';
 import { useThemeStore } from '../store/themeStore';
-import { 
-  Plus, LogOut, Database, CheckCircle2, XCircle, Edit, RefreshCw, Loader2, KeyRound, Globe, User, 
-  ShieldAlert, Eye, EyeOff, Copy, Check, Search, Filter, ArrowUpDown, Store, Activity, 
-  Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon, Cloud, Clock, Trash2, Lock, Unlock, Shield, Save
-} from 'lucide-react';
+import { Plus, LogOut, Database, CheckCircle2, XCircle, Edit, RefreshCw, Loader2, KeyRound, Globe, User, ShieldAlert, Eye, EyeOff, Copy, Check, Search, Filter, ArrowUpDown, Store, Activity, Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon, Cloud, Trash2, Save } from 'lucide-react';
 import clsx from 'clsx';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { SuperAdminWhatsAppModal } from './SuperAdminWhatsAppModal';
+import { hasBridge } from '../data/client';
+import { syncApi } from '../data/sync';
 
 interface TenantAdmin {
   tenant_id: string;
@@ -143,8 +141,8 @@ export default function SuperDashboard() {
         method: 'PUT',
         body: JSON.stringify(payload)
       });
-      if (window.electronAPI?.updateCloudAccessConfig) {
-        await window.electronAPI.updateCloudAccessConfig({ config: payload, tenant_id: selectedCloudTenant.tenant_id });
+      if (hasBridge('updateCloudAccessConfig')) {
+        await syncApi.updateCloudAccessConfig({ config: payload, tenant_id: selectedCloudTenant.tenant_id });
       }
       setCloudAccessMsg('Cloud Access Configuration saved successfully!');
       setTimeout(() => setCloudModalOpen(false), 1200);

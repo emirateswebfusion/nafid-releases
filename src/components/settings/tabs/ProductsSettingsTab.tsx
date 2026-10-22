@@ -2,7 +2,6 @@ import React from 'react';
 import { Key, Tags, Upload, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
-import { BulkOnboardingSheet } from '../../BulkOnboardingSheet';
 
 export interface ProductsSettingsTabProps {
   isAdminRole: boolean;

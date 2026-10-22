@@ -1,25 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Megaphone,
-  Plus,
-  Eye,
-  Trash2,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  X,
-  Image as ImageIcon,
-  Phone,
-  Store,
-  ExternalLink,
-  Flame,
-  ToggleLeft,
-  ToggleRight,
-  RefreshCw,
-  Heart,
-  Share2,
-  Bookmark,
-} from 'lucide-react';
+import { Megaphone, Plus, Eye, Trash2, Loader2, X, Image as ImageIcon, Phone, Flame, ToggleLeft, ToggleRight, RefreshCw, Heart, Share2 } from 'lucide-react';
 import clsx from 'clsx';
 import { fetchApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';

@@ -4,13 +4,14 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
 
-import { initDb, getDb, autoDeduplicateCustomersAndParties } from './db/localDb.js';
+import { initDb, getDb } from './db/localDb.js';
+import { autoDeduplicateCustomersAndParties } from './db/customerIdentity.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
 import { initBarcodeScanner } from './hardware/barcodeScanner.js';
 import { initSyncWorker } from './sync/syncWorker.js';
 
-import { setMainWindow } from './ipc/common.js';
+import { setMainWindow } from './services/windowRegistry.js';
 import { registerAllIpcHandlers } from './ipc/index.js';
 import { backfillCreditInvoices, recalcPartyBalances } from './services/partyLedgerService.js';
 import { setupAutoUpdater } from './services/updaterService.js';

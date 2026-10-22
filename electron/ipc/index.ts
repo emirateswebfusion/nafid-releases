@@ -10,7 +10,7 @@ import { registerSettingsHandlers } from './settingsHandlers.js';
 import { registerSyncEcommerceHandlers } from './syncEcommerceHandlers.js';
 import { registerUpdaterIpc } from '../services/updaterService.js';
 import { reconcileCashDrawer } from '../services/cashDrawerService.js';
-import { getStoreTimezoneSetting } from './common.js';
+import { getStoreTimezoneSetting } from '../services/storeTime.js';
 import { initWhatsAppIpc } from '../whatsapp/whatsappService.js';
 import { initShopClosingIpc } from '../whatsapp/shopClosingReportService.js';
 

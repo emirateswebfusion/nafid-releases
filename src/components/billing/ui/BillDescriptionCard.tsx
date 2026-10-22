@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, X } from 'lucide-react';
 import { useTabStore } from '../../../store/tabStore';
 
 export const BillDescriptionCard = React.memo(({

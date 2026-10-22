@@ -1,4 +1,3 @@
-import React from 'react';
 import { Recycle } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { formatCurrency } from '../BillingConstants';

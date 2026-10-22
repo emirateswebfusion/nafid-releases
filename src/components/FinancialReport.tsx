@@ -1,9 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar, 
-  Download, Printer, RefreshCw, X, ArrowUpRight, ArrowDownRight,
-  ShieldCheck, PieChart, Landmark, Wallet, Receipt, ShoppingBag, FileSpreadsheet, BarChart2
-} from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { TrendingUp, DollarSign, Calendar, Printer, RefreshCw, X, ShieldCheck, Landmark, FileSpreadsheet, BarChart2 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, 
   CartesianGrid
@@ -11,6 +7,10 @@ import {
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { isDesktopRuntime } from '../data/client';
+import { invoicesApi } from '../data/invoices';
+import { purchasesApi } from '../data/purchases';
+import { scrapApi } from '../data/scrap';
 
 interface FinancialReportProps {
   onClose: () => void;
@@ -109,14 +109,14 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
 
   // Load Financial Data from local SQLite Database
   const fetchFinancialData = useCallback(async () => {
-    if (!window.electronAPI || !tenantId) {
+    if (!isDesktopRuntime() || !tenantId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
       // 1. Fetch Invoices for selected date range
-      const invoices = await window.electronAPI.dbGetInvoices({
+      const invoices = await invoicesApi.getInvoices({
         tenant_id: tenantId,
         filterDate: startDate,
         filterDateEnd: endDate,
@@ -178,10 +178,10 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       }
 
       // 2. Estimate COGS & Purchase Expenses
-      let cogs = netSales * 0.65; // High-accuracy default 35% margin estimate
+      const cogs = netSales * 0.65; // High-accuracy default 35% margin estimate
       let purchaseExpenses = 0;
       try {
-        const pBills = await window.electronAPI.dbGetPurchaseBills({ tenant_id: tenantId });
+        const pBills = await purchasesApi.getPurchaseBills({ tenant_id: tenantId });
         if (Array.isArray(pBills)) {
           purchaseExpenses = pBills.reduce((acc: number, pb: any) => acc + (Number(pb.total_amount) || 0), 0);
         }
@@ -192,7 +192,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       // 3. Fetch Scrap Earnings
       let scrapRevenue = 0;
       try {
-        const scrapList = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tenantId });
+        const scrapList = await scrapApi.getScrapInvoiceList({ tenant_id: tenantId });
         if (Array.isArray(scrapList)) {
           scrapRevenue = scrapList.reduce((acc: number, sc: any) => acc + (Number(sc.total_amount) || 0), 0);
         }

@@ -1,8 +1,7 @@
 import React from 'react';
-import { Monitor, Shield, Lock, Unlock, Download, Eye, EyeOff, Maximize2, RotateCcw, AlertCircle, CheckCircle2, Loader2, Type, Minus, Plus, Palette, Bell, Globe, Key, RefreshCw, Zap, Wrench, FileText, Package } from 'lucide-react';
+import { Shield, Download, Eye, EyeOff, RotateCcw, AlertCircle, CheckCircle2, Loader2, Type, Minus, Plus, Palette, Bell, Globe, Key, RefreshCw, Zap, Wrench, FileText, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
-import { Select } from '../../ui/Select';
 import { useThemeStore } from '../../../store/themeStore';
 import { formatTimeAgo, formatBytes, DefaultStockReportViewSelector } from '../settingsConstants';
 
@@ -421,7 +420,7 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                     <div className="flex items-center gap-4.5 px-5 py-4.5">
                       <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0"><CheckCircle2 className="w-5 h-5" /></div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground">{appVersion} â€” You're on the latest version</p>
+                        <p className="text-sm font-bold text-foreground">{appVersion} — You're on the latest version</p>
                         <p className="text-xs text-muted-foreground/75 mt-0.5">No updates available at this time.</p>
                       </div>
                       <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold rounded-lg border border-emerald-500/20 shrink-0 uppercase tracking-wider">UP TO DATE</span>

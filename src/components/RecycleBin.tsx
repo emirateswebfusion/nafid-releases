@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Trash2, RotateCcw, Search, X, AlertTriangle, Receipt, Package, Users, Handshake,
-  Loader2, RefreshCw, Ban, Eye, ExternalLink, Calendar, CheckCircle2,
-  ArrowLeft, LayoutGrid, List, Sparkles, Filter, ChevronRight, Clock,
-  ArrowDownRight, CheckCheck, IndianRupee, Tag, ShieldAlert
-} from 'lucide-react';
+import { Trash2, RotateCcw, Search, X, AlertTriangle, Receipt, Package, Users, Handshake, Loader2, RefreshCw, Ban, Eye, ExternalLink, CheckCircle2, LayoutGrid, List, ShieldAlert } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { isAdminRole, hasPermission } from '../utils/permissions';
+import { hasBridge } from '../data/client';
+import { invoicesApi } from '../data/invoices';
+import { partiesApi } from '../data/parties';
+import { recycleBinApi } from '../data/recycleBin';
+import { formatAmount } from '../utils/money';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,13 +113,6 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount || 0);
-}
-
 // ─── Category Configurations ──────────────────────────────────────────────────
 
 const CATEGORIES: { id: RecycleBinCategory; label: string; Icon: React.FC<any>; desc: string }[] = [
@@ -152,7 +145,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   const [loadingParties, setLoadingParties] = useState(false);
 
   // Loaded categories tracking
-  const [loaded, setLoaded] = useState<Set<RecycleBinCategory>>(new Set());
+  const [, setLoaded] = useState<Set<RecycleBinCategory>>(new Set());
 
   // Invoice item inspection
   const [inspectingInvoice, setInspectingInvoice] = useState<DeletedInvoice | null>(null);
@@ -190,10 +183,10 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
 
   // ─── Data Loaders ──────────────────────────────────────────────────────────
   const loadInvoices = useCallback(async () => {
-    if (!window.electronAPI?.dbGetDeletedInvoices) return;
+    if (!hasBridge('dbGetDeletedInvoices')) return;
     setLoadingInvoices(true);
     try {
-      const data = await window.electronAPI.dbGetDeletedInvoices(tid);
+      const data = await recycleBinApi.getDeletedInvoices(tid);
       setInvoices(Array.isArray(data) ? data : []);
     } catch {
       setInvoices([]);
@@ -203,10 +196,10 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [tid]);
 
   const loadProducts = useCallback(async () => {
-    if (!window.electronAPI?.dbGetDeletedProducts) return;
+    if (!hasBridge('dbGetDeletedProducts')) return;
     setLoadingProducts(true);
     try {
-      const data = await window.electronAPI.dbGetDeletedProducts(tid);
+      const data = await recycleBinApi.getDeletedProducts(tid);
       setProducts(Array.isArray(data) ? data : []);
     } catch {
       setProducts([]);
@@ -216,10 +209,10 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [tid]);
 
   const loadCustomers = useCallback(async () => {
-    if (!window.electronAPI?.dbGetDeletedCustomers) return;
+    if (!hasBridge('dbGetDeletedCustomers')) return;
     setLoadingCustomers(true);
     try {
-      const data = await window.electronAPI.dbGetDeletedCustomers(tid);
+      const data = await recycleBinApi.getDeletedCustomers(tid);
       setCustomers(Array.isArray(data) ? data : []);
     } catch {
       setCustomers([]);
@@ -229,10 +222,10 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [tid]);
 
   const loadParties = useCallback(async () => {
-    if (!window.electronAPI?.dbGetDeletedParties) return;
+    if (!hasBridge('dbGetDeletedParties')) return;
     setLoadingParties(true);
     try {
-      const data = await window.electronAPI.dbGetDeletedParties(tid);
+      const data = await recycleBinApi.getDeletedParties(tid);
       setParties(Array.isArray(data) ? data : []);
     } catch {
       setParties([]);
@@ -263,8 +256,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
     setInspectingInvoice(inv);
     setLoadingItems(true);
     try {
-      if (window.electronAPI?.dbGetInvoiceItems) {
-        const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+      if (hasBridge('dbGetInvoiceItems')) {
+        const items = await invoicesApi.getInvoiceItems(inv.invoice_id);
         setInspectingItems(Array.isArray(items) ? items : []);
       } else {
         setInspectingItems([]);
@@ -278,8 +271,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
 
   // ─── Restore Handlers ──────────────────────────────────────────────────────
   const restoreInvoice = useCallback(async (invoice_id: string, invoice_number: string) => {
-    if (!window.electronAPI?.dbRestoreInvoice) return;
-    const res = await window.electronAPI.dbRestoreInvoice(invoice_id);
+    if (!hasBridge('dbRestoreInvoice')) return;
+    const res = await recycleBinApi.restoreInvoice(invoice_id);
     if (res?.success) {
       addToast(
         `Invoice ${invoice_number} restored to Sales History`,
@@ -294,8 +287,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [addToast, loadInvoices, onNavigateToSalesHistory]);
 
   const restoreProduct = useCallback(async (product_id: string, name: string) => {
-    if (!window.electronAPI?.dbRestoreProduct) return;
-    const res = await window.electronAPI.dbRestoreProduct(product_id);
+    if (!hasBridge('dbRestoreProduct')) return;
+    const res = await recycleBinApi.restoreProduct(product_id);
     if (res?.success) {
       addToast(`Product "${name}" restored successfully`, 'success');
       loadProducts();
@@ -305,8 +298,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [addToast, loadProducts]);
 
   const restoreCustomer = useCallback(async (customer_id: string, name: string) => {
-    if (!window.electronAPI?.dbRestoreCustomer) return;
-    const res = await window.electronAPI.dbRestoreCustomer({ customer_id, tenant_id: tid });
+    if (!hasBridge('dbRestoreCustomer')) return;
+    const res = await recycleBinApi.restoreCustomer({ customer_id, tenant_id: tid });
     if (res?.success) {
       addToast(`Customer "${name}" restored successfully`, 'success');
       loadCustomers();
@@ -316,8 +309,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [addToast, loadCustomers, tid]);
 
   const restoreParty = useCallback(async (party_id: string, name: string) => {
-    if (!window.electronAPI?.dbRestoreParty) return;
-    const res = await window.electronAPI.dbRestoreParty(party_id);
+    if (!hasBridge('dbRestoreParty')) return;
+    const res = await partiesApi.restoreParty(party_id);
     if (res?.success) {
       addToast(`Supplier "${name}" restored successfully`, 'success');
       loadParties();
@@ -328,8 +321,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
 
   // ─── Permanent Delete Handlers ─────────────────────────────────────────────
   const hardDeleteInvoice = useCallback(async (invoice_id: string, invoice_number: string) => {
-    if (!window.electronAPI?.dbHardDeleteInvoice) return;
-    const res = await window.electronAPI.dbHardDeleteInvoice(invoice_id);
+    if (!hasBridge('dbHardDeleteInvoice')) return;
+    const res = await recycleBinApi.hardDeleteInvoice(invoice_id);
     if (res?.success) {
       addToast(`Invoice ${invoice_number} permanently wiped`, 'success');
       loadInvoices();
@@ -339,8 +332,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [addToast, loadInvoices]);
 
   const hardDeleteProduct = useCallback(async (product_id: string, name: string) => {
-    if (!window.electronAPI?.dbHardDeleteProduct) return;
-    const res = await window.electronAPI.dbHardDeleteProduct(product_id);
+    if (!hasBridge('dbHardDeleteProduct')) return;
+    const res = await recycleBinApi.hardDeleteProduct(product_id);
     if (res?.success) {
       addToast(`"${name}" permanently removed`, 'success');
       loadProducts();
@@ -350,8 +343,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [addToast, loadProducts]);
 
   const hardDeleteCustomer = useCallback(async (customer_id: string, name: string) => {
-    if (!window.electronAPI?.dbHardDeleteCustomer) return;
-    const res = await window.electronAPI.dbHardDeleteCustomer({ customer_id, tenant_id: tid });
+    if (!hasBridge('dbHardDeleteCustomer')) return;
+    const res = await recycleBinApi.hardDeleteCustomer({ customer_id, tenant_id: tid });
     if (res?.success) {
       addToast(`Customer "${name}" permanently removed`, 'success');
       loadCustomers();
@@ -361,8 +354,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   }, [addToast, loadCustomers, tid]);
 
   const hardDeleteParty = useCallback(async (party_id: string, name: string) => {
-    if (!window.electronAPI?.dbHardDeleteParty) return;
-    const res = await window.electronAPI.dbHardDeleteParty(party_id);
+    if (!hasBridge('dbHardDeleteParty')) return;
+    const res = await recycleBinApi.hardDeleteParty(party_id);
     if (res?.success) {
       addToast(`Supplier "${name}" permanently removed`, 'success');
       loadParties();
@@ -416,8 +409,8 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
       title: `Empty ${catLabel}?`,
       message: `Permanently delete all ${count} records in ${catLabel}? This action is irreversible.`,
       onConfirm: async () => {
-        if (!window.electronAPI?.dbEmptyRecycleBin) return;
-        const res = await window.electronAPI.dbEmptyRecycleBin({ category: activeCategory, tenant_id: tid });
+        if (!hasBridge('dbEmptyRecycleBin')) return;
+        const res = await recycleBinApi.emptyRecycleBin({ category: activeCategory, tenant_id: tid });
         if (res?.success) {
           addToast(`Recycle bin cleared for ${catLabel}`, 'success');
           reloadActive();
@@ -623,7 +616,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                 <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Deleted Bills</p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xs font-black font-mono text-foreground">{counts.SALES_BILLS}</span>
-                  <span className="text-[10px] font-mono text-muted-foreground font-bold">₹{formatCurrency(totalDeletedBillsValue)}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground font-bold">₹{formatAmount(totalDeletedBillsValue)}</span>
                 </div>
               </div>
             </div>
@@ -853,7 +846,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                     <div className="mt-3 pt-3 border-t border-border/60 flex items-baseline justify-between">
                       <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Value</span>
                       <span className="text-base font-black font-mono text-foreground">
-                        ₹{formatCurrency(inv.grand_total)}
+                        ₹{formatAmount(inv.grand_total)}
                       </span>
                     </div>
                   </div>
@@ -917,7 +910,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                       </td>
                       <td className="px-4 py-3 uppercase text-[11px] text-muted-foreground">{inv.payment_method}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-foreground">
-                        ₹{formatCurrency(inv.grand_total)}
+                        ₹{formatAmount(inv.grand_total)}
                       </td>
                       <td className="px-4 py-3 text-[11px] text-rose-500 font-semibold">{timeAgo(inv.updated_at)}</td>
                       <td className="px-4 py-3 text-right">
@@ -987,7 +980,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                         Stock: <span className="font-bold text-foreground">{p.current_stock ?? 0}</span>
                       </p>
                       <p className="text-muted-foreground">
-                        Selling Price: <span className="font-bold text-foreground font-mono">₹{formatCurrency(p.base_price)}</span>
+                        Selling Price: <span className="font-bold text-foreground font-mono">₹{formatAmount(p.base_price)}</span>
                       </p>
                     </div>
                   </div>
@@ -1089,7 +1082,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                         <p>
                           Balance:{' '}
                           <span className={clsx('font-bold font-mono', p.balance > 0 ? 'text-rose-500' : 'text-emerald-500')}>
-                            ₹{formatCurrency(Math.abs(p.balance))} {p.balance_type || ''}
+                            ₹{formatAmount(Math.abs(p.balance))} {p.balance_type || ''}
                           </span>
                         </p>
                       )}
@@ -1165,7 +1158,7 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                 </div>
                 <div>
                   <span className="text-muted-foreground text-[11px]">Grand Total:</span>
-                  <p className="font-bold text-foreground text-sm font-mono">₹{formatCurrency(inspectingInvoice.grand_total)}</p>
+                  <p className="font-bold text-foreground text-sm font-mono">₹{formatAmount(inspectingInvoice.grand_total)}</p>
                 </div>
               </div>
 
@@ -1187,11 +1180,11 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-foreground truncate">{item.name || item.product_id}</p>
                           <p className="text-[11px] text-muted-foreground font-mono">
-                            Qty: {item.quantity} × ₹{formatCurrency(item.unit_price || item.rate || 0)}
+                            Qty: {item.quantity} × ₹{formatAmount(item.unit_price || item.rate || 0)}
                           </p>
                         </div>
                         <span className="font-bold text-foreground font-mono ml-3">
-                          ₹{formatCurrency(item.total || (item.quantity * (item.unit_price || 0)))}
+                          ₹{formatAmount(item.total || (item.quantity * (item.unit_price || 0)))}
                         </span>
                       </div>
                     ))}
@@ -1292,4 +1285,3 @@ export function RecycleBin({ onClose, initialCategory, onNavigateToSalesHistory 
   );
 }
 
-export default RecycleBin;

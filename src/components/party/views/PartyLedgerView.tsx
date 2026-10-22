@@ -1,15 +1,12 @@
 import React from 'react';
-import {
-  AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BookOpen, Eye,
-  FileDown, FileText, Hash, LayoutList, Link, Loader2, MapPin,
-  MinusCircle, Pencil, Phone, PlusCircle, Table, Trash, TrendingUp,
-  Wallet, Printer, X
-} from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, BookOpen, Eye, FileDown, FileText, Hash, LayoutList, Link, Loader2, MapPin, MinusCircle, Pencil, Phone, PlusCircle, Table, Trash, TrendingUp, Wallet, X } from 'lucide-react';
 import clsx from 'clsx';
-import { formatDate, formatDateTime, getInitials, nameToHue, PaymentMethodIcon, toLocalInputValue } from '../partyHelpers';
+import { formatDate, formatDateTime, getInitials, PaymentMethodIcon, toLocalInputValue } from '../partyHelpers';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { Skeleton } from '../../ui/Skeleton';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
+import { hasBridge } from '../../../data/client';
+import { partiesApi } from '../../../data/parties';
 
 export interface PartyLedgerViewProps {
   selectedParty: any;
@@ -192,8 +189,8 @@ export const PartyLedgerView: React.FC<PartyLedgerViewProps> = ({
                           const currentVal = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
                           const nextVal = !currentVal;
                           try {
-                            if (window.electronAPI?.dbUpdateParty) {
-                              await window.electronAPI.dbUpdateParty({
+                            if (hasBridge('dbUpdateParty')) {
+                              await partiesApi.updateParty({
                                 party_id: selectedParty.party_id,
                                 name: selectedParty.name,
                                 phone: selectedParty.phone || null,

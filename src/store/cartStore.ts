@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
+import { listRate, resolveLinePrice } from '../utils/linePricing';
 
 export interface CartItem {
   item_id?: string;
@@ -330,7 +332,17 @@ export interface LoyaltyInfo {
 
 // Derived Selectors
 export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) => {
-  const { items, invoiceType, discountType, discountValue, shopState, customerState, returnDeduction } = useCartStore();
+  const { items, invoiceType, discountType, discountValue, shopState, customerState, returnDeduction } = useCartStore(
+    useShallow((state) => ({
+      items: state.items,
+      invoiceType: state.invoiceType,
+      discountType: state.discountType,
+      discountValue: state.discountValue,
+      shopState: state.shopState,
+      customerState: state.customerState,
+      returnDeduction: state.returnDeduction,
+    })),
+  );
 
   let subtotal = 0;
   let totalTax = 0;
@@ -344,30 +356,11 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
       return;
     }
 
-    const rawRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
-      ? Number(item.grade_rate)
-      : Number(item.base_price || 0);
+    const rawRate = listRate(item);
 
     const isScrap = !!item.isScrap;
 
-    const catalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-      : item.catalog_discount_flat != null ? (isScrap ? rawRate + Number(item.catalog_discount_flat) : rawRate - Number(item.catalog_discount_flat))
-      : item.catalog_discount_percent != null ? (isScrap ? rawRate * (1 + Number(item.catalog_discount_percent) / 100) : rawRate * (1 - Number(item.catalog_discount_percent) / 100))
-      : rawRate;
-
-    const isAdhocOffer = item.offer_price != null && (item.catalog_offer_price == null || item.offer_price !== item.catalog_offer_price);
-    const isAdhocDiscFlat = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-    const isAdhocDiscPct = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-
-    let effectiveRate = catalogPrice;
-    if (isAdhocOffer) {
-      effectiveRate = Number(item.offer_price);
-    } else if (isAdhocDiscFlat) {
-      effectiveRate = item.isScrap ? catalogPrice + Number(item.discount_flat) : catalogPrice - Number(item.discount_flat);
-    } else if (isAdhocDiscPct) {
-      effectiveRate = item.isScrap ? catalogPrice * (1 + Number(item.discount_percent) / 100) : catalogPrice * (1 - Number(item.discount_percent) / 100);
-    }
-    effectiveRate = Math.max(effectiveRate, 0);
+    const effectiveRate = resolveLinePrice(item, rawRate, isScrap ? 'scrap' : 'sale').unitRate;
 
     const qty = Number(item.quantity) || 0;
     const itemTotal = effectiveRate * qty;

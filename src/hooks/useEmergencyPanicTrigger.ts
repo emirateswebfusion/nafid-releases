@@ -8,6 +8,10 @@ import {
 } from '../utils/emergencyPurge';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { hasBridge } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { recycleBinApi } from '../data/recycleBin';
+import { settingsApi } from '../data/settings';
 
 export function useEmergencyPanicTrigger() {
   const [panicConfig, setPanicConfig] = useState<EmergencyPanicConfig>(DEFAULT_EMERGENCY_PANIC_CONFIG);
@@ -24,9 +28,9 @@ export function useEmergencyPanicTrigger() {
   // Load panic configuration from settings
   useEffect(() => {
     const loadConfig = () => {
-      if (window.electronAPI?.settingsGet) {
+      if (hasBridge('settingsGet')) {
         const { tenantId } = useAuthStore.getState();
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY })
+        settingsApi.get({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY })
           .then((val: any) => {
             if (val) setPanicConfig(parseEmergencyPanicConfig(val));
           })
@@ -46,8 +50,8 @@ export function useEmergencyPanicTrigger() {
 
     try {
       console.warn(`[PanicTrigger] 🚨 Executing local emergency purge. Reason: ${reason}`);
-      if (window.electronAPI?.dbEmergencyPurge) {
-        await window.electronAPI.dbEmergencyPurge({
+      if (hasBridge('dbEmergencyPurge')) {
+        await recycleBinApi.emergencyPurge({
           wipe_mode: configRef.current.wipe_mode,
           reason,
         });
@@ -71,8 +75,8 @@ export function useEmergencyPanicTrigger() {
 
   // Listen for broadcasted purge events from sync or another trigger
   useEffect(() => {
-    if (!window.electronAPI?.onEmergencyPurged) return;
-    const unsub = window.electronAPI.onEmergencyPurged(() => {
+    if (!hasBridge('onEmergencyPurged')) return;
+    const unsub = bridgeEvents.onEmergencyPurged(() => {
       useCartStore.getState().clearCart?.();
       useAuthStore.getState().logout();
       try { localStorage.clear(); } catch {}

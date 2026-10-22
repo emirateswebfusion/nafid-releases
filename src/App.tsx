@@ -17,6 +17,7 @@ import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
+import { getSetting } from './data/settings';
 import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
 import { isAdminRole } from './utils/permissions';
@@ -44,6 +45,9 @@ import { AiAssistant } from './components/AiAssistant';
 import { EcommercePortal } from './components/EcommercePortal';
 import { AdsManager } from './components/AdsManager';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
+import { hasBridge, isDesktopRuntime } from './data/client';
+import { bridgeEvents } from './data/events';
+import { syncApi } from './data/sync';
 
 function App() {
   const [showAiAssistant, setShowAiAssistant] = useState(false);
@@ -110,8 +114,7 @@ function App() {
     }
   }, []);
 
-  const { currentUserRole } = useCartStore();
-  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role, isCloudSyncPaused } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showComboManager, setShowComboManager] = useState(false);
@@ -189,7 +192,7 @@ function App() {
     { text: "The only person you are destined to become is the person you decide to be.", author: "Ralph Waldo Emerson" },
     { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
     { text: "Dream big and dare to fail.", author: "Norman Vaughan" },
-    { text: "Act now. There is never any time but now.", author: "MoliÃ¨re" },
+    { text: "Act now. There is never any time but now.", author: "Molière" },
     { text: "The best revenge is massive success.", author: "Frank Sinatra" },
     { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
     { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
@@ -230,7 +233,7 @@ function App() {
 
   useEffect(() => {
     // If running in browser dev mode and a pathname like /login is entered, clean it up
-    if (!window.electronAPI && window.location.pathname !== '/') {
+    if (!isDesktopRuntime() && window.location.pathname !== '/') {
       window.history.replaceState({}, '', '/');
     }
   }, []);
@@ -258,9 +261,9 @@ function App() {
   // Trigger initial sync once on first login — progress events will activate the bar
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash.startsWith('#/print')) return;
-    if (isAuthenticated && !isCloudSyncPaused && !syncChecked && window.electronAPI) {
+    if (isAuthenticated && !isCloudSyncPaused && !syncChecked && isDesktopRuntime()) {
       console.log('[App] System authenticated. Starting cloud sync in background...');
-      window.electronAPI.runInitialSync().then(() => {
+      syncApi.runInitialSync().then(() => {
         console.log('[App] Initial sync completed.');
       }).catch((error) => {
         console.error('[App] Sync failed:', error);
@@ -271,8 +274,8 @@ function App() {
 
   // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
   useEffect(() => {
-    if (!window.electronAPI?.onSyncProgress) return;
-    const cleanup = window.electronAPI.onSyncProgress((progress) => {
+    if (!hasBridge('onSyncProgress')) return;
+    const cleanup = bridgeEvents.onSyncProgress((progress) => {
       setSyncProgress({
         percent: progress.percent ?? 0,
         label: progress.label ?? 'Syncing...',
@@ -289,12 +292,11 @@ function App() {
 
   // Listen to sync cycle complete to mark sync as done
   useEffect(() => {
-    if (!window.electronAPI?.onSyncCycleComplete) return;
-    const _cleanup = window.electronAPI.onSyncCycleComplete(() => {
+    if (!hasBridge('onSyncCycleComplete')) return;
+    return bridgeEvents.onSyncCycleComplete(() => {
       setSyncComplete(true);
       setIsSyncing(false);
     });
-    return () => { /* cleanup is handled by IPC subscription */ };
   }, []);
 
   // Rotate through shuffled quotes while syncing
@@ -314,33 +316,33 @@ function App() {
   }, [isSyncing, shuffledQuotes]);
 
   useEffect(() => {
-    if (!window.electronAPI || !isAuthenticated) return;
+    if (!isDesktopRuntime() || !isAuthenticated) return;
     const tid = useAuthStore.getState().tenantId;
-    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
     loadFlags(tid || 'global');
-    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
       if (v === '24h' || v === '12h') {
         setAppTimeFormat(v);
       } else {
         setAppTimeFormat('12h');
       }
     });
-    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: any) => {
       if (v) setStoreTimezone(v);
     });
 
     const handleSettingsUpdated = () => {
       const currentTid = useAuthStore.getState().tenantId;
       loadFlags(currentTid || 'global');
-      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
         if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
       });
-      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: any) => {
         if (v === '24h' || v === '12h') setAppTimeFormat(v);
       });
-      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: any) => {
         if (v) setStoreTimezone(v);
       });
     };
@@ -655,8 +657,8 @@ function App() {
 
     let unsubscribeTokenExpired: (() => void) | undefined;
     let unsubscribeScale: (() => void) | undefined;
-    if (window.electronAPI) {
-      const unsub = window.electronAPI.onTokenExpired?.(() => {
+    if (isDesktopRuntime()) {
+      const unsub = bridgeEvents.onTokenExpired(() => {
         console.warn('[App] Cloud session expired or unauthorized. Showing session expired modal...');
         setShowSessionExpiredModal(true);
       });
@@ -664,7 +666,7 @@ function App() {
         unsubscribeTokenExpired = unsub;
       }
 
-      unsubscribeScale = window.electronAPI.onScaleWeight((weight) => {
+      unsubscribeScale = bridgeEvents.onScaleWeight((weight) => {
         useScaleStore.getState().setLiveWeight(weight);
       });
     }
@@ -739,7 +741,6 @@ function App() {
   if (role === 'SUPER_ADMIN') {
     return <SuperDashboard />;
   }
-
 
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">

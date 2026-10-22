@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log/main';
-import { getMainWindow } from '../ipc/common.js';
+import { getMainWindow } from './windowRegistry.js';
 
 type UpdaterState = 'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error';
 let updaterState: UpdaterState = 'idle';

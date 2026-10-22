@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
-import {
-  Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X,
-  BookOpen, IndianRupee, TrendingUp, Boxes,
-  CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
-  SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent, Loader2,
-  Lock, Shield, EyeOff
-} from 'lucide-react';
+import { Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X, BookOpen, IndianRupee, TrendingUp, Boxes, CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight, SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard, ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent, Loader2, Lock, Shield } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
+import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../data/settings';
+import { listInvoices, getInvoiceItems } from '../data/invoices';
+import { getProductsByIds } from '../data/products';
 import { getSalesHistoryAmount, getInvoiceNetTotal, getInvoicePreDeductionTotal } from '../utils/salesHistoryAmount';
 import {
   buildInvoiceProductRows,
@@ -39,12 +35,19 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../utils/whatsappBillHelper';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
-import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { isAdminRole, hasPermission } from '../utils/permissions';
 import { getStoreTimezone } from '../utils/timezoneHelper';
-
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { combosApi } from '../data/combos';
+import { bridgeEvents } from '../data/events';
+import { invoicesApi } from '../data/invoices';
+import { paymentSourcesApi } from '../data/paymentSources';
+import { printingApi } from '../data/printing';
+import { returnsApi } from '../data/returns';
+import { whatsappApi } from '../data/whatsapp';
+import { formatCurrency } from '../utils/money';
 
 const PAYMENT_LABELS: Record<string, string> = {
   PENDING: 'Pending',
@@ -74,12 +77,6 @@ const TAX_RATES = [
   { value: '18', label: '18%' },
   { value: '28', label: '28%' },
 ];
-
-function formatCurrency(amount: any): string {
-  const num = Number(amount);
-  if (isNaN(num)) return '\u20B90.00';
-  return `\u20B9${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatDate(dateStr: string) {
   if (!dateStr) return { date: '-', time: '-' };
@@ -136,7 +133,6 @@ function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): number {
   // Otherwise, this invoice doesn't match the filter - return 0
   return 0;
 }
-
 
 function groupByDay(invoices: any[]) {
   const tz = getStoreTimezone();
@@ -264,8 +260,7 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 
 /* ─── Invoice Row ─── */
 function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload, onPrint }: { inv: any; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: any) => void; onPrint?: (inv: any) => void }) {
-  const { date, time } = formatDate(inv.created_at);
-  const _isPending = inv.payment_method === 'PENDING';
+  const { date, time } = formatDate(inv.created_at || '');
   const isCredit = inv.payment_method === 'CREDIT';
   const isConvertedBos = !!inv.converted_to_invoice_id;
   const isConversionCopy = !!inv.converted_from_invoice_id;
@@ -537,7 +532,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
-  const [isResyncing, setIsResyncing] = useState(false);
   const [enableConvertToGst, setEnableConvertToGst] = useState(true);
   const [conversionTaxMode, setConversionTaxMode] = useState<'EXCLUSIVE' | 'INCLUSIVE'>('EXCLUSIVE');
   const [conversionPreview, setConversionPreview] = useState<{
@@ -568,16 +562,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
   useEffect(() => {
     const loadSettings = () => {
-      if (window.electronAPI?.settingsGet) {
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst' }).then((v: any) => {
+      if (isDesktopRuntime()) {
+        getSetting({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst' }).then((v: any) => {
           if (v !== null && v !== undefined) setEnableConvertToGst(Boolean(v));
         }).catch(() => {});
 
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive' }).then((v: any) => {
           if (v !== null && v !== undefined) setConversionTaxMode(Boolean(v) ? 'INCLUSIVE' : 'EXCLUSIVE');
         }).catch(() => {});
 
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then((v: any) => {
           if (v) setMaskingConfig(parseStaffDataMaskingConfig(v));
         }).catch(() => {});
       }
@@ -586,22 +580,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     window.addEventListener('settings:updated', loadSettings);
     return () => window.removeEventListener('settings:updated', loadSettings);
   }, [tenantId]);
-
-  const handleForceResync = async () => {
-    if (!window.electronAPI) return;
-    setIsResyncing(true);
-    try {
-      showToast('Re-syncing all cloud invoices...', 'success');
-      await window.electronAPI.forceResyncInvoices();
-      await loadInvoices(true);
-      showToast('Invoices re-synced from cloud successfully!', 'success');
-    } catch (err: any) {
-      console.error('[SalesHistory] Force resync error:', err);
-      showToast('Re-sync failed: ' + (err?.message || 'Error'), 'error');
-    } finally {
-      setIsResyncing(false);
-    }
-  };
 
   const convertibleInvoicesInView = useMemo(() =>
     invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && Boolean(convertibleMap[i.invoice_id])),
@@ -624,9 +602,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
     const runPreview = async () => {
       // 1. Try IPC preview first
-      if (window.electronAPI?.dbPreviewConvertBosToGst) {
+      if (hasBridge('dbPreviewConvertBosToGst')) {
         try {
-          const res = await window.electronAPI.dbPreviewConvertBosToGst({
+          const res = await invoicesApi.previewConvertBosToGst({
             invoice_ids: selectedBosInvoices.map(i => i.invoice_id),
             tenant_id: tid,
             tax_mode: conversionTaxMode,
@@ -657,8 +635,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const invoiceItemsMap: Record<string, any[]> = {};
 
         for (const inv of selectedBosInvoices) {
-          if (window.electronAPI?.dbGetInvoiceItems) {
-            const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+          if (isDesktopRuntime()) {
+            const items = await getInvoiceItems(inv.invoice_id);
             invoiceItemsMap[inv.invoice_id] = Array.isArray(items) ? items : [];
             for (const itm of invoiceItemsMap[inv.invoice_id]) {
               if (itm.product_id) allProductIds.add(itm.product_id);
@@ -666,10 +644,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           }
         }
 
-        let productsMap: Record<string, any> = {};
-        if (allProductIds.size > 0 && window.electronAPI?.dbGetProductsByIds) {
+        const productsMap: Record<string, any> = {};
+        if (allProductIds.size > 0) {
           try {
-            const prods = await window.electronAPI.dbGetProductsByIds({
+            const prods = await getProductsByIds({
               tenant_id: tid,
               product_ids: Array.from(allProductIds)
             });
@@ -828,15 +806,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
   useEffect(() => {
     getUpiPageConfig(useAuthStore.getState().tenantId || 'global').then(setUpiPageConfig);
-    if (window.electronAPI?.dbPaymentGetSources) {
-      window.electronAPI.dbPaymentGetSources(useAuthStore.getState().tenantId || 'global').then((sources: any[]) => {
+    if (hasBridge('dbPaymentGetSources')) {
+      paymentSourcesApi.getSources(useAuthStore.getState().tenantId || 'global').then((sources: any[]) => {
         if (Array.isArray(sources)) {
           setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
       }).catch(() => {});
     }
-    if (window.electronAPI) {
-      const unsub = window.electronAPI.onSyncDataUpdated(() => {
+    if (isDesktopRuntime()) {
+      const unsub = bridgeEvents.onSyncDataUpdated(() => {
         console.log('[SalesHistory] 🔄 Auto-sync data updated event received! Reloading invoices from SQLite...');
         loadInvoicesRef.current(true);
       });
@@ -877,10 +855,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [reprintSuccess]);
 
   useEffect(() => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     let cancelled = false;
     const { tenantId } = useAuthStore.getState();
-    window.electronAPI.dbGetBosConvertibleInvoices(tenantId || 'global')
+    invoicesApi.getBosConvertibleInvoices(tenantId || 'global')
       .then(res => {
         if (cancelled || !Array.isArray(res)) return;
         const map: Record<string, boolean> = {};
@@ -892,11 +870,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [selectionMode, invoices.length]);
 
   const loadTaxProductRows = async (filters: any, targetRate: string) => {
-    if (!window.electronAPI?.dbGetInvoices || !window.electronAPI?.dbGetInvoiceItems) return;
+    if (!hasBridge('dbGetInvoices') || !hasBridge('dbGetInvoiceItems')) return;
     const requestId = ++taxProductRequestRef.current;
     setTaxProductLoading(true);
     try {
-      const data = await window.electronAPI.dbGetInvoices({ ...filters, limit: 100000, offset: 0 });
+      const data = await listInvoices({ ...filters, limit: 100000, offset: 0 });
       if (!Array.isArray(data)) {
         if (requestId === taxProductRequestRef.current) {
           setTaxProductRows([]);
@@ -914,7 +892,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const itemsByInvoice: Record<string, any[]> = {};
       await Promise.all(scopedData.map(async (inv: any) => {
         try {
-          const invoiceItems = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+          const invoiceItems = await getInvoiceItems(inv.invoice_id);
           itemsByInvoice[inv.invoice_id] = Array.isArray(invoiceItems) ? invoiceItems : [];
         } catch {
           itemsByInvoice[inv.invoice_id] = [];
@@ -943,7 +921,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const loadInvoices = async (reset = false) => {
     if (!reset && isFetching) return;
     setIsFetching(true);
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
       const currentOffset = reset ? 0 : offset;
       
@@ -977,10 +955,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         };
 
         const promises: Promise<any>[] = [
-          window.electronAPI.dbGetInvoices({ ...filters, limit: LIMIT, offset: currentOffset })
+          listInvoices({ ...filters, limit: LIMIT, offset: currentOffset })
         ];
-        if (reset && window.electronAPI.dbGetInvoicesSummary) {
-          promises.push(window.electronAPI.dbGetInvoicesSummary(filters));
+        if (reset && hasBridge('dbGetInvoicesSummary')) {
+          promises.push(invoicesApi.getInvoicesSummary(filters));
         }
 
         const [data, summaryRes] = await Promise.all(promises);
@@ -1033,7 +1011,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         setIsFetching(false);
       }
     } else {
-      console.warn('[SalesHistory] window.electronAPI is missing - unable to query local database.');
+      console.warn('[SalesHistory] isDesktopRuntime() is missing - unable to query local database.');
       setLoading(false);
       setIsFetching(false);
     }
@@ -1081,13 +1059,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const mightHaveCombos = invoiceItems.some((i: any) => 
         Boolean(i?.combo_id || i?.isCombo || (i?.combo_details && i.combo_details !== 'null'))
       );
-      if (mightHaveCombos && window.electronAPI?.dbGetComboOffers) {
+      if (mightHaveCombos && hasBridge('dbGetComboOffers')) {
         if (combosCacheRef.current && Date.now() - combosCacheRef.current.timestamp < 60000) {
           combosList = combosCacheRef.current.data;
         } else {
           try {
             const allCombos = await withTimeout(
-              window.electronAPI.dbGetComboOffers({ tenant_id: effectiveTenantId }),
+              combosApi.getComboOffers({ tenant_id: effectiveTenantId }),
               1500,
               []
             );
@@ -1105,10 +1083,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const productIds = [...new Set(nonService.map((i: any) => i?.product_id).filter(Boolean))] as string[];
       const missingProductIds = productIds.filter(id => !productsCacheRef.current.has(id));
 
-      if (missingProductIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+      if (missingProductIds.length > 0) {
         try {
           const products = await withTimeout(
-            window.electronAPI.dbGetProductsByIds({ tenant_id: effectiveTenantId, product_ids: missingProductIds }),
+            getProductsByIds({ tenant_id: effectiveTenantId, product_ids: missingProductIds }),
             1500,
             []
           );
@@ -1221,13 +1199,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
 
     const promise = (async () => {
-      if (!window.electronAPI) {
+      if (!isDesktopRuntime()) {
         return { items: [], returned: [], canReturn: true };
       }
       try {
         const [data, returned] = await Promise.all([
           withTimeout(
-            window.electronAPI.dbGetInvoiceItems(invoiceId).catch((err: any) => {
+            getInvoiceItems(invoiceId).catch((err: any) => {
               console.error('[SalesHistory] dbGetInvoiceItems error:', err);
               return [];
             }),
@@ -1235,7 +1213,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             []
           ),
           withTimeout(
-            window.electronAPI.dbGetAlreadyReturnedQuantities(invoiceId).catch((err: any) => {
+            returnsApi.getAlreadyReturnedQuantities(invoiceId).catch((err: any) => {
               console.error('[SalesHistory] dbGetAlreadyReturnedQuantities error:', err);
               return [];
             }),
@@ -1361,9 +1339,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       );
 
       // 2. Query by invoice_id (new main.ts direct bypass)
-      if (!match && targetInvoiceId && window.electronAPI?.dbGetInvoices) {
+      if (!match && targetInvoiceId) {
         try {
-          const res = await window.electronAPI.dbGetInvoices({
+          const res = await listInvoices({
             invoice_id: targetInvoiceId,
             limit: 5,
             offset: 0,
@@ -1378,9 +1356,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
       // 3. Fallback: Query by invoice_number with search
       const searchKey = targetInvoiceNumber || targetInvoiceId;
-      if (!match && searchKey && window.electronAPI?.dbGetInvoices) {
+      if (!match && searchKey) {
         try {
-          const res = await window.electronAPI.dbGetInvoices({
+          const res = await listInvoices({
             search: searchKey,
             accounting_view: 'ALL',
             limit: 25,
@@ -1482,7 +1460,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     return getStaffSalesDateScope(maskingConfig, isStaff);
   }, [maskingConfig, isStaff]);
 
-
   const dailySales = useMemo(() => groupByDay(invoices), [invoices]);
 
   const groupedInvoices = useMemo(() => {
@@ -1496,27 +1473,25 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     return groups;
   }, [invoices]);
 
-
-
   /* ── Reprint handler ── */
   const handleReprint = async () => {
-    if (!selectedInvoice || !window.electronAPI) return;
+    if (!selectedInvoice || !isDesktopRuntime()) return;
     try {
       const { tenantId } = useAuthStore.getState();
       const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal, shopEmailVal, shopWebsiteVal] = await Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        getSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_state' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_email' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_website' }),
       ]);
-      const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+      const receiptConfig = await getSetting<ReceiptPrinterConfig>({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const invoiceType = selectedInvoice.invoice_type;
       const isB2B = Boolean(selectedInvoice.customer_gstin?.trim());
@@ -1544,7 +1519,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const igst = isInterState ? taxVal : undefined;
 
       // Fetch combo offers for fallback matching on historical bill reprints
-      const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: tenantId || 'global' });
+      const allCombos = await combosApi.getComboOffers({ tenant_id: tenantId || 'global' });
       const combosList = Array.isArray(allCombos) ? allCombos : [];
 
       const receiptData: ReceiptData = {
@@ -1662,7 +1637,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       if (useA4) {
         const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
         const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
         if (!printResult.success) {
           if ((printResult as any).useDefaultDialog) {
             const pw = window.open('', '_blank');
@@ -1676,7 +1651,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
         const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        const printResult = await printingApi.printReceipt(tenantId || 'global', receiptText);
         if ((printResult as any)?.skipped) {
           showToast(formatPrinterError('No printer configured'), 'error');
           return;
@@ -1694,13 +1669,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   const handleSendWhatsAppInvoice = async () => {
-    if (!selectedInvoice || !window.electronAPI) return;
+    if (!selectedInvoice || !isDesktopRuntime()) return;
     const custPhone = (selectedInvoice.customer_phone || '').trim();
     if (!custPhone) {
       showToast('Customer does not have a phone number saved on this bill', 'error');
       return;
     }
-    if (!window.electronAPI.whatsappSendInvoice) {
+    if (!hasBridge('whatsappSendInvoice')) {
       showToast('WhatsApp service not available', 'error');
       return;
     }
@@ -1709,17 +1684,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     try {
       const { tenantId } = useAuthStore.getState();
       const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal, shopEmailVal, shopWebsiteVal] = await Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        getSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_state' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_email' }),
+        getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_website' }),
       ]);
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const invoiceType = selectedInvoice.invoice_type;
       const isB2B = Boolean(selectedInvoice.customer_gstin?.trim());
@@ -1815,7 +1790,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         paymentMethod: selectedInvoice.payment_method,
       });
 
-      const res = await window.electronAPI.whatsappSendInvoice({
+      const res = await whatsappApi.sendInvoice({
         phone: custPhone,
         message: waMessage,
         htmlContent: invoiceHtml,
@@ -1841,16 +1816,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       showToast('Permission Denied: You do not have permission to edit bills', 'error');
       return;
     }
-    if (!window.electronAPI || !selectedInvoice) return;
+    if (!isDesktopRuntime() || !selectedInvoice) return;
     let currentItems = items;
     if (!currentItems.length) {
-      const data = await window.electronAPI.dbGetInvoiceItems(selectedInvoice.invoice_id);
+      const data = await getInvoiceItems(selectedInvoice.invoice_id);
       currentItems = Array.isArray(data) ? data : [];
     }
     let freshInvoice = selectedInvoice;
-    if (window.electronAPI.dbGetInvoices) {
+    if (isDesktopRuntime()) {
       try {
-        const fetched = await window.electronAPI.dbGetInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
+        const fetched = await listInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
         if (Array.isArray(fetched) && fetched.length > 0) {
           const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
           if (exact) freshInvoice = exact;
@@ -1870,10 +1845,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       showToast('Permission Denied: You do not have permission to delete bills', 'error');
       return;
     }
-    if (!window.electronAPI || !selectedInvoice) return;
+    if (!isDesktopRuntime() || !selectedInvoice) return;
     setDeleteSaving(true);
     try {
-      const result = await window.electronAPI.dbDeleteInvoice(selectedInvoice.invoice_id);
+      const result = await invoicesApi.deleteInvoice(selectedInvoice.invoice_id);
       if (result.success) {
         invoiceDetailsCache.current.delete(selectedInvoice.invoice_id);
         setDeleteConfirmOpen(false);
@@ -1900,7 +1875,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const handleCollectPayment = async () => {
-    if (!window.electronAPI || !selectedInvoice) return;
+    if (!isDesktopRuntime() || !selectedInvoice) return;
     setCollectPaymentSaving(true);
     try {
       const { tenantId } = useAuthStore.getState();
@@ -1915,7 +1890,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         ? { upi_id: selectedCollectSource.upi_id, upi_name: selectedCollectSource.name, upi_source_id: selectedCollectSource.source_id }
         : selectedInvoice.split_details;
 
-      const result = await window.electronAPI.dbUpdateInvoicePayment({
+      const result = await invoicesApi.updateInvoicePayment({
         invoice_id: selectedInvoice.invoice_id,
         tenant_id: tenantId || 'global',
         payment_method: collectPaymentMethod,
@@ -1955,7 +1930,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const handleExportCSV = async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setIsExporting(true);
     setExportStatusMsg('Fetching all matching records…');
     try {
@@ -1969,7 +1944,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           ? 'BILL_OF_SUPPLY'
           : (invoiceTypeFilter || undefined);
 
-      const data = await window.electronAPI.dbGetInvoices({
+      const data = await listInvoices({
         user_id: userId, tenant_id: tenantId, role,
         limit: 99999, offset: 0,
         search: search || undefined,
@@ -2062,17 +2037,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const sortedData = sortInvoicesByInvoiceNumber(exportData);
 
       for (const inv of sortedData) {
-        const { date, time } = formatDate(inv.created_at);
+        const { date, time } = formatDate(inv.created_at || '');
         const typeLabel = getTypeLabel(inv);
 
-        let items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+        let items = await getInvoiceItems(inv.invoice_id);
         if (!Array.isArray(items)) items = [];
 
         const missingHsnProductIds = items.filter((it: any) => !it.hsn_sac_code && it.product_id).map((it: any) => it.product_id);
         const fallbackProductMap: Record<string, any> = {};
         if (missingHsnProductIds.length > 0) {
           try {
-            const fetched = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: missingHsnProductIds });
+            const fetched = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: missingHsnProductIds });
             if (Array.isArray(fetched)) {
               fetched.forEach((p: any) => { if (p?.product_id) fallbackProductMap[p.product_id] = p; });
             }
@@ -2114,7 +2089,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             escape(inv.customer_phone || '-'),
             escape(inv.customer_gstin || '-'),
             escape(inv.customer_state || '-'),
-            escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || 'CASH'),
+            escape(PAYMENT_LABELS[inv.payment_method || 'CASH'] || inv.payment_method || 'CASH'),
             escape(row.name || 'Item'),
             escape(hsn || '-'),
             escape(row.quantity.toFixed(3)),
@@ -4355,8 +4330,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     setConverting(true);
                     try {
                       const { tenantId, userId } = useAuthStore.getState();
-                      if (window.electronAPI) {
-                        const result = await window.electronAPI.dbConvertBosToGst({
+                      if (isDesktopRuntime()) {
+                        const result = await invoicesApi.convertBosToGst({
                           invoice_ids: selectedBosInvoices.map(i => i.invoice_id),
                           tenant_id: tenantId || 'global',
                           user_id: userId || '',
@@ -4461,7 +4436,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
         </div>
       </Modal>
-
 
       <style>{`
         @keyframes slideDown {

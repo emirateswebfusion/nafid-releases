@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import type { Product as ProductRow } from '../../data/products';
 
 export interface Product {
   product_id: string;
@@ -32,6 +33,9 @@ export interface Product {
   gst_purchase_price?: number;
   paper_mrp?: number;
 }
+
+export const toInventoryProducts = (rows: ProductRow[]): Product[] =>
+  rows as unknown as Product[];
 
 export const isGstProduct = (product: Pick<Product, 'is_gst_applicable' | 'hsn_sac_code'>) =>
   Number(product.is_gst_applicable) === 1 || String(product.hsn_sac_code || '').trim() !== '';

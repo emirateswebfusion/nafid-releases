@@ -1,0 +1,1760 @@
+[
+ [
+  "sync:runInitial",
+  "[]",
+  {
+   "success": true
+  }
+ ],
+ [
+  "status:before",
+  "[]",
+  {
+   "cash_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_drawer": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "cashier_audit_log": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "customers": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "invoice_items": [
+    {
+     "sync_status": "PENDING",
+     "n": 5
+    }
+   ],
+   "invoices": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "parties": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "party_ledger": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "payment_source_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "payment_sources": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "pricing_tiers": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "products": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "scrap_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "scrap_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "settings": [
+    {
+     "sync_status": "LOCAL",
+     "n": 3
+    },
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "staff": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "staff_salaries": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ]
+  }
+ ],
+ [
+  "http:0",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:1",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:2",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:3",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:4",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:5",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:6",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:7",
+  "POST /api/sync/pricing_tiers",
+  {
+   "method": "POST",
+   "path": "/api/sync/pricing_tiers",
+   "query": "",
+   "body": {
+    "pricing_tiers": [
+     {
+      "pricing_tier_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Wholesale",
+      "is_active": true,
+      "sort_order": 0,
+      "is_default": false,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:8",
+  "POST /api/sync/customers",
+  {
+   "method": "POST",
+   "path": "/api/sync/customers",
+   "query": "",
+   "body": {
+    "customers": [
+     {
+      "customer_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Ravi Kumar",
+      "phone": "9876543210",
+      "address": "Kochi",
+      "gstin": null,
+      "notes": null,
+      "pricing_tier_id": null,
+      "credit_limit": 0,
+      "credit_period_enabled": 0,
+      "credit_period_days": 30,
+      "credit_period_basis": "BILL_BASED",
+      "restrict_on_credit_expiry": 1,
+      "total_points_earned": 0,
+      "total_points_redeemed": 0,
+      "current_points_balance": 0,
+      "last_purchase_date": "<ts>",
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "customer_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Acme Traders",
+      "phone": "9123456780",
+      "address": null,
+      "gstin": null,
+      "notes": null,
+      "pricing_tier_id": null,
+      "credit_limit": 0,
+      "credit_period_enabled": 0,
+      "credit_period_days": 30,
+      "credit_period_basis": "BILL_BASED",
+      "restrict_on_credit_expiry": 0,
+      "total_points_earned": 0,
+      "total_points_redeemed": 0,
+      "current_points_balance": 0,
+      "last_purchase_date": "<ts>",
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "customer_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Ravi",
+      "phone": null,
+      "address": null,
+      "gstin": null,
+      "notes": null,
+      "pricing_tier_id": null,
+      "credit_limit": 0,
+      "credit_period_enabled": 0,
+      "credit_period_days": 30,
+      "credit_period_basis": "BILL_BASED",
+      "restrict_on_credit_expiry": 0,
+      "total_points_earned": 0,
+      "total_points_redeemed": 0,
+      "current_points_balance": 0,
+      "last_purchase_date": "<ts>",
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:9",
+  "POST /api/sync/cash_drawer",
+  {
+   "method": "POST",
+   "path": "/api/sync/cash_drawer",
+   "query": "",
+   "body": {
+    "cash_drawer": [
+     {
+      "drawer_id": "<uuid>",
+      "tenant_id": "t1",
+      "business_date": "<date>",
+      "opening_balance": 0,
+      "cash_sales": 1450,
+      "cash_in": 0,
+      "cash_out": 320,
+      "current_cash": 1130,
+      "expected_closing": 1130,
+      "actual_cash": null,
+      "cash_short": 0,
+      "cash_excess": 0,
+      "closing_remarks": null,
+      "status": "OPEN",
+      "opened_by": null,
+      "closed_by": null,
+      "opened_at": "<ts>",
+      "closed_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:10",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:11",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:12",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:13",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:14",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:15",
+  "POST /api/sync/invoices",
+  {
+   "method": "POST",
+   "path": "/api/sync/invoices",
+   "query": "",
+   "body": {
+    "invoices": [
+     {
+      "invoice_id": "<uuid>",
+      "tenant_id": "t1",
+      "invoice_number": "2JUB-001",
+      "invoice_type": "BILL_OF_SUPPLY",
+      "customer_id": "<uuid>",
+      "customer_name": "Ravi Kumar",
+      "customer_phone": "9876543210",
+      "customer_gstin": null,
+      "customer_state": null,
+      "customer_address": null,
+      "subtotal": 677.97,
+      "tax_total": 0,
+      "discount_total": 0,
+      "discount_type": "FIXED",
+      "discount_value": 0,
+      "grand_total": 800,
+      "payment_method": "CASH",
+      "split_details": null,
+      "received_amount": 800,
+      "balance_amount": 0,
+      "user_id": "u1",
+      "return_deduction": 0,
+      "return_invoice_number": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "settled_at": "<ts>",
+      "held_until": null,
+      "is_held": 0,
+      "hold_note": null,
+      "due_date": null,
+      "scrap_deduction": 0,
+      "scrap_invoice_number": null,
+      "points_earned": 0,
+      "points_redeemed": 0,
+      "points_redeemed_discount": 0,
+      "previous_points_balance": 0,
+      "remaining_points_balance": 0,
+      "converted_from_invoice_id": null,
+      "converted_from_invoice_number": null,
+      "converted_to_invoice_id": null,
+      "converted_to_invoice_number": null,
+      "biller_staff_id": null,
+      "sales_staff_id": null,
+      "cgst_total": 0,
+      "sgst_total": 0,
+      "igst_total": 0,
+      "supply_type": "INTRA",
+      "actual_refund_paid": 0,
+      "notes": null,
+      "description": null,
+      "items": [
+       {
+        "item_id": null,
+        "invoice_id": "<uuid>",
+        "tenant_id": "t1",
+        "product_id": "<uuid>",
+        "name": "Cement Bag",
+        "quantity": 2,
+        "unit_price": 400,
+        "tax_amount": 122.03,
+        "total": 800,
+        "pieces_sold": null,
+        "billing_type": "PIECE",
+        "uom": "Pcs",
+        "is_service_item": 0,
+        "sync_status": "PENDING",
+        "created_at": "<ts>",
+        "combo_id": null,
+        "combo_details": null,
+        "cgst_rate": 0,
+        "sgst_rate": 0,
+        "igst_rate": 0,
+        "cgst_amount": 0,
+        "sgst_amount": 0,
+        "igst_amount": 0,
+        "hsn_sac_code": "7308",
+        "supply_type": "INTRA",
+        "source_item_id": null,
+        "bos_unit_price": null,
+        "bos_tax_amount": null,
+        "bos_total": null,
+        "qty_from_paper_stock": null,
+        "is_deleted": 0
+       }
+      ]
+     },
+     {
+      "invoice_id": "<uuid>",
+      "tenant_id": "t1",
+      "invoice_number": "GST-001",
+      "invoice_type": "GST",
+      "customer_id": "<uuid>",
+      "customer_name": "Ravi Kumar",
+      "customer_phone": "9876543210",
+      "customer_gstin": null,
+      "customer_state": null,
+      "customer_address": null,
+      "subtotal": 508.47,
+      "tax_total": 91.53,
+      "discount_total": 0,
+      "discount_type": "FIXED",
+      "discount_value": 0,
+      "grand_total": 600,
+      "payment_method": "CASH",
+      "split_details": null,
+      "received_amount": 600,
+      "balance_amount": 0,
+      "user_id": "u1",
+      "return_deduction": 0,
+      "return_invoice_number": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "settled_at": "<ts>",
+      "held_until": null,
+      "is_held": 0,
+      "hold_note": null,
+      "due_date": null,
+      "scrap_deduction": 0,
+      "scrap_invoice_number": null,
+      "points_earned": 0,
+      "points_redeemed": 0,
+      "points_redeemed_discount": 0,
+      "previous_points_balance": 0,
+      "remaining_points_balance": 0,
+      "converted_from_invoice_id": null,
+      "converted_from_invoice_number": null,
+      "converted_to_invoice_id": null,
+      "converted_to_invoice_number": null,
+      "biller_staff_id": null,
+      "sales_staff_id": null,
+      "cgst_total": 0,
+      "sgst_total": 0,
+      "igst_total": 0,
+      "supply_type": "INTRA",
+      "actual_refund_paid": 0,
+      "notes": null,
+      "description": null,
+      "items": [
+       {
+        "item_id": null,
+        "invoice_id": "<uuid>",
+        "tenant_id": "t1",
+        "product_id": "<uuid>",
+        "name": "Steel Rod",
+        "quantity": 2,
+        "unit_price": 100,
+        "tax_amount": 30.51,
+        "total": 200,
+        "pieces_sold": null,
+        "billing_type": "PIECE",
+        "uom": "Pcs",
+        "is_service_item": 0,
+        "sync_status": "PENDING",
+        "created_at": "<ts>",
+        "combo_id": null,
+        "combo_details": null,
+        "cgst_rate": 0,
+        "sgst_rate": 0,
+        "igst_rate": 0,
+        "cgst_amount": 0,
+        "sgst_amount": 0,
+        "igst_amount": 0,
+        "hsn_sac_code": "7308",
+        "supply_type": "INTRA",
+        "source_item_id": null,
+        "bos_unit_price": null,
+        "bos_tax_amount": null,
+        "bos_total": null,
+        "qty_from_paper_stock": null,
+        "is_deleted": 0
+       },
+       {
+        "item_id": null,
+        "invoice_id": "<uuid>",
+        "tenant_id": "t1",
+        "product_id": "<uuid>",
+        "name": "Cement Bag",
+        "quantity": 1,
+        "unit_price": 400,
+        "tax_amount": 61.02,
+        "total": 400,
+        "pieces_sold": null,
+        "billing_type": "PIECE",
+        "uom": "Pcs",
+        "is_service_item": 0,
+        "sync_status": "PENDING",
+        "created_at": "<ts>",
+        "combo_id": null,
+        "combo_details": null,
+        "cgst_rate": 0,
+        "sgst_rate": 0,
+        "igst_rate": 0,
+        "cgst_amount": 0,
+        "sgst_amount": 0,
+        "igst_amount": 0,
+        "hsn_sac_code": "7308",
+        "supply_type": "INTRA",
+        "source_item_id": null,
+        "bos_unit_price": null,
+        "bos_tax_amount": null,
+        "bos_total": null,
+        "qty_from_paper_stock": null,
+        "is_deleted": 0
+       }
+      ]
+     },
+     {
+      "invoice_id": "<uuid>",
+      "tenant_id": "t1",
+      "invoice_number": "GST-002",
+      "invoice_type": "GST",
+      "customer_id": "<uuid>",
+      "customer_name": "Acme Traders",
+      "customer_phone": "9123456780",
+      "customer_gstin": null,
+      "customer_state": null,
+      "customer_address": null,
+      "subtotal": 84.75,
+      "tax_total": 15.25,
+      "discount_total": 0,
+      "discount_type": "FIXED",
+      "discount_value": 0,
+      "grand_total": 100,
+      "payment_method": "CASH",
+      "split_details": null,
+      "received_amount": 50,
+      "balance_amount": 0,
+      "user_id": "u1",
+      "return_deduction": 0,
+      "return_invoice_number": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "settled_at": "<ts>",
+      "held_until": null,
+      "is_held": 0,
+      "hold_note": null,
+      "due_date": null,
+      "scrap_deduction": 0,
+      "scrap_invoice_number": null,
+      "points_earned": 0,
+      "points_redeemed": 0,
+      "points_redeemed_discount": 0,
+      "previous_points_balance": 0,
+      "remaining_points_balance": 0,
+      "converted_from_invoice_id": null,
+      "converted_from_invoice_number": null,
+      "converted_to_invoice_id": null,
+      "converted_to_invoice_number": null,
+      "biller_staff_id": null,
+      "sales_staff_id": null,
+      "cgst_total": 0,
+      "sgst_total": 0,
+      "igst_total": 0,
+      "supply_type": "INTRA",
+      "actual_refund_paid": 0,
+      "notes": null,
+      "description": null,
+      "items": [
+       {
+        "item_id": null,
+        "invoice_id": "<uuid>",
+        "tenant_id": "t1",
+        "product_id": "<uuid>",
+        "name": "Steel Rod",
+        "quantity": 1,
+        "unit_price": 100,
+        "tax_amount": 15.25,
+        "total": 100,
+        "pieces_sold": null,
+        "billing_type": "PIECE",
+        "uom": "Pcs",
+        "is_service_item": 0,
+        "sync_status": "PENDING",
+        "created_at": "<ts>",
+        "combo_id": null,
+        "combo_details": null,
+        "cgst_rate": 0,
+        "sgst_rate": 0,
+        "igst_rate": 0,
+        "cgst_amount": 0,
+        "sgst_amount": 0,
+        "igst_amount": 0,
+        "hsn_sac_code": "7308",
+        "supply_type": "INTRA",
+        "source_item_id": null,
+        "bos_unit_price": null,
+        "bos_tax_amount": null,
+        "bos_total": null,
+        "qty_from_paper_stock": null,
+        "is_deleted": 0
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:16",
+  "POST /api/sync/products",
+  {
+   "method": "POST",
+   "path": "/api/sync/products",
+   "query": "",
+   "body": {
+    "products": [
+     {
+      "product_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Cement Bag",
+      "sku_barcode": "CEM1",
+      "item_code": null,
+      "category": "General",
+      "hsn_sac_code": "7308",
+      "purchase_price": 280,
+      "base_price": 400,
+      "is_gst_applicable": true,
+      "tax_rate_percent": 18,
+      "uom": "Kgs",
+      "brand_manufacturer": "X",
+      "current_stock": 47,
+      "reorder_level": 5,
+      "domain_attributes": {},
+      "discount_percent": null,
+      "discount_flat": null,
+      "offer_price": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "billing_type": "WEIGHT",
+      "grade_id": null,
+      "pricing_mode": "FIXED_PRICE",
+      "average_weight_per_piece": null,
+      "weight_override_allowed": false,
+      "is_service_item": false,
+      "sync_status": "PENDING",
+      "print_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "product_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Steel Rod",
+      "sku_barcode": "STE1",
+      "item_code": null,
+      "category": "General",
+      "hsn_sac_code": "7308",
+      "purchase_price": 70,
+      "base_price": 100,
+      "is_gst_applicable": true,
+      "tax_rate_percent": 18,
+      "uom": "Pcs",
+      "brand_manufacturer": "X",
+      "current_stock": 46,
+      "reorder_level": 5,
+      "domain_attributes": {},
+      "discount_percent": null,
+      "discount_flat": null,
+      "offer_price": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "billing_type": "PIECE",
+      "grade_id": null,
+      "pricing_mode": "FIXED_PRICE",
+      "average_weight_per_piece": null,
+      "weight_override_allowed": false,
+      "is_service_item": false,
+      "sync_status": "PENDING",
+      "print_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:17",
+  "POST /api/sync/cash_transactions",
+  {
+   "method": "POST",
+   "path": "/api/sync/cash_transactions",
+   "query": "",
+   "body": {
+    "cash_transactions": [
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "drawer_id": "<uuid>",
+      "type": "CASH_OUT",
+      "amount": 20,
+      "category": "Tea",
+      "notes": "tea",
+      "reference_number": null,
+      "entered_by": "u1",
+      "entered_by_name": "Admin",
+      "transaction_date": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "drawer_id": "<uuid>",
+      "type": "CASH_OUT",
+      "amount": 300,
+      "category": "SCRAP_PURCHASE",
+      "notes": "Scrap purchase",
+      "reference_number": null,
+      "entered_by": "system",
+      "entered_by_name": null,
+      "transaction_date": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:18",
+  "GET /api/sync/invoices",
+  {
+   "method": "GET",
+   "path": "/api/sync/invoices",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:19",
+  "POST /api/sync/cashier_audit_log",
+  {
+   "method": "POST",
+   "path": "/api/sync/cashier_audit_log",
+   "query": "",
+   "body": {
+    "cashier_audit_log": [
+     {
+      "audit_id": "<uuid>",
+      "tenant_id": "t1",
+      "drawer_id": "<uuid>",
+      "action": "CASH_OUT",
+      "details": "{\"transaction_id\":\"<uuid>\",\"amount\":20,\"category\":\"Tea\",\"notes\":\"tea\"}",
+      "performed_by": "u1",
+      "performed_by_name": "Admin",
+      "performed_at": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:20",
+  "POST /api/sync/settings",
+  {
+   "method": "POST",
+   "path": "/api/sync/settings",
+   "query": "",
+   "body": {
+    "settings": [
+     {
+      "tenant_id": "t1",
+      "key": "store_name",
+      "value": "Test Store",
+      "sync_status": "PENDING",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:21",
+  "POST /api/sync/cash_categories",
+  {
+   "method": "POST",
+   "path": "/api/sync/cash_categories",
+   "query": "",
+   "body": {
+    "cash_categories": [
+     {
+      "category_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Tea",
+      "type": "CASH_OUT",
+      "sort_order": 1,
+      "is_default": 0,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:22",
+  "POST /api/sync/party-ledger",
+  {
+   "method": "POST",
+   "path": "/api/sync/party-ledger",
+   "query": "",
+   "body": {
+    "entries": [
+     {
+      "ledger_id": "<uuid>",
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "transaction_date": "<ts>",
+      "description": "Credit Sale GST-002 - Total ₹100.00 (Credit ₹100) - Acme Traders",
+      "credit_amount": 100,
+      "debit_amount": 0,
+      "running_balance": 100,
+      "balance_type": "GST",
+      "payment_method": "CREDIT",
+      "reference_number": "GST-002",
+      "created_by": "u1",
+      "created_by_name": "System",
+      "is_deleted": 1,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "ledger_id": "l1",
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "transaction_date": "<ts>",
+      "description": "Payment received",
+      "credit_amount": 0,
+      "debit_amount": 0,
+      "running_balance": 0,
+      "balance_type": "GST",
+      "payment_method": "CASH",
+      "reference_number": null,
+      "created_by": null,
+      "created_by_name": null,
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:23",
+  "POST /api/sync/payment_sources",
+  {
+   "method": "POST",
+   "path": "/api/sync/payment_sources",
+   "query": "",
+   "body": {
+    "payment_sources": [
+     {
+      "source_id": "ps1",
+      "tenant_id": "t1",
+      "name": "HDFC",
+      "type": "BANK",
+      "bank_name": null,
+      "account_number": null,
+      "holder_name": null,
+      "upi_id": null,
+      "opening_balance": 1000,
+      "current_balance": 1000,
+      "is_default": 0,
+      "is_enabled": 1,
+      "sort_order": 0,
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:24",
+  "POST /api/sync/scrap_categories",
+  {
+   "method": "POST",
+   "path": "/api/sync/scrap_categories",
+   "query": "",
+   "body": {
+    "scrap_categories": [
+     {
+      "scrap_category_id": "s1",
+      "tenant_id": "t1",
+      "name": "Iron",
+      "purchase_price": 30,
+      "selling_price": 35,
+      "current_stock": 10,
+      "unit": "Kgs",
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:25",
+  "POST /api/sync/payment_source_transactions",
+  {
+   "method": "POST",
+   "path": "/api/sync/payment_source_transactions",
+   "query": "",
+   "body": {
+    "payment_source_transactions": [
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "source_id": "ps1",
+      "type": "CASH_IN",
+      "amount": 1000,
+      "category": "Opening Balance",
+      "reference_number": null,
+      "notes": "Opening balance for HDFC",
+      "transaction_date": "<ts>",
+      "running_balance": 1000,
+      "entered_by": null,
+      "entered_by_name": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:26",
+  "POST /api/sync/scrap_transactions",
+  {
+   "method": "POST",
+   "path": "/api/sync/scrap_transactions",
+   "query": "",
+   "body": {
+    "scrap_transactions": [
+     {
+      "transaction_id": "sx1",
+      "tenant_id": "t1",
+      "type": "PURCHASE",
+      "scrap_category_id": "s1",
+      "quantity": 10,
+      "rate": 30,
+      "total_amount": 300,
+      "party_name": "Ravi",
+      "customer_phone": null,
+      "customer_address": null,
+      "notes": null,
+      "scrap_invoice_number": null,
+      "payment_status": "CASH",
+      "is_deleted": 0,
+      "deleted_at": null,
+      "transaction_date": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:27",
+  "GET /api/sync/cash_drawer",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_drawer",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:28",
+  "GET /api/sync/cash_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:29",
+  "POST /api/sync/delta-pull",
+  {
+   "method": "POST",
+   "path": "/api/sync/delta-pull",
+   "query": "",
+   "body": {
+    "since": {
+     "product_grades": null,
+     "pricing_tiers": null,
+     "products": null,
+     "product_pricing": null,
+     "settings": null,
+     "parties": null,
+     "party_ledger": null,
+     "customers": null,
+     "loyalty_transactions": null,
+     "scrap_categories": null,
+     "scrap_transactions": null,
+     "purchase_bills": null,
+     "cash_drawer": null,
+     "cash_transactions": null,
+     "cashier_audit_log": null,
+     "cash_categories": null,
+     "returns": null,
+     "payment_sources": null,
+     "payment_source_transactions": null,
+     "combo_offers": null,
+     "quotations": null,
+     "invoices": null,
+     "users": null
+    }
+   }
+  }
+ ],
+ [
+  "http:30",
+  "GET /api/sync/cashier_audit_log",
+  {
+   "method": "GET",
+   "path": "/api/sync/cashier_audit_log",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:31",
+  "GET /api/sync/cash_categories",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_categories",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:32",
+  "GET /api/sync/payment_sources",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_sources",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:33",
+  "GET /api/sync/payment_source_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_source_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "status:after",
+  "[]",
+  {
+   "cash_categories": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "cash_drawer": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "cash_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 2
+    }
+   ],
+   "cashier_audit_log": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "customers": [
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "invoice_items": [
+    {
+     "sync_status": "PENDING",
+     "n": 5
+    }
+   ],
+   "invoices": [
+    {
+     "sync_status": "SYNCED",
+     "n": 4
+    }
+   ],
+   "parties": [
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "party_ledger": [
+    {
+     "sync_status": "SYNCED",
+     "n": 2
+    }
+   ],
+   "payment_source_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "payment_sources": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "pricing_tiers": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "products": [
+    {
+     "sync_status": "SYNCED",
+     "n": 2
+    }
+   ],
+   "scrap_categories": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "scrap_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "settings": [
+    {
+     "sync_status": "LOCAL",
+     "n": 3
+    },
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "staff": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "staff_salaries": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ]
+  }
+ ],
+ [
+  "phase2:runInitial",
+  "[]",
+  {
+   "success": true
+  }
+ ],
+ [
+  "http2:0",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http2:1",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http2:2",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http2:3",
+  "POST /api/sync/products",
+  {
+   "method": "POST",
+   "path": "/api/sync/products",
+   "query": "",
+   "body": {
+    "products": [
+     {
+      "product_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Steel Rod (local edit)",
+      "sku_barcode": null,
+      "item_code": null,
+      "category": "General",
+      "hsn_sac_code": "7308",
+      "purchase_price": 70,
+      "base_price": 111,
+      "is_gst_applicable": true,
+      "tax_rate_percent": 18,
+      "uom": "Pcs",
+      "brand_manufacturer": null,
+      "current_stock": 48,
+      "reorder_level": 5,
+      "domain_attributes": {},
+      "discount_percent": null,
+      "discount_flat": null,
+      "offer_price": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "billing_type": "PIECE",
+      "grade_id": null,
+      "pricing_mode": "FIXED_PRICE",
+      "average_weight_per_piece": null,
+      "weight_override_allowed": false,
+      "is_service_item": false,
+      "sync_status": "PENDING",
+      "print_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http2:4",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:5",
+  "GET /api/sync/invoices",
+  {
+   "method": "GET",
+   "path": "/api/sync/invoices",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:6",
+  "GET /api/sync/cash_drawer",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_drawer",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:7",
+  "POST /api/sync/settings",
+  {
+   "method": "POST",
+   "path": "/api/sync/settings",
+   "query": "",
+   "body": {
+    "settings": [
+     {
+      "tenant_id": "t1",
+      "key": "store_name",
+      "value": "Test Store",
+      "sync_status": "PENDING",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http2:8",
+  "GET /api/sync/cash_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:9",
+  "GET /api/sync/cashier_audit_log",
+  {
+   "method": "GET",
+   "path": "/api/sync/cashier_audit_log",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:10",
+  "POST /api/sync/delta-pull",
+  {
+   "method": "POST",
+   "path": "/api/sync/delta-pull",
+   "query": "",
+   "body": {
+    "since": {
+     "product_grades": null,
+     "pricing_tiers": null,
+     "products": null,
+     "product_pricing": null,
+     "settings": null,
+     "parties": null,
+     "party_ledger": null,
+     "customers": null,
+     "loyalty_transactions": null,
+     "scrap_categories": null,
+     "scrap_transactions": null,
+     "purchase_bills": null,
+     "cash_drawer": null,
+     "cash_transactions": null,
+     "cashier_audit_log": null,
+     "cash_categories": null,
+     "returns": null,
+     "payment_sources": null,
+     "payment_source_transactions": null,
+     "combo_offers": null,
+     "quotations": null,
+     "invoices": null,
+     "users": null
+    }
+   }
+  }
+ ],
+ [
+  "http2:11",
+  "GET /api/sync/cash_categories",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_categories",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:12",
+  "GET /api/sync/products",
+  {
+   "method": "GET",
+   "path": "/api/sync/products",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:13",
+  "GET /api/sync/payment_sources",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_sources",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:14",
+  "GET /api/sync/settings",
+  {
+   "method": "GET",
+   "path": "/api/sync/settings",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:15",
+  "GET /api/sync/payment_source_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_source_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:16",
+  "GET /api/sync/parties",
+  {
+   "method": "GET",
+   "path": "/api/sync/parties",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "phase2:pulled",
+  "[]",
+  {
+   "products": [
+    {
+     "product_id": "<uuid>",
+     "name": "Steel Rod (local edit)",
+     "base_price": 111,
+     "category": "General",
+     "current_stock": 48,
+     "sync_status": "PENDING",
+     "is_deleted": 0
+    },
+    {
+     "product_id": "<uuid>",
+     "name": "Cement Bag (remote edit)",
+     "base_price": 420,
+     "category": "Remote",
+     "current_stock": 9,
+     "sync_status": "SYNCED",
+     "is_deleted": 0
+    },
+    {
+     "product_id": "<uuid>",
+     "name": "Remote Only Item",
+     "base_price": 75,
+     "category": "Remote",
+     "current_stock": 9,
+     "sync_status": "SYNCED",
+     "is_deleted": 0
+    }
+   ],
+   "parties": [
+    {
+     "party_id": "<uuid>",
+     "name": "Ravi Kumar",
+     "phone": "9876543210",
+     "sync_status": "SYNCED"
+    },
+    {
+     "party_id": "<uuid>",
+     "name": "Acme Traders",
+     "phone": "9123456780",
+     "sync_status": "SYNCED"
+    },
+    {
+     "party_id": "<uuid>",
+     "name": "Remote Party",
+     "phone": "9000000099",
+     "sync_status": "SYNCED"
+    },
+    {
+     "party_id": "<uuid>",
+     "name": "Ravi",
+     "phone": null,
+     "sync_status": "SYNCED"
+    }
+   ],
+   "settings": [
+    {
+     "tenant_id": "t1",
+     "key": "store_name",
+     "value": "Test Store",
+     "sync_status": "PENDING"
+    }
+   ]
+  }
+ ],
+ [
+  "phase2:status",
+  "[]",
+  {
+   "cash_categories": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "cash_drawer": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "cash_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 2
+    }
+   ],
+   "cashier_audit_log": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "customers": [
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "invoice_items": [
+    {
+     "sync_status": "PENDING",
+     "n": 5
+    }
+   ],
+   "invoices": [
+    {
+     "sync_status": "SYNCED",
+     "n": 4
+    }
+   ],
+   "parties": [
+    {
+     "sync_status": "SYNCED",
+     "n": 4
+    }
+   ],
+   "party_ledger": [
+    {
+     "sync_status": "SYNCED",
+     "n": 2
+    }
+   ],
+   "payment_source_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "payment_sources": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "pricing_tiers": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "products": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 2
+    }
+   ],
+   "scrap_categories": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "scrap_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "settings": [
+    {
+     "sync_status": "LOCAL",
+     "n": 3
+    },
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "staff": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "staff_salaries": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ]
+  }
+ ]
+]

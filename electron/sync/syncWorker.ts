@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { app, BrowserWindow, safeStorage, type WebContents } from 'electron';
-import { getDb, dbEmergencyPurgeLocalData } from '../db/localDb.js';
+import { getDb } from '../db/localDb.js';
+import { dbEmergencyPurgeLocalData } from '../services/emergencyPurgeService.js';
 
 function localTimestamp(d: Date | string | number = new Date()): string {
   const dateObj = d instanceof Date ? d : new Date(d);
@@ -109,10 +110,6 @@ let currentSyncProgress: { percent: number; label: string; recordsSynced: number
 let isSyncActive = false;
 let authExpiredNotified = false;
 
-export function resetAuthExpiredNotification() {
-  authExpiredNotified = false;
-}
-
 export function setSyncActive(active: boolean) {
   isSyncActive = active;
   if (active) {
@@ -151,7 +148,7 @@ export interface EffectiveCloudState {
   config: CloudAccessConfig;
 }
 
-export function getCloudAccessConfig(tenantId?: string): CloudAccessConfig {
+function getCloudAccessConfig(tenantId?: string): CloudAccessConfig {
   try {
     const db = getDb();
     const tid = tenantId || getAuthConfig()?.tenant_id || 'global';
@@ -322,12 +319,6 @@ const SYNC_PHASES = [
   'Updating quotations...',
 ];
 
-function getWebContents(sender?: WebContents): WebContents | null {
-  if (sender) return sender;
-  const win = BrowserWindow.getAllWindows()[0];
-  return win?.webContents ?? null;
-}
-
 function notifyProgress(phaseIndex: number, sender?: WebContents, recordsSynced?: number, totalRecords?: number) {
   if (phaseIndex >= 0 && phaseIndex < SYNC_PHASES.length) {
     const percent = Math.round(((phaseIndex + 1) / SYNC_PHASES.length) * 100);
@@ -396,7 +387,7 @@ function toSqliteDate(iso: string | number | Date | null | undefined): string {
   return str;
 }
 
-export function getSyncIntervalMs(): number {
+function getSyncIntervalMs(): number {
   try {
     const db = getDb();
     const config = getAuthConfig();
@@ -486,7 +477,7 @@ export function getSyncEndpoints(): SyncEndpoints {
   };
 }
 
-export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'LAN' | 'CLOUD'; reason?: string }> {
+async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'LAN' | 'CLOUD'; reason?: string }> {
   const endpoints = getSyncEndpoints();
   if (endpoints.disabled) {
     notifyOnlineStatus(false, 'NONE');
@@ -542,24 +533,14 @@ export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'L
   return { ok: false };
 }
 
-function getCloudApiBase() {
-  return getSyncEndpoints().primaryUrl;
-}
-
-export function getSyncTargetLabel(): string {
+function getSyncTargetLabel(): string {
   return currentActiveRoute === 'LAN' ? 'Local Wi-Fi Host (LAN)' : 'Cloud API';
 }
 
-export function getSyncPrefix(): string {
+function getSyncPrefix(): string {
   if (currentActiveRoute === 'LAN') return '[SyncWorker - LAN]';
   if (currentActiveRoute === 'CLOUD') return '[SyncWorker - CLOUD]';
   return '[SyncWorker]';
-}
-
-function getRouteTag(): string {
-  if (currentActiveRoute === 'LAN') return `[Local LAN Sync - ${localTimestamp()}]`;
-  if (currentActiveRoute === 'CLOUD') return `[Cloud API Sync - ${localTimestamp()}]`;
-  return `[Local Sync - ${localTimestamp()}]`;
 }
 
 async function fetchWithFallback(
@@ -884,20 +865,6 @@ export function initSyncWorker() {
   scheduleNextSyncCycle();
 }
 
-function isCashSettlementFeatureEnabled(): boolean {
-  try {
-    const db = getDb();
-    const config = getAuthConfig();
-    const tenantId = config?.tenant_id || 'global';
-    const row = db.prepare(`SELECT value FROM settings WHERE key = 'enable_cashier_settlement' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
-    if (row?.value) {
-      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-      return parsed !== false && parsed !== 'false' && parsed !== 0;
-    }
-  } catch {}
-  return true;
-}
-
 export async function drainPendingCloudQueue(sender?: WebContents): Promise<{ success: boolean; drainedCount: number; message: string }> {
   const effective = calculateEffectiveCloudAccess();
   if (!effective.isCloudAllowed) {
@@ -913,9 +880,6 @@ export async function drainPendingCloudQueue(sender?: WebContents): Promise<{ su
   console.log(`[SyncWorker] ✅ Queue drain completed. Drained ${drainedCount} records, ${remaining} remaining.`);
   return { success: true, drainedCount, message: `Successfully drained ${drainedCount} records.` };
 }
-
-let fastQuotationPullInProgress = false;
-const FAST_QUOTATION_PULL_MS = 30000;
 
 let urgentInvoiceSyncInProgress = false;
 let lastUrgentInvoiceSyncTime = 0;
@@ -1016,9 +980,6 @@ export async function triggerUrgentWarrantySync(): Promise<void> {
     urgentWarrantySyncInProgress = false;
   }
 }
-
-let fastCashPullInProgress = false;
-const FAST_CASH_PULL_MS = 15000;
 
 let urgentCashSyncInProgress = false;
 let lastUrgentCashSyncTime = 0;
@@ -1681,7 +1642,7 @@ async function syncPricingTiers(token: string, tenantId: string) {
 // ── Product Pricing Sync (Edge → Cloud) ──────────────────────────────────────
 async function syncProductPricing(token: string, tenantId: string) {
   const db = getDb();
-  let pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
 
@@ -2429,7 +2390,7 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
     processPage: (rows) => {
       const tx = db.transaction((products: any[]) => {
         for (const p of products) {
-          let currentP = { ...p };
+          const currentP = { ...p };
           let retryCount = 0;
           let success = false;
           while (retryCount < 2 && !success) {
@@ -2495,7 +2456,7 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
   return result.hasChanged && result.count > 0;
 }
 
-let lastInvoicesHash = ''; // kept for legacy compat — no longer used to gate notifications
+// kept for legacy compat — no longer used to gate notifications
 
 // ── Pull Invoices (Cloud → Edge) ─────────────────────────────────────────────
 async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
@@ -2632,7 +2593,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
 
       const tx = db.transaction((invoices: any[]) => {
         for (const inv of invoices) {
-          let currentInv = { ...inv };
+          const currentInv = { ...inv };
 
           // Never touch a locally-PENDING edit that diverges from the cloud (a change that
           // hasn't synced yet). Replacing header or items here would resurrect the deleted
@@ -4008,7 +3969,6 @@ function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) {
 // ── Pull Cash Drawer (Cloud → Edge) ─────────────────────────────────────────────
 async function pullCashDrawer(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
-  let hasContentChanged = false;
 
   const selectExisting = db.prepare(`
     SELECT drawer_id, status, opening_balance, cash_sales, cash_in, cash_out, current_cash, expected_closing, sync_status 
@@ -4083,7 +4043,6 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
         date: r.business_date,
       })));
       if (currentHash !== lastCashDrawerHash) {
-        hasContentChanged = true;
         lastCashDrawerHash = currentHash;
       }
 

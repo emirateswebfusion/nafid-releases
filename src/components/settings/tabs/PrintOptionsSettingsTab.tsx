@@ -1,13 +1,10 @@
 import { useFeatureFlagsStore } from '../../../featureFlags';
 import React from 'react';
-import { Receipt, FileText, Shield, Printer, Lock, Unlock, AlertCircle, Info, CheckCircle2, Tags } from 'lucide-react';
+import { FileText, Shield, AlertCircle, Info, CheckCircle2, Tags } from 'lucide-react';
 import clsx from 'clsx';
-import { Input } from '../../ui/Input';
-import { Select } from '../../ui/Select';
 import { FONT_OPTIONS } from '../settingsConstants';
-import { PaperPreviewModal } from '../../PaperPreviewModal';
 import { useBillingUIStore } from '../../../store/billingUIStore';
-import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../../../labelCodeTypes';
+import { CODE_TYPES } from '../../../labelCodeTypes';
 
 export interface PrintOptionsSettingsTabProps {
   autoOpenCashDrawer: boolean; setAutoOpenCashDrawer: (v: boolean) => void;

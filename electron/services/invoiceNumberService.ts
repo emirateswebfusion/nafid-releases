@@ -1,9 +1,8 @@
-import { getDb } from '../db/localDb.js';
-import { readAuthPayload } from '../ipc/common.js';
-import { triggerUrgentInvoiceSync } from '../sync/syncWorker.js';
+import { readAuthPayload } from './authStorage.js';
+import * as invoiceNumberSql from '../db/statements/invoiceNumber.js';
 
 export function getOrInitTerminalCode(db: any): string {
-  const row: any = db.prepare("SELECT value FROM settings WHERE (tenant_id = 'global' OR tenant_id != '') AND key = ? ORDER BY (CASE WHEN tenant_id = 'global' THEN 1 ELSE 2 END) ASC, updated_at DESC LIMIT 1").get('terminal_code');
+  const row: any = invoiceNumberSql.findOneSettingByKey(db).get('terminal_code');
   if (row && row.value) {
     try {
       let code = row.value;
@@ -26,7 +25,7 @@ export function getOrInitTerminalCode(db: any): string {
   }
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES (?, ?, ?, 'LOCAL', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP`).run('global', 'terminal_code', JSON.stringify(code));
+  invoiceNumberSql.upsertSetting(db).run('global', 'terminal_code', JSON.stringify(code));
   return code;
 }
 
@@ -43,7 +42,7 @@ export async function requestServerInvoiceNumber(
 
     let prefix = `${terminalCode}-`;
     if (configKey !== 'invoice_counter_config') {
-      const prefixRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+      const prefixRow: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
       if (prefixRow) {
         try {
           const parsed = JSON.parse(prefixRow.value);
@@ -55,7 +54,7 @@ export async function requestServerInvoiceNumber(
     }
 
     if (series === 'gst_b2b' || series === 'gst_b2c') {
-      const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
+      const tripleSeriesRow: any = invoiceNumberSql.findSettingsByKey(db).get('global', 'three_invoice_series');
       const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
       if (tripleSeries && tripleSeries.enabled) {
         const code = series === 'gst_b2b' ? tripleSeries.b2bPrefix : tripleSeries.b2cPrefix;
@@ -91,19 +90,14 @@ export async function requestServerInvoiceNumber(
     if (countMatch) {
       const serverCounter = parseInt(countMatch[1], 10);
       if (!isNaN(serverCounter)) {
-        const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+        const row: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
         let localCounter = 1;
         if (row) {
           try { localCounter = JSON.parse(row.value).counter || 1; } catch { localCounter = 1; }
         }
         if (serverCounter >= localCounter) {
           const newConfig = { prefix, counter: serverCounter + 1 };
-          db.prepare(`
-            INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-            VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-            ON CONFLICT(tenant_id, key) DO UPDATE SET
-              value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-          `).run('global', configKey, JSON.stringify(newConfig));
+          invoiceNumberSql.upsertSetting2(db).run('global', configKey, JSON.stringify(newConfig));
         }
       }
     }
@@ -131,7 +125,7 @@ export function getGuaranteedNextInvoiceNumber(
   );
   const defaultPrefix = overrideDefaultPrefix || fallbackPrefix;
 
-  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+  const row: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
   let counter = 1;
   let prefix = defaultPrefix;
 
@@ -149,7 +143,7 @@ export function getGuaranteedNextInvoiceNumber(
     }
   }
 
-  const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1');
+  const checkStmt = invoiceNumberSql.findOneInvoiceByInvoiceNumber(db);
   let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
 
   while (checkStmt.get(tenantId || 'global', candidate)) {
@@ -158,14 +152,7 @@ export function getGuaranteedNextInvoiceNumber(
   }
 
   const nextConfig = { prefix, counter: counter + 1 };
-  db.prepare(`
-    INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-    VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
-    ON CONFLICT(tenant_id, key) DO UPDATE SET
-      value = EXCLUDED.value,
-      sync_status = 'LOCAL',
-      updated_at = CURRENT_TIMESTAMP
-  `).run(configKey, JSON.stringify(nextConfig));
+  invoiceNumberSql.upsertSetting3(db).run(configKey, JSON.stringify(nextConfig));
 
   return { invoiceNumber: candidate, counter, prefix };
 }
@@ -185,7 +172,7 @@ export function peekGuaranteedNextInvoiceNumber(
   );
   const defaultPrefix = overrideDefaultPrefix || fallbackPrefix;
 
-  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+  const row: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
   let counter = 1;
   let prefix = defaultPrefix;
 
@@ -203,7 +190,7 @@ export function peekGuaranteedNextInvoiceNumber(
     }
   }
 
-  const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1');
+  const checkStmt = invoiceNumberSql.findOneInvoiceByInvoiceNumber(db);
   let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
 
   while (checkStmt.get(tenantId || 'global', candidate)) {

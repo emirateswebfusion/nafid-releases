@@ -1,12 +1,9 @@
 import React, { Fragment } from 'react';
-import {
-  Loader2, RefreshCw, AlertTriangle, Plus, Minus,
-  Pencil, Trash, Printer, X, Package, PackagePlus, AlertCircle
-} from 'lucide-react';
+import { RefreshCw, AlertTriangle, Plus, Minus, Pencil, Trash, Printer, X, Package, PackagePlus, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
 import { ScrollText } from '../../ScrollText';
-import { isGstProduct, type Product } from '../inventoryHelpers';
+import { type Product } from '../inventoryHelpers';
 
 export interface InventoryTableViewProps {
   view: 'list' | 'add' | 'edit';
@@ -196,8 +193,6 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                   const paperMrpPrice = isPaperProduct
                     ? Number((p as any).paper_mrp || da.paper_mrp || da.paper_base_price || 0)
                     : 0;
-
-                  const isGstFlag = isGstProduct(p);
 
                   return (
                     <div

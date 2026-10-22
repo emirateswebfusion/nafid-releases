@@ -4,6 +4,8 @@ import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, ChevronLeft
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { hasBridge } from '../data/client';
+import { bridgeEvents } from '../data/events';
 
 type Tab = 'login' | 'forgot-password' | 'reset-password';
 
@@ -85,8 +87,8 @@ export function LoginScreen() {
       setResetToken(token);
       setTab('reset-password');
     }
-    if (window.electronAPI?.onDeepLink) {
-      window.electronAPI.onDeepLink((token: string) => {
+    if (hasBridge('onDeepLink')) {
+      bridgeEvents.onDeepLink((token: string) => {
         setResetToken(token);
         setTab('reset-password');
       });

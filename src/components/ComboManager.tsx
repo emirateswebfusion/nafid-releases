@@ -1,15 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { 
-  Search, Plus, Trash2, Edit3, X, Check, Tag, Package, AlertCircle, 
-  RefreshCw, Layers, ToggleLeft, ToggleRight, ShoppingBag, 
-  Copy, Filter, Percent, CheckCircle2, Grid, List, Minus, 
-  SlidersHorizontal, Zap, ArrowRight, BarChart2, Boxes
-} from 'lucide-react';
+import { Search, Plus, Trash2, Edit3, X, Check, Tag, Package, AlertCircle, RefreshCw, Layers, ToggleLeft, ToggleRight, ShoppingBag, Copy, Percent, CheckCircle2, Grid, List, Zap, Boxes } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
+import { isDesktopRuntime } from '../data/client';
+import { combosApi } from '../data/combos';
+import { productsApi } from '../data/products';
 
 interface ComboItem {
   combo_item_id?: string;
@@ -60,7 +58,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   if (onClose) {
     useCloseOnEscape(onClose);
   }
-  const { tenantId, userName, role } = useAuthStore();
+  const { tenantId } = useAuthStore();
 
   const [combos, setCombos] = useState<ComboOffer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +90,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   // Product Search state inside modal
   const [productSearch, setProductSearch] = useState('');
   const [productResults, setProductResults] = useState<Product[]>([]);
-  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [, setSearchingProducts] = useState(false);
   const productSearchRef = useRef<HTMLInputElement>(null);
 
   // Auto-dismiss status toast
@@ -105,10 +103,10 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
 
   // Load combo offers
   const loadCombos = useCallback(async () => {
-    if (!window.electronAPI || !tenantId) return;
+    if (!isDesktopRuntime() || !tenantId) return;
     setLoading(true);
     try {
-      const res = await window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: searchQuery });
+      const res = await combosApi.getComboOffers({ tenant_id: tenantId, search: searchQuery });
       if (Array.isArray(res)) {
         setCombos(res);
       }
@@ -125,14 +123,14 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
 
   // Product search inside combo editor modal
   useEffect(() => {
-    if (!productSearch.trim() || !window.electronAPI || !tenantId) {
+    if (!productSearch.trim() || !isDesktopRuntime() || !tenantId) {
       setProductResults([]);
       return;
     }
     const timer = setTimeout(async () => {
       setSearchingProducts(true);
       try {
-        const res = await window.electronAPI.dbGetProducts({
+        const res = await productsApi.getProducts({
           tenant_id: tenantId,
           search: productSearch,
           limit: 12,
@@ -271,7 +269,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
         })),
       };
 
-      const res = await window.electronAPI.dbSaveComboOffer(payload);
+      const res = await combosApi.saveComboOffer(payload);
       if (res.success) {
         setStatusMessage({ text: editingCombo ? 'Combo offer updated successfully!' : 'New combo offer created successfully!', type: 'success' });
         setShowFormModal(false);
@@ -291,7 +289,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   const handleToggleActive = async (combo: ComboOffer) => {
     const nextState = combo.is_active ? 0 : 1;
     try {
-      const res = await window.electronAPI.dbToggleComboOfferActive({ combo_id: combo.combo_id, tenant_id: tenantId || 'global', is_active: Boolean(nextState) });
+      const res = await combosApi.toggleComboOfferActive({ combo_id: combo.combo_id, tenant_id: tenantId || 'global', is_active: Boolean(nextState) });
       if (res.success) {
         setCombos(prev => prev.map(c => c.combo_id === combo.combo_id ? { ...c, is_active: nextState } : c));
         setStatusMessage({ text: `Combo "${combo.name}" ${nextState ? 'activated' : 'deactivated'}`, type: 'success' });
@@ -311,7 +309,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
     if (!comboToDelete) return;
     setDeleteSaving(true);
     try {
-      const res = await window.electronAPI.dbDeleteComboOffer({ combo_id: comboToDelete.combo_id, tenant_id: tenantId || 'global' });
+      const res = await combosApi.deleteComboOffer({ combo_id: comboToDelete.combo_id, tenant_id: tenantId || 'global' });
       if (res.success) {
         setCombos(prev => prev.filter(c => c.combo_id !== comboToDelete.combo_id));
         setStatusMessage({ text: 'Combo offer deleted', type: 'success' });

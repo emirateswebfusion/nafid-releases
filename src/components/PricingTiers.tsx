@@ -10,6 +10,11 @@ import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
 import { sortTiersWithMrp, MRP_TIER_ID, type PricingTier } from '../utils/pricingTierHelper';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { bridgeEvents } from '../data/events';
+import { pricingTiersApi } from '../data/pricingTiers';
+import { productsApi } from '../data/products';
+import { settingsApi } from '../data/settings';
 
 const isTierDefault = (t?: PricingTier, allTiers: PricingTier[] = []): boolean => {
   if (!t) return false;
@@ -204,8 +209,8 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
 
   useEffect(() => {
     loadData(true);
-    if (!window.electronAPI?.onSyncDataUpdated) return;
-    const unsub = window.electronAPI.onSyncDataUpdated(() => {
+    if (!hasBridge('onSyncDataUpdated')) return;
+    const unsub = bridgeEvents.onSyncDataUpdated(() => {
       loadData(false);
     });
     return () => {
@@ -214,7 +219,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   }, [tenantId]);
 
   const loadData = async (showFullLoading = true) => {
-    if (!window.electronAPI) {
+    if (!isDesktopRuntime()) {
       setLoading(false);
       return;
     }
@@ -223,11 +228,11 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     try {
       const tid = tenantId || 'global';
       const [tierRes, productRes, pricingRes, overrideRes, mrpSortRes] = await Promise.all([
-        window.electronAPI.dbGetPricingTiers(tid),
-        window.electronAPI.dbGetProducts({ tenant_id: tid, include_inactive: true }),
-        window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([]),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'allow_biller_price_override' }),
-        window.electronAPI.settingsGet({ tenant_id: tid, key: 'mrp_sort_order' }),
+        pricingTiersApi.getPricingTiers(tid),
+        productsApi.getProducts({ tenant_id: tid, include_inactive: true }),
+        hasBridge('dbGetProductPricing') ? pricingTiersApi.getProductPricing(tid) : Promise.resolve([]),
+        settingsApi.get({ tenant_id: tid, key: 'allow_biller_price_override' }),
+        settingsApi.get({ tenant_id: tid, key: 'mrp_sort_order' }),
       ]);
 
       const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
@@ -269,7 +274,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   const handleAddTier = async () => {
     if (!newName.trim()) return;
     setOperating(true);
-    const res = await window.electronAPI.dbAddPricingTier({
+    const res = await pricingTiersApi.addPricingTier({
       pricing_tier_id: crypto.randomUUID(),
       tenant_id: tenantId || 'global',
       name: newName.trim(),
@@ -290,7 +295,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   const handleRenameTier = async (tier: PricingTier) => {
     if (!editName.trim() || tier.is_mrp) return;
     setOperating(true);
-    const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, name: editName.trim() });
+    const res = await pricingTiersApi.updatePricingTier({ ...tier, name: editName.trim() });
     if (res.success) {
       setEditingId(null);
       setStatusMessage({ text: 'Tier renamed!', type: 'success' });
@@ -305,7 +310,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     if (tier.is_mrp) return;
     setOperating(true);
     const next = !tier.is_active;
-    const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, is_active: next });
+    const res = await pricingTiersApi.updatePricingTier({ ...tier, is_active: next });
     if (res.success) {
       setStatusMessage({ text: `"${tier.name}" turned ${next ? 'ON' : 'OFF'}`, type: 'success' });
       await loadData(false);
@@ -318,7 +323,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
   const handleDeleteTier = async (tier: PricingTier) => {
     if (tier.is_mrp) return;
     setOperating(true);
-    const res = await window.electronAPI.dbDeletePricingTier(tier.pricing_tier_id);
+    const res = await pricingTiersApi.deletePricingTier(tier.pricing_tier_id);
     if (res.success) {
       setConfirmDeleteId(null);
       setStatusMessage({ text: `"${tier.name}" deleted!`, type: 'success' });
@@ -333,7 +338,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     setOperating(true);
     const isAlreadyDefault = isTierDefault(tier, tiers);
     const targetId = (isAlreadyDefault || tier.is_mrp) ? '' : tier.pricing_tier_id;
-    const res = await window.electronAPI.dbSetDefaultPricingTier({
+    const res = await pricingTiersApi.setDefaultPricingTier({
       tenant_id: tenantId || 'global',
       pricing_tier_id: targetId,
     });
@@ -375,8 +380,8 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     setOperating(true);
     try {
       await Promise.all([
-        window.electronAPI.dbReorderPricingTiers(dbPayload),
-        window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'mrp_sort_order', value: newMrpSort }),
+        pricingTiersApi.reorderPricingTiers(dbPayload),
+        settingsApi.set({ tenant_id: tenantId || 'global', key: 'mrp_sort_order', value: newMrpSort }),
       ]);
     } catch (e) {
       console.error('[PricingTiers] drag reorder error', e);
@@ -385,13 +390,9 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
     }
   };
 
-  const moveTier = async (index: number, dir: -1 | 1) => {
-    await reorderTier(index, index + dir);
-  };
-
   const toggleOverride = async (value: boolean) => {
     setAllowBillerOverride(value);
-    await window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override', value });
+    await settingsApi.set({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override', value });
     setStatusMessage({ text: `Staff price override ${value ? 'enabled' : 'disabled'}`, type: 'success' });
   };
 
@@ -466,7 +467,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
       price: val === '' || isNaN(Number(val)) ? null : Number(val),
     }));
     setOperating(true);
-    const res = await window.electronAPI.dbSetProductPricing({ tenant_id: tenantId || '', product_id: productId, pricing });
+    const res = await pricingTiersApi.setProductPricing({ tenant_id: tenantId || '', product_id: productId, pricing });
     if (res.success) {
       setStatusMessage({ text: 'Prices saved!', type: 'success' });
       setInitialPricingMap(prev => ({ ...prev, [productId]: { ...current } }));
@@ -486,7 +487,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
         pricing_tier_id: tierId,
         price: val === '' || isNaN(Number(val)) ? null : Number(val),
       }));
-      const res = await window.electronAPI.dbSetProductPricing({ tenant_id: tenantId || '', product_id: pId, pricing });
+      const res = await pricingTiersApi.setProductPricing({ tenant_id: tenantId || '', product_id: pId, pricing });
       if (res.success) ok++;
       else fail = true;
     }

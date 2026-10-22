@@ -1,11 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
-import {
-  Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
-  CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
-  TrendingUp, TrendingDown, Clock, AlertTriangle, Boxes, Edit3,
-  ChevronRight, ChevronDown, Printer, Package, Building, User, FileText,
-  CheckCheck, Calendar, BookOpen, RefreshCw, Bell, Zap, RotateCcw, Trash2
-} from 'lucide-react';
+import { Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal, CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Boxes, Edit3, ChevronRight, ChevronDown, Printer, Package, Building, User, FileText, Calendar, BookOpen, RefreshCw, Bell, Zap, RotateCcw, Trash2 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
 import { CustomDialog, type DialogVariant } from './ui/CustomDialog';
@@ -24,6 +18,18 @@ import { cashierPageTitle, useFeatureFlagsStore } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getStoreTimezone, getStoreBusinessDate } from '../utils/timezoneHelper';
 import { isAdminRole, hasPermission } from '../utils/permissions';
+import { cashierApi } from '../data/cashier';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { combosApi } from '../data/combos';
+import { bridgeEvents } from '../data/events';
+import { invoicesApi } from '../data/invoices';
+import { partiesApi } from '../data/parties';
+import { paymentSourcesApi } from '../data/paymentSources';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
+import { settingsApi } from '../data/settings';
+import { syncApi } from '../data/sync';
+import { formatCurrency } from '../utils/money';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'SPLIT';
 
@@ -35,14 +41,6 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Bankn
   { value: 'CHEQUE',        label: 'Cheque', icon: FileText             },
   { value: 'SPLIT',         label: 'Split', icon: SplitSquareHorizontal},
 ];
-
-function formatCurrency(amount: number | null | undefined): string {
-  if (amount == null || Number.isNaN(amount)) return '\u20B90.00';
-  const isNegative = amount < 0;
-  const absAmount = Math.abs(amount);
-  const formatted = absAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return isNegative ? `-\u20B9${formatted}` : `\u20B9${formatted}`;
-}
 
 function formatTime(d: string): string {
   if (!d) return '';
@@ -148,12 +146,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
 
   useEffect(() => {
-    if (window.electronAPI?.setPageContext) {
-      window.electronAPI.setPageContext({ page: 'cash_settlement', active: true });
+    if (hasBridge('setPageContext')) {
+      syncApi.setPageContext({ page: 'cash_settlement', active: true });
     }
     return () => {
-      if (window.electronAPI?.setPageContext) {
-        window.electronAPI.setPageContext({ page: 'cash_settlement', active: false });
+      if (hasBridge('setPageContext')) {
+        syncApi.setPageContext({ page: 'cash_settlement', active: false });
       }
     };
   }, []);
@@ -260,8 +258,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     setShowInvoiceModal(true);
     setLoadingItems(true);
     try {
-      if (window.electronAPI) {
-        const data = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+      if (isDesktopRuntime()) {
+        const data = await invoicesApi.getInvoiceItems(inv.invoice_id);
         setInvoiceItems(await enrichItemsWithMrp(Array.isArray(data) ? data : []));
       }
     } catch (err) {
@@ -277,7 +275,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const { tenantId } = useAuthStore.getState();
     let combosList: any[] = [];
     try {
-      const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: tenantId || 'global' });
+      const allCombos = await combosApi.getComboOffers({ tenant_id: tenantId || 'global' });
       if (Array.isArray(allCombos)) combosList = allCombos;
     } catch {}
 
@@ -286,7 +284,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const productMap: Record<string, any> = {};
     if (productIds.length > 0) {
       try {
-        const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+        const products = await productsApi.getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
         if (Array.isArray(products)) {
           products.forEach((p: any) => { productMap[p.product_id] = p; });
         }
@@ -546,11 +544,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   }, [playNewBillSound]);
 
   const load = useCallback(async () => {
-    if (!window.electronAPI || !tenantId) return;
+    if (!isDesktopRuntime() || !tenantId) return;
     const [d, invs, txs] = await Promise.all([
-      window.electronAPI.dbCashierGetDrawer({ tenant_id: tenantId }),
-      window.electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId, search: searchQuery || undefined }),
-      window.electronAPI.dbCashierGetTransactions({ tenant_id: tenantId }),
+      cashierApi.getDrawer({ tenant_id: tenantId }),
+      cashierApi.getPendingInvoices({ tenant_id: tenantId, search: searchQuery || undefined }),
+      cashierApi.getTransactions({ tenant_id: tenantId }),
     ]);
     if (d && !d.error) {
       setDrawer(d);
@@ -586,7 +584,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const targetId = reopenConfirmDrawer.drawer_id || reopenConfirmDrawer;
     setIsReopeningDrawer(true);
     try {
-      const res = await window.electronAPI!.dbCashierReopenDrawer({
+      const res = await cashierApi.reopenDrawer({
         tenant_id: tenantId!,
         drawer_id: targetId,
         user_id: userId!,
@@ -595,8 +593,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       if (res.success) {
         setReopenConfirmDrawer(null);
         await load();
-        if (window.electronAPI?.dbCashierGetHistory) {
-          const hist = await window.electronAPI.dbCashierGetHistory({ tenant_id: tenantId! });
+        if (hasBridge('dbCashierGetHistory')) {
+          const hist = await cashierApi.getHistory({ tenant_id: tenantId! });
           if (Array.isArray(hist)) setHistory(hist);
         }
       } else {
@@ -634,7 +632,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (!deleteConfirmTx || !isOwner) return;
     setIsDeletingTx(true);
     try {
-      const res = await window.electronAPI!.dbCashierDeleteTransaction({
+      const res = await cashierApi.deleteTransaction({
         tenant_id: tenantId!,
         transaction_id: deleteConfirmTx.transaction_id,
         user_id: userId!,
@@ -643,8 +641,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       if (res.success) {
         setDeleteConfirmTx(null);
         await load();
-        if (window.electronAPI?.dbCashierGetHistory) {
-          const hist = await window.electronAPI.dbCashierGetHistory({ tenant_id: tenantId! });
+        if (hasBridge('dbCashierGetHistory')) {
+          const hist = await cashierApi.getHistory({ tenant_id: tenantId! });
           if (Array.isArray(hist)) setHistory(hist);
         }
         if (expandedDay) {
@@ -672,15 +670,15 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   useEffect(() => {
     loadFlags(tenantId || 'global');
     getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
-    if (window.electronAPI?.dbPaymentGetSources) {
-      window.electronAPI.dbPaymentGetSources(tenantId || 'global').then((sources: any[]) => {
+    if (hasBridge('dbPaymentGetSources')) {
+      paymentSourcesApi.getSources(tenantId || 'global').then((sources: any[]) => {
         if (Array.isArray(sources)) {
           setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
       }).catch(() => {});
     }
-    if (window.electronAPI?.runInitialSync) {
-      window.electronAPI.runInitialSync().catch(() => {});
+    if (hasBridge('runInitialSync')) {
+      syncApi.runInitialSync().catch(() => {});
     }
     Promise.all([load()]).finally(() => setLoading(false));
   }, [load, tenantId, loadFlags]);
@@ -691,7 +689,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   loadRef.current = load;
   useEffect(() => {
     const refresh = () => { loadRef.current(); };
-    const unsubscribeSync = window.electronAPI?.onSyncDataUpdated?.(refresh);
+    const unsubscribeSync = bridgeEvents.onSyncDataUpdated(refresh);
     window.addEventListener('focus', refresh);
     window.addEventListener('checkout:completed', refresh);
     window.addEventListener('storage', refresh);
@@ -706,7 +704,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   // When drawer is null (no auto-open), check if any previous shift was not closed
   useEffect(() => {
     if (!drawer && tenantId && !loading) {
-      window.electronAPI?.dbCashierGetHistory({ tenant_id: tenantId, limit: 10 }).then(history => {
+      cashierApi.getHistory({ tenant_id: tenantId, limit: 10 }).then(history => {
         const today = new Date().toLocaleDateString('en-CA');
         const entry = Array.isArray(history) ? history.find(h => h.status === 'OPEN' && h.business_date < today) : null;
         if (entry) {
@@ -725,8 +723,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const handleOpenOpeningBalModal = async (currentBal?: number) => {
     let def = currentBal || 0;
-    if (!def && window.electronAPI?.settingsGet) {
-      const val = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'default_opening_balance' });
+    if (!def && hasBridge('settingsGet')) {
+      const val = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'default_opening_balance' });
       if (val !== null && val !== undefined && val !== '') {
         def = Number(val) || 0;
       }
@@ -739,7 +737,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const handleSetOpening = async () => {
     if (!tenantId || !userId) return;
     setOpeningBalError('');
-    const r = await window.electronAPI!.dbCashierSetOpeningBalance({
+    const r = await cashierApi.setOpeningBalance({
       tenant_id: tenantId, opening_balance: openingBalInput,
       user_id: userId, user_name: userName || undefined,
     });
@@ -759,14 +757,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       ? (txnNote ? `Party: ${txnPartyName} | ${txnNote}` : `Party: ${txnPartyName}`)
       : (txnNote || undefined);
 
-    const r = await window.electronAPI!.dbCashierAddTransaction({
+    const r = await cashierApi.addTransaction({
       tenant_id: tenantId, type: txnType, amount: txnAmt,
       category: txnCat || undefined, notes: finalNotes,
       user_id: userId, user_name: userName || undefined,
     });
     if (r.success && txnPartyId) {
       const partyTxnType = txnType === 'CASH_IN' ? 'DEBIT' : 'CREDIT';
-      await window.electronAPI!.dbAddPartyLedgerEntry({
+      await partiesApi.addPartyLedgerEntry({
         party_id: txnPartyId,
         tenant_id: tenantId,
         transaction_type: partyTxnType,
@@ -791,7 +789,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const handleDayClose = async () => {
     if (!tenantId || !userId || actualCash < 0) return;
     setCloseSubmitting(true);
-    const r = await window.electronAPI!.dbCashierDayClosing({
+    const r = await cashierApi.dayClosing({
       tenant_id: tenantId, actual_cash: actualCash,
       closing_remarks: closeRemarks || undefined,
       user_id: userId, user_name: userName || undefined,
@@ -827,7 +825,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const openHistory = async () => {
     if (!tenantId) return;
-    const r = await window.electronAPI!.dbCashierGetHistory({ tenant_id: tenantId, limit: 50 });
+    const r = await cashierApi.getHistory({ tenant_id: tenantId, limit: 50 });
     if (Array.isArray(r)) { setHistory(r); }
     setShowHist(true);
   };
@@ -843,9 +841,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     try {
       const cleanDate = businessDate ? businessDate.split('T')[0] : businessDate;
       const [invs, txs] = await Promise.all([
-        window.electronAPI!.dbCashierGetDaySettlements({ tenant_id: tenantId, business_date: cleanDate }),
-        window.electronAPI!.dbCashierGetDayTransactions
-          ? window.electronAPI!.dbCashierGetDayTransactions({ tenant_id: tenantId, business_date: cleanDate })
+        cashierApi.getDaySettlements({ tenant_id: tenantId, business_date: cleanDate }),
+        hasBridge('dbCashierGetDayTransactions')
+          ? cashierApi.getDayTransactions({ tenant_id: tenantId, business_date: cleanDate })
           : Promise.resolve([]),
       ]);
       if (Array.isArray(invs)) setDaySettlements(invs);
@@ -1052,8 +1050,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={async () => {
-                      if (window.electronAPI?.runInitialSync) {
-                        try { await window.electronAPI.runInitialSync(); } catch {}
+                      if (hasBridge('runInitialSync')) {
+                        try { await syncApi.runInitialSync(); } catch {}
                       }
                       await load();
                     }}
@@ -2047,7 +2045,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             return;
                           }
                           setPayingRow(inv.invoice_id);
-                          const r = await window.electronAPI!.dbCashierSettlePayment({
+                          const r = await cashierApi.settlePayment({
                             tenant_id: tenantId!, invoice_id: inv.invoice_id,
                             received_amount: net,
                             discount_amount: rawNet < 0 ? 0 : (Number(rowDiscs[inv.invoice_id]) || 0),
@@ -2118,10 +2116,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName('');
                   setShowTxnModal(true);
                   if (!parties.length) {
-                    const p = await window.electronAPI!.dbGetParties(tenantId!);
+                    const p = await partiesApi.getParties(tenantId!);
                     if (Array.isArray(p)) setParties(p);
                   }
-                  const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId! });
+                  const cats = await cashierApi.getCategories({ tenant_id: tenantId! });
                   if (Array.isArray(cats)) setCustomCategories(cats);
                 }}
                 className={clsx(
@@ -2295,7 +2293,6 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
 
-
                           ) : null}
                         </div>
                       </div>
@@ -2350,9 +2347,6 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         </div>
       )}
       {/* end main content */}
-
-
-
 
       {/* ══════════════════════════════════════════════════════════════════════
           MODAL: Day Closing
@@ -2652,9 +2646,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       onClick={async () => {
                         if (!newCatName.trim() || !tenantId) return;
                         setAddingCat(true);
-                        const r = await window.electronAPI!.dbCashierAddCategory({ tenant_id: tenantId, name: newCatName.trim(), type: txnType });
+                        const r = await cashierApi.addCategory({ tenant_id: tenantId, name: newCatName.trim(), type: txnType });
                         if (r.success) {
-                          const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId });
+                          const cats = await cashierApi.getCategories({ tenant_id: tenantId });
                           if (Array.isArray(cats)) setCustomCategories(cats);
                           setTxnCat(newCatName.trim());
                           setShowAddCatForm(false);
@@ -2825,16 +2819,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       if (!hasPermission({ role, permissions }, 'sales.edit')) {
                         return;
                       }
-                      if (!window.electronAPI || !selectedInvoice) return;
+                      if (!isDesktopRuntime() || !selectedInvoice) return;
                       let currentItems = invoiceItems;
                       if (!currentItems.length) {
-                        const data = await window.electronAPI.dbGetInvoiceItems(selectedInvoice.invoice_id);
+                        const data = await invoicesApi.getInvoiceItems(selectedInvoice.invoice_id);
                         currentItems = Array.isArray(data) ? data : [];
                       }
                       let freshInvoice = selectedInvoice;
-                      if (window.electronAPI.dbGetInvoices) {
+                      if (hasBridge('dbGetInvoices')) {
                         try {
-                          const fetched = await window.electronAPI.dbGetInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
+                          const fetched = await invoicesApi.getInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
                           if (Array.isArray(fetched) && fetched.length > 0) {
                             const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
                             if (exact) freshInvoice = exact;
@@ -2855,21 +2849,21 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   </button>
                 )}
                 <button onClick={async () => {
-                  if (!selectedInvoice || !window.electronAPI) return;
+                  if (!selectedInvoice || !isDesktopRuntime()) return;
                   try {
                     const { tenantId } = useAuthStore.getState();
                     const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
-                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+                      settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_state' }),
                     ]);
-                    const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+                    const receiptConfig = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
                     const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-                    const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+                    const printFmtRaw = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'print_format' });
                     const printFmt = parsePrintFormat(printFmtRaw);
                     const invoiceType = selectedInvoice.invoice_type;
                     const isB2B = Boolean(selectedInvoice.customer_gstin?.trim());
@@ -2925,7 +2919,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     if (useA4) {
                       const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
                       const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-                      const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+                      const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
                       if (!printResult.success && (printResult as any).useDefaultDialog) {
                         const pw = window.open('', '_blank');
                         if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
@@ -2934,7 +2928,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
                       const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
                       const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-                      await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+                      await printingApi.printReceipt(tenantId || 'global', receiptText);
                     }
                     setReprintSuccess(true);
                     setTimeout(() => setReprintSuccess(false), 2500);
@@ -3455,7 +3449,6 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           const totalEntered = Math.round((c + cd + u + b) * 100) / 100;
           const diff = Math.round((net - totalEntered) * 100) / 100;
           const isMatched = Math.abs(diff) < 0.01;
-          const isExcess = diff < -0.01;
           const isShort = diff > 0.01;
 
           return (
@@ -3646,7 +3639,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   onClick={async () => {
                     setSplitSubmitting(true);
                     const splitDetails = { cash: c, card: cd, upi: u, bank_transfer: b };
-                    const r = await window.electronAPI!.dbCashierSettlePayment({
+                    const r = await cashierApi.settlePayment({
                       tenant_id: tenantId!,
                       invoice_id: splitModalInvoice.invoice_id,
                       received_amount: net,

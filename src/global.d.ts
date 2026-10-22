@@ -8,6 +8,7 @@ export interface SyncProgress {
 export interface IElectronAPI {
   logError: (message: string, error?: any) => Promise<void>;
   ping: () => Promise<string>;
+  dbDebugSyncState: (tenant_id: string) => Promise<unknown>;
   appCheckForUpdates: () => Promise<any>;
   appGetVersion: () => Promise<string>;
   appInstallUpdate: () => Promise<void>;
@@ -87,7 +88,6 @@ export interface IElectronAPI {
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;
   settingsGetAll?: (payload: { tenant_id: string }) => Promise<Record<string, any>>;
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => Promise<{ success: boolean; error?: string }>;
-  appGetLocalIp?: () => Promise<string>;
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string; skipped?: boolean }>;
   dbDeleteInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetDeletedInvoices: (tenantId: string) => Promise<any[]>;
@@ -139,7 +139,6 @@ export interface IElectronAPI {
   onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => (() => void);
   onSyncProgress: (callback: (progress: SyncProgress) => void) => (() => void) | void;
   onTokenExpired: (callback: () => void) => (() => void) | void;
-  dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
   dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => Promise<{ success: boolean; results?: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[]; error?: string }>;
   dbPreviewConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => Promise<{
     success: boolean;
@@ -235,6 +234,7 @@ export interface IElectronAPI {
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbCashierGetCategories: (params: { tenant_id: string }) => Promise<any[]>;
   dbCashierAddCategory: (params: { tenant_id: string; name: string; type: string }) => Promise<{ success: boolean; error?: string }>;
+  dbCashierDeleteCategory: (params: { category_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
 
   // Payment Methods (BANK / CARD / UPI sources)
   dbPaymentGetSources: (tenant_id: string) => Promise<any[]>;
@@ -289,8 +289,6 @@ export interface IElectronAPI {
 
   setPageContext: (payload: { page: string; active: boolean }) => Promise<{ success: boolean; error?: string }>;
   resetFastPollBackoff: () => Promise<{ success: boolean; error?: string }>;
-  aiChat?: (message: string, history?: any[]) => Promise<any>;
-  aiGetOverview?: () => Promise<any>;
 
   // E-Commerce / FusionCart Integration
   ecommerceGetSettings: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: any; error?: string }>;

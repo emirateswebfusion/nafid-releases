@@ -158,7 +158,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
   let rateVal = item.unit_price;
 
   if (isWeightHidden) {
-    let pcs = (item.pieces_override != null && item.pieces_override > 0)
+    const pcs = (item.pieces_override != null && item.pieces_override > 0)
       ? item.pieces_override
       : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : 1);
     if (pcs > 0) {
@@ -168,7 +168,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
     qtyStr = appendPcs ? `${pcs} PCS` : `${pcs}`;
   } else {
     const numQty = Number(item.quantity);
-    let rawQtyStr = isNaN(numQty)
+    const rawQtyStr = isNaN(numQty)
       ? String(item.quantity)
       : (isWeightProduct ? numQty.toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1') : String(numQty));
 
@@ -208,7 +208,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   if (dateInput instanceof Date) return dateInput;
   if (typeof dateInput === 'number') return new Date(dateInput);
 
-  let dateStr = String(dateInput).trim();
+  const dateStr = String(dateInput).trim();
   if (!dateStr) return new Date();
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -267,7 +267,6 @@ export function formatBillDateTime(date: Date | string | number): string {
     return d.toLocaleString('en-IN', { timeZone: tz });
   }
 }
-
 
 export interface ReceiptData {
   shopName: string;
@@ -342,7 +341,7 @@ export interface ReceiptData {
   creditPeriodDays?: number;
 }
 
-export function shouldShowItemMrp(data: ReceiptData, item: ReceiptItem): boolean {
+function shouldShowItemMrp(data: ReceiptData, item: ReceiptItem): boolean {
   if (item.isPriceOverride) {
     return data.showPriceOverrideMrp !== false;
   }
@@ -405,7 +404,7 @@ function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMo
   }
 }
 
-export function formatBalanceLines(
+function formatBalanceLines(
   data: ReceiptData,
   labelW: number,
   totalW: number,
@@ -2244,7 +2243,6 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // Align totals vertical separator with minimum 8 chars for value field so 2-decimal numbers are never clipped
     const VAL_W = Math.max(amtW, 8);
-    const LAB_W = Math.max(4, INNER - VAL_W - 1);
     const tRow = (label: string, val: string) => {
       const effValW = Math.max(VAL_W, val.length);
       const effLabW = INNER - effValW - 1;

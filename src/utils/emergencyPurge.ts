@@ -65,25 +65,6 @@ export function parseEmergencyPanicConfig(val: any): EmergencyPanicConfig {
   }
 }
 
-export function parseEmergencyWipeCommand(val: any): EmergencyWipeCommand | null {
-  if (!val) return null;
-  try {
-    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
-    if (!parsed || typeof parsed !== 'object' || parsed.action !== 'PURGE_LOCAL_DB') return null;
-    return {
-      command_id: String(parsed.command_id || ''),
-      action: 'PURGE_LOCAL_DB',
-      target_terminal: parsed.target_terminal || 'ALL',
-      triggered_by: String(parsed.triggered_by || 'Owner'),
-      triggered_at: Number(parsed.triggered_at) || Date.now(),
-      wipe_mode: parsed.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA',
-      status: parsed.status === 'EXECUTED' ? 'EXECUTED' : 'PENDING',
-    };
-  } catch {
-    return null;
-  }
-}
-
 export function isMatchingHotkey(event: KeyboardEvent, combo: string): boolean {
   if (!combo) return false;
   const parts = combo.toLowerCase().split('+').map(p => p.trim());

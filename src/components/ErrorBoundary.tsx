@@ -1,6 +1,8 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { logError } from '../data/app';
+import { hasBridge, isDesktopRuntime } from '../data/client';
 
 interface Props {
   children?: ReactNode;
@@ -23,8 +25,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught React Error:', error, errorInfo);
-    if (window.electronAPI && window.electronAPI.logError) {
-      window.electronAPI.logError(`React Crash: ${error.message}`, {
+    if (isDesktopRuntime() && hasBridge('logError')) {
+      logError(`React Crash: ${error.message}`, {
         stack: error.stack,
         componentStack: errorInfo.componentStack
       });

@@ -4,13 +4,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
-import {
-  Search, Loader2, Plus,
-  Pencil, Trash, Trash2, RefreshCw, X, Save, TrendingUp, TrendingDown, Recycle,
-  CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
-  IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
-  ChevronRight, Activity, FileText, Layers
-} from 'lucide-react';
+import { Search, Loader2, Plus, Pencil, Trash, Trash2, RefreshCw, X, Save, TrendingUp, TrendingDown, Recycle, AlertCircle, ShoppingCart, Minus, Package, IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon, ChevronRight, Activity, FileText, Layers } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
@@ -23,6 +17,12 @@ import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { paymentSourcesApi } from '../data/paymentSources';
+import { printingApi } from '../data/printing';
+import { scrapApi } from '../data/scrap';
+import { settingsApi } from '../data/settings';
+import { formatCurrency as formatMoney } from '../utils/money';
 
 type View = 'list' | 'category_form' | 'transaction' | 'tx_form' | 'selling' | 'invoices' | 'invoice_detail';
 
@@ -51,19 +51,13 @@ interface ScrapTransaction {
 }
 
 const formatCurrency = (amount: number | undefined | null) =>
-  amount == null || isNaN(amount) ? '-' : `\u20B9${amount.toFixed(2)}`;
+  amount == null || isNaN(amount) ? '-' : formatMoney(amount);
 
 const formatStock = (stock: number | string | undefined | null) => {
   if (stock == null || stock === '') return '0';
   const n = Number(stock);
   if (isNaN(n)) return '0';
   return parseFloat(n.toFixed(3)).toString();
-};
-
-const _formatDate = (d: string) => {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const formatDateTime = (d: string) => {
@@ -193,10 +187,10 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const loadData = async () => {
     setLoading(true);
     try {
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         const tid = tenantId || '';
-        await window.electronAPI.dbDeduplicateScrapCategories();
-        const cats = await window.electronAPI.dbGetScrapCategories(tid);
+        await scrapApi.deduplicateScrapCategories();
+        const cats = await scrapApi.getScrapCategories(tid);
         if (Array.isArray(cats)) {
           setCategories(cats);
           const currentCatId = selectedCategory?.scrap_category_id;
@@ -206,8 +200,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           }
         }
         getUpiPageConfig(tid || 'global').then(setUpiPageConfig);
-        if (window.electronAPI?.dbPaymentGetSources) {
-          window.electronAPI.dbPaymentGetSources(tid || 'global').then((sources: any[]) => {
+        if (hasBridge('dbPaymentGetSources')) {
+          paymentSourcesApi.getSources(tid || 'global').then((sources: any[]) => {
             if (Array.isArray(sources)) {
               setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
             }
@@ -221,23 +215,23 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   };
 
   const loadTransactions = async (categoryId?: string) => {
-    if (window.electronAPI) {
-      const txs = await window.electronAPI.dbGetScrapTransactions({ tenant_id: tenantId || '', scrap_category_id: categoryId });
+    if (isDesktopRuntime()) {
+      const txs = await scrapApi.getScrapTransactions({ tenant_id: tenantId || '', scrap_category_id: categoryId });
       if (Array.isArray(txs)) setTransactions(txs);
     }
   };
 
   const loadInvoices = async () => {
-    if (window.electronAPI) {
-      const invs = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+    if (isDesktopRuntime()) {
+      const invs = await scrapApi.getScrapInvoiceList({ tenant_id: tenantId || '' });
       if (Array.isArray(invs)) setInvoices(invs);
     }
   };
 
   const openInvoiceDetail = async (invoiceNumber: string) => {
     setSelectedInvoiceNumber(invoiceNumber);
-    if (window.electronAPI) {
-      const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+    if (isDesktopRuntime()) {
+      const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
       if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
     }
     setView('invoice_detail');
@@ -254,7 +248,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     setIsSavingCategory(true);
     try {
       if (editingCategory) {
-        const res = await window.electronAPI.dbUpdateScrapCategory({
+        const res = await scrapApi.updateScrapCategory({
           scrap_category_id: editingCategory.scrap_category_id,
           name: formData.name.trim(),
           purchase_price: Number(formData.purchase_price) || 0,
@@ -269,7 +263,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           return;
         }
       } else {
-        const res = await window.electronAPI.dbAddScrapCategory({
+        const res = await scrapApi.addScrapCategory({
           scrap_category_id: uuidv4(),
           tenant_id: tenantId,
           name: formData.name.trim(),
@@ -305,7 +299,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     if (!categoryToDelete || !isOwner) return;
     setDeleteCatSaving(true);
     try {
-      await window.electronAPI.dbDeleteScrapCategory(categoryToDelete.scrap_category_id);
+      await scrapApi.deleteScrapCategory(categoryToDelete.scrap_category_id);
       showStatus('Category deleted', 'success');
       setCategories(prev => prev.filter(c => c.scrap_category_id !== categoryToDelete.scrap_category_id));
       setDeleteCatModalOpen(false);
@@ -315,13 +309,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     } finally {
       setDeleteCatSaving(false);
     }
-  };
-
-  const openTransaction = (cat: ScrapCategory) => {
-    setSelectedCategory(cat);
-    setTxForm({ type: 'PURCHASE', categoryId: cat.scrap_category_id, quantity: '', rate: String(cat.purchase_price), party_name: '', notes: '' });
-    setView('transaction');
-    loadTransactions(cat.scrap_category_id);
   };
 
   const handleSaveTransaction = async (e: React.FormEvent) => {
@@ -338,7 +325,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
     setIsSavingTx(true);
     try {
-      const res = await window.electronAPI.dbAddScrapTransaction({
+      const res = await scrapApi.addScrapTransaction({
         transaction_id: uuidv4(),
         tenant_id: tenantId,
         type: txForm.type,
@@ -375,8 +362,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   useEffect(() => {
     if (sellingSearch.length < 2) { setSellingResults([]); return; }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
-      const res = await window.electronAPI.dbGetScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });
+      if (!isDesktopRuntime()) return;
+      const res = await scrapApi.getScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });
       if (Array.isArray(res)) setSellingResults(res.filter((c: ScrapCategory, i: number, arr: ScrapCategory[]) => arr.findIndex(x => x.scrap_category_id === c.scrap_category_id) === i));
     }, 150);
     return () => clearTimeout(t);
@@ -400,15 +387,15 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     let successCount = 0;
     for (const entry of sellingSelected) {
       if (entry.qty <= 0 || entry.rate <= 0) continue;
-      if (window.electronAPI) {
-        const cats = await window.electronAPI.dbGetScrapCategories(tenantId || '');
+      if (isDesktopRuntime()) {
+        const cats = await scrapApi.getScrapCategories(tenantId || '');
         const cat = cats.find((c: any) => c.scrap_category_id === entry.category.scrap_category_id);
         const currentStock = cat ? Number(cat.current_stock) : 0;
         if (entry.qty > currentStock) {
           showStatus(`Insufficient stock for ${entry.category.name}`, 'error');
           continue;
         }
-        const res = await window.electronAPI.dbAddScrapTransaction({
+        const res = await scrapApi.addScrapTransaction({
           transaction_id: uuidv4(),
           tenant_id: tenantId,
           type: 'SALE',
@@ -454,20 +441,20 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   };
 
   const handleReprintScrap = async () => {
-    if (!selectedInvoiceNumber || invoiceDetailTxs.length === 0 || !window.electronAPI) return;
+    if (!selectedInvoiceNumber || invoiceDetailTxs.length === 0 || !isDesktopRuntime()) return;
     try {
       const { tenantId } = useAuthStore.getState();
       const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
       ]);
-      const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+      const receiptConfig = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmtRaw = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const isHalfA4 = printFmt.format === 'half-a4';
       const isA4 = printFmt.format === 'a4';
@@ -513,7 +500,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       if (useA4) {
         const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
         const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
         if (printResult && !printResult.success) {
           showStatus(formatPrinterError(printResult.error), 'error');
         } else {
@@ -523,7 +510,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
         const thermalStyle = printFmt?.thermalStyle || (printFmt?.format === 'thermal' ? printFmt.style : undefined) || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        const printResult = await printingApi.printReceipt(tenantId || 'global', receiptText);
         if (printResult?.skipped) {
           showStatus(formatPrinterError('No printer configured'), 'error');
         } else if (printResult && !printResult.success) {
@@ -555,7 +542,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     if (!editTxForm.quantity || !editTxForm.rate) { showStatus('Quantity and Rate are required', 'error'); return; }
     setIsSavingTx(true);
     try {
-      const res = await window.electronAPI.dbUpdateScrapTransaction({
+      const res = await scrapApi.updateScrapTransaction({
         transaction_id: editingTxItem.transaction_id,
         tenant_id: tenantId,
         scrap_category_id: editTxForm.scrap_category_id,
@@ -569,7 +556,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         setEditingTxItem(null);
         setEditTxForm({ scrap_category_id: '', quantity: '', rate: '', party_name: '', notes: '' });
         if (selectedInvoiceNumber) {
-          const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
           if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
         } else if (selectedCategory) {
           await loadTransactions(selectedCategory.scrap_category_id);
@@ -589,12 +576,12 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const handleDeleteTx = async (transactionId: string) => {
     if (!isOwner) { showStatus('Only owners/admins can delete transactions', 'error'); return; }
     try {
-      const res = await window.electronAPI.dbDeleteScrapTransaction({ tenant_id: tenantId || '', transaction_id: transactionId });
+      const res = await scrapApi.deleteScrapTransaction({ tenant_id: tenantId || '', transaction_id: transactionId });
       if (res.success) {
         showStatus('Transaction line item deleted', 'success');
         setConfirmDeleteTxId(null);
         if (selectedInvoiceNumber) {
-          const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
           if (detail && detail.transactions) {
             if (detail.transactions.length === 0) {
               setView('invoices');
@@ -619,7 +606,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const handleDeleteInvoice = async (invoiceNumber: string) => {
     if (!isOwner) { showStatus('Only owners/admins can delete invoices', 'error'); return; }
     try {
-      const res = await window.electronAPI.dbDeleteScrapInvoice({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+      const res = await scrapApi.deleteScrapInvoice({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
       if (res.success) {
         showStatus(`Scrap invoice ${invoiceNumber} deleted successfully`, 'success');
         setConfirmDeleteInvoiceNumber(null);
@@ -646,22 +633,12 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     onClose();
   };
 
-  const _handleOpenEditHeader = (inv: any) => {
-    setEditHeaderInvoice(inv);
-    setEditHeaderForm({
-      party_name: inv.party_name || '',
-      customer_phone: inv.customer_phone || '',
-      customer_address: inv.customer_address || '',
-      payment_status: inv.payment_status || 'CASH',
-    });
-  };
-
   const handleSaveInvoiceHeader = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editHeaderInvoice || !window.electronAPI) return;
+    if (!editHeaderInvoice || !isDesktopRuntime()) return;
     setIsSavingHeader(true);
     try {
-      const res = await window.electronAPI.dbUpdateScrapInvoiceHeader({
+      const res = await scrapApi.updateScrapInvoiceHeader({
         tenant_id: tenantId || '',
         scrap_invoice_number: editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number,
         party_name: editHeaderForm.party_name,
@@ -672,7 +649,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       if (res.success) {
         showStatus('Invoice customer info updated successfully', 'success');
         const invNum = editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number;
-        await window.electronAPI.dbUpsertScrapCreditLedger({
+        await scrapApi.upsertScrapCreditLedger({
           tenant_id: tenantId || '',
           scrap_invoice_number: invNum,
           payment_status: editHeaderForm.payment_status,
@@ -714,8 +691,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
     setIsAddingItemSaving(true);
     try {
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbAddScrapTransaction({
+      if (isDesktopRuntime()) {
+        const res = await scrapApi.addScrapTransaction({
           transaction_id: uuidv4(),
           tenant_id: tenantId,
           type: 'PURCHASE',
@@ -732,7 +709,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         });
         if (res.success) {
           showStatus(`Added ${qty} ${cat.unit} of ${cat.name} to invoice`, 'success');
-          await window.electronAPI.dbUpsertScrapCreditLedger({
+          await scrapApi.upsertScrapCreditLedger({
             tenant_id: tenantId || '',
             scrap_invoice_number: selectedInvoiceNumber,
             payment_status: firstTx?.payment_status || 'CASH',
@@ -794,8 +771,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const totalStock = categories.reduce((s, c) => s + Number(c.current_stock), 0);
   const estimatedValue = categories.reduce((s, c) => s + Number(c.purchase_price) * Number(c.current_stock), 0);
 
-  const _totalPurchases = transactions.filter(t => t.type === 'PURCHASE').reduce((s, t) => s + t.total_amount, 0);
-  const _totalSales = transactions.filter(t => t.type === 'SALE').reduce((s, t) => s + t.total_amount, 0);
   const realizedProfit = transactions
     .filter(t => t.type === 'SALE')
     .reduce((sum, t) => sum + (Number(t.rate) - Number(selectedCategory?.purchase_price || 0)) * Number(t.quantity), 0);

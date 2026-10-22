@@ -2,9 +2,9 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import net from 'net';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import QRCode from 'qrcode';
 import { getDb } from '../db/localDb';
+import * as printerSql from '../db/statements/printer.js';
 
 // Generic ESC/POS Hex Commands
 const ESC_INIT = Buffer.from([0x1B, 0x40]); // Initialize Printer
@@ -37,24 +37,24 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
     const key = type === 'receipt' ? 'receipt_printer_config' : 'barcode_printer_config';
     const tid = tenantId || 'global';
 
-    let row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tid, key);
+    let row: any = printerSql.findSettingsByKey(db).get(tid, key);
     if (!row && tid !== 'global') {
-      row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = ?").get(key);
+      row = printerSql.findSettingsByKeyValue(db).get(key);
     }
     if (!row) {
-      row = db.prepare("SELECT value FROM settings WHERE key = ? ORDER BY updated_at DESC LIMIT 1").get(key);
+      row = printerSql.findOneSettingByKey(db).get(key);
     }
     if (row) {
       try { return JSON.parse(row.value); } catch {}
     }
     
     // Fallback to legacy printer_config
-    let legacyRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tid);
+    let legacyRow: any = printerSql.findSettingsByKeyPrinterConfig(db).get(tid);
     if (!legacyRow && tid !== 'global') {
-      legacyRow = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'printer_config'").get();
+      legacyRow = printerSql.findSettingsByKeyPrinterConfig2(db).get();
     }
     if (!legacyRow) {
-      legacyRow = db.prepare("SELECT value FROM settings WHERE key = 'printer_config' ORDER BY updated_at DESC LIMIT 1").get();
+      legacyRow = printerSql.findOneSettingByKeyPrinterConfig(db).get();
     }
     if (legacyRow) {
       try {
@@ -77,7 +77,7 @@ let pendingReceiptHeightPx: number = 0; // measured by renderer before printRead
 function getPrintFormatConfig(tenantId: string) {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'print_format'").get(tenantId || 'global');
+    const row: any = printerSql.findSettingsByKeyPrintFormat(db).get(tenantId || 'global');
     if (row) {
       try {
         const parsed = JSON.parse(row.value);
@@ -96,7 +96,7 @@ function getPrintFormatConfig(tenantId: string) {
 function getLabelCodeType(tenantId: string): string {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'label_code_type'").get(tenantId || 'global', 'label_code_type');
+    const row: any = printerSql.findSettingsByKeyLabelCodeType(db).get(tenantId || 'global', 'label_code_type');
     if (row) {
       let val: any = row.value;
       try {
@@ -153,12 +153,12 @@ export function initPrinter() {
     try {
       const db = getDb();
       const tid = tenant_id || 'global';
-      let row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tid);
+      let row: any = printerSql.findSettingsByKeyA4PrinterConfig(db).get(tid);
       if (!row && tid !== 'global') {
-        row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'a4_printer_config'").get();
+        row = printerSql.findSettingsByKeyA4PrinterConfig2(db).get();
       }
       if (!row) {
-        row = db.prepare("SELECT value FROM settings WHERE key = 'a4_printer_config' ORDER BY updated_at DESC LIMIT 1").get();
+        row = printerSql.findOneSettingByKeyA4PrinterConfig(db).get();
       }
       let config = { deviceName: '' };
       if (row) {

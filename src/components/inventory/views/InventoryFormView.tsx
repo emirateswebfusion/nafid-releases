@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  Package, PackagePlus, Pencil, RefreshCw, Plus, Trash, Building2,
-  IndianRupee, FileText, Check, Loader2, Printer, Save,
-  AlertCircle, X, ChevronDown, Layers, Tag, Receipt
-} from 'lucide-react';
+import { Package, PackagePlus, RefreshCw, Plus, Building2, IndianRupee, FileText, Check, Printer, Save, X, ChevronDown, Layers, Tag, Receipt } from 'lucide-react';
 import Barcode from 'react-barcode';
 import clsx from 'clsx';
 import { useCartStore } from '../../../store/cartStore';
@@ -127,7 +123,7 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
   handleSave,
   setView,
 }) => {
-  const { shopDomain } = useCartStore();
+  const shopDomain = useCartStore((state) => state.shopDomain);
 
   return (
         <div className="flex flex-col flex-1 min-h-0 bg-background" onKeyDown={handleFormKeyDown}>
@@ -954,7 +950,6 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
 
           {/* Footer */}
           <div className="border-t border-border/50 bg-background">
-            
 
             {/* Action row */}
             <div className="flex items-center justify-between px-4 py-3">

@@ -2,8 +2,6 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMe
 import clsx from 'clsx';
 import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
 import { createPortal } from 'react-dom';
-import { Tag, Sparkles } from 'lucide-react';
-import { formatCurrency, detectScannerBurst } from '../BillingConstants';
 
 interface ItemRateInputProps {
   productId: string;

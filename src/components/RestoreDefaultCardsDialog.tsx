@@ -1,16 +1,5 @@
 import { useState } from 'react';
-import {
-  RotateCcw,
-  AlertTriangle,
-  ShoppingCart,
-  Banknote,
-  Package,
-  Globe,
-  Megaphone,
-  Check,
-  X,
-  Loader2,
-} from 'lucide-react';
+import { RotateCcw, AlertTriangle, ShoppingCart, Banknote, Package, Globe, Megaphone, X, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { useDashboardCardsStore } from '../store/dashboardCardsStore';
@@ -172,4 +161,3 @@ export function RestoreDefaultCardsDialog({
   );
 }
 
-export default RestoreDefaultCardsDialog;
