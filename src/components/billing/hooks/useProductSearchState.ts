@@ -17,7 +17,6 @@ export function useProductSearchState() {
   const [returnSearchResults, setReturnSearchResults] = useState<Invoice[]>([]);
   const [scrapSearchResults, setScrapSearchResults] = useState<ScrapCategoryResult[]>([]);
   const searchResultListRef = useRef<HTMLDivElement>(null);
-  const pastBillListRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,28 +36,12 @@ export function useProductSearchState() {
         }
       }
     }
-    if (pastBillListRef.current && selectedIndex >= 0) {
-      const container = pastBillListRef.current;
-      const selectedEl = container.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`);
-      if (selectedEl) {
-        const containerTop = container.scrollTop;
-        const containerBottom = containerTop + container.clientHeight;
-        const elTop = selectedEl.offsetTop;
-        const elBottom = elTop + selectedEl.offsetHeight;
-
-        if (elTop < containerTop) {
-          container.scrollTop = elTop;
-        } else if (elBottom > containerBottom) {
-          container.scrollTop = elBottom - container.clientHeight;
-        }
-      }
-    }
   }, [selectedIndex]);
 
   return {
     searchQuery, setSearchQuery, isProductSearching, setIsProductSearching, results, setResults, selectedIndex, setSelectedIndex,
     isPastBillMode, setIsPastBillMode, pastBillResults, setPastBillResults, returnSearchResults, setReturnSearchResults, scrapSearchResults, setScrapSearchResults,
-    searchResultListRef, pastBillListRef, searchContainerRef,
+    searchResultListRef, searchContainerRef,
   };
 }
 
