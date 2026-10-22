@@ -23,7 +23,7 @@ src/
   PrintRouter.tsx        print-only windows (receipt / A4 / barcode views)
   components/
     <Screen>.tsx          top-level screens (BillingPage, InventoryManager, SalesHistory, …)
-    billing/              feature folder: views/, modals/, ui/, deductionLookup.ts, BillingConstants.ts
+    billing/              feature folder: views/, modals/, ui/, hooks/, checkout/, customerDirectory.ts, deductionLookup.ts, BillingConstants.ts
     inventory/ party/     feature folders: views/, modals/, <feature>Helpers.tsx
     settings/             settings tabs/ + settingsConstants.tsx
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, …)

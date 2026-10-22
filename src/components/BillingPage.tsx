@@ -55,7 +55,6 @@ import { purchasesApi } from '../data/purchases';
 import { quotationsApi } from '../data/quotations';
 import { returnsApi } from '../data/returns';
 import { scrapApi } from '../data/scrap';
-import { staffApi } from '../data/staff';
 import { whatsappApi } from '../data/whatsapp';
 
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../data/settings';
@@ -64,6 +63,9 @@ import { listParties } from '../data/parties';
 import { listInvoices, getInvoiceItems } from '../data/invoices';
 import { listRate, resolveLinePrice } from '../utils/linePricing';
 import { createCheckoutHandler } from './billing/checkout/checkoutHandler';
+import { useCustomerDirectory } from './billing/hooks/useCustomerDirectory';
+import { useCustomerFieldState } from './billing/hooks/useCustomerFieldState';
+import { useCustomerFieldHandlers } from './billing/hooks/useCustomerFieldHandlers';
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
@@ -338,19 +340,9 @@ export function BillingPage() {
   const [erpSalesRep, setErpSalesRep] = useState('');
   const [focusedRowProductId, setFocusedRowProductId] = useState<string | null>(null);
 
-  const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
-  const [allCustomersList, setAllCustomersList] = useState<any[]>([]);
-  const [allStaffList, setAllStaffList] = useState<any[]>([]);
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(0);
-  const customerNameContainerRef = useRef<HTMLDivElement>(null);
-  const customerDropdownRef = useRef<HTMLDivElement>(null);
-  const customerNameInputRef = useRef<HTMLInputElement>(null);
-  const customerPhoneInputRef = useRef<HTMLInputElement>(null);
-  const customerAddressInputRef = useRef<HTMLInputElement>(null);
-  const customerGstinInputRef = useRef<HTMLInputElement>(null);
+  const customerFields = useCustomerFieldState();
+  const { setShowCustomerDropdown, customerNameInputRef, customerPhoneInputRef, customerAddressInputRef, customerGstinInputRef } = customerFields;
   const paymentOptionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const skipCustomerDropdownOnFocusRef = useRef(false);
   const activeCartProductIdRef = useRef<string | null>(null);
 
   const focusCartField = useCallback((field: string, productId: string): boolean => {
@@ -437,7 +429,7 @@ export function BillingPage() {
       customerNameInputRef.current.focus();
       customerNameInputRef.current.select();
     }
-  }, [invoiceType]);
+  }, [invoiceType, customerNameInputRef, customerPhoneInputRef, customerAddressInputRef, customerGstinInputRef]);
 
   const handleRateUpDown = useCallback((productId: string, direction: 'up' | 'down') => {
     const idx = items.findIndex(i => i.product_id === productId);
@@ -462,7 +454,6 @@ export function BillingPage() {
 
   const searchResultListRef = useRef<HTMLDivElement>(null);
   const pastBillListRef = useRef<HTMLDivElement>(null);
-  const customerListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (searchResultListRef.current && selectedIndex >= 0) {
@@ -498,35 +489,6 @@ export function BillingPage() {
       }
     }
   }, [selectedIndex]);
-
-  useEffect(() => {
-    if (customerListRef.current && showCustomerDropdown && selectedCustomerIndex >= 0) {
-      const container = customerListRef.current;
-      const selectedEl = container.querySelector<HTMLElement>(`[data-customer-index="${selectedCustomerIndex}"]`);
-      if (selectedEl) {
-        const containerTop = container.scrollTop;
-        const containerBottom = containerTop + container.clientHeight;
-        const elTop = selectedEl.offsetTop;
-        const elBottom = elTop + selectedEl.offsetHeight;
-
-        if (elTop < containerTop) {
-          container.scrollTop = elTop;
-        } else if (elBottom > containerBottom) {
-          container.scrollTop = elBottom - container.clientHeight;
-        }
-      }
-    }
-  }, [selectedCustomerIndex, showCustomerDropdown]);
-
-  const focusInputWithoutDropdown = (inputEl: HTMLInputElement | null, selectAll = true) => {
-    if (!inputEl) return;
-    skipCustomerDropdownOnFocusRef.current = true;
-    inputEl.focus();
-    if (selectAll) inputEl.select();
-    setTimeout(() => {
-      skipCustomerDropdownOnFocusRef.current = false;
-    }, 150);
-  };
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const isCheckingOutRef = useRef(false);
@@ -1283,7 +1245,7 @@ export function BillingPage() {
     } else {
       searchRef.current?.focus();
     }
-  }, [activeTabId, uiConfig.entryFocusOrder]);
+  }, [activeTabId, uiConfig.entryFocusOrder, customerNameInputRef]);
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
@@ -2185,213 +2147,13 @@ export function BillingPage() {
   const [returnDeductionDropdownStyle, setReturnDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
   const pointsDeductionInputRef = useRef<HTMLInputElement>(null);
 
-  // Load all existing customers for fast autocomplete
-  useEffect(() => {
-    if (hasBridge('dbGetCustomers')) {
-      customersApi.getCustomers({ tenant_id: tenantId || 'global' })
-        .then((data: any) => {
-          if (Array.isArray(data)) {
-            setAllCustomersList(data);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [tenantId]);
-
-  // Load all active staff when staff credit billing feature flag is enabled
-  useEffect(() => {
-    if (featureFlags?.staff_credit_billing && hasBridge('dbGetStaff')) {
-      staffApi.getStaff({ tenant_id: tenantId || 'global', status: 'ACTIVE' })
-        .then((data: any) => {
-          if (Array.isArray(data)) {
-            setAllStaffList(data);
-          }
-        })
-        .catch(() => {});
-    } else {
-      setAllStaffList([]);
-    }
-  }, [featureFlags?.staff_credit_billing, tenantId]);
-
-  // Customer autofill search by name or phone
-  useEffect(() => {
-    const nameQuery = customerName.trim();
-    const phoneQuery = customerPhone.trim();
-    if ((!nameQuery && !phoneQuery) || !isDesktopRuntime()) {
-      setCustomerSearchResults([]);
-      return;
-    }
-    const t = setTimeout(async () => {
-      try {
-        const results = await customersApi.findCustomers({
-          tenant_id: tenantId || 'global',
-          name: nameQuery || undefined,
-          phone: phoneQuery || undefined,
-        });
-        if (Array.isArray(results)) {
-          setCustomerSearchResults(results);
-        }
-      } catch {}
-    }, 150);
-    return () => clearTimeout(t);
-  }, [customerName, customerPhone, tenantId]);
-
-  // Memoize party map and party customer list so they are not rebuilt on every keystroke
-  const cachedPartyMap = useMemo(() => {
-    const map = new Map<string, any>();
-    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
-    (partiesForTier || []).forEach((p: any) => {
-      if (!p || !p.name) return;
-      const pType = String(p.party_type || '').toUpperCase();
-      // In billing page, strictly NO suppliers!
-      if (pType === 'SUPPLIER') return;
-      // Staff only when ON in settings
-      if (pType === 'STAFF' && !isStaffEnabled) return;
-
-      const pName = (p.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
-      const pPhone = (p.phone || '').trim();
-      if (pName) map.set(pName, p);
-      if (pPhone) map.set(pPhone, p);
-      if (pName && pPhone) map.set(`${pName}|${pPhone}`, p);
-    });
-    return map;
-  }, [partiesForTier, featureFlags?.staff_credit_billing]);
-
-  const cachedPartyCustomers = useMemo(() => {
-    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
-    return (partiesForTier || [])
-      .filter((p: any) => {
-        if (!p || !p.name) return false;
-        const pType = String(p.party_type || '').toUpperCase();
-        // In billing page, strictly NO suppliers!
-        if (pType === 'SUPPLIER') return false;
-        // Staff only when ON in settings
-        if (pType === 'STAFF' && !isStaffEnabled) return false;
-        return true;
-      })
-      .map((p: any) => {
-        const pPhone = (p.phone || '').trim();
-        const pNormName = (p.name || '').trim().toLowerCase();
-        const cust = (allCustomersList || []).find((c: any) => {
-          if (!c) return false;
-          const cPhone = String(c.phone || '').trim();
-          const cName = String(c.name || '').trim().toLowerCase();
-          return (pPhone && cPhone === pPhone) || (pNormName && cName === pNormName);
-        });
-        return {
-          name: p.name,
-          phone: p.phone,
-          address: p.address,
-          gstin: p.gstin,
-          customer_gstin: p.gstin,
-          party_id: p.party_id,
-          customer_id: cust?.customer_id || p.customer_id || undefined,
-          current_points_balance: cust ? Number(cust.current_points_balance) || 0 : undefined,
-          balance: p.balance,
-          party_type: p.party_type,
-          is_staff: String(p.party_type || '').toUpperCase() === 'STAFF',
-        };
-      });
-  }, [partiesForTier, allCustomersList, featureFlags?.staff_credit_billing]);
-
-  // Compute filtered & deduplicated customer suggestions (including staff if enabled)
-  const filteredCustomerSuggestions = useMemo(() => {
-    const qName = customerName.trim().replace(/\s+/g, ' ').toLowerCase();
-    const qPhone = customerPhone.trim();
-    if (!qName && !qPhone) return [];
-
-    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
-    const staffItems = (isStaffEnabled && Array.isArray(allStaffList)) ? allStaffList.map(s => ({
-      customer_id: s.staff_id,
-      staff_id: s.staff_id,
-      is_staff: true,
-      name: s.name,
-      phone: s.phone || '',
-      staff_code: s.staff_code,
-      role_designation: s.role_designation,
-      balance: s.current_balance,
-    })) : [];
-
-    const combined = [...staffItems, ...cachedPartyCustomers, ...customerSearchResults, ...allCustomersList];
-    const seen = new Set<string>();
-    const matched: any[] = [];
-
-    for (const c of combined) {
-      if (!c || !c.name) continue;
-      const pType = String(c.party_type || '').toUpperCase();
-      // In billing page, strictly NO suppliers!
-      if (pType === 'SUPPLIER') continue;
-
-      const isStaff = Boolean(c.is_staff || pType === 'STAFF');
-      // Staff only when ON in settings
-      if (isStaff && !isStaffEnabled) continue;
-
-      const cNormName = c.name.trim().replace(/\s+/g, ' ').toLowerCase();
-      const cPhone = (c.phone || '').trim();
-      const key = isStaff ? `staff|${c.staff_id || c.name}` : `${cNormName}|${cPhone}`;
-      if (seen.has(key)) continue;
-
-      const matchesName = qName ? cNormName.includes(qName) : false;
-      const matchesPhone = qPhone ? cPhone.includes(qPhone) : false;
-
-      if (matchesName || matchesPhone) {
-        seen.add(key);
-        const pMatch = isStaff ? null : (cachedPartyMap.get(key) || cachedPartyMap.get(cNormName) || (cPhone ? cachedPartyMap.get(cPhone) : null));
-        const mergedBal = c.balance ?? (pMatch ? pMatch.balance : undefined);
-        matched.push({
-          ...c,
-          is_staff: isStaff,
-          balance: mergedBal,
-        });
-        if (matched.length >= 15) break;
-      }
-    }
-    return matched;
-  }, [customerName, customerPhone, customerSearchResults, allCustomersList, allStaffList, featureFlags?.staff_credit_billing, cachedPartyCustomers, cachedPartyMap]);
-
-  const findMatchingParty = useCallback((name?: string, phone?: string) => {
-    const cleanName = (name || '').trim().toLowerCase();
-    const cleanPhone = (phone || '').trim();
-    if (!cleanName && !cleanPhone) return null;
-    const isStaffEnabled = Boolean(featureFlags?.staff_credit_billing);
-    const combinedList = [
-      ...(partiesForTier || []).filter((p: any) => {
-        if (!p) return false;
-        const pType = String(p.party_type || '').toUpperCase();
-        if (pType === 'SUPPLIER') return false;
-        if (pType === 'STAFF' && !isStaffEnabled) return false;
-        return true;
-      }),
-      ...(allCustomersList || []).filter((c: any) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
-      ...(customerSearchResults || []).filter((c: any) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
-    ];
-    const match = combinedList.find((c: any) => {
-      if (!c) return false;
-      const cName = (c.name || '').trim().toLowerCase();
-      const cPhone = String(c.phone || '').trim();
-      const matchName = cleanName && cName && (
-        cName === cleanName ||
-        cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
-      );
-      const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
-      return Boolean(matchName || matchPhone);
-    }) || null;
-
-    if (match) {
-      const cust = (allCustomersList || []).find((c: any) => {
-        if (!c) return false;
-        const cp = String(c.phone || '').trim();
-        const cn = String(c.name || '').trim().toLowerCase();
-        return (cleanPhone && cp && cp === cleanPhone) || (cleanName && cn && cn === cleanName);
-      });
-      return {
-        ...match,
-        customer_id: match.customer_id || cust?.customer_id,
-        current_points_balance: match.current_points_balance ?? (cust ? Number(cust.current_points_balance) || 0 : undefined),
-      };
-    }
-    return null;
-  }, [partiesForTier, allCustomersList, customerSearchResults, featureFlags?.staff_credit_billing]);
+  const { allCustomersList, filteredCustomerSuggestions, findMatchingParty, setCustomerSearchResults } = useCustomerDirectory({
+    tenantId,
+    staffCreditBilling: featureFlags?.staff_credit_billing,
+    parties: partiesForTier,
+    customerName,
+    customerPhone,
+  });
 
   // Debounce party tier application & loyalty customer auto-matching during customer typing so typing is never blocked
   useEffect(() => {
@@ -2469,202 +2231,6 @@ export function BillingPage() {
       setPointsToRedeem(bal);
     }
   }, [loyaltyCustomerData.customerId, loyaltyCustomerData.pointsBalance]);
-
-  // Click outside to dismiss customer suggestions dropdown
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        customerNameContainerRef.current && !customerNameContainerRef.current.contains(e.target as Node) &&
-        customerPhoneInputRef.current && !customerPhoneInputRef.current.contains(e.target as Node)
-      ) {
-        setShowCustomerDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const selectCustomerSuggestion = (c: any) => {
-    skipCustomerDropdownOnFocusRef.current = true;
-    const cleanName = (c.name || '').trim().replace(/\s+/g, ' ');
-    const cleanPhone = (c.phone || '').trim();
-    const cleanAddress = (c.address || '').trim();
-
-    updateActiveTab({
-      customerId: c.customer_id || '',
-      isStaffCustomer: Boolean(c.is_staff),
-      staffId: c.is_staff ? (c.staff_id || c.customer_id) : undefined,
-      customerName: cleanName,
-      customerPhone: cleanPhone,
-      customerAddress: cleanAddress,
-      customerGstin: c.gstin || c.customer_gstin || '',
-    });
-    applyPartyTier(cleanName, cleanPhone);
-    if (c.customer_id) {
-      setLoyaltyCustomerData({
-        customerId: c.customer_id,
-        pointsBalance: Number(c.current_points_balance) || 0,
-      });
-    }
-    setCustomerSearchResults([]);
-    setShowCustomerDropdown(false);
-    setTimeout(() => {
-      focusInputWithoutDropdown(customerPhoneInputRef.current);
-    }, 40);
-  };
-
-  const handleCustomerNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (showCustomerDropdown && filteredCustomerSuggestions.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedCustomerIndex(prev => (prev + 1) % filteredCustomerSuggestions.length);
-        return;
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedCustomerIndex(prev => (prev - 1 + filteredCustomerSuggestions.length) % filteredCustomerSuggestions.length);
-        return;
-      } else if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        if (filteredCustomerSuggestions[selectedCustomerIndex]) {
-          selectCustomerSuggestion(filteredCustomerSuggestions[selectedCustomerIndex]);
-        } else {
-          setShowCustomerDropdown(false);
-          focusInputWithoutDropdown(customerPhoneInputRef.current);
-        }
-        return;
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowCustomerDropdown(false);
-        return;
-      }
-    }
-
-    // Dropdown not showing or no suggestions
-    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      setShowCustomerDropdown(false);
-      focusInputWithoutDropdown(customerPhoneInputRef.current);
-    } else if (e.key === 'ArrowRight') {
-      const input = e.currentTarget;
-      if (input.selectionEnd === input.value.length) {
-        e.preventDefault();
-        setShowCustomerDropdown(false);
-        focusInputWithoutDropdown(customerPhoneInputRef.current);
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setShowCustomerDropdown(false);
-      searchRef.current?.focus();
-      searchRef.current?.select();
-    }
-  };
-
-  const handleCustomerPhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (showCustomerDropdown && filteredCustomerSuggestions.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedCustomerIndex(prev => (prev + 1) % filteredCustomerSuggestions.length);
-        return;
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedCustomerIndex(prev => (prev - 1 + filteredCustomerSuggestions.length) % filteredCustomerSuggestions.length);
-        return;
-      } else if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        if (filteredCustomerSuggestions[selectedCustomerIndex]) {
-          selectCustomerSuggestion(filteredCustomerSuggestions[selectedCustomerIndex]);
-        } else {
-          setShowCustomerDropdown(false);
-          customerAddressInputRef.current?.focus();
-          customerAddressInputRef.current?.select();
-        }
-        return;
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowCustomerDropdown(false);
-        return;
-      }
-    }
-
-    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      setShowCustomerDropdown(false);
-      customerAddressInputRef.current?.focus();
-      customerAddressInputRef.current?.select();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setShowCustomerDropdown(false);
-      focusInputWithoutDropdown(customerNameInputRef.current);
-    } else if (e.key === 'ArrowLeft') {
-      const input = e.currentTarget;
-      if (input.selectionStart === 0) {
-        e.preventDefault();
-        setShowCustomerDropdown(false);
-        focusInputWithoutDropdown(customerNameInputRef.current);
-      }
-    } else if (e.key === 'ArrowRight') {
-      const input = e.currentTarget;
-      if (input.selectionEnd === input.value.length) {
-        e.preventDefault();
-        setShowCustomerDropdown(false);
-        customerAddressInputRef.current?.focus();
-        customerAddressInputRef.current?.select();
-      }
-    }
-  };
-
-  const handleCustomerAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (invoiceType === 'GST' && customerGstinInputRef.current) {
-        customerGstinInputRef.current.focus();
-        customerGstinInputRef.current.select();
-      } else {
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      focusInputWithoutDropdown(customerPhoneInputRef.current);
-    } else if (e.key === 'ArrowLeft') {
-      const input = e.currentTarget;
-      if (input.selectionStart === 0) {
-        e.preventDefault();
-        focusInputWithoutDropdown(customerPhoneInputRef.current);
-      }
-    } else if (e.key === 'ArrowRight') {
-      const input = e.currentTarget;
-      if (input.selectionEnd === input.value.length) {
-        e.preventDefault();
-        if (invoiceType === 'GST' && customerGstinInputRef.current) {
-          customerGstinInputRef.current.focus();
-          customerGstinInputRef.current.select();
-        } else {
-          searchRef.current?.focus();
-          searchRef.current?.select();
-        }
-      }
-    }
-  };
-
-  const handleCustomerGstinKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      searchRef.current?.focus();
-      searchRef.current?.select();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      customerAddressInputRef.current?.focus();
-      customerAddressInputRef.current?.select();
-    } else if (e.key === 'ArrowLeft') {
-      const input = e.currentTarget;
-      if (input.selectionStart === 0) {
-        e.preventDefault();
-        customerAddressInputRef.current?.focus();
-        customerAddressInputRef.current?.select();
-      }
-    }
-  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -3299,6 +2865,11 @@ export function BillingPage() {
       handlePricingTierChange(match.pricing_tier_id);
     }
   };
+
+  const customerHandlers = useCustomerFieldHandlers({
+    fields: customerFields, filteredCustomerSuggestions, invoiceType, searchRef,
+    updateActiveTab, applyPartyTier, setLoyaltyCustomerData, setCustomerSearchResults,
+  });
 
   const handleSelectProduct = (product: any) => {
     if (product?.isCombo) {
@@ -6347,10 +5918,9 @@ export function BillingPage() {
         canOverrideTier={canOverrideTier}
         clearReturnDeduction={clearReturnDeduction}
         clearScrapDeduction={clearScrapDeduction}
+        customerFields={customerFields}
         customerGstin={customerGstin}
-        customerGstinInputRef={customerGstinInputRef}
         customerName={customerName}
-        customerNameInputRef={customerNameInputRef}
         customerPhone={customerPhone}
         customerPointsBalance={customerPointsBalance}
         customerState={customerState}
@@ -6401,7 +5971,6 @@ export function BillingPage() {
         setReturnDeductionSearchQuery={setReturnDeductionSearchQuery}
         setScrapDeduction={setScrapDeduction}
         setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
-        setShowCustomerDropdown={setShowCustomerDropdown}
         shopDomain={shopDomain}
         startEditingTotal={startEditingTotal}
         storeReturnDeduction={storeReturnDeduction}
@@ -6463,26 +6032,17 @@ export function BillingPage() {
             activeTab={activeTab}
             canOverrideTier={canOverrideTier}
             customerAddress={customerAddress}
-            customerAddressInputRef={customerAddressInputRef}
-            customerDropdownRef={customerDropdownRef}
+            customerFields={customerFields}
             customerGstin={customerGstin}
-            customerGstinInputRef={customerGstinInputRef}
-            customerListRef={customerListRef}
+            customerHandlers={customerHandlers}
             customerName={customerName}
-            customerNameContainerRef={customerNameContainerRef}
-            customerNameInputRef={customerNameInputRef}
             customerPhone={customerPhone}
-            customerPhoneInputRef={customerPhoneInputRef}
             customerState={customerState}
             displayGrandTotal={displayGrandTotal}
             editingActive={editingActive}
             enableThreeInvoiceSeries={enableThreeInvoiceSeries}
             filteredCustomerSuggestions={filteredCustomerSuggestions}
             findMatchingParty={findMatchingParty}
-            handleCustomerAddressKeyDown={handleCustomerAddressKeyDown}
-            handleCustomerGstinKeyDown={handleCustomerGstinKeyDown}
-            handleCustomerNameKeyDown={handleCustomerNameKeyDown}
-            handleCustomerPhoneKeyDown={handleCustomerPhoneKeyDown}
             handleInvoiceTypeChange={handleInvoiceTypeChange}
             handlePricingTierChange={handlePricingTierChange}
             invoiceType={invoiceType}
@@ -6495,15 +6055,9 @@ export function BillingPage() {
             paymentMethod={paymentMethod}
             pricingTiers={pricingTiers}
             receivedAmount={receivedAmount}
-            selectCustomerSuggestion={selectCustomerSuggestion}
-            selectedCustomerIndex={selectedCustomerIndex}
             selectedTierId={selectedTierId}
             setCustomerState={setCustomerState}
             setLoyaltyCustomerData={setLoyaltyCustomerData}
-            setSelectedCustomerIndex={setSelectedCustomerIndex}
-            setShowCustomerDropdown={setShowCustomerDropdown}
-            showCustomerDropdown={showCustomerDropdown}
-            skipCustomerDropdownOnFocusRef={skipCustomerDropdownOnFocusRef}
             splitDetails={splitDetails}
             tenantId={tenantId}
             uiConfig={uiConfig}

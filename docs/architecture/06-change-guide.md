@@ -10,6 +10,7 @@
 | A reusable visual primitive | `components/ui/` | No business logic |
 | State shared by several screens | `src/store/<name>Store.ts` | Selectors only in consumers |
 | A calculation (money, tax, pricing, numbering, permission) | `src/utils/<topic>.ts` + `tests/unit/<topic>.test.ts` | Check [04-business-rules](04-business-rules.md) first — it may already exist |
+| State + effects + handlers for one section of a big screen | `components/<feature>/hooks/use<Section>.ts`; pure matching/lookup rules it uses in `components/<feature>/<topic>.ts` + a unit test | Hand views the hook's result as one prop (`customerFields={customerFields}`), not its members. Feature-specific, so not `src/hooks/` |
 | A use-case combining data calls + a rule (e.g. "find scrap credit") | `components/<feature>/<useCase>.ts` | Calls `src/data/*`; tested with `vi.mock` |
 | Reading/writing local data | `src/data/<domain>.ts` | Existing channel → just call `<domain>Api`; new channel → the 5-step recipe in [03](03-data-access.md#adding-or-changing-an-ipc-channel-5-steps-one-change) |
 | Listening to main-process events | `src/data/events.ts` (`bridgeEvents`) | Return the unsubscribe from your effect |
@@ -70,7 +71,7 @@ npm run package:win    # rebuild natives + build + electron-builder
 
 | Item | State | Next step |
 |---|---|---|
-| `BillingPage.tsx` (6.9k lines, 130+ `useState`) | Views (cart, totals, payment, search bar, customer details, ERP grid layout), modals, deduction editor, pricing/checkout line builders and the checkout use-case extracted | Group customer and search state into hooks (`useBillingCustomer`, `useProductSearch`) so the views take one object instead of 37–68 props; then tab/number reservation and the keyboard handler |
+| `BillingPage.tsx` (6.5k lines, ~125 `useState`) | Views (cart, totals, payment, search bar, customer details, ERP grid layout), modals, deduction editor, pricing/checkout line builders, the checkout use-case and the customer fields (`billing/hooks/useCustomerDirectory`, `useCustomerFieldState`, `useCustomerFieldHandlers`; rules in `billing/customerDirectory.ts` + tests) extracted | Product search state into `useProductSearch` (search bar still takes 37 props); then tab/number reservation and the keyboard handler |
 | Other oversized screens | Capped by the guard | Split into `views/` per tab/section when touched |
 | Main process layering | **Done:** IPC registration-only (0 SQL); services all < 800 lines; ~560 statements + 18 filter builders in `db/statements`; staff/offline-auth/purge use-cases moved out of `localDb.ts` (now connection + schema, 2.2k) | Move the last 6 date-range builders (resolve the date range in the service, pass it in) |
 | Checkout | **Done:** `handleCheckout` moved to `billing/checkout/` (`createCheckoutHandler`, `runScrapCheckout` + tests); payloads identical to HEAD in 4 browser scenarios | Split the sales path further (validation → payload → persist → print) with unit tests per step |

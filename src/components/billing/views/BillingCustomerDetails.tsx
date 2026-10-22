@@ -10,48 +10,26 @@ import { INDIAN_STATES } from '../BillingConstants';
 import type { PaymentMethod, SplitDetails, Tab } from '../../../store/tabStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { InvoiceType } from '../../../store/cartStore';
-import type { Party } from '../../../data/parties';
+import type { CustomerSuggestion, MatchedParty } from '../customerDirectory';
 import type { PricingTier } from '../../../utils/pricingTierHelper';
-
-/** One entry of the customer dropdown: a customer, a party or (when staff credit is on) a staff member. */
-export interface CustomerSuggestion {
-  name: string;
-  phone?: string | null;
-  address?: string | null;
-  customer_id?: string | null;
-  party_id?: string | null;
-  balance?: number | string | null;
-  current_points_balance?: number | string | null;
-  is_staff?: boolean;
-  staff_id?: string | null;
-  staff_code?: string | null;
-  role_designation?: string | null;
-}
+import type { CustomerFieldState } from '../hooks/useCustomerFieldState';
+import type { CustomerFieldHandlers } from '../hooks/useCustomerFieldHandlers';
 
 export interface BillingCustomerDetailsProps {
   activeTab: Tab | undefined;
   canOverrideTier: boolean;
   customerAddress: string;
-  customerAddressInputRef: React.RefObject<HTMLInputElement | null>;
-  customerDropdownRef: React.RefObject<HTMLDivElement | null>;
+  customerFields: CustomerFieldState;
   customerGstin: string;
-  customerGstinInputRef: React.RefObject<HTMLInputElement | null>;
-  customerListRef: React.RefObject<HTMLDivElement | null>;
+  customerHandlers: CustomerFieldHandlers;
   customerName: string;
-  customerNameContainerRef: React.RefObject<HTMLDivElement | null>;
-  customerNameInputRef: React.RefObject<HTMLInputElement | null>;
   customerPhone: string;
-  customerPhoneInputRef: React.RefObject<HTMLInputElement | null>;
   customerState: string;
   displayGrandTotal: number;
   editingActive: string | null;
   enableThreeInvoiceSeries: boolean;
   filteredCustomerSuggestions: CustomerSuggestion[];
-  findMatchingParty: (name?: string, phone?: string) => Party | null | undefined;
-  handleCustomerAddressKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  handleCustomerGstinKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  handleCustomerNameKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  handleCustomerPhoneKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  findMatchingParty: (name?: string, phone?: string) => MatchedParty | null;
   handleInvoiceTypeChange: (type: "GST" | "BILL_OF_SUPPLY") => Promise<void>;
   handlePricingTierChange: (tierId: string) => void;
   invoiceType: InvoiceType;
@@ -64,22 +42,18 @@ export interface BillingCustomerDetailsProps {
   paymentMethod: PaymentMethod;
   pricingTiers: PricingTier[];
   receivedAmount: number;
-  selectCustomerSuggestion: (c: CustomerSuggestion) => void;
-  selectedCustomerIndex: number;
   selectedTierId: string;
   setCustomerState: (state: string) => void;
   setLoyaltyCustomerData: React.Dispatch<React.SetStateAction<{ customerId: string | null; pointsBalance: number; }>>;
-  setSelectedCustomerIndex: React.Dispatch<React.SetStateAction<number>>;
-  setShowCustomerDropdown: React.Dispatch<React.SetStateAction<boolean>>;
-  showCustomerDropdown: boolean;
-  skipCustomerDropdownOnFocusRef: React.RefObject<boolean>;
   splitDetails: SplitDetails;
   tenantId: string | null;
   uiConfig: BillingUIConfig;
   updateActiveTab: (updates: Partial<Omit<Tab, "id" | "snapshot">>) => void;
 }
 
-export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAddress, customerAddressInputRef, customerDropdownRef, customerGstin, customerGstinInputRef, customerListRef, customerName, customerNameContainerRef, customerNameInputRef, customerPhone, customerPhoneInputRef, customerState, displayGrandTotal, editingActive, enableThreeInvoiceSeries, filteredCustomerSuggestions, findMatchingParty, handleCustomerAddressKeyDown, handleCustomerGstinKeyDown, handleCustomerNameKeyDown, handleCustomerPhoneKeyDown, handleInvoiceTypeChange, handlePricingTierChange, invoiceType, isB2B, isQuotationMode, isReturnMode, isScrapMode, loyaltyCustomerData, loyaltyEnabled, paymentMethod, pricingTiers, receivedAmount, selectCustomerSuggestion, selectedCustomerIndex, selectedTierId, setCustomerState, setLoyaltyCustomerData, setSelectedCustomerIndex, setShowCustomerDropdown, showCustomerDropdown, skipCustomerDropdownOnFocusRef, splitDetails, tenantId, uiConfig, updateActiveTab }: BillingCustomerDetailsProps) {
+export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAddress, customerFields, customerGstin, customerHandlers, customerName, customerPhone, customerState, displayGrandTotal, editingActive, enableThreeInvoiceSeries, filteredCustomerSuggestions, findMatchingParty, handleInvoiceTypeChange, handlePricingTierChange, invoiceType, isB2B, isQuotationMode, isReturnMode, isScrapMode, loyaltyCustomerData, loyaltyEnabled, paymentMethod, pricingTiers, receivedAmount, selectedTierId, setCustomerState, setLoyaltyCustomerData, splitDetails, tenantId, uiConfig, updateActiveTab }: BillingCustomerDetailsProps) {
+  const { showCustomerDropdown, setShowCustomerDropdown, selectedCustomerIndex, setSelectedCustomerIndex, customerNameContainerRef, customerDropdownRef, customerNameInputRef, customerPhoneInputRef, customerAddressInputRef, customerGstinInputRef, skipCustomerDropdownOnFocusRef, customerListRef } = customerFields;
+  const { selectCustomerSuggestion, handleCustomerNameKeyDown, handleCustomerPhoneKeyDown, handleCustomerAddressKeyDown, handleCustomerGstinKeyDown } = customerHandlers;
   return (
     <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
       <div className="flex items-center gap-2 mb-2">
