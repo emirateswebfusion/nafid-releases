@@ -1,5 +1,7 @@
 import { getDb } from '../db/localDb.js';
 import { dbEmergencyPurgeLocalData } from './emergencyPurgeService.js';
+import { localAuthenticateUser } from './localAuthService.js';
+import { appendEmergencyAudit } from './emergencyAudit.js';
 import { getEncryptedPath, getConfigPath, clearOfflineSession } from './authStorage.js';
 import fs from 'node:fs';
 import { setSyncActive } from '../sync/syncWorker.js';
@@ -9,10 +11,19 @@ import { syncInvoiceCreditLedger } from './partyLedgerService.js';
 import * as recycleBinSql from '../db/statements/recycleBin.js';
 /** recycleBin use-cases for the main process (called by electron/ipc handlers). */
 
-/** IPC `emergency:purgeLocal` */
-export async function emergencyPurge(payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string }) {
+/**
+ * IPC `emergency:purgeLocal`. Requires the credentials of an administrator cached on this terminal (re-entered
+ * every time) and records the wipe in the local audit file before any data is removed.
+ */
+export async function emergencyPurge(payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string; email?: string; password?: string }) {
   try {
     const wipeMode = payload?.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA';
+    const auth = payload?.email && payload?.password ? localAuthenticateUser(payload.email, payload.password) : { success: false as const };
+    const role = String(auth.success && auth.user ? auth.user.role : '').toUpperCase();
+    if (!auth.success || !['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+      return { success: false, error: 'An administrator password is required to wipe this terminal.' };
+    }
+    appendEmergencyAudit({ source: 'LOCAL', wipe_mode: wipeMode, reason: payload?.reason || 'USER_TRIGGERED', user_email: auth.user?.email, user_id: auth.user?.user_id });
     console.warn(`[EmergencyWipe] 🚨 Initiating emergency local purge! Mode: ${wipeMode}, Reason: ${payload?.reason || 'USER_TRIGGERED'}`);
 
     const purgeResult = dbEmergencyPurgeLocalData(wipeMode);

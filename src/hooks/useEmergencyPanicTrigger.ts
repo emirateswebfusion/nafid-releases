@@ -16,13 +16,16 @@ import { settingsApi } from '../data/settings';
 export function useEmergencyPanicTrigger() {
   const [panicConfig, setPanicConfig] = useState<EmergencyPanicConfig>(DEFAULT_EMERGENCY_PANIC_CONFIG);
   const [showPinPrompt, setShowPinPrompt] = useState(false);
+  const [enteredEmail, setEnteredEmail] = useState('');
   const [enteredPin, setEnteredPin] = useState('');
+  const [pinErrorText, setPinErrorText] = useState('');
   const [pinError, setPinError] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
   const clickCountRef = useRef<number>(0);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configRef = useRef<EmergencyPanicConfig>(panicConfig);
+  const pendingReasonRef = useRef('LOCAL_PANIC');
   configRef.current = panicConfig;
 
   // Load panic configuration from settings
@@ -43,19 +46,22 @@ export function useEmergencyPanicTrigger() {
     return () => window.removeEventListener('settings:updated', loadConfig);
   }, []);
 
-  const executePurge = useCallback(async (reason: string = 'LOCAL_PANIC') => {
+  /** Wipes this terminal. The main process re-checks the administrator password and writes the audit entry. */
+  const executePurge = useCallback(async (reason: string, email: string, password: string) => {
     if (isPurging) return;
+    if (!hasBridge('dbEmergencyPurge')) return;
     setIsPurging(true);
-    setShowPinPrompt(false);
 
     try {
-      console.warn(`[PanicTrigger] 🚨 Executing local emergency purge. Reason: ${reason}`);
-      if (hasBridge('dbEmergencyPurge')) {
-        await recycleBinApi.emergencyPurge({
-          wipe_mode: configRef.current.wipe_mode,
-          reason,
-        });
+      const result = await recycleBinApi.emergencyPurge({ wipe_mode: configRef.current.wipe_mode, reason, email, password });
+      if (!result?.success) {
+        setIsPurging(false);
+        setPinErrorText(result?.error || 'Administrator password required');
+        setPinError(true);
+        return;
       }
+      setShowPinPrompt(false);
+      console.warn(`[PanicTrigger] Local emergency purge executed. Reason: ${reason}`);
 
       // Clear client state
       useCartStore.getState().clearCart?.();
@@ -97,13 +103,13 @@ export function useEmergencyPanicTrigger() {
         e.preventDefault();
         e.stopPropagation();
 
-        if (panicConfig.require_quick_pin && panicConfig.panic_pin) {
-          setShowPinPrompt(true);
-          setEnteredPin('');
-          setPinError(false);
-        } else {
-          executePurge('HOTKEY_TRIGGER');
-        }
+        pendingReasonRef.current = 'HOTKEY_TRIGGER';
+
+        setShowPinPrompt(true);
+
+        setEnteredPin('');
+
+        setPinError(false);
       }
     };
 
@@ -139,13 +145,13 @@ export function useEmergencyPanicTrigger() {
         clickCountRef.current = 0;
         if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
 
-        if (panicConfig.require_quick_pin && panicConfig.panic_pin) {
-          setShowPinPrompt(true);
-          setEnteredPin('');
-          setPinError(false);
-        } else {
-          executePurge('MULTI_CLICK_GESTURE');
-        }
+        pendingReasonRef.current = 'MULTI_CLICK_GESTURE';
+
+        setShowPinPrompt(true);
+
+        setEnteredPin('');
+
+        setPinError(false);
       }
     };
 
@@ -158,21 +164,20 @@ export function useEmergencyPanicTrigger() {
 
   const handlePinSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (enteredPin === panicConfig.panic_pin) {
-      executePurge('PIN_CONFIRMED');
-    } else {
-      setPinError(true);
-      setTimeout(() => setPinError(false), 2000);
-    }
+    if (!enteredEmail || !enteredPin) return;
+    executePurge(pendingReasonRef.current, enteredEmail.trim(), enteredPin);
   };
 
   return {
     panicConfig,
     showPinPrompt,
     setShowPinPrompt,
+    enteredEmail,
+    setEnteredEmail,
     enteredPin,
     setEnteredPin,
     pinError,
+    pinErrorText,
     handlePinSubmit,
     isPurging,
     executePurge,

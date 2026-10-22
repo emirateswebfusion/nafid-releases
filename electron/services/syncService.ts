@@ -1,5 +1,6 @@
 import { getDb } from '../db/localDb.js';
 import * as syncSql from '../db/statements/sync.js';
+import { LAN_KEY_HEADER, getLanPairingKey, normalizeLanKey } from './lanPairing.js';
 /** sync use-cases for the main process (called by electron/ipc handlers). */
 
 /** IPC `db:debugSyncState` */
@@ -118,7 +119,7 @@ export async function getSyncProgress() {
 }
 
 /** IPC `sync:testConnection` */
-export async function testNetworkConnection(payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) {
+export async function testNetworkConnection(payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number; lanPairingKey?: string }) {
   const syncMode = payload?.syncMode || 'HYBRID';
   const lanRole = payload?.lanRole || 'SECONDARY';
   const rawHost = payload?.lanHostIp || '';
@@ -142,6 +143,12 @@ export async function testNetworkConnection(payload: { syncMode?: string; lanRol
       const res = await fetch(`http://${host}:${port}/health`, { method: 'GET', signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) {
+        // The server is reachable; now prove this terminal holds the shop's pairing key.
+        const key = normalizeLanKey(payload?.lanPairingKey) || getLanPairingKey();
+        const authRes = await fetch(`http://${host}:${port}/api/sync/check-status`, { method: 'GET', headers: { [LAN_KEY_HEADER]: key }, signal: AbortSignal.timeout(3500) });
+        if (authRes.status === 401) {
+          return { ok: false, route: 'LAN', error: `Primary Master Server (${host}:${port}) rejected the pairing key. Enter the key shown on the primary terminal (Settings → Network).` };
+        }
         return {
           ok: true,
           route: 'LAN',

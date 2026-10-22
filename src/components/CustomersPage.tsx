@@ -584,14 +584,8 @@ export function CustomersPage({
     }
   };
 
-  // Initial load once; the filter effect skips its mount run so customers/parties are not fetched twice.
-  const filtersMountedRef = useRef(false);
-  useEffect(() => { loadCustomers(true); }, []);
-  useEffect(() => {
-    if (!filtersMountedRef.current) { filtersMountedRef.current = true; return; }
-    loadCustomers(false);
-    setVisibleCount(50);
-  }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  const filtersMountedRef = useRef(false); useEffect(() => { loadCustomers(true); }, []); // initial load; the filter effect below skips its mount run
+  useEffect(() => { if (!filtersMountedRef.current) { filtersMountedRef.current = true; return; } loadCustomers(false); setVisibleCount(50); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
   useEffect(() => { loadPricingTiers(); }, [loadPricingTiers]);
 
   // ── Intersection Observer & Scroll for infinite scrolling ──

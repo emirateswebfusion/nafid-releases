@@ -23,3 +23,5 @@ export const findProducts = (db: Db) => db.prepare(`SELECT product_id, name, pri
        FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`);
 
 export const findNetworkSyncConfig = (db: Db) => db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' LIMIT 1`);
+
+export const findTerminalCode = (db: Db) => db.prepare(`SELECT value FROM settings WHERE key = 'terminal_code' LIMIT 1`);

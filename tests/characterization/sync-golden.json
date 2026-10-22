@@ -134,66 +134,136 @@
  ],
  [
   "http:0",
-  "GET /health",
+  "GET /api/sync/cash_categories",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/cash_categories",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http:1",
-  "GET /health",
+  "GET /api/sync/cash_drawer",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/cash_drawer",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http:2",
-  "GET /health",
+  "GET /api/sync/cash_transactions",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/cash_transactions",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http:3",
-  "GET /health",
+  "GET /api/sync/cashier_audit_log",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/cashier_audit_log",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http:4",
-  "GET /health",
+  "GET /api/sync/emergency-commands",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/emergency-commands",
+   "query": "?terminal_code=N5FG",
    "body": null
   }
  ],
  [
   "http:5",
-  "GET /health",
+  "GET /api/sync/invoices",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/invoices",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http:6",
+  "GET /api/sync/payment_source_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_source_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:7",
+  "GET /api/sync/payment_sources",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_sources",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:8",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:9",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:10",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:11",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:12",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:13",
   "GET /health",
   {
    "method": "GET",
@@ -203,23 +273,81 @@
   }
  ],
  [
-  "http:7",
-  "POST /api/sync/pricing_tiers",
+  "http:14",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:15",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:16",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:17",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:18",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:19",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http:20",
+  "POST /api/sync/cash_categories",
   {
    "method": "POST",
-   "path": "/api/sync/pricing_tiers",
+   "path": "/api/sync/cash_categories",
    "query": "",
    "body": {
-    "pricing_tiers": [
+    "cash_categories": [
      {
-      "pricing_tier_id": "<uuid>",
+      "category_id": "<uuid>",
       "tenant_id": "t1",
-      "name": "Wholesale",
-      "is_active": true,
-      "sort_order": 0,
-      "is_default": false,
-      "is_deleted": false,
-      "deleted_at": null,
+      "name": "Tea",
+      "type": "CASH_OUT",
+      "sort_order": 1,
+      "is_default": 0,
       "sync_status": "PENDING",
       "created_at": "<ts>",
       "updated_at": "<ts>"
@@ -229,7 +357,113 @@
   }
  ],
  [
-  "http:8",
+  "http:21",
+  "POST /api/sync/cash_drawer",
+  {
+   "method": "POST",
+   "path": "/api/sync/cash_drawer",
+   "query": "",
+   "body": {
+    "cash_drawer": [
+     {
+      "drawer_id": "<uuid>",
+      "tenant_id": "t1",
+      "business_date": "<date>",
+      "opening_balance": 0,
+      "cash_sales": 1450,
+      "cash_in": 0,
+      "cash_out": 320,
+      "current_cash": 1130,
+      "expected_closing": 1130,
+      "actual_cash": null,
+      "cash_short": 0,
+      "cash_excess": 0,
+      "closing_remarks": null,
+      "status": "OPEN",
+      "opened_by": null,
+      "closed_by": null,
+      "opened_at": "<ts>",
+      "closed_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:22",
+  "POST /api/sync/cash_transactions",
+  {
+   "method": "POST",
+   "path": "/api/sync/cash_transactions",
+   "query": "",
+   "body": {
+    "cash_transactions": [
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "drawer_id": "<uuid>",
+      "type": "CASH_OUT",
+      "amount": 20,
+      "category": "Tea",
+      "notes": "tea",
+      "reference_number": null,
+      "entered_by": "u1",
+      "entered_by_name": "Admin",
+      "transaction_date": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "drawer_id": "<uuid>",
+      "type": "CASH_OUT",
+      "amount": 300,
+      "category": "SCRAP_PURCHASE",
+      "notes": "Scrap purchase",
+      "reference_number": null,
+      "entered_by": "system",
+      "entered_by_name": null,
+      "transaction_date": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:23",
+  "POST /api/sync/cashier_audit_log",
+  {
+   "method": "POST",
+   "path": "/api/sync/cashier_audit_log",
+   "query": "",
+   "body": {
+    "cashier_audit_log": [
+     {
+      "audit_id": "<uuid>",
+      "tenant_id": "t1",
+      "drawer_id": "<uuid>",
+      "action": "CASH_OUT",
+      "details": "{\"transaction_id\":\"<uuid>\",\"amount\":20,\"category\":\"Tea\",\"notes\":\"tea\"}",
+      "performed_by": "u1",
+      "performed_by_name": "Admin",
+      "performed_at": "<ts>",
+      "sync_status": "PENDING",
+      "created_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:24",
   "POST /api/sync/customers",
   {
    "method": "POST",
@@ -314,93 +548,43 @@
   }
  ],
  [
-  "http:9",
-  "POST /api/sync/cash_drawer",
+  "http:25",
+  "POST /api/sync/delta-pull",
   {
    "method": "POST",
-   "path": "/api/sync/cash_drawer",
+   "path": "/api/sync/delta-pull",
    "query": "",
    "body": {
-    "cash_drawer": [
-     {
-      "drawer_id": "<uuid>",
-      "tenant_id": "t1",
-      "business_date": "<date>",
-      "opening_balance": 0,
-      "cash_sales": 1450,
-      "cash_in": 0,
-      "cash_out": 320,
-      "current_cash": 1130,
-      "expected_closing": 1130,
-      "actual_cash": null,
-      "cash_short": 0,
-      "cash_excess": 0,
-      "closing_remarks": null,
-      "status": "OPEN",
-      "opened_by": null,
-      "closed_by": null,
-      "opened_at": "<ts>",
-      "closed_at": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     }
-    ]
+    "since": {
+     "product_grades": null,
+     "pricing_tiers": null,
+     "products": null,
+     "product_pricing": null,
+     "settings": null,
+     "parties": null,
+     "party_ledger": null,
+     "customers": null,
+     "loyalty_transactions": null,
+     "scrap_categories": null,
+     "scrap_transactions": null,
+     "purchase_bills": null,
+     "cash_drawer": null,
+     "cash_transactions": null,
+     "cashier_audit_log": null,
+     "cash_categories": null,
+     "returns": null,
+     "payment_sources": null,
+     "payment_source_transactions": null,
+     "combo_offers": null,
+     "quotations": null,
+     "invoices": null,
+     "users": null
+    }
    }
   }
  ],
  [
-  "http:10",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:11",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:12",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:13",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:14",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:15",
+  "http:26",
   "POST /api/sync/invoices",
   {
    "method": "POST",
@@ -408,96 +592,6 @@
    "query": "",
    "body": {
     "invoices": [
-     {
-      "invoice_id": "<uuid>",
-      "tenant_id": "t1",
-      "invoice_number": "2JUB-001",
-      "invoice_type": "BILL_OF_SUPPLY",
-      "customer_id": "<uuid>",
-      "customer_name": "Ravi Kumar",
-      "customer_phone": "9876543210",
-      "customer_gstin": null,
-      "customer_state": null,
-      "customer_address": null,
-      "subtotal": 677.97,
-      "tax_total": 0,
-      "discount_total": 0,
-      "discount_type": "FIXED",
-      "discount_value": 0,
-      "grand_total": 800,
-      "payment_method": "CASH",
-      "split_details": null,
-      "received_amount": 800,
-      "balance_amount": 0,
-      "user_id": "u1",
-      "return_deduction": 0,
-      "return_invoice_number": null,
-      "is_deleted": false,
-      "deleted_at": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>",
-      "settled_at": "<ts>",
-      "held_until": null,
-      "is_held": 0,
-      "hold_note": null,
-      "due_date": null,
-      "scrap_deduction": 0,
-      "scrap_invoice_number": null,
-      "points_earned": 0,
-      "points_redeemed": 0,
-      "points_redeemed_discount": 0,
-      "previous_points_balance": 0,
-      "remaining_points_balance": 0,
-      "converted_from_invoice_id": null,
-      "converted_from_invoice_number": null,
-      "converted_to_invoice_id": null,
-      "converted_to_invoice_number": null,
-      "biller_staff_id": null,
-      "sales_staff_id": null,
-      "cgst_total": 0,
-      "sgst_total": 0,
-      "igst_total": 0,
-      "supply_type": "INTRA",
-      "actual_refund_paid": 0,
-      "notes": null,
-      "description": null,
-      "items": [
-       {
-        "item_id": null,
-        "invoice_id": "<uuid>",
-        "tenant_id": "t1",
-        "product_id": "<uuid>",
-        "name": "Cement Bag",
-        "quantity": 2,
-        "unit_price": 400,
-        "tax_amount": 122.03,
-        "total": 800,
-        "pieces_sold": null,
-        "billing_type": "PIECE",
-        "uom": "Pcs",
-        "is_service_item": 0,
-        "sync_status": "PENDING",
-        "created_at": "<ts>",
-        "combo_id": null,
-        "combo_details": null,
-        "cgst_rate": 0,
-        "sgst_rate": 0,
-        "igst_rate": 0,
-        "cgst_amount": 0,
-        "sgst_amount": 0,
-        "igst_amount": 0,
-        "hsn_sac_code": "7308",
-        "supply_type": "INTRA",
-        "source_item_id": null,
-        "bos_unit_price": null,
-        "bos_tax_amount": null,
-        "bos_total": null,
-        "qty_from_paper_stock": null,
-        "is_deleted": 0
-       }
-      ]
-     },
      {
       "invoice_id": "<uuid>",
       "tenant_id": "t1",
@@ -710,13 +804,245 @@
         "is_deleted": 0
        }
       ]
+     },
+     {
+      "invoice_id": "<uuid>",
+      "tenant_id": "t1",
+      "invoice_number": "N5FG-001",
+      "invoice_type": "BILL_OF_SUPPLY",
+      "customer_id": "<uuid>",
+      "customer_name": "Ravi Kumar",
+      "customer_phone": "9876543210",
+      "customer_gstin": null,
+      "customer_state": null,
+      "customer_address": null,
+      "subtotal": 677.97,
+      "tax_total": 0,
+      "discount_total": 0,
+      "discount_type": "FIXED",
+      "discount_value": 0,
+      "grand_total": 800,
+      "payment_method": "CASH",
+      "split_details": null,
+      "received_amount": 800,
+      "balance_amount": 0,
+      "user_id": "u1",
+      "return_deduction": 0,
+      "return_invoice_number": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "settled_at": "<ts>",
+      "held_until": null,
+      "is_held": 0,
+      "hold_note": null,
+      "due_date": null,
+      "scrap_deduction": 0,
+      "scrap_invoice_number": null,
+      "points_earned": 0,
+      "points_redeemed": 0,
+      "points_redeemed_discount": 0,
+      "previous_points_balance": 0,
+      "remaining_points_balance": 0,
+      "converted_from_invoice_id": null,
+      "converted_from_invoice_number": null,
+      "converted_to_invoice_id": null,
+      "converted_to_invoice_number": null,
+      "biller_staff_id": null,
+      "sales_staff_id": null,
+      "cgst_total": 0,
+      "sgst_total": 0,
+      "igst_total": 0,
+      "supply_type": "INTRA",
+      "actual_refund_paid": 0,
+      "notes": null,
+      "description": null,
+      "items": [
+       {
+        "item_id": null,
+        "invoice_id": "<uuid>",
+        "tenant_id": "t1",
+        "product_id": "<uuid>",
+        "name": "Cement Bag",
+        "quantity": 2,
+        "unit_price": 400,
+        "tax_amount": 122.03,
+        "total": 800,
+        "pieces_sold": null,
+        "billing_type": "PIECE",
+        "uom": "Pcs",
+        "is_service_item": 0,
+        "sync_status": "PENDING",
+        "created_at": "<ts>",
+        "combo_id": null,
+        "combo_details": null,
+        "cgst_rate": 0,
+        "sgst_rate": 0,
+        "igst_rate": 0,
+        "cgst_amount": 0,
+        "sgst_amount": 0,
+        "igst_amount": 0,
+        "hsn_sac_code": "7308",
+        "supply_type": "INTRA",
+        "source_item_id": null,
+        "bos_unit_price": null,
+        "bos_tax_amount": null,
+        "bos_total": null,
+        "qty_from_paper_stock": null,
+        "is_deleted": 0
+       }
+      ]
      }
     ]
    }
   }
  ],
  [
-  "http:16",
+  "http:27",
+  "POST /api/sync/party-ledger",
+  {
+   "method": "POST",
+   "path": "/api/sync/party-ledger",
+   "query": "",
+   "body": {
+    "entries": [
+     {
+      "ledger_id": "<uuid>",
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "transaction_date": "<ts>",
+      "description": "Credit Sale GST-002 - Total ₹100.00 (Credit ₹100) - Acme Traders",
+      "credit_amount": 100,
+      "debit_amount": 0,
+      "running_balance": 100,
+      "balance_type": "GST",
+      "payment_method": "CREDIT",
+      "reference_number": "GST-002",
+      "created_by": "u1",
+      "created_by_name": "System",
+      "is_deleted": 1,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     },
+     {
+      "ledger_id": "l1",
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "transaction_date": "<ts>",
+      "description": "Payment received",
+      "credit_amount": 0,
+      "debit_amount": 0,
+      "running_balance": 0,
+      "balance_type": "GST",
+      "payment_method": "CASH",
+      "reference_number": null,
+      "created_by": null,
+      "created_by_name": null,
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:28",
+  "POST /api/sync/payment_source_transactions",
+  {
+   "method": "POST",
+   "path": "/api/sync/payment_source_transactions",
+   "query": "",
+   "body": {
+    "payment_source_transactions": [
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "source_id": "ps1",
+      "type": "CASH_IN",
+      "amount": 1000,
+      "category": "Opening Balance",
+      "reference_number": null,
+      "notes": "Opening balance for HDFC",
+      "transaction_date": "<ts>",
+      "running_balance": 1000,
+      "entered_by": null,
+      "entered_by_name": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:29",
+  "POST /api/sync/payment_sources",
+  {
+   "method": "POST",
+   "path": "/api/sync/payment_sources",
+   "query": "",
+   "body": {
+    "payment_sources": [
+     {
+      "source_id": "ps1",
+      "tenant_id": "t1",
+      "name": "HDFC",
+      "type": "BANK",
+      "bank_name": null,
+      "account_number": null,
+      "holder_name": null,
+      "upi_id": null,
+      "opening_balance": 1000,
+      "current_balance": 1000,
+      "is_default": 0,
+      "is_enabled": 1,
+      "sort_order": 0,
+      "is_deleted": 0,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:30",
+  "POST /api/sync/pricing_tiers",
+  {
+   "method": "POST",
+   "path": "/api/sync/pricing_tiers",
+   "query": "",
+   "body": {
+    "pricing_tiers": [
+     {
+      "pricing_tier_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Wholesale",
+      "is_active": true,
+      "sort_order": 0,
+      "is_default": false,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:31",
   "POST /api/sync/products",
   {
    "method": "POST",
@@ -795,217 +1121,7 @@
   }
  ],
  [
-  "http:17",
-  "POST /api/sync/cash_transactions",
-  {
-   "method": "POST",
-   "path": "/api/sync/cash_transactions",
-   "query": "",
-   "body": {
-    "cash_transactions": [
-     {
-      "transaction_id": "<uuid>",
-      "tenant_id": "t1",
-      "drawer_id": "<uuid>",
-      "type": "CASH_OUT",
-      "amount": 20,
-      "category": "Tea",
-      "notes": "tea",
-      "reference_number": null,
-      "entered_by": "u1",
-      "entered_by_name": "Admin",
-      "transaction_date": "<ts>",
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     },
-     {
-      "transaction_id": "<uuid>",
-      "tenant_id": "t1",
-      "drawer_id": "<uuid>",
-      "type": "CASH_OUT",
-      "amount": 300,
-      "category": "SCRAP_PURCHASE",
-      "notes": "Scrap purchase",
-      "reference_number": null,
-      "entered_by": "system",
-      "entered_by_name": null,
-      "transaction_date": "<ts>",
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:18",
-  "GET /api/sync/invoices",
-  {
-   "method": "GET",
-   "path": "/api/sync/invoices",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:19",
-  "POST /api/sync/cashier_audit_log",
-  {
-   "method": "POST",
-   "path": "/api/sync/cashier_audit_log",
-   "query": "",
-   "body": {
-    "cashier_audit_log": [
-     {
-      "audit_id": "<uuid>",
-      "tenant_id": "t1",
-      "drawer_id": "<uuid>",
-      "action": "CASH_OUT",
-      "details": "{\"transaction_id\":\"<uuid>\",\"amount\":20,\"category\":\"Tea\",\"notes\":\"tea\"}",
-      "performed_by": "u1",
-      "performed_by_name": "Admin",
-      "performed_at": "<ts>",
-      "sync_status": "PENDING",
-      "created_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:20",
-  "POST /api/sync/settings",
-  {
-   "method": "POST",
-   "path": "/api/sync/settings",
-   "query": "",
-   "body": {
-    "settings": [
-     {
-      "tenant_id": "t1",
-      "key": "store_name",
-      "value": "Test Store",
-      "sync_status": "PENDING",
-      "updated_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:21",
-  "POST /api/sync/cash_categories",
-  {
-   "method": "POST",
-   "path": "/api/sync/cash_categories",
-   "query": "",
-   "body": {
-    "cash_categories": [
-     {
-      "category_id": "<uuid>",
-      "tenant_id": "t1",
-      "name": "Tea",
-      "type": "CASH_OUT",
-      "sort_order": 1,
-      "is_default": 0,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:22",
-  "POST /api/sync/party-ledger",
-  {
-   "method": "POST",
-   "path": "/api/sync/party-ledger",
-   "query": "",
-   "body": {
-    "entries": [
-     {
-      "ledger_id": "<uuid>",
-      "party_id": "<uuid>",
-      "tenant_id": "t1",
-      "transaction_date": "<ts>",
-      "description": "Credit Sale GST-002 - Total ₹100.00 (Credit ₹100) - Acme Traders",
-      "credit_amount": 100,
-      "debit_amount": 0,
-      "running_balance": 100,
-      "balance_type": "GST",
-      "payment_method": "CREDIT",
-      "reference_number": "GST-002",
-      "created_by": "u1",
-      "created_by_name": "System",
-      "is_deleted": 1,
-      "deleted_at": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     },
-     {
-      "ledger_id": "l1",
-      "party_id": "<uuid>",
-      "tenant_id": "t1",
-      "transaction_date": "<ts>",
-      "description": "Payment received",
-      "credit_amount": 0,
-      "debit_amount": 0,
-      "running_balance": 0,
-      "balance_type": "GST",
-      "payment_method": "CASH",
-      "reference_number": null,
-      "created_by": null,
-      "created_by_name": null,
-      "is_deleted": 0,
-      "deleted_at": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:23",
-  "POST /api/sync/payment_sources",
-  {
-   "method": "POST",
-   "path": "/api/sync/payment_sources",
-   "query": "",
-   "body": {
-    "payment_sources": [
-     {
-      "source_id": "ps1",
-      "tenant_id": "t1",
-      "name": "HDFC",
-      "type": "BANK",
-      "bank_name": null,
-      "account_number": null,
-      "holder_name": null,
-      "upi_id": null,
-      "opening_balance": 1000,
-      "current_balance": 1000,
-      "is_default": 0,
-      "is_enabled": 1,
-      "sort_order": 0,
-      "is_deleted": 0,
-      "deleted_at": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:24",
+  "http:32",
   "POST /api/sync/scrap_categories",
   {
    "method": "POST",
@@ -1032,37 +1148,7 @@
   }
  ],
  [
-  "http:25",
-  "POST /api/sync/payment_source_transactions",
-  {
-   "method": "POST",
-   "path": "/api/sync/payment_source_transactions",
-   "query": "",
-   "body": {
-    "payment_source_transactions": [
-     {
-      "transaction_id": "<uuid>",
-      "tenant_id": "t1",
-      "source_id": "ps1",
-      "type": "CASH_IN",
-      "amount": 1000,
-      "category": "Opening Balance",
-      "reference_number": null,
-      "notes": "Opening balance for HDFC",
-      "transaction_date": "<ts>",
-      "running_balance": 1000,
-      "entered_by": null,
-      "entered_by_name": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
-     }
-    ]
-   }
-  }
- ],
- [
-  "http:26",
+  "http:33",
   "POST /api/sync/scrap_transactions",
   {
    "method": "POST",
@@ -1096,99 +1182,23 @@
   }
  ],
  [
-  "http:27",
-  "GET /api/sync/cash_drawer",
-  {
-   "method": "GET",
-   "path": "/api/sync/cash_drawer",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:28",
-  "GET /api/sync/cash_transactions",
-  {
-   "method": "GET",
-   "path": "/api/sync/cash_transactions",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:29",
-  "POST /api/sync/delta-pull",
+  "http:34",
+  "POST /api/sync/settings",
   {
    "method": "POST",
-   "path": "/api/sync/delta-pull",
+   "path": "/api/sync/settings",
    "query": "",
    "body": {
-    "since": {
-     "product_grades": null,
-     "pricing_tiers": null,
-     "products": null,
-     "product_pricing": null,
-     "settings": null,
-     "parties": null,
-     "party_ledger": null,
-     "customers": null,
-     "loyalty_transactions": null,
-     "scrap_categories": null,
-     "scrap_transactions": null,
-     "purchase_bills": null,
-     "cash_drawer": null,
-     "cash_transactions": null,
-     "cashier_audit_log": null,
-     "cash_categories": null,
-     "returns": null,
-     "payment_sources": null,
-     "payment_source_transactions": null,
-     "combo_offers": null,
-     "quotations": null,
-     "invoices": null,
-     "users": null
-    }
+    "settings": [
+     {
+      "tenant_id": "t1",
+      "key": "store_name",
+      "value": "Test Store",
+      "sync_status": "PENDING",
+      "updated_at": "<ts>"
+     }
+    ]
    }
-  }
- ],
- [
-  "http:30",
-  "GET /api/sync/cashier_audit_log",
-  {
-   "method": "GET",
-   "path": "/api/sync/cashier_audit_log",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:31",
-  "GET /api/sync/cash_categories",
-  {
-   "method": "GET",
-   "path": "/api/sync/cash_categories",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:32",
-  "GET /api/sync/payment_sources",
-  {
-   "method": "GET",
-   "path": "/api/sync/payment_sources",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:33",
-  "GET /api/sync/payment_source_transactions",
-  {
-   "method": "GET",
-   "path": "/api/sync/payment_source_transactions",
-   "query": "?limit=500&offset=0",
-   "body": null
   }
  ],
  [
@@ -1322,26 +1332,126 @@
  ],
  [
   "http2:0",
-  "GET /health",
+  "GET /api/sync/cash_categories",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/cash_categories",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http2:1",
-  "GET /health",
+  "GET /api/sync/cash_drawer",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/cash_drawer",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http2:2",
+  "GET /api/sync/cash_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/cash_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:3",
+  "GET /api/sync/cashier_audit_log",
+  {
+   "method": "GET",
+   "path": "/api/sync/cashier_audit_log",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:4",
+  "GET /api/sync/emergency-commands",
+  {
+   "method": "GET",
+   "path": "/api/sync/emergency-commands",
+   "query": "?terminal_code=N5FG",
+   "body": null
+  }
+ ],
+ [
+  "http2:5",
+  "GET /api/sync/invoices",
+  {
+   "method": "GET",
+   "path": "/api/sync/invoices",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:6",
+  "GET /api/sync/parties",
+  {
+   "method": "GET",
+   "path": "/api/sync/parties",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:7",
+  "GET /api/sync/payment_source_transactions",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_source_transactions",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:8",
+  "GET /api/sync/payment_sources",
+  {
+   "method": "GET",
+   "path": "/api/sync/payment_sources",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:9",
+  "GET /api/sync/products",
+  {
+   "method": "GET",
+   "path": "/api/sync/products",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:10",
+  "GET /api/sync/quotations",
+  {
+   "method": "GET",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:11",
+  "GET /api/sync/settings",
+  {
+   "method": "GET",
+   "path": "/api/sync/settings",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:12",
   "GET /health",
   {
    "method": "GET",
@@ -1351,7 +1461,63 @@
   }
  ],
  [
-  "http2:3",
+  "http2:13",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http2:14",
+  "GET /health",
+  {
+   "method": "GET",
+   "path": "/health",
+   "query": "",
+   "body": null
+  }
+ ],
+ [
+  "http2:15",
+  "POST /api/sync/delta-pull",
+  {
+   "method": "POST",
+   "path": "/api/sync/delta-pull",
+   "query": "",
+   "body": {
+    "since": {
+     "product_grades": null,
+     "pricing_tiers": null,
+     "products": null,
+     "product_pricing": null,
+     "settings": null,
+     "parties": null,
+     "party_ledger": null,
+     "customers": null,
+     "loyalty_transactions": null,
+     "scrap_categories": null,
+     "scrap_transactions": null,
+     "purchase_bills": null,
+     "cash_drawer": null,
+     "cash_transactions": null,
+     "cashier_audit_log": null,
+     "cash_categories": null,
+     "returns": null,
+     "payment_sources": null,
+     "payment_source_transactions": null,
+     "combo_offers": null,
+     "quotations": null,
+     "invoices": null,
+     "users": null
+    }
+   }
+  }
+ ],
+ [
+  "http2:16",
   "POST /api/sync/products",
   {
    "method": "POST",
@@ -1397,37 +1563,7 @@
   }
  ],
  [
-  "http2:4",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:5",
-  "GET /api/sync/invoices",
-  {
-   "method": "GET",
-   "path": "/api/sync/invoices",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:6",
-  "GET /api/sync/cash_drawer",
-  {
-   "method": "GET",
-   "path": "/api/sync/cash_drawer",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:7",
+  "http2:17",
   "POST /api/sync/settings",
   {
    "method": "POST",
@@ -1444,122 +1580,6 @@
      }
     ]
    }
-  }
- ],
- [
-  "http2:8",
-  "GET /api/sync/cash_transactions",
-  {
-   "method": "GET",
-   "path": "/api/sync/cash_transactions",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:9",
-  "GET /api/sync/cashier_audit_log",
-  {
-   "method": "GET",
-   "path": "/api/sync/cashier_audit_log",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:10",
-  "POST /api/sync/delta-pull",
-  {
-   "method": "POST",
-   "path": "/api/sync/delta-pull",
-   "query": "",
-   "body": {
-    "since": {
-     "product_grades": null,
-     "pricing_tiers": null,
-     "products": null,
-     "product_pricing": null,
-     "settings": null,
-     "parties": null,
-     "party_ledger": null,
-     "customers": null,
-     "loyalty_transactions": null,
-     "scrap_categories": null,
-     "scrap_transactions": null,
-     "purchase_bills": null,
-     "cash_drawer": null,
-     "cash_transactions": null,
-     "cashier_audit_log": null,
-     "cash_categories": null,
-     "returns": null,
-     "payment_sources": null,
-     "payment_source_transactions": null,
-     "combo_offers": null,
-     "quotations": null,
-     "invoices": null,
-     "users": null
-    }
-   }
-  }
- ],
- [
-  "http2:11",
-  "GET /api/sync/cash_categories",
-  {
-   "method": "GET",
-   "path": "/api/sync/cash_categories",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:12",
-  "GET /api/sync/products",
-  {
-   "method": "GET",
-   "path": "/api/sync/products",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:13",
-  "GET /api/sync/payment_sources",
-  {
-   "method": "GET",
-   "path": "/api/sync/payment_sources",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:14",
-  "GET /api/sync/settings",
-  {
-   "method": "GET",
-   "path": "/api/sync/settings",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:15",
-  "GET /api/sync/payment_source_transactions",
-  {
-   "method": "GET",
-   "path": "/api/sync/payment_source_transactions",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:16",
-  "GET /api/sync/parties",
-  {
-   "method": "GET",
-   "path": "/api/sync/parties",
-   "query": "?limit=500&offset=0",
-   "body": null
   }
  ],
  [
@@ -1598,8 +1618,8 @@
    "parties": [
     {
      "party_id": "<uuid>",
-     "name": "Ravi Kumar",
-     "phone": "9876543210",
+     "name": "Ravi",
+     "phone": null,
      "sync_status": "SYNCED"
     },
     {
@@ -1616,8 +1636,8 @@
     },
     {
      "party_id": "<uuid>",
-     "name": "Ravi",
-     "phone": null,
+     "name": "Ravi Kumar",
+     "phone": "9876543210",
      "sync_status": "SYNCED"
     }
    ],

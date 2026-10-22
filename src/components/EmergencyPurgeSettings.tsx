@@ -6,11 +6,11 @@ import {
 import { 
   DEFAULT_EMERGENCY_PANIC_CONFIG, 
   EMERGENCY_PANIC_CONFIG_KEY, 
-  EMERGENCY_WIPE_COMMAND_KEY, 
   parseEmergencyPanicConfig, 
   type EmergencyPanicConfig,
-  type EmergencyWipeCommand 
+  type EmergencyWipeCommand
 } from '../utils/emergencyPurge';
+import { fetchApi } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { hasBridge } from '../data/client';
 import { settingsApi } from '../data/settings';
@@ -29,7 +29,7 @@ export interface EmergencyPurgeSettingsProps {
 }
 
 export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnChange }: EmergencyPurgeSettingsProps = {}) {
-  const { tenantId, userName, email } = useAuthStore();
+  const { tenantId } = useAuthStore();
   const [internalConfig, setInternalConfig] = useState<EmergencyPanicConfig>(DEFAULT_EMERGENCY_PANIC_CONFIG);
   const [terminalCode, setTerminalCode] = useState<string>('POS1');
   const [saving, setSaving] = useState(false);
@@ -50,6 +50,8 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
   // Remote wipe state
   const [showRemoteWipeModal, setShowRemoteWipeModal] = useState(false);
   const [remoteWipeConfirmText, setRemoteWipeConfirmText] = useState('');
+  const [remoteWipePassword, setRemoteWipePassword] = useState('');
+  const [remoteWipeError, setRemoteWipeError] = useState('');
   const [remoteWipeTarget, setRemoteWipeTarget] = useState<'ALL' | string>('ALL');
   const [sendingWipeSignal, setSendingWipeSignal] = useState(false);
   const [wipeSignalSent, setWipeSignalSent] = useState(false);
@@ -102,35 +104,24 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
     }
   };
 
+  /** Issues the wipe on the server (owner + password re-entry); terminals pick it up on their next cloud sync. */
   const handleSendRemoteWipe = async () => {
-    if (remoteWipeConfirmText.toUpperCase() !== 'RESET') return;
+    if (remoteWipeConfirmText.toUpperCase() !== 'RESET' || !remoteWipePassword) return;
     setSendingWipeSignal(true);
-
+    setRemoteWipeError('');
     try {
-      const command: EmergencyWipeCommand = {
-        command_id: `wipe_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        action: 'PURGE_LOCAL_DB',
-        target_terminal: remoteWipeTarget,
-        triggered_by: userName || email || 'Owner',
-        triggered_at: Date.now(),
-        wipe_mode: config.wipe_mode,
-        status: 'PENDING',
-      };
-
-      if (hasBridge('settingsSet')) {
-        await settingsApi.set({
-          tenant_id: tenantId || 'global',
-          key: EMERGENCY_WIPE_COMMAND_KEY,
-          value: command,
-        });
-      }
-
+      const command = (await fetchApi('/emergency/wipe-commands', {
+        method: 'POST',
+        body: JSON.stringify({ password: remoteWipePassword, target_terminal: remoteWipeTarget, wipe_mode: config.wipe_mode }),
+      })) as EmergencyWipeCommand;
+      console.warn(`[EmergencyPurgeSettings] Wipe command ${command.command_id} issued for ${command.target_terminal}`);
       setWipeSignalSent(true);
       setShowRemoteWipeModal(false);
       setRemoteWipeConfirmText('');
+      setRemoteWipePassword('');
       setTimeout(() => setWipeSignalSent(false), 5000);
     } catch (err) {
-      console.error('[EmergencyPurgeSettings] Failed to send wipe signal:', err);
+      setRemoteWipeError(err instanceof Error ? err.message : 'Could not issue the wipe command');
     } finally {
       setSendingWipeSignal(false);
     }
@@ -156,7 +147,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Instant local database purge system for emergency inspections and urgent security measures. Clears local sales records and cache on this terminal immediately while your central cloud records remain 100% safe and intact.
+              Protects a lost, stolen or compromised terminal by wiping its local data. Clears local sales records and cache on this terminal immediately while your central cloud records remain 100% safe and intact.
             </p>
           </div>
         </div>
@@ -220,7 +211,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
             </div>
             <div>
               <h3 className="text-sm font-bold text-foreground">2. On-Site Panic Triggers</h3>
-              <p className="text-xs text-muted-foreground">Discreet on-device shortcuts to purge the local database within 1 second, even with zero internet connection.</p>
+              <p className="text-xs text-muted-foreground">On-device shortcut that opens the administrator confirmation for a local wipe, even without internet.</p>
             </div>
           </div>
 
@@ -316,29 +307,12 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
             </div>
           </div>
 
-          {/* Quick PIN Confirmation */}
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-background border border-border">
-            <div>
-              <div className="text-xs font-bold text-foreground">Require Quick PIN Confirmation (Optional PIN)</div>
-              <div className="text-[11px] text-muted-foreground">Require a covert 4-digit PIN to prevent accidental triggers. (When turned off, purges immediately in 0 seconds with zero questions).</div>
-            </div>
-            <div className="flex items-center gap-3">
-              {config.require_quick_pin && (
-                <input
-                  type="password"
-                  maxLength={4}
-                  placeholder="PIN"
-                  value={config.panic_pin}
-                  onChange={(e) => setConfig({ ...config, panic_pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                  className="w-24 h-8 px-2 text-center tracking-widest font-mono text-xs rounded-lg border border-border bg-card"
-                />
-              )}
-              <input
-                type="checkbox"
-                checked={config.require_quick_pin}
-                onChange={(e) => setConfig({ ...config, require_quick_pin: e.target.checked })}
-                className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
-              />
+          {/* Confirmation is mandatory */}
+          <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-background border border-border">
+            <Lock className="w-4 h-4 text-rose-500 shrink-0" />
+            <div className="text-[11px] text-muted-foreground">
+              Every wipe asks for an administrator email and password and is recorded in this terminal's audit log
+              (<span className="font-mono">emergency-purge-audit.jsonl</span>). The hotkey or gesture only opens that confirmation.
             </div>
           </div>
         </div>
@@ -372,7 +346,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
           <span>How to Restore Data After an Emergency?</span>
         </div>
         <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside leading-relaxed">
-          <li>Once the situation is resolved or the inspection has concluded, reopen the application on this terminal.</li>
+          <li>Once the device is back under your control, reopen the application on this terminal.</li>
           <li>Log in normally using your Owner username and password.</li>
           <li>Navigate to <strong>Settings &rarr; Network & Sync</strong> and click <strong>"Full Resync from Cloud"</strong>.</li>
           <li>Within seconds, all your catalog products, customer ledgers, and invoice records will be restored from the cloud.</li>
@@ -407,6 +381,17 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
             </div>
 
             <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Your account password:</label>
+              <input
+                type="password"
+                value={remoteWipePassword}
+                onChange={(e) => setRemoteWipePassword(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-xs"
+                aria-label="Owner password"
+              />
+            </div>
+
+            <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground">
                 To confirm, type <span className="text-rose-500 font-bold">RESET</span> below:
               </label>
@@ -419,6 +404,8 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
               />
             </div>
 
+            {remoteWipeError && <p className="text-[11px] text-rose-500 font-medium">{remoteWipeError}</p>}
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -429,7 +416,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
               </button>
               <button
                 type="button"
-                disabled={remoteWipeConfirmText.toUpperCase() !== 'RESET' || sendingWipeSignal}
+                disabled={remoteWipeConfirmText.toUpperCase() !== 'RESET' || !remoteWipePassword || sendingWipeSignal}
                 onClick={handleSendRemoteWipe}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-40 transition-colors shadow-xs cursor-pointer"
               >

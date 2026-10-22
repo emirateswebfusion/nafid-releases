@@ -2,11 +2,9 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
+import { toIsoTimestamp } from '../utils/timestamps.js';
+import { LAN_KEY_HEADER, ensureLanPairingKey, isValidLanKey } from '../services/lanPairing.js';
 
-function localTimestamp(d: Date | string | number = new Date()): string {
-  const dateObj = d instanceof Date ? d : new Date(d);
-  return isNaN(dateObj.getTime()) ? new Date().toISOString() : dateObj.toISOString();
-}
 
 function toNormalizedUtc(str: string | null | undefined): string | null {
   if (!str) return null;
@@ -85,14 +83,15 @@ function parseJsonBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control, X-Nafid-Lan-Key',
+  'Access-Control-Allow-Private-Network': 'true',
+};
+
 function sendJson(res: http.ServerResponse, statusCode: number, payload: any) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control',
-    'Access-Control-Allow-Private-Network': 'true',
-  });
+  res.writeHead(statusCode, { 'Content-Type': 'application/json', ...CORS_HEADERS });
   res.end(JSON.stringify(payload));
 }
 
@@ -207,7 +206,7 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
       }
 
       if (allCols.includes('updated_at')) {
-        paramObj['updated_at'] = localTimestamp();
+        paramObj['updated_at'] = toIsoTimestamp();
       }
 
       if (tableName === 'cash_transactions' && rawRow.drawer_id) {
@@ -483,14 +482,10 @@ export function startLocalHostServer(port: number = 3888) {
   }
 
   currentPort = port;
+  ensureLanPairingKey();
   server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
-      res.writeHead(204, {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Allow-Private-Network': 'true',
-      });
+      res.writeHead(204, CORS_HEADERS);
       res.end();
       return;
     }
@@ -507,6 +502,11 @@ export function startLocalHostServer(port: number = 3888) {
           port,
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // ── Pairing key: every other endpoint requires the shop's LAN key ─────
+      if (!isValidLanKey(req.headers[LAN_KEY_HEADER])) {
+        return sendJson(res, 401, { error: 'LAN pairing key missing or invalid. Enter the key shown on the primary terminal (Settings → Network).' });
       }
 
       const db = getDb();
@@ -891,11 +891,11 @@ export function startLocalHostServer(port: number = 3888) {
   });
 
   server.listen(port, '0.0.0.0', () => {
-    console.log(`[LocalHostServer] [${localTimestamp()}] [Local LAN Host] Server active and listening on http://0.0.0.0:${port}`);
+    console.log(`[LocalHostServer] [${toIsoTimestamp()}] [Local LAN Host] Server active and listening on http://0.0.0.0:${port}`);
   });
 
   server.on('error', (err: any) => {
-    console.error(`[LocalHostServer] [${localTimestamp()}] [Local LAN Host] Server error:`, err.message);
+    console.error(`[LocalHostServer] [${toIsoTimestamp()}] [Local LAN Host] Server error:`, err.message);
     if (server) {
       try { server.close(); } catch {}
       server = null;
@@ -907,6 +907,6 @@ export function stopLocalHostServer() {
   if (server) {
     server.close();
     server = null;
-    console.log(`[LocalHostServer] [${localTimestamp()}] [Local LAN Host] Server stopped.`);
+    console.log(`[LocalHostServer] [${toIsoTimestamp()}] [Local LAN Host] Server stopped.`);
   }
 }

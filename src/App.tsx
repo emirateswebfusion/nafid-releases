@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
 import { PermissionGuard } from './components/PermissionGuard';
 import { BillingPage } from './components/BillingPage';
@@ -45,6 +44,7 @@ import { AiAssistant } from './components/AiAssistant';
 import { EcommercePortal } from './components/EcommercePortal';
 import { AdsManager } from './components/AdsManager';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
+import { EmergencyWipePrompt } from './components/EmergencyWipePrompt';
 import { hasBridge, isDesktopRuntime } from './data/client';
 import { bridgeEvents } from './data/events';
 import { syncApi } from './data/sync';
@@ -65,15 +65,7 @@ function App() {
   const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
   const [showPrintA4, setShowPrintA4] = useState(false);
 
-  const {
-    showPinPrompt,
-    setShowPinPrompt,
-    enteredPin,
-    setEnteredPin,
-    pinError,
-    handlePinSubmit,
-    isPurging
-  } = useEmergencyPanicTrigger();
+  const panic = useEmergencyPanicTrigger();
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
@@ -929,55 +921,7 @@ function App() {
         }}
       />
 
-      {/* Emergency Panic Quick PIN Verification Modal */}
-      {showPinPrompt && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
-          <form onSubmit={handlePinSubmit} className="bg-card p-6 rounded-2xl border border-border shadow-2xl max-w-xs w-full space-y-4">
-            <div className="text-center space-y-1">
-              <h3 className="text-sm font-bold text-foreground">Security Verification</h3>
-              <p className="text-xs text-muted-foreground">Enter security code to continue</p>
-            </div>
-            <input
-              type="password"
-              autoFocus
-              maxLength={4}
-              value={enteredPin}
-              onChange={(e) => setEnteredPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="••••"
-              className={clsx(
-                "w-full h-11 text-center text-lg tracking-[0.5em] font-mono rounded-xl border bg-background outline-hidden transition-all",
-                pinError ? "border-rose-500 ring-2 ring-rose-500/20" : "border-border focus:border-primary"
-              )}
-            />
-            {pinError && <p className="text-[11px] text-rose-500 text-center font-medium">Invalid security code</p>}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowPinPrompt(false)}
-                className="flex-1 h-9 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 h-9 rounded-xl bg-primary text-primary-foreground text-xs font-bold"
-              >
-                Confirm
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Emergency Purging Overlay */}
-      {isPurging && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-3 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
-            <p className="text-xs font-mono text-muted-foreground">Resetting local system...</p>
-          </div>
-        </div>
-      )}
+      <EmergencyWipePrompt panic={panic} />
     </div>
   );
 }

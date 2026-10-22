@@ -1,5 +1,6 @@
 import { getDb } from '../db/localDb.js';
 import * as settingsSql from '../db/statements/settings.js';
+import { withPreservedLanKey } from './lanPairing.js';
 /** settings use-cases for the main process (called by electron/ipc handlers). */
 
 const LOCAL_DEVICE_SETTING_KEYS = [
@@ -118,6 +119,7 @@ export async function set({ tenant_id, key, value }: { tenant_id: string; key: s
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
     const tid = tenant_id || 'global';
+    if (key === 'network_sync_config' && value && typeof value === 'object') value = withPreservedLanKey(value);
     const valString = typeof value === 'string' ? value : JSON.stringify(value);
 
     const upsertStmt = settingsSql.upsertSetting(db);

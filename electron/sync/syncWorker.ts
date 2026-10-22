@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { app, BrowserWindow, safeStorage, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
-import { dbEmergencyPurgeLocalData } from '../services/emergencyPurgeService.js';
+import { pollEmergencyCommands } from './emergencyCommands.js';
 
 function localTimestamp(d: Date | string | number = new Date()): string {
   const dateObj = d instanceof Date ? d : new Date(d);
@@ -549,10 +549,13 @@ async function fetchWithFallback(
 ): Promise<{ response: Response; activeUrl: string; activeRoute: 'LAN' | 'CLOUD' }> {
   const endpoints = getSyncEndpoints();
 
-  // Primary request attempt
+  // Primary request attempt (LAN requests carry the shop pairing key; it is never sent to the cloud)
   try {
     const primaryFullUrl = urlPath.startsWith('http') ? urlPath : `${endpoints.primaryUrl}${urlPath}`;
-    const res = await fetch(primaryFullUrl, options);
+    const primaryOptions = endpoints.primaryRoute === 'LAN'
+      ? { ...options, headers: { ...(options.headers as Record<string, string> | undefined), [LAN_KEY_HEADER]: getLanPairingKey() } }
+      : options;
+    const res = await fetch(primaryFullUrl, primaryOptions);
     currentActiveRoute = endpoints.primaryRoute;
     return { response: res, activeUrl: endpoints.primaryUrl, activeRoute: endpoints.primaryRoute };
   } catch (primaryErr: any) {
@@ -651,6 +654,7 @@ async function clearAuthAndNotify() {
 }
 
 import { startLocalHostServer } from './localHostServer.js';
+import { LAN_KEY_HEADER, getLanPairingKey } from '../services/lanPairing.js';
 
 // ── Smart Adaptive Polling for Cash Settlement ──────────────────────────────
 const FAST_PULL_ACTIVE_MS = 10000; // 10 seconds baseline (down from 3s, cuts ~70% immediately)
@@ -1390,6 +1394,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
+        if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { isSyncActive = false; });
         if (!isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests
         const syncCheckTables = [
@@ -3472,79 +3477,6 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
 }
 
 // ── Remote Emergency Wipe Handler ─────────────────────────────────────────────
-function checkAndExecuteRemoteEmergencyWipe(commandVal: any) {
-  try {
-    const cmd = typeof commandVal === 'string' ? JSON.parse(commandVal) : commandVal;
-    if (!cmd || cmd.action !== 'PURGE_LOCAL_DB') return;
-
-    const now = Date.now();
-    const triggeredAt = Number(cmd.triggered_at) || 0;
-    // Discard command if older than 24 hours
-    if (now - triggeredAt > 24 * 60 * 60 * 1000) {
-      console.log('[SyncWorker] ℹ️ Stale emergency wipe command ignored (> 24h old)');
-      return;
-    }
-
-    const localTerminalCode = (() => {
-      try {
-        const row = getDb().prepare("SELECT value FROM settings WHERE key = 'terminal_code' LIMIT 1").get() as any;
-        return row?.value || 'POS1';
-      } catch { return 'POS1'; }
-    })();
-
-    if (cmd.target_terminal && cmd.target_terminal !== 'ALL' && cmd.target_terminal !== localTerminalCode) {
-      console.log(`[SyncWorker] ℹ️ Emergency wipe command is targeted to terminal ${cmd.target_terminal}, this device is ${localTerminalCode}`);
-      return;
-    }
-
-    const lastExecutedPath = path.join(app.getPath('userData'), 'last_executed_wipe_id.txt');
-    if (fs.existsSync(lastExecutedPath)) {
-      const lastId = fs.readFileSync(lastExecutedPath, 'utf-8').trim();
-      if (lastId === cmd.command_id) {
-        return; // Already executed
-      }
-    }
-
-    console.warn(`[SyncWorker] 🚨 EMERGENCY REMOTE WIPE COMMAND RECEIVED! Target: ${cmd.target_terminal}, Command ID: ${cmd.command_id}`);
-
-    try {
-      fs.writeFileSync(lastExecutedPath, String(cmd.command_id || Date.now()), 'utf-8');
-    } catch {}
-
-    const wipeMode = cmd.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA';
-    
-    // 1. Purge local SQLite data
-    dbEmergencyPurgeLocalData(wipeMode);
-
-    // 2. Delete credentials
-    try {
-      const encPath = getEncryptedPath();
-      if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
-      const p = getConfigPath();
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-      const offPath = getOfflineSessionPath();
-      if (fs.existsSync(offPath)) fs.unlinkSync(offPath);
-    } catch {}
-
-    isSyncActive = false;
-
-    // 3. Notify all open windows and trigger clean reload
-    const windows = BrowserWindow.getAllWindows();
-    for (const win of windows) {
-      if (!win.isDestroyed()) {
-        try {
-          win.webContents.send('emergency:purged', { wipeMode, reason: 'REMOTE_CLOUD_COMMAND' });
-          setTimeout(() => {
-            if (!win.isDestroyed()) win.webContents.reloadIgnoringCache();
-          }, 800);
-        } catch {}
-      }
-    }
-  } catch (err) {
-    console.error('[SyncWorker] Failed to execute remote emergency wipe:', err);
-  }
-}
-
 // ── Pull Settings (Cloud → Edge) ─────────────────────────────────────────────
 async function pullSettings(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
@@ -3560,7 +3492,7 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     'time_format', 'store_timezone', 'bank_name', 'bank_account_number',
     'bank_ifsc', 'bank_branch', 'feature_flags', 'print_format', 'label_code_type',
     'label_show_shop_name', 'auto_print_barcode', 'show_cash_register', 'staff_data_masking_config',
-    'emergency_wipe_command', 'emergency_panic_config'
+    'emergency_panic_config'
   ];
 
   const upsert = db.prepare(`
@@ -3603,9 +3535,6 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
             updated_at: toSqliteDate(s.updated_at)
           });
 
-          if (s.key === 'emergency_wipe_command' && valueToSave) {
-            checkAndExecuteRemoteEmergencyWipe(valueToSave);
-          }
         }
       });
 

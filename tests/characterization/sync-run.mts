@@ -96,13 +96,18 @@ const after2 = statusCounts();
 const norm = (v: unknown) => JSON.parse(JSON.stringify(v, (_k, x) => typeof x === 'string'
   ? x.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<uuid>').replace(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, '<ts>').replace(/\d{4}-\d{2}-\d{2}/g, '<date>').replace(/\b1[789]\d{11}\b/g, '<ms>').replace(/\b\d{1,2}:\d{2}( ?[AP]M)?\b/g, '<time>')
   : x));
+// Requests from the main cycle and the concurrent "urgent" syncs interleave nondeterministically, so each
+// phase is recorded in a canonical order (method + path + body), not in arrival order.
+const stable = (v: unknown): string => Array.isArray(v) ? `[${v.map(stable).sort().join(',')}]`
+  : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${k}:${stable((v as Record<string, unknown>)[k])}`).join(',')}}` : JSON.stringify(v);
+const canonical = (rs: unknown[]) => rs.map((r) => norm(r)).sort((x: any, y: any) => { const a = `${x.method} ${x.path} ${stable(x.body)}`, b = `${y.method} ${y.path} ${stable(y.body)}`; return a < b ? -1 : a > b ? 1 : 0; });
 const results: [string, string, unknown][] = [
   ['sync:runInitial', '[]', norm(result)],
   ['status:before', '[]', before],
-  ...requests.slice(0, phase1Requests).map((r: any, i) => [`http:${i}`, `${r.method} ${r.path}`, norm(r)] as [string, string, unknown]),
+  ...canonical(requests.slice(0, phase1Requests)).map((r: any, i) => [`http:${i}`, `${r.method} ${r.path}`, r] as [string, string, unknown]),
   ['status:after', '[]', after],
   ['phase2:runInitial', '[]', norm(result2)],
-  ...requests.slice(phase1Requests).map((r: any, i) => [`http2:${i}`, `${r.method} ${r.path}`, norm(r)] as [string, string, unknown]),
+  ...canonical(requests.slice(phase1Requests)).map((r: any, i) => [`http2:${i}`, `${r.method} ${r.path}`, r] as [string, string, unknown]),
   ['phase2:pulled', '[]', norm(pulled)],
   ['phase2:status', '[]', after2],
 ];

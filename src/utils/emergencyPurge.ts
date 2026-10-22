@@ -7,9 +7,6 @@ export interface EmergencyPanicConfig {
   click_gesture_enabled: boolean;
   click_target: 'LOGO' | 'HEADER';
   click_count: number; // e.g. 5 rapid clicks within 2.5 seconds
-  // Confirmation mode
-  require_quick_pin: boolean; // false = instant wipe, true = requires 4-digit panic PIN
-  panic_pin: string;
   // What to wipe
   wipe_mode: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; // ALL_DATA = complete zero-slate reset
   auto_logout: boolean;
@@ -17,7 +14,6 @@ export interface EmergencyPanicConfig {
 }
 
 export const EMERGENCY_PANIC_CONFIG_KEY = 'emergency_panic_config';
-export const EMERGENCY_WIPE_COMMAND_KEY = 'emergency_wipe_command';
 
 export const DEFAULT_EMERGENCY_PANIC_CONFIG: EmergencyPanicConfig = {
   enabled: false,
@@ -26,20 +22,17 @@ export const DEFAULT_EMERGENCY_PANIC_CONFIG: EmergencyPanicConfig = {
   click_gesture_enabled: true,
   click_target: 'LOGO',
   click_count: 5,
-  require_quick_pin: false,
-  panic_pin: '',
   wipe_mode: 'ALL_DATA',
   auto_logout: true,
 };
 
+/** A wipe command issued on the server (POST /api/emergency/wipe-commands, owner + password). */
 export interface EmergencyWipeCommand {
   command_id: string;
-  action: 'PURGE_LOCAL_DB';
-  target_terminal: 'ALL' | string; // 'ALL' or specific terminalCode (e.g. 'POS1')
-  triggered_by: string;
-  triggered_at: number; // epoch ms
+  target_terminal: 'ALL' | string; // 'ALL' or a terminal code
   wipe_mode: 'ALL_DATA' | 'SALES_AND_CASH_ONLY';
-  status: 'PENDING' | 'EXECUTED';
+  issued_by_name?: string | null;
+  issued_at: string;
 }
 
 export function parseEmergencyPanicConfig(val: any): EmergencyPanicConfig {
@@ -54,8 +47,6 @@ export function parseEmergencyPanicConfig(val: any): EmergencyPanicConfig {
       click_gesture_enabled: parsed.click_gesture_enabled !== false,
       click_target: parsed.click_target === 'HEADER' ? 'HEADER' : 'LOGO',
       click_count: Number(parsed.click_count) || 5,
-      require_quick_pin: Boolean(parsed.require_quick_pin),
-      panic_pin: String(parsed.panic_pin || '').trim(),
       wipe_mode: parsed.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA',
       auto_logout: parsed.auto_logout !== false,
       updated_at: parsed.updated_at,

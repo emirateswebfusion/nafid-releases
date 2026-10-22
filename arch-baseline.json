@@ -11,7 +11,7 @@
     "electron/db/localDb.ts": 2240,
     "electron/hardware/printer.ts": 1076,
     "electron/sync/localHostServer.ts": 913,
-    "electron/sync/syncWorker.ts": 5215,
+    "electron/sync/syncWorker.ts": 5144,
     "electron/whatsapp/shopClosingReportService.ts": 1329,
     "src/components/AiAssistant.tsx": 1194,
     "src/components/billing/modals/CreateProductModal.tsx": 813,
@@ -44,5 +44,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-22T14:39:57.859Z"
+  "updatedAt": "2026-10-22T19:30:53.211Z"
 }

@@ -70,7 +70,7 @@ export interface IElectronAPI {
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
   forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
-  testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
+  testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number; lanPairingKey?: string }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean } | null>;
   authSaveOfflineSession: (payload: { tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] }) => Promise<{ success: boolean; error?: string }>;
@@ -303,7 +303,7 @@ export interface IElectronAPI {
   ecommerceGetOrders: (payload: { tenant_id: string }) => Promise<{ success: boolean; orders: any[]; error?: string }>;
 
   // Emergency Purge & Kill Switch
-  dbEmergencyPurge?: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string }) => Promise<{ success: boolean; clearedTables?: string[]; error?: string }>;
+  dbEmergencyPurge?: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string; email?: string; password?: string }) => Promise<{ success: boolean; clearedTables?: string[]; error?: string }>;
   onEmergencyPurged?: (callback: (data: { wipeMode: string; reason?: string }) => void) => (() => void);
 }
 

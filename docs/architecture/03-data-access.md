@@ -115,6 +115,15 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
   `synced[]` become `SYNCED`.
 - **Pull**: `POST /api/sync/delta-pull` with a per-table `since` cursor; local upserts are guarded by
   `WHERE sync_status != 'PENDING'` so unsynced local edits are not overwritten.
-- **LAN**: the primary terminal serves a subset of the sync API to other terminals (`localHostServer.ts`).
+- **LAN**: the primary terminal serves a subset of the sync API to other terminals (`localHostServer.ts`). Every
+  endpoint except `/health` requires the **shop pairing key** in the `X-Nafid-Lan-Key` header (401 otherwise). The
+  primary generates the key on first start of its LAN server; it is shown in Settings → Network (copy/regenerate)
+  and entered once on each secondary (`components/settings/tabs/LanPairingKeyPanel.tsx`). It lives in the
+  device-local `network_sync_config` setting (never synced) and is sent only on LAN requests, never to the cloud
+  (`electron/services/lanPairing.ts`). Saving network settings keeps the stored key.
+- **Emergency wipe**: a local wipe (`emergency:purgeLocal`) requires an administrator's email and password, checked
+  in the main process, and is appended to `userData/emergency-purge-audit.jsonl` before data is removed. Remote wipes
+  are owner-issued server commands polled by `electron/sync/emergencyCommands.ts` (see the server sync docs);
+  wipe commands are never accepted through synced settings.
 - The sync payload contract is shared with `nafid-server/src/routes/sync/*`. Any change must update both sides and the
   docs in the same change, and must be preceded by a characterization test (sync is the highest data-risk area).

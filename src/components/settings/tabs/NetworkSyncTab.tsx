@@ -5,6 +5,7 @@ import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { hasBridge } from '../../../data/client';
 import { syncApi } from '../../../data/sync';
+import { LanPairingKeyPanel } from './LanPairingKeyPanel';
 
 export interface NetworkSyncTabProps {
   activeSection: string;
@@ -428,6 +429,8 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
                       </p>
                     </div>
                   )}
+
+                  <LanPairingKeyPanel lanRole={lanRole} setMessage={setMessage} />
 
                   <p className="text-[10px] text-muted-foreground/80 leading-relaxed font-medium">
                     * Real-time synchronization of all store data: Invoices, Products, Stock, Inventory, Customers, Ledger &amp; Cashier settlement across all terminals.

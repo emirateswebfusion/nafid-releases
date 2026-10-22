@@ -58,7 +58,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCloudAccessState: (tenant_id?: string) => ipcRenderer.invoke('sync:getCloudAccessState', tenant_id),
   updateCloudAccessConfig: (payload: { config: any; tenant_id?: string }) => ipcRenderer.invoke('sync:updateCloudAccessConfig', payload),
   drainPendingCloudQueue: (tenant_id?: string) => ipcRenderer.invoke('sync:drainPendingCloudQueue', tenant_id),
-  testNetworkConnection: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => ipcRenderer.invoke('sync:testConnection', payload),
+  testNetworkConnection: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number; lanPairingKey?: string }) => ipcRenderer.invoke('sync:testConnection', payload),
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
   settingsGetAll: (payload: { tenant_id: string }) => ipcRenderer.invoke('settings:getAll', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),
@@ -86,7 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Emergency Purge & Kill Switch
-  dbEmergencyPurge: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string }) => ipcRenderer.invoke('emergency:purgeLocal', payload),
+  dbEmergencyPurge: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string; email?: string; password?: string }) => ipcRenderer.invoke('emergency:purgeLocal', payload),
   onEmergencyPurged: (callback: (data: { wipeMode: string; reason?: string }) => void) => {
     const listener = (_event: any, data: any) => callback(data);
     ipcRenderer.on('emergency:purged', listener);
