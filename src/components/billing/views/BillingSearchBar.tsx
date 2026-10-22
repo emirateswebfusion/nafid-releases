@@ -6,21 +6,9 @@ import { parseUTCDate } from '../../../utils/receiptGenerator';
 import { getStoreTimezone } from '../../../utils/timezoneHelper';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { InvoiceType } from '../../../store/cartStore';
-import type { Product } from '../../../data/products';
 import type { Invoice } from '../../../data/invoices';
-
-/** A product search row. Combos are mapped into the same list with `isCombo`. */
-export type ProductSearchResult = Product & { isCombo?: boolean; combo_id?: string; pieces_per_kg?: number | null };
-
-/** A row from the scrap category search (the channel is untyped in `global.d.ts`). */
-export interface ScrapCategoryResult {
-  scrap_category_id: string;
-  name: string;
-  unit?: string | null;
-  purchase_price?: number | null;
-  rate?: number | null;
-  selling_price?: number | null;
-}
+import type { ProductSearchResult, ScrapCategoryResult } from '../productSearch';
+import type { ProductSearchState } from '../hooks/useProductSearchState';
 
 export interface BillingSearchBarProps {
   getTierPriceForProduct: (product: ProductSearchResult) => number | undefined;
@@ -30,39 +18,24 @@ export interface BillingSearchBarProps {
   handleSelectReturnInvoice: (inv: Invoice) => Promise<void>;
   handleSelectScrapItem: (cat: ScrapCategoryResult) => void;
   invoiceType: InvoiceType;
-  isPastBillMode: boolean;
-  isProductSearching: boolean;
   isQuotationActive: boolean;
   isQuotationMode: boolean;
   isReturnMode: boolean;
   isScrapActive: boolean;
   isScrapMode: boolean;
-  pastBillResults: Invoice[];
-  results: ProductSearchResult[];
-  returnSearchResults: Invoice[];
-  scrapSearchResults: ScrapCategoryResult[];
-  searchContainerRef: React.RefObject<HTMLDivElement | null>;
-  searchQuery: string;
+  productSearch: ProductSearchState;
   searchRef: React.RefObject<HTMLInputElement | null>;
-  searchResultListRef: React.RefObject<HTMLDivElement | null>;
-  selectedIndex: number;
-  setIsPastBillMode: React.Dispatch<React.SetStateAction<boolean>>;
   setIsScrapMode: (isScrapMode: boolean) => void;
   setNewProductName: React.Dispatch<React.SetStateAction<string>>;
-  setPastBillResults: React.Dispatch<React.SetStateAction<Invoice[]>>;
   setQuotationMode: (isQuotationMode: boolean) => void;
-  setResults: React.Dispatch<React.SetStateAction<ProductSearchResult[]>>;
   setReturnMode: (isReturnMode: boolean) => void;
-  setReturnSearchResults: React.Dispatch<React.SetStateAction<Invoice[]>>;
-  setScrapSearchResults: React.Dispatch<React.SetStateAction<ScrapCategoryResult[]>>;
-  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  setSelectedIndex: React.Dispatch<React.SetStateAction<number>>;
   setShowProductCreateForm: React.Dispatch<React.SetStateAction<boolean>>;
   showProductCreateForm: boolean;
   uiConfig: BillingUIConfig;
 }
 
-export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, handleSelectPastBill, handleSelectProduct, handleSelectReturnInvoice, handleSelectScrapItem, invoiceType, isPastBillMode, isProductSearching, isQuotationActive, isQuotationMode, isReturnMode, isScrapActive, isScrapMode, pastBillResults, results, returnSearchResults, scrapSearchResults, searchContainerRef, searchQuery, searchRef, searchResultListRef, selectedIndex, setIsPastBillMode, setIsScrapMode, setNewProductName, setPastBillResults, setQuotationMode, setResults, setReturnMode, setReturnSearchResults, setScrapSearchResults, setSearchQuery, setSelectedIndex, setShowProductCreateForm, showProductCreateForm, uiConfig }: BillingSearchBarProps) {
+export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, handleSelectPastBill, handleSelectProduct, handleSelectReturnInvoice, handleSelectScrapItem, invoiceType, isQuotationActive, isQuotationMode, isReturnMode, isScrapActive, isScrapMode, productSearch, searchRef, setIsScrapMode, setNewProductName, setQuotationMode, setReturnMode, setShowProductCreateForm, showProductCreateForm, uiConfig }: BillingSearchBarProps) {
+  const { searchQuery, setSearchQuery, isProductSearching, results, setResults, selectedIndex, setSelectedIndex, isPastBillMode, setIsPastBillMode, pastBillResults, setPastBillResults, returnSearchResults, setReturnSearchResults, scrapSearchResults, setScrapSearchResults, searchResultListRef, searchContainerRef } = productSearch;
   return (
     <div className="p-3 pb-2.5 bg-card border-b border-border">
       <div ref={searchContainerRef} className="relative">

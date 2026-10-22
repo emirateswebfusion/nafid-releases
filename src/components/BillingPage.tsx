@@ -16,7 +16,6 @@ import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore } from '../featureFlags';
-import { sortProductsBySearchPriority, cleanSearchText } from '../utils/productSort';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
 import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
@@ -42,7 +41,6 @@ import { BillingCustomerDetails } from './billing/views/BillingCustomerDetails';
 import { BillingSearchBar } from './billing/views/BillingSearchBar';
 import { cashierApi } from '../data/cashier';
 import { hasBridge, isDesktopRuntime } from '../data/client';
-import { combosApi } from '../data/combos';
 import { customersApi } from '../data/customers';
 import { bridgeEvents } from '../data/events';
 import { gradesApi } from '../data/grades';
@@ -66,6 +64,8 @@ import { createCheckoutHandler } from './billing/checkout/checkoutHandler';
 import { useCustomerDirectory } from './billing/hooks/useCustomerDirectory';
 import { useCustomerFieldState } from './billing/hooks/useCustomerFieldState';
 import { useCustomerFieldHandlers } from './billing/hooks/useCustomerFieldHandlers';
+import { useProductSearchState } from './billing/hooks/useProductSearchState';
+import { useSearchResultsLoader } from './billing/hooks/useSearchResultsLoader';
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
@@ -269,10 +269,12 @@ export function BillingPage() {
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isProductSearching, setIsProductSearching] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const productSearch = useProductSearchState();
+  const {
+    searchQuery, setSearchQuery, results, setResults, selectedIndex, setSelectedIndex,
+    isPastBillMode, setIsPastBillMode, pastBillResults, setPastBillResults, returnSearchResults, setReturnSearchResults, scrapSearchResults, setScrapSearchResults,
+    searchContainerRef,
+  } = productSearch;
   const productFormDialogRef = useRef<HTMLDivElement>(null);
   const gradeFormDialogRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -312,8 +314,6 @@ export function BillingPage() {
   const [newProductIsAddingGrade, setNewProductIsAddingGrade] = useState(false);
   const [newProductSavingGrade, setNewProductSavingGrade] = useState(false);
   const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
-  const [isPastBillMode, setIsPastBillMode] = useState(false);
-  const [pastBillResults, setPastBillResults] = useState<any[]>([]);
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
   const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
 
@@ -451,44 +451,6 @@ export function BillingPage() {
       }
     }
   }, [items]);
-
-  const searchResultListRef = useRef<HTMLDivElement>(null);
-  const pastBillListRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (searchResultListRef.current && selectedIndex >= 0) {
-      const container = searchResultListRef.current;
-      const selectedEl = container.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`);
-      if (selectedEl) {
-        const containerTop = container.scrollTop;
-        const containerBottom = containerTop + container.clientHeight;
-        const elTop = selectedEl.offsetTop;
-        const elBottom = elTop + selectedEl.offsetHeight;
-
-        if (elTop < containerTop) {
-          container.scrollTop = elTop;
-        } else if (elBottom > containerBottom) {
-          container.scrollTop = elBottom - container.clientHeight;
-        }
-      }
-    }
-    if (pastBillListRef.current && selectedIndex >= 0) {
-      const container = pastBillListRef.current;
-      const selectedEl = container.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`);
-      if (selectedEl) {
-        const containerTop = container.scrollTop;
-        const containerBottom = containerTop + container.clientHeight;
-        const elTop = selectedEl.offsetTop;
-        const elBottom = elTop + selectedEl.offsetHeight;
-
-        if (elTop < containerTop) {
-          container.scrollTop = elTop;
-        } else if (elBottom > containerBottom) {
-          container.scrollTop = elBottom - container.clientHeight;
-        }
-      }
-    }
-  }, [selectedIndex]);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const isCheckingOutRef = useRef(false);
@@ -683,7 +645,6 @@ export function BillingPage() {
   }, [activeTabId]);
 
   // Local return mode transient state
-  const [returnSearchResults, setReturnSearchResults] = useState<any[]>([]);
   const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<any | null>(null);
   const [returnProcessing, setReturnProcessing] = useState(false);
   const returnProcessingRef = useRef(false);
@@ -1562,8 +1523,6 @@ export function BillingPage() {
     }
   }, [isB2B, enableThreeInvoiceSeries, invoiceType, tenantId, getActiveTab, updateActiveTab]);
 
-  const [scrapSearchResults, setScrapSearchResults] = useState<any[]>([]);
-
   // Scrap invoice view state
   const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
   const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: any[]; totalAmount: number; invoiceNumber: string } | null>(null);
@@ -1734,7 +1693,7 @@ export function BillingPage() {
       });
     });
     syncActiveSnapshot();
-  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount]);
+  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount, setIsPastBillMode]);
 
   useEffect(() => {
     if (pendingScrapInvoiceToEdit) {
@@ -1793,158 +1752,11 @@ export function BillingPage() {
     };
   }, [loadScrapInvoiceForEdit, updateActiveTab]);
 
-  useEffect(() => {
-    // In scrap mode, return mode, or past bill mode, or queries under 1 char, skip product search
-    const trimmed = searchQuery.trim();
-    if (isScrapMode || isReturnMode || isPastBillMode || trimmed.length < 1) {
-      setResults([]);
-      setIsProductSearching(false);
-      return;
-    }
-    setIsProductSearching(true);
-    let isCurrent = true;
-    const t = setTimeout(async () => {
-      if (!isDesktopRuntime()) {
-        setIsProductSearching(false);
-        return;
-      }
-      const { tenantId } = useAuthStore.getState();
-      // GST invoices: only show GST-applicable products (quotations stay unfiltered)
-      const isGstFilter = !isQuotationMode && invoiceType === 'GST';
-      // Fetch up to 200 results so numeric or text searches capture all matching items without UI lag
-      const fetchLimit = 200;
-      
-      const backendSearch = trimmed;
+  useSearchResultsLoader({
+    search: productSearch, tenantId, invoiceType, isScrapMode, isReturnMode, isQuotationMode,
+    enableRealPaperStock, showPaperInGstSetting, showPaperInEstSetting,
+  });
 
-      try {
-        const [products, combos] = await Promise.all([
-          listProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
-          combosApi.getComboOffers({ tenant_id: tenantId, search: trimmed, only_active: true }),
-        ]);
-
-        if (!isCurrent) return;
-
-        const comboResults = (Array.isArray(combos) ? combos : []).map((c: any) => ({
-          product_id: c.combo_id,
-          name: c.name,
-          sku_barcode: c.sku_barcode || '',
-          item_code: c.sku_barcode || '',
-          base_price: c.combo_price,
-          purchase_price: 0,
-          current_stock: 999,
-          uom: 'Combo',
-          billing_type: 'PIECE',
-          isCombo: true,
-          combo_id: c.combo_id,
-          combo_price: c.combo_price,
-          combo_items: c.items,
-          description: c.description,
-        }));
-
-        const rawProducts = Array.isArray(products) ? products : [];
-        const sortedProds = sortProductsBySearchPriority(rawProducts, trimmed);
-
-        const filteredProds = sortedProds.filter(p => {
-          const isPaperOnlyProduct = (() => {
-            try {
-              const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-              const isMarkedPaper = Boolean(da && da.gst_type === 'PAPER');
-              const hasRealStock = Number(p.current_stock || 0) > 0;
-              const hasRealPricing = (Number(p.base_price || 0) > 0) || (Number(p.purchase_price || 0) > 0);
-              // A product is only paper-only if it is marked PAPER and has neither real stock nor real shop pricing.
-              // If it has real shop pricing or real stock, it is a real product in the shop (even if currently Out of Stock).
-              return isMarkedPaper && !hasRealStock && !hasRealPricing;
-            } catch { return false; }
-          })();
-
-          if (isPaperOnlyProduct) {
-            if (!enableRealPaperStock) return false;
-            if (invoiceType === 'GST' && !showPaperInGstSetting) {
-              return false;
-            }
-            if (invoiceType !== 'GST' && !showPaperInEstSetting) {
-              return false;
-            }
-          }
-
-          const q = trimmed.toLowerCase();
-          if (!q) return false;
-          const qNoSpace = q.replace(/\s+/g, '');
-          const qClean = cleanSearchText(q);
-          const qWords = q.split(/[^\p{L}\p{N}]+/gu).filter(w => w.length > 0);
-
-          const rawFields = [
-            String(p.sku_barcode || '').toLowerCase(),
-            String(p.item_code || '').toLowerCase(),
-            String(p.name || '').toLowerCase(),
-            String(p.brand_manufacturer || '').toLowerCase(),
-            String(p.category || '').toLowerCase(),
-            String(p.hsn_sac_code || '').toLowerCase(),
-          ];
-
-          const fieldsData = rawFields.map(val => ({
-            raw: val,
-            noSpace: val.replace(/\s+/g, ''),
-            clean: cleanSearchText(val),
-          }));
-
-          const combinedRaw = rawFields.join(' ');
-          const combinedNoSpace = combinedRaw.replace(/\s+/g, '');
-          const combinedClean = cleanSearchText(combinedRaw);
-
-          // 1. Direct full query matches (raw, no-space, or special-char-clean)
-          if (
-            combinedRaw.includes(q) ||
-            (qNoSpace.length > 0 && combinedNoSpace.includes(qNoSpace)) ||
-            (qClean.length > 0 && combinedClean.includes(qClean))
-          ) {
-            return true;
-          }
-
-          // 2. All query words match across product fields
-          const isWordMatch = (w: string) => {
-            const wLower = w.toLowerCase();
-            const wNoSpace = wLower.replace(/\s+/g, '');
-            const wClean = cleanSearchText(wLower);
-            return fieldsData.some(f =>
-              f.raw.includes(wLower) ||
-              (wNoSpace.length > 0 && f.noSpace.includes(wNoSpace)) ||
-              (wClean.length > 0 && f.clean.includes(wClean))
-            ) ||
-            combinedRaw.includes(wLower) ||
-            (wNoSpace.length > 0 && combinedNoSpace.includes(wNoSpace)) ||
-            (wClean.length > 0 && combinedClean.includes(wClean));
-          };
-
-          return qWords.length > 0 && qWords.every(isWordMatch);
-        });
-
-        const deduped: any[] = [];
-        let serviceFound = false;
-        for (const p of filteredProds) {
-          const isServiceCharge = Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge';
-          if (isServiceCharge) {
-            if (serviceFound) continue;
-            serviceFound = true;
-          }
-          deduped.push(p);
-        }
-
-        if (!isCurrent) return;
-        setResults([...comboResults, ...deduped].slice(0, 50));
-        setSelectedIndex(0);
-      } catch (err) {
-        if (!isCurrent) return;
-        console.error('[BillingPage] Product search error:', err);
-      } finally {
-        if (isCurrent) setIsProductSearching(false);
-      }
-    }, 120);
-    return () => {
-      isCurrent = false;
-      clearTimeout(t);
-    };
-  }, [searchQuery, isScrapMode, isReturnMode, isPastBillMode, invoiceType, isQuotationMode, enableRealPaperStock, showPaperInGstSetting, showPaperInEstSetting]);
 
   // Fetch categories & grades immediately so options are ready instantly when form opens
   const loadCategoriesAndGrades = useCallback(() => {
@@ -2015,57 +1827,6 @@ export function BillingPage() {
     fetchMostSold();
     return () => { cancelled = true; };
   }, [tenantId, uiConfig.orientation, uiConfig.showQuickCategoryBar]);
-
-  // Scrap category search (when scrap mode active - categories ARE items)
-  useEffect(() => {
-    if (!isScrapMode || searchQuery.length < 2) { setScrapSearchResults([]); return; }
-    const t = setTimeout(async () => {
-      if (!isDesktopRuntime()) return;
-      const { tenantId } = useAuthStore.getState();
-      const cats = await scrapApi.getScrapCategoriesBySearch({ tenant_id: tenantId || '', search: searchQuery });
-      if (Array.isArray(cats)) {
-        setScrapSearchResults(cats);
-      }
-    }, 150);
-    return () => clearTimeout(t);
-  }, [searchQuery, isScrapMode]);
-
-  // Past bill search (when past bill mode active)
-  useEffect(() => {
-    if (!isPastBillMode || searchQuery.length < 2) { setPastBillResults([]); return; }
-    const t = setTimeout(async () => {
-      if (!isDesktopRuntime()) return;
-      const tid = tenantId || 'global';
-      const invoices = await listInvoices({
-        tenant_id: tid,
-        search: searchQuery.trim(),
-        limit: 10,
-      });
-      if (Array.isArray(invoices)) {
-        setPastBillResults(invoices);
-        setSelectedIndex(0);
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [searchQuery, isPastBillMode, tenantId]);
-
-  // Invoice search for Return Mode — feeds main search dropdown
-  useEffect(() => {
-    if (!isReturnMode || searchQuery.length < 2) { setReturnSearchResults([]); return; }
-    const t = setTimeout(async () => {
-      if (!isDesktopRuntime()) return;
-      const tid = tenantId || 'global';
-      const invoices = await returnsApi.getReturnableInvoices({
-        tenant_id: tid,
-        search: searchQuery.trim(),
-        limit: 10,
-      });
-      if (Array.isArray(invoices)) {
-        setReturnSearchResults(invoices);
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [searchQuery, isReturnMode, tenantId]);
 
   // Scrap deduction search
   useEffect(() => {
@@ -2140,7 +1901,6 @@ export function BillingPage() {
     return () => clearTimeout(t);
   }, [returnDeductionSearchQuery, storeReturnDeduction, tenantId]);
 
-  const searchContainerRef = useRef<HTMLDivElement>(null);
   const scrapDeductionInputRef = useRef<HTMLInputElement>(null);
   const [scrapDeductionDropdownStyle, setScrapDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
   const returnDeductionInputRef = useRef<HTMLInputElement>(null);
@@ -2255,7 +2015,7 @@ export function BillingPage() {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [searchContainerRef, setPastBillResults, setResults, setSearchQuery]);
 
   useEffect(() => {
     if (!showProductCreateForm) return;
@@ -3869,7 +3629,7 @@ export function BillingPage() {
 
     window.addEventListener('open-new-quotation', handler);
     return () => window.removeEventListener('open-new-quotation', handler);
-  }, [clearCart, setReturnMode, setIsScrapMode, setEditingQuotation, setQuotationMode, updateActiveTab, syncActiveSnapshot, reserveQuotationNumberForTab, isCashSettlementEnabled, addTab]);
+  }, [clearCart, setReturnMode, setIsScrapMode, setEditingQuotation, setQuotationMode, updateActiveTab, syncActiveSnapshot, reserveQuotationNumberForTab, isCashSettlementEnabled, addTab, setIsPastBillMode]);
 
   // Past bill selection: load selected invoice into cart for editing
   const handleSelectPastBill = async (invoice: any) => {
@@ -4002,7 +3762,7 @@ export function BillingPage() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, syncActiveSnapshot]);
+  }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, syncActiveSnapshot, setPastBillResults, setResults, setReturnSearchResults, setSearchQuery]);
 
   // Auto-dismiss hardware error after 3 seconds
   useEffect(() => {
@@ -5456,33 +5216,17 @@ export function BillingPage() {
     handleSelectReturnInvoice={handleSelectReturnInvoice}
     handleSelectScrapItem={handleSelectScrapItem}
     invoiceType={invoiceType}
-    isPastBillMode={isPastBillMode}
-    isProductSearching={isProductSearching}
     isQuotationActive={isQuotationActive}
     isQuotationMode={isQuotationMode}
     isReturnMode={isReturnMode}
     isScrapActive={isScrapActive}
     isScrapMode={isScrapMode}
-    pastBillResults={pastBillResults}
-    results={results}
-    returnSearchResults={returnSearchResults}
-    scrapSearchResults={scrapSearchResults}
-    searchContainerRef={searchContainerRef}
-    searchQuery={searchQuery}
+    productSearch={productSearch}
     searchRef={searchRef}
-    searchResultListRef={searchResultListRef}
-    selectedIndex={selectedIndex}
-    setIsPastBillMode={setIsPastBillMode}
     setIsScrapMode={setIsScrapMode}
     setNewProductName={setNewProductName}
-    setPastBillResults={setPastBillResults}
     setQuotationMode={setQuotationMode}
-    setResults={setResults}
     setReturnMode={setReturnMode}
-    setReturnSearchResults={setReturnSearchResults}
-    setScrapSearchResults={setScrapSearchResults}
-    setSearchQuery={setSearchQuery}
-    setSelectedIndex={setSelectedIndex}
     setShowProductCreateForm={setShowProductCreateForm}
     showProductCreateForm={showProductCreateForm}
     uiConfig={uiConfig}
