@@ -13,6 +13,7 @@ and update every caller in the same change.
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
 | Money formatting (₹, en-IN grouping, sign) | `src/utils/money.ts` (`formatCurrency`, `formatAmount`) | `tests/unit/money.test.ts` |
 | Document numbers: offsets, digit matching | `src/utils/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
+| Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
 | Sales-history amounts and tax breakdown | `src/utils/salesHistoryAmount.ts`, `src/utils/salesHistoryTax.ts` | `tests/unit/salesHistory*.test.ts` |
 | Permissions: keys, groups, legacy `restricted_page` conversion, `hasPermission`, `isAdminRole` | `src/utils/permissions.ts` | — (add tests when touched) |

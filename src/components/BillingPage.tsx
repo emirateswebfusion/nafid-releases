@@ -67,6 +67,10 @@ import { useCustomerFieldHandlers } from './billing/hooks/useCustomerFieldHandle
 import { useProductSearchState } from './billing/hooks/useProductSearchState';
 import { useSearchResultsLoader } from './billing/hooks/useSearchResultsLoader';
 import { useSearchSelection } from './billing/hooks/useSearchSelection';
+import {
+  peekNewTabNumbers, refreshInvoiceNumberForType, reserveInvoiceNumber, reserveQuotationNumber,
+  reserveReturnNumber, reserveScrapInvoiceNumber,
+} from './billing/numberReservation';
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
@@ -673,42 +677,7 @@ export function BillingPage() {
   const initialized = useRef(false);
 
   const handleAddTab = async () => {
-    let billNumber = '';
-    let scrapNumber = '';
-    let quotationNumber = '';
-    let returnNumber = '';
-    const allTabs = useTabStore.getState().tabs;
-    if (isDesktopRuntime()) {
-      const series = enableThreeInvoiceSeries ? 'normal' : undefined;
-      try {
-        const r = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-        if (r?.success && r.invoiceNumber) {
-          const reserved = allTabs.map(t => t.reservedInvoiceNumber);
-          billNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
-        }
-      } catch { }
-      try {
-        const r = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
-        if (r?.success && r.invoiceNumber) {
-          const reserved = allTabs.map(t => t.reservedScrapInvoiceNumber);
-          scrapNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
-        }
-      } catch { }
-      try {
-        const r = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
-        if (r?.success && r.quotationNumber) {
-          const reserved = allTabs.map(t => t.reservedQuotationNumber);
-          quotationNumber = getNextOffsetInvoiceNumber(r.quotationNumber, reserved);
-        }
-      } catch { }
-      try {
-        const r = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
-        if (r?.success && r.returnNumber) {
-          const reserved = allTabs.map(t => t.reservedReturnNumber);
-          returnNumber = getNextOffsetInvoiceNumber(r.returnNumber, reserved);
-        }
-      } catch { }
-    }
+    const { billNumber, scrapNumber, quotationNumber, returnNumber } = await peekNewTabNumbers({ tenantId, enableThreeInvoiceSeries });
     tabCounter.current++;
     const title = billNumber || scrapNumber || quotationNumber || returnNumber || `Bill ${tabCounter.current}`;
     addTab(undefined, title);
@@ -763,32 +732,7 @@ export function BillingPage() {
     : null;
 
     const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!isDesktopRuntime()) return;
-    const tab = getActiveTab();
-    if (!tab) return;
-    if (isScrapMode || isQuotationMode || isReturnMode || tab.snapshot?.isQuotationMode) return;
-    if (editingActive) return;
-
-    try {
-      const tabIsB2B = (invoiceType === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(tab?.isB2B));
-      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (tabIsB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (invoiceType === 'GST' ? 'gst' : undefined);
-      const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-      if (result.success && result.invoiceNumber) {
-        const allTabs = useTabStore.getState().tabs;
-        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedInvoiceNumber);
-        const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
-        const oldReserved = tab.reservedInvoiceNumber;
-        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
-          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
-          updateActiveTab({
-            reservedInvoiceNumber: nextNum,
-            title: shouldUpdateTitle ? nextNum : tab.title
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to peek invoice number', e);
-    }
+    await reserveInvoiceNumber({ tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode, editingActive }, forceRefresh);
   }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isB2B, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
 
   const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
@@ -797,101 +741,19 @@ export function BillingPage() {
       syncActiveSnapshot();
     }, 0);
 
-    try {
-      const tab = getActiveTab();
-      const tabIsB2B = (type === 'GST') && (Boolean(customerGstin?.trim()) || Boolean(tab?.isB2B));
-      const series = enableThreeInvoiceSeries ? (type === 'GST' ? (tabIsB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (type === 'GST' ? 'gst' : undefined);
-      const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-      if (result.success && result.invoiceNumber) {
-        const allTabs = useTabStore.getState().tabs;
-        const otherTabsReserved = allTabs.filter(t => t?.id !== tab?.id).map(t => t.reservedInvoiceNumber);
-        const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
-        updateActiveTab({ 
-          reservedInvoiceNumber: nextNum,
-          title: nextNum
-        });
-      }
-    } catch (e) {
-      console.error('Failed to peek next invoice number on type change', e);
-    }
+    await refreshInvoiceNumberForType({ tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, customerGstin }, type);
   };
 
   const reserveScrapInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!isDesktopRuntime()) return;
-    const tab = getActiveTab();
-    if (!tab) return;
-    if (editingActive) return;
-
-    try {
-      const result = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
-      if (result.success && result.invoiceNumber) {
-        const allTabs = useTabStore.getState().tabs;
-        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedScrapInvoiceNumber);
-        const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
-        const oldReserved = tab.reservedScrapInvoiceNumber;
-        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
-          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
-          updateActiveTab({
-            reservedScrapInvoiceNumber: nextNum,
-            title: shouldUpdateTitle ? nextNum : tab.title
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to reserve scrap invoice number', e);
-    }
+    await reserveScrapInvoiceNumber({ getActiveTab, updateActiveTab, editingActive }, forceRefresh);
   }, [getActiveTab, updateActiveTab, editingActive]);
 
   const reserveQuotationNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!isDesktopRuntime()) return;
-    const tab = getActiveTab();
-    if (!tab) return;
-    if (editingQuotationId) return;
-
-    try {
-      const result = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
-      if (result.success && result.quotationNumber) {
-        const allTabs = useTabStore.getState().tabs;
-        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedQuotationNumber);
-        const nextNum = getNextOffsetInvoiceNumber(result.quotationNumber, otherTabsReserved);
-        const oldReserved = tab.reservedQuotationNumber;
-        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
-          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === 'New Quote' || tab.title === oldReserved || tab.title.startsWith('Bill ') || (tab.reservedInvoiceNumber && tab.title === tab.reservedInvoiceNumber);
-          updateActiveTab({
-            reservedQuotationNumber: nextNum,
-            reservedInvoiceNumber: '',
-            title: shouldUpdateTitle ? nextNum : tab.title
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to reserve quotation number', e);
-    }
+    await reserveQuotationNumber({ getActiveTab, updateActiveTab, editingQuotationId }, forceRefresh);
   }, [getActiveTab, updateActiveTab, editingQuotationId]);
 
   const reserveReturnNumberForTab = useCallback(async (forceRefresh = false) => {
-    if (!isDesktopRuntime()) return;
-    const tab = getActiveTab();
-    if (!tab) return;
-
-    try {
-      const result = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
-      if (result.success && result.returnNumber) {
-        const allTabs = useTabStore.getState().tabs;
-        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedReturnNumber);
-        const nextNum = getNextOffsetInvoiceNumber(result.returnNumber, otherTabsReserved);
-        const oldReserved = tab.reservedReturnNumber;
-        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
-          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
-          updateActiveTab({
-            reservedReturnNumber: nextNum,
-            title: shouldUpdateTitle ? nextNum : tab.title
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to reserve return number', e);
-    }
+    await reserveReturnNumber({ tenantId, getActiveTab, updateActiveTab }, forceRefresh);
   }, [tenantId, getActiveTab, updateActiveTab]);
 
   const totalDeductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
