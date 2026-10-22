@@ -78,6 +78,7 @@ The main process talks to devices through `electron/hardware/*`.
 | Symptom | Fix |
 |---|---|
 | `better-sqlite3` / `serialport` fails to load, "was compiled against a different Node.js version" | `pnpm run rebuild` (or `npx @electron/rebuild`) |
+| "Electron failed to install correctly" / `node_modules/electron/dist` missing | `node node_modules/electron/install.js` (a fresh `pnpm install` runs it: `electron` is in `allowBuilds` in `pnpm-workspace.yaml`) |
 | Blank Electron window | Vite is not running on port 5173; start with `pnpm run dev` |
 | Data does not reach the cloud | Check `sync_status` of the rows (`PENDING` = not pushed yet) and the server URL/token |
 | `npm run build` prints a large-chunk warning on Windows PowerShell as `NativeCommandError` | Harmless; check the exit code |
