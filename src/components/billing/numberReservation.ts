@@ -208,3 +208,20 @@ export async function reserveReturnNumber({ tenantId, getActiveTab, updateActive
     console.error('Failed to reserve return number', e);
   }
 }
+
+/**
+ * GST B2C/B2B switch in three-series mode: next number of that series, past numbers other tabs show; always
+ * retitles the tab. (Before 2026-10-23 these callers used the raw peek, so two GST tabs could preview the same number.)
+ */
+export async function reserveGstSeriesNumber(
+  { tenantId, getActiveTab, updateActiveTab }: TabAccess & { tenantId: string | null },
+  series: 'gst_b2c' | 'gst_b2b',
+) {
+  const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+  if (result.success && result.invoiceNumber) {
+    const tab = getActiveTab();
+    const otherTabsReserved = useTabStore.getState().tabs.filter(t => t.id !== tab?.id).map(t => t.reservedInvoiceNumber);
+    const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
+    updateActiveTab({ reservedInvoiceNumber: nextNum, title: nextNum });
+  }
+}

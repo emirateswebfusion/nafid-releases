@@ -158,3 +158,25 @@ describe('scrap, quotation and return numbers', () => {
     expect(a.updates).toEqual([{ reservedReturnNumber: 'RTN-004', title: 'New Quote' }]);
   });
 });
+
+describe('GST B2C/B2B series switch', () => {
+  it('previews the next number of the series past numbers other tabs show, and retitles', async () => {
+    tabs = [{ id: 't2', reservedInvoiceNumber: 'B2B-007' }, { id: 't1', reservedInvoiceNumber: 'B2B-007' }];
+    invoices.peekNextInvoiceNumber.mockResolvedValue({ success: true, invoiceNumber: 'B2B-007' });
+    const a = access(tab({ title: 'Ravi order' }));
+    await nr.reserveGstSeriesNumber({ tenantId: 'ten', ...a }, 'gst_b2b');
+    expect(invoices.peekNextInvoiceNumber).toHaveBeenCalledWith({ tenant_id: 'ten', series: 'gst_b2b' });
+    expect(a.updates).toEqual([{ reservedInvoiceNumber: 'B2B-008', title: 'B2B-008' }]);
+  });
+  it('keeps the number when no other tab holds it, and does nothing when the lookup has no number', async () => {
+    tabs = [{ id: 't1', reservedInvoiceNumber: 'B2C-003' }];
+    invoices.peekNextInvoiceNumber.mockResolvedValue({ success: true, invoiceNumber: 'B2C-003' });
+    const a = access(tab());
+    await nr.reserveGstSeriesNumber({ tenantId: null, ...a }, 'gst_b2c');
+    expect(a.updates).toEqual([{ reservedInvoiceNumber: 'B2C-003', title: 'B2C-003' }]);
+    invoices.peekNextInvoiceNumber.mockResolvedValue({ success: false });
+    const b = access(tab());
+    await nr.reserveGstSeriesNumber({ tenantId: null, ...b }, 'gst_b2c');
+    expect(b.updates).toEqual([]);
+  });
+});

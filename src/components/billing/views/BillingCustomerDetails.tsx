@@ -5,7 +5,6 @@ import { CustomerOutstandingBadge } from '../ui/CustomerOutstandingBadge';
 import { Select } from '../../ui/Select';
 import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
-import { invoicesApi } from '../../../data/invoices';
 import { INDIAN_STATES } from '../BillingConstants';
 import type { PaymentMethod, SplitDetails, Tab } from '../../../store/tabStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
@@ -39,6 +38,7 @@ export interface BillingCustomerDetailsProps {
   isScrapMode: boolean;
   loyaltyCustomerData: { customerId: string | null; pointsBalance: number; };
   loyaltyEnabled: boolean;
+  onGstSeriesChange: (series: 'gst_b2c' | 'gst_b2b') => void;
   paymentMethod: PaymentMethod;
   pricingTiers: PricingTier[];
   receivedAmount: number;
@@ -46,12 +46,11 @@ export interface BillingCustomerDetailsProps {
   setCustomerState: (state: string) => void;
   setLoyaltyCustomerData: React.Dispatch<React.SetStateAction<{ customerId: string | null; pointsBalance: number; }>>;
   splitDetails: SplitDetails;
-  tenantId: string | null;
   uiConfig: BillingUIConfig;
   updateActiveTab: (updates: Partial<Omit<Tab, "id" | "snapshot">>) => void;
 }
 
-export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAddress, customerFields, customerGstin, customerHandlers, customerName, customerPhone, customerState, displayGrandTotal, editingActive, enableThreeInvoiceSeries, filteredCustomerSuggestions, findMatchingParty, handleInvoiceTypeChange, handlePricingTierChange, invoiceType, isB2B, isQuotationMode, isReturnMode, isScrapMode, loyaltyCustomerData, loyaltyEnabled, paymentMethod, pricingTiers, receivedAmount, selectedTierId, setCustomerState, setLoyaltyCustomerData, splitDetails, tenantId, uiConfig, updateActiveTab }: BillingCustomerDetailsProps) {
+export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAddress, customerFields, customerGstin, customerHandlers, customerName, customerPhone, customerState, displayGrandTotal, editingActive, enableThreeInvoiceSeries, filteredCustomerSuggestions, findMatchingParty, handleInvoiceTypeChange, handlePricingTierChange, invoiceType, isB2B, isQuotationMode, isReturnMode, isScrapMode, loyaltyCustomerData, loyaltyEnabled, onGstSeriesChange, paymentMethod, pricingTiers, receivedAmount, selectedTierId, setCustomerState, setLoyaltyCustomerData, splitDetails, uiConfig, updateActiveTab }: BillingCustomerDetailsProps) {
   const { showCustomerDropdown, setShowCustomerDropdown, selectedCustomerIndex, setSelectedCustomerIndex, customerNameContainerRef, customerDropdownRef, customerNameInputRef, customerPhoneInputRef, customerAddressInputRef, customerGstinInputRef, skipCustomerDropdownOnFocusRef, customerListRef } = customerFields;
   const { selectCustomerSuggestion, handleCustomerNameKeyDown, handleCustomerPhoneKeyDown, handleCustomerAddressKeyDown, handleCustomerGstinKeyDown } = customerHandlers;
   return (
@@ -395,11 +394,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                   onClick={() => {
                     updateActiveTab({ isB2B: false, customerGstin: '' });
                     if (enableThreeInvoiceSeries) {
-                      invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2c' }).then(result => {
-                        if (result.success && result.invoiceNumber) {
-                          updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
-                        }
-                      });
+                      onGstSeriesChange('gst_b2c');
                     }
                   }}
                   className={clsx(
@@ -417,11 +412,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                   onClick={() => {
                     updateActiveTab({ isB2B: true });
                     if (enableThreeInvoiceSeries) {
-                      invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series: 'gst_b2b' }).then(result => {
-                        if (result.success && result.invoiceNumber) {
-                          updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
-                        }
-                      });
+                      onGstSeriesChange('gst_b2b');
                     }
                     setTimeout(() => customerGstinInputRef.current?.focus(), 50);
                   }}

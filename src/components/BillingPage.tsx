@@ -68,7 +68,7 @@ import { useSearchResultsLoader } from './billing/hooks/useSearchResultsLoader';
 import { useBillingShortcuts } from './billing/hooks/useBillingShortcuts';
 import { useSearchSelection } from './billing/hooks/useSearchSelection';
 import {
-  peekNewTabNumbers, refreshInvoiceNumberForType, reserveInvoiceNumber, reserveQuotationNumber,
+  peekNewTabNumbers, refreshInvoiceNumberForType, reserveGstSeriesNumber, reserveInvoiceNumber, reserveQuotationNumber,
   reserveReturnNumber, reserveScrapInvoiceNumber,
 } from './billing/numberReservation';
 
@@ -1377,11 +1377,7 @@ export function BillingPage() {
     if (prevIsB2B.current !== isB2B) {
       prevIsB2B.current = isB2B;
       const series = isB2B ? 'gst_b2b' : 'gst_b2c';
-      invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }).then(result => {
-        if (result.success && result.invoiceNumber) {
-          updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
-        }
-      });
+      reserveGstSeriesNumber({ tenantId, getActiveTab, updateActiveTab }, series);
     }
   }, [isB2B, enableThreeInvoiceSeries, invoiceType, tenantId, getActiveTab, updateActiveTab]);
 
@@ -5065,6 +5061,7 @@ export function BillingPage() {
             isScrapMode={isScrapMode}
             loyaltyCustomerData={loyaltyCustomerData}
             loyaltyEnabled={loyaltyEnabled}
+            onGstSeriesChange={(series) => { void reserveGstSeriesNumber({ tenantId, getActiveTab, updateActiveTab }, series); }}
             paymentMethod={paymentMethod}
             pricingTiers={pricingTiers}
             receivedAmount={receivedAmount}
@@ -5072,7 +5069,6 @@ export function BillingPage() {
             setCustomerState={setCustomerState}
             setLoyaltyCustomerData={setLoyaltyCustomerData}
             splitDetails={splitDetails}
-            tenantId={tenantId}
             uiConfig={uiConfig}
             updateActiveTab={updateActiveTab}
           />}
