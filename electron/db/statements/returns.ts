@@ -106,7 +106,7 @@ export function getReturnableInvoicesStatement(db: Db, args: { tenant_id: string
           ), 0)
       )
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (role === 'BILLER' && user_id) {
     query += ' AND i.user_id = ?';
     params.push(user_id);
@@ -132,7 +132,7 @@ export function getPendingReturnInvoicesStatement(db: Db, args: { tenant_id: str
       AND (refund_method = 'ADJUST_BILL' OR refund_method IS NULL OR refund_method = '')
       AND grand_total > COALESCE(adjusted_amount, 0)
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (search) {
     query += ' AND (return_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
@@ -145,7 +145,7 @@ export function getPendingReturnInvoicesStatement(db: Db, args: { tenant_id: str
 export function getReturnsStatement(db: Db, args: { tenant_id: string | undefined; invoice_id: string | undefined; search: string | undefined; limit: number | undefined; offset: number | undefined }) {
   const { tenant_id, invoice_id, search, limit, offset } = args;
   let query = `SELECT r.* FROM returns r WHERE r.tenant_id = ?`;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (invoice_id) {
     query += ' AND r.invoice_id = ?';
     params.push(invoice_id);

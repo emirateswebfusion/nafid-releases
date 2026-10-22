@@ -116,7 +116,7 @@ export const updatePartyBalanceColumn = (db: Db, balanceCol: string | number) =>
 export function getPurchaseBillsStatement(db: Db, args: { tenant_id: string; search: string | undefined; limit: number | undefined; offset: number | undefined }) {
   const { tenant_id, search, limit, offset } = args;
   let query = 'SELECT pb.*, p.phone as supplier_phone, p.gstin as supplier_gstin FROM purchase_bills pb LEFT JOIN parties p ON pb.supplier_id = p.party_id WHERE pb.tenant_id = ?';
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (search) {
     query += ' AND (pb.bill_number LIKE ? OR pb.supplier_name LIKE ? OR pb.invoice_number LIKE ?)';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
@@ -144,7 +144,7 @@ export function getPurchaseBillProductsStatement(db: Db, args: { tenant_id: stri
     FROM products p 
     WHERE p.tenant_id = ? AND p.is_deleted = 0
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (search) {
     const cleanSearch = String(search).trim();
     const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');

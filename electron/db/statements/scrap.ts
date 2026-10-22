@@ -181,7 +181,7 @@ export function getScrapTransactionsStatement(db: Db, args: { tenant_id: string;
     LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id 
     WHERE st.tenant_id = ? AND (st.is_deleted IS NULL OR st.is_deleted = 0)
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (scrap_category_id) {
     query += ' AND st.scrap_category_id = ?';
     params.push(scrap_category_id);

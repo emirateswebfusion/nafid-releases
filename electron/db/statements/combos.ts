@@ -58,7 +58,7 @@ export function getComboOffersStatement(db: Db, args: { tenant_id: string; only_
     FROM combo_offers co
     WHERE co.tenant_id = ? AND co.is_deleted = 0
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (only_active) {
     query += ` AND co.is_active = 1`;
   }

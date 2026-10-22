@@ -216,7 +216,7 @@ export function getCustomersStatement(db: Db, args: { tenant_id: string; search:
     LEFT JOIN pricing_tiers pt ON pt.pricing_tier_id = COALESCE(c.pricing_tier_id, p.pricing_tier_id)
     WHERE c.tenant_id = ? AND (c.is_deleted IS NULL OR c.is_deleted = 0)
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (search) {
     query += ` AND (c.name LIKE ? OR c.phone LIKE ?)`;
     params.push(`%${search}%`, `%${search}%`);
@@ -241,7 +241,7 @@ export function getCustomersStatement(db: Db, args: { tenant_id: string; search:
 export function findCustomersStatement(db: Db, args: { tenant_id: string; name: string | undefined; phone: string | undefined }) {
   const { tenant_id, name, phone } = args;
   let query = `SELECT * FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)`;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (name && phone) {
     const cleanName = name.trim().replace(/\s+/g, ' ');
     query += ` AND (name LIKE ? OR phone LIKE ?)`;

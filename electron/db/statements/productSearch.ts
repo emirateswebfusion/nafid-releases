@@ -34,7 +34,7 @@ export function buildProductSearchConditions(search: string, tablePrefix: string
   }
 
   const tokenClauses: string[] = [];
-  const tokenParams: any[] = [];
+  const tokenParams: unknown[] = [];
   for (const token of wordTokens) {
     const tGroup = buildSingleFieldGroup(token);
     tokenClauses.push(tGroup.sql);

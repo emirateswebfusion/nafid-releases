@@ -266,7 +266,7 @@ export const listProductSalesQuantities = (db: Db, dateClause: string | number) 
 export function getPendingPrintProductsStatement(db: Db, args: { tenant_id: string; only_pending: boolean; date: string | undefined; dateEnd: string | undefined; limit: number }) {
   const { tenant_id, only_pending, date, dateEnd, limit } = args;
   let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND current_stock > 0";
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (only_pending) {
     query += " AND print_status = 'PENDING'";
   }

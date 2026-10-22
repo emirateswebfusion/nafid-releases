@@ -60,14 +60,14 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
     if (hasBridge('settingsGet')) {
       if (!isControlled) {
         settingsApi.get({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY })
-          .then((val: any) => {
+          .then((val: unknown) => {
             if (val) setInternalConfig(parseEmergencyPanicConfig(val));
           })
           .catch(() => {});
       }
 
       settingsApi.get({ tenant_id: 'global', key: 'terminal_code' })
-        .then((tc: any) => {
+        .then((tc: unknown) => {
           if (tc) setTerminalCode(String(tc).trim());
         })
         .catch(() => {});

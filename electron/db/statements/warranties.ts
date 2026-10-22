@@ -13,7 +13,7 @@ export const deleteWarrantyByWarrantyId = (db: Db) => db.prepare('DELETE FROM wa
 export function getWarrantiesStatement(db: Db, args: { tenant_id: string; search: string | undefined }) {
   const { tenant_id, search } = args;
   let query = 'SELECT * FROM warranties WHERE tenant_id = ?';
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (search) {
     query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR product_name LIKE ? OR brand LIKE ? OR bill_number LIKE ?)';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);

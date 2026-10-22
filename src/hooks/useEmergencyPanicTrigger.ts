@@ -34,7 +34,7 @@ export function useEmergencyPanicTrigger() {
       if (hasBridge('settingsGet')) {
         const { tenantId } = useAuthStore.getState();
         settingsApi.get({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY })
-          .then((val: any) => {
+          .then((val: unknown) => {
             if (val) setPanicConfig(parseEmergencyPanicConfig(val));
           })
           .catch(() => {});

@@ -165,7 +165,7 @@ export function getStaffStatement(db: Db, args: { tenantId: string; params: { te
     LEFT JOIN users u ON s.user_id = u.user_id
     WHERE (s.tenant_id = ? OR ? = 'global') AND s.is_deleted = 0
   `;
-  const sqlParams: any[] = [tenantId, tenantId];
+  const sqlParams: unknown[] = [tenantId, tenantId];
   if (params.status && params.status !== 'ALL') {
     sql += ` AND s.status = ?`;
     sqlParams.push(params.status);
@@ -188,7 +188,7 @@ export function getStaffAttendanceStatement(db: Db, args: { tenant_id: string; s
     JOIN staff s ON sa.staff_id = s.staff_id
     WHERE sa.tenant_id = ?
   `;
-  const sqlParams: any[] = [tenant_id];
+  const sqlParams: unknown[] = [tenant_id];
   if (staff_id) {
     sql += ` AND sa.staff_id = ?`;
     sqlParams.push(staff_id);

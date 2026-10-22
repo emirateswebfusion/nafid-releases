@@ -113,7 +113,7 @@ export const listQuotationItems = (db: Db, selectFields: string) => db.prepare(`
 export function getQuotationsStatement(db: Db, args: { tid: string; search: string | undefined }) {
   const { tid, search } = args;
   let query = "SELECT * FROM quotations WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL) AND (status IS NULL OR status != 'DELETED')";
-  const params: any[] = [tid];
+  const params: unknown[] = [tid];
   if (search) {
     query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR quotation_number LIKE ?)';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
@@ -126,7 +126,7 @@ export function getQuotationsStatement(db: Db, args: { tid: string; search: stri
 export function updateQuotationStatusStatement(db: Db, args: { status: string | undefined; converted_to_invoice: number | undefined; invoice_id: string | undefined; quotation_id: string }) {
   const { status, converted_to_invoice, invoice_id, quotation_id } = args;
   const updates: string[] = ["sync_status = 'PENDING'", "updated_at = CURRENT_TIMESTAMP"];
-  const params: any[] = [];
+  const params: unknown[] = [];
   if (status) { updates.push('status = ?'); params.push(status); }
   if (converted_to_invoice !== undefined) { updates.push('converted_to_invoice = ?'); params.push(converted_to_invoice); }
   if (invoice_id) { updates.push('invoice_id = ?'); params.push(invoice_id); }

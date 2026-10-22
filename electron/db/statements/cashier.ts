@@ -268,7 +268,7 @@ export function getPendingInvoicesStatement(db: Db, args: { tenant_id: string; s
       AND (i.is_held IS NULL OR i.is_held = 0)
       AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
   `;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (search) {
     query += ` AND (i.invoice_number LIKE ? OR i.customer_name LIKE ?)`;
     params.push(`%${search}%`, `%${search}%`);
@@ -281,7 +281,7 @@ export function getPendingInvoicesStatement(db: Db, args: { tenant_id: string; s
 export function getCategoriesStatement(db: Db, args: { tenant_id: string; type: "CASH_IN" | "CASH_OUT" | undefined }) {
   const { tenant_id, type } = args;
   let query = `SELECT * FROM cash_categories WHERE tenant_id = ?`;
-  const params: any[] = [tenant_id];
+  const params: unknown[] = [tenant_id];
   if (type) { query += ` AND type = ?`; params.push(type); }
   query += ` ORDER BY sort_order ASC, name ASC`;
   return { statement: db.prepare(query), params };

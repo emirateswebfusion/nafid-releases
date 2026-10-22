@@ -35,7 +35,7 @@ export interface EmergencyWipeCommand {
   issued_at: string;
 }
 
-export function parseEmergencyPanicConfig(val: any): EmergencyPanicConfig {
+export function parseEmergencyPanicConfig(val: unknown): EmergencyPanicConfig {
   if (!val) return DEFAULT_EMERGENCY_PANIC_CONFIG;
   try {
     const parsed = typeof val === 'string' ? JSON.parse(val) : val;
