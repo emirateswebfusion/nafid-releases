@@ -15,14 +15,13 @@ import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore } from '../featureFlags';
-import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
+import { DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { displayInvoiceNumber, getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
 import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
 import { buildQuotationLines } from '../utils/checkoutLines';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole } from '../utils/permissions';
-import { sortTiersWithMrp } from '../utils/pricingTierHelper';
 import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST } from '../store/billingUIStore';
 
 import { PAYMENT_OPTIONS, formatCurrency, detectScannerBurst } from './billing/BillingConstants';
@@ -44,8 +43,6 @@ import { hasBridge, isDesktopRuntime } from '../data/client';
 import { customersApi } from '../data/customers';
 import { bridgeEvents } from '../data/events';
 import { invoicesApi } from '../data/invoices';
-import { paymentSourcesApi } from '../data/paymentSources';
-import { pricingTiersApi } from '../data/pricingTiers';
 import { printingApi } from '../data/printing';
 import { productsApi } from '../data/products';
 import { quotationsApi } from '../data/quotations';
@@ -69,6 +66,8 @@ import { useIncomingDocuments } from './billing/hooks/useIncomingDocuments';
 import { useBillingShortcuts } from './billing/hooks/useBillingShortcuts';
 import { useSearchSelection } from './billing/hooks/useSearchSelection';
 import { useQuotationToggle } from './billing/hooks/useQuotationToggle';
+import { useBillingSettings } from './billing/hooks/useBillingSettings';
+import { useBillingSettingsLoader } from './billing/hooks/useBillingSettingsLoader';
 import { useProductFormState } from './billing/hooks/useProductFormState';
 import {
   peekNewTabNumbers, refreshInvoiceNumberForType, reserveGstSeriesNumber, reserveInvoiceNumber, reserveQuotationNumber,
@@ -176,8 +175,15 @@ export function BillingPage() {
   const shopDomain = useCartStore(s => s.shopDomain);
   const scaleLiveWeight = useScaleStore(s => s.liveWeight);
   const scaleReading = useScaleStore(s => s.reading);
-  const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
-  const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
+  const billingSettings = useBillingSettings();
+  const {
+    bosTaxRatePercent, bosTaxInclusive, pricingTiers, productPricingMapLoaded, upiSources, allowBillerOverride,
+    loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, showDescriptionState, enableThreeInvoiceSeries,
+    enableScrap, showCashRegister, enableRealPaperStock, showPaperInGstSetting, showPaperInEstSetting, terminalCodeState,
+    shopNameState, shopGstin, shopAddress, shopPhone, shopState, quotationGstEnabledSetting,
+    shopEmail, shopWebsite, upiId, showUpiQr, bankNameState, bankAccountState,
+    bankIfscState, bankBranchState,
+  } = billingSettings;
 
   // While reading, apply the live scale weight (grams) to the last WEIGHT item in the cart (kg)
   useEffect(() => {
@@ -198,17 +204,13 @@ export function BillingPage() {
   const [localKgStr, setLocalKgStr] = useState<Record<string, string>>({});
 
   // Pricing tier state
-  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
   const [productPricingMap, setProductPricingMap] = useState<Record<string, Record<string, number>>>({});
-  const [productPricingMapLoaded, setProductPricingMapLoaded] = useState(false);
   const [selectedTierId, setSelectedTierId] = useState('');
 
   // Page-wise UPI Configuration and sources state
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
-  const [upiSources, setUpiSources] = useState<any[]>([]);
   const [isUpiSelectModalOpen, setIsUpiSelectModalOpen] = useState(false);
   const [isBillerPinModalOpen, setIsBillerPinModalOpen] = useState(false);
-  const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
   const canOverrideTier = isAdminRole(authRole) || allowBillerOverride;
 
@@ -285,8 +287,8 @@ export function BillingPage() {
   const productForm = useProductFormState(tenantId);
   const {
     productFormDialogRef, gradeFormDialogRef, firstInputRef, showProductCreateForm, setShowProductCreateForm, editingProductId,
-    setNewProductName, setNewProductBarcode, newProductCategory, setAutoPrintBarcode, newProductIsAddingGrade, setNewProductIsAddingGrade,
-    newProductSavingGrade, newProductGradeForm, setNewProductGradeForm,
+    setNewProductName, setNewProductBarcode, newProductCategory, newProductIsAddingGrade, setNewProductIsAddingGrade, newProductSavingGrade,
+    newProductGradeForm, setNewProductGradeForm,
   } = productForm;
   const [showTransportModal, setShowTransportModal] = useState(false);
   const [mostSoldProducts, setMostSoldProducts] = useState<any[]>([]);
@@ -300,10 +302,6 @@ export function BillingPage() {
   const [deductionTabMode, setDeductionTabMode] = useState<'scrap' | 'return' | 'points'>('scrap');
 
   // Loyalty points state
-  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
-  const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
-  const [loyaltyAwardOnPending, setLoyaltyAwardOnPending] = useState(false);
   const [loyaltyCustomerData, setLoyaltyCustomerData] = useState<{
     customerId: string | null;
     pointsBalance: number;
@@ -435,7 +433,6 @@ export function BillingPage() {
   const [upiAccountToast, setUpiAccountToast] = useState<string | null>(null);
   const [returnSuccessToast, setReturnSuccessToast] = useState<string | null>(null);
   const [infoToast, setInfoToast] = useState<string | null>(null);
-  const [showDescriptionState, setShowDescriptionState] = useState(true);
   const [activeDiscField, setActiveDiscField] = useState<'PCT' | 'FLAT' | null>(null);
   const [localDiscText, setLocalDiscText] = useState<string>('');
   const [isEditingTotal, setIsEditingTotal] = useState(false);
@@ -461,7 +458,6 @@ export function BillingPage() {
   }, [showDescriptionState]);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
-  const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
 
   // Mode flags from cartStore (must be before any destructuring that references them)
   const isReturnMode = useCartStore(s => s.isReturnMode);
@@ -479,11 +475,6 @@ export function BillingPage() {
   const isScrapMode = useCartStore(s => s.isScrapMode);
   const setIsScrapMode = useCartStore(s => s.setIsScrapMode);
   const isScrapActive = isScrapMode || Boolean(editingInvoiceNumber && (editingInvoiceNumber.includes('SCR') || editingInvoiceNumber.includes('Scrap')));
-  const [enableScrap, setEnableScrap] = useState(true);
-  const [showCashRegister, setShowCashRegister] = useState(false);
-  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
-  const [showPaperInGstSetting, setShowPaperInGstSetting] = useState(true);
-  const [showPaperInEstSetting, setShowPaperInEstSetting] = useState(false);
 
   // Safety sync: ensure scrap mode remains active when editing a scrap invoice
   useEffect(() => {
@@ -626,22 +617,6 @@ export function BillingPage() {
   const returnProcessingRef = useRef(false);
   const pendingCheckoutSaveOnlyRef = useRef<boolean | null>(null);
   const [returnProcessed, setReturnProcessed] = useState(false);
-
-  const [terminalCodeState, setTerminalCodeState] = useState('POS1');
-  const [shopNameState, setShopNameState] = useState('');
-  const [shopGstin, setShopGstin] = useState('');
-  const [shopAddress, setShopAddress] = useState('');
-  const [shopPhone, setShopPhone] = useState('');
-  const [shopState, setShopState] = useState('');
-  const [quotationGstEnabledSetting, setQuotationGstEnabledSetting] = useState(true);
-  const [shopEmail, setShopEmail] = useState('');
-  const [shopWebsite, setShopWebsite] = useState('');
-  const [upiId, setUpiId] = useState('');
-  const [showUpiQr, setShowUpiQr] = useState(true);
-  const [bankNameState, setBankNameState] = useState('');
-  const [bankAccountState, setBankAccountState] = useState('');
-  const [bankIfscState, setBankIfscState] = useState('');
-  const [bankBranchState, setBankBranchState] = useState('');
 
   // useTabStore values are destructured at the top of the component
 
@@ -1047,305 +1022,12 @@ export function BillingPage() {
     }
   }, [activeTabId, uiConfig.entryFocusOrder, customerNameInputRef]);
 
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    setProductPricingMapLoaded(false);
-    productsApi.ensureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
-    getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
-      if (typeof v === 'string' && v.trim()) {
-        setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
-      }
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
-      const resolved = typeof v === 'string' && v.trim() ? v.trim() : (shopName || '');
-      setShopNameState(resolved);
-      if (resolved) useAuthStore.setState({ shopName: resolved });
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
-      setShopGstin(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
-      setShopAddress(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
-      setShopPhone(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_state' }).then((v: any) => {
-      setShopState(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled' }).then((v: any) => {
-      if (v !== undefined && v !== null) setQuotationGstEnabledSetting(v !== 'false' && v !== false);
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v: any) => {
-      setShopEmail(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_website' }).then((v: any) => {
-      setShopWebsite(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
-      setUpiId(typeof v === 'string' ? v : '');
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
-      if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
-      if (typeof v === 'string') setBankNameState(v);
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
-      if (typeof v === 'string') setBankAccountState(v);
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
-      if (typeof v === 'string') setBankIfscState(v);
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
-      if (typeof v === 'string') setBankBranchState(v);
-    });
-    getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
-    if (hasBridge('dbPaymentGetSources')) {
-      paymentSourcesApi.getSources(tenantId || 'global').then((sources: any[]) => {
-        if (Array.isArray(sources)) {
-          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
-        }
-      }).catch(() => {});
-    }
-    getSetting({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v: any) => {
-      if (v !== null && v !== undefined) setEnableRealPaperStock(Boolean(v));
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst' }).then((v: any) => {
-      if (v !== null && v !== undefined) setShowPaperInGstSetting(Boolean(v));
-      else setShowPaperInGstSetting(true);
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate' }).then((v: any) => {
-      if (v !== null && v !== undefined) setShowPaperInEstSetting(Boolean(v));
-      else setShowPaperInEstSetting(false);
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
-      if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
-    });
-    loadFlags(tenantId || 'global');
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
-      if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
-    });
-    getSetting({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' }).then((v: any) => {
-      if (v !== null && v !== undefined) setAutoPrintBarcode(Boolean(v));
-    });
-    getSetting({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
-      if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
-    });
-    const reloadLoyaltyConfig = () => {
-      Promise.all([
-        getSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
-        getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
-      ]).then(([rawCfg, rawFlags]: [any, any]) => {
-        let cfg = rawCfg;
-        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
-        let flags = rawFlags;
-        if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch {} }
-
-        let isEnabled = false;
-        let eRate = 100;
-        let rRate = 1;
-        let awardOnPending = false;
-
-        if (cfg && typeof cfg === 'object') {
-          if (cfg.enabled !== undefined) isEnabled = Boolean(cfg.enabled);
-          if (cfg.earningRate) eRate = Number(cfg.earningRate) || 100;
-          if (cfg.redemptionRate) rRate = Number(cfg.redemptionRate) || 1;
-          if (cfg.awardPointsOnPending !== undefined) awardOnPending = Boolean(cfg.awardPointsOnPending);
-        }
-        if (flags && typeof flags.loyalty === 'boolean') {
-          isEnabled = flags.loyalty || isEnabled;
-        }
-
-        setLoyaltyEnabled(isEnabled);
-        setLoyaltyEarningRate(Math.max(1, eRate));
-        setLoyaltyRedemptionRate(Math.max(0.01, rRate));
-        setLoyaltyAwardOnPending(awardOnPending);
-      }).catch(() => {});
-    };
-    reloadLoyaltyConfig();
-    getSetting({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
-      if (v?.billSettings?.bosTaxRatePercent != null) {
-        setBosTaxRatePercent(Number(v.billSettings.bosTaxRatePercent));
-      }
-      if (v?.billSettings?.bosTaxInclusive != null) {
-        setBosTaxInclusive(Boolean(v.billSettings.bosTaxInclusive));
-      }
-      if (v?.billSettings?.showDescription !== undefined) {
-        setShowDescriptionState(v.billSettings.showDescription !== false);
-      }
-    });
-    Promise.all([
-      pricingTiersApi.getPricingTiers(tenantId || 'global'),
-      getSetting({ tenant_id: tenantId || 'global', key: 'mrp_sort_order' })
-    ])
-      .then(([res, mrpSortRes]: [any, any]) => {
-        if (Array.isArray(res)) {
-          const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
-          const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
-          const sortedWithMrp = sortTiersWithMrp(active, mrpSortOrder);
-          setPricingTiers(sortedWithMrp);
-          const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
-          if (defaultTier) {
-            setSelectedTierId(defaultTier.pricing_tier_id);
-          }
-        }
-      })
-      .catch(console.error);
-    pricingTiersApi.getProductPricing(tenantId || 'global')
-      .then((rows: any) => {
-        if (Array.isArray(rows)) {
-          const map: Record<string, Record<string, number>> = {};
-          for (const r of rows) {
-            if (!map[r.product_id]) map[r.product_id] = {};
-            map[r.product_id][r.pricing_tier_id] = Number(r.price) || 0;
-          }
-          setProductPricingMap(map);
-          setProductPricingMapLoaded(true);
-        }
-      })
-      .catch(console.error);
-    getSetting({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override' })
-      .then((v: any) => {
-        if (v !== null && v !== undefined) setAllowBillerOverride(Boolean(v));
-      })
-      .catch(console.error);
-    listParties(tenantId || 'global')
-      .then((res: any) => {
-        if (Array.isArray(res)) setPartiesForTier(res);
-      })
-      .catch(console.error);
-
-    const unsubSync = bridgeEvents.onSyncDataUpdated(() => {
-      const tid = tenantId || 'global';
-      Promise.all([
-        pricingTiersApi.getPricingTiers(tid),
-        getSetting({ tenant_id: tid, key: 'mrp_sort_order' })
-      ])
-        .then(([res, mrpSortRes]: [any, any]) => {
-          if (Array.isArray(res)) {
-            const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
-            const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
-            const sortedWithMrp = sortTiersWithMrp(active, mrpSortOrder);
-            setPricingTiers(sortedWithMrp);
-            const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
-            if (defaultTier) {
-              setSelectedTierId(prev => prev || defaultTier.pricing_tier_id);
-            }
-          }
-        })
-        .catch(console.error);
-
-      pricingTiersApi.getProductPricing(tid)
-        .then((rows: any) => {
-          if (Array.isArray(rows)) {
-            const map: Record<string, Record<string, number>> = {};
-            for (const r of rows) {
-              if (!map[r.product_id]) map[r.product_id] = {};
-              map[r.product_id][r.pricing_tier_id] = Number(r.price) || 0;
-            }
-            setProductPricingMap(map);
-            setProductPricingMapLoaded(true);
-          }
-        })
-        .catch(console.error);
-    });
-
-    return () => {
-      if (typeof unsubSync === 'function') unsubSync();
-    };
-  }, [tenantId, setAutoPrintBarcode]);
-
-  // Listen for settings updates to immediately refresh Computer Code display and tab bill numbers
-  useEffect(() => {
-    const handleSettingsUpdated = (e: any) => {
-      const newCode = e?.detail?.terminalCode;
-      if (newCode) {
-        setTerminalCodeState(newCode);
-      } else if (isDesktopRuntime()) {
-        getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
-          if (typeof v === 'string' && v.trim()) {
-            setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
-          }
-        });
-      }
-      if (e?.detail?.shopName) {
-        setShopNameState(e.detail.shopName);
-        useAuthStore.setState({ shopName: e.detail.shopName });
-      } else if (isDesktopRuntime()) {
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
-          if (typeof v === 'string' && v.trim()) {
-            setShopNameState(v.trim());
-            useAuthStore.setState({ shopName: v.trim() });
-          }
-        });
-      }
-      if (isDesktopRuntime()) {
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
-          if (typeof v === 'string') setShopAddress(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
-          if (typeof v === 'string') setShopPhone(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
-          if (typeof v === 'string') setShopGstin(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
-          if (typeof v === 'string') setBankNameState(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
-          if (typeof v === 'string') setBankAccountState(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
-          if (typeof v === 'string') setBankIfscState(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
-          if (typeof v === 'string') setBankBranchState(v);
-        });
-        getSetting({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
-          if (v?.billSettings?.showDescription !== undefined) {
-            setShowDescriptionState(v.billSettings.showDescription !== false);
-          }
-        });
-        Promise.all([
-          getSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
-          getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
-        ]).then(([rawCfg, rawFlags]: [any, any]) => {
-          let cfg = rawCfg;
-          if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
-          let flags = rawFlags;
-          if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch {} }
-
-          let isEnabled = false;
-          let eRate = 100;
-          let rRate = 1;
-          let awardOnPending = false;
-
-          if (cfg && typeof cfg === 'object') {
-            if (cfg.enabled !== undefined) isEnabled = Boolean(cfg.enabled);
-            if (cfg.earningRate) eRate = Number(cfg.earningRate) || 100;
-            if (cfg.redemptionRate) rRate = Number(cfg.redemptionRate) || 1;
-            if (cfg.awardPointsOnPending !== undefined) awardOnPending = Boolean(cfg.awardPointsOnPending);
-          }
-          if (flags && typeof flags.loyalty === 'boolean') {
-            isEnabled = flags.loyalty || isEnabled;
-          }
-
-          setLoyaltyEnabled(isEnabled);
-          setLoyaltyEarningRate(Math.max(1, eRate));
-          setLoyaltyRedemptionRate(Math.max(0.01, rRate));
-          setLoyaltyAwardOnPending(awardOnPending);
-        }).catch(() => {});
-      }
-      loadFlags(tenantId || 'global');
-      if (isScrapMode) reserveScrapInvoiceNumberForTab(true);
-      else if (isQuotationMode) reserveQuotationNumberForTab(true);
-      else if (isReturnMode) reserveReturnNumberForTab(true);
-      else reserveInvoiceNumberForTab(true);
-    };
-    window.addEventListener('settings:updated', handleSettingsUpdated);
-    return () => window.removeEventListener('settings:updated', handleSettingsUpdated);
-  }, [reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
+  useBillingSettingsLoader({
+    billingSettings, productForm, isQuotationMode, isReturnMode, isScrapMode, loadFlags,
+    reserveInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab,
+    reserveScrapInvoiceNumberForTab, setPartiesForTier, setProductPricingMap, setSelectedTierId,
+    setUpiPageConfig, shopName, tenantId,
+  });
 
   // Re-peek invoice number when customer GSTIN / B2B mode changes (B2C ↔ B2B switch)
   const prevIsB2B = useRef(false);
