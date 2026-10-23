@@ -24,7 +24,6 @@
     "src/components/inventory/views/InventoryFormView.tsx": 994,
     "src/components/OwnerDashboard.tsx": 940,
     "src/components/party/views/PartyLedgerView.tsx": 944,
-    "src/components/PartyManager.tsx": 1858,
     "src/components/PaymentMethods.tsx": 1694,
     "src/components/PricingTiers.tsx": 1084,
     "src/components/QuotationManager.tsx": 1107,
@@ -35,5 +34,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T12:53:33.946Z"
+  "updatedAt": "2026-10-23T13:11:10.570Z"
 }
