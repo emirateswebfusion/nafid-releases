@@ -42,6 +42,8 @@ import { InvoiceDetailModal } from './sales/views/InvoiceDetailModal';
 import { SalesHistoryHeader } from './sales/views/SalesHistoryHeader';
 import { SalesAnalyticsView } from './sales/views/SalesAnalyticsView';
 import { SalesBillsView } from './sales/views/SalesBillsView';
+import { useLinkedInvoiceView } from './sales/hooks/useLinkedInvoiceView';
+import { useCollectPayment } from './sales/hooks/useCollectPayment';
 
 /* ════════════════════════════════════════════
    MAIN COMPONENT
@@ -368,74 +370,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
   };
 
-  const handleViewLinkedInvoice = async (targetInvoiceId?: string, targetInvoiceNumber?: string) => {
-    if (!targetInvoiceId && !targetInvoiceNumber) {
-      showToast('No linked bill details found', 'error');
-      return;
-    }
-    try {
-      // 1. First check in-memory loaded invoices for instant match
-      let match = invoices.find((i: any) =>
-        (targetInvoiceId && i.invoice_id === targetInvoiceId) ||
-        (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber) ||
-        (targetInvoiceNumber && i.invoice_number?.trim().toUpperCase() === targetInvoiceNumber.trim().toUpperCase())
-      );
-
-      // 2. Query by invoice_id (new main.ts direct bypass)
-      if (!match && targetInvoiceId) {
-        try {
-          const res = await listInvoices({
-            invoice_id: targetInvoiceId,
-            limit: 5,
-            offset: 0,
-          });
-          if (Array.isArray(res) && res.length > 0) {
-            match = res.find((i: any) => i.invoice_id === targetInvoiceId || (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber)) || res[0];
-          }
-        } catch (err) {
-          console.warn('[handleViewLinkedInvoice] Error querying by invoice_id:', err);
-        }
-      }
-
-      // 3. Fallback: Query by invoice_number with search
-      const searchKey = targetInvoiceNumber || targetInvoiceId;
-      if (!match && searchKey) {
-        try {
-          const res = await listInvoices({
-            search: searchKey,
-            accounting_view: 'ALL',
-            limit: 25,
-            offset: 0,
-          });
-          if (Array.isArray(res)) {
-            match = res.find((i: any) =>
-              (targetInvoiceId && i.invoice_id === targetInvoiceId) ||
-              (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber) ||
-              (targetInvoiceNumber && i.invoice_number?.trim().toUpperCase() === targetInvoiceNumber.trim().toUpperCase()) ||
-              (targetInvoiceId && i.invoice_number === targetInvoiceId)
-            );
-          }
-        } catch (err) {
-          console.warn('[handleViewLinkedInvoice] Error querying by search:', err);
-        }
-      }
-
-      if (match) {
-        // Synchronize accounting view so the underlying list matches the active document
-        if (match.invoice_type === 'BILL_OF_SUPPLY' && accountingView === 'TAX_FILING') {
-          setAccountingView('REAL_SALES');
-        } else if (match.invoice_type === 'GST' && accountingView === 'REAL_SALES') {
-          setAccountingView('TAX_FILING');
-        }
-        await handleSelectInvoice(match);
-      } else {
-        showToast(`Linked bill "${targetInvoiceNumber || targetInvoiceId}" could not be found`, 'error');
-      }
-    } catch (e: any) {
-      console.error('[handleViewLinkedInvoice] Failed to load linked invoice:', e);
-      showToast('Could not open linked bill: ' + (e?.message || 'Error'), 'error');
-    }
-  };
+  const { handleViewLinkedInvoice } = useLinkedInvoiceView({
+    accountingView, handleSelectInvoice, invoices, setAccountingView, showToast,
+  });
 
   const liveInvoicesForSummary = invoices.filter(i =>
     accountingView === 'TAX_FILING'
@@ -590,60 +527,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setCollectPaymentSuccess(false);
   };
 
-  const handleCollectPayment = async () => {
-    if (!isDesktopRuntime() || !selectedInvoice) return;
-    setCollectPaymentSaving(true);
-    try {
-      const { tenantId } = useAuthStore.getState();
-      const isCreditPayment = collectPaymentMethod === 'CREDIT';
-      const invGrandTotal = Number(selectedInvoice.grand_total) || 0;
-      const balanceAmount = isCreditPayment
-        ? Math.max(0, invGrandTotal - collectReceivedAmount)
-        : (collectReceivedAmount > invGrandTotal ? (collectReceivedAmount - invGrandTotal) : 0);
-
-      const selectedCollectSource = upiSources.find((s: any) => s.source_id === collectUpiSourceId) || upiSources[0];
-      const collectSplitDetails = collectPaymentMethod === 'UPI' && selectedCollectSource
-        ? { upi_id: selectedCollectSource.upi_id, upi_name: selectedCollectSource.name, upi_source_id: selectedCollectSource.source_id }
-        : selectedInvoice.split_details;
-
-      const result = await invoicesApi.updateInvoicePayment({
-        invoice_id: selectedInvoice.invoice_id,
-        tenant_id: tenantId || 'global',
-        payment_method: collectPaymentMethod,
-        received_amount: collectReceivedAmount,
-        balance_amount: balanceAmount,
-        split_details: collectSplitDetails,
-      });
-
-      if (result.success) {
-        invoiceDetailsCache.current.delete(selectedInvoice.invoice_id);
-        setCollectPaymentSuccess(true);
-        // Refresh the selected invoice to show updated payment
-        setSelectedInvoice({
-          ...selectedInvoice,
-          payment_method: collectPaymentMethod,
-          received_amount: collectReceivedAmount,
-          balance_amount: balanceAmount,
-          split_details: collectSplitDetails && typeof collectSplitDetails === 'object' ? JSON.stringify(collectSplitDetails) : (collectSplitDetails && collectSplitDetails !== 'null' ? collectSplitDetails : null),
-        });
-        // Refresh the full list
-        loadInvoices(true);
-        // Dispatch event to refresh CashierSettlement drawer cash instantly
-        window.dispatchEvent(new CustomEvent('checkout:completed'));
-        setTimeout(() => {
-          setCollectPaymentOpen(false);
-          setCollectPaymentSuccess(false);
-        }, 1500);
-      } else {
-        showToast('Failed to update payment: ' + (result.error || 'Unknown error'), 'error');
-      }
-    } catch (err: any) {
-      console.error('Failed to collect payment', err);
-      showToast('Failed to update payment: ' + (err?.message || 'Unknown error'), 'error');
-    } finally {
-      setCollectPaymentSaving(false);
-    }
-  };
+  const { handleCollectPayment } = useCollectPayment({
+    collectPaymentMethod, collectReceivedAmount, collectUpiSourceId, invoiceDetailsCache, loadInvoices,
+    selectedInvoice, setCollectPaymentOpen, setCollectPaymentSaving, setCollectPaymentSuccess,
+    setSelectedInvoice, showToast, upiSources,
+  });
 
   const { handleExportCSV } = useSalesCsvExport({
     accountingView, filterDate, filterDateEnd, invoiceTypeFilter, paymentFilter, search, setExportStatusMsg,
