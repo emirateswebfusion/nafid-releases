@@ -16,7 +16,7 @@
     "src/components/AiAssistant.tsx": 1194,
     "src/components/billing/views/BillingCartView.tsx": 1050,
     "src/components/billing/views/BillingTotalsPanel.tsx": 864,
-    "src/components/BillingPage.tsx": 4670,
+    "src/components/BillingPage.tsx": 4145,
     "src/components/BillingUICustomizer.tsx": 1153,
     "src/components/CashierSettlement.tsx": 3927,
     "src/components/ComboManager.tsx": 1059,
@@ -43,5 +43,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T02:00:11.735Z"
+  "updatedAt": "2026-10-23T02:12:31.599Z"
 }
