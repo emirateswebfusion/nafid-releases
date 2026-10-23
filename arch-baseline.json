@@ -19,7 +19,6 @@
     "src/components/BillingPage.tsx": 1611,
     "src/components/BillingUICustomizer.tsx": 1153,
     "src/components/ComboManager.tsx": 1059,
-    "src/components/CustomersPage.tsx": 3208,
     "src/components/DataUploadModal.tsx": 1249,
     "src/components/DesignSettings.tsx": 858,
     "src/components/EcommercePortal.tsx": 1934,
@@ -40,5 +39,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T08:14:23.883Z"
+  "updatedAt": "2026-10-23T08:45:25.838Z"
 }
