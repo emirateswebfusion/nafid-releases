@@ -8,8 +8,6 @@ import * as staffService from '../services/staffService.js';
 export function registerSettingsHandlers(): void {
   handle('emergency:purgeLocal', recycleBinService.emergencyPurge);
 
-  ipcMain.removeHandler('log:error');
-
   handle('settings:getAll', settingsService.getAll);
 
   ipcMain.removeHandler('settings:get');
