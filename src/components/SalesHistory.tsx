@@ -4,11 +4,8 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaCh
 import { useAuthStore } from '../store/authStore';
 import { getSetting } from '../data/settings';
 import { listInvoices, getInvoiceItems } from '../data/invoices';
-import { getProductsByIds } from '../data/products';
 import { getInvoicePreDeductionTotal } from '../utils/salesHistoryAmount';
 import {
-  buildTaxFilteredProductRows,
-  sortInvoicesByInvoiceNumber,
   type InvoiceProductRow,
   type InvoiceProductTotals,
 } from '../utils/salesHistoryTax';
@@ -46,6 +43,8 @@ import { useSalesCsvExport } from './sales/hooks/useSalesCsvExport';
 import { useInvoiceReprint } from './sales/hooks/useInvoiceReprint';
 import { useInvoiceWhatsApp } from './sales/hooks/useInvoiceWhatsApp';
 import { useInvoiceDetails } from './sales/hooks/useInvoiceDetails';
+import { useSalesInvoiceLoader } from './sales/hooks/useSalesInvoiceLoader';
+import { useConversionPreview } from './sales/hooks/useConversionPreview';
 
 /* ════════════════════════════════════════════
    MAIN COMPONENT
@@ -53,7 +52,7 @@ import { useInvoiceDetails } from './sales/hooks/useInvoiceDetails';
 export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const { tenantId, role, permissions } = useAuthStore();
   const [maskingConfig, setMaskingConfig] = useState<StaffDataMaskingConfig>(DEFAULT_STAFF_DATA_MASKING_CONFIG);
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<SalesInvoiceRow[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoiceRow | null>(null);
   const [canReturn, setCanReturn] = useState(true);
   const [items, setItems] = useState<SalesInvoiceItemRow[]>([]);
@@ -173,183 +172,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     [invoices, selectedInvoiceIds, convertibleMap]
   );
 
-  useEffect(() => {
-    if (!conversionOpen || selectedBosInvoices.length === 0) {
-      setConversionPreview(null);
-      return;
-    }
-    let cancelled = false;
-    setConversionPreviewLoading(true);
-    const tid = tenantId || 'global';
-
-    const runPreview = async () => {
-      // 1. Try IPC preview first
-      if (hasBridge('dbPreviewConvertBosToGst')) {
-        try {
-          const res = await invoicesApi.previewConvertBosToGst({
-            invoice_ids: selectedBosInvoices.map(i => i.invoice_id),
-            tenant_id: tid,
-            tax_mode: conversionTaxMode,
-          });
-          if (res?.success && res.invoices && res.invoices.length > 0) {
-            if (!cancelled) {
-              setConversionPreview(res);
-              setConversionPreviewLoading(false);
-            }
-            return;
-          }
-        } catch (err) {
-          console.warn('[SalesHistory] IPC previewConvertBosToGst failed or not registered, using client fallback:', err);
-        }
-      }
-
-      // 2. Robust Client-side fallback so preview updates immediately even before app restart
-      try {
-        let totalBos = 0;
-        let totalTaxable = 0;
-        let totalTax = 0;
-        let totalConverted = 0;
-        let hasRealGst = false;
-        let hasPaper = false;
-        const previewInvoices: any[] = [];
-
-        const allProductIds = new Set<string>();
-        const invoiceItemsMap: Record<string, any[]> = {};
-
-        for (const inv of selectedBosInvoices) {
-          if (isDesktopRuntime()) {
-            const items = await getInvoiceItems(inv.invoice_id);
-            invoiceItemsMap[inv.invoice_id] = Array.isArray(items) ? items : [];
-            for (const itm of invoiceItemsMap[inv.invoice_id]) {
-              if (itm.product_id) allProductIds.add(itm.product_id);
-            }
-          }
-        }
-
-        const productsMap: Record<string, any> = {};
-        if (allProductIds.size > 0) {
-          try {
-            const prods = await getProductsByIds({
-              tenant_id: tid,
-              product_ids: Array.from(allProductIds)
-            });
-            if (Array.isArray(prods)) {
-              for (const p of prods) productsMap[p.product_id] = p;
-            }
-          } catch {}
-        }
-
-        for (const inv of selectedBosInvoices) {
-          const items = invoiceItemsMap[inv.invoice_id] || [];
-          let newSubtotal = 0;
-          let newTotalTax = 0;
-          const skippedItems: string[] = [];
-          const isTaxInclusive = conversionTaxMode === 'INCLUSIVE';
-
-          for (const item of items) {
-            const prod = productsMap[item.product_id];
-            let da: any = {};
-            if (prod?.domain_attributes) {
-              try { da = JSON.parse(prod.domain_attributes); } catch {}
-            }
-            const isReal = prod ? (prod.is_gst_applicable === 1 && da.gst_type !== 'PAPER') : false;
-            const isPaper = prod ? (!isReal && (da.gst_type === 'PAPER' || Number(da.paper_mrp || 0) > 0 || Number(da.paper_purchase_price || 0) > 0 || Number(da.gst_purchase_price || 0) > 0 || Number(da.paper_stock || 0) > 0)) : false;
-
-            if (isReal) hasRealGst = true;
-            if (isPaper) hasPaper = true;
-
-            const qty = Number(item.quantity) || 1;
-            const taxRate = Number(prod?.tax_rate_percent || item.tax_rate || 18);
-            let unitPrice = Number(item.unit_price) || 0;
-
-            if (isPaper) {
-              if (Number(da.paper_offer_price || 0) > 0) unitPrice = Number(da.paper_offer_price);
-              else if (Number(da.paper_mrp || 0) > 0) unitPrice = Number(da.paper_mrp);
-            }
-
-            if (!unitPrice) unitPrice = Number(item.unit_price) || 0;
-
-            let itemTaxable = 0;
-            let itemTax = 0;
-            let itemTotal = 0;
-
-            if (isTaxInclusive && taxRate > 0) {
-              itemTotal = Math.round(unitPrice * qty * 100) / 100;
-              itemTaxable = Math.round((itemTotal / (1 + taxRate / 100)) * 100) / 100;
-              itemTax = Math.round((itemTotal - itemTaxable) * 100) / 100;
-            } else {
-              itemTaxable = Math.round(unitPrice * qty * 100) / 100;
-              itemTax = Math.round(itemTaxable * (taxRate / 100) * 100) / 100;
-              itemTotal = Math.round((itemTaxable + itemTax) * 100) / 100;
-            }
-
-            newSubtotal += itemTaxable;
-            newTotalTax += itemTax;
-          }
-
-          let discount = 0;
-          if (inv.discount_type === 'PERCENTAGE' && Number(inv.discount_value) > 0) {
-            discount = Math.round(newSubtotal * (Number(inv.discount_value) / 100) * 100) / 100;
-          } else if (inv.discount_type === 'FIXED' && Number(inv.discount_value) > 0) {
-            discount = Math.min(Number(inv.discount_value), newSubtotal);
-          }
-
-          const taxable = newSubtotal - discount;
-          const effRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
-          const adjTax = Math.round(taxable * effRate * 100) / 100;
-          const pointsDiscount = Math.max(0, Number(inv.points_redeemed_discount) || 0);
-          const scrapDeduction = inv.scrap_invoice_number ? Math.max(0, Number(inv.scrap_deduction) || 0) : 0;
-          const returnDeduction = inv.return_invoice_number ? Math.max(0, Number(inv.return_deduction) || 0) : 0;
-          const deductionsTotal = Math.round((pointsDiscount + scrapDeduction + returnDeduction) * 100) / 100;
-          const grossTotal = Math.round((taxable + adjTax) * 100) / 100;
-          const convTotal = items.length > 0
-            ? Math.max(0, Math.round((grossTotal - deductionsTotal) * 100) / 100)
-            : Number(inv.grand_total) || 0;
-
-          totalBos += Number(inv.grand_total) || 0;
-          totalTaxable += taxable;
-          totalTax += adjTax;
-          totalConverted += convTotal;
-
-          previewInvoices.push({
-            invoice_id: inv.invoice_id,
-            invoice_number: inv.invoice_number,
-            bos_grand_total: Number(inv.grand_total) || 0,
-            taxable_amount: taxable,
-            tax_amount: adjTax,
-            converted_grand_total: convTotal,
-            points_discount: pointsDiscount,
-            scrap_deduction: scrapDeduction,
-            return_deduction: returnDeduction,
-            deductions_total: deductionsTotal,
-            has_real_gst: hasRealGst,
-            has_paper: hasPaper,
-            skipped_items: skippedItems,
-          });
-        }
-
-        if (!cancelled) {
-          setConversionPreview({
-            invoices: previewInvoices,
-            total_bos_amount: Math.round(totalBos * 100) / 100,
-            total_taxable_amount: Math.round(totalTaxable * 100) / 100,
-            total_tax_amount: Math.round(totalTax * 100) / 100,
-            total_converted_amount: Math.round(totalConverted * 100) / 100,
-            has_real_gst: hasRealGst,
-            has_paper: hasPaper,
-            has_skipped: false,
-          });
-        }
-      } catch (e) {
-        console.error('[SalesHistory] Client preview fallback error:', e);
-      } finally {
-        if (!cancelled) setConversionPreviewLoading(false);
-      }
-    };
-
-    runPreview();
-    return () => { cancelled = true; };
-  }, [conversionOpen, conversionTaxMode, selectedBosInvoices, tenantId]);
+  useConversionPreview({
+    conversionOpen, conversionTaxMode, selectedBosInvoices, setConversionPreview, setConversionPreviewLoading,
+    tenantId,
+  });
 
   const COLLECT_PAYMENT_OPTIONS = [
     { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500', iconBg: 'bg-emerald-500/15' },
@@ -451,153 +277,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     return () => { cancelled = true; };
   }, [selectionMode, invoices.length]);
 
-  const loadTaxProductRows = async (filters: any, targetRate: string) => {
-    if (!hasBridge('dbGetInvoices') || !hasBridge('dbGetInvoiceItems')) return;
-    const requestId = ++taxProductRequestRef.current;
-    setTaxProductLoading(true);
-    try {
-      const data = await listInvoices({ ...filters, limit: 100000, offset: 0 });
-      if (!Array.isArray(data)) {
-        if (requestId === taxProductRequestRef.current) {
-          setTaxProductRows([]);
-          setTaxProductTotals(null);
-        }
-        return;
-      }
-
-      const scopedData = filters?.accounting_view === 'TAX_FILING'
-        ? data
-        : filters?.accounting_view === 'REAL_SALES'
-          ? data.filter((inv: any) => inv.invoice_type === 'BILL_OF_SUPPLY')
-          : data.filter((inv: any) => !inv.converted_from_invoice_id);
-
-      const itemsByInvoice: Record<string, any[]> = {};
-      await Promise.all(scopedData.map(async (inv: any) => {
-        try {
-          const invoiceItems = await getInvoiceItems(inv.invoice_id);
-          itemsByInvoice[inv.invoice_id] = Array.isArray(invoiceItems) ? invoiceItems : [];
-        } catch {
-          itemsByInvoice[inv.invoice_id] = [];
-        }
-      }));
-
-      if (requestId !== taxProductRequestRef.current) return;
-      const result = buildTaxFilteredProductRows(
-        sortInvoicesByInvoiceNumber(scopedData),
-        itemsByInvoice,
-        Number(targetRate)
-      );
-      setTaxProductRows(result.rows);
-      setTaxProductTotals(result.totals);
-    } catch (err) {
-      console.error('[SalesHistory] Failed to load GST product rows:', err);
-      if (requestId === taxProductRequestRef.current) {
-        setTaxProductRows([]);
-        setTaxProductTotals(null);
-      }
-    } finally {
-      if (requestId === taxProductRequestRef.current) setTaxProductLoading(false);
-    }
-  };
-
-  const loadInvoices = async (reset = false) => {
-    if (!reset && isFetching) return;
-    setIsFetching(true);
-    if (isDesktopRuntime()) {
-      const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
-      const currentOffset = reset ? 0 : offset;
-      
-      const isBiller = role === 'BILLER';
-      const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
-      const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
-      const effectiveInvoiceType = hasGstInvoicesOnly
-        ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
-        : accountingView === 'REAL_SALES'
-          ? 'BILL_OF_SUPPLY'
-          : (invoiceTypeFilter || undefined);
-
-      const isStaffUser = isStaffRole(role);
-      const shouldMaskStaff = shouldApplyStaffMasking(role, maskingConfig);
-      let effectiveFilterDate = filterDate || undefined;
-      let effectiveFilterDateEnd = filterDateEnd || undefined;
-      if (shouldMaskStaff && maskingConfig.sales_history_scope !== 'ALL') {
-        const staffScope = getStaffSalesDateScope(maskingConfig, isStaffUser);
-        if (staffScope.startDate) effectiveFilterDate = staffScope.startDate;
-        if (staffScope.endDate) effectiveFilterDateEnd = staffScope.endDate;
-      }
-
-      try {
-        const filters = {
-          user_id: userId, tenant_id: tenantId, role,
-          search: debouncedSearch || undefined, payment_method: paymentFilter || undefined,
-          invoice_type: effectiveInvoiceType,
-          tax_rate_percent: accountingView === 'REAL_SALES' ? undefined : (taxPercentageFilter || undefined),
-          filterDate: effectiveFilterDate, filterDateEnd: effectiveFilterDateEnd,
-          accounting_view: accountingView,
-        };
-
-        const promises: Promise<any>[] = [
-          listInvoices({ ...filters, limit: LIMIT, offset: currentOffset })
-        ];
-        if (reset && hasBridge('dbGetInvoicesSummary')) {
-          promises.push(invoicesApi.getInvoicesSummary(filters));
-        }
-
-        const [data, summaryRes] = await Promise.all(promises);
-
-        if (reset && summaryRes && typeof summaryRes === 'object' && !('error' in summaryRes)) {
-          setDbSummary(summaryRes);
-        }
-
-        if (reset) {
-          if (taxFilterActive) {
-            void loadTaxProductRows(filters, taxPercentageFilter);
-          } else {
-            taxProductRequestRef.current++;
-            setTaxProductRows([]);
-            setTaxProductTotals(null);
-            setTaxProductLoading(false);
-          }
-        }
-
-        if (Array.isArray(data)) {
-          if (reset) {
-            setInvoices(data);
-            // Pre-warm top 5 most recent bills quietly so clicking any recent bill is 100% instant
-            if (data.length > 0) {
-              setTimeout(() => {
-                data.slice(0, 5).forEach((item: any) => {
-                  if (item?.invoice_id) prefetchInvoiceRef.current(item.invoice_id);
-                });
-              }, 200);
-            }
-          }
-          else {
-            setInvoices(prev => {
-              const existingIds = new Set(prev.map(i => i.invoice_id));
-              const newItems = data.filter(i => !existingIds.has(i.invoice_id));
-              return [...prev, ...newItems];
-            });
-          }
-          setOffset(currentOffset + data.length);
-          setHasMore(data.length === LIMIT);
-        } else if (data && typeof data === 'object' && 'error' in data) {
-          console.error('[SalesHistory] dbGetInvoices returned an error object:', data);
-        } else {
-          console.warn('[SalesHistory] Unexpected response from dbGetInvoices:', data);
-        }
-      } catch (err: any) {
-        console.error('[SalesHistory] Exception while calling dbGetInvoices:', err);
-      } finally {
-        setLoading(false);
-        setIsFetching(false);
-      }
-    } else {
-      console.warn('[SalesHistory] isDesktopRuntime() is missing - unable to query local database.');
-      setLoading(false);
-      setIsFetching(false);
-    }
-  };
+  const { loadInvoices } = useSalesInvoiceLoader({
+    accountingView, debouncedSearch, filterDate, filterDateEnd, invoiceTypeFilter, isFetching, LIMIT,
+    maskingConfig, offset, paymentFilter, prefetchInvoiceRef, setDbSummary, setHasMore, setInvoices,
+    setIsFetching, setLoading, setOffset, setTaxProductLoading, setTaxProductRows, setTaxProductTotals,
+    taxFilterActive, taxPercentageFilter, taxProductRequestRef,
+  });
 
   const sentinelRef = useRef<HTMLTableRowElement | null>(null);
 
