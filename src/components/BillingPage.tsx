@@ -4,15 +4,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
-import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { parseUTCDate } from '../utils/receiptGenerator';
-import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from '../store/tabStore';
+import { useTabStore, type SplitDetails } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore } from '../featureFlags';
 import { DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { displayInvoiceNumber, getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
+import { displayInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
 import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
@@ -38,7 +37,6 @@ import { customersApi } from '../data/customers';
 import { bridgeEvents } from '../data/events';
 import { invoicesApi } from '../data/invoices';
 import { productsApi } from '../data/products';
-import { quotationsApi } from '../data/quotations';
 import { returnsApi } from '../data/returns';
 import { scrapApi } from '../data/scrap';
 
@@ -61,6 +59,9 @@ import { useHeldBills } from './billing/hooks/useHeldBills';
 import { useWhatsAppSend } from './billing/hooks/useWhatsAppSend';
 import { useSaveQuotation } from './billing/hooks/useSaveQuotation';
 import { useReturnFromCart } from './billing/hooks/useReturnFromCart';
+import { useTabNumberRefresh } from './billing/hooks/useTabNumberRefresh';
+import { useScrapInvoiceEdit } from './billing/hooks/useScrapInvoiceEdit';
+import { useBillingEntry } from './billing/hooks/useBillingEntry';
 import { useCartKeyboard } from './billing/hooks/useCartKeyboard';
 import { useBillingSettingsLoader } from './billing/hooks/useBillingSettingsLoader';
 import { useProductFormState } from './billing/hooks/useProductFormState';
@@ -503,7 +504,6 @@ export function BillingPage() {
   // useTabStore values are destructured at the top of the component
 
   const tabCounter = useRef(0);
-  const initialized = useRef(false);
 
   const handleAddTab = async () => {
     const { billNumber, scrapNumber, quotationNumber, returnNumber } = await peekNewTabNumbers({ tenantId, enableThreeInvoiceSeries });
@@ -690,209 +690,10 @@ export function BillingPage() {
     return sum + (Number(item.quantity) || 0);
   }, 0);
 
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
-    const currentUiConfig = useBillingUIStore.getState().config;
-    const navSource = sessionStorage.getItem('last_pos_nav_source') || 'page_exit';
-    
-    // Evaluate exact toggle based on navigation source
-    const preserveCart = navSource === 'header_button'
-      ? (currentUiConfig.preserveCartOnHeaderNavigation !== false)
-      : (currentUiConfig.preserveCartOnPageExit !== false);
-
-    sessionStorage.removeItem('last_pos_nav_source');
-
-    const isPendingNewQuotation = localStorage.getItem('pendingNewQuotation') === 'true';
-    if (isPendingNewQuotation) {
-      localStorage.removeItem('pendingNewQuotation');
-    }
-    const editQ = localStorage.getItem('editQuotationData');
-    const isQActive = isPendingNewQuotation || isQuotationMode || Boolean(editQ);
-
-    const existingTabs = useTabStore.getState().tabs;
-    const currentActiveTabId = useTabStore.getState().activeTabId;
-
-    if (isPendingNewQuotation) {
-      // Dedicated robust Quotation Mode initialization
-      useCartStore.getState().clearCart();
-      useCartStore.getState().setReturnMode(false);
-      useCartStore.getState().setIsScrapMode(false);
-      useCartStore.getState().setEditingQuotation(null, null);
-      useCartStore.getState().setEditingInvoice(null, null, null);
-      useCartStore.getState().setQuotationMode(true);
-
-      const quotationSnapshot: TabSnapshot = {
-        items: [],
-        invoiceType: quotationGstEnabledSetting ? 'GST' : 'BILL_OF_SUPPLY',
-        discountType: 'FIXED',
-        discountValue: 0,
-        customerState: 'KL',
-        scrapDeduction: 0,
-        scrapInvoiceNumber: '',
-        returnDeduction: 0,
-        returnInvoiceNumber: '',
-        isQuotationMode: true,
-        isReturnMode: false,
-        isScrapMode: false,
-        returnRefundMethod: 'ADJUST_BILL',
-        editingQuotationId: null,
-        editingQuotationNumber: null,
-        editingInvoiceId: null,
-        editingInvoiceNumber: null,
-        editingInvoiceRole: null,
-        pendingScrapInvoiceToEdit: null,
-      };
-
-      const activeTab = existingTabs.find(t => t.id === currentActiveTabId);
-      // If current active tab is clean (no items and not editing), adapt it to New Quote
-      if (activeTab && (!activeTab.snapshot?.items || activeTab.snapshot.items.length === 0) && !activeTab.snapshot?.editingInvoiceNumber) {
-        updateActiveTab({
-          title: 'New Quote',
-          customerName: '',
-          customerPhone: '',
-          customerGstin: '',
-          customerAddress: '',
-          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
-          receivedAmount: 0,
-          reservedInvoiceNumber: '',
-          reservedQuotationNumber: '',
-        });
-        const { tabs: currentTabs, activeTabId: curTabId } = useTabStore.getState();
-        const updatedTabs = currentTabs.map(t => t.id === curTabId ? {
-          ...t,
-          title: 'New Quote',
-          reservedInvoiceNumber: '',
-          reservedQuotationNumber: '',
-          snapshot: quotationSnapshot,
-        } : t);
-        useTabStore.setState({ tabs: updatedTabs });
-        saveStoredTabs(updatedTabs, curTabId);
-        useCartStore.setState({
-          items: [],
-          isQuotationMode: true,
-          isReturnMode: false,
-          isScrapMode: false,
-          editingQuotationId: null,
-          editingQuotationNumber: null,
-          editingInvoiceId: null,
-          editingInvoiceNumber: null,
-        });
-        syncActiveSnapshot();
-        reserveQuotationNumberForTab(true);
-      } else {
-        // Otherwise append a new dedicated tab for Quotation mode
-        addTab(quotationSnapshot, 'New Quote');
-        reserveQuotationNumberForTab(true);
-      }
-      setTimeout(() => {
-        window.focus();
-        if (searchRef.current) {
-          searchRef.current.focus();
-          searchRef.current.select();
-        }
-      }, 100);
-    } else if (preserveCart && existingTabs.length > 0 && !isQActive) {
-      // PRESERVE CART & TABS
-      let activeTab = existingTabs.find(t => t.id === currentActiveTabId);
-      if (!activeTab) {
-        activeTab = existingTabs[0];
-        useTabStore.setState({ activeTabId: activeTab.id });
-      }
-      if (activeTab.snapshot) {
-        const isRet = Boolean(activeTab.snapshot.isReturnMode);
-        const rawItems = activeTab.snapshot.items || [];
-        const hasReturnItems = rawItems.some((i: any) => i.isReturnItem);
-        const sanitizedItems = isRet
-          ? rawItems.filter((i: any) => i.isReturnItem)
-          : rawItems.filter((i: any) => !i.isReturnItem);
-
-        if (!isRet && (hasReturnItems || activeTab.reservedReturnNumber)) {
-          updateActiveTab({
-            customerName: '',
-            customerPhone: '',
-            customerGstin: '',
-            customerAddress: '',
-            customerId: '',
-            receivedAmount: 0,
-            actualRefundPaid: 0,
-            reservedReturnNumber: '',
-          });
-        }
-
-        useCartStore.setState({
-          items: sanitizedItems,
-          invoiceType: activeTab.snapshot.invoiceType || 'BILL_OF_SUPPLY',
-          discountType: activeTab.snapshot.discountType || 'FIXED',
-          discountValue: activeTab.snapshot.discountValue || 0,
-          customerState: activeTab.snapshot.customerState || 'KL',
-          scrapDeduction: activeTab.snapshot.scrapDeduction || 0,
-          scrapInvoiceNumber: activeTab.snapshot.scrapInvoiceNumber || '',
-          returnDeduction: activeTab.snapshot.returnDeduction || 0,
-          returnInvoiceNumber: activeTab.snapshot.returnInvoiceNumber || '',
-          isQuotationMode: activeTab.snapshot.isQuotationMode || false,
-          isReturnMode: activeTab.snapshot.isReturnMode || false,
-          isScrapMode: activeTab.snapshot.isScrapMode || false,
-          returnRefundMethod: activeTab.snapshot.returnRefundMethod || 'ADJUST_BILL',
-          editingQuotationId: activeTab.snapshot.editingQuotationId || null,
-          editingQuotationNumber: activeTab.snapshot.editingQuotationNumber || null,
-          editingInvoiceId: activeTab.snapshot.editingInvoiceId || null,
-          editingInvoiceNumber: activeTab.snapshot.editingInvoiceNumber || null,
-          editingInvoiceRole: activeTab.snapshot.editingInvoiceRole || null,
-          pendingScrapInvoiceToEdit: activeTab.snapshot.pendingScrapInvoiceToEdit || null,
-        });
-      }
-      tabCounter.current = Math.max(1, existingTabs.length);
-    } else {
-      // LEGACY RESET or NEW EXPLICIT QUOTATION
-      useTabStore.setState({ tabs: [], activeTabId: '' });
-
-      tabCounter.current++;
-      if (isQActive) {
-        useCartStore.getState().setQuotationMode(true);
-        const snapshot: TabSnapshot = {
-          items: [],
-          invoiceType: 'BILL_OF_SUPPLY',
-          discountType: 'FIXED',
-          discountValue: 0,
-          customerState: 'KL',
-          scrapDeduction: 0,
-          scrapInvoiceNumber: '',
-          returnDeduction: 0,
-          returnInvoiceNumber: '',
-          isQuotationMode: true,
-          isReturnMode: false,
-          isScrapMode: false,
-          returnRefundMethod: 'ADJUST_BILL',
-          editingQuotationId: null,
-          editingQuotationNumber: null,
-          editingInvoiceId: null,
-          editingInvoiceNumber: null,
-          editingInvoiceRole: null,
-          pendingScrapInvoiceToEdit: null,
-        };
-        addTab(snapshot, `New Quote`);
-        reserveQuotationNumberForTab(true);
-      } else {
-        addTab(undefined, `Bill ${tabCounter.current}`);
-      }
-      useCartStore.getState().setEditingInvoice(null, null, null);
-    }
-
-    return () => {
-      // Unmount cleanup: sync active cart snapshot to tabStore when navigating away from BillingPage
-      const cfg = useBillingUIStore.getState().config;
-      const src = sessionStorage.getItem('last_pos_nav_source') || 'page_exit';
-      const shouldSync = src === 'header_button'
-        ? (cfg.preserveCartOnHeaderNavigation !== false)
-        : (cfg.preserveCartOnPageExit !== false);
-
-      if (shouldSync) {
-        useTabStore.getState().syncActiveSnapshot();
-      }
-    };
-  }, []);
+  useBillingEntry({
+    addTab, isCashSettlementEnabled, isQuotationMode, quotationGstEnabledSetting, reserveQuotationNumberForTab,
+    searchRef, syncActiveSnapshot, tabCounterRef: tabCounter, updateActiveTab,
+  });
 
   // receivedAmount stays 0 until user enters a value — no auto-fill to grandTotal
 
@@ -911,16 +712,11 @@ export function BillingPage() {
     setUpiPageConfig, shopName, tenantId,
   });
 
-  // Re-peek invoice number when customer GSTIN / B2B mode changes (B2C ↔ B2B switch)
-  const prevIsB2B = useRef(false);
-  useEffect(() => {
-    if (!enableThreeInvoiceSeries || invoiceType !== 'GST') return;
-    if (prevIsB2B.current !== isB2B) {
-      prevIsB2B.current = isB2B;
-      const series = isB2B ? 'gst_b2b' : 'gst_b2c';
-      reserveGstSeriesNumber({ tenantId, getActiveTab, updateActiveTab }, series);
-    }
-  }, [isB2B, enableThreeInvoiceSeries, invoiceType, tenantId, getActiveTab, updateActiveTab]);
+  useTabNumberRefresh({
+    activeTabId, customerGstin, enableThreeInvoiceSeries, getActiveTab, invoiceType, isB2B, isQuotationMode,
+    isReturnMode, isScrapMode, reserveInvoiceNumberForTab, reserveQuotationNumberForTab,
+    reserveReturnNumberForTab, reserveScrapInvoiceNumberForTab, tenantId, updateActiveTab,
+  });
 
   // Scrap invoice view state
   const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
@@ -932,176 +728,11 @@ export function BillingPage() {
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
 
-  // Reserve invoice/scrap/quotation/return number when tab becomes active without a reservation
-  useEffect(() => {
-    if (isScrapMode) {
-      reserveScrapInvoiceNumberForTab();
-    } else if (isQuotationMode) {
-      reserveQuotationNumberForTab();
-    } else if (isReturnMode) {
-      reserveReturnNumberForTab();
-    } else {
-      reserveInvoiceNumberForTab();
-    }
-  }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
-
-  // Whenever checkout/billing completes, invalidate stale reserved numbers across tabs and re-peek
-  useEffect(() => {
-    const handleInvoiceCreated = async () => {
-      const { tabs } = useTabStore.getState();
-      let updatedTabs = [...tabs];
-
-      let baseNormal = '';
-      let baseScrap = '';
-      let baseQuotation = '';
-      let baseReturn = '';
-
-      if (isDesktopRuntime()) {
-        try {
-          const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
-          const r = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-          if (r?.success && r.invoiceNumber) baseNormal = r.invoiceNumber;
-        } catch {}
-
-        try {
-          const r = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
-          if (r?.success && r.invoiceNumber) baseScrap = r.invoiceNumber;
-        } catch {}
-
-        try {
-          const r = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
-          if (r?.success && r.quotationNumber) baseQuotation = r.quotationNumber;
-        } catch {}
-
-        try {
-          const r = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
-          if (r?.success && r.returnNumber) baseReturn = r.returnNumber;
-        } catch {}
-      }
-
-      const reservedNormalList: string[] = [];
-      const reservedScrapList: string[] = [];
-      const reservedQuotationList: string[] = [];
-      const reservedReturnList: string[] = [];
-
-      updatedTabs = updatedTabs.map(t => {
-        if (t.snapshot.editingInvoiceId || t.snapshot.editingQuotationId) return t;
-
-        const nextNormal = baseNormal ? getNextOffsetInvoiceNumber(baseNormal, reservedNormalList) : '';
-        if (nextNormal) reservedNormalList.push(nextNormal);
-
-        const nextScrap = baseScrap ? getNextOffsetInvoiceNumber(baseScrap, reservedScrapList) : '';
-        if (nextScrap) reservedScrapList.push(nextScrap);
-
-        const nextQuotation = baseQuotation ? getNextOffsetInvoiceNumber(baseQuotation, reservedQuotationList) : '';
-        if (nextQuotation) reservedQuotationList.push(nextQuotation);
-
-        const nextReturn = baseReturn ? getNextOffsetInvoiceNumber(baseReturn, reservedReturnList) : '';
-        if (nextReturn) reservedReturnList.push(nextReturn);
-
-        const isScrap = t.snapshot.isScrapMode;
-        const isQuotation = t.snapshot.isQuotationMode;
-        const isReturn = t.snapshot.isReturnMode;
-        const activeNum = isReturn ? nextReturn : isScrap ? nextScrap : isQuotation ? nextQuotation : nextNormal;
-
-        const oldTitle = t.title;
-        const shouldUpdateTitle = !oldTitle || oldTitle === 'New' || oldTitle === t.reservedInvoiceNumber || oldTitle === t.reservedScrapInvoiceNumber || oldTitle === t.reservedQuotationNumber || oldTitle === t.reservedReturnNumber || oldTitle.startsWith('Bill ') || oldTitle.startsWith('GST-');
-
-        return {
-          ...t,
-          reservedInvoiceNumber: nextNormal,
-          reservedScrapInvoiceNumber: nextScrap,
-          reservedQuotationNumber: nextQuotation,
-          reservedReturnNumber: nextReturn,
-          title: shouldUpdateTitle && activeNum ? activeNum : t.title,
-        };
-      });
-
-      useTabStore.setState({ tabs: updatedTabs });
-    };
-
-    window.addEventListener('checkout:completed', handleInvoiceCreated);
-    window.addEventListener('invoice:created', handleInvoiceCreated);
-    return () => {
-      window.removeEventListener('checkout:completed', handleInvoiceCreated);
-      window.removeEventListener('invoice:created', handleInvoiceCreated);
-    };
-  }, [tenantId, enableThreeInvoiceSeries, invoiceType, customerGstin]);
-
-  // Ensure tab title stays synced with scrap editing invoice number
-  useEffect(() => {
-    if (isScrapMode && editingInvoiceNumber) {
-      const tab = getActiveTab();
-      if (tab && tab.title !== editingInvoiceNumber) {
-        updateActiveTab({ title: editingInvoiceNumber, reservedScrapInvoiceNumber: editingInvoiceNumber });
-      }
-    }
-  }, [isScrapMode, editingInvoiceNumber, getActiveTab, updateActiveTab]);
-
-  const pendingScrapInvoiceToEdit = useCartStore(s => s.pendingScrapInvoiceToEdit);
-
-  const loadScrapInvoiceForEdit = useCallback(async (invNum: string) => {
-    if (!invNum || !isDesktopRuntime()) return;
-    const tid = tenantId || 'global';
-    const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tid, scrap_invoice_number: invNum });
-    if (!detail || !detail.transactions || detail.transactions.length === 0) return;
-
-    // Explicitly disable Return, Quotation & Past Bill modes first
-    setReturnMode(false);
-    setQuotationMode(false);
-    setIsPastBillMode(false);
-    setSelectedReturnInvoice(null);
-
-    // Clear cart first, then enable Scrap mode
-    clearCart();
-    clearScrapDeduction();
-    setIsScrapMode(true);
-    useCartStore.getState().setEditingInvoice(invNum, invNum, 'OWNER');
-    setDiscount(0, 'FIXED');
-
-    const firstTx = detail.transactions[0];
-    const savedPaymentStatus = ['CASH', 'CREDIT', 'SETTLED'].includes(firstTx.payment_status) ? firstTx.payment_status : 'PENDING';
-
-    updateActiveTab({
-      customerName: firstTx.party_name || '',
-      customerPhone: firstTx.customer_phone || '',
-      customerAddress: firstTx.customer_address || '',
-      reservedReturnNumber: '',
-      reservedInvoiceNumber: '',
-      reservedQuotationNumber: '',
-      reservedScrapInvoiceNumber: invNum,
-      scrapPaymentStatus: savedPaymentStatus,
-      paymentMethod: savedPaymentStatus === 'CASH' ? 'CASH' : 'PENDING',
-      receivedAmount: 0,
-      title: invNum,
-    });
-
-    // Populate scrap items cleanly into cart
-    detail.transactions.forEach((tx: any) => {
-      addItem({
-        product_id: tx.transaction_id || uuidv4(),
-        scrap_category_id: tx.scrap_category_id,
-        name: tx.scrap_category_name || 'Scrap Item',
-        base_price: Number(tx.rate),
-        purchase_price: Number(tx.rate),
-        tax_rate_percent: 0,
-        quantity: Number(tx.quantity) || 0,
-        isScrap: true,
-        billing_type: 'WEIGHT',
-        unit: tx.unit || 'Kgs',
-      });
-    });
-    syncActiveSnapshot();
-  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount, setIsPastBillMode]);
-
-  useEffect(() => {
-    if (pendingScrapInvoiceToEdit) {
-      const invNum = pendingScrapInvoiceToEdit;
-      useCartStore.getState().setPendingScrapInvoiceToEdit(null);
-      updateActiveTab({ title: invNum, reservedScrapInvoiceNumber: invNum });
-      loadScrapInvoiceForEdit(invNum);
-    }
-  }, [pendingScrapInvoiceToEdit, loadScrapInvoiceForEdit, updateActiveTab]);
+  const { loadScrapInvoiceForEdit } = useScrapInvoiceEdit({
+    addItem, clearCart, clearScrapDeduction, editingInvoiceNumber, getActiveTab, isScrapMode, setDiscount,
+    setIsPastBillMode, setIsScrapMode, setQuotationMode, setReturnMode, setSelectedReturnInvoice,
+    syncActiveSnapshot, tenantId, updateActiveTab,
+  });
 
   // Closing the billing page — clear modes persisted in the global cart store
   // (Return/Quotation) so the next open starts fresh, without a one-frame flash
