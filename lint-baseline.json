@@ -1,8 +1,8 @@
 {
-  "errors": 2854,
+  "errors": 2844,
   "warnings": 59,
   "byRule": {
-    "@typescript-eslint/no-explicit-any": 2388,
+    "@typescript-eslint/no-explicit-any": 2383,
     "@typescript-eslint/no-unused-vars": 104,
     "no-empty": 202,
     "no-useless-assignment": 26,
@@ -11,10 +11,10 @@
     "no-useless-escape": 5,
     "no-dupe-else-if": 2,
     "react-hooks/rules-of-hooks": 2,
-    "react-hooks/set-state-in-effect": 50,
+    "react-hooks/set-state-in-effect": 46,
     "react-hooks/refs": 13,
     "react-hooks/exhaustive-deps": 59,
-    "react-hooks/immutability": 19,
+    "react-hooks/immutability": 18,
     "react-hooks/purity": 5,
     "react-hooks/preserve-manual-memoization": 12,
     "@typescript-eslint/parser": 2,
@@ -24,5 +24,5 @@
     "prefer-const": 2,
     "@typescript-eslint/no-empty-object-type": 1
   },
-  "updatedAt": "2026-10-23T15:55:32.971Z"
+  "updatedAt": "2026-10-23T19:22:43.326Z"
 }
