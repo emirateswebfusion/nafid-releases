@@ -1327,7 +1327,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           promise: whatsappApi.shopClosingSaveConfig({
             tenant_id: tenantId || 'global',
             config: shopClosingConfig,
-            user_role: role,
+            user_role: role as string | undefined,
           }),
           name: 'shop_closing_config'
         }] : []),
@@ -1690,7 +1690,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       case 'whatsapp_settings':
         return (
           <WhatsAppSettingsTab
-            tenantId={tenantId}
+            tenantId={tenantId as string | undefined}
             autoWhatsAppSend={autoWhatsAppSend}
             setAutoWhatsAppSend={setAutoWhatsAppSend}
             activeWhatsAppTab={activeWhatsAppTab}

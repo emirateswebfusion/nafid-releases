@@ -316,6 +316,15 @@ export function hasPermission(user: UserPermissions | null | undefined, permissi
     return false;
 }
 
+/**
+ * True for the legacy auth role 'BILLER'. Auth roles are normalised to 'STAFF' (server login and the POS store), so
+ * this is always false today: the biller-only options it guards (OPT_VIEW_GST, OPT_VIEW_GST_INVOICES_ONLY) are not
+ * enforced. Whether they should apply to STAFF is a product decision (see docs/architecture/06-change-guide.md).
+ */
+export function isLegacyBillerRole(role: string | null | undefined): boolean {
+  return role === 'BILLER';
+}
+
 export function isAdminRole(role: string | null | undefined): boolean {
   if (!role) return false;
   const r = role.toUpperCase().trim();

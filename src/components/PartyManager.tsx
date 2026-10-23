@@ -454,7 +454,7 @@ export function PartyManager({
         }
         if (!foundInvoice && hasBridge('dbGetReturnInvoiceByNumber') && (term.toUpperCase().startsWith('RTN-') || term.toUpperCase().startsWith('RET-'))) {
           try {
-            const ret = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tId, return_number: term });
+            const ret = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tId as string, return_number: term });
             if (ret && ret.invoice_id) {
               const res = await invoicesApi.getInvoices({ search: ret.invoice_id, tenant_id: tId });
               if (Array.isArray(res) && res.length > 0) {
@@ -516,7 +516,7 @@ export function PartyManager({
         let foundScrap: any = null;
         for (const term of candidateTerms) {
           if (hasBridge('dbGetScrapInvoiceByNumber')) {
-            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId, scrap_invoice_number: term });
+            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId as string, scrap_invoice_number: term });
             if (scrap && scrap.scrap_invoice_number) {
               foundScrap = scrap;
               break;
@@ -1774,7 +1774,7 @@ export function PartyManager({
           ledgerWhatsappEnabled={ledgerWhatsappEnabled}
           ledgerWhatsappIncludeShop={ledgerWhatsappIncludeShop}
           shopDetails={shopDetails}
-          shopName={shopName}
+          shopName={shopName as string | undefined}
           statusMessage={statusMessage}
           getPartyBalance={getPartyBalance}
           handleSaveTx={handleSaveTx}

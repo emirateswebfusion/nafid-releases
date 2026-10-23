@@ -35,9 +35,9 @@
     "src/components/SettingsGrades.tsx": 1097,
     "src/components/SettingsManager.tsx": 2254,
     "src/components/StaffManager.tsx": 1803,
-    "src/components/StockReport.tsx": 1293,
+    "src/components/StockReport.tsx": 1289,
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T08:45:25.838Z"
+  "updatedAt": "2026-10-23T09:06:18.246Z"
 }

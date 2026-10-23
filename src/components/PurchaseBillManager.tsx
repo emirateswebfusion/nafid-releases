@@ -656,7 +656,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               <PurchaseBillFormSection
                 ref={gstRef}
                 type="GST"
-                tenantId={tenantId}
+                tenantId={tenantId as string}
                 billDate={billDate}
                 supplierName={supplierName}
                 supplierId={supplierId}
@@ -675,7 +675,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               <PurchaseBillFormSection
                 ref={estRef}
                 type="ESTIMATE"
-                tenantId={tenantId}
+                tenantId={tenantId as string}
                 billDate={billDate}
                 supplierName={supplierName}
                 supplierId={supplierId}

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { useCartStore } from './cartStore';
 import { convertLegacyRestrictedPageToPermissions } from '../utils/permissions';
 import { authApi } from '../data/auth';
@@ -95,7 +95,9 @@ function formatError(err: any, fallback: string): string {
   return String(err);
 }
 
-export const useAuthStore = create<AuthState>()((set, get) => ({
+// Explicit type: the initializer calls useAuthStore.getState() itself, and with noImplicitAny off that circular
+// reference made tsc infer `any` for the whole store (every screen read tenantId etc. untyped).
+export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState>()((set, get) => ({
   isAuthenticated: false,
   token: null,
   tenantId: null,

@@ -59,8 +59,8 @@ export function useSearchResultsLoader({
 
       try {
         const [products, combos] = await Promise.all([
-          listProducts({ tenant_id: tenantId, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
-          combosApi.getComboOffers({ tenant_id: tenantId, search: trimmed, only_active: true }),
+          listProducts({ tenant_id: tenantId as string, search: backendSearch, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
+          combosApi.getComboOffers({ tenant_id: tenantId as string, search: trimmed, only_active: true }),
         ]);
 
         if (!isCurrent) return;

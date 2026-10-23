@@ -7,6 +7,7 @@ import { isStaffRole, shouldApplyStaffMasking, getStaffSalesDateScope } from '..
 import type { StaffDataMaskingConfig } from '../../../utils/staffDataMasking';
 import type { InvoiceProductRow, InvoiceProductTotals } from '../../../utils/salesHistoryTax';
 import type { SalesInvoiceRow } from '../salesTypes';
+import { isLegacyBillerRole } from '../../../utils/permissions';
 
 export interface UseSalesInvoiceLoaderContext {
   accountingView: "REAL_SALES" | "TAX_FILING" | "ALL";
@@ -96,7 +97,7 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
       const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
       const currentOffset = reset ? 0 : offset;
       
-      const isBiller = role === 'BILLER';
+      const isBiller = isLegacyBillerRole(role);
       const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
       const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
       const effectiveInvoiceType = hasGstInvoicesOnly
@@ -117,7 +118,7 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
 
       try {
         const filters = {
-          user_id: userId, tenant_id: tenantId, role,
+          user_id: userId as string | undefined, tenant_id: tenantId as string | undefined, role: role as string | undefined,
           search: debouncedSearch || undefined, payment_method: paymentFilter || undefined,
           invoice_type: effectiveInvoiceType,
           tax_rate_percent: accountingView === 'REAL_SALES' ? undefined : (taxPercentageFilter || undefined),

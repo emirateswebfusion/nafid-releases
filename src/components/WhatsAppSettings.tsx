@@ -312,7 +312,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         await whatsappApi.shopClosingSaveConfig({
           tenant_id: effectiveTenantId,
           config: updated,
-          user_role: role,
+          user_role: role as string | undefined,
         });
       }
     } catch (err: any) {
@@ -397,7 +397,7 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         const res = await whatsappApi.shopClosingSaveConfig({
           tenant_id: effectiveTenantId,
           config: closingConfig,
-          user_role: role,
+          user_role: role as string | undefined,
         });
 
         if (res && res.success) {

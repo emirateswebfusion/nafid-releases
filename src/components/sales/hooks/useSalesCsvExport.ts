@@ -6,6 +6,7 @@ import { sortInvoicesByInvoiceNumber, buildInvoiceProductRows } from '../../../u
 import { formatDate, PAYMENT_LABELS } from '../salesHistoryFormat';
 import { getProductsByIds } from '../../../data/products';
 import { getInvoiceNetTotal } from '../../../utils/salesHistoryAmount';
+import { isLegacyBillerRole } from '../../../utils/permissions';
 
 export interface UseSalesCsvExportContext {
   accountingView: "REAL_SALES" | "TAX_FILING" | "ALL";
@@ -32,7 +33,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
     setExportStatusMsg('Fetching all matching records…');
     try {
       const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
-      const isBiller = role === 'BILLER';
+      const isBiller = isLegacyBillerRole(role);
       const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
       const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
       const effectiveInvoiceType = hasGstInvoicesOnly
@@ -42,7 +43,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
           : (invoiceTypeFilter || undefined);
 
       const data = await listInvoices({
-        user_id: userId, tenant_id: tenantId, role,
+        user_id: userId as string | undefined, tenant_id: tenantId as string | undefined, role: role as string | undefined,
         limit: 99999, offset: 0,
         search: search || undefined,
         payment_method: paymentFilter || undefined,

@@ -72,7 +72,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
     setLoading(true);
     try {
       if (isDesktopRuntime()) {
-        const data = await returnsApi.getReturns({ tenant_id: tenantId, search: search || undefined });
+        const data = await returnsApi.getReturns({ tenant_id: tenantId as string, search: search || undefined });
         if (Array.isArray(data)) setReturns(data);
       }
     } catch (err) {

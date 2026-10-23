@@ -10,7 +10,7 @@ import { RedCrossButton } from './ui/RedCrossButton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
-import { formatRoleName, isAdminRole } from '../utils/permissions';
+import { formatRoleName, isAdminRole, isLegacyBillerRole } from '../utils/permissions';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { sortProductsBySearchPriority } from '../utils/productSort';
 import { parseUTCDate } from '../utils/receiptGenerator';
@@ -841,7 +841,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
       // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
       const { role, restrictedPage } = useAuthStore.getState();
-      if (role === 'BILLER') {
+      if (isLegacyBillerRole(role)) {
         const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
         const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
         if (!hasOptViewGst && !isGst) {

@@ -118,7 +118,7 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
 
   // Load Feature Flags for Attendance & Biller PIN
   useEffect(() => {
-    loadFlags(tenantId || undefined);
+    loadFlags((tenantId || undefined) as string);
   }, [tenantId, loadFlags]);
 
   // Fetch Staff Directory

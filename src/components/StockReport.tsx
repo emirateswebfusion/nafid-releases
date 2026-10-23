@@ -5,14 +5,9 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 import { getStoreTimezone } from '../utils/timezoneHelper';
-import { 
-  type StaffDataMaskingConfig, 
-  DEFAULT_STAFF_DATA_MASKING_CONFIG, 
-  STAFF_DATA_MASKING_KEY, 
-  parseStaffDataMaskingConfig, 
-  isStaffRole, 
-  shouldApplyStaffMasking, 
-  calculateMaskedStockValuation 
+import {
+  type StaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG, STAFF_DATA_MASKING_KEY, parseStaffDataMaskingConfig,
+  isStaffRole, shouldApplyStaffMasking, calculateMaskedStockValuation,
 } from '../utils/staffDataMasking';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { gradesApi } from '../data/grades';
@@ -22,6 +17,7 @@ import { productsApi } from '../data/products';
 import { purchasesApi } from '../data/purchases';
 import { settingsApi } from '../data/settings';
 import { formatCurrency } from '../utils/money';
+import { isLegacyBillerRole } from '../utils/permissions';
 
 interface Product {
   product_id: string;
@@ -273,7 +269,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     products.filter(p => {
       // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
       const { role, restrictedPage } = useAuthStore.getState();
-      if (role === 'BILLER') {
+      if (isLegacyBillerRole(role)) {
         const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
         const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
         if (!hasOptViewGst && Number(p.is_gst_applicable) !== 1) {
