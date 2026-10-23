@@ -18,3 +18,10 @@ export interface InvoiceDetails {
 export interface InvoiceDetailsCacheEntry extends InvoiceDetails {
   promise?: Promise<InvoiceDetails>;
 }
+
+/** A configured UPI receiving account as Sales History reads it. */
+export interface UpiSourceOption {
+  source_id: string;
+  name?: string | null;
+  upi_id?: string | null;
+}

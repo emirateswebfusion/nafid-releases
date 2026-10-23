@@ -34,7 +34,7 @@
     "src/components/PurchaseBillManager.tsx": 4070,
     "src/components/QuotationManager.tsx": 1107,
     "src/components/RecycleBin.tsx": 1288,
-    "src/components/SalesHistory.tsx": 2940,
+    "src/components/SalesHistory.tsx": 1550,
     "src/components/ScrapManager.tsx": 2467,
     "src/components/SettingsGrades.tsx": 1097,
     "src/components/SettingsManager.tsx": 2254,
@@ -43,5 +43,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T05:43:44.132Z"
+  "updatedAt": "2026-10-23T06:19:35.910Z"
 }
