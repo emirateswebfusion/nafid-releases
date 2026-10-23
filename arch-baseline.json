@@ -31,7 +31,6 @@
     "src/components/PartyManager.tsx": 1858,
     "src/components/PaymentMethods.tsx": 1694,
     "src/components/PricingTiers.tsx": 1084,
-    "src/components/PurchaseBillManager.tsx": 1766,
     "src/components/QuotationManager.tsx": 1107,
     "src/components/RecycleBin.tsx": 1288,
     "src/components/SalesHistory.tsx": 827,
@@ -43,5 +42,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T07:24:57.733Z"
+  "updatedAt": "2026-10-23T07:40:53.547Z"
 }
