@@ -1,24 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { X, Package, Recycle, RotateCcw, Store, Settings, User, Banknote, Smartphone, BookOpen, AlertCircle, CheckCircle2, TrendingUp, FileText, ArrowLeftRight, Layers, Users, PauseCircle, Truck, Shield } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
-import { parseUTCDate } from '../utils/receiptGenerator';
 import { useTabStore, type SplitDetails } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore } from '../featureFlags';
 import { DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { displayInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
-import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
-import { getStoreTimezone } from '../utils/timezoneHelper';
+import { getNumericPart } from '../utils/invoiceNumberHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole } from '../utils/permissions';
-import { useBillingUIStore, isHeaderButtonVisible, QUICK_PAGES_LIST } from '../store/billingUIStore';
+import { useBillingUIStore } from '../store/billingUIStore';
 
-import { PAYMENT_OPTIONS, formatCurrency } from './billing/BillingConstants';
+import { PAYMENT_OPTIONS } from './billing/BillingConstants';
 import { TransportDetailsModal } from './billing/modals/TransportDetailsModal';
 import { HeldBillsModal } from './billing/modals/HeldBillsModal';
 import { ScrapInvoiceViewModal } from './billing/modals/ScrapInvoiceViewModal';
@@ -28,6 +25,9 @@ import { UpiAccountSelectModal } from './billing/modals/UpiAccountSelectModal';
 import { BillingCartView } from './billing/views/BillingCartView';
 import { BillingPaymentPanel } from './billing/views/BillingPaymentPanel';
 import { BillingTotalsPanel } from './billing/views/BillingTotalsPanel';
+import { BillingToasts } from './billing/views/BillingToasts';
+import { DeductionDropdowns } from './billing/views/DeductionDropdowns';
+import { BillingHeader } from './billing/views/BillingHeader';
 import { ErpGridWorkspace } from './billing/views/ErpGridWorkspace';
 import type { DeductionState } from './billing/views/DeductionEditor';
 import { BillingCustomerDetails } from './billing/views/BillingCustomerDetails';
@@ -1171,414 +1171,38 @@ export function BillingPage() {
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed bottom-5 left-5 z-[9999] flex flex-col items-start gap-2.5 w-full max-w-md pointer-events-none">
-        {hardwareError && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className="p-2 rounded-xl bg-red-500/25 text-red-400 shrink-0">
-              <AlertCircle className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">HARDWARE & PRINT ALERT</span>
-              <span className="text-white font-bold text-xs block leading-tight">{hardwareError}</span>
-            </div>
-          </div>
-        )}
-        {checkoutSuccess && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className="p-2 rounded-xl bg-emerald-500/25 text-emerald-400 shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">CHECKOUT COMPLETE</span>
-              <span className="text-white font-bold text-xs block leading-tight">{checkoutSuccess === 'printed' ? 'Invoice completed & Receipt printed!' : 'Invoice saved successfully!'}</span>
-            </div>
-          </div>
-        )}
-        {quotationSuccess && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className="p-2 rounded-xl bg-blue-500/25 text-blue-400 shrink-0">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">QUOTATION SAVED</span>
-              <span className="text-white font-bold text-xs block leading-tight">{quotationSuccess}</span>
-            </div>
-          </div>
-        )}
-        {returnSuccessToast && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className="p-2 rounded-xl bg-rose-500/25 text-rose-400 shrink-0">
-              <RotateCcw className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">RETURN PROCESSED</span>
-              <span className="text-white font-bold text-xs block leading-tight">{returnSuccessToast}</span>
-            </div>
-          </div>
-        )}
-        {infoToast && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className="p-2 rounded-xl bg-amber-500/25 text-amber-400 shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">NOTIFICATION</span>
-              <span className="text-white font-bold text-xs block leading-tight">{infoToast}</span>
-            </div>
-          </div>
-        )}
-        {upiAccountToast && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-sm">
-            <div className="p-2 rounded-xl bg-violet-500/25 text-violet-400 shrink-0">
-              <Smartphone className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">UPI Account Selected</span>
-              <span className="text-white font-black text-xs truncate block">{upiAccountToast}</span>
-            </div>
-          </div>
-        )}
-      </div>
+      <BillingToasts
+        checkoutSuccess={checkoutSuccess} hardwareError={hardwareError} infoToast={infoToast}
+        quotationSuccess={quotationSuccess} returnSuccessToast={returnSuccessToast} upiAccountToast={upiAccountToast}
+      />
 
       {/* ─── TOP HEADER ─── */}
-      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between gap-4 px-5 py-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => {
-                if (isAdminRole(authRole)) setRole('ADMIN');
-                window.dispatchEvent(new CustomEvent('open-dashboard'));
-              }}
-              className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
-              title="Return to Dashboard"
-            >
-              <Store className="w-4 h-4" />
-            </button>
-            <div className="min-w-0 leading-tight select-none" data-panic-click="true" data-panic-target="LOGO">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className={clsx(
-                'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
-                isReturnMode
-                  ? 'text-rose-600 bg-rose-500/10 border-rose-500/20'
-                  : isScrapMode
-                    ? 'text-orange-600 bg-orange-500/10 border-orange-500/20'
-                    : isQuotationMode
-                      ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
-                      : 'text-primary bg-primary/10 border-primary/20'
-              )}>
-                {isReturnMode ? (nextReturnNumber || '') : isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : displayInvoiceNumber(nextInvoiceNumber || '', invoiceType, enableThreeInvoiceSeries))}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {isHeaderButtonVisible(uiConfig, 'showClearCart') && (
-            items.length > 0 ||
-            Boolean(customerName?.trim()) ||
-            Boolean(customerPhone?.trim()) ||
-            Boolean(customerAddress?.trim()) ||
-            Boolean(customerGstin?.trim()) ||
-            Boolean(activeTab?.billDate) ||
-            Boolean(activeTab?.customerId) ||
-            Boolean(activeTab?.description?.trim()) ||
-            (discountValue && Number(discountValue) > 0) ||
-            Boolean(localDiscText?.trim()) ||
-            (activeTab?.snapshot?.discountValue && Number(activeTab.snapshot.discountValue) > 0) ||
-            Boolean(storeScrapDeduction) ||
-            Boolean(storeReturnDeduction) ||
-            Boolean(activeTab?.transporterName?.trim()) ||
-            Boolean(activeTab?.vehicleNumber?.trim()) ||
-            Boolean(activeTab?.transporterDocNo?.trim()) ||
-            Boolean(activeTab?.ewayBillNo?.trim()) ||
-            Boolean(activeTab?.shippingName?.trim()) ||
-            Boolean(activeTab?.shippingAddress?.trim()) ||
-            Boolean(activeTab?.shippingGstin?.trim()) ||
-            Boolean(activeTab?.manualTotalOverride) ||
-            Boolean(activeTab?.receivedAmount && Number(activeTab.receivedAmount) > 0) ||
-            Boolean(editingActive) ||
-            Boolean(loyaltyCustomerData?.customerId) ||
-            Boolean(pointsToRedeem && pointsToRedeem > 0)
-          ) && (
-            <button
-              onClick={async () => {
-                const tab = getActiveTab();
-                clearCart();
-                setDiscount(0, 'FIXED');
-                setActiveDiscField(null);
-                setLocalDiscText('');
-                setShowCustomerDropdown(false);
-                setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
-                setShowLoyaltyRedemption(false);
-                setPointsToRedeem(0);
-                let normalInvoiceNumber = '';
-                if (isDesktopRuntime()) {
-                  try {
-                    const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? 'gst_b2c' : 'normal') : undefined;
-                    const result = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-                    if (result.success && result.invoiceNumber) {
-                      normalInvoiceNumber = result.invoiceNumber;
-                    }
-                  } catch (e) {
-                    console.error(e);
-                  }
-                }
-                const fallbackTitle = normalInvoiceNumber || tab?.reservedScrapInvoiceNumber || '';
-                updateActiveTab({ 
-                  customerId: '',
-                  customerName: '', 
-                  customerPhone: '', 
-                  customerGstin: '', 
-                  customerAddress: '', 
-                  billDate: null,
-                  description: '',
-                  transporterName: '',
-                  vehicleNumber: '',
-                  transporterDocNo: '',
-                  transporterDocDate: '',
-                  ewayBillNo: '',
-                  ewayBillDate: '',
-                  shippingName: '',
-                  shippingAddress: '',
-                  shippingGstin: '',
-                  manualTotalOverride: null,
-                  paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
-                  receivedAmount: 0, 
-                  reservedInvoiceNumber: normalInvoiceNumber,
-                  title: fallbackTitle 
-                });
-                syncActiveSnapshot();
-                if (uiConfig.entryFocusOrder === 'customer-first') {
-                  customerNameInputRef.current?.focus();
-                } else {
-                  searchRef.current?.focus();
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-              title="Clear Cart"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Clear Cart</span>
-            </button>
-          )}
-          {isHeaderButtonVisible(uiConfig, 'showHistory') && (!featureFlags || featureFlags.sales_history || isScrapMode) && (
-          <button
-            onClick={() => {
-              if (isScrapMode) {
-                window.dispatchEvent(new CustomEvent('open-scrap-manager', { detail: { initialView: 'invoices' } }));
-              } else {
-                window.dispatchEvent(new CustomEvent('open-sales-history'));
-              }
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer"
-            title="Sales History"
-          >
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <span>History</span>
-          </button>
-          )}
-          {isHeaderButtonVisible(uiConfig, 'showHeldBills') && (
-          <button
-            onClick={() => {
-              loadHeldBills();
-              setShowHeldBillsPanel(true);
-            }}
-            className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer border",
-              heldBills.length > 0
-                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 shadow-xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-            title="View Held Bills / Drafts"
-          >
-            <PauseCircle className={clsx("w-4 h-4", heldBills.length > 0 ? "text-amber-500" : "text-primary")} />
-            <span>Held Bills</span>
-            {heldBills.length > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[18px] h-4.5 px-1.5 text-[9px] font-black rounded-full bg-amber-500 text-white leading-none shadow-xs">
-                {heldBills.length}
-              </span>
-            )}
-          </button>
-          )}
-          {isHeaderButtonVisible(uiConfig, 'showTransport') && (
-          <button
-            onClick={() => setShowTransportModal(true)}
-            className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer border",
-              (activeTab?.transporterName || activeTab?.vehicleNumber || activeTab?.ewayBillNo)
-                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-xs"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-            title="Transporter & E-Way Bill Details"
-          >
-            <Truck className={clsx("w-4 h-4", (activeTab?.transporterName || activeTab?.vehicleNumber || activeTab?.ewayBillNo) ? "text-emerald-500" : "text-primary")} />
-            <span>Transport</span>
-            {(activeTab?.transporterName || activeTab?.vehicleNumber || activeTab?.ewayBillNo) && (
-              <span className="inline-flex items-center justify-center min-w-[8px] h-2 w-2 rounded-full bg-emerald-500" />
-            )}
-          </button>
-          )}
-          {isHeaderButtonVisible(uiConfig, 'showScrap') && enableScrap && (!featureFlags || featureFlags.scrap) && (
-            <button
-              onClick={() => {
-                const next = !isScrapMode;
-                setIsScrapMode(next);
-                if (next && isQuotationMode) setQuotationMode(false);
-                if (next && isReturnMode) setReturnMode(false);
-                if (next && isPastBillMode) setIsPastBillMode(false);
-                if (next) {
-                  reserveScrapInvoiceNumberForTab();
-                } else {
-                  if (editingInvoiceNumber) {
-                    useCartStore.getState().setEditingInvoice(null, null, null);
-                    setDiscount(0, 'FIXED');
-                  }
-                  updateActiveTab({ scrapPaymentStatus: 'PENDING', reservedScrapInvoiceNumber: '' });
-                }
-                setTimeout(() => searchRef.current?.focus(), 100);
-              }}
-              className={clsx(
-                "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-                isScrapActive
-                  ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-              )}
-              title="Scrap Mode (F5)"
-            >
-              <Recycle className={clsx("w-4 h-4", isScrapActive && "text-orange-500")} />
-              <span>Scrap</span>
-              <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F5</span>
-            </button>
-          )}
-          {(isHeaderButtonVisible(uiConfig, 'showQuotation') || isQuotationActive) && (!featureFlags || featureFlags.quotations) && (
-          <button
-              onClick={() => {
-                toggleQuotationMode();
-                syncActiveSnapshot();
-                setTimeout(() => searchRef.current?.focus(), 100);
-              }}
-            className={clsx(
-              "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-              isQuotationActive
-                ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-            title="Quotation Mode (F6)"
-          >
-            <FileText className={clsx("w-4 h-4", isQuotationActive && "text-blue-500")} />
-            <span>Quotation</span>
-            <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F6</span>
-          </button>
-          )}
-          {isHeaderButtonVisible(uiConfig, 'showReturn') && (!featureFlags || featureFlags.returns) && (
-          <button
-            onClick={async () => {
-              const next = !isReturnMode;
-              if (next) {
-                await reserveReturnNumberForTab();
-                setReturnMode(true);
-                if (isScrapMode) setIsScrapMode(false);
-                if (isQuotationMode) setQuotationMode(false);
-                if (isPastBillMode) setIsPastBillMode(false);
-              } else {
-                updateActiveTab({
-                  customerName: '',
-                  customerPhone: '',
-                  customerGstin: '',
-                  customerAddress: '',
-                  customerId: '',
-                  receivedAmount: 0,
-                  actualRefundPaid: 0,
-                  reservedReturnNumber: '',
-                });
-                setReturnMode(false);
-                setSelectedReturnInvoice(null);
-                await reserveInvoiceNumberForTab();
-              }
-              syncActiveSnapshot();
-              setTimeout(() => searchRef.current?.focus(), 100);
-            }}
-            className={clsx(
-              "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-              isReturnMode
-                ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-            title="Return Mode (F7)"
-          >
-            <ArrowLeftRight className={clsx("w-4 h-4", isReturnMode && "text-rose-500")} />
-            <span>Return</span>
-            <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F7</span>
-          </button>
-          )}
-          {isHeaderButtonVisible(uiConfig, 'showRegister') && showCashRegister && (
-            <button
-              onClick={() => setCashRegisterOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-              title="Cash Register"
-            >
-              <Banknote className="w-4 h-4 text-primary" />
-              <span>Register</span>
-            </button>
-          )}
-          {/* ─── QUICK PAGE SHORTCUTS (EASY ENTER TO LEDGER, CUSTOMERS, ETC.) ─── */}
-          {uiConfig.showQuickActions !== false && (uiConfig.quickPageShortcuts || ['ledger']).map((pageKey) => {
-            const pageDef = QUICK_PAGES_LIST.find(p => p.key === pageKey);
-            if (!pageDef) return null;
-            if (pageDef.featureKey && featureFlags && (featureFlags as any)[pageDef.featureKey] === false) return null;
-
-            return (
-              <button
-                key={pageKey}
-                onClick={() => {
-                  sessionStorage.setItem('last_pos_nav_source', 'header_button');
-                  window.dispatchEvent(new CustomEvent(pageDef.eventName));
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/60 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-                title={`Quick Enter: ${pageDef.label}`}
-              >
-                {pageKey === 'ledger' && <BookOpen className="w-4 h-4 text-emerald-500" />}
-                {pageKey === 'customers' && <Users className="w-4 h-4 text-blue-500" />}
-                {pageKey === 'inventory' && <Package className="w-4 h-4 text-amber-500" />}
-                {pageKey === 'purchase_bills' && <FileText className="w-4 h-4 text-purple-500" />}
-                {pageKey === 'financial_report' && <TrendingUp className="w-4 h-4 text-cyan-500" />}
-                {pageKey === 'stock_report' && <Package className="w-4 h-4 text-teal-500" />}
-                {pageKey === 'staff' && <User className="w-4 h-4 text-indigo-500" />}
-                {pageKey === 'combo_offers' && <Layers className="w-4 h-4 text-rose-500" />}
-                {pageKey === 'warranties' && <Shield className="w-4 h-4 text-green-500" />}
-                <span>{pageDef.label.split(' ')[0]}</span>
-              </button>
-            );
-          })}
-          <button
-            onClick={() => {
-              sessionStorage.setItem('last_pos_nav_source', 'header_button');
-              window.dispatchEvent(new CustomEvent('open-settings-manager'));
-            }}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-          <span className="w-px h-5 bg-border/40" />
-          <button
-            onClick={() => {
-              sessionStorage.setItem('last_pos_nav_source', 'page_exit');
-              if (isAdminRole(authRole)) setRole('ADMIN');
-              window.dispatchEvent(new CustomEvent('open-dashboard'));
-            }}
-            className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
-            title="Dashboard"
-          >
-            <X className="w-4 h-4 text-destructive" />
-          </button>
-        </div>
-        </div>
-      </header>
+      <BillingHeader
+        activeTab={activeTab} authRole={authRole} clearCart={clearCart} customerAddress={customerAddress}
+        customerGstin={customerGstin} customerName={customerName} customerNameInputRef={customerNameInputRef}
+        customerPhone={customerPhone} discountValue={discountValue} editingActive={editingActive}
+        editingInvoiceNumber={editingInvoiceNumber} enableScrap={enableScrap}
+        enableThreeInvoiceSeries={enableThreeInvoiceSeries} featureFlags={featureFlags} getActiveTab={getActiveTab}
+        heldBills={heldBills} invoiceType={invoiceType} isCashSettlementEnabled={isCashSettlementEnabled}
+        isPastBillMode={isPastBillMode} isQuotationActive={isQuotationActive} isQuotationMode={isQuotationMode}
+        isReturnMode={isReturnMode} isScrapActive={isScrapActive} isScrapMode={isScrapMode} items={items}
+        loadHeldBills={loadHeldBills} localDiscText={localDiscText} loyaltyCustomerData={loyaltyCustomerData}
+        nextInvoiceNumber={nextInvoiceNumber} nextQuotationNumber={nextQuotationNumber}
+        nextReturnNumber={nextReturnNumber} nextScrapInvoiceNumber={nextScrapInvoiceNumber}
+        pointsToRedeem={pointsToRedeem} reserveInvoiceNumberForTab={reserveInvoiceNumberForTab}
+        reserveReturnNumberForTab={reserveReturnNumberForTab}
+        reserveScrapInvoiceNumberForTab={reserveScrapInvoiceNumberForTab} searchRef={searchRef}
+        setActiveDiscField={setActiveDiscField} setCashRegisterOpen={setCashRegisterOpen} setDiscount={setDiscount}
+        setIsPastBillMode={setIsPastBillMode} setIsScrapMode={setIsScrapMode} setLocalDiscText={setLocalDiscText}
+        setLoyaltyCustomerData={setLoyaltyCustomerData} setPointsToRedeem={setPointsToRedeem}
+        setQuotationMode={setQuotationMode} setReturnMode={setReturnMode} setRole={setRole}
+        setSelectedReturnInvoice={setSelectedReturnInvoice} setShowCustomerDropdown={setShowCustomerDropdown}
+        setShowHeldBillsPanel={setShowHeldBillsPanel} setShowLoyaltyRedemption={setShowLoyaltyRedemption}
+        setShowTransportModal={setShowTransportModal} shopName={shopName} showCashRegister={showCashRegister}
+        storeReturnDeduction={storeReturnDeduction} storeScrapDeduction={storeScrapDeduction}
+        syncActiveSnapshot={syncActiveSnapshot} tenantId={tenantId} toggleQuotationMode={toggleQuotationMode}
+        uiConfig={uiConfig} updateActiveTab={updateActiveTab}
+      />
 
       {/* ─── TABS BAR ─── */}
       <div className="shrink-0 bg-muted/20 border-b border-border">
@@ -1901,83 +1525,17 @@ export function BillingPage() {
       />
 
       {/* ─── Return Deduction Dropdown (fixed position) ─── */}
-      {returnDeductionResults.length > 0 && returnDeductionDropdownStyle && (
-        <div id="return-deduction-dropdown" style={returnDeductionDropdownStyle} className="bg-card border border-border rounded-xl shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="max-h-[260px] overflow-y-auto">
-            <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border">
-              Returns with Pending Balance
-            </div>
-            {returnDeductionResults.map((r, _i) => (
-              <button
-                key={r.return_number}
-                onClick={async () => {
-                  try {
-                    const credit = await lookupReturnCredit(tenantId || '', r.return_number);
-                    if (credit.status === 'found') {
-                      setReturnDeduction(credit.amount, credit.number);
-                      setReturnDeductionSearchQuery('');
-                      setReturnDeductionResults([]);
-                      setReturnDeductionDropdownStyle(null);
-                    } else if (credit.status === 'error') {
-                      setHardwareError(credit.message);
-                    }
-                  } catch {
-                    setHardwareError('Failed to fetch return');
-                  }
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-rose-500/5 border-b border-border last:border-0 transition-colors cursor-pointer"
-              >
-                <ArrowLeftRight className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground truncate">{r.return_number}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{r.customer_name || 'N/A'}</p>
-                </div>
-                <span className="text-xs font-black text-rose-600 shrink-0">{formatCurrency(r.grand_total - (r.adjusted_amount || 0))}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Scrap Deduction Dropdown (fixed position, outside overflow containers) ─── */}
-      {scrapDeductionResults.length > 0 && scrapDeductionDropdownStyle && (
-        <div id="scrap-deduction-dropdown" style={scrapDeductionDropdownStyle} className="bg-card border border-border rounded-xl shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="max-h-[260px] overflow-y-auto">
-            <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border">
-              Pending Scrap Invoices
-            </div>
-            {scrapDeductionResults.map((inv, _i) => (
-              <button
-                key={inv.invoice_number}
-                onClick={async () => {
-                  try {
-                    const credit = await lookupScrapCredit(tenantId || '', inv.invoice_number);
-                    if (credit.status === 'found') {
-                      setScrapDeduction(credit.amount, credit.number);
-                      setScrapDeductionSearchQuery('');
-                      setScrapDeductionResults([]);
-                      setScrapDeductionDropdownStyle(null);
-                    } else {
-                      setHardwareError(credit.status === 'error' ? credit.message : 'Scrap invoice not found');
-                    }
-                  } catch {
-                    setHardwareError('Failed to fetch scrap invoice');
-                  }
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-orange-500/5 border-b border-border last:border-0 transition-colors cursor-pointer"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</div>
-                  <div className="text-[10px] text-muted-foreground">
-                    <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}
-                  </div>
-                </div>
-                <div className="text-xs font-black text-orange-600">{formatCurrency(inv.total_amount)}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <DeductionDropdowns
+        returnDeductionDropdownStyle={returnDeductionDropdownStyle} returnDeductionResults={returnDeductionResults}
+        scrapDeductionDropdownStyle={scrapDeductionDropdownStyle} scrapDeductionResults={scrapDeductionResults}
+        setHardwareError={setHardwareError} setReturnDeduction={setReturnDeduction}
+        setReturnDeductionDropdownStyle={setReturnDeductionDropdownStyle}
+        setReturnDeductionResults={setReturnDeductionResults}
+        setReturnDeductionSearchQuery={setReturnDeductionSearchQuery} setScrapDeduction={setScrapDeduction}
+        setScrapDeductionDropdownStyle={setScrapDeductionDropdownStyle}
+        setScrapDeductionResults={setScrapDeductionResults} setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
+        tenantId={tenantId}
+      />
 
       <CreateProductModal
         isOpen={showProductCreateForm}
