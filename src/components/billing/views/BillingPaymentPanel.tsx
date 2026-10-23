@@ -1,4 +1,5 @@
 import React from 'react';
+import type { DeductionState } from './DeductionEditor';
 import clsx from 'clsx';
 import { ArrowLeftRight, Banknote, BookOpen, CheckCircle2, Clock, CreditCard, FileText, Gift, Smartphone, Split, Users, Wallet, X } from 'lucide-react';
 import { BillDescriptionCard } from '../ui/BillDescriptionCard';
@@ -10,45 +11,22 @@ import { DeductionEditor } from './DeductionEditor';
 export interface BillingPaymentPanelProps {
   uiConfig: BillingUIConfig;
   currentSelectedUpi: any;
-  customerPointsBalance: any;
   descriptionInputRef: React.MutableRefObject<any>;
   discountRef: React.MutableRefObject<any>;
   displayGrandTotal: number;
-  effectiveDeductionMode: any;
   fillRestForField: any;
   focusDescriptionOrDiscount: any;
   handleSplitInputKeyDown: any;
-  isLoyaltyModuleEnabled: boolean;
-  isReturnModuleEnabled: boolean;
-  isScrapModuleEnabled: boolean;
   paymentMethod: any;
   paymentOptionRefs: any;
   paymentOptions: any;
-  pointsDeductionInputRef: React.MutableRefObject<any>;
-  pointsRedeemedCalc: number;
-  pointsRedeemedDiscountCalc: number;
-  pointsToRedeem: number;
   quotationTerms: any;
   receivedInputRef: React.MutableRefObject<any>;
-  returnDeductionInputRef: React.MutableRefObject<any>;
-  returnDeductionSearchQuery: any;
-  scrapDeductionInputRef: React.MutableRefObject<any>;
-  scrapDeductionSearchQuery: any;
   scrapPaymentStatus: any;
   selectedReturnInvoice: any;
-  setDeductionTabMode: (v: any) => void;
-  setHardwareError: (v: any) => void;
   setInfoToast: (v: any) => void;
   setIsUpiSelectModalOpen: (v: any) => void;
-  setPointsToRedeem: (v: any) => void;
   setQuotationTerms: (v: any) => void;
-  setReturnDeductionDropdownStyle: (v: any) => void;
-  setReturnDeductionResults: (v: any) => void;
-  setReturnDeductionSearchMode: (v: any) => void;
-  setReturnDeductionSearchQuery: (v: any) => void;
-  setScrapDeductionDropdownStyle: (v: any) => void;
-  setScrapDeductionResults: (v: any) => void;
-  setScrapDeductionSearchQuery: (v: any) => void;
   showDescriptionState: boolean;
   splitCardInputRef: React.MutableRefObject<any>;
   splitCashInputRef: React.MutableRefObject<any>;
@@ -56,53 +34,30 @@ export interface BillingPaymentPanelProps {
   splitCreditInputRef: React.MutableRefObject<any>;
   splitDetails: any;
   splitUpiInputRef: React.MutableRefObject<any>;
-  tenantId: any;
   upiPageConfig: any;
   upiSources: any;
+  deductions: DeductionState;
 }
 
 export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
   uiConfig,
   currentSelectedUpi,
-  customerPointsBalance,
   descriptionInputRef,
   discountRef,
   displayGrandTotal,
-  effectiveDeductionMode,
   fillRestForField,
   focusDescriptionOrDiscount,
   handleSplitInputKeyDown,
-  isLoyaltyModuleEnabled,
-  isReturnModuleEnabled,
-  isScrapModuleEnabled,
   paymentMethod,
   paymentOptionRefs,
   paymentOptions,
-  pointsDeductionInputRef,
-  pointsRedeemedCalc,
-  pointsRedeemedDiscountCalc,
-  pointsToRedeem,
   quotationTerms,
   receivedInputRef,
-  returnDeductionInputRef,
-  returnDeductionSearchQuery,
-  scrapDeductionInputRef,
-  scrapDeductionSearchQuery,
   scrapPaymentStatus,
   selectedReturnInvoice,
-  setDeductionTabMode,
-  setHardwareError,
   setInfoToast,
   setIsUpiSelectModalOpen,
-  setPointsToRedeem,
   setQuotationTerms,
-  setReturnDeductionDropdownStyle,
-  setReturnDeductionResults,
-  setReturnDeductionSearchMode,
-  setReturnDeductionSearchQuery,
-  setScrapDeductionDropdownStyle,
-  setScrapDeductionResults,
-  setScrapDeductionSearchQuery,
   showDescriptionState,
   splitCardInputRef,
   splitCashInputRef,
@@ -110,9 +65,9 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
   splitCreditInputRef,
   splitDetails,
   splitUpiInputRef,
-  tenantId,
   upiPageConfig,
   upiSources,
+  deductions,
 }) => {
   const activeTabId = useTabStore(s => s.activeTabId);
   const editingQuotationId = useCartStore(s => s.editingQuotationId);
@@ -673,32 +628,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
         {/* Scrap & Return Deduction section in Left Panel for Top/Bottom Stack layout */}
         {uiConfig.orientation === 'horizontal-stack' && (
           <div className="mt-3">
-            <DeductionEditor
-              customerPointsBalance={customerPointsBalance}
-              effectiveDeductionMode={effectiveDeductionMode}
-              isLoyaltyModuleEnabled={isLoyaltyModuleEnabled}
-              isReturnModuleEnabled={isReturnModuleEnabled}
-              isScrapModuleEnabled={isScrapModuleEnabled}
-              pointsDeductionInputRef={pointsDeductionInputRef}
-              pointsRedeemedCalc={pointsRedeemedCalc}
-              pointsRedeemedDiscountCalc={pointsRedeemedDiscountCalc}
-              pointsToRedeem={pointsToRedeem}
-              returnDeductionInputRef={returnDeductionInputRef}
-              returnDeductionSearchQuery={returnDeductionSearchQuery}
-              scrapDeductionInputRef={scrapDeductionInputRef}
-              scrapDeductionSearchQuery={scrapDeductionSearchQuery}
-              setDeductionTabMode={setDeductionTabMode}
-              setHardwareError={setHardwareError}
-              setPointsToRedeem={setPointsToRedeem}
-              setReturnDeductionDropdownStyle={setReturnDeductionDropdownStyle}
-              setReturnDeductionResults={setReturnDeductionResults}
-              setReturnDeductionSearchMode={setReturnDeductionSearchMode}
-              setReturnDeductionSearchQuery={setReturnDeductionSearchQuery}
-              setScrapDeductionDropdownStyle={setScrapDeductionDropdownStyle}
-              setScrapDeductionResults={setScrapDeductionResults}
-              setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
-              tenantId={tenantId}
-            />
+            <DeductionEditor deductions={deductions} />
           </div>
         )}
 

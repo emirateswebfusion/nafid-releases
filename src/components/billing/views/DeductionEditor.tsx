@@ -6,34 +6,41 @@ import { formatCurrency } from '../BillingConstants';
 import { findReturnCredit, findScrapCredit } from '../deductionLookup';
 
 /** Scrap / return / loyalty-points deduction editor shown under the bill totals (both layouts). */
-export interface DeductionEditorProps {
-  customerPointsBalance: any;
-  effectiveDeductionMode: any;
+/** Scrap / return deduction and loyalty-points state shared by the billing panels and the deduction editor. */
+export interface DeductionState {
+  customerPointsBalance: number;
+  effectiveDeductionMode: 'scrap' | 'return' | 'points';
   isLoyaltyModuleEnabled: boolean;
   isReturnModuleEnabled: boolean;
   isScrapModuleEnabled: boolean;
-  pointsDeductionInputRef: React.MutableRefObject<any>;
+  pointsDeductionInputRef: React.RefObject<HTMLInputElement | null>;
   pointsRedeemedCalc: number;
   pointsRedeemedDiscountCalc: number;
   pointsToRedeem: number;
-  returnDeductionInputRef: React.MutableRefObject<any>;
-  returnDeductionSearchQuery: any;
-  scrapDeductionInputRef: React.MutableRefObject<any>;
-  scrapDeductionSearchQuery: any;
-  setDeductionTabMode: (v: any) => void;
-  setHardwareError: (v: any) => void;
-  setPointsToRedeem: (v: any) => void;
-  setReturnDeductionDropdownStyle: (v: any) => void;
-  setReturnDeductionResults: (v: any) => void;
-  setReturnDeductionSearchMode: (v: any) => void;
-  setReturnDeductionSearchQuery: (v: any) => void;
-  setScrapDeductionDropdownStyle: (v: any) => void;
-  setScrapDeductionResults: (v: any) => void;
-  setScrapDeductionSearchQuery: (v: any) => void;
-  tenantId: any;
+  returnDeductionInputRef: React.RefObject<HTMLInputElement | null>;
+  returnDeductionSearchQuery: string;
+  scrapDeductionInputRef: React.RefObject<HTMLInputElement | null>;
+  scrapDeductionSearchQuery: string;
+  setDeductionTabMode: React.Dispatch<React.SetStateAction<'scrap' | 'return' | 'points'>>;
+  setHardwareError: React.Dispatch<React.SetStateAction<string | null>>;
+  setPointsToRedeem: React.Dispatch<React.SetStateAction<number>>;
+  setReturnDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
+  // Result rows are untyped in BillingPage state (any[]); typed when that state is.
+  setReturnDeductionResults: React.Dispatch<React.SetStateAction<any[]>>;
+  setReturnDeductionSearchMode: React.Dispatch<React.SetStateAction<boolean>>;
+  setReturnDeductionSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  setScrapDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
+  setScrapDeductionResults: React.Dispatch<React.SetStateAction<any[]>>;
+  setScrapDeductionSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  tenantId: string | null;
 }
 
-export function DeductionEditor({ customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle, setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery, setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId }: DeductionEditorProps) {
+export interface DeductionEditorProps {
+  deductions: DeductionState;
+}
+
+export function DeductionEditor({ deductions }: DeductionEditorProps) {
+  const { customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle, setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery, setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId } = deductions;
   const clearReturnDeduction = useCartStore(s => s.clearReturnDeduction);
   const clearScrapDeduction = useCartStore(s => s.clearScrapDeduction);
   const isQuotationMode = useCartStore(s => s.isQuotationMode);

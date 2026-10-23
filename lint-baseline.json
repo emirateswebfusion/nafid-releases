@@ -1,8 +1,8 @@
 {
-  "errors": 3020,
+  "errors": 2968,
   "warnings": 60,
   "byRule": {
-    "@typescript-eslint/no-explicit-any": 2517,
+    "@typescript-eslint/no-explicit-any": 2465,
     "@typescript-eslint/no-unused-vars": 109,
     "no-empty": 202,
     "no-useless-assignment": 26,
@@ -24,5 +24,5 @@
     "react-refresh/only-export-components": 12,
     "@typescript-eslint/no-empty-object-type": 1
   },
-  "updatedAt": "2026-10-22T23:31:55.981Z"
+  "updatedAt": "2026-10-23T00:30:31.859Z"
 }

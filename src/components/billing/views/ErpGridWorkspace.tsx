@@ -1,4 +1,5 @@
 import React from 'react';
+import type { DeductionState } from './DeductionEditor';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
 import { Select } from '../../ui/Select';
 import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
@@ -24,7 +25,6 @@ export interface ErpGridWorkspaceProps {
   customerGstin: string;
   customerName: string;
   customerPhone: string;
-  customerPointsBalance: number;
   customerState: string;
   discountRef: React.RefObject<HTMLInputElement | null>;
   discountValue: number;
@@ -42,47 +42,34 @@ export interface ErpGridWorkspaceProps {
   invoiceType: InvoiceType;
   isCheckingOut: boolean;
   isGrandTotalOverridden: boolean;
-  isLoyaltyModuleEnabled: boolean;
-  isReturnModuleEnabled: boolean;
-  isScrapModuleEnabled: boolean;
   items: CartItem[];
   lastAddedProductId: string | null;
   nextInvoiceNumber: string;
   paymentMethod: PaymentMethod;
-  pointsRedeemedCalc: number;
-  pointsRedeemedDiscountCalc: number;
-  pointsToRedeem: number;
   pricingTiers: PricingTier[];
   qtyRefs: React.RefObject<Record<string, HTMLInputElement | null>>;
   receivedAmount: number;
   receivedInputRef: React.RefObject<HTMLInputElement | null>;
   removeItem: (productId: string) => void;
-  returnDeductionInputRef: React.RefObject<HTMLInputElement | null>;
-  returnDeductionSearchQuery: string;
-  scrapDeductionInputRef: React.RefObject<HTMLInputElement | null>;
-  scrapDeductionSearchQuery: string;
   searchBarSection: React.ReactNode;
   selectedTierId: string;
   setDiscount: (value: number, type: "FIXED" | "PERCENTAGE") => void;
   setErpNarration: React.Dispatch<React.SetStateAction<string>>;
   setErpSalesRep: React.Dispatch<React.SetStateAction<string>>;
   setFocusedRowProductId: React.Dispatch<React.SetStateAction<string | null>>;
-  setHardwareError: React.Dispatch<React.SetStateAction<string | null>>;
-  setPointsToRedeem: React.Dispatch<React.SetStateAction<number>>;
   setReturnDeduction: (amount: number, returnInvoiceNumber: string) => void;
-  setReturnDeductionSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   setScrapDeduction: (amount: number, invoiceNumber: string) => void;
-  setScrapDeductionSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   shopDomain: ShopDomain | null;
   startEditingTotal: () => void;
   storeReturnDeduction: number;
   storeScrapDeduction: number;
-  tenantId: string | null;
   updateActiveTab: (updates: Partial<Omit<Tab, "id" | "snapshot">>) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
+  deductions: DeductionState;
 }
 
-export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, canOverrideTier, clearReturnDeduction, clearScrapDeduction, customerFields, customerGstin, customerName, customerPhone, customerPointsBalance, customerState, discountRef, discountValue, displayGrandTotal, editingActive, editingInvoiceNumber, enableThreeInvoiceSeries, erpNarration, erpSalesRep, findMatchingParty, focusedRowProductId, handleCheckout, handlePricingTierChange, handleQtyKeyDown, invoiceType, isCheckingOut, isGrandTotalOverridden, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, items, lastAddedProductId, nextInvoiceNumber, paymentMethod, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, pricingTiers, qtyRefs, receivedAmount, receivedInputRef, removeItem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, searchBarSection, selectedTierId, setDiscount, setErpNarration, setErpSalesRep, setFocusedRowProductId, setHardwareError, setPointsToRedeem, setReturnDeduction, setReturnDeductionSearchQuery, setScrapDeduction, setScrapDeductionSearchQuery, shopDomain, startEditingTotal, storeReturnDeduction, storeScrapDeduction, tenantId, updateActiveTab, updateQuantity }: ErpGridWorkspaceProps) {
+export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, canOverrideTier, clearReturnDeduction, clearScrapDeduction, customerFields, customerGstin, customerName, customerPhone, customerState, deductions, discountRef, discountValue, displayGrandTotal, editingActive, editingInvoiceNumber, enableThreeInvoiceSeries, erpNarration, erpSalesRep, findMatchingParty, focusedRowProductId, handleCheckout, handlePricingTierChange, handleQtyKeyDown, invoiceType, isCheckingOut, isGrandTotalOverridden, items, lastAddedProductId, nextInvoiceNumber, paymentMethod, pricingTiers, qtyRefs, receivedAmount, receivedInputRef, removeItem, searchBarSection, selectedTierId, setDiscount, setErpNarration, setErpSalesRep, setFocusedRowProductId, setReturnDeduction, setScrapDeduction, shopDomain, startEditingTotal, storeReturnDeduction, storeScrapDeduction, updateActiveTab, updateQuantity }: ErpGridWorkspaceProps) {
+  const { customerPointsBalance, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setHardwareError, setPointsToRedeem, setReturnDeductionSearchQuery, setScrapDeductionSearchQuery, tenantId } = deductions;
   const { setShowCustomerDropdown, customerNameInputRef, customerGstinInputRef } = customerFields;
   const selectedParty = findMatchingParty(customerName, customerPhone);
   const uiPartyKey = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;

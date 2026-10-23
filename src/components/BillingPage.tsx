@@ -36,6 +36,7 @@ import { BillingCartView } from './billing/views/BillingCartView';
 import { BillingPaymentPanel } from './billing/views/BillingPaymentPanel';
 import { BillingTotalsPanel } from './billing/views/BillingTotalsPanel';
 import { ErpGridWorkspace } from './billing/views/ErpGridWorkspace';
+import type { DeductionState } from './billing/views/DeductionEditor';
 import { BillingCustomerDetails } from './billing/views/BillingCustomerDetails';
 import { BillingSearchBar } from './billing/views/BillingSearchBar';
 import { cashierApi } from '../data/cashier';
@@ -4473,6 +4474,32 @@ export function BillingPage() {
     setReturnMode, setSelectedReturnInvoice, splitCashInputRef, splitCreditInputRef, startEditingTotal,
     syncActiveSnapshot, updateActiveTab,
   });
+  const deductions: DeductionState = {
+    customerPointsBalance,
+    effectiveDeductionMode,
+    isLoyaltyModuleEnabled,
+    isReturnModuleEnabled,
+    isScrapModuleEnabled,
+    pointsDeductionInputRef,
+    pointsRedeemedCalc,
+    pointsRedeemedDiscountCalc,
+    pointsToRedeem,
+    returnDeductionInputRef,
+    returnDeductionSearchQuery,
+    scrapDeductionInputRef,
+    scrapDeductionSearchQuery,
+    setDeductionTabMode,
+    setHardwareError,
+    setPointsToRedeem,
+    setReturnDeductionDropdownStyle,
+    setReturnDeductionResults,
+    setReturnDeductionSearchMode,
+    setReturnDeductionSearchQuery,
+    setScrapDeductionDropdownStyle,
+    setScrapDeductionResults,
+    setScrapDeductionSearchQuery,
+    tenantId,
+  };
   const searchBarSection = <BillingSearchBar
     getTierPriceForProduct={getTierPriceForProduct}
     handleSearchKey={handleSearchKey}
@@ -4931,8 +4958,8 @@ export function BillingPage() {
         customerGstin={customerGstin}
         customerName={customerName}
         customerPhone={customerPhone}
-        customerPointsBalance={customerPointsBalance}
         customerState={customerState}
+        deductions={deductions}
         discountRef={discountRef}
         discountValue={discountValue}
         displayGrandTotal={displayGrandTotal}
@@ -4949,42 +4976,27 @@ export function BillingPage() {
         invoiceType={invoiceType}
         isCheckingOut={isCheckingOut}
         isGrandTotalOverridden={isGrandTotalOverridden}
-        isLoyaltyModuleEnabled={isLoyaltyModuleEnabled}
-        isReturnModuleEnabled={isReturnModuleEnabled}
-        isScrapModuleEnabled={isScrapModuleEnabled}
         items={items}
         lastAddedProductId={lastAddedProductId}
         nextInvoiceNumber={nextInvoiceNumber}
         paymentMethod={paymentMethod}
-        pointsRedeemedCalc={pointsRedeemedCalc}
-        pointsRedeemedDiscountCalc={pointsRedeemedDiscountCalc}
-        pointsToRedeem={pointsToRedeem}
         pricingTiers={pricingTiers}
         qtyRefs={qtyRefs}
         receivedAmount={receivedAmount}
         receivedInputRef={receivedInputRef}
         removeItem={removeItem}
-        returnDeductionInputRef={returnDeductionInputRef}
-        returnDeductionSearchQuery={returnDeductionSearchQuery}
-        scrapDeductionInputRef={scrapDeductionInputRef}
-        scrapDeductionSearchQuery={scrapDeductionSearchQuery}
         searchBarSection={searchBarSection}
         selectedTierId={selectedTierId}
         setDiscount={setDiscount}
         setErpNarration={setErpNarration}
         setErpSalesRep={setErpSalesRep}
         setFocusedRowProductId={setFocusedRowProductId}
-        setHardwareError={setHardwareError}
-        setPointsToRedeem={setPointsToRedeem}
         setReturnDeduction={setReturnDeduction}
-        setReturnDeductionSearchQuery={setReturnDeductionSearchQuery}
         setScrapDeduction={setScrapDeduction}
-        setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
         shopDomain={shopDomain}
         startEditingTotal={startEditingTotal}
         storeReturnDeduction={storeReturnDeduction}
         storeScrapDeduction={storeScrapDeduction}
-        tenantId={tenantId}
         updateActiveTab={updateActiveTab}
         updateQuantity={updateQuantity}
       />}
@@ -5124,47 +5136,24 @@ export function BillingPage() {
 
           {/* ── Scrollable content area (Left Side of Bottom Bar in Horizontal Stack Mode) ── */}
           <BillingPaymentPanel
-            uiConfig={uiConfig}
             currentSelectedUpi={currentSelectedUpi}
-            customerPointsBalance={customerPointsBalance}
+            deductions={deductions}
             descriptionInputRef={descriptionInputRef}
             discountRef={discountRef}
             displayGrandTotal={displayGrandTotal}
-            effectiveDeductionMode={effectiveDeductionMode}
             fillRestForField={fillRestForField}
             focusDescriptionOrDiscount={focusDescriptionOrDiscount}
             handleSplitInputKeyDown={handleSplitInputKeyDown}
-            isLoyaltyModuleEnabled={isLoyaltyModuleEnabled}
-            isReturnModuleEnabled={isReturnModuleEnabled}
-            isScrapModuleEnabled={isScrapModuleEnabled}
             paymentMethod={paymentMethod}
             paymentOptionRefs={paymentOptionRefs}
             paymentOptions={paymentOptions}
-            pointsDeductionInputRef={pointsDeductionInputRef}
-            pointsRedeemedCalc={pointsRedeemedCalc}
-            pointsRedeemedDiscountCalc={pointsRedeemedDiscountCalc}
-            pointsToRedeem={pointsToRedeem}
             quotationTerms={quotationTerms}
             receivedInputRef={receivedInputRef}
-            returnDeductionInputRef={returnDeductionInputRef}
-            returnDeductionSearchQuery={returnDeductionSearchQuery}
-            scrapDeductionInputRef={scrapDeductionInputRef}
-            scrapDeductionSearchQuery={scrapDeductionSearchQuery}
             scrapPaymentStatus={scrapPaymentStatus}
             selectedReturnInvoice={selectedReturnInvoice}
-            setDeductionTabMode={setDeductionTabMode}
-            setHardwareError={setHardwareError}
             setInfoToast={setInfoToast}
             setIsUpiSelectModalOpen={setIsUpiSelectModalOpen}
-            setPointsToRedeem={setPointsToRedeem}
             setQuotationTerms={setQuotationTerms}
-            setReturnDeductionDropdownStyle={setReturnDeductionDropdownStyle}
-            setReturnDeductionResults={setReturnDeductionResults}
-            setReturnDeductionSearchMode={setReturnDeductionSearchMode}
-            setReturnDeductionSearchQuery={setReturnDeductionSearchQuery}
-            setScrapDeductionDropdownStyle={setScrapDeductionDropdownStyle}
-            setScrapDeductionResults={setScrapDeductionResults}
-            setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
             showDescriptionState={showDescriptionState}
             splitCardInputRef={splitCardInputRef}
             splitCashInputRef={splitCashInputRef}
@@ -5172,14 +5161,13 @@ export function BillingPage() {
             splitCreditInputRef={splitCreditInputRef}
             splitDetails={splitDetails}
             splitUpiInputRef={splitUpiInputRef}
-            tenantId={tenantId}
+            uiConfig={uiConfig}
             upiPageConfig={upiPageConfig}
             upiSources={upiSources}
           />
 
           {/* ── STICKY FOOTER / RIGHT SIDE OF BOTTOM BAR: Totals + Actions ── */}
           <BillingTotalsPanel
-            uiConfig={uiConfig}
             activeDiscField={activeDiscField}
             activeTab={activeTab}
             actualRefundPaid={actualRefundPaid}
@@ -5188,13 +5176,12 @@ export function BillingPage() {
             commitTotalOverride={commitTotalOverride}
             customerName={customerName}
             customerPhone={customerPhone}
-            customerPointsBalance={customerPointsBalance}
+            deductions={deductions}
             descriptionInputRef={descriptionInputRef}
             discount={discount}
             discountPercentRef={discountPercentRef}
             discountRef={discountRef}
             displayGrandTotal={displayGrandTotal}
-            effectiveDeductionMode={effectiveDeductionMode}
             enableScrap={enableScrap}
             extraBonus={extraBonus}
             findMatchingParty={findMatchingParty}
@@ -5211,50 +5198,29 @@ export function BillingPage() {
             isEditingTotal={isEditingTotal}
             isGrandTotalOverridden={isGrandTotalOverridden}
             isLoadingEditBill={isLoadingEditBill}
-            isLoyaltyModuleEnabled={isLoyaltyModuleEnabled}
             isQuotationActive={isQuotationActive}
-            isReturnModuleEnabled={isReturnModuleEnabled}
-            isScrapModuleEnabled={isScrapModuleEnabled}
             isSendingWhatsApp={isSendingWhatsApp}
             localDiscText={localDiscText}
             originalReturnTotal={originalReturnTotal}
             overrideTotalInput={overrideTotalInput}
             paymentMethod={paymentMethod}
             paymentOptionRefs={paymentOptionRefs}
-            pointsDeductionInputRef={pointsDeductionInputRef}
-            pointsRedeemedCalc={pointsRedeemedCalc}
-            pointsRedeemedDiscountCalc={pointsRedeemedDiscountCalc}
-            pointsToRedeem={pointsToRedeem}
             qtyRefs={qtyRefs}
             quotationSaving={quotationSaving}
             rawDisplayGrandTotal={rawDisplayGrandTotal}
             receivedAmount={receivedAmount}
             receivedInputRef={receivedInputRef}
             refundAmount={refundAmount}
-            returnDeductionInputRef={returnDeductionInputRef}
-            returnDeductionSearchQuery={returnDeductionSearchQuery}
             returnDiscountTotal={returnDiscountTotal}
             returnProcessed={returnProcessed}
             returnProcessing={returnProcessing}
             returnTotal={returnTotal}
-            scrapDeductionInputRef={scrapDeductionInputRef}
-            scrapDeductionSearchQuery={scrapDeductionSearchQuery}
             scrapTotal={scrapTotal}
             searchRef={searchRef}
             setActiveDiscField={setActiveDiscField}
-            setDeductionTabMode={setDeductionTabMode}
-            setHardwareError={setHardwareError}
             setIsEditingTotal={setIsEditingTotal}
             setLocalDiscText={setLocalDiscText}
             setOverrideTotalInput={setOverrideTotalInput}
-            setPointsToRedeem={setPointsToRedeem}
-            setReturnDeductionDropdownStyle={setReturnDeductionDropdownStyle}
-            setReturnDeductionResults={setReturnDeductionResults}
-            setReturnDeductionSearchMode={setReturnDeductionSearchMode}
-            setReturnDeductionSearchQuery={setReturnDeductionSearchQuery}
-            setScrapDeductionDropdownStyle={setScrapDeductionDropdownStyle}
-            setScrapDeductionResults={setScrapDeductionResults}
-            setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
             setShowLoyaltyRedemption={setShowLoyaltyRedemption}
             sgst={sgst}
             showDescriptionState={showDescriptionState}
@@ -5262,12 +5228,12 @@ export function BillingPage() {
             splitTotal={splitTotal}
             startEditingTotal={startEditingTotal}
             subtotal={subtotal}
-            tenantId={tenantId}
             totalKgs={totalKgs}
             totalOverrideInputRef={totalOverrideInputRef}
             totalPcs={totalPcs}
             totalProducts={totalProducts}
             totalTax={totalTax}
+            uiConfig={uiConfig}
           />
 
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import type { DeductionState } from './DeductionEditor';
 import clsx from 'clsx';
 import { ArrowLeftRight, CheckCircle2, CreditCard, FileText, Gift, Percent, Recycle, Save, X } from 'lucide-react';
 import { Skeleton } from '../../ui/Skeleton';
@@ -19,13 +20,11 @@ export interface BillingTotalsPanelProps {
   commitTotalOverride: any;
   customerName: any;
   customerPhone: any;
-  customerPointsBalance: any;
   descriptionInputRef: React.MutableRefObject<any>;
   discount: number;
   discountPercentRef: React.MutableRefObject<any>;
   discountRef: React.MutableRefObject<any>;
   displayGrandTotal: number;
-  effectiveDeductionMode: any;
   enableScrap: boolean;
   extraBonus: number;
   findMatchingParty: any;
@@ -42,50 +41,29 @@ export interface BillingTotalsPanelProps {
   isEditingTotal: boolean;
   isGrandTotalOverridden: boolean;
   isLoadingEditBill: boolean;
-  isLoyaltyModuleEnabled: boolean;
   isQuotationActive: boolean;
-  isReturnModuleEnabled: boolean;
-  isScrapModuleEnabled: boolean;
   isSendingWhatsApp: boolean;
   localDiscText: any;
   originalReturnTotal: number;
   overrideTotalInput: any;
   paymentMethod: any;
   paymentOptionRefs: any;
-  pointsDeductionInputRef: React.MutableRefObject<any>;
-  pointsRedeemedCalc: number;
-  pointsRedeemedDiscountCalc: number;
-  pointsToRedeem: number;
   qtyRefs: any;
   quotationSaving: boolean;
   rawDisplayGrandTotal: number;
   receivedAmount: number;
   receivedInputRef: React.MutableRefObject<any>;
   refundAmount: number;
-  returnDeductionInputRef: React.MutableRefObject<any>;
-  returnDeductionSearchQuery: any;
   returnDiscountTotal: number;
   returnProcessed: boolean;
   returnProcessing: boolean;
   returnTotal: number;
-  scrapDeductionInputRef: React.MutableRefObject<any>;
-  scrapDeductionSearchQuery: any;
   scrapTotal: number;
   searchRef: React.MutableRefObject<any>;
   setActiveDiscField: (v: any) => void;
-  setDeductionTabMode: (v: any) => void;
-  setHardwareError: (v: any) => void;
   setIsEditingTotal: (v: any) => void;
   setLocalDiscText: (v: any) => void;
   setOverrideTotalInput: (v: any) => void;
-  setPointsToRedeem: (v: any) => void;
-  setReturnDeductionDropdownStyle: (v: any) => void;
-  setReturnDeductionResults: (v: any) => void;
-  setReturnDeductionSearchMode: (v: any) => void;
-  setReturnDeductionSearchQuery: (v: any) => void;
-  setScrapDeductionDropdownStyle: (v: any) => void;
-  setScrapDeductionResults: (v: any) => void;
-  setScrapDeductionSearchQuery: (v: any) => void;
   setShowLoyaltyRedemption: (v: any) => void;
   sgst: number;
   showDescriptionState: boolean;
@@ -93,12 +71,12 @@ export interface BillingTotalsPanelProps {
   splitTotal: number;
   startEditingTotal: any;
   subtotal: number;
-  tenantId: any;
   totalKgs: number;
   totalOverrideInputRef: React.MutableRefObject<any>;
   totalPcs: number;
   totalProducts: number;
   totalTax: number;
+  deductions: DeductionState;
 }
 
 export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
@@ -111,13 +89,11 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
   commitTotalOverride,
   customerName,
   customerPhone,
-  customerPointsBalance,
   descriptionInputRef,
   discount,
   discountPercentRef,
   discountRef,
   displayGrandTotal,
-  effectiveDeductionMode,
   enableScrap,
   extraBonus,
   findMatchingParty,
@@ -134,50 +110,29 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
   isEditingTotal,
   isGrandTotalOverridden,
   isLoadingEditBill,
-  isLoyaltyModuleEnabled,
   isQuotationActive,
-  isReturnModuleEnabled,
-  isScrapModuleEnabled,
   isSendingWhatsApp,
   localDiscText,
   originalReturnTotal,
   overrideTotalInput,
   paymentMethod,
   paymentOptionRefs,
-  pointsDeductionInputRef,
-  pointsRedeemedCalc,
-  pointsRedeemedDiscountCalc,
-  pointsToRedeem,
   qtyRefs,
   quotationSaving,
   rawDisplayGrandTotal,
   receivedAmount,
   receivedInputRef,
   refundAmount,
-  returnDeductionInputRef,
-  returnDeductionSearchQuery,
   returnDiscountTotal,
   returnProcessed,
   returnProcessing,
   returnTotal,
-  scrapDeductionInputRef,
-  scrapDeductionSearchQuery,
   scrapTotal,
   searchRef,
   setActiveDiscField,
-  setDeductionTabMode,
-  setHardwareError,
   setIsEditingTotal,
   setLocalDiscText,
   setOverrideTotalInput,
-  setPointsToRedeem,
-  setReturnDeductionDropdownStyle,
-  setReturnDeductionResults,
-  setReturnDeductionSearchMode,
-  setReturnDeductionSearchQuery,
-  setScrapDeductionDropdownStyle,
-  setScrapDeductionResults,
-  setScrapDeductionSearchQuery,
   setShowLoyaltyRedemption,
   sgst,
   showDescriptionState,
@@ -185,13 +140,14 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
   splitTotal,
   startEditingTotal,
   subtotal,
-  tenantId,
   totalKgs,
   totalOverrideInputRef,
   totalPcs,
   totalProducts,
   totalTax,
+  deductions,
 }) => {
+  const { pointsRedeemedCalc, pointsRedeemedDiscountCalc, setPointsToRedeem } = deductions;
   const items = useCartStore(s => s.items);
   const discountType = useCartStore(s => s.discountType);
   const discountValue = useCartStore(s => s.discountValue);
@@ -474,32 +430,7 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
 
         {/* ── Adjustment Block (Normal Mode Only): combined scrap + return deduction ── */}
         {uiConfig.orientation !== 'horizontal-stack' && (
-        <DeductionEditor
-          customerPointsBalance={customerPointsBalance}
-          effectiveDeductionMode={effectiveDeductionMode}
-          isLoyaltyModuleEnabled={isLoyaltyModuleEnabled}
-          isReturnModuleEnabled={isReturnModuleEnabled}
-          isScrapModuleEnabled={isScrapModuleEnabled}
-          pointsDeductionInputRef={pointsDeductionInputRef}
-          pointsRedeemedCalc={pointsRedeemedCalc}
-          pointsRedeemedDiscountCalc={pointsRedeemedDiscountCalc}
-          pointsToRedeem={pointsToRedeem}
-          returnDeductionInputRef={returnDeductionInputRef}
-          returnDeductionSearchQuery={returnDeductionSearchQuery}
-          scrapDeductionInputRef={scrapDeductionInputRef}
-          scrapDeductionSearchQuery={scrapDeductionSearchQuery}
-          setDeductionTabMode={setDeductionTabMode}
-          setHardwareError={setHardwareError}
-          setPointsToRedeem={setPointsToRedeem}
-          setReturnDeductionDropdownStyle={setReturnDeductionDropdownStyle}
-          setReturnDeductionResults={setReturnDeductionResults}
-          setReturnDeductionSearchMode={setReturnDeductionSearchMode}
-          setReturnDeductionSearchQuery={setReturnDeductionSearchQuery}
-          setScrapDeductionDropdownStyle={setScrapDeductionDropdownStyle}
-          setScrapDeductionResults={setScrapDeductionResults}
-          setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
-          tenantId={tenantId}
-        />
+        <DeductionEditor deductions={deductions} />
         )}
 
         {/* Scrap items row — shown in scrap mode with scrap cart items */}
