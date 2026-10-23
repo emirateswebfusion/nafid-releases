@@ -145,8 +145,7 @@ export function useCustomerEditing(ctx: UseCustomerEditingContext) {
         setAdjustPointsValue('');
         setAdjustPointsReason('');
         const [updatedCustList, updatedTxs] = await Promise.all([
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same call as before the move; fixed in the next change
-          customersApi.getCustomers(tenantId as any),
+          customersApi.getCustomers({ tenant_id: tenantId as string }),
           customersApi.getCustomerLoyaltyTransactions({ customer_id: selectedCustomer.customer_id, tenant_id: tenantId as string }),
         ]);
         if (Array.isArray(updatedCustList)) {
