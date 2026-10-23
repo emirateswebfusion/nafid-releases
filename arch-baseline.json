@@ -21,7 +21,6 @@
     "src/components/ComboManager.tsx": 1059,
     "src/components/DataUploadModal.tsx": 1249,
     "src/components/DesignSettings.tsx": 858,
-    "src/components/EcommercePortal.tsx": 1934,
     "src/components/inventory/views/InventoryFormView.tsx": 994,
     "src/components/OwnerDashboard.tsx": 940,
     "src/components/party/views/PartyLedgerView.tsx": 944,
@@ -36,5 +35,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T12:24:01.360Z"
+  "updatedAt": "2026-10-23T12:53:33.946Z"
 }
