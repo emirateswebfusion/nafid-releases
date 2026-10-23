@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ProductFormState } from '../hooks/useProductFormState';
 import {
   Package, List, RefreshCw,
   Layers, Plus, Save, Clock, X, LayoutGrid
@@ -9,129 +10,34 @@ import clsx from 'clsx';
 
 export interface CreateProductModalProps {
   isOpen: boolean;
-  editingProductId: string | null;
-  productFormView: 'grid' | 'list';
-  setProductFormView: (v: 'grid' | 'list') => void;
   handleFormKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
-  productFormDialogRef: React.RefObject<HTMLDivElement | null>;
   resetProductForm: () => void;
-  newProductName: string;
-  setNewProductName: (v: string) => void;
-  newProductBarcode: string;
-  setNewProductBarcode: (v: string) => void;
   generateProductBarcode: () => void;
-  newProductBrand: string;
-  setNewProductBrand: (v: string) => void;
-  newProductCategory: string;
-  setNewProductCategory: (v: string) => void;
-  newProductIsCustomCategory: boolean;
-  setNewProductIsCustomCategory: (v: boolean) => void;
-  configuredCategories: string[];
-  firstInputRef: React.RefObject<HTMLInputElement | null>;
-  editingProductSnapshot: any;
   invoiceType: string;
-  newProductGrades: any[];
-  newProductGradeId: string;
-  newProductIsAddingGrade: boolean;
   handleProductGradeChange: (gradeId: string) => void;
-  setNewProductIsAddingGrade: (v: boolean) => void;
-  newProductUom: string;
-  setNewProductUom: (v: string) => void;
-  newProductPurchasePrice: string | number;
   handleProductPurchasePriceChange: (v: string) => void;
-  newProductBasePrice: string | number;
   handleProductBasePriceChange: (v: string) => void;
-  newProductStock: string | number;
-  setNewProductStock: (v: any) => void;
-  newProductPcs: string | number;
-  setNewProductPcs: (v: any) => void;
-  newProductReorderLevel: string | number;
-  setNewProductReorderLevel: (v: any) => void;
   enableRealPaperStock: boolean;
-  newProductIsDummy: boolean;
-  setNewProductIsDummy: (v: boolean) => void;
-  newProductDiscountPercent: string | number;
-  setNewProductDiscountPercent: (v: any) => void;
-  newProductDiscountFlat: string | number;
-  setNewProductDiscountFlat: (v: any) => void;
-  newProductOfferPrice: string | number;
-  setNewProductOfferPrice: (v: any) => void;
   pricingTiers: any[];
-  productFormTierPrices: Record<string, string>;
-  setProductFormTierPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  newProductTaxRate: number;
-  setNewProductTaxRate: (v: number) => void;
-  newProductHsn: string;
-  setNewProductHsn: (v: string) => void;
-  newProductItemCode: string;
-  setNewProductItemCode: (v: string) => void;
-  newProductIsGstApplicable: boolean;
-  setNewProductIsGstApplicable: (v: boolean) => void;
   handleCreateAndAddProduct: (action?: number, isExistingEdit?: boolean, isTempItem?: boolean) => any;
+  productForm: ProductFormState;
 }
 
 export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   isOpen,
-  editingProductId,
-  productFormView,
-  setProductFormView,
   handleFormKeyDown,
-  productFormDialogRef,
   resetProductForm,
-  newProductName,
-  setNewProductName,
-  newProductBarcode,
-  setNewProductBarcode,
   generateProductBarcode,
-  newProductBrand,
-  setNewProductBrand,
-  newProductCategory,
-  setNewProductCategory,
-  newProductIsCustomCategory,
-  setNewProductIsCustomCategory,
-  configuredCategories,
-  firstInputRef,
-  editingProductSnapshot,
   invoiceType,
-  newProductGrades,
-  newProductGradeId,
-  newProductIsAddingGrade,
   handleProductGradeChange,
-  setNewProductIsAddingGrade,
-  newProductUom,
-  setNewProductUom,
-  newProductPurchasePrice,
   handleProductPurchasePriceChange,
-  newProductBasePrice,
   handleProductBasePriceChange,
-  newProductStock,
-  setNewProductStock,
-  newProductPcs,
-  setNewProductPcs,
-  newProductReorderLevel,
-  setNewProductReorderLevel,
   enableRealPaperStock,
-  newProductIsDummy,
-  setNewProductIsDummy,
-  newProductDiscountPercent,
-  setNewProductDiscountPercent,
-  newProductDiscountFlat,
-  setNewProductDiscountFlat,
-  newProductOfferPrice,
-  setNewProductOfferPrice,
   pricingTiers,
-  productFormTierPrices,
-  setProductFormTierPrices,
-  newProductTaxRate,
-  setNewProductTaxRate,
-  newProductHsn,
-  setNewProductHsn,
-  newProductItemCode,
-  setNewProductItemCode,
-  newProductIsGstApplicable,
-  setNewProductIsGstApplicable,
   handleCreateAndAddProduct,
+  productForm,
 }) => {
+  const { editingProductId, productFormView, setProductFormView, productFormDialogRef, newProductName, setNewProductName, newProductBarcode, setNewProductBarcode, newProductBrand, setNewProductBrand, newProductCategory, setNewProductCategory, newProductIsCustomCategory, setNewProductIsCustomCategory, configuredCategories, firstInputRef, editingProductSnapshot, newProductGrades, newProductGradeId, newProductIsAddingGrade, setNewProductIsAddingGrade, newProductUom, setNewProductUom, newProductPurchasePrice, newProductBasePrice, newProductStock, setNewProductStock, newProductPcs, setNewProductPcs, newProductReorderLevel, setNewProductReorderLevel, newProductIsDummy, setNewProductIsDummy, newProductDiscountPercent, setNewProductDiscountPercent, newProductDiscountFlat, setNewProductDiscountFlat, newProductOfferPrice, setNewProductOfferPrice, productFormTierPrices, setProductFormTierPrices, newProductTaxRate, setNewProductTaxRate, newProductHsn, setNewProductHsn, newProductItemCode, setNewProductItemCode, newProductIsGstApplicable, setNewProductIsGstApplicable } = productForm;
   if (!isOpen) return null;
 
   return (
