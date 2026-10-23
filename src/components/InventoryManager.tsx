@@ -1,22 +1,15 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Search, Plus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Loader2, Layers, Upload } from 'lucide-react';
-import QRCode from 'qrcode';
-import { v4 as uuidv4 } from 'uuid';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
-import Papa from 'papaparse';
 import { DataUploadModal } from './DataUploadModal';
 import { RedCrossButton } from './ui/RedCrossButton';
-import { DateRangeFilter } from './ui/DateRangeFilter';
-import { Select } from './ui/Select';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
-import { formatRoleName, isAdminRole, isLegacyBillerRole } from '../utils/permissions';
-import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
-import { sortProductsBySearchPriority } from '../utils/productSort';
+import { isLegacyBillerRole } from '../utils/permissions';
 import { parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 
-import { type Product, isGstProduct, DEFAULT_FORM, toInventoryProducts } from './inventory/inventoryHelpers';
+import { type Product, isGstProduct } from './inventory/inventoryHelpers';
 import { InventoryTableView } from './inventory/views/InventoryTableView';
 import { InventoryFormView } from './inventory/views/InventoryFormView';
 import { CreateGradeModal } from './inventory/modals/CreateGradeModal';
@@ -24,110 +17,51 @@ import { AdjustStockModal } from './inventory/modals/AdjustStockModal';
 import { BarcodePrintModal } from './inventory/modals/BarcodePrintModal';
 import { DeleteProductModal } from './inventory/modals/DeleteProductModal';
 import { BulkDeleteProductsModal } from './inventory/modals/BulkDeleteProductsModal';
-import { listProducts, countProducts, getProductPricing, setProductPricing, createProduct, updateProduct, deleteProduct, bulkDeleteProducts, adjustStock } from '../data/products';
-import { listGrades, createGrade } from '../data/grades';
-import { listPricingTiers } from '../data/pricingTiers';
-import { listParties, partiesApi } from '../data/parties';
-import { getSetting, settingsApi } from '../data/settings';
-import { isDesktopRuntime, hasBridge } from '../data/client';
-import { bridgeEvents } from '../data/events';
-import { printingApi } from '../data/printing';
-import { purchasesApi } from '../data/purchases';
+import { getProductPricing } from '../data/products';
+import { isDesktopRuntime } from '../data/client';
+import { useInventoryState } from './inventory/hooks/useInventoryState';
+import { useInventorySave } from './inventory/hooks/useInventorySave';
+import { useInventoryExports } from './inventory/hooks/useInventoryExports';
+import { useInventoryFormOpen } from './inventory/hooks/useInventoryFormOpen';
+import { useInventoryFormHandlers } from './inventory/hooks/useInventoryFormHandlers';
+import { useInventoryLoader } from './inventory/hooks/useInventoryLoader';
+import { InventoryHeader } from './inventory/views/InventoryHeader';
+import { useInventoryListActions } from './inventory/hooks/useInventoryListActions';
+import { useInventoryEffects } from './inventory/hooks/useInventoryEffects';
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { tenantId } = useAuthStore();
 
-  const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
-  const [loading, setLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at' | 'stock'>('created_at');
-  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'no_barcode'>('all');
-  const [filterDate, setFilterDate] = useState('');
-  const [filterDateEnd, setFilterDateEnd] = useState('');
+  const inv = useInventoryState();
+  const {
+    view, setView, loading, isFetching, products, debouncedSearchQuery,
+    sortBy, stockFilter, setStockFilter, filterDate, filterDateEnd, formData,
+    setFormData, statusMessage, setStatusMessage, showUploadModal, setShowUploadModal, enableRealPaperStock,
+    showPaperOnlyProducts, showPriceTiersInInventory, deleteConfirmProduct, setDeleteConfirmProduct, isDeleting, printQuantity,
+    setPrintQuantity, printPrice, setPrintPrice, printModalProduct, setPrintModalProduct, adjustingStockId,
+    adjustModal, setAdjustModal, adjustAmount, setAdjustAmount, adjustPcs, setAdjustPcs,
+    priceCoding, viewMode, showLowStockAlert, setShowLowStockAlert, labelCodeType, qrPreviewUrl,
+    grades, pricingTiers, tierPrices, setTierPrices, allProductPricingMap, setAllProductPricingMap,
+    showCategorySuggestions, setShowCategorySuggestions, selectedCategoryIndex, setSelectedCategoryIndex, isAddingGrade, setIsAddingGrade,
+    savingGrade, newGradeForm, setNewGradeForm, nameSuggestions, setNameSuggestions, suppliers,
+    supplierSearch, setSupplierSearch, showSupplierCreate, setShowSupplierCreate, newSupplierName, setNewSupplierName,
+    newSupplierPhone, setNewSupplierPhone, newSupplierAddress, setNewSupplierAddress, selectedNameIndex, setSelectedNameIndex,
+    highlightedProductId, offset, setOffset, hasMore, totalCount, selectedProductIds,
+    setSelectedProductIds, showBulkDeleteConfirm, setShowBulkDeleteConfirm, isBulkDeleting,
+  } = inv;
   const firstInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [formData, setFormData] = useState({ ...DEFAULT_FORM });
-  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
-  const [, setShowZeroPaperStock] = useState(false);
-  const [showPaperOnlyProducts, setShowPaperOnlyProducts] = useState(true);
-  const [, setShowProductGstBadge] = useState(true);
-  const [showPriceTiersInInventory, setShowPriceTiersInInventory] = useState(true);
 
-  useEffect(() => {
-    const loadSettings = () => {
-      if (isDesktopRuntime()) {
-        getSetting<boolean>({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then(val => {
-          if (val !== null && val !== undefined) setEnableRealPaperStock(Boolean(val));
-        }).catch(() => {});
-        getSetting<boolean>({ tenant_id: tenantId || 'global', key: 'show_zero_paper_stock' }).then(val => {
-          if (val !== null && val !== undefined) setShowZeroPaperStock(Boolean(val));
-        }).catch(() => {});
-        getSetting<boolean>({ tenant_id: tenantId || 'global', key: 'show_paper_only_products' }).then(val => {
-          if (val !== null && val !== undefined) setShowPaperOnlyProducts(Boolean(val));
-        }).catch(() => {});
-        getSetting<boolean | string>({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge' }).then(val => {
-          if (val === 'false' || val === false) setShowProductGstBadge(false);
-          else setShowProductGstBadge(true);
-        }).catch(() => {});
-        getSetting<boolean | string>({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory' }).then(val => {
-          if (val === 'false' || val === false) setShowPriceTiersInInventory(false);
-          else setShowPriceTiersInInventory(true);
-        }).catch(() => {});
-      }
-    };
-    loadSettings();
-    window.addEventListener('settings:updated', loadSettings);
-    return () => window.removeEventListener('settings:updated', loadSettings);
-  }, [tenantId]);
-  const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<Product | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [printQuantity, setPrintQuantity] = useState<number | string>(1);
-  const [printPrice, setPrintPrice] = useState(true);
-  const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
-  const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
-  const [adjustModal, setAdjustModal] = useState<{ product: Product; mode: 'add' | 'reduce' } | null>(null);
-  const [adjustAmount, setAdjustAmount] = useState('');
-  const [adjustPcs, setAdjustPcs] = useState('');
-  const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
-  const [viewMode, setViewMode] = useState<'estimate' | 'gst' | 'combined'>('combined');
-  const [showLowStockAlert, setShowLowStockAlert] = useState(true);
-  const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
-  const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
-  const [grades, setGrades] = useState<any[]>([]);
-  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
   const activePricingTiers = useMemo(() => {
     return pricingTiers.filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
   }, [pricingTiers]);
-  const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
-  const [allProductPricingMap, setAllProductPricingMap] = useState<Record<string, Record<string, number>>>({});
-  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
-  const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
   const categoryContainerRef = useRef<HTMLDivElement>(null);
-  const [isAddingGrade, setIsAddingGrade] = useState(false);
-  const [savingGrade, setSavingGrade] = useState(false);
-  const [newGradeForm, setNewGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
-  const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [supplierSearch, setSupplierSearch] = useState('');
-  const [showSupplierCreate, setShowSupplierCreate] = useState(false);
-  const [newSupplierName, setNewSupplierName] = useState('');
-  const [newSupplierPhone, setNewSupplierPhone] = useState('');
-  const [newSupplierAddress, setNewSupplierAddress] = useState('');
-  const [selectedNameIndex, setSelectedNameIndex] = useState(0);
   const nameContainerRef = useRef<HTMLDivElement>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
   const lastInteractedProductId = useRef<string | null>(null);
   const savedScrollTop = useRef<number>(0);
-  const [highlightedProductId, setHighlightedProductId] = useState<string | null>(null);
 
   const existingCategories = useMemo(() => {
     const map = new Map<string, string>();
@@ -155,9 +89,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const categoryGrades = grades.filter(g => (g.category || '').trim().toLowerCase() === (formData.category || '').trim().toLowerCase());
 
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
   const LIMIT = 50;
 
   // ── Refs to always hold the latest filter/pagination state ──────────────
@@ -174,128 +105,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const lastFetchTimeRef = useRef(0);
   const viewModeRef = useRef(viewMode);
   const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // Debounce searchQuery -> debouncedSearchQuery with 0ms instant clear
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setDebouncedSearchQuery('');
-      setIsSearching(false);
-      return;
-    }
-    setIsSearching(true);
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-      setIsSearching(false);
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  useEffect(() => { searchQueryRef.current = debouncedSearchQuery; }, [debouncedSearchQuery]);
-  useEffect(() => { sortByRef.current = sortBy; }, [sortBy]);
-  useEffect(() => { stockFilterRef.current = stockFilter; }, [stockFilter]);
-  useEffect(() => { filterDateRef.current = filterDate; }, [filterDate]);
-  useEffect(() => { filterDateEndRef.current = filterDateEnd; }, [filterDateEnd]);
-  useEffect(() => { offsetRef.current = offset; }, [offset]);
-  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
-  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
-
-  // Focus search input on open / view switch
-  useEffect(() => {
-    if (view === 'list') {
-      const timer = setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [view]);
-
-  // Load products when debounced search or sort or stock filter or viewMode changes (reset)
-  useEffect(() => {
-    offsetRef.current = 0;
-    setOffset(0);
-    hasMoreRef.current = true;
-    setHasMore(true);
-    loadProducts(true);
-  }, [debouncedSearchQuery, sortBy, filterDate, filterDateEnd, stockFilter, viewMode]);
-
-  // Sync listener — auto-refresh silently, using refs so current search/
-  // filter state is preserved even though this effect runs only once.
-  useEffect(() => {
-    if (isDesktopRuntime()) {
-      const unsub = bridgeEvents.onSyncDataUpdated(() => {
-        console.log('[InventoryManager] Data updated via sync. Auto-refreshing...');
-        loadProducts(true);
-      });
-      return () => unsub?.();
-    }
-  }, []);
-
-  // Auto-hide toast/status messages
-  useEffect(() => {
-    if (!statusMessage) return;
-    const t = setTimeout(() => setStatusMessage(null), 4000);
-    return () => clearTimeout(t);
-  }, [statusMessage]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      if (e.key === ' ' && view === 'list') {
-        const tag = (document.activeElement?.tagName || '').toLowerCase();
-        const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
-        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
-          e.preventDefault();
-          openAdd();
-        }
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [view]);
-
-  // Restore scroll position and highlight product row when returning to list
-  useEffect(() => {
-    if (view === 'list' && (lastInteractedProductId.current || savedScrollTop.current > 0)) {
-      const targetId = lastInteractedProductId.current;
-      if (targetId) {
-        setHighlightedProductId(targetId);
-        setTimeout(() => setHighlightedProductId(null), 3000);
-      }
-
-      const restore = () => {
-        if (targetId) {
-          const row = document.getElementById(`product-row-${targetId}`);
-          if (row) {
-            row.scrollIntoView({ block: 'center', behavior: 'instant' });
-            return true;
-          }
-        }
-        if (listScrollRef.current && savedScrollTop.current > 0) {
-          listScrollRef.current.scrollTop = savedScrollTop.current;
-          return true;
-        }
-        return false;
-      };
-
-      // Try immediately, in next animation frame, and after DOM updates
-      restore();
-      const raf1 = requestAnimationFrame(() => {
-        if (!restore()) {
-          requestAnimationFrame(restore);
-        }
-      });
-      const t1 = setTimeout(restore, 50);
-      const t2 = setTimeout(restore, 150);
-      const t3 = setTimeout(restore, 300);
-
-      return () => {
-        cancelAnimationFrame(raf1);
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
-    }
-  }, [view]);
 
   const refreshProductPricing = useCallback(async () => {
     if (isDesktopRuntime()) {
@@ -315,219 +124,15 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         console.warn('[InventoryManager] Failed to load product pricing:', err);
       }
     }
-  }, [tenantId]);
+  }, [tenantId, setAllProductPricingMap]);
 
-  useEffect(() => {
-    if (isDesktopRuntime()) {
-      refreshProductPricing();
-      getSetting<string>({ tenant_id: tenantId || 'global', key: 'inventory_default_view' })
-        .then((val) => {
-          if (val === 'estimate' || val === 'gst' || val === 'combined') setViewMode(val);
-        })
-        .catch(console.error);
-
-      getSetting<Record<string, string>>({ tenant_id: tenantId || 'global', key: 'price_coding' })
-        .then(res => {
-          if (res) setPriceCoding(res);
-        })
-        .catch(console.error);
-
-      getSetting<CodeType>({ tenant_id: tenantId || 'global', key: 'label_code_type' })
-        .then(res => {
-          if (res === 'barcode' || res === 'qrcode') setLabelCodeType(res);
-        })
-        .catch(console.error);
-
-      listGrades(tenantId || 'global')
-        .then(res => {
-          if (Array.isArray(res)) setGrades(res);
-        })
-        .catch(console.error);
-
-      listPricingTiers(tenantId || 'global')
-        .then(res => {
-          if (Array.isArray(res)) setPricingTiers(res);
-        })
-        .catch(console.error);
-
-      listParties(tenantId || 'global')
-        .then(res => {
-          if (Array.isArray(res)) setSuppliers(res);
-        })
-        .catch(console.error);
-    }
-  }, [tenantId]);
-
-  useEffect(() => {
-    if (view === 'add' && isDesktopRuntime()) {
-      const getNumFn = hasBridge('dbPeekNextPurchaseBillNumber') ? purchasesApi.peekNextPurchaseBillNumber : purchasesApi.getNextPurchaseBillNumber;
-      getNumFn({ tenant_id: tenantId || 'global', bill_type: 'GST' })
-        .then(res => {
-          if (res.success && res.billNumber) {
-            setFormData(prev => ({ ...prev, gst_bill_number: res.billNumber || '' }));
-          }
-        })
-        .catch(console.error);
-    }
-  }, [view, tenantId]);
-
-  useEffect(() => {
-    if (view === 'add') {
-      setTimeout(() => firstInputRef.current?.focus(), 50);
-    }
-  }, [view]);
-
-  // Keep GST fields in sync when "Same as Current Product" is enabled
-  useEffect(() => {
-    if (formData.gst_same_as_current && formData.show_gst_purchase) {
-      const syncPrice = formData.purchase_price;
-      const syncQty = formData.current_stock;
-      if (formData.gst_purchase_price !== syncPrice || formData.gst_purchase_quantity !== syncQty) {
-        setFormData(prev => ({
-          ...prev,
-          gst_purchase_price: syncPrice,
-          gst_purchase_quantity: syncQty,
-        }));
-      }
-    }
-  }, [formData.gst_same_as_current, formData.show_gst_purchase, formData.purchase_price, formData.current_stock, formData.gst_purchase_price, formData.gst_purchase_quantity]);
-
-  useEffect(() => {
-    if (labelCodeType === 'qrcode' && formData.sku_barcode) {
-      QRCode.toDataURL(formData.sku_barcode, { width: 150, margin: 1 })
-        .then(url => setQrPreviewUrl(url))
-        .catch(() => setQrPreviewUrl(null));
-    } else {
-      setQrPreviewUrl(null);
-    }
-  }, [labelCodeType, formData.sku_barcode]);
-
-  const loadProducts = async (reset = false) => {
-    // If not a reset (loading next page), guard against concurrent or rapid calls
-    if (!reset) {
-      if (isFetchingRef.current || !hasMoreRef.current) return;
-      const now = Date.now();
-      if (now - lastFetchTimeRef.current < 400) return;
-      lastFetchTimeRef.current = now;
-    }
-
-    isFetchingRef.current = true;
-    setIsFetching(true);
-
-    try {
-      if (isDesktopRuntime()) {
-        const { tenantId } = useAuthStore.getState();
-        // Always read the latest values from refs to avoid stale-closure bugs
-        const currentSearch = searchQueryRef.current;
-        const currentSortBy = sortByRef.current;
-        const currentStockFilter = stockFilterRef.current;
-        const currentFilterDate = filterDateRef.current;
-        const currentFilterDateEnd = filterDateEndRef.current;
-        const currentViewMode = viewModeRef.current;
-        const isGstParam = currentViewMode === 'gst' ? true : currentViewMode === 'estimate' ? false : undefined;
-        const currentOffset = reset ? 0 : offsetRef.current;
-
-        const productsPromise = listProducts({
-          tenant_id: tenantId || 'global',
-          limit: LIMIT,
-          offset: currentOffset,
-          search: currentSearch,
-          sortBy: currentSortBy,
-          filterDate: currentFilterDate,
-          filterDateEnd: currentFilterDateEnd,
-          stockStatus: currentStockFilter,
-          isGst: isGstParam
-        }).then(toInventoryProducts);
-
-        const countPromise = reset ? countProducts({
-          tenant_id: tenantId || 'global',
-          search: currentSearch,
-          filterDate: currentFilterDate,
-          filterDateEnd: currentFilterDateEnd,
-          stockStatus: currentStockFilter,
-          isGst: isGstParam
-        }) : Promise.resolve(null);
-
-        const [result, count] = await Promise.all([productsPromise, countPromise]);
-
-        if (reset && count !== null) {
-          setTotalCount(count);
-        }
-
-        if (Array.isArray(result)) {
-          const sortedResult = currentSearch ? sortProductsBySearchPriority(result, currentSearch) : result;
-          if (reset) {
-            setProducts(sortedResult);
-            const nextOffset = sortedResult.length;
-            offsetRef.current = nextOffset;
-            setOffset(nextOffset);
-            const more = sortedResult.length === LIMIT;
-            hasMoreRef.current = more;
-            setHasMore(more);
-          } else {
-            setProducts(prev => {
-              // filter out duplicates just in case
-              const existingIds = new Set(prev.map(p => p.product_id));
-              const newItems = sortedResult.filter(p => !existingIds.has(p.product_id));
-              return [...prev, ...newItems];
-            });
-            const nextOffset = currentOffset + result.length;
-            offsetRef.current = nextOffset;
-            setOffset(nextOffset);
-            const more = result.length === LIMIT;
-            hasMoreRef.current = more;
-            setHasMore(more);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[InventoryManager] Failed to load products:', err);
-    } finally {
-      isFetchingRef.current = false;
-      setIsFetching(false);
-    }
-  };
+  const { loadProducts } = useInventoryLoader({
+    inv, filterDateEndRef, filterDateRef, hasMoreRef, isFetchingRef, lastFetchTimeRef, LIMIT, offsetRef,
+    searchQueryRef, sortByRef, stockFilterRef, viewModeRef,
+  });
 
   // ── Name autocomplete ───────────────────────────────────────────────
   const nameSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!formData.name || formData.name.length < 2) {
-      setNameSuggestions([]);
-      return;
-    }
-    if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
-    nameSearchTimeout.current = setTimeout(async () => {
-      if (!isDesktopRuntime()) return;
-      const { tenantId } = useAuthStore.getState();
-      const products = toInventoryProducts(await listProducts({
-        tenant_id: tenantId || 'global',
-        search: formData.name,
-        limit: 8,
-        sortBy: 'name'
-      }));
-      if (Array.isArray(products)) {
-        setNameSuggestions(products.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
-        setSelectedNameIndex(0);
-      }
-    }, 300);
-    return () => {
-      if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
-    };
-  }, [formData.name]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (nameContainerRef.current && !nameContainerRef.current.contains(e.target as Node)) {
-        setNameSuggestions([]);
-      }
-      if (categoryContainerRef.current && !categoryContainerRef.current.contains(e.target as Node)) {
-        setShowCategorySuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   const handleCategoryKeyDown = (e: React.KeyboardEvent) => {
     if (!showCategorySuggestions || categorySuggestions.length === 0) return;
@@ -590,36 +195,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   };
 
-  // ── Intersection Observer & Scroll for infinite scrolling ──
-  useEffect(() => {
-    if (view !== 'list') return;
-    const scrollContainer = listScrollRef.current;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry && entry.isIntersecting) {
-          if (!isFetchingRef.current && hasMoreRef.current) {
-            loadProducts(false);
-          }
-        }
-      },
-      {
-        root: scrollContainer,
-        rootMargin: '150px',
-        threshold: 0.05,
-      }
-    );
-
-    obs.observe(sentinel);
-
-    return () => {
-      obs.disconnect();
-    };
-  }, [view]);
-
   // Handle scroll on the list container to load next page smoothly
   const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -630,206 +205,15 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     if (distanceToBottom < 200 && !isFetchingRef.current && hasMoreRef.current) {
       loadProducts(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadProducts is a new function each render; this runs only on the listed triggers (unchanged by moving it into useInventoryLoader)
   }, []);
 
-  const openAdd = async () => {
-    let nextBarcode = '';
-    if (isDesktopRuntime()) {
-      try {
-        const lastProduct = await listProducts({
-          tenant_id: tenantId || 'global',
-          limit: 1,
-          sortBy: 'created_at'
-        });
-        if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
-          const lastBarcode = lastProduct[0].sku_barcode;
-          const match = lastBarcode.match(/(\d+)[^\d]*$/);
-          if (match) {
-            const numStr = match[1];
-            const nextNum = (BigInt(numStr) + 1n).toString();
-            nextBarcode = nextNum.padStart(numStr.length, '0');
-          } else {
-            // If the barcode doesn't contain a number, default to '1'
-            nextBarcode = '1';
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch last barcode", err);
-      }
-    }
-
-    setFormData({ ...DEFAULT_FORM, sku_barcode: nextBarcode });
-    setEditingProduct(null);
-    setTierPrices({});
-    setView('add');
-  };
-
-  const openEdit = (product: Product) => {
-    lastInteractedProductId.current = product.product_id;
-    if (listScrollRef.current) {
-      savedScrollTop.current = listScrollRef.current.scrollTop;
-    }
-    setEditingProduct(product);
-    const validGradeId = product.grade_id && grades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';
-    const appliedGrade = validGradeId ? grades.find(g => g.grade_id === validGradeId) : null;
-    const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
-    setFormData({
-      item_code: product.item_code || '',
-      sku_barcode: product.sku_barcode || '',
-      name: product.name,
-      category: product.category || '',
-      brand_manufacturer: product.brand_manufacturer || '',
-      uom: product.uom || 'Pcs',
-      purchase_price: product.purchase_price || '',
-      base_price: gradeRate !== null && product.pricing_mode === 'GRADE_RATE' ? gradeRate : (product.base_price || ''),
-      current_stock: product.current_stock ?? '',
-      gst_purchase_quantity: product.paper_stock !== undefined && product.paper_stock !== null ? String(product.paper_stock) : '',
-      gst_purchase_price: (() => {
-        try {
-          const da = JSON.parse(product.domain_attributes || '{}');
-          const isPaper = da.gst_type === 'PAPER' || Number(product.paper_stock || da.paper_stock || 0) > 0;
-          if (!isPaper) return '';
-          if ((product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null && (product as any).gst_purchase_price !== '') {
-            return String((product as any).gst_purchase_price);
-          }
-          return da.paper_purchase_price !== undefined && da.paper_purchase_price !== null ? String(da.paper_purchase_price) : (da.gst_purchase_price !== undefined && da.gst_purchase_price !== null ? String(da.gst_purchase_price) : '');
-        } catch { return ''; }
-      })(),
-      reorder_level: product.reorder_level ?? '',
-      is_gst_applicable: isGstProduct(product),
-      gst_type: (() => {
-        try {
-          if (Number(product.current_stock || 0) > 0) return 'REAL' as 'REAL' | 'PAPER';
-          const da = JSON.parse(product.domain_attributes || '{}');
-          if (da.gst_type === 'PAPER') return 'PAPER';
-          if (Number(product.current_stock || 0) <= 0 && Number(product.paper_stock || 0) > 0) return 'PAPER';
-          return (da.gst_type === 'PAPER' ? 'PAPER' : 'REAL') as 'REAL' | 'PAPER';
-        } catch { return 'REAL' as 'REAL' | 'PAPER'; }
-      })(),
-      hsn_sac_code: product.hsn_sac_code || '',
-      tax_rate_percent: product.tax_rate_percent || 0,
-      domain_attributes: (() => {
-        try {
-          const da = JSON.parse(product.domain_attributes || '{}');
-          const pcsVal = da.pcs !== undefined ? da.pcs : (da.pcs_stock !== undefined ? da.pcs_stock : '');
-          da.pcs = pcsVal;
-          da.pcs_stock = pcsVal;
-          const isPaper = da.gst_type === 'PAPER' || Number(product.paper_stock || da.paper_stock || 0) > 0;
-          if (!isPaper) {
-            delete da.paper_mrp;
-            delete da.paper_base_price;
-            delete da.paper_purchase_price;
-            delete da.gst_purchase_price;
-          } else {
-            const paperMrpVal = (product as any).paper_mrp !== undefined && (product as any).paper_mrp !== null && (product as any).paper_mrp !== ''
-              ? (product as any).paper_mrp
-              : (da.paper_mrp !== undefined && da.paper_mrp !== null ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : ''));
-            da.paper_mrp = paperMrpVal !== '' ? String(paperMrpVal) : '';
-          }
-          return da;
-        } catch { return {}; }
-      })(),
-      discount_percent: product.discount_percent ?? '',
-      discount_flat: product.discount_flat ?? '',
-      offer_price: product.offer_price ?? '',
-      billing_type: product.billing_type || 'PIECE',
-      grade_id: validGradeId,
-      pricing_mode: validGradeId ? (product.pricing_mode || 'FIXED_PRICE') : 'FIXED_PRICE',
-      show_gst_purchase: false,
-      gst_same_as_current: false,
-      gst_supplier_id: '',
-      gst_supplier_name: '',
-      gst_bill_number: '',
-      gst_bill_date: new Date().toLocaleDateString('en-CA'),
-      gst_purchase_is_dummy: false,
-    });
-    if (isDesktopRuntime()) {
-      getProductPricing(tenantId || 'global')
-        .then((rows) => {
-          if (Array.isArray(rows)) {
-            const mine: Record<string, string> = {};
-            for (const r of rows) {
-              if (r.product_id === product.product_id && r.price != null && r.price !== '') {
-                mine[r.pricing_tier_id] = String(r.price);
-              }
-            }
-            setTierPrices(mine);
-          }
-        })
-        .catch(console.error);
-
-      // Async fallback: if paper purchase price or paper MRP is missing or empty,
-      // load it directly from purchase bill records
-      const daParsed = (() => { try { return JSON.parse(product.domain_attributes || '{}'); } catch { return {}; } })();
-      const isProductPaper = daParsed.gst_type === 'PAPER' || Number(product.paper_stock || daParsed.paper_stock || 0) > 0;
-      const curPur = (product as any).gst_purchase_price ?? daParsed.gst_purchase_price ?? daParsed.paper_purchase_price ?? '';
-      const curMrp = (product as any).paper_mrp ?? daParsed.paper_mrp ?? daParsed.paper_base_price ?? '';
-
-      if (isProductPaper && (!curPur || !curMrp) && hasBridge('dbGetPurchaseBillProducts')) {
-        purchasesApi.getPurchaseBillProducts({
-          tenant_id: tenantId || 'global',
-          search: product.name,
-          limit: 10
-        }).then((billProds: any[]) => {
-          if (Array.isArray(billProds)) {
-            const match = billProds.find(bp => bp.product_id === product.product_id);
-            if (match) {
-              setFormData(prev => {
-                const prevDa = { ...prev.domain_attributes };
-                let changed = false;
-                let newPur = prev.gst_purchase_price;
-                if ((!newPur || Number(newPur) <= 0) && Number(match.gst_purchase_price) > 0) {
-                  newPur = String(match.gst_purchase_price);
-                  prevDa.gst_purchase_price = match.gst_purchase_price;
-                  prevDa.paper_purchase_price = match.gst_purchase_price;
-                  changed = true;
-                }
-                if ((!prevDa.paper_mrp || Number(prevDa.paper_mrp) <= 0) && Number(match.paper_mrp) > 0) {
-                  prevDa.paper_mrp = String(match.paper_mrp);
-                  prevDa.paper_base_price = match.paper_mrp;
-                  changed = true;
-                }
-                if (changed) {
-                  return { ...prev, gst_purchase_price: newPur, domain_attributes: prevDa };
-                }
-                return prev;
-              });
-            }
-          }
-        }).catch(console.error);
-      }
-    }
-    setView('edit');
-  };
+  const { openAdd, openEdit } = useInventoryFormOpen({
+    inv, lastInteractedProductId, listScrollRef, savedScrollTop, tenantId,
+  });
 
   const handleDelete = (product: Product) => {
     setDeleteConfirmProduct(product);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteConfirmProduct) return;
-    setIsDeleting(true);
-    try {
-      if (isDesktopRuntime()) {
-        const res = await deleteProduct(deleteConfirmProduct.product_id);
-        if (res.success) {
-          setProducts(prev => prev.filter(p => p.product_id !== deleteConfirmProduct.product_id));
-          setTotalCount(prev => prev !== null ? Math.max(0, prev - 1) : null);
-          setStatusMessage({ text: `Product "${deleteConfirmProduct.name}" deleted successfully`, type: 'success' });
-        } else {
-          setStatusMessage({ text: 'Delete failed: ' + res.error, type: 'error' });
-        }
-      }
-    } catch (err: any) {
-      console.error('Delete product error:', err);
-      setStatusMessage({ text: 'Failed to delete product', type: 'error' });
-    } finally {
-      setIsDeleting(false);
-      setDeleteConfirmProduct(null);
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    }
   };
 
   const filtered = useMemo(() =>
@@ -874,10 +258,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     [products, viewMode, stockFilter, showPaperOnlyProducts]
   );
 
-  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-
   const filteredIds = useMemo(() => filtered.map(p => p.product_id), [filtered]);
 
   const isAllSelected = useMemo(() => {
@@ -914,103 +294,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   };
 
-  const handleConfirmBulkDelete = async () => {
-    const ids = Array.from(selectedProductIds);
-    if (ids.length === 0) return;
-    setIsBulkDeleting(true);
-    try {
-      if (isDesktopRuntime()) {
-        const res = await bulkDeleteProducts(ids);
-        if (res.success) {
-          const deleteSet = new Set(ids);
-          setProducts(prev => prev.filter(p => !deleteSet.has(p.product_id)));
-          setTotalCount(prev => prev !== null ? Math.max(0, prev - ids.length) : null);
-          setSelectedProductIds(new Set());
-          setStatusMessage({ text: `Successfully deleted ${ids.length} product(s)`, type: 'success' });
-        } else {
-          setStatusMessage({ text: 'Bulk delete failed: ' + res.error, type: 'error' });
-        }
-      }
-    } catch (err: any) {
-      console.error('Bulk delete product error:', err);
-      setStatusMessage({ text: 'Failed to delete selected products', type: 'error' });
-    } finally {
-      setIsBulkDeleting(false);
-      setShowBulkDeleteConfirm(false);
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    }
-  };
-
   const openAdjustDialog = (product: Product, mode: 'add' | 'reduce') => {
     setAdjustAmount('');
     setAdjustPcs('');
     setAdjustModal({ product, mode });
-  };
-
-  const applyStockAdjust = async (product: Product, delta: number, pcsDelta?: number): Promise<boolean> => {
-    if (!isDesktopRuntime()) return false;
-    setAdjustingStockId(product.product_id);
-    try {
-      const res = await adjustStock({ product_id: product.product_id, delta, pcsDelta });
-      if (res.success) {
-        setProducts(prev => prev.map(p => {
-          if (p.product_id !== product.product_id) return p;
-          const next = { ...p, current_stock: Number(p.current_stock) + delta };
-          if (pcsDelta !== undefined) {
-            try {
-              const da = JSON.parse(p.domain_attributes || '{}');
-              const cur = Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
-              const nextPcs = Math.max(0, cur + pcsDelta);
-              da.pcs_stock = nextPcs;
-              da.pcs = nextPcs;
-              next.domain_attributes = JSON.stringify(da);
-            } catch { /* keep as is */ }
-          }
-          return next;
-        }));
-        return true;
-      }
-      setStatusMessage({ text: 'Failed to adjust stock: ' + res.error, type: 'error' });
-      return false;
-    } catch (err: any) {
-      console.error('Adjust stock error:', err);
-      setStatusMessage({ text: 'Failed to adjust stock. Please try again.', type: 'error' });
-      return false;
-    } finally {
-      setAdjustingStockId(null);
-    }
-  };
-
-  const confirmAdjustStock = async () => {
-    const modal = adjustModal;
-    if (!modal) return;
-    const kgAmt = parseFloat(adjustAmount);
-    const pcsAmt = parseFloat(adjustPcs);
-    const hasKg = !isNaN(kgAmt) && kgAmt > 0;
-    const hasPcs = !isNaN(pcsAmt) && pcsAmt > 0;
-    if (!hasKg && !hasPcs) {
-      setStatusMessage({ text: 'Enter a valid amount in weight or pcs', type: 'error' });
-      return;
-    }
-    if (hasKg && modal.mode === 'reduce' && kgAmt > Number(modal.product.current_stock)) {
-      setStatusMessage({ text: 'Cannot reduce more than the current stock', type: 'error' });
-      return;
-    }
-    if (hasPcs && modal.mode === 'reduce' && pcsAmt > adjustCurrentPcs) {
-      setStatusMessage({ text: 'Cannot reduce more than the current pcs', type: 'error' });
-      return;
-    }
-    const sign = modal.mode === 'add' ? 1 : -1;
-    const ok = await applyStockAdjust(modal.product, hasKg ? sign * kgAmt : 0, hasPcs ? sign * pcsAmt : undefined);
-    if (ok) {
-      setAdjustModal(null);
-      const parts: string[] = [];
-      if (hasKg) parts.push(`${kgAmt} ${modal.product.uom}`);
-      if (hasPcs) parts.push(`${pcsAmt} Pcs`);
-      setStatusMessage({ text: `${modal.mode === 'add' ? 'Added' : 'Reduced'} ${parts.join(' + ')} — ${modal.product.name}`, type: 'success' });
-    }
   };
 
   const encodePurchasePriceCode = (price: any) => {
@@ -1036,64 +323,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return barcode;
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => {
-      if (field === 'is_gst_applicable' && !value && String(prev.hsn_sac_code || '').trim()) {
-        return prev;
-      }
-      const next = { ...prev, [field]: value };
-      
-      if (field === 'purchase_price' && priceCoding) {
-        const newCode = encodePurchasePriceCode(value);
-
-        let currentBarcode = prev.sku_barcode || '';
-        
-        currentBarcode = stripPurchasePriceCode(currentBarcode, prev.purchase_price);
-        
-        if (newCode) {
-           currentBarcode = currentBarcode + newCode;
-        }
-        
-        next.sku_barcode = currentBarcode;
-      }
-
-      if (field === 'grade_id') {
-        next.pricing_mode = value ? 'GRADE_RATE' : 'FIXED_PRICE';
-        if (value) {
-          const selectedGrade = grades.find(g => g.grade_id === value);
-          if (selectedGrade) {
-            next.base_price = Number(selectedGrade.rate);
-            next.purchase_price = Number(selectedGrade.purchase_price || 0);
-          }
-        }
-      }
-
-      if (field === 'uom') {
-        const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
-        next.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
-        setPrintQuantity(1);
-      }
-
-      if (field === 'current_stock' && view === 'add' && !['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(prev.uom)) {
-        setPrintQuantity(value === '' ? '' : value);
-      }
-
-      if (field === 'gst_same_as_current' && value) {
-        next.gst_purchase_price = next.purchase_price;
-        next.gst_purchase_quantity = next.current_stock;
-      }
-
-      if ((field === 'base_price' || field === 'grade_id') && next.discount_percent !== undefined && next.discount_percent !== '') {
-        const pct = parseFloat(next.discount_percent as string);
-        if (!isNaN(pct)) {
-          const base = getEffectiveMrp(next);
-          next.discount_flat = base ? ((base * pct) / 100).toFixed(2) : '';
-        }
-      }
-      return next;
-    });
-  };
-
   const handleDomainAttrChange = (field: string, value: any) => {
     setFormData(prev => {
       const nextAttrs = { ...prev.domain_attributes, [field]: value };
@@ -1110,73 +339,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   };
 
-  const handleCreateSupplier = async () => {
-    if (!newSupplierName.trim()) return;
-    if (isDesktopRuntime()) {
-      const partyId = uuidv4();
-      const res = await partiesApi.addParty({
-        party_id: partyId,
-        tenant_id: tenantId,
-        name: newSupplierName.trim(),
-        phone: newSupplierPhone.trim() || null,
-        address: newSupplierAddress.trim() || null,
-        balance: 0,
-        balance_type: 'PAYABLE',
-        notes: 'Purchase Supplier',
-        created_by: useAuthStore.getState().userId,
-        created_by_name: useAuthStore.getState().userName,
-      });
-      if (res.success) {
-        const newParty = { party_id: partyId, tenant_id: tenantId, name: newSupplierName.trim(), phone: newSupplierPhone.trim() || null, address: newSupplierAddress.trim() || null, balance: 0, balance_type: 'PAYABLE' };
-        setSuppliers(prev => [...prev, newParty]);
-        setFormData(prev => ({ ...prev, gst_supplier_id: partyId, gst_supplier_name: newSupplierName.trim() }));
-        setShowSupplierCreate(false);
-        setNewSupplierName('');
-        setNewSupplierPhone('');
-        setNewSupplierAddress('');
-      } else {
-        setStatusMessage({ text: 'Failed to create supplier: ' + (res.error || ''), type: 'error' });
-        setTimeout(() => setStatusMessage(null), 3000);
-      }
-    }
-  };
-
   const filteredSuppliers = suppliers.filter(s =>
     s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
     (s.phone && s.phone.includes(supplierSearch))
   );
-
-  const handleCreateGrade = async () => {
-    if (!formData.category.trim() || !newGradeForm.grade_name.trim()) return;
-    setSavingGrade(true);
-    const { tenantId } = useAuthStore.getState();
-    const gradeId = uuidv4();
-    const res = await createGrade({
-      grade_id: gradeId,
-      tenant_id: tenantId || '',
-      category: formData.category.trim(),
-      grade_name: newGradeForm.grade_name.trim(),
-      rate: Number(newGradeForm.rate) || 0,
-      purchase_price: Number(newGradeForm.purchase_price) || 0,
-      offer_price: newGradeForm.offer_price === '' ? null : Number(newGradeForm.offer_price),
-    });
-    if (res.success) {
-      const fresh = await listGrades(tenantId || 'global');
-      if (Array.isArray(fresh)) setGrades(fresh);
-      handleInputChange('grade_id', gradeId);
-      handleInputChange('base_price', Number(newGradeForm.rate) || 0);
-      handleInputChange('purchase_price', Number(newGradeForm.purchase_price) || 0);
-      handleInputChange('offer_price', newGradeForm.offer_price === '' ? '' : Number(newGradeForm.offer_price));
-      setIsAddingGrade(false);
-      setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
-      setStatusMessage({ text: `Grade "${newGradeForm.grade_name.trim()}" created and applied.`, type: 'success' });
-      setTimeout(() => setStatusMessage(null), 3000);
-    } else {
-      setStatusMessage({ text: 'Failed to create grade: ' + (res.error || 'Operation failed'), type: 'error' });
-      setTimeout(() => setStatusMessage(null), 3000);
-    }
-    setSavingGrade(false);
-  };
 
   const getEffectiveMrp = (data: any = formData) => {
     const appliedGrade = data.grade_id ? grades.find(g => g.grade_id === data.grade_id) : null;
@@ -1216,470 +382,13 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setFormData(prev => ({ ...prev, offer_price: val, discount_percent: '', discount_flat: '' }));
   };
 
-  const generateBarcode = () => {
-    let prefix = formData.item_code || '';
-    let priceCode = '';
-    
-    if (priceCoding && formData.purchase_price) {
-      priceCode = encodePurchasePriceCode(formData.purchase_price);
-    }
+  const { printBarcode, printProductLabel, downloadCsv } = useInventoryExports({
+    inv, stockFilterRef, tenantId,
+  });
 
-    if (prefix.length + priceCode.length > 10) {
-      prefix = prefix.substring(0, Math.max(0, 10 - priceCode.length));
-    }
-    
-    const remainingLength = 10 - prefix.length - priceCode.length;
-    let randomPart = '';
-    if (remainingLength > 0) {
-      const min = Math.pow(10, remainingLength - 1);
-      const max = Math.pow(10, remainingLength) - 1;
-      randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
-    }
-    
-    handleInputChange('sku_barcode', prefix + randomPart + priceCode);
-  };
-
-  const printBarcode = async () => {
-    if (!formData.sku_barcode) return;
-    setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
-    
-    if (isDesktopRuntime()) {
-      const appliedGrade = formData.grade_id ? grades.find(g => g.grade_id === formData.grade_id) : null;
-      const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
-      const effectiveMrp = gradeRate !== null && formData.pricing_mode === 'GRADE_RATE' 
-        ? gradeRate 
-        : Number(formData.base_price);
-
-      let sp: number | undefined;
-      let spType: 'SP' | 'OFF' = 'SP';
-      if (formData.offer_price) {
-        sp = Number(formData.offer_price);
-        spType = 'OFF';
-      } else if (formData.discount_flat) {
-        sp = effectiveMrp - Number(formData.discount_flat);
-        spType = 'SP';
-      } else if (formData.discount_percent) {
-        sp = effectiveMrp * (1 - Number(formData.discount_percent) / 100);
-        spType = 'SP';
-      }
-      if (sp !== undefined && sp === effectiveMrp) {
-         sp = undefined;
-      }
-      if (printPrice) {
-        localStorage.setItem('printBarcodePrice', effectiveMrp.toString());
-        if (sp !== undefined) {
-          localStorage.setItem('printBarcodeSp', sp.toString());
-          localStorage.setItem('printBarcodeSpType', spType);
-        } else {
-          localStorage.removeItem('printBarcodeSp');
-          localStorage.removeItem('printBarcodeSpType');
-        }
-      } else {
-        localStorage.removeItem('printBarcodePrice');
-        localStorage.removeItem('printBarcodeSp');
-        localStorage.removeItem('printBarcodeSpType');
-      }
-      const cleanName = (formData.name || '').replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
-      localStorage.setItem('printBarcodeName', cleanName);
-
-      const res = await printingApi.printBarcode(
-        tenantId || 'global', 
-        formData.sku_barcode, 
-        printPrice ? effectiveMrp : undefined, 
-        cleanName, 
-        Math.max(1, Number(printQuantity) || 1), 
-        printPrice ? sp : undefined,
-        printPrice ? spType : undefined
-      );
-      if (res.success) {
-        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${Number(printQuantity) > 1 ? 's' : ''})!`, type: 'success' });
-        setPrintQuantity(1);
-      } else {
-        setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
-      }
-      
-      // Clear message after 3 seconds
-      setTimeout(() => setStatusMessage(null), 3000);
-    } else {
-      setStatusMessage({ text: 'Print command dispatched', type: 'success' });
-      setPrintQuantity(1);
-    }
-  };
-
-  const printProductLabel = async (p: Product) => {
-    if (!p.sku_barcode) return;
-    setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
-    
-    if (isDesktopRuntime()) {
-      const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-      const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
-      const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-        ? gradeRate 
-        : Number(p.base_price);
-
-      let sp: number | undefined;
-      let spType: 'SP' | 'OFF' = 'SP';
-      if (p.offer_price) {
-        sp = Number(p.offer_price);
-        spType = 'OFF';
-      } else if (p.discount_flat) {
-        sp = effectiveMrp - Number(p.discount_flat);
-        spType = 'SP';
-      } else if (p.discount_percent) {
-        sp = effectiveMrp * (1 - Number(p.discount_percent) / 100);
-        spType = 'SP';
-      }
-      if (sp !== undefined && sp === effectiveMrp) {
-         sp = undefined;
-      }
-      if (printPrice) {
-        localStorage.setItem('printBarcodePrice', effectiveMrp.toString());
-        if (sp !== undefined) {
-          localStorage.setItem('printBarcodeSp', sp.toString());
-          localStorage.setItem('printBarcodeSpType', spType);
-        } else {
-          localStorage.removeItem('printBarcodeSp');
-          localStorage.removeItem('printBarcodeSpType');
-        }
-      } else {
-        localStorage.removeItem('printBarcodePrice');
-        localStorage.removeItem('printBarcodeSp');
-        localStorage.removeItem('printBarcodeSpType');
-      }
-      const cleanName = (p.name || '').replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
-      localStorage.setItem('printBarcodeName', cleanName);
-
-      const res = await printingApi.printBarcode(
-        tenantId || 'global', 
-        p.sku_barcode, 
-        printPrice ? effectiveMrp : undefined, 
-        cleanName, 
-        Math.max(1, Number(printQuantity) || 1), 
-        printPrice ? sp : undefined,
-        printPrice ? spType : undefined
-      );
-      if (res.success) {
-        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${Number(printQuantity) > 1 ? 's' : ''})!`, type: 'success' });
-        setTimeout(() => setPrintModalProduct(null), 2000);
-      } else {
-        setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
-      }
-      
-      setTimeout(() => setStatusMessage(null), 3000);
-    } else {
-      setStatusMessage({ text: 'Print command dispatched (mock)', type: 'success' });
-      setTimeout(() => {
-        setPrintModalProduct(null);
-        setStatusMessage(null);
-      }, 2000);
-    }
-  };
-
-  const downloadCsv = async () => {
-    setStatusMessage({ text: 'Generating CSV...', type: 'success' });
-    if (isDesktopRuntime()) {
-      const { tenantId } = useAuthStore.getState();
-      const tid = tenantId || 'global';
-      const [result, tiersRes, pricingRows] = await Promise.all([
-        listProducts({
-          tenant_id: tid,
-          filterDate: filterDate,
-          filterDateEnd: filterDateEnd,
-          stockStatus: stockFilterRef.current,
-          limit: 100000 
-        }).then(toInventoryProducts),
-        listPricingTiers(tid),
-        getProductPricing(tid)
-      ]);
-
-      if (Array.isArray(result) && result.length > 0) {
-        const activeTiers = Array.isArray(tiersRes)
-          ? tiersRes.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
-          : [];
-
-        // Build product_id -> { [pricing_tier_id]: price }
-        const pricingMap: Record<string, Record<string, number>> = {};
-        if (Array.isArray(pricingRows)) {
-          for (const row of pricingRows) {
-            if (!row.is_deleted && row.price != null && row.price !== '') {
-              if (!pricingMap[row.product_id]) {
-                pricingMap[row.product_id] = {};
-              }
-              pricingMap[row.product_id][row.pricing_tier_id] = Number(row.price);
-            }
-          }
-        }
-
-        const dataToExport = result.map(p => {
-          const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-          const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined 
-            ? Number(appliedGrade.purchase_price) 
-            : Number(p.purchase_price);
-          const displayMrp = appliedGrade && p.pricing_mode === 'GRADE_RATE' 
-            ? Number(appliedGrade.rate) 
-            : Number(p.base_price);
-
-          const row: Record<string, any> = {
-            'Name': p.name || '',
-            'Item Code': p.item_code || '',
-            'Barcode': p.sku_barcode || '',
-            'Category': p.category || '',
-            'Brand': p.brand_manufacturer || '',
-            'UOM': p.uom || '',
-            'Purchase Price': displayPurchasePrice || 0,
-            'Paper Purchase': Number((p as any).gst_purchase_price || 0),
-            'MRP': displayMrp || 0,
-            'Paper MRP': Number((p as any).paper_mrp || 0),
-          };
-
-          // Dynamically add tier columns with their names
-          for (const tier of activeTiers) {
-            const tierPrice = pricingMap[p.product_id]?.[tier.pricing_tier_id];
-            row[tier.name] = tierPrice != null ? tierPrice : '';
-          }
-
-          row['Discount Percentage'] = p.discount_percent || 0;
-          row['Offer Price'] = p.offer_price || 0;
-          row['Real Stock'] = p.current_stock || 0;
-          row['Paper Stock'] = p.paper_stock || 0;
-          row['Added Date'] = p.created_at || '';
-
-          return row;
-        });
-
-        const csvContent = Papa.unparse(dataToExport);
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const csvName = filterDateEnd ? `products_${filterDate}_${filterDateEnd}.csv` : filterDate ? `products_${filterDate}.csv` : 'products_all.csv';
-        link.setAttribute('download', csvName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setStatusMessage({ text: 'CSV Downloaded with Pricing Tiers', type: 'success' });
-      } else {
-        setStatusMessage({ text: 'No products to download for this date', type: 'error' });
-      }
-    }
-    setTimeout(() => setStatusMessage(null), 3000);
-  };
-
-  const handleSave = async (retries = 3) => {
-    if (!formData.name) {
-      setStatusMessage({ text: 'Please fill in material Name. Purchase, MRP, and Offer are optional.', type: 'error' });
-      setTimeout(() => setStatusMessage(null), 3000);
-      return;
-    }
-
-    let finalBarcode = formData.sku_barcode;
-    if (!finalBarcode) {
-      let prefix = formData.item_code || '';
-      if (prefix.length > 12) {
-        prefix = prefix.substring(0, 12);
-      }
-      const remainingLength = 12 - prefix.length;
-      let code = prefix;
-      if (remainingLength > 0) {
-        const min = Math.pow(10, remainingLength - 1);
-        const max = Math.pow(10, remainingLength) - 1;
-        const randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
-        code += randomPart;
-      }
-      
-      let priceCode = '';
-      if (priceCoding && formData.purchase_price) {
-        priceCode = encodePurchasePriceCode(formData.purchase_price);
-      }
-      finalBarcode = code + priceCode;
-      // Don't just setFormData, pass it directly to payload since state update is async
-      setFormData(prev => ({ ...prev, sku_barcode: finalBarcode }));
-      setStatusMessage({ text: 'Barcode auto-generated.', type: 'success' });
-      setTimeout(() => setStatusMessage(null), 3000);
-    }
-    
-    setLoading(true);
-
-    // Normalize category: clean whitespace and resolve canonical casing from existing categories
-    let normalizedCategory = (formData.category || '').trim().replace(/\s+/g, ' ');
-    if (normalizedCategory) {
-      const match = existingCategories.find(c => c.toLowerCase() === normalizedCategory.toLowerCase());
-      if (match) {
-        normalizedCategory = match;
-      }
-    }
-
-    const userEnteredStock = Number(formData.current_stock) || 0;
-    const userEnteredPaperStock = formData.gst_purchase_quantity !== '' && formData.gst_purchase_quantity !== null
-      ? (Number(formData.gst_purchase_quantity) || 0)
-      : (Number(formData.domain_attributes?.paper_stock) || 0);
-
-    const payload = {
-      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T') }),
-      ...formData,
-      category: normalizedCategory,
-      sku_barcode: finalBarcode,
-      purchase_price: Number(formData.purchase_price) || 0,
-      base_price: Number(formData.base_price) || 0,
-      current_stock: userEnteredStock,
-      paper_stock: userEnteredPaperStock,
-      reorder_level: Number(formData.reorder_level) || 0,
-      is_gst_applicable: formData.is_gst_applicable || String(formData.hsn_sac_code || '').trim() !== '' ? 1 : 0,
-      domain_attributes: (() => {
-        const da = { ...formData.domain_attributes };
-        const rawPcs = Number(da?.pcs !== undefined ? da.pcs : da?.pcs_stock) || 0;
-        const rawStock = userEnteredStock;
-        if (rawPcs > 0) {
-          da.pcs_per_kg = rawStock > 0 ? rawPcs / rawStock : rawPcs;
-        } else {
-          delete da.pcs_per_kg;
-        }
-        const hasPaperData = (formData.gst_purchase_price !== '' && Number(formData.gst_purchase_price) > 0) ||
-                             (da.paper_mrp !== undefined && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) ||
-                             (formData.gst_purchase_quantity !== '' && Number(formData.gst_purchase_quantity) > 0);
-        const hasRealData = (formData.purchase_price !== '' && Number(formData.purchase_price) > 0) ||
-                            (formData.current_stock !== '' && Number(formData.current_stock) > 0);
-
-        if (formData.gst_purchase_quantity !== '' && formData.gst_purchase_quantity !== null) {
-          da.paper_stock = Number(formData.gst_purchase_quantity) || 0;
-        }
-
-        if (formData.gst_purchase_price !== '' && formData.gst_purchase_price !== null && formData.gst_purchase_price !== undefined) {
-          da.gst_purchase_price = Number(formData.gst_purchase_price) || 0;
-          da.paper_purchase_price = da.gst_purchase_price;
-        }
-
-        const hasRealStockOrPricing = hasRealData || (formData.base_price !== '' && Number(formData.base_price) > 0) || Number(formData.current_stock || 0) > 0;
-        const isPaperChosen = !hasRealStockOrPricing && (
-          (formData.gst_type === 'PAPER') ||
-          (hasPaperData && !hasRealData) ||
-          (Number(formData.current_stock) <= 0 && Number(da.paper_stock || 0) > 0) ||
-          (formData.show_gst_purchase && (formData.gst_purchase_is_dummy || Number(formData.gst_purchase_quantity) > 0))
-        );
-
-        da.gst_type = isPaperChosen ? 'PAPER' : 'REAL';
-        if (da.paper_mrp !== undefined && da.paper_mrp !== '' && da.paper_mrp !== null) {
-          da.paper_mrp = Number(da.paper_mrp);
-          da.paper_base_price = Number(da.paper_mrp);
-        } else {
-          delete da.paper_mrp;
-          delete da.paper_base_price;
-        }
-        return JSON.stringify(da);
-      })(),
-      discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
-      discount_flat: formData.discount_flat === '' ? null : Number(formData.discount_flat),
-      offer_price: formData.offer_price === '' ? null : Number(formData.offer_price),
-      billing_type: formData.billing_type,
-      grade_id: formData.grade_id || null,
-      pricing_mode: formData.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
-    };
-
-    if (isDesktopRuntime()) {
-      const res = view === 'edit'
-        ? await updateProduct(payload)
-        : await createProduct(payload);
-
-      if (res.success) {
-        // If GST Purchase details provided, create a purchase bill entry
-        if (view === 'add' && formData.show_gst_purchase && formData.gst_purchase_price !== '' && Number(formData.gst_purchase_price) > 0) {
-          const purchaseBillId = uuidv4();
-          const itemId = uuidv4();
-          const gstQty = Number(formData.gst_purchase_quantity) || 0;
-          const gstPrice = Number(formData.gst_purchase_price) || 0;
-          const gstTotal = gstQty * gstPrice;
-          const supplierName = formData.gst_supplier_name || (suppliers.find(s => s.party_id === formData.gst_supplier_id)?.name) || 'Unknown Supplier';
-
-          await purchasesApi.addPurchaseBill({
-            purchase_bill_id: purchaseBillId,
-            tenant_id: tenantId,
-            bill_number: formData.gst_bill_number || `TEMP-${Date.now()}`,
-            supplier_id: formData.gst_supplier_id || null,
-            supplier_name: supplierName,
-            bill_date: formData.gst_bill_date || new Date().toLocaleDateString('en-CA'),
-            invoice_number: null,
-            notes: `Auto-created from product: ${formData.name}`,
-            total_amount: gstTotal,
-            bill_type: 'GST',
-            items: [{
-              item_id: itemId,
-              product_id: payload.product_id,
-              name: formData.name,
-              quantity: gstQty,
-              purchase_price: gstPrice,
-              total_amount: gstTotal,
-              is_gst_applicable: payload.is_gst_applicable,
-              tax_rate_percent: payload.tax_rate_percent,
-              hsn_sac_code: payload.hsn_sac_code,
-              skip_stock_update: 1, // Paper purchase bills must have skip_stock_update = 1 so real stock is not modified
-            }],
-          });
-        }
-
-        if (view === 'edit') {
-          // Optimistic update for edit
-          setProducts(prev => prev.map(p => p.product_id === payload.product_id ? { ...p, ...payload, current_stock: userEnteredStock, paper_stock: userEnteredPaperStock } as Product : p));
-        } else {
-          // Optimistic update for add
-          setProducts(prev => [{ ...payload, current_stock: userEnteredStock, paper_stock: userEnteredPaperStock } as Product, ...prev]);
-          setTotalCount(prev => prev !== null ? prev + 1 : null);
-        }
-
-        // Persist per-tier prices (blank = use MRP / clear stored price)
-        const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
-          pricing_tier_id,
-          price: price === '' ? null : Number(price),
-        }));
-        if (tierRows.length > 0) {
-          await setProductPricing({
-            tenant_id: tenantId || 'unset',
-            product_id: payload.product_id,
-            pricing: tierRows,
-          });
-        }
-
-        // Auto-register custom categories in the Categories & Grades page so they can be managed there
-        if (normalizedCategory && !existingCategories.some(c => c.toLowerCase() === normalizedCategory.toLowerCase())) {
-          const cat = normalizedCategory;
-          const existing = await listGrades(tenantId || 'global');
-          if (Array.isArray(existing) && !existing.some(g => (g.category || '').trim().toLowerCase() === cat.toLowerCase() && !String(g.grade_name || '').trim())) {
-            const gradeRes = await createGrade({
-              grade_id: uuidv4(),
-              tenant_id: tenantId || '',
-              category: cat,
-              grade_name: '',
-              rate: Number(formData.base_price) || 0,
-              purchase_price: Number(formData.purchase_price) || 0,
-              offer_price: formData.offer_price === '' || formData.offer_price === null || formData.offer_price === undefined ? null : Number(formData.offer_price),
-            });
-            if (gradeRes.success) {
-              const fresh = await listGrades(tenantId || 'global');
-              if (Array.isArray(fresh)) setGrades(fresh);
-            }
-          }
-        }
-
-        setView('list');
-        loadProducts(true);
-      } else if (!formData.sku_barcode && res.error?.includes('sku_barcode') && retries > 0) {
-        setLoading(false);
-        setFormData(prev => ({ ...prev, sku_barcode: '' }));
-        setTimeout(() => handleSave(retries - 1), 100);
-      } else {
-        let errorMessage = res.error || 'Unknown error occurred';
-        if (errorMessage.includes('UNIQUE constraint failed')) {
-          if (errorMessage.includes('sku_barcode')) {
-            errorMessage = 'A product with this barcode already exists.';
-          } else {
-            errorMessage = 'A product with this exact Name and Brand already exists.';
-          }
-        }
-        setStatusMessage({ text: 'Failed to save: ' + errorMessage, type: 'error' });
-        setTimeout(() => setStatusMessage(null), 3000);
-      }
-    }
-    setLoading(false);
-  };
+  const { handleSave } = useInventorySave({
+    inv, encodePurchasePriceCode, existingCategories, loadProducts, tenantId,
+  });
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -1707,212 +416,29 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     } catch { return 0; }
   })();
 
+  const { applyStockAdjust, handleInputChange, handleCreateSupplier, handleCreateGrade } = useInventoryFormHandlers({
+    inv, encodePurchasePriceCode, getEffectiveMrp, stripPurchasePriceCode, tenantId,
+  });
+  const { handleConfirmDelete, handleConfirmBulkDelete, confirmAdjustStock, generateBarcode } = useInventoryListActions({
+    inv, adjustCurrentPcs, applyStockAdjust, encodePurchasePriceCode, handleInputChange, searchInputRef,
+  });
+
+  useInventoryEffects({
+    inv, categoryContainerRef, filterDateEndRef, filterDateRef, firstInputRef, hasMoreRef, isFetchingRef,
+    lastInteractedProductId, listScrollRef, loadProducts, nameContainerRef, nameSearchTimeout, offsetRef, openAdd,
+    refreshProductPricing, savedScrollTop, searchInputRef, searchQueryRef, sentinelRef, sortByRef, stockFilterRef,
+    tenantId, viewModeRef,
+  });
+
 return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ═══════════════════════════════════════════════════
           HEADER with Integrated Filters
       ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        {/* Row 1: Title & Actions (Export, Import, Close) */}
-        <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 select-none">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold text-foreground truncate">
-                  {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
-                </h1>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              </div>
-              {view === 'list' && <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">{totalCount !== null ? totalCount : '...'} products in stock</p>}
-              {view !== 'list' && (
-                <span className="text-[11px] text-muted-foreground font-medium bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
-                  {isAdminRole(useAuthStore.getState().role) ? formatRoleName(useAuthStore.getState().role) : (useAuthStore.getState().userName || 'Staff')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {view === 'list' && (
-              <>
-                <button
-                  onClick={downloadCsv}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-                  title="Export CSV"
-                >
-                  <Save className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="p-2 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-                  title="Import CSV/Excel"
-                >
-                  <Upload className="w-4 h-4" />
-                </button>
-              </>
-            )}
-            <RedCrossButton
-              onClick={view !== 'list' ? () => setView('list') : onClose}
-              title="Close"
-            />
-          </div>
-        </div>
-
-        {/* Row 2: Search & Filters (only in list view) */}
-        {view === 'list' && (
-          <div className="px-4 sm:px-6 py-3 border-t border-border/50 bg-background/50">
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-              
-              {/* Search - Full width on mobile, flex-1 on desktop */}
-              <div className="relative w-full sm:max-w-xl flex-1 min-w-0">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground/40 pointer-events-none" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search by name, barcode, brand, or category..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  autoFocus
-                  className="w-full pl-11 pr-11 py-2.5 text-sm bg-background border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-medium text-foreground"
-                />
-                {isSearching ? (
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                  </div>
-                ) : searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setDebouncedSearchQuery('');
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1.5 hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4 text-destructive" />
-                  </button>
-                ) : null}
-              </div>
-
-              {/* Filter Controls - Horizontal row */}
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                
-                {/* View Mode */}
-                <div className="relative">
-                  <label className="sr-only">View Mode</label>
-                  <Select
-                    value={viewMode}
-                    onChange={v => {
-                      setViewMode(v as any);
-                      settingsApi.set({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: v }).catch(console.error);
-                    }}
-                    options={[
-                      { value: 'estimate', label: 'Estimate' },
-                      { value: 'gst', label: 'GST' },
-                      { value: 'combined', label: 'All Products' },
-                    ]}
-                    className="min-w-[130px]"
-                    triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
-                    renderOption={(option, isSelected) => (
-                      <div className="flex items-center gap-2 py-1">
-                        <span className={clsx(
-                          'w-2.5 h-2.5 rounded-full shrink-0',
-                          option.value === 'estimate' && 'bg-amber-500',
-                          option.value === 'gst' && 'bg-sky-500',
-                          option.value === 'combined' && 'bg-primary'
-                        )} />
-                        <span className={clsx(isSelected && "font-semibold text-sm")}>{option.label}</span>
-                      </div>
-                    )}
-                  />
-                </div>
-
-                {/* Date Range */}
-                <div className="relative hidden sm:block">
-                  <DateRangeFilter
-                    startDate={filterDate}
-                    endDate={filterDateEnd}
-                    onChange={(start, end) => {
-                      setFilterDate(start);
-                      setFilterDateEnd(end);
-                    }}
-                  />
-                </div>
-
-                {/* Stock Status */}
-                <div className="relative">
-                  <label className="sr-only">Stock Status</label>
-                  <Select
-                    value={stockFilter}
-                    onChange={v => setStockFilter(v as any)}
-                    options={[
-                      { value: 'all', label: 'All Stock', icon: Layers, color: 'text-primary' },
-                      { value: 'in_stock', label: 'In Stock', icon: CheckCircle2, color: 'text-emerald-500' },
-                      { value: 'low_stock', label: 'Low Stock', icon: AlertTriangle, color: 'text-amber-500' },
-                      { value: 'out_of_stock', label: 'Out of Stock', icon: AlertCircle, color: 'text-red-500' },
-                      { value: 'no_barcode', label: 'No Barcode', icon: Tag, color: 'text-orange-500' },
-                    ]}
-                    className="min-w-[135px]"
-                    triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
-                    renderOption={(option, isSelected) => {
-                      const Icon = option.icon;
-                      return (
-                        <div className="flex items-center gap-2 py-1">
-                          {Icon && <Icon className={clsx('w-3.5 h-3.5 shrink-0', option.color)} />}
-                          <span className={clsx(isSelected && "font-semibold text-sm")}>{option.label}</span>
-                        </div>
-                      );
-                    }}
-                  />
-                </div>
-
-                {/* Sort By */}
-                <div className="relative hidden md:block">
-                  <label className="sr-only">Sort By</label>
-                  <Select
-                    value={sortBy}
-                    onChange={v => setSortBy(v as any)}
-                    options={[
-                      { value: 'name', label: 'Sort by Name' },
-                      { value: 'created_at', label: 'Sort by Date Added' },
-                      { value: 'updated_at', label: 'Sort by Date Updated' },
-                      { value: 'stock', label: 'Sort by Stock (Low to High)' },
-                    ]}
-                    className="min-w-[160px]"
-                    triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
-                  />
-                </div>
-
-                {/* Primary Action - Add Product */}
-                <button
-                  onClick={openAdd}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground shadow-sm font-semibold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2 px-4 cursor-pointer shrink-0 whitespace-nowrap text-sm ml-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Add Product</span>
-                </button>
-
-              </div>
-
-            </div>
-
-            {/* Secondary Actions Row - Bulk Delete only (when items selected) */}
-            {selectedProductIds.size > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border/50 hidden sm:flex">
-                <button
-                  onClick={() => setShowBulkDeleteConfirm(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-destructive text-destructive-foreground shadow-sm font-medium hover:bg-destructive/90 transition-all duration-200 active:scale-95 py-2 px-3 cursor-pointer shrink-0 whitespace-nowrap text-xs animate-in fade-in"
-                >
-                  <Trash className="w-3.5 h-3.5" />
-                  <span>Delete ({selectedProductIds.size})</span>
-                </button>
-              </div>
-            )}
-
-          </div>
-        )}
-      </header>
+      <InventoryHeader
+        downloadCsv={downloadCsv} onClose={onClose} openAdd={openAdd} searchInputRef={searchInputRef}
+        tenantId={tenantId} inv={inv}
+      />
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
       <InventoryTableView
