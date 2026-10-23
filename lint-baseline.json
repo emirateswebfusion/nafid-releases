@@ -1,5 +1,5 @@
 {
-  "errors": 2953,
+  "errors": 2952,
   "warnings": 60,
   "byRule": {
     "@typescript-eslint/no-explicit-any": 2457,
@@ -15,7 +15,7 @@
     "react-hooks/refs": 16,
     "react-hooks/exhaustive-deps": 60,
     "react-hooks/immutability": 22,
-    "react-hooks/purity": 8,
+    "react-hooks/purity": 7,
     "react-hooks/preserve-manual-memoization": 12,
     "@typescript-eslint/parser": 2,
     "react-hooks/use-memo": 2,
@@ -24,5 +24,5 @@
     "react-refresh/only-export-components": 12,
     "@typescript-eslint/no-empty-object-type": 1
   },
-  "updatedAt": "2026-10-23T03:01:10.507Z"
+  "updatedAt": "2026-10-23T03:21:35.954Z"
 }

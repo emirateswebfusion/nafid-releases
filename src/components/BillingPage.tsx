@@ -1,4 +1,3 @@
-import { generateQuotationHtml, type QuotationPrintData } from '../utils/quotationHtmlGenerator';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { X, Package, Recycle, RotateCcw, Store, Settings, User, Banknote, Smartphone, BookOpen, AlertCircle, CheckCircle2, TrendingUp, FileText, ArrowLeftRight, Layers, Users, PauseCircle, Truck, Shield } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -7,10 +6,7 @@ import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
-import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
-import { formatWhatsAppBillMessage } from '../utils/whatsappBillHelper';
-import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
+import { parseUTCDate } from '../utils/receiptGenerator';
 import { useTabStore, type TabSnapshot, type SplitDetails, saveStoredTabs } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
@@ -18,7 +14,6 @@ import { useFeatureFlagsStore } from '../featureFlags';
 import { DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { displayInvoiceNumber, getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
 import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
-import { buildQuotationLines } from '../utils/checkoutLines';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole } from '../utils/permissions';
@@ -38,23 +33,17 @@ import { ErpGridWorkspace } from './billing/views/ErpGridWorkspace';
 import type { DeductionState } from './billing/views/DeductionEditor';
 import { BillingCustomerDetails } from './billing/views/BillingCustomerDetails';
 import { BillingSearchBar } from './billing/views/BillingSearchBar';
-import { cashierApi } from '../data/cashier';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { customersApi } from '../data/customers';
 import { bridgeEvents } from '../data/events';
 import { invoicesApi } from '../data/invoices';
-import { printingApi } from '../data/printing';
 import { productsApi } from '../data/products';
 import { quotationsApi } from '../data/quotations';
 import { returnsApi } from '../data/returns';
 import { scrapApi } from '../data/scrap';
-import { whatsappApi } from '../data/whatsapp';
 
-import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../data/settings';
 import { listProducts } from '../data/products';
-import { listParties } from '../data/parties';
 import { listInvoices } from '../data/invoices';
-import { listRate } from '../utils/linePricing';
 import { createCheckoutHandler } from './billing/checkout/checkoutHandler';
 import { useCustomerDirectory } from './billing/hooks/useCustomerDirectory';
 import { useCustomerFieldState } from './billing/hooks/useCustomerFieldState';
@@ -69,6 +58,9 @@ import { useQuotationToggle } from './billing/hooks/useQuotationToggle';
 import { useBillingSettings } from './billing/hooks/useBillingSettings';
 import { useCartFocus } from './billing/hooks/useCartFocus';
 import { useHeldBills } from './billing/hooks/useHeldBills';
+import { useWhatsAppSend } from './billing/hooks/useWhatsAppSend';
+import { useSaveQuotation } from './billing/hooks/useSaveQuotation';
+import { useReturnFromCart } from './billing/hooks/useReturnFromCart';
 import { useCartKeyboard } from './billing/hooks/useCartKeyboard';
 import { useBillingSettingsLoader } from './billing/hooks/useBillingSettingsLoader';
 import { useProductFormState } from './billing/hooks/useProductFormState';
@@ -1656,183 +1648,15 @@ export function BillingPage() {
     return () => clearTimeout(t);
   }, [hardwareError]);
 
-  const handleSaveQuotation = async (shouldPrint = true) => {
-    if (items.length === 0) {
-      setHardwareError('Cart is empty. Add items to quotation.');
-      return;
-    }
-    if (!isDesktopRuntime()) return;
-    setQuotationSaving(true);
-    setHardwareError(null);
-    try {
-      const tid = tenantId || '';
-      const quotationId = editingQuotationId || uuidv4();
-      let quotationNumber = editingQuotationNumber || '';
-
-      if (!editingQuotationId) {
-        const numRes = await quotationsApi.getNextQuotationNumber({ tenant_id: 'global' });
-        if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
-        quotationNumber = numRes.quotationNumber || '';
-      }
-
-      const hasGstItems = items.some(i => (i as any).is_gst_applicable || (i as any).hsn_sac_code || Number(i.tax_rate_percent) > 0);
-      const isGstQuotation = quotationGstEnabledSetting || invoiceType === 'GST' || hasGstItems;
-      const isInterState = isGstQuotation && Boolean(customerState && shopState && customerState.trim().toLowerCase() !== shopState.trim().toLowerCase());
-
-      const qItems = buildQuotationLines(items, { isGstQuotation, isInterState });
-
-      const qSubtotal = qItems.reduce((s, i) => s + i.amount, 0);
-      const qDiscountTotal = qItems.reduce((s, i) => s + (i.discount_amount || 0), 0);
-      const qTaxTotal = isGstQuotation ? qItems.reduce((s, i) => s + (i.cgst_amount + i.sgst_amount + i.igst_amount), 0) : 0;
-      const qGrandTotal = qSubtotal + qTaxTotal;
-
-      const quotationPayload = {
-        quotation_id: quotationId,
-        tenant_id: tid,
-        quotation_number: quotationNumber,
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        customer_address: customerAddress || null,
-        customer_gstin: customerGstin || null,
-        customer_state: customerState || null,
-        is_gst: isGstQuotation ? 1 : 0,
-        discount_total: qDiscountTotal,
-        round_off: 0,
-        biller_name: userName || null,
-        terms_conditions: quotationTerms,
-        subtotal: qSubtotal,
-        tax_total: qTaxTotal,
-        grand_total: qGrandTotal,
-        items: qItems.map(i => ({ ...i, tenant_id: tid })),
-      };
-
-      if (editingQuotationId) {
-        // Update existing quotation
-        await quotationsApi.updateQuotation(quotationPayload);
-      } else {
-        // Save new quotation
-        await quotationsApi.saveQuotation(quotationPayload);
-      }
-
-      if (shouldPrint) {
-        const printData: QuotationPrintData = {
-          shopName: shopNameState || shopName || 'My Shop',
-          shopAddress: shopAddress || undefined,
-          shopPhone: shopPhone || undefined,
-          shopEmail: shopEmail || undefined,
-          shopWebsite: shopWebsite || undefined,
-          shopGstin: shopGstin || undefined,
-          shopState: shopState || undefined,
-          quotationNumber,
-          date: new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' }),
-          validUntil: '15 Days from Issue Date',
-          billerName: userName || undefined,
-          customerName: customerName || undefined,
-          customerPhone: customerPhone || undefined,
-          customerAddress: customerAddress || undefined,
-          customerGstin: customerGstin || undefined,
-          customerState: customerState || undefined,
-          reverseCharge: 'No',
-          isGstEnabled: isGstQuotation,
-          items: qItems.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            rate: item.rate,
-            amount: item.amount,
-            hsn_code: item.hsn_code,
-            uom: item.uom,
-            weight: item.weight,
-            base_price: item.base_price,
-            discount_amount: item.discount_amount,
-            discount_percent: item.discount_percent,
-            taxable_amount: item.taxable_amount,
-            tax_rate_percent: item.tax_rate_percent,
-            cgst_rate: item.cgst_rate,
-            cgst_amount: item.cgst_amount,
-            sgst_rate: item.sgst_rate,
-            sgst_amount: item.sgst_amount,
-            igst_rate: item.igst_rate,
-            igst_amount: item.igst_amount,
-          })),
-          subtotal: qSubtotal,
-          discountTotal: qDiscountTotal,
-          taxableAmount: qSubtotal,
-          taxTotal: qTaxTotal,
-          grandTotal: qGrandTotal,
-          termsAndConditions: quotationTerms,
-          bankName: bankNameState || undefined,
-          bankAccount: bankAccountState || undefined,
-          bankIfsc: bankIfscState || undefined,
-          bankBranch: bankBranchState || undefined,
-          upiId: upiId || undefined,
-        };
-        const fullHtml = generateQuotationHtml(printData);
-
-        try {
-          const printRes = await printingApi.printA4Html(tid, fullHtml);
-          if (!printRes.success) {
-            const pw = window.open('', '_blank');
-            if (pw) {
-              pw.document.write(fullHtml);
-              pw.document.close();
-              setTimeout(() => pw.print(), 500);
-            }
-          }
-        } catch {
-          const pw = window.open('', '_blank');
-          if (pw) {
-            pw.document.write(fullHtml);
-            pw.document.close();
-            setTimeout(() => pw.print(), 500);
-          }
-        }
-      }
-
-      setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}${shouldPrint ? ' & Printed' : ''}`);
-      clearCart();
-      setEditingQuotation(null, null);
-
-      const stayInQuotation = uiConfig.stayInQuotationModeAfterPrint ?? false;
-      if (stayInQuotation) {
-        setQuotationMode(true);
-        updateActiveTab({ 
-          customerName: '', 
-          customerPhone: '', 
-          customerGstin: '', 
-          customerAddress: '', 
-          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
-          receivedAmount: 0,
-          reservedQuotationNumber: '',
-        });
-        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
-        await reserveQuotationNumberForTab(true);
-        syncActiveSnapshot();
-      } else {
-        setQuotationMode(false);
-        updateActiveTab({ 
-          customerName: '', 
-          customerPhone: '', 
-          customerGstin: '', 
-          customerAddress: '', 
-          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
-          receivedAmount: 0,
-          reservedQuotationNumber: '',
-        });
-        syncActiveSnapshot();
-        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
-        await reserveInvoiceNumberForTab(true);
-        const tab = getActiveTab();
-        if (tab?.reservedInvoiceNumber) {
-          updateActiveTab({ title: displayInvoiceNumber(tab.reservedInvoiceNumber, invoiceType, enableThreeInvoiceSeries) });
-        }
-      }
-    } catch (e) {
-      setHardwareError('Failed to save quotation');
-      console.error(e);
-    }
-    setQuotationSaving(false);
-    setTimeout(() => setQuotationSuccess(null), 4000);
-  };
+  const { handleSaveQuotation } = useSaveQuotation({
+    bankAccountState, bankBranchState, bankIfscState, bankNameState, clearCart, customerAddress, customerGstin,
+    customerName, customerPhone, customerState, editingQuotationId, editingQuotationNumber,
+    enableThreeInvoiceSeries, getActiveTab, invoiceType, isCashSettlementEnabled, items,
+    quotationGstEnabledSetting, quotationTerms, reserveInvoiceNumberForTab, reserveQuotationNumberForTab,
+    setEditingQuotation, setHardwareError, setQuotationMode, setQuotationSaving, setQuotationSuccess,
+    setQuotationTerms, shopAddress, shopEmail, shopGstin, shopName, shopNameState, shopPhone, shopState,
+    shopWebsite, syncActiveSnapshot, tenantId, uiConfig, updateActiveTab, upiId, userName,
+  });
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1886,301 +1710,22 @@ export function BillingPage() {
     items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, scrapTotal, extraBonus, scrapPaymentStatus, customerName, customerPhone, tenantId, customerAddress, userId, userName, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, uiConfig, setIsScrapMode, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveScrapInvoiceNumberForTab, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod, splitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem,
   });
 
-  // ── Return Mode: process return from cart items (replaces old 2-phase flow) ──
-  const handleProcessReturnFromCart = async (saveOnly = false) => {
-    if (!isDesktopRuntime()) return;
-    if (returnProcessingRef.current) return;
-    returnProcessingRef.current = true;
-
-    if (!selectedReturnInvoice) {
-      returnProcessingRef.current = false;
-      setHardwareError('No original invoice selected for return.');
-      return;
-    }
-    const returnCartItems = items.filter(i => i.isReturnItem && Number(i.quantity) > 0);
-    if (returnCartItems.length === 0) {
-      returnProcessingRef.current = false;
-      setHardwareError('No return items selected in cart.');
-      return;
-    }
-    const returnTabId = activeTabId;
-    setReturnProcessing(true);
-    try {
-      const tid = tenantId || 'global';
-      const numRes = await returnsApi.getNextReturnNumber({ tenant_id: tid });
-      const returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RTN-${Date.now()}`;
-      const returnSubtotal = returnCartItems.reduce((s, item) => s + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0), 0);
-      const returnTaxTotal = returnCartItems.reduce((s, item) => {
-        const origQty = Number(item.originalQuantity) || 1;
-        return s + ((Number(item.originalTaxAmount) || 0) / origQty) * (Number(item.quantity) || 0);
-      }, 0);
-      const returnItems = returnCartItems.map(item => ({
-        return_item_id: uuidv4(),
-        product_id: item.product_id,
-        invoice_item_id: item.invoiceItemId || undefined,
-        name: item.name,
-        brand_manufacturer: item.brand_manufacturer || null,
-        quantity: Number(item.quantity) || 0,
-        unit_price: Number(item.originalUnitPrice) || 0,
-        tax_amount: ((Number(item.originalTaxAmount) || 0) / Math.max(1, Number(item.originalQuantity) || 1)) * (Number(item.quantity) || 0),
-        total: (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0),
-      }));
-
-      const result = await returnsApi.createReturn({
-        return_id: uuidv4(),
-        invoice_id: selectedReturnInvoice.invoice_id,
-        tenant_id: tid,
-        user_id: userId || undefined,
-        return_number: returnNumber,
-        customer_name: selectedReturnInvoice.customer_name || customerName || undefined,
-        customer_phone: selectedReturnInvoice.customer_phone || customerPhone || undefined,
-        customer_address: (selectedReturnInvoice as any)?.customer_address || customerAddress || undefined,
-        subtotal: returnSubtotal,
-        tax_total: returnTaxTotal,
-        grand_total: returnSubtotal + returnTaxTotal,
-        reason: '',
-        refund_method: returnRefundMethod,
-        adjusted_invoice_number: undefined,
-        items: returnItems,
-      });
-      if (!result.success) {
-        setHardwareError(`Failed to save return: ${result.error || 'Unknown error'}`);
-        setReturnProcessing(false);
-        return;
-      }
-
-      if (returnRefundMethod === 'CASH') {
-        try {
-          await cashierApi.addTransaction({
-            tenant_id: tid,
-            type: 'CASH_OUT',
-            amount: returnSubtotal + returnTaxTotal,
-            category: 'RETURN_REFUND',
-            notes: `Return refund for ${returnNumber} (Ref: ${selectedReturnInvoice.invoice_number})`,
-            user_id: userId,
-            user_name: useAuthStore.getState().userName || undefined,
-          });
-        } catch (e) { console.error('Failed to log return cash out', e); }
-      }
-
-      if (returnRefundMethod === 'ADJUST_BILL') {
-        setReturnDeduction(returnSubtotal + returnTaxTotal, returnNumber);
-      }
-
-      if (!saveOnly) {
-        const cfg = await getSetting<ReceiptPrinterConfig>({ tenant_id: tid, key: 'receipt_printer_config' });
-        const printFmt = await getSetting<PrintFormatSettings>({ tenant_id: tid, key: 'print_format' });
-        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : (cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8);
-        const thermalStyle = printFmt?.style || 'standard';
-        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
-        const returnReceiptData: ReceiptData = {
-          shopName: shopNameState || shopName || 'My Shop',
-          shopPhone: shopPhone || undefined,
-          shopAddress: shopAddress || undefined,
-          invoiceNumber: returnNumber,
-          referenceInvoiceNumber: selectedReturnInvoice.invoice_number,
-          refundMethod: returnRefundMethod.replace('_', ' '),
-          date: formatBillDateTime(new Date()),
-          billerName: useAuthStore.getState().userName || undefined,
-          items: returnItems.map(ri => ({ name: ri.name, quantity: ri.quantity, unit_price: ri.unit_price, total: ri.total, brand: ri.brand_manufacturer || undefined })),
-          subtotal: returnSubtotal,
-          tax: returnTaxTotal,
-          discount: returnDiscountTotal,
-          grandTotal: returnSubtotal + returnTaxTotal,
-          invoiceType: 'RETURN',
-          customerName: selectedReturnInvoice.customer_name || customerName || undefined,
-          customerPhone: selectedReturnInvoice.customer_phone || customerPhone || undefined,
-          customerAddress: (selectedReturnInvoice as any)?.customer_address || customerAddress || undefined,
-          customerState: (selectedReturnInvoice as any)?.customer_state || undefined,
-          billSettings,
-        };
-        const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await printingApi.printReceipt(tid, receiptText);
-        if (printResult?.skipped) {
-          setHardwareError(formatPrinterError('No printer configured'));
-          setTimeout(() => setHardwareError(null), 5000);
-        } else if (printResult && !printResult.success) {
-          setHardwareError(formatPrinterError(printResult.error));
-          setTimeout(() => setHardwareError(null), 5000);
-        }
-      }
-
-      // Refresh parties list so party balances update immediately
-      listParties(tid)
-        .then((res: any) => {
-          if (Array.isArray(res)) setPartiesForTier(res);
-        })
-        .catch(console.error);
-
-      // Notify other views (cashier settlement, history)
-      try {
-        window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { return_number: returnNumber } }));
-      } catch (e) { /* ignore */ }
-
-      setReturnProcessed(true);
-      setReturnSuccessToast(saveOnly ? `Return ${returnNumber} saved successfully!` : `Return ${returnNumber} processed & receipt printed!`);
-      setTimeout(async () => {
-        setReturnProcessed(false);
-        const tabsCount = useTabStore.getState().tabs.length;
-        const stayInReturn = uiConfig.stayInReturnModeAfterPrint ?? false;
-
-        setSelectedReturnInvoice(null);
-        clearCart();
-        if (returnRefundMethod !== 'ADJUST_BILL') {
-          clearReturnDeduction();
-        }
-        setReturnSuccessToast(null);
-
-        // Always clear customer and payment state for the completed return
-        updateActiveTab({
-          customerName: '',
-          customerPhone: '',
-          customerGstin: '',
-          customerAddress: '',
-          customerId: '',
-          paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
-          receivedAmount: 0,
-          actualRefundPaid: 0,
-          reservedReturnNumber: '',
-        });
-
-        if (tabsCount > 1 && !stayInReturn) {
-          setReturnMode(false);
-          closeTab(returnTabId);
-        } else {
-          if (stayInReturn) {
-            setReturnMode(true);
-            await reserveReturnNumberForTab(true);
-          } else {
-            setReturnMode(false);
-            await reserveInvoiceNumberForTab(true);
-            const tab = getActiveTab();
-            if (tab?.reservedInvoiceNumber) {
-              updateActiveTab({ title: tab.reservedInvoiceNumber });
-            }
-          }
-          syncActiveSnapshot();
-        }
-      }, 1800);
-    } catch (e) {
-      console.error('Return processing failed', e);
-      setHardwareError('Return processing failed. Please try again.');
-    } finally {
-      returnProcessingRef.current = false;
-      setReturnProcessing(false);
-    }
-  };
+  const { handleProcessReturnFromCart } = useReturnFromCart({
+    activeTabId, clearCart, clearReturnDeduction, closeTab, customerAddress, customerName, customerPhone,
+    getActiveTab, isCashSettlementEnabled, items, reserveInvoiceNumberForTab, reserveReturnNumberForTab,
+    returnDiscountTotal, returnProcessingRef, returnRefundMethod, selectedReturnInvoice, setHardwareError,
+    setPartiesForTier, setReturnDeduction, setReturnMode, setReturnProcessed, setReturnProcessing,
+    setReturnSuccessToast, setSelectedReturnInvoice, shopAddress, shopName, shopNameState, shopPhone,
+    syncActiveSnapshot, tenantId, uiConfig, updateActiveTab, userId,
+  });
 
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
-  const handleWhatsAppSendActiveBill = async () => {
-    if (items.length === 0) {
-      setHardwareError('No items in the active bill to send');
-      setTimeout(() => setHardwareError(null), 3500);
-      return;
-    }
-    const custPhone = (customerPhone || activeTab?.customerPhone || '').trim();
-    if (!custPhone) {
-      setHardwareError('Please enter Customer Mobile Number to send via WhatsApp');
-      setTimeout(() => setHardwareError(null), 4000);
-      return;
-    }
-    if (!hasBridge('whatsappSendInvoice')) {
-      setHardwareError('WhatsApp service not available in this environment');
-      setTimeout(() => setHardwareError(null), 3500);
-      return;
-    }
-
-    setIsSendingWhatsApp(true);
-    try {
-      const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const printFmt = parsePrintFormat(printFmtRaw);
-      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
-
-      const isB2B = Boolean(customerGstin?.trim()) || Boolean(activeTab?.isB2B);
-      const isGstOrB2B = invoiceType === 'GST' || isB2B;
-      const isHalfA4 = printFmt.format === 'half-a4';
-      const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-
-      const billNo = activeTab?.reservedInvoiceNumber || activeTab?.title || 'ACTIVE';
-      const receiptItems = items.map(item => {
-        const rate = listRate(item);
-        const qty = Number(item.quantity) || 0;
-        const total = rate * qty;
-        return {
-          name: item.name,
-          quantity: qty,
-          unit_price: rate,
-          total,
-          brand: item.brand_manufacturer || undefined,
-          billing_type: item.billing_type,
-          unit: item.unit || item.uom,
-        };
-      });
-
-      const activeReceiptData: ReceiptData = {
-        shopName: shopNameState || shopName || 'My Shop',
-        shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
-        shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (shopAddress || undefined) : undefined,
-        shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (shopPhone || undefined) : undefined,
-        invoiceNumber: billNo,
-        date: formatBillDateTime(new Date()),
-        billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (useAuthStore.getState().userName || undefined) : undefined,
-        items: receiptItems,
-        subtotal,
-        tax: totalTax,
-        discount,
-        grandTotal: displayGrandTotal,
-        paymentMethod,
-        customerName: customerName || undefined,
-        customerPhone: custPhone,
-        customerAddress: customerAddress || undefined,
-        customerGstin: customerGstin?.trim() || undefined,
-        billSettings,
-        isB2B,
-      };
-
-      const fullHtml = generateInvoiceHtml(activeReceiptData, invStyle as any);
-      const waMessage = formatWhatsAppBillMessage({
-        shopName: shopNameState || shopName || 'Store',
-        invoiceNumber: billNo,
-        date: new Date().toLocaleDateString('en-IN'),
-        customerName: customerName || undefined,
-        customerPhone: custPhone,
-        items: receiptItems.map(i => ({
-          name: i.name,
-          quantity: i.quantity,
-          unit_price: Number(i.unit_price) || 0,
-          total: Number(i.total) || 0
-        })),
-        grandTotal: displayGrandTotal,
-        receivedAmount: paymentMethod === 'CASH' ? Number(receivedAmount || displayGrandTotal) : displayGrandTotal,
-        balanceAmount: paymentMethod === 'CREDIT' ? displayGrandTotal : 0,
-        paymentMethod,
-      });
-
-      const sendRes = await whatsappApi.sendInvoice({
-        phone: custPhone,
-        message: waMessage,
-        htmlContent: fullHtml,
-        fileName: "Invoice_" + billNo + ".pdf"
-      });
-
-      if (sendRes?.success) {
-        setInfoToast("Invoice PDF sent to WhatsApp (" + custPhone + ") successfully!");
-        setTimeout(() => setInfoToast(null), 4000);
-      } else {
-        setHardwareError("WhatsApp Send Failed: " + (sendRes?.error || 'Unknown error'));
-        setTimeout(() => setHardwareError(null), 5000);
-      }
-    } catch (err: any) {
-      console.error('[WhatsApp Manual Send Error]:', err);
-      setHardwareError("WhatsApp Error: " + (err?.message || 'Could not send'));
-      setTimeout(() => setHardwareError(null), 5000);
-    } finally {
-      setIsSendingWhatsApp(false);
-    }
-  };
+  const { handleWhatsAppSendActiveBill } = useWhatsAppSend({
+    activeTab, customerAddress, customerGstin, customerName, customerPhone, discount, displayGrandTotal,
+    invoiceType, items, paymentMethod, receivedAmount, setHardwareError, setInfoToast, setIsSendingWhatsApp,
+    shopAddress, shopGstin, shopName, shopNameState, shopPhone, subtotal, tenantId, totalTax,
+  });
 
   const [heldBills, setHeldBills] = useState<any[]>([]);
   const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
