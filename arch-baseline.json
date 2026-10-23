@@ -28,8 +28,7 @@
     "src/components/QuotationManager.tsx": 1107,
     "src/components/RecycleBin.tsx": 1288,
     "src/components/SettingsGrades.tsx": 1097,
-    "src/components/StockReport.tsx": 1289,
-    "src/components/SuperDashboard.tsx": 1544
+    "src/components/StockReport.tsx": 1289
   },
-  "updatedAt": "2026-10-23T14:48:07.155Z"
+  "updatedAt": "2026-10-23T15:54:39.884Z"
 }

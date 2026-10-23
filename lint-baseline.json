@@ -1,9 +1,9 @@
 {
-  "errors": 2865,
+  "errors": 2854,
   "warnings": 59,
   "byRule": {
-    "@typescript-eslint/no-explicit-any": 2397,
-    "@typescript-eslint/no-unused-vars": 106,
+    "@typescript-eslint/no-explicit-any": 2388,
+    "@typescript-eslint/no-unused-vars": 104,
     "no-empty": 202,
     "no-useless-assignment": 26,
     "@typescript-eslint/no-require-imports": 2,
@@ -24,5 +24,5 @@
     "prefer-const": 2,
     "@typescript-eslint/no-empty-object-type": 1
   },
-  "updatedAt": "2026-10-23T14:49:09.236Z"
+  "updatedAt": "2026-10-23T15:55:32.971Z"
 }
