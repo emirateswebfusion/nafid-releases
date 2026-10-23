@@ -32,16 +32,12 @@ import { ErpGridWorkspace } from './billing/views/ErpGridWorkspace';
 import type { DeductionState } from './billing/views/DeductionEditor';
 import { BillingCustomerDetails } from './billing/views/BillingCustomerDetails';
 import { BillingSearchBar } from './billing/views/BillingSearchBar';
-import { hasBridge, isDesktopRuntime } from '../data/client';
-import { customersApi } from '../data/customers';
-import { bridgeEvents } from '../data/events';
+import { isDesktopRuntime } from '../data/client';
 import { invoicesApi } from '../data/invoices';
 import { productsApi } from '../data/products';
 import { returnsApi } from '../data/returns';
 import { scrapApi } from '../data/scrap';
 
-import { listProducts } from '../data/products';
-import { listInvoices } from '../data/invoices';
 import { createCheckoutHandler } from './billing/checkout/checkoutHandler';
 import { useCustomerDirectory } from './billing/hooks/useCustomerDirectory';
 import { useCustomerFieldState } from './billing/hooks/useCustomerFieldState';
@@ -62,6 +58,10 @@ import { useReturnFromCart } from './billing/hooks/useReturnFromCart';
 import { useTabNumberRefresh } from './billing/hooks/useTabNumberRefresh';
 import { useScrapInvoiceEdit } from './billing/hooks/useScrapInvoiceEdit';
 import { useBillingEntry } from './billing/hooks/useBillingEntry';
+import { usePricingTier } from './billing/hooks/usePricingTier';
+import { useHardwareBarcodeScanner } from './billing/hooks/useHardwareBarcodeScanner';
+import { useCustomerAutoMatch } from './billing/hooks/useCustomerAutoMatch';
+import { useMostSoldProducts } from './billing/hooks/useMostSoldProducts';
 import { useCartKeyboard } from './billing/hooks/useCartKeyboard';
 import { useBillingSettingsLoader } from './billing/hooks/useBillingSettingsLoader';
 import { useProductFormState } from './billing/hooks/useProductFormState';
@@ -787,37 +787,9 @@ export function BillingPage() {
     enableRealPaperStock, showPaperInGstSetting, showPaperInEstSetting,
   });
 
-  // Fetch most sold products for 3-column express layout
-  useEffect(() => {
-    if (!isDesktopRuntime() || !tenantId) return;
-    let cancelled = false;
-
-    const fetchMostSold = async () => {
-      try {
-        if (hasBridge('dbGetProductSalesSummary')) {
-          const summary = await productsApi.getProductSalesSummary({ tenant_id: tenantId || 'global' });
-          if (!cancelled && Array.isArray(summary) && summary.length > 0) {
-            const sorted = summary
-              .filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge')
-              .sort((a: any, b: any) => ((Number(b.gst_qty || 0) + Number(b.bos_qty || 0)) - (Number(a.gst_qty || 0) + Number(a.bos_qty || 0))));
-            if (sorted.length > 0) {
-              setMostSoldProducts(sorted.slice(0, 30));
-              return;
-            }
-          }
-        }
-        const prods = await listProducts({ tenant_id: tenantId, limit: 30 });
-        if (!cancelled && Array.isArray(prods)) {
-          setMostSoldProducts(prods.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
-        }
-      } catch (err) {
-        console.error('[BillingPage] Failed to fetch most sold products:', err);
-      }
-    };
-
-    fetchMostSold();
-    return () => { cancelled = true; };
-  }, [tenantId, uiConfig.orientation, uiConfig.showQuickCategoryBar]);
+  useMostSoldProducts({
+    setMostSoldProducts, tenantId, uiConfig,
+  });
 
   // Scrap deduction search
   useEffect(() => {
@@ -906,83 +878,6 @@ export function BillingPage() {
     customerPhone,
   });
 
-  // Debounce party tier application & loyalty customer auto-matching during customer typing so typing is never blocked
-  useEffect(() => {
-    const cleanName = customerName.trim().toLowerCase();
-    const cleanPhone = customerPhone.trim();
-    if (!cleanName && !cleanPhone) {
-      if (loyaltyCustomerData.customerId) {
-        setLoyaltyCustomerData({ customerId: null, pointsBalance: 0 });
-        setPointsToRedeem(0);
-        setShowLoyaltyRedemption(false);
-      }
-      return;
-    }
-    const timer = setTimeout(() => {
-      applyPartyTier(customerName, customerPhone);
-      const matched = findMatchingParty(customerName, customerPhone);
-      const custMatch = (allCustomersList || []).find((c: any) => {
-        if (!c) return false;
-        const cp = String(c.phone || '').trim();
-        const cn = String(c.name || '').trim().toLowerCase();
-        if (cleanPhone && cp && cp === cleanPhone) return true;
-        if (cleanName && cn && cn === cleanName) return true;
-        return false;
-      });
-
-      const resolvedCustId = (matched && matched.customer_id) || custMatch?.customer_id;
-      const resolvedPoints = custMatch?.current_points_balance !== undefined
-        ? Number(custMatch.current_points_balance) || 0
-        : (matched?.current_points_balance !== undefined ? Number(matched.current_points_balance) || 0 : 0);
-
-      if (resolvedCustId) {
-        setLoyaltyCustomerData({
-          customerId: resolvedCustId,
-          pointsBalance: Number(resolvedPoints) || 0,
-        });
-        if (!activeTab?.customerId) {
-          updateActiveTab({ customerId: resolvedCustId });
-        }
-      } else if (cleanPhone || cleanName) {
-        // Query backend directly if not loaded in memory yet
-        if (hasBridge('dbFindCustomers')) {
-          customersApi.findCustomers({
-            tenant_id: tenantId || 'global',
-            phone: cleanPhone || undefined,
-            name: cleanName || undefined,
-          }).then((res: any) => {
-            const list = Array.isArray(res) ? res : [];
-            const found = list.find((c: any) =>
-              (cleanPhone && String(c.phone || '').trim() === cleanPhone) ||
-              (cleanName && String(c.name || '').trim().toLowerCase() === cleanName)
-            ) || list[0];
-            if (found && found.customer_id) {
-              setLoyaltyCustomerData({
-                customerId: found.customer_id,
-                pointsBalance: Number(found.current_points_balance) || 0,
-              });
-              if (!activeTab?.customerId) {
-                updateActiveTab({ customerId: found.customer_id });
-              }
-            }
-          }).catch(() => {});
-        }
-      }
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [customerName, customerPhone, findMatchingParty, allCustomersList, tenantId]);
-
-  // Ensure redeemed points does not exceed active customer balance
-  useEffect(() => {
-    const bal = Number(loyaltyCustomerData?.pointsBalance) || 0;
-    if (!loyaltyCustomerData.customerId || bal <= 0) {
-      if (pointsToRedeem > 0) setPointsToRedeem(0);
-      if (showLoyaltyRedemption) setShowLoyaltyRedemption(false);
-    } else if (pointsToRedeem > bal) {
-      setPointsToRedeem(bal);
-    }
-  }, [loyaltyCustomerData.customerId, loyaltyCustomerData.pointsBalance]);
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
@@ -1037,103 +932,16 @@ export function BillingPage() {
 
   const [isLoadingEditBill, setIsLoadingEditBill] = useState(false);
 
-  const getTierPriceForProduct = (product: any): number | undefined => {
-    if (!selectedTierId || !product) return undefined;
-    if (!pricingTiers.some(t => t.pricing_tier_id === selectedTierId)) return undefined;
-    const v = productPricingMap[product.product_id]?.[selectedTierId]
-      ?? product.tier_prices?.[selectedTierId];
-    const price = Number(v);
-    return Number.isFinite(price) && price > 0 ? price : undefined;
-  };
+  const { getTierPriceForProduct, handlePricingTierChange, applyPartyTier } = usePricingTier({
+    findMatchingParty, pricingTiers, productPricingMap, productPricingMapLoaded, selectedTierId,
+    setSelectedTierId, syncActiveSnapshot,
+  });
 
-  const applyPricingTierToCart = useCallback((tierId: string) => {
-    const tier = pricingTiers.find(t => t.pricing_tier_id === tierId);
-    let itemsChanged = false;
-    const nextItems = useCartStore.getState().items.map(item => {
-      if (item.isScrap || item.isReturnItem || item.isCombo || item.isServiceItem || item.is_tier_overridden) {
-        return item;
-      }
-
-      const tierPrice = Number(productPricingMap[item.product_id]?.[tierId]);
-      const hasTierPrice = Boolean(tierId) && Number.isFinite(tierPrice) && tierPrice > 0;
-      const originalPricingMode = item.original_pricing_mode ?? item.pricing_mode;
-      const basePrice = hasTierPrice ? tierPrice : (item.original_base_price ?? item.base_price);
-      const pricingMode = hasTierPrice ? 'FIXED_PRICE' : originalPricingMode;
-      const tierName = tierId ? (tier?.name || null) : null;
-      const originalGradeId = item.original_grade_id ?? item.grade_id ?? null;
-      const originalGradeRate = item.original_grade_rate ?? item.grade_rate ?? null;
-      const tierPriceStateIsCurrent = !hasTierPrice || (
-        item.offer_price == null &&
-        item.discount_percent == null &&
-        item.discount_flat == null &&
-        item.catalog_offer_price == null &&
-        item.catalog_discount_percent == null &&
-        item.catalog_discount_flat == null
-      );
-
-      if (
-        item.base_price === basePrice &&
-        item.pricing_mode === pricingMode &&
-        item.pricing_tier_id === (tierId || null) &&
-        item.pricing_tier_name === tierName &&
-        item.original_pricing_mode === originalPricingMode &&
-        item.original_grade_id === originalGradeId &&
-        item.original_grade_rate === originalGradeRate &&
-        tierPriceStateIsCurrent
-      ) {
-        return item;
-      }
-
-      itemsChanged = true;
-
-      return {
-        ...item,
-        base_price: basePrice,
-        pricing_mode: pricingMode,
-        original_pricing_mode: originalPricingMode,
-        original_grade_id: originalGradeId,
-        original_grade_rate: originalGradeRate,
-        pricing_tier_id: tierId || null,
-        pricing_tier_name: tierName,
-        ...(hasTierPrice ? {
-          offer_price: null,
-          discount_percent: null,
-          discount_flat: null,
-          catalog_offer_price: null,
-          catalog_discount_percent: null,
-          catalog_discount_flat: null,
-        } : {}),
-      };
-    });
-    if (itemsChanged) {
-      useCartStore.setState({ items: nextItems });
-      syncActiveSnapshot();
-    }
-  }, [pricingTiers, productPricingMap, syncActiveSnapshot]);
-
-  const handlePricingTierChange = useCallback((tierId: string) => {
-    setSelectedTierId(tierId);
-    applyPricingTierToCart(tierId);
-  }, [applyPricingTierToCart]);
-
-  useEffect(() => {
-    if (productPricingMapLoaded) {
-      applyPricingTierToCart(selectedTierId);
-    }
-  }, [productPricingMapLoaded, productPricingMap, selectedTierId, applyPricingTierToCart]);
-
-  const applyPartyTier = (name: string, phone: string) => {
-    const defaultTier = pricingTiers.find(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');
-    const defaultTierId = defaultTier ? defaultTier.pricing_tier_id : '';
-    if (!name && !phone) {
-      if (!selectedTierId) handlePricingTierChange(defaultTierId);
-      return;
-    }
-    const match = findMatchingParty(name, phone);
-    if (match?.pricing_tier_id && pricingTiers.some(t => t.pricing_tier_id === match.pricing_tier_id)) {
-      handlePricingTierChange(match.pricing_tier_id);
-    }
-  };
+  useCustomerAutoMatch({
+    activeTab, allCustomersList, applyPartyTier, customerName, customerPhone, findMatchingParty,
+    loyaltyCustomerData, pointsToRedeem, setLoyaltyCustomerData, setPointsToRedeem, setShowLoyaltyRedemption,
+    showLoyaltyRedemption, tenantId, updateActiveTab,
+  });
 
   const customerHandlers = useCustomerFieldHandlers({
     fields: customerFields, filteredCustomerSuggestions, invoiceType, searchRef,
@@ -1180,97 +988,11 @@ export function BillingPage() {
     }
   };
 
-  // Past bill selection: load selected invoice into cart for editing
-
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-
-    const playBeep = () => {
-      try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 1350; // high-pitched clear beep
-        gain.gain.setValueAtTime(0.08, audioCtx.currentTime); // safe volume
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08); // fade fast
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.08);
-      } catch (e) {
-        console.warn('Audio feedback failed:', e);
-      }
-    };
-
-    const unsubscribe = bridgeEvents.onBarcodeScanned(async (code: string) => {
-      if (!code) return;
-      console.log("[BillingPage] Barcode scanned from hardware:", code);
-      
-      // Determine what mode we are in
-      if (isReturnMode) {
-        // Search invoices for returns
-        try {
-          const invoices = await listInvoices({ tenant_id: tenantId, search: code });
-          if (Array.isArray(invoices) && invoices.length > 0) {
-            // Find an exact match by invoice number
-            const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
-            if (exactMatch) {
-              handleSelectReturnInvoice(exactMatch);
-              playBeep();
-            } else {
-              setSearchQuery(code);
-              setReturnSearchResults(invoices.filter((inv: any) => inv.invoice_type !== 'SCRAP' && inv.invoice_type !== 'RETURN'));
-            }
-          }
-        } catch (e) {
-          console.error("Failed to search invoices for return barcode:", e);
-        }
-      } else if (isPastBillMode) {
-        // Search past bills by invoice number
-        try {
-          const invoices = await listInvoices({ tenant_id: tenantId, search: code });
-          if (Array.isArray(invoices) && invoices.length > 0) {
-            const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
-            if (exactMatch) {
-              handleSelectPastBill(exactMatch);
-              playBeep();
-            } else {
-              setSearchQuery(code);
-              setPastBillResults(invoices);
-            }
-          }
-        } catch (e) {
-          console.error("Failed to search past bills for barcode:", e);
-        }
-      } else {
-        // Normal billing mode: search product by barcode/item_code
-        try {
-          const products = await listProducts({ tenant_id: tenantId, barcode: code });
-          if (Array.isArray(products) && products.length > 0) {
-            handleSelectProduct(products[0]);
-            playBeep();
-            setSearchQuery('');
-            setResults([]);
-            setTimeout(() => {
-              searchRef.current?.focus();
-            }, 50);
-          } else {
-            // Fallback: put the scanned code in search query to let the user see no products matched
-            setSearchQuery(code);
-            setResults([]);
-            setHardwareError(`Product not found for barcode: ${code}`);
-            setTimeout(() => setHardwareError(null), 3000);
-          }
-        } catch (e) {
-          console.error("Failed to query product for barcode:", e);
-        }
-      }
-    });
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, syncActiveSnapshot, setPastBillResults, setResults, setReturnSearchResults, setSearchQuery]);
+  useHardwareBarcodeScanner({
+    addItem, handleSelectPastBill, handleSelectProduct, handleSelectReturnInvoice, isPastBillMode, isReturnMode,
+    searchRef, setHardwareError, setPastBillResults, setResults, setReturnSearchResults, setSearchQuery,
+    syncActiveSnapshot, tenantId,
+  });
 
   // Auto-dismiss hardware error after 3 seconds
   useEffect(() => {
