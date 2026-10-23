@@ -609,26 +609,13 @@ function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
     const tenantId = offline?.tenant_id || payload?.tenant_id || getTenantIdFromDb();
     if (tenantId) {
       return {
-        jwt_token: payload?.jwt_token || 'lan-local-token',
+        jwt_token: payload?.jwt_token || LAN_PLACEHOLDER_TOKEN,
         tenant_id: tenantId,
       };
     }
     return null;
   } catch {
     return null;
-  }
-}
-
-function isJwtExpired(token: string): boolean {
-  if (!token) return true;
-  if (token === 'lan-local-token') return false;
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return false;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
-    return payload.exp ? payload.exp * 1000 < Date.now() : false;
-  } catch {
-    return false;
   }
 }
 
@@ -654,6 +641,7 @@ async function clearAuthAndNotify() {
 }
 
 import { startLocalHostServer } from './localHostServer.js';
+import { cloudTokenUnusable, LAN_PLACEHOLDER_TOKEN } from './syncAuth.js';
 import { LAN_KEY_HEADER, getLanPairingKey } from '../services/lanPairing.js';
 
 // ── Smart Adaptive Polling for Cash Settlement ──────────────────────────────
@@ -721,7 +709,7 @@ async function triggerFastLightweightBillPull() {
   if (endpoints.primaryRoute === 'CLOUD' && !effective.isCloudAllowed) return;
 
   const config = getAuthConfig();
-  if (config && (!isJwtExpired(config.jwt_token) || endpoints.primaryRoute === 'LAN')) {
+  if (config && (!cloudTokenUnusable(config.jwt_token) || endpoints.primaryRoute === 'LAN')) {
     fastInvoicePullInProgress = true;
     try {
       const res = await pullLightweightPendingBills(config.jwt_token, config.tenant_id);
@@ -833,7 +821,7 @@ export function initSyncWorker() {
   const endpoints = getSyncEndpoints();
   const isLanClient = endpoints.primaryRoute === 'LAN';
 
-  if (initialAuth && (!isJwtExpired(initialAuth.jwt_token) || isLanClient)) {
+  if (initialAuth && (!cloudTokenUnusable(initialAuth.jwt_token) || isLanClient)) {
     isSyncActive = true;
     const tenantId = initialAuth.tenant_id;
     console.log(`[SyncWorker] ✅ Valid auth or LAN mode detected on startup. tenant_id=${tenantId}, route=${endpoints.primaryRoute}. Background sync ACTIVATED.`);
@@ -848,7 +836,9 @@ export function initSyncWorker() {
       }
     }, 3000); // Wait 3s for window to fully load before triggering
   } else if (initialAuth) {
-    console.warn('[SyncWorker] ⚠️ Auth payload found but JWT is EXPIRED. Sync NOT activated. User must re-login.');
+    console.warn(initialAuth.jwt_token === LAN_PLACEHOLDER_TOKEN
+      ? '[SyncWorker] ⚠️ No cloud login (offline login or no login). Cloud sync NOT activated. Sign in online to enable it.'
+      : '[SyncWorker] ⚠️ Auth payload found but JWT is EXPIRED. Sync NOT activated. User must re-login.');
   } else {
     console.warn('[SyncWorker] ⚠️ No auth payload found on disk. Sync NOT activated (user not logged in).');
   }
@@ -899,7 +889,7 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   if (!config) return;
   const { jwt_token, tenant_id } = config;
   const endpoints = getSyncEndpoints();
-  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
+  if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) {
@@ -934,7 +924,7 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
   if (!config) return;
   const { jwt_token, tenant_id } = config;
   const endpoints = getSyncEndpoints();
-  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
+  if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) {
@@ -964,7 +954,7 @@ export async function triggerUrgentWarrantySync(): Promise<void> {
   if (!config) return;
   const { jwt_token, tenant_id } = config;
   const endpoints = getSyncEndpoints();
-  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
+  if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) return;
@@ -999,7 +989,7 @@ export async function triggerUrgentCashSync(): Promise<void> {
   if (!config) return;
   const { jwt_token, tenant_id } = config;
   const endpoints = getSyncEndpoints();
-  if (endpoints.primaryRoute === 'CLOUD' && isJwtExpired(jwt_token)) return;
+  if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
   const conn = await checkSyncConnectivity();
   if (!conn.ok) {
@@ -1037,7 +1027,7 @@ export async function runInitialSync(sender?: WebContents) {
   const endpoints = getSyncEndpoints();
   const isLanRoute = endpoints.primaryRoute === 'LAN';
 
-  if (!config || (!isLanRoute && isJwtExpired(config.jwt_token))) {
+  if (!config || (!isLanRoute && cloudTokenUnusable(config.jwt_token))) {
     console.warn('[SyncWorker] runInitialSync skipped: Auth token is missing or expired. Cloud sync paused.');
     clearAuthAndNotify();
     return { success: false, error: 'Auth token expired or missing' };
@@ -1313,7 +1303,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       const { jwt_token, tenant_id } = config;
 
-      if (activeRoute === 'CLOUD' && isJwtExpired(jwt_token)) {
+      if (activeRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) {
         console.warn('[SyncWorker] JWT token has expired on Cloud route. Clearing auth...');
         await clearAuthAndNotify();
         return;

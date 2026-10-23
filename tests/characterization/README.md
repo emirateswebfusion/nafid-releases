@@ -15,7 +15,7 @@ Network/updater/sync-worker channels are skipped (see `SKIP` in `scenario.mts`).
 ## Run (Linux/macOS/WSL; needs a Node build of better-sqlite3, not the Electron one)
 
 ```bash
-H=$(pwd)/scripts/diagnostics/ipc-equivalence
+H=$(pwd)/tests/characterization      # run from the nafid-pos repo root
 mkdir -p /tmp/eq && cd /tmp/eq
 npm init -y >/dev/null && npm i better-sqlite3@12.11.1 tsx@4
 mkdir -p node_modules/electron && cp $H/electron-stub.cjs node_modules/electron/index.js \
@@ -28,6 +28,10 @@ EQ_USERDATA=/tmp/eq/db-cand npx tsx $H/run.mts cand cand.json
 node $H/compare.mjs base.json cand.json
 EQ_USERDATA=/tmp/eq/db-chk npx tsx $H/check-statements.mts cand
 ```
+
+On Windows, `await import()` of an absolute `C:\...` path fails (`ERR_UNSUPPORTED_ESM_URL_SCHEME`): run under WSL, or in a
+scratch copy wrap the three `path.join(...)` imports in `pathToFileURL(...).href`, and set
+`NODE_PATH=<eq>/node_modules;<pos repo>/node_modules` so main-process dependencies resolve.
 
 Use a fresh `EQ_USERDATA` directory per run, and run baseline and candidate back to back: a few handlers have
 time-window guards (e.g. duplicate-request blocking), so a much slower run can differ for timing reasons only. Last result (22 Oct 2026, refactor branch vs `HEAD`): 1,527 calls over 224 handlers, 0 differences. Statement check:
