@@ -41,3 +41,13 @@ export function matchesDocumentNumber(candidate: string, query: string): boolean
   const q = getNumericPart(query);
   return q.length > 0 && getNumericPart(candidate).includes(q);
 }
+
+/**
+ * Number as shown for a GST invoice in single-series mode: `GST-` is prefixed unless the number already carries it
+ * (the default GST counter prefix is `GST-`, which used to show as `GST-GST-001`). Other invoice types, three-series
+ * mode and empty numbers are returned unchanged.
+ */
+export function displayInvoiceNumber(num: string, invoiceType: string, enableThreeInvoiceSeries: boolean): string {
+  if (!num || invoiceType !== 'GST' || enableThreeInvoiceSeries) return num;
+  return num.toUpperCase().startsWith('GST-') ? num : `GST-${num}`;
+}

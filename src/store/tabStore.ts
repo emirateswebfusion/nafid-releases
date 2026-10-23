@@ -66,7 +66,7 @@ export interface Tab {
   manualTotalOverride?: number | null;
   editingInvoiceContribution?: number;
   editingInvoicePartyKey?: string;
-  /** Actual physical cash refunded to customer �?" may differ from computed refundAmount */
+  /** Actual physical cash refunded to customer — may differ from computed refundAmount */
   actualRefundPaid: number;
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;

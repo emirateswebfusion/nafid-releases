@@ -11,13 +11,13 @@
     "electron/db/localDb.ts": 2240,
     "electron/hardware/printer.ts": 1076,
     "electron/sync/localHostServer.ts": 913,
-    "electron/sync/syncWorker.ts": 5144,
+    "electron/sync/syncWorker.ts": 5134,
     "electron/whatsapp/shopClosingReportService.ts": 1329,
     "src/components/AiAssistant.tsx": 1194,
     "src/components/billing/modals/CreateProductModal.tsx": 813,
     "src/components/billing/views/BillingCartView.tsx": 1050,
     "src/components/billing/views/BillingTotalsPanel.tsx": 864,
-    "src/components/BillingPage.tsx": 5462,
+    "src/components/BillingPage.tsx": 5461,
     "src/components/BillingUICustomizer.tsx": 1153,
     "src/components/CashierSettlement.tsx": 3927,
     "src/components/ComboManager.tsx": 1059,
@@ -44,5 +44,5 @@
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T00:29:50.450Z"
+  "updatedAt": "2026-10-23T01:28:40.516Z"
 }

@@ -449,7 +449,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Auto-calculated Expiry Date</label>
-                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl font-bold text-base text-primary shadow-sm">{expiryDate ? formatDate(expiryDate) : '�'}</div>
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl font-bold text-base text-primary shadow-sm">{expiryDate ? formatDate(expiryDate) : '—'}</div>
                 </div>
               </div>
             </section>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { displayInvoiceNumber } from '../../../utils/invoiceNumberHelper';
 import type { DeductionState } from './DeductionEditor';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
 import { Select } from '../../ui/Select';
@@ -105,7 +106,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
             <input
               type="text"
               readOnly
-              value={editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || '6019'}`}
+              value={editingActive ? (editingInvoiceNumber || '') : displayInvoiceNumber(nextInvoiceNumber || '', invoiceType, enableThreeInvoiceSeries)}
               className="w-full px-2.5 py-1.5 bg-muted/50 border border-border rounded-lg font-mono font-bold text-primary text-xs"
             />
           </div>

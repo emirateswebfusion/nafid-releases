@@ -16,7 +16,7 @@ import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
+import { displayInvoiceNumber, getNextOffsetInvoiceNumber, getNumericPart } from '../utils/invoiceNumberHelper';
 import { lookupReturnCredit, lookupScrapCredit } from './billing/deductionLookup';
 import { buildQuotationLines } from '../utils/checkoutLines';
 import { getStoreTimezone } from '../utils/timezoneHelper';
@@ -68,6 +68,7 @@ import { useProductSearchState } from './billing/hooks/useProductSearchState';
 import { useSearchResultsLoader } from './billing/hooks/useSearchResultsLoader';
 import { useBillingShortcuts } from './billing/hooks/useBillingShortcuts';
 import { useSearchSelection } from './billing/hooks/useSearchSelection';
+import { useQuotationToggle } from './billing/hooks/useQuotationToggle';
 import {
   peekNewTabNumbers, refreshInvoiceNumberForType, reserveGstSeriesNumber, reserveInvoiceNumber, reserveQuotationNumber,
   reserveReturnNumber, reserveScrapInvoiceNumber,
@@ -756,6 +757,11 @@ export function BillingPage() {
   const reserveReturnNumberForTab = useCallback(async (forceRefresh = false) => {
     await reserveReturnNumber({ tenantId, getActiveTab, updateActiveTab }, forceRefresh);
   }, [tenantId, getActiveTab, updateActiveTab]);
+
+  const toggleQuotationMode = useQuotationToggle({
+    activeTabId, invoiceType, isQuotationMode, isScrapMode, isReturnMode, isPastBillMode, quotationGstEnabledSetting,
+    setQuotationMode, setIsScrapMode, setReturnMode, setIsPastBillMode, setInvoiceType, reserveQuotationNumberForTab,
+  });
 
   const totalDeductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
   // Return credit is consumed first (up to the bill total); its leftover stays as
@@ -3513,8 +3519,7 @@ export function BillingPage() {
         await reserveInvoiceNumberForTab(true);
         const tab = getActiveTab();
         if (tab?.reservedInvoiceNumber) {
-          const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
-          updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+          updateActiveTab({ title: displayInvoiceNumber(tab.reservedInvoiceNumber, invoiceType, enableThreeInvoiceSeries) });
         }
       }
     } catch (e) {
@@ -4467,12 +4472,12 @@ export function BillingPage() {
     featureFlags, focusCartItemQuantityOrPcs, handleCheckout, handleHoldBill, handleProcessReturnFromCart,
     handleSaveQuotation, isCashSettlementEnabled, isLoyaltyModuleEnabled, isQuotationActive, isQuotationMode,
     isReturnMode, isReturnModuleEnabled, isScrapMode, isScrapModuleEnabled, isUpiSelectModalOpen, paymentMethod,
-    paymentOptionRefs, pointsDeductionInputRef, quotationGstEnabledSetting, reserveInvoiceNumberForTab,
-    reserveQuotationNumberForTab, reserveReturnNumberForTab, reserveScrapInvoiceNumberForTab,
+    paymentOptionRefs, pointsDeductionInputRef, reserveInvoiceNumberForTab,
+    reserveReturnNumberForTab, reserveScrapInvoiceNumberForTab,
     returnDeductionInputRef, scrapDeductionInputRef, searchRef, setDeductionTabMode, setDiscount, setInfoToast,
-    setInvoiceType, setIsScrapMode, setIsUpiSelectModalOpen, setQuotationMode, setReturnDeductionSearchMode,
+    setIsScrapMode, setIsUpiSelectModalOpen, setQuotationMode, setReturnDeductionSearchMode,
     setReturnMode, setSelectedReturnInvoice, splitCashInputRef, splitCreditInputRef, startEditingTotal,
-    syncActiveSnapshot, updateActiveTab,
+    syncActiveSnapshot, toggleQuotationMode, updateActiveTab,
   });
   const deductions: DeductionState = {
     customerPointsBalance,
@@ -4625,7 +4630,7 @@ export function BillingPage() {
                       ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
                       : 'text-primary bg-primary/10 border-primary/20'
               )}>
-                {isReturnMode ? (nextReturnNumber || '') : isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
+                {isReturnMode ? (nextReturnNumber || '') : isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : displayInvoiceNumber(nextInvoiceNumber || '', invoiceType, enableThreeInvoiceSeries))}
               </span>
             </div>
           </div>
@@ -4812,13 +4817,7 @@ export function BillingPage() {
           {(isHeaderButtonVisible(uiConfig, 'showQuotation') || isQuotationActive) && (!featureFlags || featureFlags.quotations) && (
           <button
               onClick={() => {
-                const next = !isQuotationMode;
-                setQuotationMode(next);
-                if (next && isScrapMode) setIsScrapMode(false);
-                if (next && isReturnMode) setReturnMode(false);
-                if (next && isPastBillMode) setIsPastBillMode(false);
-                if (next && quotationGstEnabledSetting) setInvoiceType('GST');
-                if (next) reserveQuotationNumberForTab();
+                toggleQuotationMode();
                 syncActiveSnapshot();
                 setTimeout(() => searchRef.current?.focus(), 100);
               }}

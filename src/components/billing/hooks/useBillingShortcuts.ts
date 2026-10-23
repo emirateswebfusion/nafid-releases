@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { Invoice } from '../../../data/invoices';
 import { useKeyboardShortcuts } from '../../../hooks/useKeyboardShortcuts';
-import { useCartStore, type InvoiceType } from '../../../store/cartStore';
+import { useCartStore } from '../../../store/cartStore';
 import { type PaymentMethod } from '../BillingConstants';
 import type { SplitDetails, Tab } from '../../../store/tabStore';
 import type { FeatureFlags } from '../../../featureFlags';
@@ -33,9 +33,7 @@ export interface UseBillingShortcutsContext {
   paymentMethod: PaymentMethod;
   paymentOptionRefs: React.RefObject<Record<string, HTMLButtonElement | null>>;
   pointsDeductionInputRef: React.RefObject<HTMLInputElement | null>;
-  quotationGstEnabledSetting: boolean;
   reserveInvoiceNumberForTab: (forceRefresh?: boolean) => Promise<void>;
-  reserveQuotationNumberForTab: (forceRefresh?: boolean) => Promise<void>;
   reserveReturnNumberForTab: (forceRefresh?: boolean) => Promise<void>;
   reserveScrapInvoiceNumberForTab: (forceRefresh?: boolean) => Promise<void>;
   returnDeductionInputRef: React.RefObject<HTMLInputElement | null>;
@@ -44,7 +42,6 @@ export interface UseBillingShortcutsContext {
   setDeductionTabMode: React.Dispatch<React.SetStateAction<"scrap" | "return" | "points">>;
   setDiscount: (value: number, type: "FIXED" | "PERCENTAGE") => void;
   setInfoToast: React.Dispatch<React.SetStateAction<string | null>>;
-  setInvoiceType: (type: InvoiceType) => void;
   setIsScrapMode: (isScrapMode: boolean) => void;
   setIsUpiSelectModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setQuotationMode: (isQuotationMode: boolean) => void;
@@ -55,11 +52,12 @@ export interface UseBillingShortcutsContext {
   splitCreditInputRef: React.RefObject<HTMLInputElement | null>;
   startEditingTotal: () => void;
   syncActiveSnapshot: () => void;
+  toggleQuotationMode: () => void;
   updateActiveTab: (updates: Partial<Omit<Tab, "id" | "snapshot">>) => void;
 }
 
 export function useBillingShortcuts(ctx: UseBillingShortcutsContext) {
-  const { discountRef, displayGrandTotal, editingInvoiceNumber, enableScrap, featureFlags, focusCartItemQuantityOrPcs, handleCheckout, handleHoldBill, handleProcessReturnFromCart, handleSaveQuotation, isCashSettlementEnabled, isLoyaltyModuleEnabled, isQuotationActive, isQuotationMode, isReturnMode, isReturnModuleEnabled, isScrapMode, isScrapModuleEnabled, isUpiSelectModalOpen, paymentMethod, paymentOptionRefs, pointsDeductionInputRef, quotationGstEnabledSetting, reserveInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, reserveScrapInvoiceNumberForTab, returnDeductionInputRef, scrapDeductionInputRef, searchRef, setDeductionTabMode, setDiscount, setInfoToast, setInvoiceType, setIsScrapMode, setIsUpiSelectModalOpen, setQuotationMode, setReturnDeductionSearchMode, setReturnMode, setSelectedReturnInvoice, splitCashInputRef, splitCreditInputRef, startEditingTotal, syncActiveSnapshot, updateActiveTab } = ctx;
+  const { discountRef, displayGrandTotal, editingInvoiceNumber, enableScrap, featureFlags, focusCartItemQuantityOrPcs, handleCheckout, handleHoldBill, handleProcessReturnFromCart, handleSaveQuotation, isCashSettlementEnabled, isLoyaltyModuleEnabled, isQuotationActive, isQuotationMode, isReturnMode, isReturnModuleEnabled, isScrapMode, isScrapModuleEnabled, isUpiSelectModalOpen, paymentMethod, paymentOptionRefs, pointsDeductionInputRef, reserveInvoiceNumberForTab, reserveReturnNumberForTab, reserveScrapInvoiceNumberForTab, returnDeductionInputRef, scrapDeductionInputRef, searchRef, setDeductionTabMode, setDiscount, setInfoToast, setIsScrapMode, setIsUpiSelectModalOpen, setQuotationMode, setReturnDeductionSearchMode, setReturnMode, setSelectedReturnInvoice, splitCashInputRef, splitCreditInputRef, startEditingTotal, syncActiveSnapshot, toggleQuotationMode, updateActiveTab } = ctx;
   const { setIsPastBillMode, isPastBillMode } = ctx.productSearch;
   const { customerNameInputRef } = ctx.customerFields;
   useKeyboardShortcuts({
@@ -130,13 +128,7 @@ export function useBillingShortcuts(ctx: UseBillingShortcutsContext) {
     'F6': () => {
       // Quotation Mode (F6)
       if (featureFlags && featureFlags.quotations === false) return;
-      const next = !isQuotationMode;
-      setQuotationMode(next);
-      if (next && isScrapMode) setIsScrapMode(false);
-      if (next && isReturnMode) setReturnMode(false);
-      if (next && isPastBillMode) setIsPastBillMode(false);
-      if (next && quotationGstEnabledSetting) setInvoiceType('GST');
-      if (next) reserveQuotationNumberForTab();
+      toggleQuotationMode();
       setTimeout(() => searchRef.current?.focus(), 100);
     },
     'F7': async () => {
