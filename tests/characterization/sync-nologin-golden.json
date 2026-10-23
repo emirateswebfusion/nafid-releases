@@ -1,0 +1,450 @@
+[
+ [
+  "sync:runInitial",
+  "[]",
+  {
+   "success": false,
+   "error": "Auth token expired or missing"
+  }
+ ],
+ [
+  "status:before",
+  "[]",
+  {
+   "cash_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_drawer": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "cashier_audit_log": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "customers": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "invoice_items": [
+    {
+     "sync_status": "PENDING",
+     "n": 5
+    }
+   ],
+   "invoices": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "parties": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "party_ledger": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "payment_source_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "payment_sources": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "pricing_tiers": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "products": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "scrap_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "scrap_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "settings": [
+    {
+     "sync_status": "LOCAL",
+     "n": 3
+    },
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "staff": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "staff_salaries": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ]
+  }
+ ],
+ [
+  "status:after",
+  "[]",
+  {
+   "cash_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_drawer": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "cashier_audit_log": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "customers": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "invoice_items": [
+    {
+     "sync_status": "PENDING",
+     "n": 5
+    }
+   ],
+   "invoices": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "parties": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "party_ledger": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "payment_source_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "payment_sources": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "pricing_tiers": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "products": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "scrap_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "scrap_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "settings": [
+    {
+     "sync_status": "LOCAL",
+     "n": 3
+    },
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "staff": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "staff_salaries": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ]
+  }
+ ],
+ [
+  "phase2:runInitial",
+  "[]",
+  {
+   "success": false,
+   "error": "Auth token expired or missing"
+  }
+ ],
+ [
+  "phase2:pulled",
+  "[]",
+  {
+   "products": [
+    {
+     "product_id": "<uuid>",
+     "name": "Steel Rod (local edit)",
+     "base_price": 111,
+     "category": "General",
+     "current_stock": 48,
+     "sync_status": "PENDING",
+     "is_deleted": 0
+    },
+    {
+     "product_id": "<uuid>",
+     "name": "Cement Bag",
+     "base_price": 400,
+     "category": "General",
+     "current_stock": 47,
+     "sync_status": "PENDING",
+     "is_deleted": 0
+    }
+   ],
+   "parties": [
+    {
+     "party_id": "<uuid>",
+     "name": "Ravi",
+     "phone": null,
+     "sync_status": "PENDING"
+    },
+    {
+     "party_id": "<uuid>",
+     "name": "Ravi Kumar",
+     "phone": "9876543210",
+     "sync_status": "PENDING"
+    },
+    {
+     "party_id": "<uuid>",
+     "name": "Acme Traders",
+     "phone": "9123456780",
+     "sync_status": "PENDING"
+    }
+   ],
+   "settings": [
+    {
+     "tenant_id": "t1",
+     "key": "store_name",
+     "value": "Test Store",
+     "sync_status": "PENDING"
+    }
+   ]
+  }
+ ],
+ [
+  "phase2:status",
+  "[]",
+  {
+   "cash_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_drawer": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "cash_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "cashier_audit_log": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "customers": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "invoice_items": [
+    {
+     "sync_status": "PENDING",
+     "n": 5
+    }
+   ],
+   "invoices": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
+   "parties": [
+    {
+     "sync_status": "PENDING",
+     "n": 3
+    }
+   ],
+   "party_ledger": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "payment_source_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "payment_sources": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "pricing_tiers": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "products": [
+    {
+     "sync_status": "PENDING",
+     "n": 2
+    }
+   ],
+   "scrap_categories": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "scrap_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "settings": [
+    {
+     "sync_status": "LOCAL",
+     "n": 3
+    },
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    },
+    {
+     "sync_status": "SYNCED",
+     "n": 3
+    }
+   ],
+   "staff": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
+   "staff_salaries": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ]
+  }
+ ]
+]

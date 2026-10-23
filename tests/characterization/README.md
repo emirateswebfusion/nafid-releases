@@ -34,7 +34,9 @@ scratch copy wrap the three `path.join(...)` imports in `pathToFileURL(...).href
 `NODE_PATH=<eq>/node_modules;<pos repo>/node_modules` so main-process dependencies resolve.
 
 Use a fresh `EQ_USERDATA` directory per run, and run baseline and candidate back to back: a few handlers have
-time-window guards (e.g. duplicate-request blocking), so a much slower run can differ for timing reasons only. Last result (22 Oct 2026, refactor branch vs `HEAD`): 1,527 calls over 224 handlers, 0 differences. Statement check:
+time-window guards (e.g. duplicate-request blocking), so a much slower run can differ for timing reasons only. Last result (22 Oct 2026, refactor branch vs `HEAD`): 1,527 calls over 224 handlers, 0 differences. On 23 Oct (sync placeholder fix): 1,519 calls over 223 handlers; 13 intended differences in
+`sync:getProgress`, `sync:getCloudAccessState` and party `sync_status` (no cloud push without a login), plus
+`shopClosing:getPreview` counter order, which depends on the random terminal code (digits sort before `GST`). Statement check:
 all prepare except the two that write `staff_ledger.updated_at` (column missing — pre-existing defect, see
 `docs/architecture/06-change-guide.md` §6.6).
 
@@ -51,7 +53,18 @@ Pins the desktop↔cloud sync contract before anyone changes `electron/sync/*` (
 ```bash
 EQ_USERDATA=/tmp/eq/sy-cand npx tsx $H/sync-run.mts cand sync-cand.json
 node $H/compare.mjs $H/sync-golden.json sync-cand.json     # 0 differences = sync behaviour unchanged
+# no cloud login on disk (offline login / signed out): cloud sync must send nothing
+EQ_NO_LOGIN=1 EQ_USERDATA=/tmp/eq/sy-nl npx tsx $H/sync-run.mts cand sync-nl.json
+node $H/compare.mjs $H/sync-nologin-golden.json sync-nl.json
 ```
+
+How many times an identical read (`GET /health`, `GET /api/sync/quotations?limit=500&offset=0`) repeats depends on
+machine timing (the urgent syncs run concurrently): the golden file was recorded with 53 requests, Windows runs
+produce 49 on the same code. `compare.mjs` therefore compares repeated identical GET requests once per phase, while
+every push and delta-pull keeps its exact count and order (pass `--strict` for the raw comparison).
+
+`sync-nologin-golden.json` (23 Oct 2026) pins the fix for the `lan-local-token` placeholder: with no cloud login the
+worker makes no cloud request (before the fix: 49 requests, 41 with `Bearer lan-local-token`).
 
 `sync-golden.json` is the current contract (53 HTTP requests, recorded in canonical order because the main cycle and
 the "urgent" syncs run concurrently). It was first recorded from the pre-refactor `HEAD`; the only intended change

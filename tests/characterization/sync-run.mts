@@ -15,7 +15,8 @@ const userData = process.env.EQ_USERDATA!;
 process.env.VENDORA_CLOUD_API = 'http://cloud.test';
 fs.mkdirSync(userData, { recursive: true });
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
-fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify({ jwt_token: `${b64({ alg: 'HS256' })}.${b64({ tenant_id: 't1', exp: 4102444800 })}.sig`, tenant_id: 't1' }));
+// EQ_NO_LOGIN=1: no cloud login on disk (offline login / signed out). Cloud sync must not run at all.
+if (!process.env.EQ_NO_LOGIN) fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify({ jwt_token: `${b64({ alg: 'HS256' })}.${b64({ tenant_id: 't1', exp: 4102444800 })}.sig`, tenant_id: 't1' }));
 
 const requests: unknown[] = [];
 /** Remote rows served by the fake cloud in phase 2 (pull). */
