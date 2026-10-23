@@ -386,7 +386,7 @@ export function DataUploadModal({
   hideEntityTabs = false,
   onImportSuccess 
 }: DataUploadModalProps) {
-  const { tenantId, user } = useAuthStore();
+  const { tenantId, userId, userName } = useAuthStore();
   const [entityType, setEntityType] = useState<UploadEntityType>(defaultEntity);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>('');
@@ -736,8 +736,8 @@ export function DataUploadModal({
           party_type: 'STAFF',
           custom_category: r.data.role_designation || 'Staff',
           notes: r.data.notes || null,
-          created_by: user?.user_id || null,
-          created_by_name: user?.name || null
+          created_by: userId || null,
+          created_by_name: userName || null
         }));
 
         if (hasBridge('dbBulkImportParties')) {
@@ -782,8 +782,8 @@ export function DataUploadModal({
           party_type: entityType === 'suppliers' ? 'SUPPLIER' : 'CUSTOMER',
           custom_category: r.data.custom_category || null,
           notes: r.data.notes || null,
-          created_by: user?.user_id || null,
-          created_by_name: user?.name || null
+          created_by: userId || null,
+          created_by_name: userName || null
         }));
 
         if (hasBridge('dbBulkImportParties')) {

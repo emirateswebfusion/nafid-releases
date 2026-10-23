@@ -9,7 +9,7 @@ interface EcommercePortalProps {
 }
 
 export function EcommercePortal({ onClose }: EcommercePortalProps) {
-  const { tenantId, shopName, user } = useAuthStore();
+  const { tenantId, shopName, userName } = useAuthStore();
   const currentTenantId = tenantId || 'global';
 
   // Active navigation tab
@@ -44,8 +44,8 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
     store_name: shopName || '',
     store_slug: (shopName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     store_description: 'Official online storefront synchronized in real-time with Nafid POS.',
-    contact_name: user?.name || 'Store Manager',
-    contact_email: user?.email || '',
+    contact_name: userName || 'Store Manager',
+    contact_email: '',
     contact_phone: '',
     city: 'Dubai',
     address: '',
@@ -91,7 +91,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
           store_name: data.store_name || shopName || '',
           store_slug: data.store_slug || '',
           store_description: data.store_description || '',
-          contact_email: data.contact_email || user?.email || '',
+          contact_email: data.contact_email || '',
           contact_phone: data.contact_phone || '',
         });
         setRegForm(prev => ({
@@ -105,7 +105,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
     } catch (err) {
       console.error('[EcommercePortal] loadSettings failed', err);
     }
-  }, [currentTenantId, shopName, user]);
+  }, [currentTenantId, shopName]);
 
   // Check Connection
   const checkConnection = useCallback(async (url?: string) => {
