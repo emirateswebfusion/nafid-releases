@@ -32,11 +32,10 @@
     "src/components/QuotationManager.tsx": 1107,
     "src/components/RecycleBin.tsx": 1288,
     "src/components/SettingsGrades.tsx": 1097,
-    "src/components/SettingsManager.tsx": 2254,
     "src/components/StaffManager.tsx": 1803,
     "src/components/StockReport.tsx": 1289,
     "src/components/SuperDashboard.tsx": 1544,
     "src/components/WhatsAppSettings.tsx": 1544
   },
-  "updatedAt": "2026-10-23T11:12:45.787Z"
+  "updatedAt": "2026-10-23T11:41:59.492Z"
 }
