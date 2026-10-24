@@ -15,8 +15,7 @@
     "electron/whatsapp/shopClosingReportService.ts": 1329,
     "src/components/billing/views/BillingCartView.tsx": 1050,
     "src/components/billing/views/BillingTotalsPanel.tsx": 864,
-    "src/components/BillingPage.tsx": 1611,
-    "src/components/inventory/views/InventoryFormView.tsx": 994
+    "src/components/BillingPage.tsx": 1611
   },
-  "updatedAt": "2026-10-24T05:44:22.339Z"
+  "updatedAt": "2026-10-24T05:52:08.522Z"
 }
