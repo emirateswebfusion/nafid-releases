@@ -20,8 +20,7 @@
     "src/components/BillingUICustomizer.tsx": 1153,
     "src/components/DesignSettings.tsx": 858,
     "src/components/inventory/views/InventoryFormView.tsx": 994,
-    "src/components/OwnerDashboard.tsx": 940,
     "src/components/party/views/PartyLedgerView.tsx": 944
   },
-  "updatedAt": "2026-10-24T03:43:46.412Z"
+  "updatedAt": "2026-10-24T04:25:29.161Z"
 }
