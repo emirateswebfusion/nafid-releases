@@ -1,0 +1,45 @@
+/** Combo offers screen: combo and product rows plus the effective offer price helper. */
+export interface ComboItem {
+  combo_item_id?: string;
+  product_id: string;
+  quantity: number;
+  product_name?: string;
+  product_price?: number;
+  offer_price?: number;
+  product_stock?: number;
+  sku_barcode?: string;
+  uom?: string;
+}
+
+export interface ComboOffer {
+  combo_id: string;
+  tenant_id: string;
+  name: string;
+  sku_barcode: string | null;
+  combo_price: number;
+  is_active: number;
+  description: string | null;
+  created_at?: string;
+  items: ComboItem[];
+}
+
+export interface Product {
+  product_id: string;
+  name: string;
+  sku_barcode: string;
+  item_code: string;
+  base_price: number;
+  offer_price?: number;
+  discount_flat?: number;
+  discount_percent?: number;
+  current_stock: number;
+  uom: string;
+}
+
+export function getEffectiveOfferPrice(prod: any): number {
+  const base = Number(prod.base_price || prod.product_price || 0);
+  if (prod.offer_price && Number(prod.offer_price) > 0) return Number(prod.offer_price);
+  if (prod.discount_flat && Number(prod.discount_flat) > 0) return Math.max(0, base - Number(prod.discount_flat));
+  if (prod.discount_percent && Number(prod.discount_percent) > 0) return Math.max(0, base * (1 - Number(prod.discount_percent) / 100));
+  return base;
+}
