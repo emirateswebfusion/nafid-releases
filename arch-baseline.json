@@ -16,9 +16,8 @@
     "src/components/billing/views/BillingCartView.tsx": 1050,
     "src/components/billing/views/BillingTotalsPanel.tsx": 864,
     "src/components/BillingPage.tsx": 1611,
-    "src/components/DesignSettings.tsx": 858,
     "src/components/inventory/views/InventoryFormView.tsx": 994,
     "src/components/party/views/PartyLedgerView.tsx": 944
   },
-  "updatedAt": "2026-10-24T05:29:12.201Z"
+  "updatedAt": "2026-10-24T05:36:58.737Z"
 }
