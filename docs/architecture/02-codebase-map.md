@@ -100,7 +100,8 @@ electron/
       types.ts       `Db = Pick<Database, 'prepare'>`
   sync/              syncWorker.ts (cloud push/pull), localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge) — highest data risk
   hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge)
-  whatsapp/          Baileys session, invoice sending, shop-closing report
+  whatsapp/          Baileys session, invoice sending, shop-closing report (service + IPC; shopClosingSummary = data,
+                     shopClosingMessage = WhatsApp text, shopClosingTypes)
   utils/             pure helpers for the main process (ids, gst, validation, timestamps, cashier settlement math)
 ```
 
@@ -114,5 +115,4 @@ Dependency direction: `main → ipc → services → db/statements`, `sync → s
   (`sizeCaps`) and may only shrink. The largest are `BillingPage.tsx`, `SalesHistory.tsx`, `PurchaseBillManager.tsx`,
   `CashierSettlement.tsx`, `CustomersPage.tsx`.
 - Main process: every `electron/**` file shares the 800-line budget; all services are under it. Capped legacy files:
-  `localDb.ts` (schema), `syncWorker.ts`,
-  `shopClosingReportService.ts` — sync files change only behind the sync characterization harness.
+  `localDb.ts` (schema), `syncWorker.ts` — sync files change only behind the sync characterization harness.

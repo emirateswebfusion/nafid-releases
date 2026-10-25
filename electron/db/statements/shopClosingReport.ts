@@ -201,3 +201,19 @@ export const findOneShopClosingReportByBusinessDateAndTriggerTypeSent = (db: Db)
               AND status = 'SENT'
             LIMIT 1
           `);
+
+/** Count and total of purchase bills for a business date; `amountCol` is the bill-amount column this schema has. */
+export const sumPurchaseBillsForDate = (db: Db, amountCol: 'grand_total' | 'total_amount') => db.prepare(`
+        SELECT COUNT(*) AS pb_count, COALESCE(SUM(${amountCol}), 0) AS pb_total
+        FROM purchase_bills
+        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id IS NULL)
+          AND (
+            date(bill_date) = ?
+            OR date(bill_date) = ?
+            OR substr(bill_date, 1, 10) = ?
+            OR substr(bill_date, 1, 10) = ?
+            OR bill_date LIKE ?
+            OR date(created_at) = ?
+            OR substr(created_at, 1, 10) = ?
+          )
+      `);

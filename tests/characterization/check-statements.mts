@@ -14,7 +14,7 @@ const db = getDb();
 const dir = path.join(tree, 'electron/db/statements');
 const fragment = (p: string) => /placeholder/i.test(p) ? '?' : /col$/i.test(p) ? (/deleted/i.test(p) ? ', deleted_at' : 'gst_balance')
   : /select|fields/i.test(p) ? '*' : /^t$|table/i.test(p) ? 'products' : '';
-const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'] };
+const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'], sumPurchaseBillsForDate: ['total_amount'] };
 let ok = 0; const bad: string[] = [];
 for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'types.ts')) {
   const src = fs.readFileSync(path.join(dir, f), 'utf8');
