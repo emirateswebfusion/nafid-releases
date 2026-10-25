@@ -3,7 +3,7 @@ import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
 import crypto from 'node:crypto';
-import { autoDeduplicateCustomersAndParties, backfillCustomersFromInvoices } from './customerIdentity.js';
+import { autoDeduplicateCustomersAndParties, backfillCustomersFromInvoices } from './customerDedupe.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 
 /** The open connection. Exported only for the db-layer modules (live binding); everything else calls getDb(). */

@@ -1,5 +1,5 @@
 import { getDb } from '../db/localDb.js';
-import { autoDeduplicateCustomersAndParties } from '../db/customerIdentity.js';
+import { autoDeduplicateCustomersAndParties } from '../db/customerDedupe.js';
 import { checkCustomerOverdueSync, computeCustomerCreditStatusSync } from './customerCreditService.js';
 import crypto from 'node:crypto';
 import { localTimestamp } from './storeTime.js';

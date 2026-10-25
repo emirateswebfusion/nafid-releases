@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import log from 'electron-log/main';
 
 import { initDb, getDb } from './db/localDb.js';
-import { autoDeduplicateCustomersAndParties } from './db/customerIdentity.js';
+import { autoDeduplicateCustomersAndParties } from './db/customerDedupe.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
 import { initBarcodeScanner } from './hardware/barcodeScanner.js';
