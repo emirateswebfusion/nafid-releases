@@ -12,8 +12,7 @@
     "electron/hardware/printer.ts": 1076,
     "electron/sync/localHostServer.ts": 913,
     "electron/sync/syncWorker.ts": 5134,
-    "electron/whatsapp/shopClosingReportService.ts": 1329,
-    "src/components/BillingPage.tsx": 1611
+    "electron/whatsapp/shopClosingReportService.ts": 1329
   },
-  "updatedAt": "2026-10-24T06:09:19.550Z"
+  "updatedAt": "2026-10-25T20:01:55.920Z"
 }

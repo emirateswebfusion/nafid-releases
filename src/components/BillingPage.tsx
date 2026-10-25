@@ -1,42 +1,22 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { TrendingUp } from 'lucide-react';
+import { useRef, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
-import clsx from 'clsx';
 import { useTabStore, type SplitDetails } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
-import { CashierSettlement } from './CashierSettlement';
 import { useFeatureFlagsStore } from '../featureFlags';
-import { DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { getNumericPart } from '../utils/invoiceNumberHelper';
-import { BillerPinModal } from './BillerPinModal';
 import { isAdminRole } from '../utils/permissions';
 import { useBillingUIStore } from '../store/billingUIStore';
 
 import { PAYMENT_OPTIONS } from './billing/BillingConstants';
-import { TransportDetailsModal } from './billing/modals/TransportDetailsModal';
-import { HeldBillsModal } from './billing/modals/HeldBillsModal';
-import { ScrapInvoiceViewModal } from './billing/modals/ScrapInvoiceViewModal';
-import { CreateNewGradeModal } from './billing/modals/CreateNewGradeModal';
-import { CreateProductModal } from './billing/modals/CreateProductModal';
-import { UpiAccountSelectModal } from './billing/modals/UpiAccountSelectModal';
-import { BillingCartView } from './billing/views/BillingCartView';
-import { BillingPaymentPanel } from './billing/views/BillingPaymentPanel';
-import { BillingTotalsPanel } from './billing/views/BillingTotalsPanel';
 import { BillingToasts } from './billing/views/BillingToasts';
-import { DeductionDropdowns } from './billing/views/DeductionDropdowns';
 import { BillingHeader } from './billing/views/BillingHeader';
 import { ErpGridWorkspace } from './billing/views/ErpGridWorkspace';
 import type { DeductionState } from './billing/views/DeductionEditor';
-import { BillingCustomerDetails } from './billing/views/BillingCustomerDetails';
 import { BillingSearchBar } from './billing/views/BillingSearchBar';
 import { isDesktopRuntime } from '../data/client';
 import { invoicesApi } from '../data/invoices';
-import { productsApi } from '../data/products';
-import { returnsApi } from '../data/returns';
-import { scrapApi } from '../data/scrap';
 
 import { createCheckoutHandler } from './billing/checkout/checkoutHandler';
 import { useCustomerDirectory } from './billing/hooks/useCustomerDirectory';
@@ -65,10 +45,21 @@ import { useMostSoldProducts } from './billing/hooks/useMostSoldProducts';
 import { useCartKeyboard } from './billing/hooks/useCartKeyboard';
 import { useBillingSettingsLoader } from './billing/hooks/useBillingSettingsLoader';
 import { useProductFormState } from './billing/hooks/useProductFormState';
+import { useBillingModeSync } from './billing/hooks/useBillingModeSync';
+import { useCartLocalInputsSync } from './billing/hooks/useCartLocalInputsSync';
+import { useNumberReservations } from './billing/hooks/useNumberReservations';
+import { useGrandTotalOverride } from './billing/hooks/useGrandTotalOverride';
+import { useBillingTotals } from './billing/hooks/useBillingTotals';
+import { useBillingQuickActions } from './billing/hooks/useBillingQuickActions';
+import { useDeductionSync } from './billing/hooks/useDeductionSync';
+import { useScrapInvoiceEditEvents } from './billing/hooks/useScrapInvoiceEditEvents';
+import { useBillingPopoverEffects } from './billing/hooks/useBillingPopoverEffects';
 import {
-  peekNewTabNumbers, refreshInvoiceNumberForType, reserveGstSeriesNumber, reserveInvoiceNumber, reserveQuotationNumber,
-  reserveReturnNumber, reserveScrapInvoiceNumber,
+  peekNewTabNumbers,
 } from './billing/numberReservation';
+import { BillingWorkspace } from './billing/views/BillingWorkspace';
+import { BillingModals } from './billing/views/BillingModals';
+import { useBillingPageState } from './billing/hooks/useBillingPageState';
 
 export function BillingPage() {
   const { config: uiConfig } = useBillingUIStore();
@@ -117,36 +108,19 @@ export function BillingPage() {
     setReturnDeduction, clearReturnDeduction,
     editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore(useShallow((state) => ({
-    items: state.items,
-    lastAddedProductId: state.lastAddedProductId,
-    invoiceType: state.invoiceType,
-    setInvoiceType: state.setInvoiceType,
-    clearCart: state.clearCart,
-    setDiscount: state.setDiscount,
-    currentUserRole: state.currentUserRole,
-    setRole: state.setRole,
-    discountType: state.discountType,
-    discountValue: state.discountValue,
-    addItem: state.addItem,
-    updateQuantity: state.updateQuantity,
-    removeItem: state.removeItem,
-    updateItemDiscount: state.updateItemDiscount,
-    removeItemDiscount: state.removeItemDiscount,
-    updateItemOfferPrice: state.updateItemOfferPrice,
-    updatePiecesOverride: state.updatePiecesOverride,
-    updateItemPricingTier: state.updateItemPricingTier,
-    customerState: state.customerState,
-    setCustomerState: state.setCustomerState,
-    scrapDeduction: state.scrapDeduction,
-    scrapInvoiceNumber: state.scrapInvoiceNumber,
-    setScrapDeduction: state.setScrapDeduction,
-    clearScrapDeduction: state.clearScrapDeduction,
-    returnDeduction: state.returnDeduction,
-    returnInvoiceNumber: state.returnInvoiceNumber,
-    setReturnDeduction: state.setReturnDeduction,
-    clearReturnDeduction: state.clearReturnDeduction,
-    editingInvoiceId: state.editingInvoiceId,
-    editingInvoiceNumber: state.editingInvoiceNumber,
+    items: state.items, lastAddedProductId: state.lastAddedProductId, invoiceType: state.invoiceType,
+    setInvoiceType: state.setInvoiceType, clearCart: state.clearCart, setDiscount: state.setDiscount,
+    currentUserRole: state.currentUserRole, setRole: state.setRole, discountType: state.discountType,
+    discountValue: state.discountValue, addItem: state.addItem, updateQuantity: state.updateQuantity,
+    removeItem: state.removeItem, updateItemDiscount: state.updateItemDiscount,
+    removeItemDiscount: state.removeItemDiscount, updateItemOfferPrice: state.updateItemOfferPrice,
+    updatePiecesOverride: state.updatePiecesOverride, updateItemPricingTier: state.updateItemPricingTier,
+    customerState: state.customerState, setCustomerState: state.setCustomerState,
+    scrapDeduction: state.scrapDeduction, scrapInvoiceNumber: state.scrapInvoiceNumber,
+    setScrapDeduction: state.setScrapDeduction, clearScrapDeduction: state.clearScrapDeduction,
+    returnDeduction: state.returnDeduction, returnInvoiceNumber: state.returnInvoiceNumber,
+    setReturnDeduction: state.setReturnDeduction, clearReturnDeduction: state.clearReturnDeduction,
+    editingInvoiceId: state.editingInvoiceId, editingInvoiceNumber: state.editingInvoiceNumber,
     setEditingInvoice: state.setEditingInvoice,
   })));
 
@@ -191,85 +165,32 @@ export function BillingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scaleLiveWeight, scaleReading]);
 
-  // Local state for per-item two-way discount binding (like CashierSettlement)
-  const [localDiscPcts, setLocalDiscPcts] = useState<Record<string, number>>({});
-  const [localDiscFlats, setLocalDiscFlats] = useState<Record<string, number>>({});
-  // Local string state for Pcs and Kg inputs — lets user type multi-digit values
-  // without every keystroke triggering a cross-field recalculation.
-  const [localPcsStr, setLocalPcsStr] = useState<Record<string, string>>({});
-  const [localKgStr, setLocalKgStr] = useState<Record<string, string>>({});
+  const bp = useBillingPageState();
+  const {
+    localDiscPcts, setLocalDiscPcts, localDiscFlats, setLocalDiscFlats, localPcsStr, setLocalPcsStr,
+    localKgStr, setLocalKgStr, productPricingMap, setProductPricingMap, selectedTierId, setSelectedTierId,
+    upiPageConfig, setUpiPageConfig, isUpiSelectModalOpen, setIsUpiSelectModalOpen, isBillerPinModalOpen, setIsBillerPinModalOpen,
+    partiesForTier, setPartiesForTier, showTransportModal, setShowTransportModal, mostSoldProducts, setMostSoldProducts,
+    scrapDeductionSearchQuery, setScrapDeductionSearchQuery, scrapDeductionResults, setScrapDeductionResults, returnDeductionSearchQuery, setReturnDeductionSearchQuery,
+    returnDeductionResults, setReturnDeductionResults, setReturnDeductionSearchMode, deductionTabMode, setDeductionTabMode, loyaltyCustomerData,
+    setLoyaltyCustomerData, showLoyaltyRedemption, setShowLoyaltyRedemption, pointsToRedeem, setPointsToRedeem, erpNarration,
+    setErpNarration, erpSalesRep, setErpSalesRep, focusedRowProductId, setFocusedRowProductId, isCheckingOut,
+    setIsCheckingOut, hardwareError, setHardwareError, checkoutSuccess, setCheckoutSuccess, upiAccountToast,
+    setUpiAccountToast, returnSuccessToast, setReturnSuccessToast, infoToast, setInfoToast, activeDiscField,
+    setActiveDiscField, localDiscText, setLocalDiscText, isEditingTotal, setIsEditingTotal, overrideTotalInput,
+    setOverrideTotalInput, cashRegisterOpen, setCashRegisterOpen, selectedReturnInvoice, setSelectedReturnInvoice, returnProcessing,
+    setReturnProcessing, returnProcessed, setReturnProcessed, showScrapInvoiceView, setShowScrapInvoiceView, scrapInvoiceViewData,
+    setScrapInvoiceViewData, scrapInvoiceViewLoading, quotationTerms, setQuotationTerms, quotationSaving, setQuotationSaving,
+    quotationSuccess, setQuotationSuccess, scrapDeductionDropdownStyle, setScrapDeductionDropdownStyle, returnDeductionDropdownStyle, setReturnDeductionDropdownStyle,
+    isLoadingEditBill, setIsLoadingEditBill, isSendingWhatsApp, setIsSendingWhatsApp, heldBills, setHeldBills,
+    showHeldBillsPanel, setShowHeldBillsPanel, heldBillsLoading, setHeldBillsLoading,
+  } = bp;
 
-  // Pricing tier state
-  const [productPricingMap, setProductPricingMap] = useState<Record<string, Record<string, number>>>({});
-  const [selectedTierId, setSelectedTierId] = useState('');
-
-  // Page-wise UPI Configuration and sources state
-  const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
-  const [isUpiSelectModalOpen, setIsUpiSelectModalOpen] = useState(false);
-  const [isBillerPinModalOpen, setIsBillerPinModalOpen] = useState(false);
-  const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
   const canOverrideTier = isAdminRole(authRole) || allowBillerOverride;
 
-  // Sync local discount + pcs/kg state when items are added/removed
-  useEffect(() => {
-    const ids = new Set(items.map(i => i.product_id));
-
-    setLocalDiscPcts(prev => {
-      const next = { ...prev };
-      let changed = false;
-      items.forEach(item => {
-        if (!(item.product_id in prev)) { next[item.product_id] = item.discount_percent ?? 0; changed = true; }
-      });
-      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
-      return changed ? next : prev;
-    });
-    setLocalDiscFlats(prev => {
-      const next = { ...prev };
-      let changed = false;
-      items.forEach(item => {
-        if (!(item.product_id in prev)) { next[item.product_id] = item.discount_flat ?? 0; changed = true; }
-      });
-      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
-      return changed ? next : prev;
-    });
-    // Pcs/Kg local strings: initialise for new items, clean up removed items.
-    // Do NOT overwrite if the user is mid-edit (key already present).
-    const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
-    setLocalPcsStr(prev => {
-      const next = { ...prev };
-      let changed = false;
-      items.forEach(item => {
-        const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
-        if (isPiecesWeight) {
-          const numPcs = item.pieces_override ?? 1;
-          const curNum = parseInt(prev[item.product_id] || '', 10);
-          if (!(item.product_id in prev) || (item.pieces_override !== undefined && prev[item.product_id] !== '' && !isNaN(curNum) && curNum !== numPcs)) {
-            next[item.product_id] = String(numPcs);
-            changed = true;
-          }
-        }
-      });
-      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
-      return changed ? next : prev;
-    });
-    setLocalKgStr(prev => {
-      const next = { ...prev };
-      let changed = false;
-      items.forEach(item => {
-        const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
-        if (isPiecesWeight) {
-          const numKg = Number(item.quantity);
-          const curNum = parseFloat(prev[item.product_id] || '');
-          if (!(item.product_id in prev) || (item.quantity !== undefined && prev[item.product_id] !== '' && !isNaN(curNum) && curNum !== numKg)) {
-            next[item.product_id] = String(item.quantity ?? '');
-            changed = true;
-          }
-        }
-      });
-      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
-      return changed ? next : prev;
-    });
-  }, [items]);
+  useCartLocalInputsSync({
+    items, setLocalDiscFlats, setLocalDiscPcts, setLocalKgStr, setLocalPcsStr,
+  });
 
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal, extraBonus, returnDeduction: _cartReturnDeduction } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
@@ -286,29 +207,6 @@ export function BillingPage() {
     setNewProductName, setNewProductBarcode, newProductCategory, newProductIsAddingGrade, setNewProductIsAddingGrade, newProductSavingGrade,
     newProductGradeForm, setNewProductGradeForm,
   } = productForm;
-  const [showTransportModal, setShowTransportModal] = useState(false);
-  const [mostSoldProducts, setMostSoldProducts] = useState<any[]>([]);
-  const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
-  const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
-
-  // Return deduction search (similar to scrap deduction search)
-  const [returnDeductionSearchQuery, setReturnDeductionSearchQuery] = useState('');
-  const [returnDeductionResults, setReturnDeductionResults] = useState<any[]>([]);
-  const [, setReturnDeductionSearchMode] = useState(false);
-  const [deductionTabMode, setDeductionTabMode] = useState<'scrap' | 'return' | 'points'>('scrap');
-
-  // Loyalty points state
-  const [loyaltyCustomerData, setLoyaltyCustomerData] = useState<{
-    customerId: string | null;
-    pointsBalance: number;
-  }>({ customerId: null, pointsBalance: 0 });
-  const [showLoyaltyRedemption, setShowLoyaltyRedemption] = useState(false);
-  const [pointsToRedeem, setPointsToRedeem] = useState(0);
-
-  // Modern ERP B2C Grid States (Acro / Tally Desktop ERP Model)
-  const [erpNarration, setErpNarration] = useState('');
-  const [erpSalesRep, setErpSalesRep] = useState('');
-  const [focusedRowProductId, setFocusedRowProductId] = useState<string | null>(null);
 
   const customerFields = useCustomerFieldState();
   const { setShowCustomerDropdown, customerNameInputRef } = customerFields;
@@ -321,24 +219,14 @@ export function BillingPage() {
     setFocusedRowProductId, showDescriptionState, tierRefs, totalInputRefs,
   });
 
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const isCheckingOutRef = useRef(false);
-  const [hardwareError, setHardwareError] = useState<string | null>(null);
-  const [checkoutSuccess, setCheckoutSuccess] = useState<'saved' | 'printed' | false>(false);
-  const [upiAccountToast, setUpiAccountToast] = useState<string | null>(null);
-  const [returnSuccessToast, setReturnSuccessToast] = useState<string | null>(null);
-  const [infoToast, setInfoToast] = useState<string | null>(null);
-  const [activeDiscField, setActiveDiscField] = useState<'PCT' | 'FLAT' | null>(null);
-  const [localDiscText, setLocalDiscText] = useState<string>('');
-  const [isEditingTotal, setIsEditingTotal] = useState(false);
-  const [overrideTotalInput, setOverrideTotalInput] = useState('');
 
   useEffect(() => {
     if (discountValue === 0) {
       setActiveDiscField(null);
       setLocalDiscText('');
     }
-  }, [discountValue, activeTabId]);
+  }, [discountValue, activeTabId, setActiveDiscField, setLocalDiscText]);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
 
@@ -390,116 +278,9 @@ export function BillingPage() {
     }
     return deductionTabMode;
   }, [deductionTabMode, isScrapModuleEnabled, isReturnModuleEnabled, isLoyaltyModuleEnabled]);
-  const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
-  const lastActiveTabId = useRef(activeTabId);
-  const prevScrapMode = useRef(isScrapMode);
-  const prevReturnMode = useRef(isReturnMode);
-  // Clean up incompatible items when scrap mode changes
-  useEffect(() => {
-    if (lastActiveTabId.current !== activeTabId) {
-      prevScrapMode.current = isScrapMode;
-      return;
-    }
-    if (prevScrapMode.current && !isScrapMode) {
-      items.filter(i => i.isScrap).forEach(i => removeItem(i.product_id));
-    } else if (!prevScrapMode.current && isScrapMode) {
-      items.filter(i => !i.isScrap).forEach(i => removeItem(i.product_id));
-      clearScrapDeduction();
-    }
-    prevScrapMode.current = isScrapMode;
-  }, [isScrapMode, activeTabId]);
 
-  // Clean up return items when return mode toggles
-  useEffect(() => {
-    if (lastActiveTabId.current !== activeTabId) {
-      prevReturnMode.current = isReturnMode;
-      return;
-    }
-    if (prevReturnMode.current && !isReturnMode) {
-      useCartStore.setState(s => ({
-        items: s.items.filter(i => !i.isReturnItem)
-      }));
-      updateActiveTab({
-        customerName: '',
-        customerPhone: '',
-        customerGstin: '',
-        customerAddress: '',
-        customerId: '',
-        receivedAmount: 0,
-        actualRefundPaid: 0,
-        reservedReturnNumber: '',
-      });
-      setSelectedReturnInvoice(null);
-      reserveInvoiceNumberForTab();
-      syncActiveSnapshot();
-    } else if (!prevReturnMode.current && isReturnMode) {
-      useCartStore.setState(s => ({
-        items: s.items.filter(i => i.isReturnItem)
-      }));
-      clearReturnDeduction();
-      reserveReturnNumberForTab();
-      syncActiveSnapshot();
-    }
-    prevReturnMode.current = isReturnMode;
-  }, [isReturnMode, activeTabId]);
-
-  useEffect(() => {
-    if (!enableScrap && isScrapMode) {
-      setIsScrapMode(false);
-    }
-  }, [enableScrap, isScrapMode]);
-
-  useEffect(() => {
-    if (!featureFlags) return;
-    if (featureFlags.quotations === false && isQuotationMode) setQuotationMode(false);
-    if (featureFlags.returns === false && isReturnMode) setReturnMode(false);
-    if (featureFlags.cash_settlement === false && activeTab?.paymentMethod === 'PENDING') {
-      updateActiveTab({ paymentMethod: 'CASH' });
-    }
-  }, [featureFlags, isQuotationMode, isReturnMode, activeTab?.paymentMethod, setQuotationMode, setReturnMode, updateActiveTab]);
-
-  useEffect(() => {
-    if (!isCashSettlementEnabled && activeTab?.paymentMethod === 'PENDING') {
-      updateActiveTab({ paymentMethod: 'CASH' });
-    }
-  }, [isCashSettlementEnabled, activeTab?.paymentMethod, updateActiveTab]);
-
-  // Update tab title when mode changes (normal, scrap, quotation, return)
-  const prevReserveMode = useRef<'normal' | 'scrap' | 'return' | 'quotation' | null>(null);
-  useEffect(() => {
-    syncActiveSnapshot();
-    if (lastActiveTabId.current !== activeTabId) {
-      prevReserveMode.current = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
-      return;
-    }
-    const currentMode = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
-    if (prevReserveMode.current !== currentMode && !editingInvoiceNumber) {
-      prevReserveMode.current = currentMode;
-      const tab = getActiveTab();
-      if (tab) {
-        let targetNum = tab.reservedInvoiceNumber;
-        if (isScrapMode) targetNum = tab.reservedScrapInvoiceNumber;
-        else if (isQuotationMode) targetNum = tab.reservedQuotationNumber;
-        else if (isReturnMode) targetNum = tab.reservedReturnNumber;
-
-        const shouldUpdate = !tab.title || tab.title === 'New' || tab.title === 'New Quote' || tab.title === tab.reservedInvoiceNumber || tab.title === tab.reservedScrapInvoiceNumber || tab.title === tab.reservedQuotationNumber || tab.title === tab.reservedReturnNumber || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
-        if (targetNum && shouldUpdate) {
-          updateActiveTab({ title: targetNum });
-        }
-      }
-    }
-  }, [isScrapMode, isReturnMode, isQuotationMode, activeTabId, getActiveTab, updateActiveTab, editingInvoiceNumber, syncActiveSnapshot]);
-
-  useEffect(() => {
-    lastActiveTabId.current = activeTabId;
-  }, [activeTabId]);
-
-  // Local return mode transient state
-  const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<any | null>(null);
-  const [returnProcessing, setReturnProcessing] = useState(false);
   const returnProcessingRef = useRef(false);
   const pendingCheckoutSaveOnlyRef = useRef<boolean | null>(null);
-  const [returnProcessed, setReturnProcessed] = useState(false);
 
   // useTabStore values are destructured at the top of the component
 
@@ -560,120 +341,39 @@ export function BillingPage() {
        || upiSources[0])
     : null;
 
-    const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
-    await reserveInvoiceNumber({ tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode, editingActive }, forceRefresh);
-  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isB2B, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
+  const { reserveInvoiceNumberForTab, handleInvoiceTypeChange, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab } = useNumberReservations({
+    customerGstin, editingActive, editingQuotationId, enableThreeInvoiceSeries, getActiveTab, invoiceType,
+    isB2B, isQuotationMode, isReturnMode, isScrapMode, setInvoiceType, syncActiveSnapshot, tenantId,
+    updateActiveTab,
+  });
 
-  const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
-    setInvoiceType(type);
-    setTimeout(() => {
-      syncActiveSnapshot();
-    }, 0);
-
-    await refreshInvoiceNumberForType({ tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, customerGstin }, type);
-  };
-
-  const reserveScrapInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
-    await reserveScrapInvoiceNumber({ getActiveTab, updateActiveTab, editingActive }, forceRefresh);
-  }, [getActiveTab, updateActiveTab, editingActive]);
-
-  const reserveQuotationNumberForTab = useCallback(async (forceRefresh = false) => {
-    await reserveQuotationNumber({ getActiveTab, updateActiveTab, editingQuotationId }, forceRefresh);
-  }, [getActiveTab, updateActiveTab, editingQuotationId]);
-
-  const reserveReturnNumberForTab = useCallback(async (forceRefresh = false) => {
-    await reserveReturnNumber({ tenantId, getActiveTab, updateActiveTab }, forceRefresh);
-  }, [tenantId, getActiveTab, updateActiveTab]);
+  useBillingModeSync({
+    activeTab, activeTabId, clearReturnDeduction, clearScrapDeduction, editingInvoiceNumber, enableScrap,
+    featureFlags, getActiveTab, isCashSettlementEnabled, isQuotationMode, isReturnMode, isScrapMode, items,
+    removeItem, reserveInvoiceNumberForTab, reserveReturnNumberForTab, setIsScrapMode, setQuotationMode,
+    setReturnMode, setSelectedReturnInvoice, syncActiveSnapshot, updateActiveTab,
+  });
 
   const toggleQuotationMode = useQuotationToggle({
     activeTabId, invoiceType, isQuotationMode, isScrapMode, isReturnMode, isPastBillMode, quotationGstEnabledSetting,
     setQuotationMode, setIsScrapMode, setReturnMode, setIsPastBillMode, setInvoiceType, reserveQuotationNumberForTab,
   });
 
-  const totalDeductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
-  // Return credit is consumed first (up to the bill total); its leftover stays as
-  // pending ADJUST_BILL credit for a future bill (not cash-refunded). Only scrap
-  // credit excess is refunded as cash (existing behavior).
-  const returnConsumed = Math.min(storeReturnDeduction || 0, grandTotal);
-  const refundAmount = !isScrapMode ? Math.max(0, totalDeductions - grandTotal) : 0;
+  const {
+    returnConsumed, refundAmount, returnTotal, originalReturnTotal,
+    returnDiscountTotal, rawDisplayGrandTotal, customerPointsBalance, pointsRedeemedCalc, pointsRedeemedDiscountCalc,
+    isGrandTotalOverridden, displayGrandTotal, balanceAmount,
+  } = useBillingTotals({
+    activeTab, extraBonus, grandTotal, isLoyaltyModuleEnabled, isReturnMode, isScrapMode, items,
+    loyaltyCustomerData, loyaltyRedemptionRate, pointsToRedeem, receivedAmount, scrapTotal,
+    storeReturnDeduction, storeScrapDeduction,
+  });
 
-  const returnSubtotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
-    return sum + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
-  }, 0);
-  const returnTaxTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
-    const origQty = Number(item.originalQuantity) || 1;
-    return sum + ((Number(item.originalTaxAmount) || 0) / origQty) * (Number(item.quantity) || 0);
-  }, 0);
-  const returnTotal = returnSubtotal;
-  const originalReturnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
-    return sum + (Number(item.rawUnitPrice) || Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
-  }, 0);
-  const returnDiscountTotal = Math.max(0, originalReturnTotal - returnTotal);
-  const rawDisplayGrandTotal = isScrapMode
-    ? scrapTotal + extraBonus
-    : isReturnMode
-      ? returnSubtotal + returnTaxTotal
-      : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
-
-  const customerPointsBalance = Number(loyaltyCustomerData?.pointsBalance) || 0;
-  const pointsRedeemedCalc = (isLoyaltyModuleEnabled && pointsToRedeem > 0)
-    ? Math.min(pointsToRedeem, customerPointsBalance)
-    : 0;
-  const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
-
-  const isGrandTotalOverridden = !isScrapMode && !isReturnMode && activeTab?.manualTotalOverride != null && activeTab.manualTotalOverride > 0;
-  const displayGrandTotal = Math.max(
-    0,
-    (isGrandTotalOverridden ? activeTab.manualTotalOverride! : rawDisplayGrandTotal) - pointsRedeemedDiscountCalc
-  );
-  const balanceAmount = receivedAmount - displayGrandTotal;
-
-  const startEditingTotal = useCallback(() => {
-    if (isScrapMode || isReturnMode || items.length === 0) return;
-    setOverrideTotalInput(String(displayGrandTotal || ''));
-    setIsEditingTotal(true);
-    setTimeout(() => {
-      totalOverrideInputRef.current?.focus();
-      totalOverrideInputRef.current?.select();
-    }, 40);
-  }, [isScrapMode, isReturnMode, items.length, displayGrandTotal]);
-
-  const handleResetGrandTotalOverride = useCallback(() => {
-    setDiscount(0, 'FIXED');
-    updateActiveTab({ manualTotalOverride: null });
-    setIsEditingTotal(false);
-    setOverrideTotalInput('');
-  }, [setDiscount, updateActiveTab]);
-
-  const commitTotalOverride = useCallback(() => {
-    if (!overrideTotalInput || overrideTotalInput.trim() === '') {
-      handleResetGrandTotalOverride();
-      return;
-    }
-    const targetVal = parseFloat(overrideTotalInput);
-    if (isNaN(targetVal) || targetVal < 0) {
-      setIsEditingTotal(false);
-      return;
-    }
-
-    const effectiveTaxRate = (subtotal > 0 && totalTax > 0) ? (totalTax / Math.max(1, subtotal - (discount || 0))) : 0;
-    const deductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
-    const basePayableBeforeDiscount = Math.max(0, (subtotal * (1 + effectiveTaxRate)) - deductions);
-
-    if (targetVal < basePayableBeforeDiscount) {
-      const shortfall = basePayableBeforeDiscount - targetVal;
-      const neededDisc = effectiveTaxRate > 0 ? shortfall / (1 + effectiveTaxRate) : shortfall;
-      const roundedDisc = Math.round(neededDisc * 100) / 100;
-      setDiscount(roundedDisc, 'FIXED');
-    } else {
-      setDiscount(0, 'FIXED');
-    }
-
-    updateActiveTab({ manualTotalOverride: targetVal });
-    setIsEditingTotal(false);
-    setInfoToast(`Grand Total overridden to ₹${targetVal.toFixed(2)}`);
-    setTimeout(() => setInfoToast(null), 2500);
-  }, [overrideTotalInput, subtotal, totalTax, discount, storeScrapDeduction, storeReturnDeduction, setDiscount, updateActiveTab, handleResetGrandTotalOverride]);
+  const { startEditingTotal, handleResetGrandTotalOverride, commitTotalOverride } = useGrandTotalOverride({
+    discount, displayGrandTotal, isReturnMode, isScrapMode, items, overrideTotalInput, setDiscount,
+    setInfoToast, setIsEditingTotal, setOverrideTotalInput, storeReturnDeduction, storeScrapDeduction, subtotal,
+    totalOverrideInputRef, totalTax, updateActiveTab,
+  });
 
   const totalProducts = items.length;
   const totalKgs = items.reduce((sum, item) => {
@@ -718,69 +418,15 @@ export function BillingPage() {
     reserveReturnNumberForTab, reserveScrapInvoiceNumberForTab, tenantId, updateActiveTab,
   });
 
-  // Scrap invoice view state
-  const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
-  const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: any[]; totalAmount: number; invoiceNumber: string } | null>(null);
-  const [scrapInvoiceViewLoading, _setScrapInvoiceViewLoading] = useState(false);
-
-  // Quotation state
-  const [quotationTerms, setQuotationTerms] = useState('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
-  const [quotationSaving, setQuotationSaving] = useState(false);
-  const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
-
   const { loadScrapInvoiceForEdit } = useScrapInvoiceEdit({
     addItem, clearCart, clearScrapDeduction, editingInvoiceNumber, getActiveTab, isScrapMode, setDiscount,
     setIsPastBillMode, setIsScrapMode, setQuotationMode, setReturnMode, setSelectedReturnInvoice,
     syncActiveSnapshot, tenantId, updateActiveTab,
   });
 
-  // Closing the billing page — clear modes persisted in the global cart store
-  // (Return/Quotation) so the next open starts fresh, without a one-frame flash
-  // of the previously active mode. Scrap & Past-Bill are local state and already
-  // reset on remount. External flows (SalesHistory return, scrap edit) re-enable
-  // their mode via events fired after remount.
-  useEffect(() => {
-    return () => {
-      const currentActiveTab = useTabStore.getState().getActiveTab();
-      if (currentActiveTab?.snapshot?.isQuotationMode) {
-        return;
-      }
-      if (localStorage.getItem('pendingNewQuotation') === 'true' || localStorage.getItem('editQuotationData') || localStorage.getItem('editBillData')) {
-        return;
-      }
-      const wasReturn = useCartStore.getState().isReturnMode || Boolean(currentActiveTab?.snapshot?.isReturnMode);
-      if (wasReturn) {
-        useTabStore.getState().updateActiveTab({
-          customerName: '',
-          customerPhone: '',
-          customerGstin: '',
-          customerAddress: '',
-          customerId: '',
-          receivedAmount: 0,
-          actualRefundPaid: 0,
-          reservedReturnNumber: '',
-        });
-      }
-      useCartStore.getState().setReturnMode(false);
-      useCartStore.getState().setQuotationMode(false);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleEditScrapInvoiceEvent = (e: any) => {
-      const invNum = e.detail?.invoiceNumber;
-      if (invNum) {
-        useCartStore.getState().setIsScrapMode(true);
-        updateActiveTab({ title: invNum, reservedScrapInvoiceNumber: invNum });
-        loadScrapInvoiceForEdit(invNum);
-      }
-    };
-
-    window.addEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
-    return () => {
-      window.removeEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
-    };
-  }, [loadScrapInvoiceForEdit, updateActiveTab]);
+  useScrapInvoiceEditEvents({
+    loadScrapInvoiceForEdit, updateActiveTab,
+  });
 
   useSearchResultsLoader({
     search: productSearch, tenantId, invoiceType, isScrapMode, isReturnMode, isQuotationMode,
@@ -791,84 +437,15 @@ export function BillingPage() {
     setMostSoldProducts, tenantId, uiConfig,
   });
 
-  // Scrap deduction search
-  useEffect(() => {
-    if (storeScrapDeduction > 0 || scrapDeductionSearchQuery.length < 1) { setScrapDeductionResults([]); return; }
-    const t = setTimeout(async () => {
-      if (!isDesktopRuntime()) return;
-      const tid = tenantId || 'global';
-      const list = await scrapApi.getScrapInvoiceList({ tenant_id: tid });
-      if (Array.isArray(list)) {
-        const q = scrapDeductionSearchQuery.toUpperCase();
-        const getNumPart = getNumericPart;
-        const filtered = list.filter(inv => {
-          const invNum = String(inv.invoice_number).toUpperCase();
-          const numPart = getNumPart(invNum);
-          return (invNum.includes(q) || (q.length >= 1 && getNumPart(q).length > 0 && numPart.includes(getNumPart(q)))) &&
-            inv.payment_status === 'PENDING';
-        });
-        setScrapDeductionResults(filtered.slice(0, 8));
-        if (filtered.length > 0 && scrapDeductionInputRef.current) {
-          const rect = scrapDeductionInputRef.current.getBoundingClientRect();
-          setScrapDeductionDropdownStyle({
-            position: 'fixed',
-            bottom: `${window.innerHeight - rect.top + 4}px`,
-            left: `${rect.left}px`,
-            width: `${rect.width}px`,
-            zIndex: 9999,
-          });
-        } else {
-          setScrapDeductionDropdownStyle(null);
-        }
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [scrapDeductionSearchQuery, storeScrapDeduction, tenantId]);
-
-  // Return deduction search
-  useEffect(() => {
-    if (storeReturnDeduction > 0 || returnDeductionSearchQuery.length < 1) { setReturnDeductionResults([]); return; }
-    const t = setTimeout(async () => {
-      if (!isDesktopRuntime()) return;
-      const tid = tenantId || 'global';
-      const list = await returnsApi.getPendingReturnInvoices({ tenant_id: tid });
-      if (Array.isArray(list)) {
-        const q = returnDeductionSearchQuery.toUpperCase();
-        const getNumPart = getNumericPart;
-        const qNum = getNumPart(q);
-        const filtered = list.filter((r: any) => {
-          const retNum = String(r.return_number).toUpperCase();
-          const custName = String(r.customer_name || '').toUpperCase();
-          const custPhone = String(r.customer_phone || '').toUpperCase();
-          const numPart = getNumPart(retNum);
-          return retNum.includes(q) ||
-            custName.includes(q) ||
-            custPhone.includes(q) ||
-            (q.length >= 1 && qNum.length > 0 && (numPart.includes(qNum) || Number(numPart) === Number(qNum)));
-        });
-        setReturnDeductionResults(filtered.slice(0, 8));
-        if (filtered.length > 0 && returnDeductionInputRef.current) {
-          const rect = returnDeductionInputRef.current.getBoundingClientRect();
-          setReturnDeductionDropdownStyle({
-            position: 'fixed',
-            bottom: `${window.innerHeight - rect.top + 4}px`,
-            left: `${rect.left}px`,
-            width: `${Math.max(rect.width, 280)}px`,
-            zIndex: 9999,
-          });
-        } else {
-          setReturnDeductionDropdownStyle(null);
-        }
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [returnDeductionSearchQuery, storeReturnDeduction, tenantId]);
-
   const scrapDeductionInputRef = useRef<HTMLInputElement>(null);
-  const [scrapDeductionDropdownStyle, setScrapDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
   const returnDeductionInputRef = useRef<HTMLInputElement>(null);
-  const [returnDeductionDropdownStyle, setReturnDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
   const pointsDeductionInputRef = useRef<HTMLInputElement>(null);
+
+  useDeductionSync({
+    returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery,
+    setReturnDeductionDropdownStyle, setReturnDeductionResults, setScrapDeductionDropdownStyle,
+    setScrapDeductionResults, storeReturnDeduction, storeScrapDeduction, tenantId,
+  });
 
   const { allCustomersList, filteredCustomerSuggestions, findMatchingParty, setCustomerSearchResults } = useCustomerDirectory({
     tenantId,
@@ -878,59 +455,12 @@ export function BillingPage() {
     customerPhone,
   });
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
-        setResults([]);
-        setPastBillResults([]);
-        setSearchQuery('');
-        if (!productFormDialogRef.current?.contains(e.target as Node) && !gradeFormDialogRef.current?.contains(e.target as Node)) {
-          setShowProductCreateForm(false);
-        }
-      }
-      const scrapDropdown = document.getElementById('scrap-deduction-dropdown');
-      if (scrapDeductionInputRef.current && !scrapDeductionInputRef.current.parentElement?.contains(e.target as Node) && !scrapDropdown?.contains(e.target as Node)) {
-        setScrapDeductionResults([]);
-        setScrapDeductionDropdownStyle(null);
-      }
-      const returnDropdown = document.getElementById('return-deduction-dropdown');
-      if (returnDeductionInputRef.current && !returnDeductionInputRef.current.parentElement?.contains(e.target as Node) && !returnDropdown?.contains(e.target as Node)) {
-        setReturnDeductionResults([]);
-        setReturnDeductionDropdownStyle(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [searchContainerRef, setPastBillResults, setResults, setSearchQuery, gradeFormDialogRef, productFormDialogRef, setShowProductCreateForm]);
-
-  useEffect(() => {
-    if (!showProductCreateForm) return;
-
-    const focusTimer = window.setTimeout(() => firstInputRef.current?.focus(), 50);
-    let cancelled = false;
-
-    // Editing must preserve the barcode belonging to the selected cart product.
-    // Barcode generation here is only a convenience for a new product.
-    if (!editingProductId && isDesktopRuntime() && tenantId) {
-      (async () => {
-        try {
-          const gen = await productsApi.generateBarcode({ tenant_id: tenantId });
-          if (!cancelled && gen?.success && gen?.barcode) {
-            setNewProductBarcode(gen.barcode);
-          }
-        } catch (err) {
-          console.error("Failed to generate auto barcode", err);
-        }
-      })();
-    }
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(focusTimer);
-    };
-  }, [showProductCreateForm, editingProductId, tenantId, firstInputRef, setNewProductBarcode]);
-
-  const [isLoadingEditBill, setIsLoadingEditBill] = useState(false);
+  useBillingPopoverEffects({
+    editingProductId, firstInputRef, gradeFormDialogRef, productFormDialogRef, returnDeductionInputRef,
+    scrapDeductionInputRef, searchContainerRef, setNewProductBarcode, setPastBillResults, setResults,
+    setReturnDeductionDropdownStyle, setReturnDeductionResults, setScrapDeductionDropdownStyle,
+    setScrapDeductionResults, setSearchQuery, setShowProductCreateForm, showProductCreateForm, tenantId,
+  });
 
   const { getTierPriceForProduct, handlePricingTierChange, applyPartyTier } = usePricingTier({
     findMatchingParty, pricingTiers, productPricingMap, productPricingMapLoaded, selectedTierId,
@@ -969,25 +499,6 @@ export function BillingPage() {
     syncActiveSnapshot, tenantId, updateQuantity,
   });
 
-  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Enter') return;
-    if (e.defaultPrevented) return;
-    const target = e.target as HTMLElement;
-    const container = target.closest('[data-enter-nav]');
-    if (!container) return;
-    const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-focusable-checkbox]');
-    const idx = Array.from(focusable).indexOf(target as HTMLElement);
-    if (idx === -1) return;
-    e.preventDefault();
-    if (idx < focusable.length - 1) {
-      const nextEl = focusable[idx + 1];
-      nextEl?.focus();
-      if (nextEl?.hasAttribute('data-select-trigger')) setTimeout(() => nextEl.click(), 0);
-    } else {
-      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
-    }
-  };
-
   useHardwareBarcodeScanner({
     addItem, handleSelectPastBill, handleSelectProduct, handleSelectReturnInvoice, isPastBillMode, isReturnMode,
     searchRef, setHardwareError, setPastBillResults, setResults, setReturnSearchResults, setSearchQuery,
@@ -999,7 +510,7 @@ export function BillingPage() {
     if (!hardwareError) return;
     const t = setTimeout(() => setHardwareError(null), 3000);
     return () => clearTimeout(t);
-  }, [hardwareError]);
+  }, [hardwareError, setHardwareError]);
 
   const { handleSaveQuotation } = useSaveQuotation({
     bankAccountState, bankBranchState, bankIfscState, bankNameState, clearCart, customerAddress, customerGstin,
@@ -1011,45 +522,10 @@ export function BillingPage() {
     shopWebsite, syncActiveSnapshot, tenantId, uiConfig, updateActiveTab, upiId, userName,
   });
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      if (e.key === ' ' && !showProductCreateForm && !isScrapMode && !isReturnMode && !isPastBillMode) {
-        const tag = (document.activeElement?.tagName || '').toLowerCase();
-        const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
-        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
-          e.preventDefault();
-          setShowProductCreateForm(true);
-          setNewProductName('');
-        }
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [showProductCreateForm, isScrapMode, isReturnMode, isPastBillMode, setNewProductName, setShowProductCreateForm]);
-
-  const fillRestForField = (field: 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT') => {
-    const cash = field === 'CASH' ? 0 : (Number(splitDetails.cash) || 0);
-    const card = field === 'CARD' ? 0 : (Number(splitDetails.card) || 0);
-    const upi = field === 'UPI' ? 0 : (Number(splitDetails.upi) || 0);
-    const cheque = field === 'CHEQUE' ? 0 : (Number(splitDetails.cheque) || 0);
-    const credit = field === 'CREDIT' ? 0 : (Number(splitDetails.credit) || 0);
-    const bankTransfer = Number(splitDetails.bank_transfer) || 0;
-
-    const otherSum = cash + card + upi + cheque + credit + bankTransfer;
-    const rem = Math.max(0, Number((displayGrandTotal - otherSum).toFixed(2)));
-
-    const nextDetails: SplitDetails = {
-      ...splitDetails,
-      [field.toLowerCase()]: rem,
-    };
-
-    const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
-
-    updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-    setInfoToast(`Filled Rest: ₹${rem} into ${field}`);
-    setTimeout(() => setInfoToast(null), 1500);
-  };
+  const { fillRestForField } = useBillingQuickActions({
+    displayGrandTotal, isPastBillMode, isReturnMode, isScrapMode, setInfoToast, setNewProductName,
+    setShowProductCreateForm, showProductCreateForm, splitDetails, updateActiveTab,
+  });
 
   const { handleQtyKeyDown, focusCartItemQuantityOrPcs, handlePcsKeyDown, handleSplitInputKeyDown, sanitizeQtyText, guardScannerInput, handleDiscKeyDown, handleDiscFlatKeyDown, handleTotalInputKeyDown } = useCartKeyboard({
     discFlatRefs, discountRef, discRefs, displayGrandTotal, fillRestForField, focusDescriptionOrDiscount,
@@ -1072,17 +548,11 @@ export function BillingPage() {
     syncActiveSnapshot, tenantId, uiConfig, updateActiveTab, userId,
   });
 
-  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
-
   const { handleWhatsAppSendActiveBill } = useWhatsAppSend({
     activeTab, customerAddress, customerGstin, customerName, customerPhone, discount, displayGrandTotal,
     invoiceType, items, paymentMethod, receivedAmount, setHardwareError, setInfoToast, setIsSendingWhatsApp,
     shopAddress, shopGstin, shopName, shopNameState, shopPhone, subtotal, tenantId, totalTax,
   });
-
-  const [heldBills, setHeldBills] = useState<any[]>([]);
-  const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
-  const [heldBillsLoading, setHeldBillsLoading] = useState(false);
 
   const { loadHeldBills, handleHoldBill, handleRecallHeldBill, handleReleaseHeldBill } = useHeldBills({
     addItem, balanceAmount, clearCart, currentSelectedUpi, customerAddress, customerGstin, customerName,
@@ -1120,52 +590,22 @@ export function BillingPage() {
     syncActiveSnapshot, toggleQuotationMode, updateActiveTab,
   });
   const deductions: DeductionState = {
-    customerPointsBalance,
-    effectiveDeductionMode,
-    isLoyaltyModuleEnabled,
-    isReturnModuleEnabled,
-    isScrapModuleEnabled,
-    pointsDeductionInputRef,
-    pointsRedeemedCalc,
-    pointsRedeemedDiscountCalc,
-    pointsToRedeem,
-    returnDeductionInputRef,
-    returnDeductionSearchQuery,
-    scrapDeductionInputRef,
-    scrapDeductionSearchQuery,
-    setDeductionTabMode,
-    setHardwareError,
-    setPointsToRedeem,
-    setReturnDeductionDropdownStyle,
-    setReturnDeductionResults,
-    setReturnDeductionSearchMode,
-    setReturnDeductionSearchQuery,
-    setScrapDeductionDropdownStyle,
-    setScrapDeductionResults,
-    setScrapDeductionSearchQuery,
-    tenantId,
+    customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled,
+    isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem,
+    returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery,
+    setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle,
+    setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery,
+    setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId,
   };
   const searchBarSection = <BillingSearchBar
-    getTierPriceForProduct={getTierPriceForProduct}
-    handleSearchKey={handleSearchKey}
-    handleSelectPastBill={handleSelectPastBill}
-    handleSelectProduct={handleSelectProduct}
-    handleSelectReturnInvoice={handleSelectReturnInvoice}
-    handleSelectScrapItem={handleSelectScrapItem}
-    invoiceType={invoiceType}
-    isQuotationActive={isQuotationActive}
-    isQuotationMode={isQuotationMode}
-    isReturnMode={isReturnMode}
-    isScrapActive={isScrapActive}
-    isScrapMode={isScrapMode}
-    productSearch={productSearch}
-    searchRef={searchRef}
-    setIsScrapMode={setIsScrapMode}
-    setNewProductName={setNewProductName}
-    setQuotationMode={setQuotationMode}
-    setReturnMode={setReturnMode}
-    setShowProductCreateForm={setShowProductCreateForm}
-    showProductCreateForm={showProductCreateForm}
+    getTierPriceForProduct={getTierPriceForProduct} handleSearchKey={handleSearchKey}
+    handleSelectPastBill={handleSelectPastBill} handleSelectProduct={handleSelectProduct}
+    handleSelectReturnInvoice={handleSelectReturnInvoice} handleSelectScrapItem={handleSelectScrapItem}
+    invoiceType={invoiceType} isQuotationActive={isQuotationActive} isQuotationMode={isQuotationMode}
+    isReturnMode={isReturnMode} isScrapActive={isScrapActive} isScrapMode={isScrapMode} productSearch={productSearch}
+    searchRef={searchRef} setIsScrapMode={setIsScrapMode} setNewProductName={setNewProductName}
+    setQuotationMode={setQuotationMode} setReturnMode={setReturnMode}
+    setShowProductCreateForm={setShowProductCreateForm} showProductCreateForm={showProductCreateForm}
     uiConfig={uiConfig}
   />;
   return (
@@ -1264,346 +704,93 @@ export function BillingPage() {
         updateQuantity={updateQuantity}
       />}
 
-      <div 
-        className={clsx(
-          "flex flex-1 overflow-hidden bg-background transition-all duration-300",
-          uiConfig.layoutModel === 'erp-grid-b2c' && "hidden",
-          uiConfig.orientation === 'horizontal-stack' ? "flex-col" :
-          uiConfig.layoutPosition === 'cart-right' ? "flex-row-reverse" : "flex-row"
-        )}
-      >
-        {/* ═══ EXPRESS MOST SOLD PRODUCTS (3-COLUMN LAYOUT) ═══ */}
-        {(uiConfig.orientation === 'three-column' || uiConfig.showQuickCategoryBar) && (
-          <div className="w-[22%] border-r border-border bg-muted/20 p-3 space-y-2 shrink-0 hidden md:block overflow-y-auto">
-            <div className="text-[10px] font-black uppercase text-muted-foreground tracking-wider mb-2 flex items-center justify-between">
-              <span>Products - Most Sold</span>
-              <TrendingUp className="w-3 h-3 text-amber-500" />
-            </div>
-            <div className="space-y-1.5">
-              {mostSoldProducts.length > 0 ? (
-                mostSoldProducts.map((prod) => (
-                  <button
-                    key={prod.product_id || prod.id || prod.name}
-                    onClick={() => handleSelectProduct(prod)}
-                    className="w-full text-left p-2.5 rounded-xl border border-border bg-card hover:bg-accent/10 hover:border-primary/40 text-foreground transition-all cursor-pointer shadow-xs active:scale-95 flex flex-col gap-0.5 group"
-                  >
-                    <div className="text-xs font-bold truncate group-hover:text-primary transition-colors">{prod.name}</div>
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                      <span>₹{prod.base_price || 0}</span>
-                      {prod.current_stock !== undefined && (
-                        <span className={clsx(prod.current_stock <= 5 ? "text-amber-500 font-bold" : "")}>
-                          Stock: {prod.current_stock}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="text-xs text-muted-foreground italic text-center py-4">No products found</div>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {/* ═══ TOP / LEFT SIDE: Search + Cart (Dynamic Width & Layout) ═══ */}
-        <BillingCartView
-          uiConfig={uiConfig}
-          isLoadingEditBill={isLoadingEditBill}
-          productPricingMap={productPricingMap}
-          pricingTiers={pricingTiers}
-          searchBarSection={searchBarSection}
-          customerDetailsSection={<BillingCustomerDetails
-            activeTab={activeTab}
-            canOverrideTier={canOverrideTier}
-            customerAddress={customerAddress}
-            customerFields={customerFields}
-            customerGstin={customerGstin}
-            customerHandlers={customerHandlers}
-            customerName={customerName}
-            customerPhone={customerPhone}
-            customerState={customerState}
-            displayGrandTotal={displayGrandTotal}
-            editingActive={editingActive}
-            enableThreeInvoiceSeries={enableThreeInvoiceSeries}
-            filteredCustomerSuggestions={filteredCustomerSuggestions}
-            findMatchingParty={findMatchingParty}
-            handleInvoiceTypeChange={handleInvoiceTypeChange}
-            handlePricingTierChange={handlePricingTierChange}
-            invoiceType={invoiceType}
-            isB2B={isB2B}
-            isQuotationMode={isQuotationMode}
-            isReturnMode={isReturnMode}
-            isScrapMode={isScrapMode}
-            loyaltyCustomerData={loyaltyCustomerData}
-            loyaltyEnabled={loyaltyEnabled}
-            onGstSeriesChange={(series) => { void reserveGstSeriesNumber({ tenantId, getActiveTab, updateActiveTab }, series); }}
-            paymentMethod={paymentMethod}
-            pricingTiers={pricingTiers}
-            receivedAmount={receivedAmount}
-            selectedTierId={selectedTierId}
-            setCustomerState={setCustomerState}
-            setLoyaltyCustomerData={setLoyaltyCustomerData}
-            splitDetails={splitDetails}
-            uiConfig={uiConfig}
-            updateActiveTab={updateActiveTab}
-          />}
-          localKgStr={localKgStr}
-          setLocalKgStr={setLocalKgStr}
-          localPcsStr={localPcsStr}
-          setLocalPcsStr={setLocalPcsStr}
-          localDiscPcts={localDiscPcts}
-          setLocalDiscPcts={setLocalDiscPcts}
-          localDiscFlats={localDiscFlats}
-          setLocalDiscFlats={setLocalDiscFlats}
-          itemRefs={itemRefs}
-          qtyRefs={qtyRefs}
-          pcsRefs={pcsRefs}
-          kRefs={kRefs}
-          rateKgRefs={rateKgRefs}
-          ratePcRefs={ratePcRefs}
-          discRefs={discRefs}
-          discFlatRefs={discFlatRefs}
-          totalInputRefs={totalInputRefs}
-          pendingFocusProductIdRef={pendingFocusProductIdRef}
-          activeCartProductIdRef={activeCartProductIdRef}
-          setFocusedRowProductId={setFocusedRowProductId}
-          focusNextCartField={focusNextCartField}
-          focusPrevCartField={focusPrevCartField}
-          handleRateUpDown={handleRateUpDown}
-          handleEditProduct={handleEditProduct}
-          handleQtyKeyDown={handleQtyKeyDown}
-          handlePcsKeyDown={handlePcsKeyDown}
-          handleDiscKeyDown={handleDiscKeyDown}
-          handleDiscFlatKeyDown={handleDiscFlatKeyDown}
-          handleTotalInputKeyDown={handleTotalInputKeyDown}
-          guardScannerInput={guardScannerInput}
-          sanitizeQtyText={sanitizeQtyText}
-        />
-
-        {/* ═══ RIGHT / BOTTOM SIDE: Transaction Console & Payment (Dynamic Width & Layout) ═══ */}
-        <div 
-          className={clsx(
-            "bg-card dark:bg-card shadow-2xl z-25 transition-all duration-300",
-            uiConfig.orientation === 'horizontal-stack'
-              ? "w-full flex flex-row h-[320px] shrink-0 border-t-2 border-border overflow-hidden"
-              : "flex flex-col " + (
-                (uiConfig.orientation === 'three-column' || uiConfig.showQuickCategoryBar)
-                  ? "w-[30%] border-l border-border"
-                  : uiConfig.splitRatio === '50-50' ? "w-[50%] border-l border-border"
-                  : uiConfig.splitRatio === '65-35' ? "w-[35%] border-l border-border"
-                  : uiConfig.splitRatio === '70-30' ? "w-[30%] border-l border-border"
-                  : "w-[42%] border-l border-border"
-              )
-          )}
-        >
-
-          {/* ── Scrollable content area (Left Side of Bottom Bar in Horizontal Stack Mode) ── */}
-          <BillingPaymentPanel
-            currentSelectedUpi={currentSelectedUpi}
-            deductions={deductions}
-            descriptionInputRef={descriptionInputRef}
-            discountRef={discountRef}
-            displayGrandTotal={displayGrandTotal}
-            fillRestForField={fillRestForField}
-            focusDescriptionOrDiscount={focusDescriptionOrDiscount}
-            handleSplitInputKeyDown={handleSplitInputKeyDown}
-            paymentMethod={paymentMethod}
-            paymentOptionRefs={paymentOptionRefs}
-            paymentOptions={paymentOptions}
-            quotationTerms={quotationTerms}
-            receivedInputRef={receivedInputRef}
-            scrapPaymentStatus={scrapPaymentStatus}
-            selectedReturnInvoice={selectedReturnInvoice}
-            setInfoToast={setInfoToast}
-            setIsUpiSelectModalOpen={setIsUpiSelectModalOpen}
-            setQuotationTerms={setQuotationTerms}
-            showDescriptionState={showDescriptionState}
-            splitCardInputRef={splitCardInputRef}
-            splitCashInputRef={splitCashInputRef}
-            splitChequeInputRef={splitChequeInputRef}
-            splitCreditInputRef={splitCreditInputRef}
-            splitDetails={splitDetails}
-            splitUpiInputRef={splitUpiInputRef}
-            uiConfig={uiConfig}
-            upiPageConfig={upiPageConfig}
-            upiSources={upiSources}
-          />
-
-          {/* ── STICKY FOOTER / RIGHT SIDE OF BOTTOM BAR: Totals + Actions ── */}
-          <BillingTotalsPanel
-            activeDiscField={activeDiscField}
-            activeTab={activeTab}
-            actualRefundPaid={actualRefundPaid}
-            cgst={cgst}
-            checkoutBtnRef={checkoutBtnRef}
-            commitTotalOverride={commitTotalOverride}
-            customerName={customerName}
-            customerPhone={customerPhone}
-            deductions={deductions}
-            descriptionInputRef={descriptionInputRef}
-            discount={discount}
-            discountPercentRef={discountPercentRef}
-            discountRef={discountRef}
-            displayGrandTotal={displayGrandTotal}
-            enableScrap={enableScrap}
-            extraBonus={extraBonus}
-            findMatchingParty={findMatchingParty}
-            focusDescriptionOrDiscount={focusDescriptionOrDiscount}
-            grandTotal={grandTotal}
-            handleCheckout={handleCheckout}
-            handleHoldBill={handleHoldBill}
-            handleProcessReturnFromCart={handleProcessReturnFromCart}
-            handleResetGrandTotalOverride={handleResetGrandTotalOverride}
-            handleSaveQuotation={handleSaveQuotation}
-            handleWhatsAppSendActiveBill={handleWhatsAppSendActiveBill}
-            igst={igst}
-            isCheckingOut={isCheckingOut}
-            isEditingTotal={isEditingTotal}
-            isGrandTotalOverridden={isGrandTotalOverridden}
-            isLoadingEditBill={isLoadingEditBill}
-            isQuotationActive={isQuotationActive}
-            isSendingWhatsApp={isSendingWhatsApp}
-            localDiscText={localDiscText}
-            originalReturnTotal={originalReturnTotal}
-            overrideTotalInput={overrideTotalInput}
-            paymentMethod={paymentMethod}
-            paymentOptionRefs={paymentOptionRefs}
-            qtyRefs={qtyRefs}
-            quotationSaving={quotationSaving}
-            rawDisplayGrandTotal={rawDisplayGrandTotal}
-            receivedAmount={receivedAmount}
-            receivedInputRef={receivedInputRef}
-            refundAmount={refundAmount}
-            returnDiscountTotal={returnDiscountTotal}
-            returnProcessed={returnProcessed}
-            returnProcessing={returnProcessing}
-            returnTotal={returnTotal}
-            scrapTotal={scrapTotal}
-            searchRef={searchRef}
-            setActiveDiscField={setActiveDiscField}
-            setIsEditingTotal={setIsEditingTotal}
-            setLocalDiscText={setLocalDiscText}
-            setOverrideTotalInput={setOverrideTotalInput}
-            setShowLoyaltyRedemption={setShowLoyaltyRedemption}
-            sgst={sgst}
-            showDescriptionState={showDescriptionState}
-            splitDetails={splitDetails}
-            splitTotal={splitTotal}
-            startEditingTotal={startEditingTotal}
-            subtotal={subtotal}
-            totalKgs={totalKgs}
-            totalOverrideInputRef={totalOverrideInputRef}
-            totalPcs={totalPcs}
-            totalProducts={totalProducts}
-            totalTax={totalTax}
-            uiConfig={uiConfig}
-          />
-
-        </div>
-
-      </div>
-
-      {/* ─── Held Bills / Drafts Modal ─── */}
-      <HeldBillsModal
-        isOpen={showHeldBillsPanel}
-        onClose={() => setShowHeldBillsPanel(false)}
-        heldBills={heldBills}
-        heldBillsLoading={heldBillsLoading}
-        handleRecallHeldBill={handleRecallHeldBill}
-        handleReleaseHeldBill={handleReleaseHeldBill}
+      <BillingWorkspace
+        activeCartProductIdRef={activeCartProductIdRef} activeDiscField={activeDiscField} activeTab={activeTab}
+        actualRefundPaid={actualRefundPaid} canOverrideTier={canOverrideTier} cgst={cgst}
+        checkoutBtnRef={checkoutBtnRef} commitTotalOverride={commitTotalOverride}
+        currentSelectedUpi={currentSelectedUpi} customerAddress={customerAddress} customerFields={customerFields}
+        customerGstin={customerGstin} customerHandlers={customerHandlers} customerName={customerName}
+        customerPhone={customerPhone} customerState={customerState} deductions={deductions}
+        descriptionInputRef={descriptionInputRef} discFlatRefs={discFlatRefs} discount={discount}
+        discountPercentRef={discountPercentRef} discountRef={discountRef} discRefs={discRefs}
+        displayGrandTotal={displayGrandTotal} editingActive={editingActive} enableScrap={enableScrap}
+        enableThreeInvoiceSeries={enableThreeInvoiceSeries} extraBonus={extraBonus} fillRestForField={fillRestForField}
+        filteredCustomerSuggestions={filteredCustomerSuggestions} findMatchingParty={findMatchingParty}
+        focusDescriptionOrDiscount={focusDescriptionOrDiscount} focusNextCartField={focusNextCartField}
+        focusPrevCartField={focusPrevCartField} getActiveTab={getActiveTab} grandTotal={grandTotal}
+        guardScannerInput={guardScannerInput} handleCheckout={handleCheckout}
+        handleDiscFlatKeyDown={handleDiscFlatKeyDown} handleDiscKeyDown={handleDiscKeyDown}
+        handleEditProduct={handleEditProduct} handleHoldBill={handleHoldBill}
+        handleInvoiceTypeChange={handleInvoiceTypeChange} handlePcsKeyDown={handlePcsKeyDown}
+        handlePricingTierChange={handlePricingTierChange} handleProcessReturnFromCart={handleProcessReturnFromCart}
+        handleQtyKeyDown={handleQtyKeyDown} handleRateUpDown={handleRateUpDown}
+        handleResetGrandTotalOverride={handleResetGrandTotalOverride} handleSaveQuotation={handleSaveQuotation}
+        handleSelectProduct={handleSelectProduct} handleSplitInputKeyDown={handleSplitInputKeyDown}
+        handleTotalInputKeyDown={handleTotalInputKeyDown} handleWhatsAppSendActiveBill={handleWhatsAppSendActiveBill}
+        igst={igst} invoiceType={invoiceType} isB2B={isB2B} isCheckingOut={isCheckingOut}
+        isEditingTotal={isEditingTotal} isGrandTotalOverridden={isGrandTotalOverridden}
+        isLoadingEditBill={isLoadingEditBill} isQuotationActive={isQuotationActive} isQuotationMode={isQuotationMode}
+        isReturnMode={isReturnMode} isScrapMode={isScrapMode} isSendingWhatsApp={isSendingWhatsApp} itemRefs={itemRefs}
+        kRefs={kRefs} localDiscFlats={localDiscFlats} localDiscPcts={localDiscPcts} localDiscText={localDiscText}
+        localKgStr={localKgStr} localPcsStr={localPcsStr} loyaltyCustomerData={loyaltyCustomerData}
+        loyaltyEnabled={loyaltyEnabled} mostSoldProducts={mostSoldProducts} originalReturnTotal={originalReturnTotal}
+        overrideTotalInput={overrideTotalInput} paymentMethod={paymentMethod} paymentOptionRefs={paymentOptionRefs}
+        paymentOptions={paymentOptions} pcsRefs={pcsRefs} pendingFocusProductIdRef={pendingFocusProductIdRef}
+        pricingTiers={pricingTiers} productPricingMap={productPricingMap} qtyRefs={qtyRefs}
+        quotationSaving={quotationSaving} quotationTerms={quotationTerms} rateKgRefs={rateKgRefs}
+        ratePcRefs={ratePcRefs} rawDisplayGrandTotal={rawDisplayGrandTotal} receivedAmount={receivedAmount}
+        receivedInputRef={receivedInputRef} refundAmount={refundAmount} returnDiscountTotal={returnDiscountTotal}
+        returnProcessed={returnProcessed} returnProcessing={returnProcessing} returnTotal={returnTotal}
+        sanitizeQtyText={sanitizeQtyText} scrapPaymentStatus={scrapPaymentStatus} scrapTotal={scrapTotal}
+        searchBarSection={searchBarSection} searchRef={searchRef} selectedReturnInvoice={selectedReturnInvoice}
+        selectedTierId={selectedTierId} setActiveDiscField={setActiveDiscField} setCustomerState={setCustomerState}
+        setFocusedRowProductId={setFocusedRowProductId} setInfoToast={setInfoToast}
+        setIsEditingTotal={setIsEditingTotal} setIsUpiSelectModalOpen={setIsUpiSelectModalOpen}
+        setLocalDiscFlats={setLocalDiscFlats} setLocalDiscPcts={setLocalDiscPcts} setLocalDiscText={setLocalDiscText}
+        setLocalKgStr={setLocalKgStr} setLocalPcsStr={setLocalPcsStr} setLoyaltyCustomerData={setLoyaltyCustomerData}
+        setOverrideTotalInput={setOverrideTotalInput} setQuotationTerms={setQuotationTerms}
+        setShowLoyaltyRedemption={setShowLoyaltyRedemption} sgst={sgst} showDescriptionState={showDescriptionState}
+        splitCardInputRef={splitCardInputRef} splitCashInputRef={splitCashInputRef}
+        splitChequeInputRef={splitChequeInputRef} splitCreditInputRef={splitCreditInputRef} splitDetails={splitDetails}
+        splitTotal={splitTotal} splitUpiInputRef={splitUpiInputRef} startEditingTotal={startEditingTotal}
+        subtotal={subtotal} tenantId={tenantId} totalInputRefs={totalInputRefs} totalKgs={totalKgs}
+        totalOverrideInputRef={totalOverrideInputRef} totalPcs={totalPcs} totalProducts={totalProducts}
+        totalTax={totalTax} uiConfig={uiConfig} updateActiveTab={updateActiveTab} upiPageConfig={upiPageConfig}
+        upiSources={upiSources}
       />
 
-      {/* ─── Scrap Invoice View Modal ─── */}
-      <ScrapInvoiceViewModal
-        isOpen={showScrapInvoiceView}
-        onClose={() => {
-          setShowScrapInvoiceView(false);
-          setScrapInvoiceViewData(null);
-        }}
-        loading={scrapInvoiceViewLoading}
-        data={scrapInvoiceViewData}
-      />
-
-      {/* ─── Return Deduction Dropdown (fixed position) ─── */}
-      <DeductionDropdowns
-        returnDeductionDropdownStyle={returnDeductionDropdownStyle} returnDeductionResults={returnDeductionResults}
-        scrapDeductionDropdownStyle={scrapDeductionDropdownStyle} scrapDeductionResults={scrapDeductionResults}
-        setHardwareError={setHardwareError} setReturnDeduction={setReturnDeduction}
+      <BillingModals
+        activeTab={activeTab} cashRegisterOpen={cashRegisterOpen} currentSelectedUpi={currentSelectedUpi}
+        enableRealPaperStock={enableRealPaperStock} focusDescriptionOrDiscount={focusDescriptionOrDiscount}
+        generateProductBarcode={generateProductBarcode} gradeFormDialogRef={gradeFormDialogRef}
+        handleCheckout={handleCheckout} handleCreateAndAddProduct={handleCreateAndAddProduct}
+        handleCreateNewGrade={handleCreateNewGrade} handleProductBasePriceChange={handleProductBasePriceChange}
+        handleProductGradeChange={handleProductGradeChange}
+        handleProductPurchasePriceChange={handleProductPurchasePriceChange} handleRecallHeldBill={handleRecallHeldBill}
+        handleReleaseHeldBill={handleReleaseHeldBill} heldBills={heldBills} heldBillsLoading={heldBillsLoading}
+        invoiceType={invoiceType} isBillerPinModalOpen={isBillerPinModalOpen}
+        isUpiSelectModalOpen={isUpiSelectModalOpen} newProductCategory={newProductCategory}
+        newProductGradeForm={newProductGradeForm} newProductIsAddingGrade={newProductIsAddingGrade}
+        newProductSavingGrade={newProductSavingGrade} paymentOptionRefs={paymentOptionRefs}
+        pendingCheckoutSaveOnlyRef={pendingCheckoutSaveOnlyRef} pricingTiers={pricingTiers} productForm={productForm}
+        resetProductForm={resetProductForm} returnDeductionDropdownStyle={returnDeductionDropdownStyle}
+        returnDeductionResults={returnDeductionResults} scrapDeductionDropdownStyle={scrapDeductionDropdownStyle}
+        scrapDeductionResults={scrapDeductionResults} scrapInvoiceViewData={scrapInvoiceViewData}
+        scrapInvoiceViewLoading={scrapInvoiceViewLoading} setCashRegisterOpen={setCashRegisterOpen}
+        setHardwareError={setHardwareError} setIsBillerPinModalOpen={setIsBillerPinModalOpen}
+        setIsUpiSelectModalOpen={setIsUpiSelectModalOpen} setNewProductGradeForm={setNewProductGradeForm}
+        setNewProductIsAddingGrade={setNewProductIsAddingGrade} setReturnDeduction={setReturnDeduction}
         setReturnDeductionDropdownStyle={setReturnDeductionDropdownStyle}
         setReturnDeductionResults={setReturnDeductionResults}
         setReturnDeductionSearchQuery={setReturnDeductionSearchQuery} setScrapDeduction={setScrapDeduction}
         setScrapDeductionDropdownStyle={setScrapDeductionDropdownStyle}
         setScrapDeductionResults={setScrapDeductionResults} setScrapDeductionSearchQuery={setScrapDeductionSearchQuery}
-        tenantId={tenantId}
-      />
-
-      <CreateProductModal
-        isOpen={showProductCreateForm}
-        handleFormKeyDown={handleFormKeyDown}
-        resetProductForm={resetProductForm}
-        generateProductBarcode={generateProductBarcode}
-        invoiceType={invoiceType}
-        handleProductGradeChange={handleProductGradeChange}
-        handleProductPurchasePriceChange={handleProductPurchasePriceChange}
-        handleProductBasePriceChange={handleProductBasePriceChange}
-        enableRealPaperStock={enableRealPaperStock}
-        pricingTiers={pricingTiers}
-        handleCreateAndAddProduct={handleCreateAndAddProduct}
-        productForm={productForm}
-      />
-      <div ref={gradeFormDialogRef}>
-        <CreateNewGradeModal
-          isOpen={newProductIsAddingGrade}
-          onClose={() => {
-            setNewProductIsAddingGrade(false);
-            setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
-          }}
-          category={newProductCategory}
-          form={newProductGradeForm}
-          setForm={setNewProductGradeForm}
-          onKeyDown={handleFormKeyDown}
-          onSubmit={handleCreateNewGrade}
-          saving={newProductSavingGrade}
-        />
-      </div>
-      {cashRegisterOpen && (
-        <CashierSettlement onClose={() => setCashRegisterOpen(false)} />
-      )}
-
-      <UpiAccountSelectModal
-        isOpen={isUpiSelectModalOpen}
-        onClose={() => setIsUpiSelectModalOpen(false)}
+        setScrapInvoiceViewData={setScrapInvoiceViewData} setShowHeldBillsPanel={setShowHeldBillsPanel}
+        setShowScrapInvoiceView={setShowScrapInvoiceView} setShowTransportModal={setShowTransportModal}
+        setUpiAccountToast={setUpiAccountToast} showHeldBillsPanel={showHeldBillsPanel}
+        showProductCreateForm={showProductCreateForm} showScrapInvoiceView={showScrapInvoiceView}
+        showTransportModal={showTransportModal} tenantId={tenantId} updateActiveTab={updateActiveTab}
         upiSources={upiSources}
-        currentSelectedUpi={currentSelectedUpi}
-        updateActiveTab={updateActiveTab}
-        setUpiAccountToast={setUpiAccountToast}
-        focusDescriptionOrDiscount={focusDescriptionOrDiscount}
-        paymentOptionRefs={paymentOptionRefs}
-      />
-
-      <TransportDetailsModal
-        isOpen={showTransportModal}
-        onClose={() => setShowTransportModal(false)}
-        activeTab={activeTab}
-        updateActiveTab={updateActiveTab}
-      />
-
-      <BillerPinModal
-        isOpen={isBillerPinModalOpen}
-        tenantId={tenantId || 'global'}
-        onClose={() => {
-          pendingCheckoutSaveOnlyRef.current = null;
-          setIsBillerPinModalOpen(false);
-        }}
-        onVerified={(staff) => {
-          useCartStore.getState().setBillerStaff(staff.staff_id, staff.name);
-          setIsBillerPinModalOpen(false);
-          const saveOnlyMode = pendingCheckoutSaveOnlyRef.current ?? false;
-          pendingCheckoutSaveOnlyRef.current = null;
-          setTimeout(() => {
-            handleCheckout(saveOnlyMode);
-          }, 50);
-        }}
       />
     </div>
   );

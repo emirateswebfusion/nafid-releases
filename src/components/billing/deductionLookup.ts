@@ -12,6 +12,10 @@ export type CreditLookup =
   | { status: 'error'; message: string }
   | { status: 'none' };
 
+/** A scrap / return document row as the deduction search dropdown lists it (untyped IPC rows). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type DeductionSearchRow = any;
+
 const NONE: CreditLookup = { status: 'none' };
 
 /** Exact scrap-invoice lookup. A settled scrap credit cannot be redeemed twice. */

@@ -142,3 +142,7 @@ export function buildProductSearchResults(
 
   return [...comboResults, ...deduped].slice(0, 50);
 }
+
+/** A product row of the most-sold strip, as the most-sold IPC returns it (untyped). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type MostSoldProductRow = any;
