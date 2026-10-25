@@ -6,8 +6,6 @@
     "electron/services/partiesService.ts": 1,
     "electron/services/productsService.ts": 2
   },
-  "sizeCaps": {
-    "electron/sync/syncWorker.ts": 5134
-  },
-  "updatedAt": "2026-10-25T20:56:16.669Z"
+  "sizeCaps": {},
+  "updatedAt": "2026-10-25T21:10:56.827Z"
 }

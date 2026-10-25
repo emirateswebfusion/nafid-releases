@@ -100,7 +100,13 @@ electron/
                      dynamic filters: `export function getXStatement(db, args) → { statement, params }`
       productSearch.ts    shared product search WHERE-fragment builder
       types.ts       `Db = Pick<Database, 'prepare'>`
-  sync/              syncWorker.ts (cloud push/pull), localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge) — highest data risk
+  sync/              highest data risk; change only behind the sync / LAN characterization harnesses
+    syncWorker.ts    public API + scheduler: init, fast bill pull, urgent triggers, page context, initial sync
+    syncCycle.ts     one cycle: cloud status, lightweight / delta pulls, the push → pull sequence
+    syncTransport.ts endpoints + connectivity, fetch with LAN→cloud fallback, pushBatch + outbox, cursors, pullPaginated
+    syncConfig.ts / cloudAccess.ts / syncProgress.ts / syncState.ts   limits + stored login / access rules / progress / shared state
+    entities/        per-table push + pull: catalog, salesDocs, parties, cash, stockDocs, settings
+    localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge)
   hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge)
   whatsapp/          Baileys session, invoice sending, shop-closing report (service + IPC; shopClosingSummary = data,
                      shopClosingMessage = WhatsApp text, shopClosingTypes)
@@ -117,4 +123,4 @@ Dependency direction: `main → ipc → services → db/statements`, `sync → s
   (`sizeCaps`) and may only shrink. The largest are `BillingPage.tsx`, `SalesHistory.tsx`, `PurchaseBillManager.tsx`,
   `CashierSettlement.tsx`, `CustomersPage.tsx`.
 - Main process: every `electron/**` file shares the 800-line budget; all services are under it. Capped legacy files:
-  `syncWorker.ts` — sync files change only behind the sync characterization harness.
+  none — every file is under the budget; sync files change only behind the sync characterization harness.

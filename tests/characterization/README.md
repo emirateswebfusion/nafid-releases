@@ -83,6 +83,11 @@ EQ_USERDATA=/tmp/eq/lan-a npx tsx $H/lan-run.mts primary cand 38991 /tmp/eq/lan.
 EQ_USERDATA=/tmp/eq/lan-b npx tsx $H/lan-run.mts secondary cand 38991 "$(cat /tmp/eq/lan.key)" lan.json
 ```
 
+Stop the PRIMARY process before the next pair of runs (and wait until the port is free): a primary left running from
+the previous run keeps the port, the new one cannot listen, and the secondary then talks to the old primary with the
+new key, so every keyed endpoint answers 401 in both runs and the comparison proves nothing. A good run shows the
+`/api/sync/*` GETs answering 200.
+
 ## Emergency wipe guard (`emergency-run.mts`)
 
 Checks that a local wipe is refused without credentials, with a wrong password and with a staff account; succeeds
