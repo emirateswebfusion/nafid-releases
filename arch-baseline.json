@@ -8,9 +8,8 @@
   },
   "sizeCaps": {
     "electron/db/localDb.ts": 2240,
-    "electron/hardware/printer.ts": 1076,
     "electron/sync/syncWorker.ts": 5134,
     "electron/whatsapp/shopClosingReportService.ts": 1329
   },
-  "updatedAt": "2026-10-25T20:38:44.200Z"
+  "updatedAt": "2026-10-25T20:43:13.717Z"
 }
