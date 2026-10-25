@@ -7,8 +7,7 @@
     "electron/services/productsService.ts": 2
   },
   "sizeCaps": {
-    "electron/db/localDb.ts": 2240,
     "electron/sync/syncWorker.ts": 5134
   },
-  "updatedAt": "2026-10-25T20:50:12.873Z"
+  "updatedAt": "2026-10-25T20:56:16.669Z"
 }

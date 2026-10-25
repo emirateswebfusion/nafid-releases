@@ -91,7 +91,9 @@ electron/
     emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService
     invoiceNumberService · storeTime · authStorage · windowRegistry · updater · fusionCartBridge …
   db/
-    localDb.ts       SQLite connection (getDb/getOpenDb), schema, idempotent migrations
+    localDb.ts       SQLite connection (getDb/getOpenDb) and initDb, which runs in order:
+                     schemaCoreTables / schemaExtendedTables (CREATE IF NOT EXISTS), schemaColumns (missing
+                     columns), migrationsRepairs (legacy data fixes), migrationsColumns (later column migrations)
     customerIdentity.ts   customer/party identity resolution and upsert
     customerDedupe.ts     startup backfill from invoices + customer / party de-duplication (data repair)
     statements/      SQL text, one module per service: `export const findX = (db: Db) => db.prepare(SQL)`;
@@ -115,4 +117,4 @@ Dependency direction: `main → ipc → services → db/statements`, `sync → s
   (`sizeCaps`) and may only shrink. The largest are `BillingPage.tsx`, `SalesHistory.tsx`, `PurchaseBillManager.tsx`,
   `CashierSettlement.tsx`, `CustomersPage.tsx`.
 - Main process: every `electron/**` file shares the 800-line budget; all services are under it. Capped legacy files:
-  `localDb.ts` (schema), `syncWorker.ts` — sync files change only behind the sync characterization harness.
+  `syncWorker.ts` — sync files change only behind the sync characterization harness.
