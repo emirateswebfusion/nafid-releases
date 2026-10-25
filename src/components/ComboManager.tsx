@@ -14,9 +14,7 @@ import { ComboFormModal } from './combo/views/ComboFormModal';
 import { DeleteComboDialog } from './combo/views/DeleteComboDialog';
 
 export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; isRestricted?: boolean }) {
-  if (onClose) {
-    useCloseOnEscape(onClose);
-  }
+  useCloseOnEscape(onClose);
   const { tenantId } = useAuthStore();
 
   const cm = useComboManagerState();
