@@ -98,22 +98,17 @@ const PULL_CONCURRENCY = 4;
 const PULL_MAX_RETRIES = 3;
 const PULL_MAX_PAGES = 50;
 const CURSOR_REPLAY_SECONDS = 5;
-let syncInProgress = false;
-let syncPromise: Promise<void> | null = null;
 
 const isGstApplicableProduct = (gstFlag: unknown, hsnCode: unknown): boolean => {
   const hasHsnCode = String(hsnCode ?? '').trim() !== '';
   const isExplicitlyGst = gstFlag === undefined || gstFlag === null || gstFlag === true || gstFlag === 'true' || Number(gstFlag) === 1;
   return hasHsnCode || isExplicitlyGst;
 };
-let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
-let isSyncActive = false;
-let authExpiredNotified = false;
 
 export function setSyncActive(active: boolean) {
-  isSyncActive = active;
+  syncState.isSyncActive = active;
   if (active) {
-    authExpiredNotified = false;
+    syncState.authExpiredNotified = false;
   }
   console.log(`[SyncWorker] Sync active state changed to: ${active}`);
 }
@@ -201,7 +196,6 @@ export function updateCloudAccessConfig(configUpdate: Partial<CloudAccessConfig>
   return updated;
 }
 
-let lastCloudAllowedState: boolean | null = null;
 
 export function calculateEffectiveCloudAccess(tenantId?: string): EffectiveCloudState {
   const db = getDb();
@@ -259,13 +253,13 @@ export function calculateEffectiveCloudAccess(tenantId?: string): EffectiveCloud
   }
 
   // Detect state transition from OFF -> ON to auto-drain queue
-  if (lastCloudAllowedState === false && isCloudAllowed === true) {
+  if (syncState.lastCloudAllowedState === false && isCloudAllowed === true) {
     console.log('[SyncWorker] ⚡ Cloud access re-enabled (OFF -> ON transition detected). Triggering background queue drain...');
     setTimeout(() => {
       drainPendingCloudQueue().catch(() => {});
     }, 1000);
   }
-  lastCloudAllowedState = isCloudAllowed;
+  syncState.lastCloudAllowedState = isCloudAllowed;
 
   let stateName: 'LOCAL_ONLY' | 'LOCAL_PLUS_CLOUD' | 'LOCAL_WITH_PENDING_CLOUD_QUEUE';
   if (!isCloudAllowed) {
@@ -328,9 +322,9 @@ function notifyProgress(phaseIndex: number, sender?: WebContents, recordsSynced?
     const remaining = tenantId ? getTotalPendingRecords(db, tenantId) : 0;
     const synced = totalRecords !== undefined ? totalRecords - remaining : (recordsSynced ?? 0);
     const total = totalRecords ?? remaining + synced;
-    currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex], recordsSynced: synced, totalRecords: total };
+    syncState.currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex], recordsSynced: synced, totalRecords: total };
     if (sender && !sender.isDestroyed()) {
-      sender.send('sync:progress', currentSyncProgress);
+      sender.send('sync:progress', syncState.currentSyncProgress);
     }
   }
 }
@@ -338,19 +332,19 @@ function notifyProgress(phaseIndex: number, sender?: WebContents, recordsSynced?
 // Percent-driven progress used during the parallel pull phase, where per-table
 // phase indices would otherwise bounce around as tables finish out of order.
 function notifyPercent(percent: number, label: string, sender?: WebContents, recordsSynced?: number, totalRecords?: number) {
-  currentSyncProgress = {
+  syncState.currentSyncProgress = {
     percent: Math.min(100, Math.max(0, Math.round(percent))),
     label,
     recordsSynced: recordsSynced ?? 0,
     totalRecords: totalRecords ?? 0,
   };
   if (sender && !sender.isDestroyed()) {
-    sender.send('sync:progress', currentSyncProgress);
+    sender.send('sync:progress', syncState.currentSyncProgress);
   }
 }
 
 export function getSyncProgress(): { percent: number; label: string; recordsSynced: number; totalRecords: number } | null {
-  return currentSyncProgress;
+  return syncState.currentSyncProgress;
 }
 
 function notifyRenderer(reason?: string) {
@@ -408,13 +402,12 @@ function getSyncIntervalMs(): number {
   return Math.max(30000, Math.round(envMins * 60 * 1000));
 }
 
-let currentActiveRoute: 'LAN' | 'CLOUD' | 'NONE' = 'NONE';
 
 function notifyOnlineStatus(online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') {
-  if (route) currentActiveRoute = online ? route : 'NONE';
+  if (route) syncState.currentActiveRoute = online ? route : 'NONE';
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
-    win.webContents.send('sync:online-status', online, route || (online ? currentActiveRoute : 'NONE'));
+    win.webContents.send('sync:online-status', online, route || (online ? syncState.currentActiveRoute : 'NONE'));
   }
 }
 
@@ -534,12 +527,12 @@ async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'LAN' | '
 }
 
 function getSyncTargetLabel(): string {
-  return currentActiveRoute === 'LAN' ? 'Local Wi-Fi Host (LAN)' : 'Cloud API';
+  return syncState.currentActiveRoute === 'LAN' ? 'Local Wi-Fi Host (LAN)' : 'Cloud API';
 }
 
 function getSyncPrefix(): string {
-  if (currentActiveRoute === 'LAN') return '[SyncWorker - LAN]';
-  if (currentActiveRoute === 'CLOUD') return '[SyncWorker - CLOUD]';
+  if (syncState.currentActiveRoute === 'LAN') return '[SyncWorker - LAN]';
+  if (syncState.currentActiveRoute === 'CLOUD') return '[SyncWorker - CLOUD]';
   return '[SyncWorker]';
 }
 
@@ -556,7 +549,7 @@ async function fetchWithFallback(
       ? { ...options, headers: { ...(options.headers as Record<string, string> | undefined), [LAN_KEY_HEADER]: getLanPairingKey() } }
       : options;
     const res = await fetch(primaryFullUrl, primaryOptions);
-    currentActiveRoute = endpoints.primaryRoute;
+    syncState.currentActiveRoute = endpoints.primaryRoute;
     return { response: res, activeUrl: endpoints.primaryUrl, activeRoute: endpoints.primaryRoute };
   } catch (primaryErr: any) {
     const isNetworkError = primaryErr.name === 'TimeoutError' || 
@@ -577,17 +570,17 @@ async function fetchWithFallback(
           fallbackFullUrl = urlPath.replace(endpoints.primaryUrl, endpoints.fallbackUrl);
         }
         const res = await fetch(fallbackFullUrl, options);
-        currentActiveRoute = endpoints.fallbackRoute!;
+        syncState.currentActiveRoute = endpoints.fallbackRoute!;
         notifyOnlineStatus(true, 'CLOUD');
         return { response: res, activeUrl: endpoints.fallbackUrl, activeRoute: endpoints.fallbackRoute! };
       } catch (fallbackErr: any) {
-        currentActiveRoute = 'NONE';
+        syncState.currentActiveRoute = 'NONE';
         notifyOnlineStatus(false);
         throw fallbackErr;
       }
     }
 
-    currentActiveRoute = 'NONE';
+    syncState.currentActiveRoute = 'NONE';
     notifyOnlineStatus(false);
     throw primaryErr;
   }
@@ -625,13 +618,13 @@ async function clearAuthAndNotify() {
     console.warn('[SyncWorker] ℹ️ Local LAN mode is active. Preserving sync worker state despite cloud auth error.');
     return;
   }
-  isSyncActive = false;
-  if (syncCycleTimerId) {
-    clearTimeout(syncCycleTimerId);
-    syncCycleTimerId = null;
+  syncState.isSyncActive = false;
+  if (syncState.syncCycleTimerId) {
+    clearTimeout(syncState.syncCycleTimerId);
+    syncState.syncCycleTimerId = null;
   }
-  if (!authExpiredNotified) {
-    authExpiredNotified = true;
+  if (!syncState.authExpiredNotified) {
+    syncState.authExpiredNotified = true;
     const win = BrowserWindow.getAllWindows()[0];
     if (win && !win.isDestroyed()) {
       console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Pausing cloud sync loop and notifying UI (local POS remains active).');
@@ -643,15 +636,10 @@ async function clearAuthAndNotify() {
 import { startLocalHostServer } from './localHostServer.js';
 import { cloudTokenUnusable, LAN_PLACEHOLDER_TOKEN } from './syncAuth.js';
 import { LAN_KEY_HEADER, getLanPairingKey } from '../services/lanPairing.js';
+import { syncState } from './syncState.js';
 
 // ── Smart Adaptive Polling for Cash Settlement ──────────────────────────────
 const FAST_PULL_ACTIVE_MS = 10000; // 10 seconds baseline (down from 3s, cuts ~70% immediately)
-let fastInvoicePullTimerId: NodeJS.Timeout | null = null;
-let fastInvoicePullInProgress = false;
-let consecutiveFastPullFailures = 0;
-let consecutiveNoUpdates = 0;
-let activePageContext: string | null = null;
-let syncCycleTimerId: NodeJS.Timeout | null = null;
 
 function isAppWindowFocused(): boolean {
   try {
@@ -666,9 +654,9 @@ function isAppWindowFocused(): boolean {
 
 function getFastPullIntervalMs(): number {
   // 1. Network / Server error backoff
-  if (consecutiveFastPullFailures >= 3) return 60000;
-  if (consecutiveFastPullFailures === 2) return 30000;
-  if (consecutiveFastPullFailures === 1) return 15000;
+  if (syncState.consecutiveFastPullFailures >= 3) return 60000;
+  if (syncState.consecutiveFastPullFailures === 2) return 30000;
+  if (syncState.consecutiveFastPullFailures === 1) return 15000;
 
   // 2. If app window is minimized or not focused, conserve Vercel serverless memory
   if (!isAppWindowFocused()) {
@@ -680,19 +668,19 @@ function getFastPullIntervalMs(): number {
   // - Mild idle (no new bills for ~30s): 20 seconds
   // - Moderate idle (no new bills for ~2m): 35 seconds
   // - Deep idle (no new bills for ~5m+): 60 seconds
-  if (consecutiveNoUpdates <= 1) return FAST_PULL_ACTIVE_MS;
-  if (consecutiveNoUpdates <= 4) return 20000;
-  if (consecutiveNoUpdates <= 8) return 35000;
+  if (syncState.consecutiveNoUpdates <= 1) return FAST_PULL_ACTIVE_MS;
+  if (syncState.consecutiveNoUpdates <= 4) return 20000;
+  if (syncState.consecutiveNoUpdates <= 8) return 35000;
   return 60000;
 }
 
 export function resetFastPollBackoff() {
-  consecutiveNoUpdates = 0;
-  consecutiveFastPullFailures = 0;
-  if (activePageContext === 'cash_settlement' && isSyncActive) {
-    if (fastInvoicePullTimerId) {
-      clearTimeout(fastInvoicePullTimerId);
-      fastInvoicePullTimerId = null;
+  syncState.consecutiveNoUpdates = 0;
+  syncState.consecutiveFastPullFailures = 0;
+  if (syncState.activePageContext === 'cash_settlement' && syncState.isSyncActive) {
+    if (syncState.fastInvoicePullTimerId) {
+      clearTimeout(syncState.fastInvoicePullTimerId);
+      syncState.fastInvoicePullTimerId = null;
     }
     triggerFastLightweightBillPull().finally(() => {
       scheduleNextFastLightweightPull();
@@ -701,7 +689,7 @@ export function resetFastPollBackoff() {
 }
 
 async function triggerFastLightweightBillPull() {
-  if (!isSyncActive || activePageContext !== 'cash_settlement' || fastInvoicePullInProgress || syncInProgress) {
+  if (!syncState.isSyncActive || syncState.activePageContext !== 'cash_settlement' || syncState.fastInvoicePullInProgress || syncState.syncInProgress) {
     return;
   }
   const endpoints = getSyncEndpoints();
@@ -710,42 +698,42 @@ async function triggerFastLightweightBillPull() {
 
   const config = getAuthConfig();
   if (config && (!cloudTokenUnusable(config.jwt_token) || endpoints.primaryRoute === 'LAN')) {
-    fastInvoicePullInProgress = true;
+    syncState.fastInvoicePullInProgress = true;
     try {
       const res = await pullLightweightPendingBills(config.jwt_token, config.tenant_id);
       if (res.success) {
-        consecutiveFastPullFailures = 0;
+        syncState.consecutiveFastPullFailures = 0;
         if (res.updated) {
-          consecutiveNoUpdates = 0; // Reset backoff immediately on active data
+          syncState.consecutiveNoUpdates = 0; // Reset backoff immediately on active data
           notifyRenderer('fast-invoice-pull-changed');
         } else {
-          consecutiveNoUpdates++; // Step down polling frequency during quiet periods
+          syncState.consecutiveNoUpdates++; // Step down polling frequency during quiet periods
         }
       } else {
-        consecutiveFastPullFailures++;
+        syncState.consecutiveFastPullFailures++;
       }
     } catch {
-      consecutiveFastPullFailures++;
+      syncState.consecutiveFastPullFailures++;
     } finally {
-      fastInvoicePullInProgress = false;
+      syncState.fastInvoicePullInProgress = false;
     }
   }
 }
 
 function scheduleNextFastLightweightPull() {
-  if (fastInvoicePullTimerId) {
-    clearTimeout(fastInvoicePullTimerId);
-    fastInvoicePullTimerId = null;
+  if (syncState.fastInvoicePullTimerId) {
+    clearTimeout(syncState.fastInvoicePullTimerId);
+    syncState.fastInvoicePullTimerId = null;
   }
-  if (activePageContext !== 'cash_settlement' || !isSyncActive) {
+  if (syncState.activePageContext !== 'cash_settlement' || !syncState.isSyncActive) {
     return;
   }
   const delay = getFastPullIntervalMs();
-  fastInvoicePullTimerId = setTimeout(async () => {
+  syncState.fastInvoicePullTimerId = setTimeout(async () => {
     try {
       await triggerFastLightweightBillPull();
     } finally {
-      if (activePageContext === 'cash_settlement' && isSyncActive) {
+      if (syncState.activePageContext === 'cash_settlement' && syncState.isSyncActive) {
         scheduleNextFastLightweightPull();
       }
     }
@@ -754,38 +742,38 @@ function scheduleNextFastLightweightPull() {
 
 export function setPageContext(page: string | null, active: boolean) {
   if (active) {
-    activePageContext = page;
-  } else if (activePageContext === page) {
-    activePageContext = null;
+    syncState.activePageContext = page;
+  } else if (syncState.activePageContext === page) {
+    syncState.activePageContext = null;
   }
-  console.log(`[SyncWorker] Active page context changed to: ${activePageContext || 'none'}`);
+  console.log(`[SyncWorker] Active page context changed to: ${syncState.activePageContext || 'none'}`);
 
-  if (activePageContext === 'cash_settlement') {
-    if (!fastInvoicePullTimerId) {
+  if (syncState.activePageContext === 'cash_settlement') {
+    if (!syncState.fastInvoicePullTimerId) {
       console.log('[SyncWorker] 🟢 Entering Cash Settlement screen — Starting Smart Adaptive Bill Poll timer');
-      consecutiveFastPullFailures = 0;
-      consecutiveNoUpdates = 0;
+      syncState.consecutiveFastPullFailures = 0;
+      syncState.consecutiveNoUpdates = 0;
       triggerFastLightweightBillPull().finally(() => {
         scheduleNextFastLightweightPull();
       });
     }
   } else {
-    if (fastInvoicePullTimerId) {
+    if (syncState.fastInvoicePullTimerId) {
       console.log('[SyncWorker] 🔴 Leaving Cash Settlement screen — Destroying lightweight bill poll timer');
-      clearTimeout(fastInvoicePullTimerId);
-      fastInvoicePullTimerId = null;
-      consecutiveNoUpdates = 0;
+      clearTimeout(syncState.fastInvoicePullTimerId);
+      syncState.fastInvoicePullTimerId = null;
+      syncState.consecutiveNoUpdates = 0;
     }
   }
 }
 
 function scheduleNextSyncCycle() {
-  if (syncCycleTimerId) {
-    clearTimeout(syncCycleTimerId);
+  if (syncState.syncCycleTimerId) {
+    clearTimeout(syncState.syncCycleTimerId);
   }
   const intervalMs = getSyncIntervalMs();
-  syncCycleTimerId = setTimeout(async () => {
-    if (isSyncActive) {
+  syncState.syncCycleTimerId = setTimeout(async () => {
+    if (syncState.isSyncActive) {
       try {
         await runSyncCycle();
       } catch (err: any) {
@@ -800,29 +788,28 @@ export function reloadSyncConfig() {
   for (const k in tableContentHashes) {
     delete tableContentHashes[k];
   }
-  isSyncActive = true;
-  authExpiredNotified = false;
+  syncState.isSyncActive = true;
+  syncState.authExpiredNotified = false;
   scheduleNextSyncCycle();
   setTimeout(() => {
     runSyncCycle().catch((e: any) => console.error('[SyncWorker] Immediate sync on reloadSyncConfig error:', e.message));
   }, 500);
 }
 
-let isWorkerInitialized = false;
 
 export function initSyncWorker() {
-  if (isWorkerInitialized) {
+  if (syncState.isWorkerInitialized) {
     console.log('[SyncWorker] Background sync worker already initialized. Skipping duplicate initialization.');
     return;
   }
-  isWorkerInitialized = true;
+  syncState.isWorkerInitialized = true;
   console.log('[SyncWorker] ========= Initializing background sync worker... =========');
   const initialAuth = getAuthConfig();
   const endpoints = getSyncEndpoints();
   const isLanClient = endpoints.primaryRoute === 'LAN';
 
   if (initialAuth && (!cloudTokenUnusable(initialAuth.jwt_token) || isLanClient)) {
-    isSyncActive = true;
+    syncState.isSyncActive = true;
     const tenantId = initialAuth.tenant_id;
     console.log(`[SyncWorker] ✅ Valid auth or LAN mode detected on startup. tenant_id=${tenantId}, route=${endpoints.primaryRoute}. Background sync ACTIVATED.`);
     // Immediately run a full sync in background to populate data on secondary terminals
@@ -875,16 +862,14 @@ export async function drainPendingCloudQueue(sender?: WebContents): Promise<{ su
   return { success: true, drainedCount, message: `Successfully drained ${drainedCount} records.` };
 }
 
-let urgentInvoiceSyncInProgress = false;
-let lastUrgentInvoiceSyncTime = 0;
 
 export async function triggerUrgentInvoiceSync(): Promise<void> {
   const now = Date.now();
-  if (urgentInvoiceSyncInProgress || now - lastUrgentInvoiceSyncTime < 1500) {
+  if (syncState.urgentInvoiceSyncInProgress || now - syncState.lastUrgentInvoiceSyncTime < 1500) {
     console.log('[SyncWorker] Urgent invoice sync already in progress or recently executed, skipping duplicate...');
     return;
   }
-  lastUrgentInvoiceSyncTime = now;
+  syncState.lastUrgentInvoiceSyncTime = now;
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
@@ -896,7 +881,7 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
     return;
   }
 
-  urgentInvoiceSyncInProgress = true;
+  syncState.urgentInvoiceSyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority invoice push/pull running...');
     await pushCustomers(jwt_token, tenant_id);
@@ -909,14 +894,13 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   } catch (err: any) {
     console.error('[SyncWorker] Express invoice sync error:', err.message);
   } finally {
-    urgentInvoiceSyncInProgress = false;
+    syncState.urgentInvoiceSyncInProgress = false;
   }
 }
 
-let urgentQuotationSyncInProgress = false;
 
 export async function triggerUrgentQuotationSync(): Promise<void> {
-  if (urgentQuotationSyncInProgress) {
+  if (syncState.urgentQuotationSyncInProgress) {
     console.log('[SyncWorker] Urgent quotation sync already in progress, skipping...');
     return;
   }
@@ -931,7 +915,7 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
     return;
   }
 
-  urgentQuotationSyncInProgress = true;
+  syncState.urgentQuotationSyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority quotation push/pull running...');
     await syncQuotations(jwt_token, tenant_id);
@@ -943,13 +927,12 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
   } catch (err: any) {
     console.error('[SyncWorker] Express quotation sync error:', err.message);
   } finally {
-    urgentQuotationSyncInProgress = false;
+    syncState.urgentQuotationSyncInProgress = false;
   }
 }
 
-let urgentWarrantySyncInProgress = false;
 export async function triggerUrgentWarrantySync(): Promise<void> {
-  if (urgentWarrantySyncInProgress) return;
+  if (syncState.urgentWarrantySyncInProgress) return;
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
@@ -959,7 +942,7 @@ export async function triggerUrgentWarrantySync(): Promise<void> {
   const conn = await checkSyncConnectivity();
   if (!conn.ok) return;
 
-  urgentWarrantySyncInProgress = true;
+  syncState.urgentWarrantySyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority warranty push/pull running...');
     await syncWarranties(jwt_token, tenant_id);
@@ -971,20 +954,18 @@ export async function triggerUrgentWarrantySync(): Promise<void> {
   } catch (err: any) {
     console.error('[SyncWorker] Express warranty sync error:', err.message);
   } finally {
-    urgentWarrantySyncInProgress = false;
+    syncState.urgentWarrantySyncInProgress = false;
   }
 }
 
-let urgentCashSyncInProgress = false;
-let lastUrgentCashSyncTime = 0;
 
 export async function triggerUrgentCashSync(): Promise<void> {
   const now = Date.now();
-  if (urgentCashSyncInProgress || now - lastUrgentCashSyncTime < 1500) {
+  if (syncState.urgentCashSyncInProgress || now - syncState.lastUrgentCashSyncTime < 1500) {
     console.log('[SyncWorker] Urgent cash sync already in progress or recently executed, skipping duplicate...');
     return;
   }
-  lastUrgentCashSyncTime = now;
+  syncState.lastUrgentCashSyncTime = now;
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
@@ -996,7 +977,7 @@ export async function triggerUrgentCashSync(): Promise<void> {
     return;
   }
 
-  urgentCashSyncInProgress = true;
+  syncState.urgentCashSyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority cash push/pull running...');
     await syncCashDrawer(jwt_token, tenant_id);
@@ -1018,7 +999,7 @@ export async function triggerUrgentCashSync(): Promise<void> {
   } catch (err: any) {
     console.error('[SyncWorker] Express cash sync error:', err.message);
   } finally {
-    urgentCashSyncInProgress = false;
+    syncState.urgentCashSyncInProgress = false;
   }
 }
 
@@ -1032,9 +1013,9 @@ export async function runInitialSync(sender?: WebContents) {
     clearAuthAndNotify();
     return { success: false, error: 'Auth token expired or missing' };
   }
-  authExpiredNotified = false;
+  syncState.authExpiredNotified = false;
   console.log('[SyncWorker] Running explicit initial sync...');
-  isSyncActive = true;
+  syncState.isSyncActive = true;
   if (config?.tenant_id) {
     try {
       getDb().prepare(`DELETE FROM sync_meta WHERE key = ?`).run(cursorKey(config.tenant_id, 'cash_drawer'));
@@ -1231,14 +1212,14 @@ async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ succ
 }
 
 async function runSyncCycle(sender?: WebContents): Promise<void> {
-  if (syncInProgress) {
-    return syncPromise ?? Promise.resolve();
+  if (syncState.syncInProgress) {
+    return syncState.syncPromise ?? Promise.resolve();
   }
 
-  syncInProgress = true;
-  currentSyncProgress = null;
+  syncState.syncInProgress = true;
+  syncState.currentSyncProgress = null;
 
-  syncPromise = (async () => {
+  syncState.syncPromise = (async () => {
     try {
       notifyProgress(0, sender);
       const endpoints = getSyncEndpoints();
@@ -1340,52 +1321,52 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       try {
         notifyProgress(1, sender, 0, totalRecords); await syncGrades(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(1.1, sender, undefined, totalRecords); await syncPricingTiers(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(1.2, sender, undefined, totalRecords); await syncProducts(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(2, sender, undefined, totalRecords); await syncProductPricing(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(2.9, sender, undefined, totalRecords); await pushCustomers(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(3, sender, undefined, totalRecords); await syncInvoices(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(4, sender, undefined, totalRecords); await syncSettings(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(5, sender, undefined, totalRecords); await syncParties(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(5.1, sender, undefined, totalRecords); await pushCustomers(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(5.2, sender, undefined, totalRecords); await pushLoyaltyTransactions(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(6, sender, undefined, totalRecords); await syncPartyLedger(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(7, sender, undefined, totalRecords); await syncScrapCategories(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(8, sender, undefined, totalRecords); await syncScrapTransactions(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(9, sender, undefined, totalRecords); await syncPurchaseBills(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(10, sender, undefined, totalRecords); await syncCashDrawer(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(11.1, sender, undefined, totalRecords); await syncCashierAuditLog(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12, sender, undefined, totalRecords); await syncCashCategories(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.1, sender, undefined, totalRecords); await syncReturns(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
-        if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { isSyncActive = false; });
-        if (!isSyncActive) { notifyCycleComplete(sender); return; }
+        if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { syncState.isSyncActive = false; });
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests
         const syncCheckTables = [
           'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
@@ -1456,14 +1437,14 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
             { run: () => pullWarranties(jwt_token, tenant_id) },
           ];
 
-          pullProgressCtx = { done: 0, total: pullTasks.length };
+          syncState.pullProgressCtx = { done: 0, total: pullTasks.length };
           for (let i = 0; i < pullTasks.length; i += PULL_CONCURRENCY) {
             const batch = pullTasks.slice(i, i + PULL_CONCURRENCY);
             const results = await Promise.all(batch.map(async (t) => {
               const ok = await t.run();
-              pullProgressCtx!.done++;
-              notifyPercent(38 + 55 * (pullProgressCtx!.done / pullProgressCtx!.total),
-                `Downloaded ${pullProgressCtx!.done}/${pullProgressCtx!.total} datasets`, sender);
+              syncState.pullProgressCtx!.done++;
+              notifyPercent(38 + 55 * (syncState.pullProgressCtx!.done / syncState.pullProgressCtx!.total),
+                `Downloaded ${syncState.pullProgressCtx!.done}/${syncState.pullProgressCtx!.total} datasets`, sender);
               return ok;
             }));
             if (results.some(Boolean)) dataUpdated = true;
@@ -1472,7 +1453,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       } finally {
-        pullProgressCtx = null;
+        syncState.pullProgressCtx = null;
       }
 
       if (dataUpdated) {
@@ -1480,12 +1461,12 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       }
       notifyCycleComplete(sender);
     } finally {
-      syncInProgress = false;
-      syncPromise = null;
+      syncState.syncInProgress = false;
+      syncState.syncPromise = null;
     }
   })();
 
-  return syncPromise;
+  return syncState.syncPromise;
 }
 
 // ── Batch push helper with retries ───────────────────────────────────────────────
@@ -1496,7 +1477,7 @@ async function pushBatch<T>(
   bodyKey: string,
   label: string,
 ): Promise<string[]> {
-  if (!isSyncActive) return [];
+  if (!syncState.isSyncActive) return [];
   if (batch.length === 0) return [];
 
   const MAX_RETRIES = 3;
@@ -1513,11 +1494,11 @@ async function pushBatch<T>(
 
       if (!response.ok) {
         if (response.status === 401) {
-          if (currentActiveRoute === 'CLOUD') {
+          if (syncState.currentActiveRoute === 'CLOUD') {
             console.error(`[SyncWorker] ${label} failed: HTTP 401 (token expired). Clearing auth...`);
             await clearAuthAndNotify();
           } else {
-            console.warn(`[SyncWorker] ${label} received 401 from ${currentActiveRoute}. Skipping auth reset.`);
+            console.warn(`[SyncWorker] ${label} received 401 from ${syncState.currentActiveRoute}. Skipping auth reset.`);
           }
           return [];
         }
@@ -1928,7 +1909,6 @@ function replaySince(cursor: string | null): string | null {
 }
 
 // Shared progress context for the parallel pull phase (set by runSyncCycle).
-let pullProgressCtx: { done: number; total: number } | null = null;
 
 // Cache of per-table content hashes to prevent duplicate log spam when fetched data is unchanged
 const tableContentHashes: Record<string, string> = {};
@@ -1950,7 +1930,7 @@ async function pullPaginated(opts: {
   onProgress?: (fetched: number) => void;
   processPage: (rows: any[]) => number;
 }): Promise<{ count: number; reconciled: number; failed: boolean; hasChanged: boolean }> {
-  if (!isSyncActive) return { count: 0, reconciled: 0, failed: true, hasChanged: false };
+  if (!syncState.isSyncActive) return { count: 0, reconciled: 0, failed: true, hasChanged: false };
   const pageSize = opts.pageSize ?? PULL_PAGE_SIZE;
   const tsColumn = opts.tsColumn ?? 'updated_at';
   const since = replaySince(getMeta(cursorKey(opts.tenantId, opts.table)));
@@ -1963,7 +1943,7 @@ async function pullPaginated(opts: {
   const fetchedRowSignatures: string[] = [];
 
   const fetchPage = async (offsetVal: number): Promise<any[] | null> => {
-    if (!isSyncActive) return null;
+    if (!syncState.isSyncActive) return null;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offsetVal) });
     if (since) params.set('since', since);
     for (let attempt = 1; attempt <= PULL_MAX_RETRIES; attempt++) {
@@ -1975,11 +1955,11 @@ async function pullPaginated(opts: {
         });
         if (!response.ok) {
           if (response.status === 401) {
-            if (currentActiveRoute === 'CLOUD') {
+            if (syncState.currentActiveRoute === 'CLOUD') {
               console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...`);
               await clearAuthAndNotify();
             } else {
-              console.warn(`[SyncWorker] Pull ${opts.label} received 401 from ${currentActiveRoute}. Skipping auth reset.`);
+              console.warn(`[SyncWorker] Pull ${opts.label} received 401 from ${syncState.currentActiveRoute}. Skipping auth reset.`);
             }
             return null;
           }
@@ -2065,8 +2045,8 @@ async function pullPaginated(opts: {
 
 // Progress reporter shared by all pull wrappers during the parallel phase.
 function notifyPullProgress(label: string, fetched: number) {
-  if (pullProgressCtx && pullProgressCtx.total > 0) {
-    const percent = 38 + 55 * ((pullProgressCtx.done + 0.5) / pullProgressCtx.total);
+  if (syncState.pullProgressCtx && syncState.pullProgressCtx.total > 0) {
+    const percent = 38 + 55 * ((syncState.pullProgressCtx.done + 0.5) / syncState.pullProgressCtx.total);
     notifyPercent(percent, `Downloading ${label}… ${fetched.toLocaleString()} rows`);
   }
 }
@@ -2814,7 +2794,7 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
 
     if (!response.ok) {
       if (response.status === 401) {
-        if (currentActiveRoute === 'CLOUD') {
+        if (syncState.currentActiveRoute === 'CLOUD') {
           console.error('[SyncWorker] Pull users failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
           await clearAuthAndNotify();
         }
@@ -2923,7 +2903,7 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
     });
     if (!response.ok) {
       if (response.status === 401) {
-        if (currentActiveRoute === 'CLOUD') {
+        if (syncState.currentActiveRoute === 'CLOUD') {
           console.error('[SyncWorker] Push customers failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
           await clearAuthAndNotify();
         }
@@ -3124,7 +3104,7 @@ async function pushLoyaltyTransactions(token: string, tenantId: string): Promise
     });
     if (!response.ok) {
       if (response.status === 401) {
-        if (currentActiveRoute === 'CLOUD') {
+        if (syncState.currentActiveRoute === 'CLOUD') {
           console.error('[SyncWorker] Push loyalty transactions failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
           await clearAuthAndNotify();
         }
