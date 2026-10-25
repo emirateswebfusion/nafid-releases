@@ -114,5 +114,5 @@ Dependency direction: `main → ipc → services → db/statements`, `sync → s
   (`sizeCaps`) and may only shrink. The largest are `BillingPage.tsx`, `SalesHistory.tsx`, `PurchaseBillManager.tsx`,
   `CashierSettlement.tsx`, `CustomersPage.tsx`.
 - Main process: every `electron/**` file shares the 800-line budget; all services are under it. Capped legacy files:
-  `localDb.ts` (schema), `syncWorker.ts`, `localHostServer.ts`, `printer.ts`,
+  `localDb.ts` (schema), `syncWorker.ts`, `printer.ts`,
   `shopClosingReportService.ts` — sync files change only behind the sync characterization harness.
