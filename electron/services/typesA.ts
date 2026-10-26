@@ -350,7 +350,13 @@ export interface CashDrawerRow {
   cash_short?: number | null;
   cash_excess?: number | null;
   closing_remarks?: string | null;
+  opened_at?: string | null;
+  opened_by?: string | null;
   closed_at?: string | null;
+  closed_by?: string | null;
+  sync_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface PaymentSourceRow {

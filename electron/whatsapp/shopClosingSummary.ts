@@ -1,3 +1,4 @@
+import type { CashDrawerRow } from '../services/typesA.js';
 import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
 
 /**
@@ -9,7 +10,7 @@ export function buildShopClosingSummaryData(
   businessDate?: string,
   providedDrawer?: Record<string, unknown>,
   closedByName?: string,
-  reconcileCashDrawerFn?: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>,
+  reconcileCashDrawerFn?: typeof import('../services/cashDrawerService.js').reconcileCashDrawer,
   getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string
 ) {
   const tid = tenantId || 'global';
@@ -60,11 +61,11 @@ export function buildShopClosingSummaryData(
   } catch { /* ignore */ }
 
   // 1. Drawer Reconciliation
-  let drawer = providedDrawer;
+  let drawer = providedDrawer as CashDrawerRow | null | undefined;
   if (!drawer) {
     try {
       drawer = shopClosingReportSql.findOneCashDrawerByBusinessDate(db)
-        .get(tid, bDate, altDate, bDate, dateLike, bDate) as Record<string, unknown>;
+        .get(tid, bDate, altDate, bDate, dateLike, bDate) as CashDrawerRow | undefined;
     } catch { /* ignore */ }
   }
 

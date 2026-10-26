@@ -148,7 +148,7 @@ export async function sendShopClosingReport({
   customChecklist?: ShopClosingChecklist;
   currentDrawer?: unknown;
   closedByName?: string;
-  reconcileCashDrawerFn?: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>;
+  reconcileCashDrawerFn?: typeof import('../services/cashDrawerService.js').reconcileCashDrawer;
   getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string;
 }): Promise<{ success: boolean; messageId?: string; error?: string; reportId?: string }> {
   const tid = tenantId || 'global';
@@ -308,7 +308,7 @@ let lastScheduledCheckDate: string = '';
 function startShopClosingScheduler(
   db: import('better-sqlite3').Database,
   getTenantIdFn?: () => string,
-  reconcileCashDrawerFn?: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>,
+  reconcileCashDrawerFn?: typeof import('../services/cashDrawerService.js').reconcileCashDrawer,
   getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string
 ): void {
   if (scheduledTimer) clearInterval(scheduledTimer);
@@ -366,7 +366,7 @@ function startShopClosingScheduler(
  * Register Shop Closing IPC Handlers
  */
 export function initShopClosingIpc(helpers: {
-  reconcileCashDrawerFn: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>;
+  reconcileCashDrawerFn: typeof import('../services/cashDrawerService.js').reconcileCashDrawer;
   getStoreTimezoneSettingFn: (db: import('better-sqlite3').Database, tid?: string) => string;
   getDbFn: () => import('better-sqlite3').Database;
   getTenantIdFn?: () => string;
