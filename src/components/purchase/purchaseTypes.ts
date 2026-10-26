@@ -54,7 +54,7 @@ export interface Product {
   uom?: string;
   reorder_level?: number;
   is_service_item?: number;
-  domain_attributes?: any;
+  domain_attributes?: unknown;
 }
 
 export interface PurchaseBillFormHandle {

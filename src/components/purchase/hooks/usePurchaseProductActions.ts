@@ -79,7 +79,7 @@ export function usePurchaseProductActions(ctx: UsePurchaseProductActionsContext)
     }
     if (isDesktopRuntime() && tenantId) {
       pricingTiersApi.getProductPricing(tenantId)
-        .then((rows: any[]) => {
+        .then((rows: Array<{ product_id: string; price?: number | string | null; pricing_tier_id: string }>) => {
           if (Array.isArray(rows)) {
             const mine: Record<string, string> = {};
             for (const r of rows) {

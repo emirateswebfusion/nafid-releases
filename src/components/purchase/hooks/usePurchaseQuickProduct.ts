@@ -42,7 +42,7 @@ export function usePurchaseQuickProduct(ctx: UsePurchaseQuickProductContext) {
       const rawPcs = Number(newProductPcs) || 0;
       // Use original stock to avoid double stock entry when purchase bill is saved
       const stockToPreserve = originalProductStock ?? 0;
-      let domainAttrsObj: Record<string, any> = {};
+      let domainAttrsObj: Record<string, unknown> = {};
       try {
         const existingProduct = await productsApi.getProductsByIds({ tenant_id: tenantId, product_ids: [editingProductItemId] });
         if (Array.isArray(existingProduct) && existingProduct[0]?.domain_attributes) {
@@ -151,7 +151,7 @@ export function usePurchaseQuickProduct(ctx: UsePurchaseQuickProductContext) {
     const isWeightBilling = weightUoms.includes((newProductUom || '').toLowerCase());
     const billingType: 'WEIGHT' | 'PIECE' = isWeightBilling ? 'WEIGHT' : 'PIECE';
     const rawPcs = Number(newProductPcs) || 0;
-    const domainAttrsObj: Record<string, any> = {};
+    const domainAttrsObj: Record<string, unknown> = {};
     if (isWeightBilling && rawPcs > 0) {
       domainAttrsObj.pcs_per_kg = rawPcs;
       domainAttrsObj.pcs_stock = rawPcs;
