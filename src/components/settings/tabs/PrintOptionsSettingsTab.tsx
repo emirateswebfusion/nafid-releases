@@ -298,13 +298,13 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                       { key: 'showAuthorisedSignatory', label: 'Authorised Signatory' },
                       { key: 'showForShopName', label: 'For {shop name}' },
                     ].map(({ key, label }) => {
-                      const isChecked = (billSettings as any)[key] !== false;
+                      const isChecked = billSettings[key as keyof typeof billSettings] !== false;
                       return (
                         <label key={key} className="flex items-center gap-3 py-1.5 cursor-pointer group text-xs text-foreground font-medium select-none">
                           <button
                             type="button"
                             onClick={() => {
-                              setBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }));
+                              setBillSettings(s => ({ ...s, [key]: s[key as keyof typeof s] === false ? true : false }));
                             }}
                             className={clsx(
                               'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
@@ -504,12 +504,12 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                       { key: 'showAuthorisedSignatory', label: 'Authorised Signatory' },
                       { key: 'showForShopName', label: 'For {shop name}' },
                     ].map(({ key, label }) => {
-                      const isChecked = (scrapBillSettings as any)[key] !== false;
+                      const isChecked = scrapBillSettings[key as keyof typeof scrapBillSettings] !== false;
                       return (
                         <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
                           <button
                             type="button"
-                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }))}
+                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: s[key as keyof typeof s] === false ? true : false }))}
                             className={clsx(
                               'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
                               isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'

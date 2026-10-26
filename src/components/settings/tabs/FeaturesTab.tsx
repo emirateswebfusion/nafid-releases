@@ -5,8 +5,8 @@ import { FEATURE_LIST, type FeatureFlags, useFeatureFlagsStore, sanitizeFeatureF
 import type { SettingsForm } from '../settingsFormTypes';
 
 export interface FeaturesTabProps {
-  featureFlags: any;
-  handleToggleFeatureFlag: (key: any, nextVal?: boolean) => void;
+  featureFlags: FeatureFlags | null;
+  handleToggleFeatureFlag: (key: keyof FeatureFlags, nextVal?: boolean) => void;
   enablePartyEstimate: boolean; setEnablePartyEstimate: (v: boolean) => void;
   enablePartyGst: boolean; setEnablePartyGst: (v: boolean) => void;
   loyaltyAwardOnPending: boolean; setLoyaltyAwardOnPending: (v: boolean) => void;

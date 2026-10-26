@@ -1,3 +1,4 @@
+import type { LoadedSettings } from '../loadedSettingsTypes';
 import type React from 'react';
 import { logError, appApi } from '../../../data/app';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
@@ -31,7 +32,7 @@ export interface UseSettingsLoaderContext {
 export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
   const { featureFlags, fetchPrinters, initialSnapshot, loadFlags, returnPrefix, returnStartNumber, updateSnapshotField } = ctx;
   const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableScrap, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, openCashDrawerOnPending, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, setA4Printer, setA4Style, setA5Orientation, setAppVersion, setAutoCloseCashDrawer, setAutoCloseCashDrawerTime, setAutoOpenCashDrawer, setAutoPrintBarcode, setB2bPrefix, setB2bStartNumber, setB2cPrefix, setB2cStartNumber, setBankAccount, setBankBranch, setBankIfsc, setBankName, setBarcodePrinter, setBillingUIConfig, setBillSettings, setConnectCode, setDefaultOpeningBalance, setEmergencyPanicConfig, setEnableConvertToGst, setEnablePartyEstimate, setEnablePartyGst, setEnableRealPaperStock, setEnableScrap, setEnableThreeInvoiceSeries, setGstConversionTaxInclusive, setGstProfitPercentage, setInventoryDefaultView, setInvoiceStartNumber, setLabelCodeType, setLabelShowShopName, setLanHostIp, setLanPort, setLanRole, setLoading, setLoyaltyAwardOnPending, setLoyaltyEarningRate, setLoyaltyEnabled, setLoyaltyRedemptionRate, setOpenCashDrawerOnPending, setPriceCoding, setPrintFormat, setPrintWidth, setPurchaseBillPrefix, setPurchaseBillStartNumber, setQuotationPrefix, setQuotationStartNumber, setReceiptFont, setReceiptPrinter, setReturnPrefix, setReturnStartNumber, setScale, setScrapBillSettings, setScrapPrefix, setScrapStartNumber, setServiceChargeBarcode, setServiceChargeProduct, setShopAddress, setShopClosingConfig, setShopEmail, setShopGstin, setShopNameLocal, setShopPhone, setShopState, setShopWebsite, setShowCashRegister, setShowFullyPaidCashInLedger, setShowPaperOnlyProducts, setShowPaperStockInEstimate, setShowPaperStockInGst, setShowPriceOverrideMrp, setShowPriceTiersInInventory, setShowProductGstBadge, setShowProductOffers, setShowUpiQr, setShowZeroPaperStock, setStaffDataMaskingConfig, setStockReportDefaultView, setStoreTimezoneState, setSyncFrequency, setSyncMode, setTerminalCode, setThermalStyle, setTimeFormat, setUpiId, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showCashRegister, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
-  const buildSettingsSnapshot = (overrides: Record<string, any> = {}) => JSON.stringify({
+  const buildSettingsSnapshot = (overrides: Partial<SettingsFormState> & { featureFlags?: FeatureFlags | null } = {}) => JSON.stringify({
     barcodePrinter: overrides.barcodePrinter !== undefined ? overrides.barcodePrinter : barcodePrinter,
     receiptPrinter: overrides.receiptPrinter !== undefined ? overrides.receiptPrinter : receiptPrinter,
     a4Printer: overrides.a4Printer !== undefined ? overrides.a4Printer : a4Printer,
@@ -140,10 +141,10 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         });
 
       // 1. Fetch all settings in a single batch query, or parallel fallback
-      let allSettings: Record<string, any> = {};
+      let allSettings: LoadedSettings = {};
       if (hasBridge('settingsGetAll')) {
         try {
-          allSettings = await settingsApi.getAll({ tenant_id: currentTenant }) || {};
+          allSettings = await settingsApi.getAll({ tenant_id: currentTenant }) as LoadedSettings || {};
         } catch (err) {
           console.warn('[SettingsManager] settingsGetAll failed, falling back to parallel fetch', err);
         }
@@ -215,7 +216,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         finalBarcode = { ...finalBarcode, ...cleanLegacy };
       }
 
-      let finalReceipt = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
+      let finalReceipt: { type: string; ip: string; port: number; deviceName: string; receiptWidthCm?: number | string | null } = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
       if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
         const cleanReceipt = { ...pReceipt };
         for (let i = 0; i <= 20; i++) delete cleanReceipt[String(i)];
@@ -236,7 +237,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       let finalScaleObj = { path: 'COM3', baudRate: 9600 };
       if (s && typeof s === 'object' && !Array.isArray(s)) finalScaleObj = s;
 
-      let finalCoding = { '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '' };
+      let finalCoding: Record<string, string> = { '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '' };
       if (pCoding && typeof pCoding === 'object' && !Array.isArray(pCoding)) finalCoding = pCoding;
 
       const finalGstin = typeof gstinVal === 'string' ? gstinVal : (gstinVal ? String(gstinVal) : '');
@@ -276,8 +277,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       const storedFlags = allSettings['feature_flags'];
       if (storedFlags && typeof storedFlags === 'object' && !Array.isArray(storedFlags)) {
         for (const def of FEATURE_LIST) {
-          const v = (storedFlags as any)[def.key];
-          if (typeof v === 'boolean') (finalFlags as any)[def.key] = v;
+          const v = storedFlags[def.key];
+          if (typeof v === 'boolean') finalFlags[def.key] = v;
         }
         finalFlags = sanitizeFeatureFlags(finalFlags);
         finalScrap = finalFlags.scrap;
@@ -364,8 +365,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
 
       let finalPrintFmt: 'thermal' | 'a4' | 'half-a4' = 'thermal';
       let finalPrintWidth = 58;
-      let finalThermalStyle: any = 'standard';
-      let finalA4Style: any = 'standard';
+      let finalThermalStyle: SettingsFormState['thermalStyle'] = 'standard';
+      let finalA4Style: SettingsFormState['a4Style'] = 'standard';
       let finalA5Orientation: 'horizontal' | 'vertical' = 'horizontal';
       let finalShowOffers = true;
       let finalShowPriceOverrideMrp = true;
@@ -385,12 +386,12 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         if (printFmt.thermalStyle) {
           finalThermalStyle = printFmt.thermalStyle;
         } else if (printFmt.format === 'thermal' && printFmt.style) {
-          finalThermalStyle = printFmt.style;
+          finalThermalStyle = printFmt.style as typeof finalThermalStyle;
         }
         if (printFmt.a4Style) {
           finalA4Style = printFmt.a4Style;
         } else if (printFmt.format === 'a4' && printFmt.style) {
-          finalA4Style = printFmt.style;
+          finalA4Style = printFmt.style as typeof finalA4Style;
         }
         finalReceipt.receiptWidthCm = finalPrintWidth / 10;
         if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);

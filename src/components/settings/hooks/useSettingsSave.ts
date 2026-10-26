@@ -94,7 +94,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
 
       const sanitizedFlags = sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS);
 
-      const checks: { promise: Promise<any>; name: string }[] = [
+      const checks: { promise: Promise<unknown>; name: string }[] = [
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'party_estimate' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
@@ -182,7 +182,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       ];
 
       for (const { promise, name } of checks) {
-        const res = await promise;
+        const res = await promise as { success?: boolean; error?: unknown };
         if (!res.success) throw new Error(`${name}: ${res.error}`);
       }
 
