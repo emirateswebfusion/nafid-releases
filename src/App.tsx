@@ -1,18 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PrintA4View, PrintBarcodeView, PrintBulkBarcodeView, PrintReceiptView, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, preloadBilling } from './lazyScreens';
 import UpdateBanner from './components/UpdateBanner';
 import { PermissionGuard } from './components/PermissionGuard';
-import { BillingPage } from './components/BillingPage';
-import { ComboManager } from './components/ComboManager';
-import { InventoryManager } from './components/InventoryManager';
-import { SalesHistory } from './components/SalesHistory';
-import { RecycleBin } from './components/RecycleBin';
-import { StaffManager } from './components/StaffManager';
-import { SettingsManager } from './components/SettingsManager';
-import { SettingsGrades } from './components/SettingsGrades';
-import { PricingTiers } from './components/PricingTiers';
 import { LoginScreen } from './components/LoginScreen';
 import { OwnerDashboard } from './components/OwnerDashboard';
-import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
@@ -21,29 +12,11 @@ import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
 import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';
-import { PartyManager } from './components/PartyManager';
-import { CashierSettlement } from './components/CashierSettlement';
 import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
-import { PaymentMethods } from './components/PaymentMethods';
-import { PrintBarcodeView } from './components/PrintBarcodeView';
-import { PrintReceiptView } from './components/PrintReceiptView';
-import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
-import { ScrapManager } from './components/ScrapManager';
-import { QuotationManager } from './components/QuotationManager';
-import { WarrantyManager } from './components/WarrantyManager';
-import { ReturnManager } from './components/ReturnManager';
-import { PrintA4View } from './components/PrintA4View';
-import { StockReport } from './components/StockReport';
-import { FinancialReport } from './components/FinancialReport';
-import { PurchaseBillManager } from './components/PurchaseBillManager';
-import { CustomersPage } from './components/CustomersPage';
 import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 import { useFeatureFlagsStore, isAiAssistantAvailable, type FeatureKey } from './featureFlags';
 import { SplashScreen } from './components/SplashScreen';
-import { AiAssistant } from './components/AiAssistant';
-import { EcommercePortal } from './components/EcommercePortal';
-import { AdsManager } from './components/AdsManager';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
 import { EmergencyWipePrompt } from './components/EmergencyWipePrompt';
 import { hasBridge, isDesktopRuntime } from './data/client';
@@ -715,20 +688,25 @@ function App() {
     };
   }, []);
 
+  // Fetch the billing chunk in the background once signed in (screens are lazy, see lazyScreens.ts).
+  useEffect(() => {
+    if (isAuthenticated) preloadBilling();
+  }, [isAuthenticated]);
+
   if (printBarcodeData) {
-    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} codeType={printBarcodeCodeType} />;
+    return <Suspense fallback={null}><PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} codeType={printBarcodeCodeType} /></Suspense>;
   }
 
   if (printReceiptData !== null) {
-    return <PrintReceiptView text={printReceiptData} />;
+    return <Suspense fallback={null}><PrintReceiptView text={printReceiptData} /></Suspense>;
   }
 
   if (showPrintBulkBarcode) {
-    return <PrintBulkBarcodeView codeType={printBulkCodeType} />;
+    return <Suspense fallback={null}><PrintBulkBarcodeView codeType={printBulkCodeType} /></Suspense>;
   }
 
   if (showPrintA4) {
-    return <PrintA4View />;
+    return <Suspense fallback={null}><PrintA4View /></Suspense>;
   }
 
   if (isLoading) {
@@ -740,7 +718,7 @@ function App() {
   }
 
   if (role === 'SUPER_ADMIN') {
-    return <SuperDashboard />;
+    return <Suspense fallback={<ScreenLoading />}><SuperDashboard /></Suspense>;
   }
 
   return (
@@ -750,6 +728,7 @@ function App() {
       </div>
       <CashDrawerAutoCloseWatcher />
 
+      <Suspense fallback={<ScreenLoading />}>
       {showComboManager ? (
         <PermissionGuard permission="combos.view" onBack={() => setShowComboManager(false)}>
           <ComboManager onClose={() => setShowComboManager(false)} />
@@ -920,6 +899,7 @@ function App() {
           QUOTES={QUOTES}
         />
       )}
+      </Suspense>
       <SessionExpiredModal
         isOpen={showSessionExpiredModal}
         onConfirm={() => {
@@ -932,6 +912,15 @@ function App() {
       />
 
       <EmergencyWipePrompt panic={panic} />
+    </div>
+  );
+}
+
+/** Shown while a lazily loaded screen's chunk is fetched (usually a few milliseconds from disk). */
+function ScreenLoading() {
+  return (
+    <div className="flex h-full w-full items-center justify-center" role="status" aria-label="Loading">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
     </div>
   );
 }
