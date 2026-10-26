@@ -14,7 +14,9 @@
 | R8 | `electron/ipc/**` contains no `.prepare(` and does not import `electron/db/statements` — handlers only register channels |
 | R9 | `electron/services/**` may not add inline `.prepare(`; SQL goes to `electron/db/statements/<module>.ts` (legacy dynamic filter builders are capped per file) |
 
-Advisory (printed, never fails): SQL still inside `electron/sync/**` and `electron/main.ts`.
+| R10 | The startup baseline (`localDb.ts`, `schema*.ts`, `migrations{Repairs,Columns}.ts`) may shrink, never grow; schema / data changes are numbered migrations in `electron/db/migrations/`, each listed in `migrations/index.ts` |
+| R11 | Only `src/data/cloud/client.ts` calls `fetch`; cloud requests go through `src/data/cloud/*` repositories |
+| R12 | `electron/sync/**` and `electron/main.ts` may not add inline `.prepare(`; SQL goes to `electron/db/statements/sync/<module>.ts` / `statements/main.ts` (5 dynamic query builders are capped per file) |
 
 `arch-baseline.json` and `lint-baseline.json` may shrink, never grow. Re-record them (`--update`, `npm run lint:baseline`)
 only in a deliberate maintenance change after debt went **down**.

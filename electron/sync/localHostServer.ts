@@ -4,6 +4,7 @@ import { getDb } from '../db/localDb.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { LAN_KEY_HEADER, ensureLanPairingKey, isValidLanKey } from '../services/lanPairing.js';
 import { getTableMeta, upsertTableRows } from './lanUpsert.js';
+import * as localHostServerSql from '../db/statements/sync/localHostServer.js';
 
 function toNormalizedUtc(str: string | null | undefined): string | null {
   if (!str) return null;
@@ -99,7 +100,7 @@ export function startLocalHostServer(port: number = 3888) {
       // ── Users / Staff Endpoint ──────────────────────────────────────────
       if (pathname === '/auth/staff' || pathname === '/api/sync/users') {
         if (req.method === 'GET') {
-          const rows = db.prepare(`SELECT * FROM users`).all();
+          const rows = localHostServerSql.selectUsers(db).all();
           return sendJson(res, 200, { users: rows });
         }
       }
@@ -116,7 +117,7 @@ export function startLocalHostServer(port: number = 3888) {
 
         // Key counter per terminal prefix & series to keep sequence counters isolated across computers
         const terminalCounterKey = `terminal_counter_${series || 'normal'}_${prefix}`;
-        const row: any = db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').get(terminalCounterKey);
+        const row: any = localHostServerSql.selectSettings(db).get(terminalCounterKey);
         
         let counter = 1;
         if (row && row.value) {
@@ -129,7 +130,7 @@ export function startLocalHostServer(port: number = 3888) {
         } else {
           // Fallback to global configKey counter if no terminal-specific counter exists yet
           const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
-          const globalRow: any = db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').get(configKey);
+          const globalRow: any = localHostServerSql.selectSettings(db).get(configKey);
           if (globalRow && globalRow.value) {
             try {
               const gParsed = JSON.parse(globalRow.value);
@@ -140,7 +141,7 @@ export function startLocalHostServer(port: number = 3888) {
           }
         }
 
-        const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE invoice_number = ? LIMIT 1');
+        const checkStmt = localHostServerSql.selectInvoices(db);
         let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
 
         while (checkStmt.get(candidate)) {
@@ -149,21 +150,14 @@ export function startLocalHostServer(port: number = 3888) {
         }
 
         const nextConfig = { prefix, counter: counter + 1 };
-        db.prepare(`
-          INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-          VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
-          ON CONFLICT(tenant_id, key) DO UPDATE SET
-            value = EXCLUDED.value,
-            sync_status = 'LOCAL',
-            updated_at = CURRENT_TIMESTAMP
-        `).run(terminalCounterKey, JSON.stringify(nextConfig));
+        localHostServerSql.insertSettings(db).run(terminalCounterKey, JSON.stringify(nextConfig));
 
         return sendJson(res, 200, { invoiceNumber: candidate });
       }
 
       if (pathname === '/api/returns/next-number' && req.method === 'GET') {
         const reqPrefix = url.searchParams.get('prefix');
-        const confRow: any = db.prepare('SELECT value FROM settings WHERE key = ? LIMIT 1').get('return_counter');
+        const confRow: any = localHostServerSql.selectSettings(db).get('return_counter');
         let prefix = 'RTN-';
         let counter = 1;
         if (reqPrefix) {
@@ -175,21 +169,14 @@ export function startLocalHostServer(port: number = 3888) {
             counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
           } catch {}
         }
-        const checkReturnStmt = db.prepare('SELECT 1 FROM returns WHERE return_number = ? LIMIT 1');
+        const checkReturnStmt = localHostServerSql.selectReturns(db);
         let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
         while (checkReturnStmt.get(candidate)) {
           counter++;
           candidate = `${prefix}${String(counter).padStart(3, '0')}`;
         }
         const nextConfig = { prefix, counter: counter + 1 };
-        db.prepare(`
-          INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-          VALUES ('global', 'return_counter', ?, 'LOCAL', CURRENT_TIMESTAMP)
-          ON CONFLICT(tenant_id, key) DO UPDATE SET
-            value = EXCLUDED.value,
-            sync_status = 'LOCAL',
-            updated_at = CURRENT_TIMESTAMP
-        `).run(JSON.stringify(nextConfig));
+        localHostServerSql.insertSettings2(db).run(JSON.stringify(nextConfig));
 
         return sendJson(res, 200, { returnNumber: candidate });
       }
@@ -212,7 +199,7 @@ export function startLocalHostServer(port: number = 3888) {
             if (!meta) continue;
             const tsCol = meta.allCols.includes('updated_at') ? 'updated_at' : (meta.allCols.includes('created_at') ? 'created_at' : null);
             if (!tsCol) continue;
-            const row: any = db.prepare(`SELECT MAX(${tsCol}) as max_ts FROM ${t}`).get();
+            const row: any = localHostServerSql.selectMaxTimestamp(db, tsCol, t).get();
             if (row && row.max_ts) {
               const rowTs = String(row.max_ts).trim();
               if (!maxUpdatedAt || rowTs > maxUpdatedAt) {
@@ -274,19 +261,19 @@ export function startLocalHostServer(port: number = 3888) {
             if (attachItems && rows.length > 0) {
               if (tName === 'invoices') {
                 for (const inv of rows) {
-                  inv.items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).all(inv.invoice_id);
+                  inv.items = localHostServerSql.selectInvoiceItems(db).all(inv.invoice_id);
                 }
               } else if (tName === 'purchase_bills') {
                 for (const bill of rows) {
-                  bill.items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ?`).all(bill.purchase_bill_id);
+                  bill.items = localHostServerSql.selectPurchaseBillItems(db).all(bill.purchase_bill_id);
                 }
               } else if (tName === 'returns') {
                 for (const ret of rows) {
-                  ret.items = db.prepare(`SELECT * FROM return_items WHERE return_id = ?`).all(ret.return_id);
+                  ret.items = localHostServerSql.selectReturnItems(db).all(ret.return_id);
                 }
               } else if (tName === 'quotations') {
                 for (const qu of rows) {
-                  qu.items = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`).all(qu.quotation_id);
+                  qu.items = localHostServerSql.selectQuotationItems(db).all(qu.quotation_id);
                 }
               }
             }
@@ -444,19 +431,19 @@ export function startLocalHostServer(port: number = 3888) {
             // Attach nested items for header-detail records
             if (tableName === 'invoices') {
               for (const inv of rows) {
-                inv.items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).all(inv.invoice_id);
+                inv.items = localHostServerSql.selectInvoiceItems(db).all(inv.invoice_id);
               }
             } else if (tableName === 'purchase_bills') {
               for (const bill of rows) {
-                bill.items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ?`).all(bill.purchase_bill_id);
+                bill.items = localHostServerSql.selectPurchaseBillItems(db).all(bill.purchase_bill_id);
               }
             } else if (tableName === 'returns') {
               for (const ret of rows) {
-                ret.items = db.prepare(`SELECT * FROM return_items WHERE return_id = ?`).all(ret.return_id);
+                ret.items = localHostServerSql.selectReturnItems(db).all(ret.return_id);
               }
             } else if (tableName === 'quotations') {
               for (const q of rows) {
-                q.items = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`).all(q.quotation_id);
+                q.items = localHostServerSql.selectQuotationItems(db).all(q.quotation_id);
               }
             }
 

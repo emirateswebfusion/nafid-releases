@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { toIsoTimestamp } from '../utils/timestamps.js';
+import * as lanUpsertSql from '../db/statements/sync/lanUpsert.js';
 
 /** LAN host data merge: table metadata (cached per table) and the row upsert used by the LAN push endpoints. */
 function parseCleanDate(dStr: any): string {
@@ -123,9 +124,9 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
       if (!rawRow || typeof rawRow !== 'object') continue;
 
       const itemId = extractItemId(rawRow);
-      const isNewInvoice = tableName === 'invoices' && itemId ? !db.prepare(`SELECT invoice_id FROM invoices WHERE invoice_id = ?`).get(itemId) : false;
-      const isNewReturn = tableName === 'returns' && itemId ? !db.prepare(`SELECT return_id FROM returns WHERE return_id = ?`).get(itemId) : false;
-      const isNewPurchaseBill = tableName === 'purchase_bills' && itemId ? !db.prepare(`SELECT purchase_bill_id FROM purchase_bills WHERE purchase_bill_id = ?`).get(itemId) : false;
+      const isNewInvoice = tableName === 'invoices' && itemId ? !lanUpsertSql.selectInvoices(db).get(itemId) : false;
+      const isNewReturn = tableName === 'returns' && itemId ? !lanUpsertSql.selectReturns(db).get(itemId) : false;
+      const isNewPurchaseBill = tableName === 'purchase_bills' && itemId ? !lanUpsertSql.selectPurchaseBills(db).get(itemId) : false;
 
       const paramObj: Record<string, any> = {};
 
@@ -154,11 +155,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         const txDate = rawRow.transaction_date ? parseCleanDate(rawRow.transaction_date) : parseCleanDate(null);
         const parts = txDate.split('-');
         const altTxDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : txDate;
-        const existingDrawer = db.prepare(`
-          SELECT drawer_id FROM cash_drawer
-          WHERE drawer_id = ? OR ((tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
-          LIMIT 1
-        `).get(rawRow.drawer_id, rawRow.tenant_id || 'global', txDate, altTxDate, txDate, `${txDate}%`) as any;
+        const existingDrawer = lanUpsertSql.selectCashDrawer(db).get(rawRow.drawer_id, rawRow.tenant_id || 'global', txDate, altTxDate, txDate, `${txDate}%`) as any;
         if (existingDrawer && existingDrawer.drawer_id) {
           paramObj['drawer_id'] = existingDrawer.drawer_id;
         }
@@ -168,11 +165,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         const cleanDate = parseCleanDate(rawRow.business_date);
         const parts = cleanDate.split('-');
         const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
-        const existingDrawer = db.prepare(`
-          SELECT drawer_id, status, opening_balance, cash_sales, cash_in, cash_out, current_cash, sync_status FROM cash_drawer
-          WHERE drawer_id = ? OR ((tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
-          ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, created_at DESC LIMIT 1
-        `).get(rawRow.drawer_id, rawRow.tenant_id || 'global', cleanDate, altDate, cleanDate, `${cleanDate}%`) as any;
+        const existingDrawer = lanUpsertSql.selectCashDrawer2(db).get(rawRow.drawer_id, rawRow.tenant_id || 'global', cleanDate, altDate, cleanDate, `${cleanDate}%`) as any;
 
         if (existingDrawer) {
           const targetDrawerId = existingDrawer.drawer_id;
@@ -186,16 +179,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             newCurrent = Math.max(newCurrent, localCurrent);
           }
 
-          db.prepare(`
-            UPDATE cash_drawer SET
-              opening_balance = ?, cash_sales = ?, cash_in = ?, cash_out = ?,
-              current_cash = ?, expected_closing = ?, actual_cash = ?,
-              cash_short = ?, cash_excess = ?, closing_remarks = ?,
-              status = ?, opened_by = COALESCE(opened_by, ?), closed_by = ?,
-              opened_at = COALESCE(opened_at, ?), closed_at = ?,
-              sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP
-            WHERE drawer_id = ?
-          `).run(
+          lanUpsertSql.updateCashDrawer(db).run(
             Number(rawRow.opening_balance || 0), newSales,
             Number(rawRow.cash_in || 0), Number(rawRow.cash_out || 0),
             newCurrent, Math.max(Number(rawRow.expected_closing || 0), newCurrent),
@@ -208,8 +192,8 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
           );
           if (targetDrawerId !== rawRow.drawer_id) {
             try {
-              db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
-              db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
+              lanUpsertSql.updateCashTransactions(db).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
+              lanUpsertSql.updateCashierAuditLog(db).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
             } catch {}
           }
           if (itemId) syncedIds.push(itemId);
@@ -219,26 +203,11 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
 
       if (tableName === 'pricing_tiers' && rawRow.name) {
         const cleanName = String(rawRow.name).trim();
-        const existingTier = db.prepare(`
-          SELECT pricing_tier_id FROM pricing_tiers
-          WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-            AND LOWER(TRIM(name)) = LOWER(?)
-          LIMIT 1
-        `).get(rawRow.tenant_id || 'global', cleanName) as any;
+        const existingTier = lanUpsertSql.selectPricingTiers(db).get(rawRow.tenant_id || 'global', cleanName) as any;
 
         if (existingTier && existingTier.pricing_tier_id !== rawRow.pricing_tier_id) {
           try {
-            db.prepare(`
-              UPDATE pricing_tiers SET
-                name = ?,
-                is_active = ?,
-                sort_order = ?,
-                is_default = ?,
-                is_deleted = ?,
-                sync_status = 'PENDING',
-                updated_at = CURRENT_TIMESTAMP
-              WHERE pricing_tier_id = ?
-            `).run(
+            lanUpsertSql.updatePricingTiers(db).run(
               cleanName,
               rawRow.is_active ? 1 : 0,
               rawRow.sort_order ?? 0,
@@ -247,10 +216,10 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
               existingTier.pricing_tier_id
             );
             try {
-              db.prepare(`DELETE FROM product_pricing WHERE pricing_tier_id = ? AND product_id IN (SELECT product_id FROM product_pricing WHERE pricing_tier_id = ?)`).run(rawRow.pricing_tier_id, existingTier.pricing_tier_id);
-              db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
-              db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
-              db.prepare(`UPDATE customers SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
+              lanUpsertSql.deleteProductPricing(db).run(rawRow.pricing_tier_id, existingTier.pricing_tier_id);
+              lanUpsertSql.updateProductPricing(db).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
+              lanUpsertSql.updateParties(db).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
+              lanUpsertSql.updateCustomers(db).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
             } catch {}
             if (itemId) syncedIds.push(itemId);
             continue;
@@ -294,7 +263,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
 
         if (Array.isArray(rawRow.items)) {
           try {
-            db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(rawRow.invoice_id);
+            lanUpsertSql.deleteInvoiceItems(db).run(rawRow.invoice_id);
           } catch {}
 
           for (const line of rawRow.items) {
@@ -310,7 +279,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             for (const line of rawRow.items) {
               if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
                 try {
-                  db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)`).run(Number(line.quantity), line.product_id);
+                  lanUpsertSql.updateProducts(db).run(Number(line.quantity), line.product_id);
                 } catch {}
               }
             }
@@ -336,20 +305,12 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
           if (cashAmt > 0) {
             try {
               const todayDate = parseCleanDate(rawRow.created_at || null);
-              const drawer = db.prepare(`
-                SELECT drawer_id, opening_balance, cash_sales, cash_in, current_cash, expected_closing
-                FROM cash_drawer
-                WHERE status = 'OPEN' AND (business_date = ? OR business_date LIKE ?)
-                ORDER BY created_at DESC LIMIT 1
-              `).get(todayDate, `${todayDate}%`) as any;
+              const drawer = lanUpsertSql.selectCashDrawer3(db).get(todayDate, `${todayDate}%`) as any;
               if (drawer) {
                 const newSales = Number(drawer.cash_sales || 0) + cashAmt;
                 const newCurrent = Number(drawer.current_cash || 0) + cashAmt;
                 const newExp = Number(drawer.expected_closing || 0) + cashAmt;
-                db.prepare(`
-                  UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-                  WHERE drawer_id = ?
-                `).run(newSales, newCurrent, newExp, drawer.drawer_id);
+                lanUpsertSql.updateCashDrawer2(db).run(newSales, newCurrent, newExp, drawer.drawer_id);
               }
             } catch (cdErr: any) {
               console.warn('[LocalHostServer] Could not update cash drawer for LAN invoice:', cdErr.message);
@@ -360,7 +321,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
           for (const line of rawRow.items) {
             if (line.product_id && Number(line.quantity) > 0) {
               try {
-                db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(Number(line.quantity), line.product_id);
+                lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
               } catch {}
             }
           }
@@ -368,7 +329,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
 
         if (rawRow.scrap_invoice_number && Number(rawRow.scrap_deduction) > 0 && !isDeleted) {
           try {
-            db.prepare(`UPDATE scrap_transactions SET payment_status = 'SETTLED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_invoice_number = ?`).run(rawRow.scrap_invoice_number);
+            lanUpsertSql.updateScrapTransactions(db).run(rawRow.scrap_invoice_number);
           } catch {}
         }
       } else if (tableName === 'purchase_bills' && Array.isArray(rawRow.items)) {
@@ -381,7 +342,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
           for (const line of rawRow.items) {
             if (line.product_id && Number(line.quantity) > 0) {
               try {
-                db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(Number(line.quantity), line.product_id);
+                lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
               } catch {}
             }
           }
@@ -396,13 +357,13 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
           for (const line of rawRow.items) {
             if (line.product_id && Number(line.quantity) > 0) {
               try {
-                db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(Number(line.quantity), line.product_id);
+                lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
               } catch {}
             }
           }
         }
       } else if (tableName === 'quotations' && Array.isArray(rawRow.items)) {
-        db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(rawRow.quotation_id);
+        lanUpsertSql.deleteQuotationItems(db).run(rawRow.quotation_id);
         for (const line of rawRow.items) {
           if (!line.quotation_id) line.quotation_id = rawRow.quotation_id;
           if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';

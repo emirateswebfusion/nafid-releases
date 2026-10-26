@@ -23,8 +23,9 @@
  *       shrink, never grow (`startupBaselineLines`). Schema / data changes go into a numbered migration in
  *       electron/db/migrations/, listed in migrations/index.ts.
  *
- * Advisories (never fail): SQL still inside electron/sync/** and electron/main.ts (sync is changed only
- * behind characterization tests).
+ *  R12. electron/sync/** and electron/main.ts may only call `.prepare(` for the dynamic query builders grandfathered
+ *       in arch-baseline.json (`syncPrepareCounts`, shrink-only); their SQL lives in electron/db/statements/sync/*
+ *       and electron/db/statements/main.ts.
  *
  * Usage:
  *   node scripts/check-architecture.mjs            # enforce
@@ -81,7 +82,7 @@ for (const full of walk(path.join(root, 'src'), (n) => /\.(ts|tsx)$/.test(n))) {
   if (file.startsWith('src/components/') && lines > SIZE_BUDGET) sizes[file] = lines;
 }
 
-const sqlAdvisories = [];
+const syncPrepares = {};
 for (const full of walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))) {
   const file = rel(full);
   const source = read(full);
@@ -101,15 +102,14 @@ for (const full of walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))) 
     violations.push(`${file}: migration is not listed in electron/db/migrations/index.ts.`);
   }
   if (lines > SIZE_BUDGET) sizes[file] = lines;
-  if ((file.startsWith('electron/sync/') || file === 'electron/main.ts') && prepares > 0) sqlAdvisories.push({ file, sql: prepares });
+  if ((file.startsWith('electron/sync/') || file === 'electron/main.ts') && prepares > 0) syncPrepares[file] = prepares;
 }
-sqlAdvisories.sort((a, b) => b.sql - a.sql);
 
 const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 
 if (update || !existsSync(baselinePath)) {
   const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(baselinePath, `${JSON.stringify({ ipcCounts: sorted(ipcCounts), servicePrepareCounts: sorted(servicePrepares), sizeCaps: sorted(sizes), startupBaselineLines: sorted(startupLines), updatedAt: new Date().toISOString() }, null, 2)}\n`);
+  writeFileSync(baselinePath, `${JSON.stringify({ ipcCounts: sorted(ipcCounts), servicePrepareCounts: sorted(servicePrepares), syncPrepareCounts: sorted(syncPrepares), sizeCaps: sorted(sizes), startupBaselineLines: sorted(startupLines), updatedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log(`Baseline saved: ${Object.keys(ipcCounts).length} file(s) / ${sum(ipcCounts)} bridge references; ${Object.keys(sizes).length} oversized file(s).`);
   process.exit(0);
 }
@@ -134,6 +134,12 @@ for (const [file, count] of Object.entries(servicePrepares)) {
   if (cap === undefined) violations.push(`${file}: ${count} inline .prepare() call(s). Put SQL in electron/db/statements/<module>.ts.`);
   else if (count > cap) violations.push(`${file}: inline .prepare() calls grew from ${cap} to ${count}. Use electron/db/statements.`);
 }
+const syncPrepareCaps = baseline.syncPrepareCounts || {};
+for (const [file, count] of Object.entries(syncPrepares)) {
+  const cap = syncPrepareCaps[file];
+  if (cap === undefined) violations.push(`${file}: ${count} inline .prepare() call(s). Put SQL in electron/db/statements/sync/<module>.ts (or statements/main.ts).`);
+  else if (count > cap) violations.push(`${file}: inline .prepare() calls grew from ${cap} to ${count}. Use electron/db/statements/sync.`);
+}
 for (const [file, lines] of Object.entries(sizes)) {
   const cap = sizeCaps[file];
   if (cap === undefined) violations.push(`${file}: ${lines} lines exceeds the ${SIZE_BUDGET}-line budget. Extract views/hooks (or a use-case module) first.`);
@@ -144,13 +150,11 @@ const shrunk = Object.keys(ipcCaps).filter((f) => (ipcCounts[f] || 0) < ipcCaps[
   + Object.keys(sizeCaps).filter((f) => (sizes[f] || 0) < sizeCaps[f]).length
   + Object.keys(prepareCaps).filter((f) => (servicePrepares[f] || 0) < prepareCaps[f]).length;
 
-console.log(`SQL advisory: ${sum(Object.fromEntries(sqlAdvisories.map((e) => [e.file, e.sql])))} .prepare() calls in electron/sync + main.ts (move behind tests).`);
-for (const e of sqlAdvisories.slice(0, 5)) console.log(`  - ${e.file}: ${e.sql}`);
 
 if (violations.length > 0) {
   console.error(`\nArchitecture check failed with ${violations.length} violation(s):`);
   for (const line of violations) console.error(`  - ${line}`);
   process.exit(1);
 }
-console.log(`\nArchitecture check passed. Legacy debt: ${sum(ipcCounts)} bridge references; ${sum(servicePrepares)} dynamic .prepare() calls in ${Object.keys(servicePrepares).length} service(s); ${Object.keys(sizes).length} oversized file(s).`);
+console.log(`\nArchitecture check passed. Legacy debt: ${sum(ipcCounts)} bridge references; ${sum(servicePrepares)} dynamic .prepare() calls in ${Object.keys(servicePrepares).length} service(s), ${sum(syncPrepares)} in sync; ${Object.keys(sizes).length} oversized file(s).`);
 if (shrunk > 0) console.log(`${shrunk} baseline entr${shrunk === 1 ? 'y' : 'ies'} improved — run with --update in a maintenance change to lock in the gain.`);

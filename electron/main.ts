@@ -15,6 +15,7 @@ import { setMainWindow } from './services/windowRegistry.js';
 import { registerAllIpcHandlers } from './ipc/index.js';
 import { backfillCreditInvoices, recalcPartyBalances } from './services/partyLedgerService.js';
 import { setupAutoUpdater } from './services/updaterService.js';
+import * as mainSql from './db/statements/main.js';
 
 // Initialize and configure structured logging
 log.initialize();
@@ -347,23 +348,21 @@ app.whenReady().then(async () => {
 
     try {
       const _db = getDb();
-      _db.prepare("UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_type = 'HOLD' AND sync_status = 'PENDING'").run();
-      _db.prepare("UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_type = 'EXPIRED_HOLD' AND sync_status = 'PENDING'").run();
-      _db.prepare("UPDATE invoices SET balance_amount = 0 WHERE sync_status = 'PENDING' AND (balance_amount < 0 OR balance_amount IS NULL)").run();
-      _db.prepare("UPDATE invoices SET grand_total = 0 WHERE sync_status = 'PENDING' AND (grand_total IS NULL OR grand_total < 0)").run();
-      _db.prepare("UPDATE invoices SET subtotal = 0 WHERE sync_status = 'PENDING' AND (subtotal IS NULL OR subtotal < 0)").run();
-      _db.prepare("UPDATE invoices SET received_amount = 0 WHERE sync_status = 'PENDING' AND (received_amount IS NULL OR received_amount < 0)").run();
-      _db.prepare("UPDATE invoices SET split_details = NULL WHERE split_details = 'null' OR split_details = 'undefined' OR split_details = ''").run();
+      mainSql.updateInvoices(_db).run();
+      mainSql.updateInvoices2(_db).run();
+      mainSql.updateInvoices3(_db).run();
+      mainSql.updateInvoices4(_db).run();
+      mainSql.updateInvoices5(_db).run();
+      mainSql.updateInvoices6(_db).run();
+      mainSql.updateInvoices7(_db).run();
       
-      const staleBills = _db.prepare(
-        "SELECT invoice_id, tenant_id FROM invoices WHERE invoice_type = 'HOLD' AND is_held = 1 AND held_until <= datetime('now', 'localtime')"
-      ).all() as any[];
+      const staleBills = mainSql.selectInvoices(_db).all() as any[];
       if (staleBills.length > 0) {
         const expireTx = _db.transaction(() => {
-          const stockStmt = _db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
-          const markStmt = _db.prepare('UPDATE invoices SET is_held = 0, invoice_type = \'EXPIRED_HOLD\', sync_status = \'SYNCED\', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?');
+          const stockStmt = mainSql.updateProducts(_db);
+          const markStmt = mainSql.updateInvoices8(_db);
           for (const bill of staleBills) {
-            const items = _db.prepare('SELECT product_id, quantity, is_service_item FROM invoice_items WHERE invoice_id = ?').all(bill.invoice_id) as any[];
+            const items = mainSql.selectInvoiceItems(_db).all(bill.invoice_id) as any[];
             for (const item of items) {
               if (!item.is_service_item) stockStmt.run(item.quantity, item.product_id);
             }
@@ -381,7 +380,7 @@ app.whenReady().then(async () => {
   setTimeout(() => {
     try {
       const _db = getDb();
-      const parties = _db.prepare(`SELECT party_id FROM parties WHERE (is_deleted IS NULL OR is_deleted = 0)`).all() as { party_id: string }[];
+      const parties = mainSql.selectParties(_db).all() as { party_id: string }[];
       if (parties.length > 0) {
         log.info(`[Main] Post-startup party balance recalculation: ${parties.length} parties...`);
         for (const p of parties) {

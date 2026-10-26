@@ -6,6 +6,11 @@
     "electron/services/partiesService.ts": 1,
     "electron/services/productsService.ts": 2
   },
+  "syncPrepareCounts": {
+    "electron/sync/lanUpsert.ts": 1,
+    "electron/sync/localHostServer.ts": 3,
+    "electron/sync/syncProgress.ts": 1
+  },
   "sizeCaps": {},
   "startupBaselineLines": {
     "electron/db/localDb.ts": 313,
@@ -15,5 +20,5 @@
     "electron/db/schemaCoreTables.ts": 407,
     "electron/db/schemaExtendedTables.ts": 409
   },
-  "updatedAt": "2026-10-26T03:26:31.761Z"
+  "updatedAt": "2026-10-26T03:45:50.096Z"
 }

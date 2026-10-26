@@ -2,6 +2,7 @@ import { getDb } from '../../db/localDb.js';
 import { toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
 import { getSyncTargetLabel, pullPaginated, pushBatch } from '../syncTransport.js';
+import * as settingsSyncSql from '../../db/statements/sync/settingsSync.js';
 
 /** Settings sync: push and pull of shared settings; device-local keys never leave the terminal. */
 export const LOCAL_DEVICE_SETTING_KEYS = [
@@ -30,10 +31,10 @@ export async function syncSettings(token: string, tenantId: string) {
   const db = getDb();
   try {
     const placeholders = LOCAL_DEVICE_SETTING_KEYS.map(() => '?').join(',');
-    db.prepare(`UPDATE settings SET sync_status = 'LOCAL' WHERE (tenant_id = ? OR tenant_id = 'global') AND key IN (${placeholders}) AND sync_status = 'PENDING'`).run(tenantId, ...LOCAL_DEVICE_SETTING_KEYS);
+    settingsSyncSql.markDeviceSettingsLocal(db, placeholders).run(tenantId, ...LOCAL_DEVICE_SETTING_KEYS);
   } catch (e) {}
 
-  const pending = (db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global')`).all(tenantId) as any[])
+  const pending = (settingsSyncSql.selectSettings(db).all(tenantId) as any[])
     .filter((row: any) => !LOCAL_DEVICE_SETTING_KEYS.includes(row.key));
 
   if (pending.length === 0) return;
@@ -47,7 +48,7 @@ export async function syncSettings(token: string, tenantId: string) {
     'Settings',
   );
   if (synced.length > 0) {
-    const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND (tenant_id = ? OR tenant_id = 'global')`);
+    const updateStmt = settingsSyncSql.updateSettings2(db);
     const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
     tx(synced);
   }
@@ -72,15 +73,7 @@ export async function pullSettings(token: string, tenantId: string): Promise<boo
     'emergency_panic_config'
   ];
 
-  const upsert = db.prepare(`
-    INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-    VALUES (@tenant_id, @key, @value, 'SYNCED', @updated_at)
-    ON CONFLICT(tenant_id, key) DO UPDATE SET
-      value = excluded.value,
-      sync_status = 'SYNCED',
-      updated_at = excluded.updated_at
-    WHERE settings.sync_status != 'PENDING' OR excluded.updated_at >= settings.updated_at
-  `);
+  const upsert = settingsSyncSql.insertSettings(db);
 
   const result = await pullPaginated({
     token,

@@ -2,17 +2,18 @@ import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, isGstApplicableProduct, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
 import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import * as catalogSyncSql from '../../db/statements/sync/catalogSync.js';
 
 /** Catalog sync: grades, pricing tiers, product pricing, products and combo offers (push and pull). */
 // ── Product Grades Sync (Edge → Cloud) ───────────────────────────────────────────
 export async function syncGrades(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM product_grades WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectProductGrades(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} product grades to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`UPDATE product_grades SET sync_status = 'SYNCED' WHERE grade_id = ? AND tenant_id = ?`);
+  const updateStmt = catalogSyncSql.updateProductGrades(db);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -33,7 +34,7 @@ export async function syncGrades(token: string, tenantId: string) {
 // ── Pricing Tiers Sync (Edge → Cloud) ────────────────────────────────────────
 export async function syncPricingTiers(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM pricing_tiers WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectPricingTiers(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
 
@@ -44,10 +45,10 @@ export async function syncPricingTiers(token: string, tenantId: string) {
       const newUuid = crypto.randomUUID();
       const oldId = t.pricing_tier_id;
       try {
-        db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(newUuid, oldId);
-        db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(newUuid, oldId);
-        db.prepare(`UPDATE customers SET pricing_tier_id = ? WHERE pricing_tier_id = ?`).run(newUuid, oldId);
-        db.prepare(`UPDATE pricing_tiers SET pricing_tier_id = ?, tenant_id = ? WHERE pricing_tier_id = ?`).run(newUuid, tenantId, oldId);
+        catalogSyncSql.updateProductPricing(db).run(newUuid, oldId);
+        catalogSyncSql.updateParties(db).run(newUuid, oldId);
+        catalogSyncSql.updateCustomers(db).run(newUuid, oldId);
+        catalogSyncSql.updatePricingTiers(db).run(newUuid, tenantId, oldId);
         t.pricing_tier_id = newUuid;
       } catch (err: any) {
         console.warn('[SyncWorker] Error remapping non-UUID pricing tier:', err.message);
@@ -57,7 +58,7 @@ export async function syncPricingTiers(token: string, tenantId: string) {
 
   console.log(`[SyncWorker] Pushing ${pending.length} pricing tiers to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`UPDATE pricing_tiers SET sync_status = 'SYNCED', tenant_id = ? WHERE pricing_tier_id = ?`);
+  const updateStmt = catalogSyncSql.updatePricingTiers2(db);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -86,13 +87,13 @@ export async function syncPricingTiers(token: string, tenantId: string) {
 // ── Product Pricing Sync (Edge → Cloud) ──────────────────────────────────────
 export async function syncProductPricing(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectProductPricing(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
 
   // Sanitize any non-UUID product_pricing_id before pushing
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const fixIdStmt = db.prepare(`UPDATE product_pricing SET product_pricing_id = ?, tenant_id = ? WHERE product_id = ? AND pricing_tier_id = ?`);
+  const fixIdStmt = catalogSyncSql.updateProductPricing2(db);
   for (const pp of pending) {
     if (!pp.product_pricing_id || !uuidRegex.test(pp.product_pricing_id)) {
       const newUuid = crypto.randomUUID();
@@ -103,11 +104,7 @@ export async function syncProductPricing(token: string, tenantId: string) {
 
   console.log(`[SyncWorker] Pushing ${pending.length} product pricing rows to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`
-    UPDATE product_pricing
-    SET sync_status = 'SYNCED', tenant_id = ?
-    WHERE (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
-  `);
+  const updateStmt = catalogSyncSql.updateProductPricing3(db);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -141,12 +138,12 @@ export async function syncProductPricing(token: string, tenantId: string) {
 // ── Product Sync (Edge → Cloud) ──────────────────────────────────────────────
 export async function syncProducts(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectProducts(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} products to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ?`);
+  const updateStmt = catalogSyncSql.updateProducts(db);
 
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -185,26 +182,7 @@ export async function syncProducts(token: string, tenantId: string) {
 export async function pullGrades(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const upsert = db.prepare(`
-    INSERT INTO product_grades (
-      grade_id, tenant_id, category, grade_name, rate, purchase_price, offer_price, is_deleted,
-      sync_status, created_at, updated_at
-    ) VALUES (
-      @grade_id, @tenant_id, @category, @grade_name, @rate, @purchase_price, @offer_price, @is_deleted,
-      'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(grade_id) DO UPDATE SET
-      category = excluded.category,
-      grade_name = excluded.grade_name,
-      rate = excluded.rate,
-      purchase_price = excluded.purchase_price,
-      offer_price = excluded.offer_price,
-      is_deleted = excluded.is_deleted,
-      created_at = COALESCE(product_grades.created_at, excluded.created_at),
-      updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE product_grades.sync_status != 'PENDING'
-  `);
+  const upsert = catalogSyncSql.insertProductGrades(db);
 
   const result = await pullPaginated({
     token,
@@ -251,37 +229,13 @@ export async function pullGrades(token: string, tenantId: string): Promise<boole
 export async function pullPricingTiers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const findByName = db.prepare(`
-    SELECT pricing_tier_id FROM pricing_tiers
-    WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-      AND LOWER(TRIM(name)) = LOWER(?)
-    LIMIT 1
-  `);
-  const updateTierId = db.prepare(`UPDATE pricing_tiers SET pricing_tier_id = ?, tenant_id = ? WHERE pricing_tier_id = ?`);
-  const remapProductPricing = db.prepare(`UPDATE product_pricing SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
-  const remapParties = db.prepare(`UPDATE parties SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
-  const remapCustomers = db.prepare(`UPDATE customers SET pricing_tier_id = ? WHERE pricing_tier_id = ?`);
+  const findByName = catalogSyncSql.selectPricingTiers2(db);
+  const updateTierId = catalogSyncSql.updatePricingTiers(db);
+  const remapProductPricing = catalogSyncSql.updateProductPricing(db);
+  const remapParties = catalogSyncSql.updateParties(db);
+  const remapCustomers = catalogSyncSql.updateCustomers(db);
 
-  const upsert = db.prepare(`
-    INSERT INTO pricing_tiers (
-      pricing_tier_id, tenant_id, name, is_active, sort_order, is_default, is_deleted,
-      sync_status, created_at, updated_at
-    ) VALUES (
-      @pricing_tier_id, @tenant_id, @name, @is_active, @sort_order, @is_default, @is_deleted,
-      'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(pricing_tier_id) DO UPDATE SET
-      tenant_id = excluded.tenant_id,
-      name = excluded.name,
-      is_active = excluded.is_active,
-      sort_order = excluded.sort_order,
-      is_default = excluded.is_default,
-      is_deleted = excluded.is_deleted,
-      created_at = COALESCE(pricing_tiers.created_at, excluded.created_at),
-      updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE pricing_tiers.sync_status != 'PENDING' OR excluded.updated_at >= pricing_tiers.updated_at
-  `);
+  const upsert = catalogSyncSql.insertPricingTiers(db);
 
   const result = await pullPaginated({
     token,
@@ -299,19 +253,14 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
             if (existing && existing.pricing_tier_id !== t.pricing_tier_id) {
               try {
                 // Remove duplicates in product_pricing to avoid UNIQUE(product_id, pricing_tier_id) error
-                db.prepare(`
-                  DELETE FROM product_pricing 
-                  WHERE pricing_tier_id = ? AND product_id IN (
-                    SELECT product_id FROM product_pricing WHERE pricing_tier_id = ?
-                  )
-                `).run(existing.pricing_tier_id, t.pricing_tier_id);
+                catalogSyncSql.deleteProductPricing(db).run(existing.pricing_tier_id, t.pricing_tier_id);
                 remapProductPricing.run(t.pricing_tier_id, existing.pricing_tier_id);
                 remapParties.run(t.pricing_tier_id, existing.pricing_tier_id);
                 remapCustomers.run(t.pricing_tier_id, existing.pricing_tier_id);
 
-                const targetExisting = db.prepare('SELECT pricing_tier_id FROM pricing_tiers WHERE pricing_tier_id = ?').get(t.pricing_tier_id);
+                const targetExisting = catalogSyncSql.selectPricingTiers3(db).get(t.pricing_tier_id);
                 if (targetExisting) {
-                  db.prepare('DELETE FROM pricing_tiers WHERE pricing_tier_id = ?').run(existing.pricing_tier_id);
+                  catalogSyncSql.deletePricingTiers(db).run(existing.pricing_tier_id);
                 } else {
                   updateTierId.run(t.pricing_tier_id, tenantId, existing.pricing_tier_id);
                 }
@@ -353,26 +302,9 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
 export async function pullProductPricing(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const findConflictingId = db.prepare(`SELECT product_id, pricing_tier_id FROM product_pricing WHERE product_pricing_id = ?`);
+  const findConflictingId = catalogSyncSql.selectProductPricing2(db);
 
-  const upsert = db.prepare(`
-    INSERT INTO product_pricing (
-      product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted,
-      sync_status, created_at, updated_at
-    ) VALUES (
-      @product_pricing_id, @tenant_id, @product_id, @pricing_tier_id, @price, @is_deleted,
-      'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET
-      product_pricing_id = excluded.product_pricing_id,
-      tenant_id = excluded.tenant_id,
-      price = excluded.price,
-      is_deleted = excluded.is_deleted,
-      created_at = COALESCE(product_pricing.created_at, excluded.created_at),
-      updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE product_pricing.sync_status != 'PENDING'
-  `);
+  const upsert = catalogSyncSql.insertProductPricing(db);
 
   const result = await pullPaginated({
     token,
@@ -407,13 +339,7 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
         }
       });
       tx(rows);
-      const reconcileStmt = db.prepare(`
-        UPDATE product_pricing 
-        SET sync_status = 'SYNCED' 
-        WHERE sync_status = 'PENDING' 
-          AND (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
-          AND (updated_at <= ? OR updated_at IS NULL)
-      `);
+      const reconcileStmt = catalogSyncSql.updateProductPricing5(db);
       let reconciled = 0;
       for (const r of rows) {
         try {
@@ -437,53 +363,7 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
 export async function pullProducts(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const upsert = db.prepare(`
-    INSERT INTO products (
-      product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
-      purchase_price, base_price, is_gst_applicable, tax_rate_percent,
-      uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
-      discount_percent, discount_flat, offer_price,
-      billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
-      is_service_item, print_status, sync_status, created_at, updated_at
-    ) VALUES (
-      @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
-      @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
-      @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
-      @discount_percent, @discount_flat, @offer_price,
-      @billing_type, @grade_id, @pricing_mode, @average_weight_per_piece, @weight_override_allowed,
-      @is_service_item, @print_status, 'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(product_id) DO UPDATE SET
-      name = excluded.name,
-      sku_barcode = excluded.sku_barcode,
-      item_code = excluded.item_code,
-      category = excluded.category,
-      hsn_sac_code = excluded.hsn_sac_code,
-      purchase_price = excluded.purchase_price,
-      base_price = excluded.base_price,
-      is_gst_applicable = excluded.is_gst_applicable,
-      tax_rate_percent = excluded.tax_rate_percent,
-      uom = excluded.uom,
-      brand_manufacturer = excluded.brand_manufacturer,
-      current_stock = excluded.current_stock,
-      reorder_level = excluded.reorder_level,
-      is_deleted = excluded.is_deleted,
-      domain_attributes = excluded.domain_attributes,
-      discount_percent = excluded.discount_percent,
-      discount_flat = excluded.discount_flat,
-      offer_price = excluded.offer_price,
-      billing_type = excluded.billing_type,
-      grade_id = excluded.grade_id,
-      pricing_mode = excluded.pricing_mode,
-      average_weight_per_piece = excluded.average_weight_per_piece,
-      weight_override_allowed = excluded.weight_override_allowed,
-      is_service_item = excluded.is_service_item,
-      print_status = COALESCE(excluded.print_status, products.print_status),
-      created_at = COALESCE(products.created_at, excluded.created_at),
-      updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE products.sync_status != 'PENDING'
-  `);
+  const upsert = catalogSyncSql.insertProducts(db);
 
   const result = await pullPaginated({
     token,
@@ -564,13 +444,13 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
 // ── Combo Offers Sync (Edge → Cloud) ──────────────────────────────────────────
 export async function syncComboOffers(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM combo_offers WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectComboOffers(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} combo offers to cloud in batches of ${BATCH_SIZE}...`);
 
-  const getItemsStmt = db.prepare(`SELECT product_id, quantity FROM combo_items WHERE combo_id = ?`);
-  const updateStmt = db.prepare(`UPDATE combo_offers SET sync_status = 'SYNCED' WHERE combo_id = ? AND tenant_id = ?`);
+  const getItemsStmt = catalogSyncSql.selectComboItems(db);
+  const updateStmt = catalogSyncSql.updateComboOffers(db);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -605,32 +485,10 @@ export async function syncComboOffers(token: string, tenantId: string) {
 export async function pullComboOffers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const upsertCombo = db.prepare(`
-    INSERT INTO combo_offers (
-      combo_id, tenant_id, name, sku_barcode, combo_price,
-      is_active, is_deleted, description, sync_status, created_at, updated_at
-    ) VALUES (
-      @combo_id, @tenant_id, @name, @sku_barcode, @combo_price,
-      @is_active, @is_deleted, @description, 'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(combo_id) DO UPDATE SET
-      name = excluded.name,
-      sku_barcode = excluded.sku_barcode,
-      combo_price = excluded.combo_price,
-      is_active = excluded.is_active,
-      is_deleted = excluded.is_deleted,
-      description = excluded.description,
-      created_at = COALESCE(combo_offers.created_at, excluded.created_at),
-      updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE combo_offers.sync_status != 'PENDING'
-  `);
+  const upsertCombo = catalogSyncSql.insertComboOffers(db);
 
-  const deleteItems = db.prepare(`DELETE FROM combo_items WHERE combo_id = ?`);
-  const insertItem = db.prepare(`
-    INSERT INTO combo_items (combo_item_id, combo_id, tenant_id, product_id, quantity, created_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `);
+  const deleteItems = catalogSyncSql.deleteComboItems(db);
+  const insertItem = catalogSyncSql.insertComboItems(db);
 
   const result = await pullPaginated({
     token,

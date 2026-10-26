@@ -13,6 +13,7 @@ import { pullPurchaseBills, pullReturns, pullScrapCategories, pullScrapTransacti
 import { PULL_CONCURRENCY, getAuthConfig, toSqliteDate } from './syncConfig.js';
 import { getTotalPendingRecords, notifyCycleComplete, notifyOnlineStatus, notifyPercent, notifyProgress, notifyRenderer } from './syncProgress.js';
 import { clearAuthAndNotify, cursorKey, fetchWithFallback, getMeta, getSyncEndpoints, replaySince, setMeta } from './syncTransport.js';
+import * as syncCycleSql from '../db/statements/sync/syncCycle.js';
 
 /** One sync cycle: cloud status check, lightweight pending-bill pull, unified delta pull and the full push / pull sequence. */
 export async function checkCloudStatus(token: string, tenantId: string, sinceTimestamp: string | null): Promise<{ success: boolean; hasChanges: boolean; maxUpdatedAt?: string | null }> {
@@ -63,19 +64,7 @@ export async function pullLightweightPendingBills(token: string, tenantId: strin
     let lastTs = cursorTs;
     let lastId = cursorId;
 
-    const upsertLightweightInv = db.prepare(`
-      INSERT INTO invoices (
-        invoice_id, tenant_id, invoice_number, customer_name, grand_total, payment_method, user_id, sync_status, created_at, updated_at
-      ) VALUES (
-        @invoice_id, @tenant_id, @invoice_number, @customer_name, @grand_total, @payment_method, @user_id, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(invoice_id) DO UPDATE SET
-        customer_name = EXCLUDED.customer_name,
-        grand_total = EXCLUDED.grand_total,
-        payment_method = EXCLUDED.payment_method,
-        updated_at = EXCLUDED.updated_at
-      WHERE invoices.sync_status != 'PENDING'
-    `);
+    const upsertLightweightInv = syncCycleSql.insertInvoices(db);
 
     const tx = db.transaction((bills: any[]) => {
       for (const b of bills) {
@@ -270,7 +259,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       const healingKey = `utc_cursor_fix_v7:${tenant_id}`;
       if (!getMeta(healingKey)) {
         try {
-          db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`).run(`pull_cursor:${tenant_id}:%`);
+          syncCycleSql.deleteSyncMeta(db).run(`pull_cursor:${tenant_id}:%`);
           setMeta(healingKey, 'true');
           console.log('[SyncWorker] One-time reset of all pull cursors applied to migrate to ISO UTC cursors.');
         } catch (e: any) {
@@ -282,8 +271,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       const partyHealingKey = `party_type_cursor_heal_v2:${tenant_id}`;
       if (!getMeta(partyHealingKey)) {
         try {
-          db.prepare(`DELETE FROM sync_meta WHERE key = ?`).run(`pull_cursor:${tenant_id}:parties`);
-          db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND tenant_id = ?`).run(tenant_id);
+          syncCycleSql.deleteSyncMeta2(db).run(`pull_cursor:${tenant_id}:parties`);
+          syncCycleSql.updateParties(db).run(tenant_id);
           setMeta(partyHealingKey, 'true');
           console.log('[SyncWorker] One-time reset of parties cursor applied to re-sync all latest party types.');
         } catch (e: any) {

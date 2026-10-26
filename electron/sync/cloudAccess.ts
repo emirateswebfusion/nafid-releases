@@ -4,6 +4,7 @@ import { syncState } from './syncState.js';
 import { getAuthConfig } from './syncConfig.js';
 import { getTotalPendingRecords } from './syncProgress.js';
 import { drainPendingCloudQueue } from './syncWorker.js';
+import * as cloudAccessSql from '../db/statements/sync/cloudAccess.js';
 
 /** Cloud access rules for this terminal: the super-admin cloud access config, schedule windows and the effective allowed state. */
 export interface CloudScheduleWindow {
@@ -33,7 +34,7 @@ export function getCloudAccessConfig(tenantId?: string): CloudAccessConfig {
   try {
     const db = getDb();
     const tid = tenantId || getAuthConfig()?.tenant_id || 'global';
-    const row = db.prepare(`SELECT value FROM settings WHERE key = 'cloud_access_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tid) as { value: string } | undefined;
+    const row = cloudAccessSql.selectSettings(db).get(tid) as { value: string } | undefined;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       return {
@@ -64,11 +65,7 @@ export function updateCloudAccessConfig(configUpdate: Partial<CloudAccessConfig>
   };
 
   try {
-    db.prepare(`
-      INSERT INTO settings (tenant_id, key, value, updated_at)
-      VALUES (?, 'cloud_access_config', ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
-    `).run(tid, JSON.stringify(updated));
+    cloudAccessSql.insertSettings(db).run(tid, JSON.stringify(updated));
     console.log(`[SyncWorker] Updated cloud_access_config for tenant ${tid}:`, updated);
   } catch (err: any) {
     console.error('[SyncWorker] Error updating cloud_access_config:', err.message);

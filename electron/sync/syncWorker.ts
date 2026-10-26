@@ -11,6 +11,7 @@ import { getAuthConfig, getSyncIntervalMs } from './syncConfig.js';
 import { pullLightweightPendingBills, runSyncCycle } from './syncCycle.js';
 import { getTotalPendingRecords, notifyRenderer } from './syncProgress.js';
 import { checkSyncConnectivity, clearAuthAndNotify, cursorKey, getSyncEndpoints, tableContentHashes } from './syncTransport.js';
+import * as syncWorkerSql from '../db/statements/sync/syncWorker.js';
 
 export function setSyncActive(active: boolean) {
   syncState.isSyncActive = active;
@@ -217,7 +218,7 @@ export function initSyncWorker() {
   }
   try {
     const db = getDb();
-    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' LIMIT 1`).get() as { value: string } | undefined;
+    const row = syncWorkerSql.selectSettings(db).get() as { value: string } | undefined;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'PRIMARY') {
@@ -401,7 +402,7 @@ export async function runInitialSync(sender?: WebContents) {
   syncState.isSyncActive = true;
   if (config?.tenant_id) {
     try {
-      getDb().prepare(`DELETE FROM sync_meta WHERE key = ?`).run(cursorKey(config.tenant_id, 'cash_drawer'));
+      syncWorkerSql.deleteSyncMeta2(getDb()).run(cursorKey(config.tenant_id, 'cash_drawer'));
     } catch {}
   }
   triggerUrgentInvoiceSync().catch(() => {});
@@ -416,7 +417,7 @@ export async function forceResyncInvoices(sender?: WebContents) {
   const config = getAuthConfig();
   if (config?.tenant_id) {
     const db = getDb();
-    db.prepare(`DELETE FROM sync_meta WHERE key IN (?, ?)`).run(
+    syncWorkerSql.deleteSyncMeta(db).run(
       cursorKey(config.tenant_id, 'invoices'),
       cursorKey(config.tenant_id, 'returns')
     );

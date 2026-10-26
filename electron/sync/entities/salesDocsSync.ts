@@ -2,18 +2,19 @@ import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
 import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import * as salesDocsSyncSql from '../../db/statements/sync/salesDocsSync.js';
 
 /** Sales documents sync: invoices, quotations and warranties (push and pull). */
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 export async function syncInvoices(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`).all(tenantId) as any[];
+  const pending = salesDocsSyncSql.selectInvoices(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} invoices to cloud in batches of ${BATCH_SIZE}...`);
 
-  const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
-  const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
+  const getItems = salesDocsSyncSql.selectInvoiceItems(db);
+  const updateStmt = salesDocsSyncSql.updateInvoices(db);
 
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -78,119 +79,16 @@ export async function syncInvoices(token: string, tenantId: string) {
 export async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const upsertInv = db.prepare(`
-    INSERT INTO invoices (
-      invoice_id, tenant_id, invoice_number, invoice_type,
-      customer_name, customer_phone, customer_gstin, customer_state, customer_address,
-      subtotal, tax_total,
-      discount_total, discount_type, discount_value, grand_total, payment_method, split_details,
-      received_amount, actual_refund_paid, balance_amount, user_id, sync_status, created_at,
-      scrap_deduction, scrap_invoice_number,
-      return_deduction, return_invoice_number,
-      customer_id, points_earned, points_redeemed, points_redeemed_discount,
-      previous_points_balance, remaining_points_balance,
-      converted_from_invoice_id, converted_from_invoice_number,
-      converted_to_invoice_id, converted_to_invoice_number,
-      is_deleted,
-      cgst_total, sgst_total, igst_total, supply_type,
-      notes, description
-    ) VALUES (
-      @invoice_id, @tenant_id, @invoice_number, @invoice_type,
-      @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
-      @subtotal, @tax_total,
-      @discount_total, @discount_type, @discount_value, @grand_total, @payment_method, @split_details,
-      @received_amount, @actual_refund_paid, @balance_amount, @user_id, 'SYNCED', @created_at,
-      @scrap_deduction, @scrap_invoice_number,
-      @return_deduction, @return_invoice_number,
-      @customer_id, @points_earned, @points_redeemed, @points_redeemed_discount,
-      @previous_points_balance, @remaining_points_balance,
-      @converted_from_invoice_id, @converted_from_invoice_number,
-      @converted_to_invoice_id, @converted_to_invoice_number,
-      @is_deleted,
-      @cgst_total, @sgst_total, @igst_total, @supply_type,
-      @notes, @description
-    )
-    ON CONFLICT(invoice_id) DO UPDATE SET
-      customer_name = EXCLUDED.customer_name,
-      customer_phone = EXCLUDED.customer_phone,
-      customer_gstin = EXCLUDED.customer_gstin,
-      customer_state = EXCLUDED.customer_state,
-      customer_address = EXCLUDED.customer_address,
-      subtotal = EXCLUDED.subtotal,
-      tax_total = EXCLUDED.tax_total,
-      discount_total = EXCLUDED.discount_total,
-      discount_type = EXCLUDED.discount_type,
-      discount_value = EXCLUDED.discount_value,
-      grand_total = EXCLUDED.grand_total,
-      payment_method = EXCLUDED.payment_method,
-      split_details = EXCLUDED.split_details,
-      received_amount = EXCLUDED.received_amount,
-      actual_refund_paid = EXCLUDED.actual_refund_paid,
-      balance_amount = EXCLUDED.balance_amount,
-      invoice_type = EXCLUDED.invoice_type,
-      user_id = EXCLUDED.user_id,
-      scrap_deduction = EXCLUDED.scrap_deduction,
-      scrap_invoice_number = EXCLUDED.scrap_invoice_number,
-      return_deduction = EXCLUDED.return_deduction,
-      return_invoice_number = EXCLUDED.return_invoice_number,
-      customer_id = EXCLUDED.customer_id,
-      points_earned = EXCLUDED.points_earned,
-      points_redeemed = EXCLUDED.points_redeemed,
-      points_redeemed_discount = EXCLUDED.points_redeemed_discount,
-      previous_points_balance = EXCLUDED.previous_points_balance,
-      remaining_points_balance = EXCLUDED.remaining_points_balance,
-      converted_from_invoice_id = EXCLUDED.converted_from_invoice_id,
-      converted_from_invoice_number = EXCLUDED.converted_from_invoice_number,
-      converted_to_invoice_id = EXCLUDED.converted_to_invoice_id,
-      converted_to_invoice_number = EXCLUDED.converted_to_invoice_number,
-      is_deleted = EXCLUDED.is_deleted,
-      cgst_total = EXCLUDED.cgst_total,
-      sgst_total = EXCLUDED.sgst_total,
-      igst_total = EXCLUDED.igst_total,
-      supply_type = EXCLUDED.supply_type,
-      notes = EXCLUDED.notes,
-      description = EXCLUDED.description,
-      created_at = EXCLUDED.created_at,
-      updated_at = EXCLUDED.updated_at,
-      sync_status = 'SYNCED'
-  `);
+  const upsertInv = salesDocsSyncSql.insertInvoices(db);
 
-  const upsertItem = db.prepare(`
-    INSERT INTO invoice_items (
-      item_id, invoice_id, tenant_id, product_id,
-      name, quantity, unit_price, tax_amount, total, qty_from_paper_stock, pieces_sold, billing_type, uom,
-      cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type
-    ) VALUES (
-      @item_id, @invoice_id, @tenant_id, @product_id,
-      @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock, @pieces_sold, @billing_type, @uom,
-      @cgst_rate, @sgst_rate, @igst_rate, @cgst_amount, @sgst_amount, @igst_amount, @hsn_sac_code, @supply_type
-    )
-    ON CONFLICT(item_id) DO UPDATE SET
-      name = excluded.name,
-      quantity = excluded.quantity,
-      unit_price = excluded.unit_price,
-      tax_amount = excluded.tax_amount,
-      total = excluded.total,
-      qty_from_paper_stock = excluded.qty_from_paper_stock,
-      pieces_sold = COALESCE(excluded.pieces_sold, invoice_items.pieces_sold),
-      billing_type = COALESCE(excluded.billing_type, invoice_items.billing_type),
-      uom = COALESCE(excluded.uom, invoice_items.uom),
-      cgst_rate = excluded.cgst_rate,
-      sgst_rate = excluded.sgst_rate,
-      igst_rate = excluded.igst_rate,
-      cgst_amount = excluded.cgst_amount,
-      sgst_amount = excluded.sgst_amount,
-      igst_amount = excluded.igst_amount,
-      hsn_sac_code = excluded.hsn_sac_code,
-      supply_type = excluded.supply_type
-  `);
+  const upsertItem = salesDocsSyncSql.insertInvoiceItems(db);
 
   // Items are replaced per invoice (not just upserted) so items removed from an
   // edited bill are deleted locally too — otherwise stale lines come back and
   // reappear on reprints. A locally PENDING edit that differs from the cloud is
   // never clobbered: its items are left untouched until the edit syncs.
-  const deleteItems = db.prepare('DELETE FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
-  const localInvCheck = db.prepare('SELECT sync_status, updated_at, is_deleted FROM invoices WHERE invoice_id = ? AND tenant_id = ?');
+  const deleteItems = salesDocsSyncSql.deleteInvoiceItems(db);
+  const localInvCheck = salesDocsSyncSql.selectInvoices2(db);
 
   const result = await pullPaginated({
     token,
@@ -224,21 +122,11 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
           if (!resolvedCustId && (currentInv.customer_phone || currentInv.customer_name)) {
             const custCleanDigits = (currentInv.customer_phone || '').replace(/\D/g, '');
             if (custCleanDigits.length >= 7) {
-              const matchedCust = db.prepare(`
-                SELECT customer_id FROM customers 
-                WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-                  AND (phone = ? OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?)
-                LIMIT 1
-              `).get(currentInv.tenant_id, currentInv.customer_phone, `%${custCleanDigits.slice(-10)}`) as any;
+              const matchedCust = salesDocsSyncSql.selectCustomers(db).get(currentInv.tenant_id, currentInv.customer_phone, `%${custCleanDigits.slice(-10)}`) as any;
               if (matchedCust) resolvedCustId = matchedCust.customer_id;
             }
             if (!resolvedCustId && currentInv.customer_name) {
-              const matchedCust = db.prepare(`
-                SELECT customer_id FROM customers 
-                WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-                  AND LOWER(REPLACE(TRIM(name), '  ', ' ')) = LOWER(REPLACE(TRIM(?), '  ', ' '))
-                LIMIT 1
-              `).get(currentInv.tenant_id, currentInv.customer_name) as any;
+              const matchedCust = salesDocsSyncSql.selectCustomers2(db).get(currentInv.tenant_id, currentInv.customer_name) as any;
               if (matchedCust) resolvedCustId = matchedCust.customer_id;
             }
           }
@@ -299,7 +187,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
                 if (!isConversionCopy) {
                   for (const item of currentInv.items) {
-                    db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?').run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
+                    salesDocsSyncSql.updateProducts(db).run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
                   }
                 }
               }
@@ -309,7 +197,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
                 if (!isConversionCopy) {
                   for (const item of currentInv.items) {
-                    db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?').run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
+                    salesDocsSyncSql.updateProducts2(db).run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
                   }
                 }
               }
@@ -317,23 +205,13 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
               // If this invoice is soft-deleted, ensure any local party ledger entries are also soft-deleted
               if (isDeletedPull && currentInv.invoice_number) {
                 const invNum = String(currentInv.invoice_number).trim();
-                db.prepare(`
-                  UPDATE party_ledger
-                  SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-                  WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
-                    AND (is_deleted IS NULL OR is_deleted = 0)
-                `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
+                salesDocsSyncSql.updatePartyLedger(db).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
               }
 
               // If this invoice was restored, restore any corresponding party ledger entries
               if (!isDeletedPull && prior && prior.is_deleted === 1 && currentInv.invoice_number) {
                 const invNum = String(currentInv.invoice_number).trim();
-                db.prepare(`
-                  UPDATE party_ledger
-                  SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-                  WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
-                    AND is_deleted = 1
-                `).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
+                salesDocsSyncSql.updatePartyLedger2(db).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
               }
 
               success = true;
@@ -354,7 +232,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
             const existingPiecesSold: Record<string, number | null> = {};
             const existingBillingType: Record<string, string | null> = {};
             const existingUom: Record<string, string | null> = {};
-            const existingRows = db.prepare('SELECT item_id, pieces_sold, billing_type, uom FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?').all(currentInv.invoice_id, currentInv.tenant_id) as any[];
+            const existingRows = salesDocsSyncSql.selectInvoiceItems2(db).all(currentInv.invoice_id, currentInv.tenant_id) as any[];
             for (const row of existingRows) {
               existingPiecesSold[row.item_id] = row.pieces_sold != null ? Number(row.pieces_sold) : null;
               existingBillingType[row.item_id] = row.billing_type != null ? row.billing_type : null;
@@ -423,14 +301,14 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
 // ── Quotations Sync (Edge → Cloud) ───────────────────────────────────────────────
 export async function syncQuotations(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM quotations WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)`).all(tenantId) as any[];
+  const pending = salesDocsSyncSql.selectQuotations(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} quotations to cloud in batches of ${BATCH_SIZE}...`);
 
-  const getItems = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`);
-  const updateStmt = db.prepare(`UPDATE quotations SET sync_status = 'SYNCED', tenant_id = ? WHERE quotation_id = ?`);
-  const updateItemsStmt = db.prepare(`UPDATE quotation_items SET sync_status = 'SYNCED', tenant_id = ? WHERE quotation_id = ?`);
+  const getItems = salesDocsSyncSql.selectQuotationItems(db);
+  const updateStmt = salesDocsSyncSql.updateQuotations(db);
+  const updateItemsStmt = salesDocsSyncSql.updateQuotationItems(db);
 
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -478,48 +356,11 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
   const db = getDb();
   let hasContentChanged = false;
 
-  const upsertQtn = db.prepare(`
-    INSERT INTO quotations (
-      quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address,
-      terms_conditions, subtotal, tax_total, grand_total, status, converted_to_invoice, invoice_id,
-      sync_status, created_at, updated_at
-    ) VALUES (
-      @quotation_id, @tenant_id, @quotation_number, @customer_name, @customer_phone, @customer_address,
-      @terms_conditions, @subtotal, @tax_total, @grand_total, @status, @converted_to_invoice, @invoice_id,
-      'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(quotation_id) DO UPDATE SET
-      customer_name = EXCLUDED.customer_name,
-      customer_phone = EXCLUDED.customer_phone,
-      customer_address = EXCLUDED.customer_address,
-      terms_conditions = EXCLUDED.terms_conditions,
-      subtotal = EXCLUDED.subtotal,
-      tax_total = EXCLUDED.tax_total,
-      grand_total = EXCLUDED.grand_total,
-      status = EXCLUDED.status,
-      converted_to_invoice = EXCLUDED.converted_to_invoice,
-      invoice_id = EXCLUDED.invoice_id,
-      updated_at = EXCLUDED.updated_at,
-      sync_status = 'SYNCED'
-    WHERE quotations.sync_status != 'PENDING'
-  `);
+  const upsertQtn = salesDocsSyncSql.insertQuotations(db);
 
-  const upsertItem = db.prepare(`
-    INSERT INTO quotation_items (
-      item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status, created_at
-    ) VALUES (
-      @item_id, @quotation_id, @tenant_id, @product_id, @name, @quantity, @weight, @rate, @amount, 'SYNCED', @created_at
-    )
-    ON CONFLICT(item_id) DO UPDATE SET
-      name = EXCLUDED.name,
-      quantity = EXCLUDED.quantity,
-      weight = EXCLUDED.weight,
-      rate = EXCLUDED.rate,
-      amount = EXCLUDED.amount,
-      sync_status = 'SYNCED'
-  `);
+  const upsertItem = salesDocsSyncSql.insertQuotationItems(db);
 
-  const deleteItems = db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?');
+  const deleteItems = salesDocsSyncSql.deleteQuotationItems(db);
 
   const result = await pullPaginated({
     token,
@@ -533,7 +374,7 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
         for (const q of quotations) {
           try {
             if (q.status === 'DELETED' || q.is_deleted) {
-              db.prepare("UPDATE quotations SET status = 'DELETED', sync_status = 'SYNCED' WHERE quotation_id = ?").run(q.quotation_id);
+              salesDocsSyncSql.updateQuotations2(db).run(q.quotation_id);
               deleteItems.run(q.quotation_id);
               continue;
             }
@@ -604,12 +445,12 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
 // ── Warranties Sync (Edge → Cloud) ──────────────────────────────────────────
 export async function syncWarranties(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM warranties WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)`).all(tenantId) as any[];
+  const pending = salesDocsSyncSql.selectWarranties(db).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} warranties to cloud in batches of ${BATCH_SIZE}...`);
 
-  const updateStmt = db.prepare(`UPDATE warranties SET sync_status = 'SYNCED', tenant_id = ? WHERE warranty_id = ?`);
+  const updateStmt = salesDocsSyncSql.updateWarranties(db);
 
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -647,31 +488,7 @@ export async function pullWarranties(token: string, tenantId: string): Promise<b
   const db = getDb();
   let hasContentChanged = false;
 
-  const upsertWarranty = db.prepare(`
-    INSERT INTO warranties (
-      warranty_id, tenant_id, invoice_id, invoice_item_id, bill_number, brand,
-      customer_name, customer_phone, product_name, product_details, purchase_date,
-      warranty_period_days, expiry_date, notes, sync_status, created_at, updated_at
-    ) VALUES (
-      @warranty_id, @tenant_id, @invoice_id, @invoice_item_id, @bill_number, @brand,
-      @customer_name, @customer_phone, @product_name, @product_details, @purchase_date,
-      @warranty_period_days, @expiry_date, @notes, 'SYNCED', @created_at, @updated_at
-    )
-    ON CONFLICT(warranty_id) DO UPDATE SET
-      bill_number = EXCLUDED.bill_number,
-      brand = EXCLUDED.brand,
-      customer_name = EXCLUDED.customer_name,
-      customer_phone = EXCLUDED.customer_phone,
-      product_name = EXCLUDED.product_name,
-      product_details = EXCLUDED.product_details,
-      purchase_date = EXCLUDED.purchase_date,
-      warranty_period_days = EXCLUDED.warranty_period_days,
-      expiry_date = EXCLUDED.expiry_date,
-      notes = EXCLUDED.notes,
-      updated_at = EXCLUDED.updated_at,
-      sync_status = 'SYNCED'
-    WHERE warranties.sync_status != 'PENDING'
-  `);
+  const upsertWarranty = salesDocsSyncSql.insertWarranties(db);
 
   const result = await pullPaginated({
     token,

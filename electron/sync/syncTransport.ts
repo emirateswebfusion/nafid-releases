@@ -5,6 +5,7 @@ import { syncState } from './syncState.js';
 import { calculateEffectiveCloudAccess } from './cloudAccess.js';
 import { CURSOR_REPLAY_SECONDS, FETCH_TIMEOUT_MS, PULL_MAX_PAGES, PULL_MAX_RETRIES, PULL_PAGE_SIZE, getAuthConfig, toSqliteDate } from './syncConfig.js';
 import { notifyOnlineStatus } from './syncProgress.js';
+import * as syncTransportSql from '../db/statements/sync/syncTransport.js';
 
 /** Sync transport: LAN / cloud endpoints and connectivity, fetch with fallback, batched push with outbox reconciliation, pull cursors and paginated pulls. */
 export interface SyncEndpoints {
@@ -22,7 +23,7 @@ export function getSyncEndpoints(): SyncEndpoints {
     const db = getDb();
     const config = getAuthConfig();
     const tenantId = config?.tenant_id || 'global';
-    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
+    const row = syncTransportSql.selectSettings(db).get(tenantId) as { value: string } | undefined;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if (parsed.syncMode === 'LAN' && parsed.lanRole === 'PRIMARY') {
@@ -96,7 +97,7 @@ export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'L
     const db = getDb();
     const config = getAuthConfig();
     const tenantId = config?.tenant_id || 'global';
-    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
+    const row = syncTransportSql.selectSettings(db).get(tenantId) as { value: string } | undefined;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'PRIMARY') {
@@ -274,13 +275,9 @@ export function reconcilePending(
 
   let updateStmt: any;
   try {
-    updateStmt = db.prepare(
-      `UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ? AND (${tsColumn} = ? OR ${tsColumn} IS NULL)`
-    );
+    updateStmt = syncTransportSql.markSyncedIfUnchanged(db, table, idColumn, tsColumn);
   } catch {
-    updateStmt = db.prepare(
-      `UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ?`
-    );
+    updateStmt = syncTransportSql.markSynced(db, table, idColumn);
   }
 
   let count = 0;
@@ -291,7 +288,7 @@ export function reconcilePending(
       if (result.changes > 0) count++;
     } catch {
       try {
-        const fallbackStmt = db.prepare(`UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ?`);
+        const fallbackStmt = syncTransportSql.markSynced(db, table, idColumn);
         const result = fallbackStmt.run(row[idColumn]);
         if (result.changes > 0) count++;
       } catch {}
@@ -305,7 +302,7 @@ export const cursorKey = (tenantId: string, table: string) => `pull_cursor:${ten
 
 export function getMeta(key: string): string | null {
   try {
-    const row = getDb().prepare(`SELECT value FROM sync_meta WHERE key = ?`).get(key) as { value: string } | undefined;
+    const row = syncTransportSql.selectSyncMeta(getDb()).get(key) as { value: string } | undefined;
     return row?.value ?? null;
   } catch {
     return null;
@@ -314,10 +311,7 @@ export function getMeta(key: string): string | null {
 
 export function setMeta(key: string, value: string) {
   try {
-    getDb().prepare(
-      `INSERT INTO sync_meta (key, value) VALUES (?, ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
-    ).run(key, value);
+    syncTransportSql.insertSyncMeta(getDb()).run(key, value);
   } catch (err: any) {
     console.error('[SyncWorker] Failed to persist sync meta:', err.message);
   }

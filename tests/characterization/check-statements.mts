@@ -14,9 +14,11 @@ const db = getDb();
 const dir = path.join(tree, 'electron/db/statements');
 const fragment = (p: string) => /placeholder/i.test(p) ? '?' : /col$/i.test(p) ? (/deleted/i.test(p) ? ', deleted_at' : 'gst_balance')
   : /select|fields/i.test(p) ? '*' : /^t$|table/i.test(p) ? 'products' : '';
-const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'], sumPurchaseBillsForDate: ['total_amount'] };
+const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'], sumPurchaseBillsForDate: ['total_amount'],
+  markSyncedIfUnchanged: ['products', 'product_id', 'updated_at'], markSynced: ['products', 'product_id'], selectMaxTimestamp: ['updated_at', 'products'] };
 let ok = 0; const bad: string[] = [];
-for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'types.ts')) {
+const files = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(path.join(d, e.name)).map((x) => path.join(e.name, x)) : [e.name]);
+for (const f of files(dir).filter((f) => f.endsWith('.ts') && f !== 'types.ts')) {
   const src = fs.readFileSync(path.join(dir, f), 'utf8');
   const mod = await import(path.join(dir, f));
   for (const [name, fn] of Object.entries(mod)) {

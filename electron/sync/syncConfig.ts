@@ -4,6 +4,7 @@ import { app, safeStorage } from 'electron';
 import { getDb } from '../db/localDb.js';
 import { LAN_PLACEHOLDER_TOKEN } from './syncAuth.js';
 import { getTotalPendingRecords } from './syncProgress.js';
+import * as syncConfigSql from '../db/statements/sync/syncConfig.js';
 
 /** Sync worker configuration: batch / pull limits, date helpers, the stored cloud login (config, encrypted auth, offline session) and the sync interval. */
 export function localTimestamp(d: Date | string | number = new Date()): string {
@@ -86,11 +87,11 @@ export function readOfflineSessionSafe(): any {
 export function getTenantIdFromDb(): string | null {
   try {
     const db = getDb();
-    const row = db.prepare(`SELECT tenant_id FROM users WHERE tenant_id IS NOT NULL AND tenant_id != '' AND tenant_id != 'global' LIMIT 1`).get() as { tenant_id: string } | undefined;
+    const row = syncConfigSql.selectUsers(db).get() as { tenant_id: string } | undefined;
     if (row?.tenant_id) return row.tenant_id;
-    const invRow = db.prepare(`SELECT tenant_id FROM invoices WHERE tenant_id IS NOT NULL AND tenant_id != '' AND tenant_id != 'global' LIMIT 1`).get() as { tenant_id: string } | undefined;
+    const invRow = syncConfigSql.selectInvoices(db).get() as { tenant_id: string } | undefined;
     if (invRow?.tenant_id) return invRow.tenant_id;
-    const settRow = db.prepare(`SELECT tenant_id FROM settings WHERE tenant_id IS NOT NULL AND tenant_id != '' AND tenant_id != 'global' LIMIT 1`).get() as { tenant_id: string } | undefined;
+    const settRow = syncConfigSql.selectSettings(db).get() as { tenant_id: string } | undefined;
     if (settRow?.tenant_id) return settRow.tenant_id;
   } catch {}
   return null;
@@ -139,7 +140,7 @@ export function getSyncIntervalMs(): number {
     const db = getDb();
     const config = getAuthConfig();
     const tenantId = config?.tenant_id || 'global';
-    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
+    const row = syncConfigSql.selectSettings2(db).get(tenantId) as { value: string } | undefined;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if (parsed.syncFrequency === 'HIGH') return 15000;
