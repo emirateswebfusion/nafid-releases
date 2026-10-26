@@ -135,6 +135,11 @@ export function buildOutboxTriggerStatements(db: Db, tables: readonly string[]):
       ? `UPDATE OF ${updateColumns.map((column) => quoteIdentifier(column.name)).join(', ')}`
       : 'UPDATE';
     const guard = 'NOT EXISTS (SELECT 1 FROM sync_apply_guard)';
+    // `UPDATE OF` fires whenever a column is in the SET list, even with the same value (e.g. balance recalculations);
+    // record an op only when a business column really changed.
+    const changed = updateColumns.length > 0
+      ? `(${updateColumns.map((column) => `OLD.${quoteIdentifier(column.name)} IS NOT NEW.${quoteIdentifier(column.name)}`).join(' OR ')})`
+      : '1';
 
     statements.push(`DROP TRIGGER IF EXISTS ${insertName}`);
     statements.push(`CREATE TRIGGER ${insertName}
@@ -149,7 +154,7 @@ END`);
     statements.push(`DROP TRIGGER IF EXISTS ${updateName}`);
     statements.push(`CREATE TRIGGER ${updateName}
 AFTER ${updateOf} ON ${quotedTable}
-WHEN ${guard}
+WHEN ${guard} AND ${changed}
 BEGIN
   UPDATE ${quotedTable}
   SET "row_version" = OLD."row_version" + 1, "origin" = ${origin}
@@ -197,6 +202,16 @@ export function withSyncApplyGuard<T>(db: Db, fn: () => T): T {
 export function clearSyncApplyGuard(db: Db): void {
   const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_apply_guard'").get();
   if (exists) db.prepare('DELETE FROM sync_apply_guard').run();
+}
+
+/** Keeps sync_outbox bounded: sent ops older than 30 days go; on terminals that do not use the outbox engine (legacy
+ * sync pushes their rows) unsent ops older than 7 days go too. Run at startup. */
+export function pruneOutbox(db: Db): void {
+  const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_outbox'").get();
+  if (!exists) return;
+  db.prepare("DELETE FROM sync_outbox WHERE sent_at IS NOT NULL AND sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 days')").run();
+  const engine = db.prepare("SELECT value FROM settings WHERE key = 'sync_engine' AND value = 'outbox' LIMIT 1").get();
+  if (!engine) db.prepare("DELETE FROM sync_outbox WHERE sent_at IS NULL AND created_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days')").run();
 }
 
 export function countPendingOps(db: Db): number {
