@@ -12,7 +12,7 @@ and update every caller in the same change.
 | Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
 | Money formatting (₹, en-IN grouping, sign) | `src/utils/money.ts` (`formatCurrency`, `formatAmount`) | `tests/unit/money.test.ts` |
-| Document numbers: offsets, digit matching | `src/utils/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
+| Document numbers: offsets (including digit-only values with an empty prefix), digit matching | `src/utils/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
 | Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
 | Sales-history amounts and tax breakdown | `src/utils/salesHistoryAmount.ts`, `src/utils/salesHistoryTax.ts` | `tests/unit/salesHistory*.test.ts` |

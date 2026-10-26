@@ -54,11 +54,10 @@ describe('getNextOffsetInvoiceNumber', () => {
     expect(getNextOffsetInvoiceNumber('', ['INV-001'])).toBe('');
   });
 
-  // SUSPECT: regex /^(.*?[^\d])(\d+)$/ requires at least one non-digit prefix before the numeric digits.
-  // When baseNum is purely digits (e.g. "100"), regex fails and returns "100" without incrementing,
-  // even if "100" is in existingNums.
-  it('does not increment purely numeric invoice numbers lacking a prefix (current behavior)', () => {
-    expect(getNextOffsetInvoiceNumber('100', ['100', '101'])).toBe('100');
+  it('increments digit-only invoice numbers and preserves zero padding', () => {
+    expect(getNextOffsetInvoiceNumber('001', ['001', '002'])).toBe('003');
+    expect(getNextOffsetInvoiceNumber('42', ['42'])).toBe('43');
+    expect(getNextOffsetInvoiceNumber('001', ['INV-001'])).toBe('001');
   });
 });
 

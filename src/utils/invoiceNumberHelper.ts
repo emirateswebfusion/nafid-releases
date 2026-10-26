@@ -1,6 +1,6 @@
 export function getNextOffsetInvoiceNumber(baseNum: string, existingNums: (string | undefined | null)[]): string {
   if (!baseNum) return '';
-  const match = baseNum.match(/^(.*?[^\d])(\d+)$/);
+  const match = baseNum.match(/^(.*?)(\d+)$/);
   if (!match) return baseNum;
 
   const prefix = match[1];
@@ -12,7 +12,7 @@ export function getNextOffsetInvoiceNumber(baseNum: string, existingNums: (strin
     existingNums
       .map(n => {
         if (!n) return null;
-        const m = n.match(/^(.*?[^\d])(\d+)$/);
+        const m = n.match(/^(.*?)(\d+)$/);
         if (m && m[1] === prefix) {
           return parseInt(m[2], 10);
         }
