@@ -6,6 +6,8 @@ export type DisplayComboItem = Pick<ComboItemsRow, 'product_id' | 'quantity'> & 
 
 /** Fields recovered from catalog lookups, plus optional legacy display fallbacks. */
 export interface DisplayInvoiceItem extends Omit<InvoiceItemWithProduct, 'billing_type' | 'hsn_sac_code'> {
+  /** Legacy fallback absent from the item query. */
+  product_tax_rate_percent?: number | null;
   hsn_sac_code?: string | null;
   isCombo?: boolean;
   combo_items?: DisplayComboItem[];
@@ -22,6 +24,8 @@ export interface DisplayInvoiceItem extends Omit<InvoiceItemWithProduct, 'billin
 
 /** Legacy balance fallbacks are not selected by the current invoice query. */
 export interface DisplayInvoice extends Invoice {
+  /** Legacy fallback absent from the invoice query. */
+  party_id?: string;
   old_balance?: number | string | null;
   old_due?: number | string | null;
   customer_balance?: number | string | null;

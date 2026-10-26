@@ -16,7 +16,7 @@ export interface UseLinkedInvoiceViewContext {
  */
 export function useLinkedInvoiceView(ctx: UseLinkedInvoiceViewContext) {
   const { accountingView, handleSelectInvoice, invoices, setAccountingView, showToast } = ctx;
-  const handleViewLinkedInvoice = async (targetInvoiceId?: string, targetInvoiceNumber?: string) => {
+  const handleViewLinkedInvoice = async (targetInvoiceId?: string | null, targetInvoiceNumber?: string | null) => {
     if (!targetInvoiceId && !targetInvoiceNumber) {
       showToast('No linked bill details found', 'error');
       return;

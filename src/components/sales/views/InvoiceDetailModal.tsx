@@ -24,7 +24,7 @@ export interface InvoiceDetailModalProps {
   handleEditBill: () => Promise<void>;
   handleReprint: () => Promise<void>;
   handleSendWhatsAppInvoice: () => Promise<void>;
-  handleViewLinkedInvoice: (targetInvoiceId?: string, targetInvoiceNumber?: string) => Promise<void>;
+  handleViewLinkedInvoice: (targetInvoiceId?: string | null, targetInvoiceNumber?: string | null) => Promise<void>;
   isSendingWhatsApp: boolean;
   items: SalesInvoiceItemRow[];
   itemsLoading: boolean;

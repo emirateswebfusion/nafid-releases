@@ -14,7 +14,7 @@ export const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeo
   { value: 'SPLIT',         label: 'Split', icon: SplitSquareHorizontal},
 ];
 
-export function formatTime(d: string): string {
+export function formatTime(d: string | null): string {
   if (!d) return '';
   const tz = getStoreTimezone();
   return parseUTCDate(d).toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });

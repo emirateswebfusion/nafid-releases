@@ -314,7 +314,7 @@ export function SettlementHistoryView({
                           </div>
                           <div className="flex flex-col gap-0.5">
                             <span className="text-xs font-extrabold text-foreground leading-tight">{formattedDate}</span>
-                            {d.settled_count > 0 && (
+                            {(d.settled_count as number) > 0 && (
                               <span className="text-[9px] text-muted-foreground font-bold flex items-center gap-1">
                                 <Receipt className="w-2.5 h-2.5 text-muted-foreground/70" />
                                 {d.settled_count} bill{d.settled_count !== 1 ? 's' : ''}

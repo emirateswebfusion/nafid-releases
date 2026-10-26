@@ -252,7 +252,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       });
       return;
     }
-    setReopenConfirmDrawer(typeof targetDrawer === 'string' ? { drawer_id: targetDrawer } : targetDrawer);
+    setReopenConfirmDrawer(typeof targetDrawer === 'string' ? { drawer_id: targetDrawer } as unknown as CashDrawerRow : targetDrawer);
   };
 
   const initiateDeleteTransaction = (tx: CashTransactionRow) => {
@@ -440,7 +440,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const pageTitle = cashierPageTitle(featureFlags);
 
   // ── Date grouping (mirrors InventoryManager pattern) ─────────────────────
-  const formatSettlementDate = (dateStr?: string): string => {
+  const formatSettlementDate = (dateStr?: string | null): string => {
     if (!dateStr) return 'Unknown Date';
     const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return 'Unknown Date';
@@ -492,7 +492,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
           <button
             onClick={() => {
-              setClosingDate(yesterdayDrawer?.business_date);
+              setClosingDate(yesterdayDrawer?.business_date as string | null);
               setActualCash(yesterdayDrawer?.expected_closing || 0);
               setCloseResult(null);
               setShowDayClose(true);

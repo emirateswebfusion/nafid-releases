@@ -49,7 +49,7 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
       ]);
       const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
-      const invoiceType = selectedInvoice.invoice_type;
+      const invoiceType = selectedInvoice.invoice_type as string | undefined;
       const isB2B = Boolean(selectedInvoice.customer_gstin?.trim());
       const isGstOrB2B = invoiceType === 'GST' || isB2B;
       const isHalfA4 = printFmt.format === 'half-a4';
@@ -82,29 +82,29 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         shopWebsite: shopWebsiteVal || undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
-        invoiceNumber: selectedInvoice.invoice_number,
-        date: formatBillDateTime(selectedInvoice.created_at),
+        invoiceNumber: selectedInvoice.invoice_number as string,
+        date: formatBillDateTime(selectedInvoice.created_at as string),
         billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (selectedInvoice.biller_name || undefined) : undefined,
         items: items.map(item => ({
-          name: item.name,
+          name: item.name as string,
           quantity: Number(item.quantity) || 0,
           unit_price: item.unit_price,
           total: item.total,
           originalRate: item.originalRate,
           discountLabel: item.discountLabel,
           brand: item.brand_manufacturer || undefined,
-          billing_type: item.billing_type,
+          billing_type: item.billing_type as string | undefined,
           pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
-          unit: item.unit,
+          unit: item.unit as string | undefined,
         })),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
         cgst,
         sgst,
         igst,
-        discount: selectedInvoice.discount_total,
-        discountType: selectedInvoice.discount_type,
-        discountValue: selectedInvoice.discount_value,
+        discount: selectedInvoice.discount_total as number,
+        discountType: selectedInvoice.discount_type as 'FIXED' | 'PERCENTAGE' | undefined,
+        discountValue: selectedInvoice.discount_value as number | undefined,
         grandTotal: baseGrandTotal,
         scrapDeduction: scrapD > 0 ? scrapD : undefined,
         scrapInvoiceNumber: selectedInvoice.scrap_invoice_number || undefined,
@@ -112,7 +112,7 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         returnInvoiceNumber: selectedInvoice.return_invoice_number || undefined,
         invoiceType,
         receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
-        paymentMethod: selectedInvoice.payment_method,
+        paymentMethod: selectedInvoice.payment_method as string | undefined,
         balanceAmount: Number(selectedInvoice.balance_amount) || 0,
         customerName: selectedInvoice.customer_name || undefined,
         customerPhone: custPhone,
@@ -127,12 +127,12 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
 
       const waMessage = formatWhatsAppBillMessage({
         shopName: shopNameVal || useAuthStore.getState().shopName || 'Store',
-        invoiceNumber: selectedInvoice.invoice_number,
-        date: formatBillDateTime(selectedInvoice.created_at),
+        invoiceNumber: selectedInvoice.invoice_number as string,
+        date: formatBillDateTime(selectedInvoice.created_at as string),
         customerName: selectedInvoice.customer_name || undefined,
         customerPhone: custPhone,
         items: items.map(i => ({
-          name: i.name,
+          name: i.name as string,
           quantity: Number(i.quantity) || 0,
           unit_price: Number(i.unit_price) || 0,
           total: Number(i.total) || 0
@@ -140,7 +140,7 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         grandTotal: baseGrandTotal,
         receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
         balanceAmount: Number(selectedInvoice.balance_amount) || 0,
-        paymentMethod: selectedInvoice.payment_method,
+        paymentMethod: selectedInvoice.payment_method as string | undefined,
       });
 
       const res = await whatsappApi.sendInvoice({

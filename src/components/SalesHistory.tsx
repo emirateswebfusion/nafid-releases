@@ -101,7 +101,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [convertibleMap, setConvertibleMap] = useState<Record<string, boolean>>({});
   const [conversionOpen, setConversionOpen] = useState(false);
   const [converting, setConverting] = useState(false);
-  const [conversionResults, setConversionResults] = useState<{ invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[] | null>(null);
+  const [conversionResults, setConversionResults] = useState<{ invoice_id: string; old_number: string | null; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[] | null>(null);
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = useCallback((text: string, type: 'success' | 'error') => {
@@ -483,7 +483,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     let freshInvoice = selectedInvoice;
     if (isDesktopRuntime()) {
       try {
-        const fetched = await listInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
+        const fetched = await listInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id as string | undefined });
         if (Array.isArray(fetched) && fetched.length > 0) {
           const exact = fetched.find((i) => i.invoice_id === selectedInvoice.invoice_id);
           if (exact) freshInvoice = exact;

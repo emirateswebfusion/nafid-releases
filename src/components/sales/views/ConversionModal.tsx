@@ -14,13 +14,13 @@ export interface ConversionModalProps {
   conversionOpen: boolean;
   conversionPreview: { total_bos_amount?: number; total_taxable_amount?: number; total_tax_amount?: number; total_converted_amount?: number; has_real_gst?: boolean; has_paper?: boolean; has_skipped?: boolean; invoices?: { invoice_id: string; invoice_number: string; bos_grand_total: number; taxable_amount?: number; tax_amount?: number; converted_grand_total: number; points_discount?: number; scrap_deduction?: number; return_deduction?: number; deductions_total?: number; has_real_gst: boolean; has_paper: boolean; skipped_items: string[]; }[]; } | null;
   conversionPreviewLoading: boolean;
-  conversionResults: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[]; }[] | null;
+  conversionResults: { invoice_id: string; old_number: string | null; new_number: string; success: boolean; error?: string; skipped_items?: string[]; }[] | null;
   conversionTaxMode: "EXCLUSIVE" | "INCLUSIVE";
   converting: boolean;
   loadInvoices: (reset?: boolean) => Promise<void>;
   selectedBosInvoices: SalesInvoiceRow[];
   setConversionOpen: Dispatch<SetStateAction<boolean>>;
-  setConversionResults: Dispatch<SetStateAction<{ invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[]; }[] | null>>;
+  setConversionResults: Dispatch<SetStateAction<{ invoice_id: string; old_number: string | null; new_number: string; success: boolean; error?: string; skipped_items?: string[]; }[] | null>>;
   setConversionTaxMode: Dispatch<SetStateAction<"EXCLUSIVE" | "INCLUSIVE">>;
   setConverting: Dispatch<SetStateAction<boolean>>;
   setSelectedInvoiceIds: Dispatch<SetStateAction<Set<string>>>;

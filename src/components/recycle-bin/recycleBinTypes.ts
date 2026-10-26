@@ -34,8 +34,7 @@ export interface ConfirmState {
 }
 
 /** A deleted invoice's line item row as the invoice-items IPC returns it. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type InvoiceItemRow = any;
+export type InvoiceItemRow = Awaited<ReturnType<typeof import('../../data/invoices').invoicesApi.getInvoiceItems>>[number] & { rate?: number };
 
 export function timeAgo(dateStr: string | null): string {
   if (!dateStr) return 'unknown';

@@ -59,7 +59,7 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
     try {
       const res = await cashierApi.reopenDrawer({
         tenant_id: tenantId!,
-        drawer_id: targetId,
+        drawer_id: targetId as string,
         user_id: userId!,
         user_name: userName as string | undefined, // type-only: same value the screen passed
       });

@@ -116,7 +116,7 @@ export function CashierInvoiceModal({
                   const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
                   const printFmtRaw = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'print_format' });
                   const printFmt = parsePrintFormat(printFmtRaw);
-                  const invoiceType = selectedInvoice.invoice_type;
+                  const invoiceType = selectedInvoice.invoice_type as string | undefined;
                   const isB2B = Boolean(selectedInvoice.customer_gstin?.trim());
                   const isGstOrB2B = invoiceType === 'GST' || isB2B;
                   const isHalfA4 = printFmt.format === 'half-a4';
@@ -132,18 +132,18 @@ export function CashierInvoiceModal({
                     upiId: upi || undefined,
                     showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
                     showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-                    invoiceNumber: selectedInvoice.invoice_number,
-                    date: formatBillDateTime(selectedInvoice.created_at),
+                    invoiceNumber: selectedInvoice.invoice_number as string,
+                    date: formatBillDateTime(selectedInvoice.created_at as string),
                     billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (selectedInvoice.biller_name || undefined) : undefined,
                     items: invoiceItems.map(item => ({
-                      name: item.name,
+                      name: item.name as string,
                       quantity: Number(item.quantity) || 0,
                       unit_price: item.unit_price,
                       total: item.total,
                       originalRate: item.originalRate,
                       discountLabel: item.discountLabel,
                       brand: item.brand_manufacturer || undefined,
-                      billing_type: item.billing_type,
+                      billing_type: item.billing_type as string | undefined,
                       pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
                       pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
                       unit: item.unit || item.uom,
@@ -152,9 +152,9 @@ export function CashierInvoiceModal({
                     })),
                     subtotal: selectedInvoice.subtotal,
                     tax: selectedInvoice.tax_total,
-                    discount: selectedInvoice.discount_total,
-                    discountType: selectedInvoice.discount_type,
-                    discountValue: selectedInvoice.discount_value,
+                    discount: selectedInvoice.discount_total as number,
+                    discountType: selectedInvoice.discount_type as 'FIXED' | 'PERCENTAGE' | undefined,
+                    discountValue: selectedInvoice.discount_value as number | undefined,
                     grandTotal: selectedInvoice.grand_total,
                     isReprint: true,
                     invoiceType,

@@ -160,7 +160,7 @@ export function useConversionPreview(ctx: UseConversionPreviewContext) {
 
           previewInvoices.push({
             invoice_id: inv.invoice_id,
-            invoice_number: inv.invoice_number,
+            invoice_number: inv.invoice_number as string,
             bos_grand_total: Number(inv.grand_total) || 0,
             taxable_amount: taxable,
             tax_amount: adjTax,

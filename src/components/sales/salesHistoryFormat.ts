@@ -53,7 +53,7 @@ export function formatDate(dateStr: string) {
   }
 }
 
-export function formatGroupDate(dateStr?: string) {
+export function formatGroupDate(dateStr?: string | null) {
   if (!dateStr) return '-';
   try {
     const tz = getStoreTimezone();

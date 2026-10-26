@@ -560,7 +560,7 @@ export function SalesBillsView({
                 return (
                   <tr
                     key={`${row.invoiceId}-${row.item?.item_id || index}`}
-                    onClick={() => handleSelectInvoice(row.invoice)}
+                    onClick={() => handleSelectInvoice(row.invoice as SalesInvoiceRow)}
                     className="cursor-pointer transition-colors hover:bg-primary/5"
                   >
                     <td className="px-4 py-3">

@@ -1,23 +1,22 @@
-/**
- * Loose row types of the cashier settlement screen. The rows come from the cashier IPC queries with joined and legacy
- * fields that have no data types yet, so they stay untyped here, in one place, until the screen is typed.
- * Use these aliases instead of writing `any` in cashier code.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy invoice row (pending / selected / split / latest bill), typed later in one place
-export type CashierInvoiceRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy invoice item row, typed later in one place
-export type CashierInvoiceItemRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy cash drawer (day) row, also the settlement history entries, typed later in one place
-export type CashDrawerRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy cash drawer transaction row, typed later in one place
-export type CashTransactionRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy settlement row of a closed day, typed later in one place
-export type DaySettlementRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy result of a day closing, typed later in one place
-export type DayCloseResult = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy party row offered for a cash transaction, typed later in one place
-export type CashPartyRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy custom cash transaction category, typed later in one place
-export type CashCategoryRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy configured UPI receiving account, typed later in one place
-export type CashierUpiSourceRow = any;
+import type { DisplayInvoice, DisplayInvoiceItem } from '../sales/invoiceDisplayTypes';
+import type * as Rows from '../../data/dbRows';
+import type { cashierApi } from '../../data/cashier';
+import type { Party } from '../../data/parties';
+import type { PaymentSource } from '../../data/paymentSources';
+
+/** IPC rows and display enrichment used by cashier settlement. */
+export type CashierInvoiceRow = DisplayInvoice;
+export type CashierInvoiceItemRow = DisplayInvoiceItem;
+export type CashDrawerRow = Rows.CashDrawerRow & {
+  /** Joined history columns; absent on the current-drawer query. */
+  opened_by_name?: string | null;
+  closed_by_name?: string | null;
+  total_collected?: number;
+  settled_count?: number;
+};
+export type CashTransactionRow = Rows.CashTransactionsRow;
+export type DaySettlementRow = DisplayInvoice;
+export type DayCloseResult = Awaited<ReturnType<typeof cashierApi.dayClosing>>;
+export type CashPartyRow = Party;
+export type CashCategoryRow = Rows.CashCategoriesRow;
+export type CashierUpiSourceRow = PaymentSource;

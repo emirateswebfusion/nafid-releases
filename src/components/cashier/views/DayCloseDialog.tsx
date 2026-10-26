@@ -83,13 +83,13 @@ export function DayCloseDialog({
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Actual</p>
                   <p className="text-lg font-black text-foreground">{formatCurrency(closeResult.actual_cash)}</p>
                 </div>
-                {closeResult.cash_short > 0 && (
+                {(closeResult.cash_short as number) > 0 && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-center col-span-2">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Cash Short</p>
                     <p className="text-xl font-black text-rose-500 mt-0.5">−{formatCurrency(closeResult.cash_short)}</p>
                   </div>
                 )}
-                {closeResult.cash_excess > 0 && (
+                {(closeResult.cash_excess as number) > 0 && (
                   <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center col-span-2">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Cash Excess</p>
                     <p className="text-xl font-black text-emerald-500 mt-0.5">+{formatCurrency(closeResult.cash_excess)}</p>
