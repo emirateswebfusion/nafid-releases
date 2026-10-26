@@ -16,6 +16,8 @@ function load(file) {
   const codes = new Set([...text.matchAll(/"([A-Z0-9]{4})-(?:\d{3}|PUR|QTN|RTN|SCR)/g)].map((m) => m[1]));
   for (const c of codes) text = text.replace(new RegExp(`\\b${c}\\b`, 'g'), '<TC>');
   text = text.replace(/HLD-<ms>-\d{4}/g, 'HLD-<ms>-<r>');
+  // Outbox origin (migration 003) is a random terminal id per database.
+  text = text.replace(/("origin":\s*")[0-9a-f]{8}"/g, '$1<origin>"').replace(/(\\"origin\\":\s*\\")[0-9a-f]{8}\\"/g, '$1<origin>\\"');
   return JSON.parse(text);
 }
 const canon = (v) => Array.isArray(v) ? JSON.stringify(v.map(canon).sort()) : v && typeof v === 'object'
