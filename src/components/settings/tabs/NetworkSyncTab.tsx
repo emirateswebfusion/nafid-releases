@@ -8,29 +8,30 @@ import { syncApi } from '../../../data/sync';
 import { CLOUD_API } from '../../../data/cloud/client';
 import { healthCloud } from '../../../data/cloud/health';
 import { LanPairingKeyPanel } from './LanPairingKeyPanel';
+import type { SettingsForm } from '../settingsFormTypes';
 
 export interface NetworkSyncTabProps {
   activeSection: string;
   appVersion: string;
   detectedLocalIp: string;
   drainingQueue: boolean; setDrainingQueue: (v: boolean) => void;
-  effectiveCloudState: any; setEffectiveCloudState: (v: any) => void;
+  effectiveCloudState: SettingsForm['effectiveCloudState']; setEffectiveCloudState: SettingsForm['setEffectiveCloudState'];
   lanHostIp: string; setLanHostIp: (v: string) => void;
-  lanRole: any; setLanRole: (v: any) => void;
+  lanRole: SettingsForm['lanRole']; setLanRole: SettingsForm['setLanRole'];
   lanPort: number | string;
   saving: boolean;
-  setActiveHardwareTab: (v: any) => void;
-  setActiveProductsTab: (v: any) => void;
+  setActiveHardwareTab: SettingsForm['setActiveHardwareTab'];
+  setActiveProductsTab: SettingsForm['setActiveProductsTab'];
   setActiveSection: (v: string) => void;
   setShowBulkSheet: (v: boolean) => void;
   showBulkSheet: boolean;
   showLanHelpModal: boolean; setShowLanHelpModal: (v: boolean) => void;
-  syncFrequency: any; setSyncFrequency: (v: any) => void;
-  syncMode: any; setSyncMode: (v: any) => void;
+  syncFrequency: SettingsForm['syncFrequency']; setSyncFrequency: SettingsForm['setSyncFrequency'];
+  syncMode: SettingsForm['syncMode']; setSyncMode: SettingsForm['setSyncMode'];
   testingNetwork: boolean; setTestingNetwork: (v: boolean) => void;
   copiedFirewallCmd: boolean; setCopiedFirewallCmd: (v: boolean) => void;
-  networkDetails: any; setNetworkDetails: (v: any) => void;
-  setMessage: (msg: any) => void;
+  networkDetails: SettingsForm['networkDetails']; setNetworkDetails: SettingsForm['setNetworkDetails'];
+  setMessage: SettingsForm['setMessage'];
 }
 
 export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({

@@ -190,25 +190,25 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const processInvoicesUpdate = useCallback((invs: any[]) => {
     if (!Array.isArray(invs)) return;
     if (!initialLoadedRef.current) {
-      knownInvoiceIdsRef.current = new Set(invs.map((i: any) => i.invoice_id));
+      knownInvoiceIdsRef.current = new Set(invs.map((i) => i.invoice_id));
       initialLoadedRef.current = true;
     } else {
-      const brandNew = invs.filter((i: any) => !knownInvoiceIdsRef.current.has(i.invoice_id));
+      const brandNew = invs.filter((i) => !knownInvoiceIdsRef.current.has(i.invoice_id));
       if (brandNew.length > 0) {
-        brandNew.forEach((i: any) => knownInvoiceIdsRef.current.add(i.invoice_id));
+        brandNew.forEach((i) => knownInvoiceIdsRef.current.add(i.invoice_id));
         const newest = brandNew[0];
         setLatestNewBill(newest);
         playNewBillSound();
         setNewArrivalIds((prev) => {
           const next = new Set(prev);
-          brandNew.forEach((i: any) => next.add(i.invoice_id));
+          brandNew.forEach((i) => next.add(i.invoice_id));
           return next;
         });
         setTimeout(() => {
-          setLatestNewBill((curr: any) => (curr?.invoice_id === newest.invoice_id ? null : curr));
+          setLatestNewBill((curr: CashierInvoiceRow | null) => (curr?.invoice_id === newest.invoice_id ? null : curr));
           setNewArrivalIds((prev) => {
             const next = new Set(prev);
-            brandNew.forEach((i: any) => next.delete(i.invoice_id));
+            brandNew.forEach((i) => next.delete(i.invoice_id));
             return next;
           });
         }, 3000);
@@ -241,7 +241,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [isReopeningDrawer, setIsReopeningDrawer] = useState(false);
   const [alertDialog, setAlertDialog] = useState<{ title: string; message: string; variant?: DialogVariant } | null>(null);
 
-  const initiateReopenDrawer = (targetDrawer: any) => {
+  const initiateReopenDrawer = (targetDrawer: CashDrawerRow) => {
     if (!isOwner) {
       setAlertDialog({
         title: 'Access Denied',
@@ -253,7 +253,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     setReopenConfirmDrawer(typeof targetDrawer === 'string' ? { drawer_id: targetDrawer } : targetDrawer);
   };
 
-  const initiateDeleteTransaction = (tx: any) => {
+  const initiateDeleteTransaction = (tx: CashTransactionRow) => {
     if (!isOwner) {
       setAlertDialog({
         title: 'Access Denied',
@@ -271,7 +271,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (hasBridge('dbPaymentGetSources')) {
       paymentSourcesApi.getSources(tenantId || 'global').then((sources: any[]) => {
         if (Array.isArray(sources)) {
-          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+          setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
       }).catch(() => {});
     }
@@ -425,8 +425,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   }
 
   // ── Derived summary values ────────────────────────────────────────────────
-  const totalIn  = drawerClosed ? 0 : (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t: any) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0));
-  const totalOut = drawerClosed ? 0 : (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0));
+  const totalIn  = drawerClosed ? 0 : (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0));
+  const totalOut = drawerClosed ? 0 : (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0));
 
   // ── Feature-based sections ────────────────────────────────────────────────
   const showSettlement = !featureFlags || featureFlags.cash_settlement;

@@ -2,6 +2,7 @@ import React from 'react';
 import { Power, AlertCircle, TrendingUp, Handshake, Layers, Check, FileText, Wallet } from 'lucide-react';
 import clsx from 'clsx';
 import { FEATURE_LIST, type FeatureFlags, useFeatureFlagsStore, sanitizeFeatureFlags } from '../../../featureFlags';
+import type { SettingsForm } from '../settingsFormTypes';
 
 export interface FeaturesTabProps {
   featureFlags: any;
@@ -9,8 +10,8 @@ export interface FeaturesTabProps {
   enablePartyEstimate: boolean; setEnablePartyEstimate: (v: boolean) => void;
   enablePartyGst: boolean; setEnablePartyGst: (v: boolean) => void;
   loyaltyAwardOnPending: boolean; setLoyaltyAwardOnPending: (v: boolean) => void;
-  loyaltyEarningRate: number | string; setLoyaltyEarningRate: (v: any) => void;
-  loyaltyRedemptionRate: number | string; setLoyaltyRedemptionRate: (v: any) => void;
+  loyaltyEarningRate: number | string; setLoyaltyEarningRate: SettingsForm['setLoyaltyEarningRate'];
+  loyaltyRedemptionRate: number | string; setLoyaltyRedemptionRate: SettingsForm['setLoyaltyRedemptionRate'];
   saving: boolean;
   confirmTurnOffAllModalOpen: boolean; setConfirmTurnOffAllModalOpen: (v: boolean) => void;
   showCashRegister: boolean; setShowCashRegister: (v: boolean) => void;

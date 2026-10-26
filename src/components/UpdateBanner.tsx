@@ -28,7 +28,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
       if (status === 'ready-to-install') setUpdateReady(true);
     });
 
-    bridgeEvents.onUpdateInfo((info: any) => {
+    bridgeEvents.onUpdateInfo((info) => {
       if (info) {
         setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
         appApi.downloadUpdate().catch(() => {});

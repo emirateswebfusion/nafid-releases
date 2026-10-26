@@ -278,11 +278,11 @@ export function CustomersPage({
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
-    settingsApi.get({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v: any) => {
+    settingsApi.get({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v) => {
       if (v && typeof v === 'object' && v.enabled !== undefined) {
         setLoyaltyEnabled(Boolean(v.enabled));
       } else {
-        settingsApi.get({ tenant_id: tenantId || 'global', key: 'feature_flags' }).then((flags: any) => {
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'feature_flags' }).then((flags) => {
           if (flags && typeof flags.loyalty === 'boolean') {
             setLoyaltyEnabled(flags.loyalty);
           }

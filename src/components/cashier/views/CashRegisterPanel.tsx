@@ -187,7 +187,7 @@ export function CashRegisterPanel({
                 <span className="text-[10px] text-muted-foreground truncate text-right">—</span>
               </div>
             )}
-            {transactions.map((tx: any) => {
+            {transactions.map((tx) => {
               const isIn = tx.type === 'CASH_IN';
               const hasCustomCat = tx.category && tx.category !== 'Other';
               const hasNotes = tx.notes && tx.notes.trim() !== '';

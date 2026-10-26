@@ -241,9 +241,9 @@ export function CashTransactionModal({
                 {partySearch && (
                   <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-10 max-h-40 overflow-y-auto">
                     {parties
-                      .filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase()))
+                      .filter((p) => p.name.toLowerCase().includes(partySearch.toLowerCase()))
                       .slice(0, 20)
-                      .map((p: any) => (
+                      .map((p) => (
                         <button
                           key={p.party_id}
                           onClick={() => { setTxnPartyId(p.party_id); setTxnPartyName(p.name); setPartySearch(''); }}
@@ -254,7 +254,7 @@ export function CashTransactionModal({
                         </button>
                       ))
                     }
-                    {parties.filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase())).length === 0 && (
+                    {parties.filter((p) => p.name.toLowerCase().includes(partySearch.toLowerCase())).length === 0 && (
                       <p className="px-4 py-3 text-xs text-muted-foreground text-center">No parties found</p>
                     )}
                   </div>

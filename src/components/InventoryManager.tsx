@@ -300,7 +300,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setAdjustModal({ product, mode });
   };
 
-  const encodePurchasePriceCode = (price: any) => {
+  const encodePurchasePriceCode = (price: unknown) => {
     if (!priceCoding || price === '' || price === null || price === undefined) return '';
     const numeric = Number(price);
     if (isNaN(numeric) || numeric <= 0) return '';

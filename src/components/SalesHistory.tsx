@@ -144,15 +144,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   useEffect(() => {
     const loadSettings = () => {
       if (isDesktopRuntime()) {
-        getSetting({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'enable_convert_to_gst' }).then((v) => {
           if (v !== null && v !== undefined) setEnableConvertToGst(Boolean(v));
         }).catch(() => {});
 
-        getSetting({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive' }).then((v) => {
           if (v !== null && v !== undefined) setConversionTaxMode(Boolean(v) ? 'INCLUSIVE' : 'EXCLUSIVE');
         }).catch(() => {});
 
-        getSetting({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then((v) => {
           if (v) setMaskingConfig(parseStaffDataMaskingConfig(v));
         }).catch(() => {});
       }
@@ -216,7 +216,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (hasBridge('dbPaymentGetSources')) {
       paymentSourcesApi.getSources(useAuthStore.getState().tenantId || 'global').then((sources: any[]) => {
         if (Array.isArray(sources)) {
-          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+          setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
       }).catch(() => {});
     }
@@ -319,7 +319,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     prefetchInvoiceRef.current = prefetchInvoice;
   });
 
-  const handleSelectInvoice = async (inv: any) => {
+  const handleSelectInvoice = async (inv: SalesInvoiceRow) => {
     if (!inv || !inv.invoice_id) return;
     selectedInvoiceIdRef.current = inv.invoice_id;
     setSelectedInvoice(inv);
@@ -480,7 +480,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       try {
         const fetched = await listInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
         if (Array.isArray(fetched) && fetched.length > 0) {
-          const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
+          const exact = fetched.find((i) => i.invoice_id === selectedInvoice.invoice_id);
           if (exact) freshInvoice = exact;
         }
       } catch { /* ignore */ }

@@ -7,6 +7,7 @@ import { formatDate, PAYMENT_LABELS } from '../salesHistoryFormat';
 import { getProductsByIds } from '../../../data/products';
 import { getInvoiceNetTotal } from '../../../utils/salesHistoryAmount';
 import { isLegacyBillerRole } from '../../../utils/permissions';
+import type { SalesInvoiceRow } from '../salesTypes';
 
 export interface UseSalesCsvExportContext {
   accountingView: "REAL_SALES" | "TAX_FILING" | "ALL";
@@ -60,14 +61,14 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
         return;
       }
 
-      const escape = (val: any) => {
+      const escape = (val: unknown) => {
         const str = val == null ? '' : String(val);
         return str.includes(',') || str.includes('"') || str.includes('\n')
           ? `"${str.replace(/"/g, '""')}"`
           : str;
       };
 
-      const getTypeLabel = (inv: any) => {
+      const getTypeLabel = (inv: SalesInvoiceRow) => {
         if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'GST B2B';
         if (inv.invoice_type === 'GST') return 'GST B2C';
         return 'Bill of Supply';
@@ -130,7 +131,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
 
       const targetTaxRate = taxFilterActive ? Number(taxPercentageFilter) : null;
       const exportData = taxFilterActive && accountingView === 'ALL'
-        ? data.filter((inv: any) => !inv.converted_from_invoice_id)
+        ? data.filter((inv) => !inv.converted_from_invoice_id)
         : data;
       const sortedData = sortInvoicesByInvoiceNumber(exportData);
 
@@ -141,13 +142,13 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
         let items = await getInvoiceItems(inv.invoice_id);
         if (!Array.isArray(items)) items = [];
 
-        const missingHsnProductIds = items.filter((it: any) => !it.hsn_sac_code && it.product_id).map((it: any) => it.product_id);
+        const missingHsnProductIds = items.filter((it) => !it.hsn_sac_code && it.product_id).map((it) => it.product_id);
         const fallbackProductMap: Record<string, any> = {};
         if (missingHsnProductIds.length > 0) {
           try {
             const fetched = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: missingHsnProductIds });
             if (Array.isArray(fetched)) {
-              fetched.forEach((p: any) => { if (p?.product_id) fallbackProductMap[p.product_id] = p; });
+              fetched.forEach((p) => { if (p?.product_id) fallbackProductMap[p.product_id] = p; });
             }
           } catch { /* ignore */ }
         }

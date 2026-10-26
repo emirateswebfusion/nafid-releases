@@ -58,11 +58,11 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
       const scopedData = filters?.accounting_view === 'TAX_FILING'
         ? data
         : filters?.accounting_view === 'REAL_SALES'
-          ? data.filter((inv: any) => inv.invoice_type === 'BILL_OF_SUPPLY')
-          : data.filter((inv: any) => !inv.converted_from_invoice_id);
+          ? data.filter((inv) => inv.invoice_type === 'BILL_OF_SUPPLY')
+          : data.filter((inv) => !inv.converted_from_invoice_id);
 
       const itemsByInvoice: Record<string, any[]> = {};
-      await Promise.all(scopedData.map(async (inv: any) => {
+      await Promise.all(scopedData.map(async (inv) => {
         try {
           const invoiceItems = await getInvoiceItems(inv.invoice_id);
           itemsByInvoice[inv.invoice_id] = Array.isArray(invoiceItems) ? invoiceItems : [];
@@ -156,7 +156,7 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
             // Pre-warm top 5 most recent bills quietly so clicking any recent bill is 100% instant
             if (data.length > 0) {
               setTimeout(() => {
-                data.slice(0, 5).forEach((item: any) => {
+                data.slice(0, 5).forEach((item) => {
                   if (item?.invoice_id) prefetchInvoiceRef.current(item.invoice_id);
                 });
               }, 200);

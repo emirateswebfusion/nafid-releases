@@ -29,7 +29,7 @@ export interface UseSettlementAmountEditContext {
  */
 export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
   const { getRawNet, pendingInvoices, rowDiscs, rowPluses, setRowDiscInputs, setRowDiscPercentInputs, setRowDiscPercents, setRowDiscs, setRowNetInputs, setRowPluses, setRowPlusInputs, setRowPlusPercentInputs, setRowPlusPercents, setSplitBank, setSplitCard, setSplitCash, setSplitModalInvoice, setSplitModalNet, setSplitUpi } = ctx;
-  const openSplitModal = (inv: any) => {
+  const openSplitModal = (inv: CashierInvoiceRow) => {
     const rd = rowDiscs[inv.invoice_id] ?? 0;
     const plusVal = rowPluses[inv.invoice_id] ?? 0;
     const rawNet = getRawNet(inv);

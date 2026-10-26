@@ -44,7 +44,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         if (!res.success) throw new Error(res.error);
       }
 
-      const defaultSystemPrinter = osPrinters.find((p: any) => p.isDefault)?.name || osPrinters[0]?.name || '';
+      const defaultSystemPrinter = osPrinters.find((p) => p.isDefault)?.name || osPrinters[0]?.name || '';
       const formattedBarcodePrinter = {
         ...barcodePrinter,
         type: barcodePrinter.type || 'usb',

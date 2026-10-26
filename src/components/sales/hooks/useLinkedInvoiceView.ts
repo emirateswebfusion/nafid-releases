@@ -23,7 +23,7 @@ export function useLinkedInvoiceView(ctx: UseLinkedInvoiceViewContext) {
     }
     try {
       // 1. First check in-memory loaded invoices for instant match
-      let match = invoices.find((i: any) =>
+      let match = invoices.find((i) =>
         (targetInvoiceId && i.invoice_id === targetInvoiceId) ||
         (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber) ||
         (targetInvoiceNumber && i.invoice_number?.trim().toUpperCase() === targetInvoiceNumber.trim().toUpperCase())
@@ -38,7 +38,7 @@ export function useLinkedInvoiceView(ctx: UseLinkedInvoiceViewContext) {
             offset: 0,
           });
           if (Array.isArray(res) && res.length > 0) {
-            match = res.find((i: any) => i.invoice_id === targetInvoiceId || (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber)) || res[0];
+            match = res.find((i) => i.invoice_id === targetInvoiceId || (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber)) || res[0];
           }
         } catch (err) {
           console.warn('[handleViewLinkedInvoice] Error querying by invoice_id:', err);
@@ -56,7 +56,7 @@ export function useLinkedInvoiceView(ctx: UseLinkedInvoiceViewContext) {
             offset: 0,
           });
           if (Array.isArray(res)) {
-            match = res.find((i: any) =>
+            match = res.find((i) =>
               (targetInvoiceId && i.invoice_id === targetInvoiceId) ||
               (targetInvoiceNumber && i.invoice_number === targetInvoiceNumber) ||
               (targetInvoiceNumber && i.invoice_number?.trim().toUpperCase() === targetInvoiceNumber.trim().toUpperCase()) ||

@@ -23,6 +23,7 @@ import { useSettingsSave } from './settings/hooks/useSettingsSave';
 import { useSettingsFormState } from './settings/hooks/useSettingsFormState';
 import { SettingsSectionContent } from './settings/views/SettingsSectionContent';
 import { LanSyncHelpModal } from './settings/views/LanSyncHelpModal';
+import type { PrinterConfig } from './settings/settingsTypes';
 
 interface SidebarItem {
   id: string;
@@ -194,19 +195,19 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       }).catch(() => {});
     }
     if (hasBridge('getCloudAccessState')) {
-      syncApi.getCloudAccessState().then((state: any) => {
+      syncApi.getCloudAccessState().then((state) => {
         if (state) setEffectiveCloudState(state);
       }).catch(() => {});
     }
     if (hasBridge('onCloudStateChanged')) {
-      const unsub = bridgeEvents.onCloudStateChanged((state: any) => {
+      const unsub = bridgeEvents.onCloudStateChanged((state) => {
         if (state) setEffectiveCloudState(state);
       });
       return unsub;
     }
   }, [tenantId, setDetectedLocalIp, setEffectiveCloudState, setNetworkDetails]);
 
-  const updateSnapshotField = (updater: (prevObj: any) => any) => {
+  const updateSnapshotField = (updater: (prevObj: Record<string, unknown>) => Record<string, unknown>) => {
     try {
       if (initialSnapshot.current) {
         const snap = JSON.parse(initialSnapshot.current);
@@ -224,18 +225,18 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setOsPrinters(printerList);
 
       if (printerList.length > 0) {
-        const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
+        const defPr = printerList.find((p) => p.isDefault) || printerList[0];
         if (defPr && defPr.name) {
-          setReceiptPrinter((prev: any) => {
+          setReceiptPrinter((prev: PrinterConfig) => {
             if (!prev?.deviceName) {
-              updateSnapshotField(s => ({ ...s, receiptPrinter: { ...s.receiptPrinter, deviceName: defPr.name } }));
+              updateSnapshotField(s => ({ ...s, receiptPrinter: { ...(s.receiptPrinter as Record<string, unknown>), deviceName: defPr.name } }));
               return { ...prev, deviceName: defPr.name };
             }
             return prev;
           });
-          setBarcodePrinter((prev: any) => {
+          setBarcodePrinter((prev: PrinterConfig) => {
             if (!prev?.deviceName) {
-              updateSnapshotField(s => ({ ...s, barcodePrinter: { ...s.barcodePrinter, deviceName: defPr.name } }));
+              updateSnapshotField(s => ({ ...s, barcodePrinter: { ...(s.barcodePrinter as Record<string, unknown>), deviceName: defPr.name } }));
               return { ...prev, deviceName: defPr.name };
             }
             return prev;
@@ -297,7 +298,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       bridgeEvents.onUpdateProgress((progress) => { setDownloadProgress(progress); });
     }
     if (hasBridge('onUpdateInfo')) {
-      bridgeEvents.onUpdateInfo((info: any) => {
+      bridgeEvents.onUpdateInfo((info) => {
         if (info) {
           setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
           // The main process already starts the download automatically when update-available fires.

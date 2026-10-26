@@ -338,7 +338,7 @@ export function ConversionModal({
                       });
                       if (result.success && result.results) {
                         setConversionResults(result.results);
-                        const ok = result.results.filter((r: any) => r.success).length;
+                        const ok = result.results.filter((r) => r.success).length;
                         const fail = result.results.length - ok;
                         if (fail === 0) {
                           showToast(`Successfully converted ${ok} Bill of Supply invoice${ok !== 1 ? 's' : ''} to GST`, 'success');

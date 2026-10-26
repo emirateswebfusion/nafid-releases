@@ -113,7 +113,7 @@ export function SettlementHistoryView({
 
       {/* ── Double-Bezel Executive Summary Metric Cards ── */}
       {history.length > 0 && (() => {
-        const filteredHist = history.filter((d: any) => {
+        const filteredHist = history.filter((d) => {
           const matchesSearch = !histSearch ||
             (d.business_date && d.business_date.toLowerCase().includes(histSearch.toLowerCase())) ||
             (d.opened_by_name && d.opened_by_name.toLowerCase().includes(histSearch.toLowerCase())) ||
@@ -135,7 +135,7 @@ export function SettlementHistoryView({
         const totalSales = filteredHist.reduce((s: number, d: any) => s + Number(d.cash_sales || 0), 0);
         const totalCollected = filteredHist.reduce((s: number, d: any) => s + Number(d.total_collected || 0), 0);
         let totalShort = 0, totalExcess = 0;
-        filteredHist.filter((d: any) => d.status === 'CLOSED').forEach((d: any) => {
+        filteredHist.filter((d) => d.status === 'CLOSED').forEach((d) => {
           const v = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
           if (v < 0) totalShort += Math.abs(v);
           else totalExcess += v;
@@ -150,7 +150,7 @@ export function SettlementHistoryView({
                   <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest block">Recorded Shifts</span>
                   <span className="text-2xl font-black text-foreground tabular-nums mt-0.5 block">{filteredHist.length}</span>
                   <span className="text-[10px] font-bold text-muted-foreground/70 block mt-0.5">
-                    {filteredHist.filter((h: any) => h.status === 'OPEN').length} active shift open
+                    {filteredHist.filter((h) => h.status === 'OPEN').length} active shift open
                   </span>
                 </div>
                 <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 text-blue-500 shadow-inner border border-blue-500/20">
@@ -221,7 +221,7 @@ export function SettlementHistoryView({
       {/* ── Main Master History Table / Feed ── */}
       <div className="flex-1 overflow-y-auto p-5">
         {(() => {
-          const filteredHistory = history.filter((d: any) => {
+          const filteredHistory = history.filter((d) => {
             const matchesSearch = !histSearch ||
               (d.business_date && d.business_date.toLowerCase().includes(histSearch.toLowerCase())) ||
               (d.opened_by_name && d.opened_by_name.toLowerCase().includes(histSearch.toLowerCase())) ||
@@ -282,7 +282,7 @@ export function SettlementHistoryView({
               </div>
 
               <div className="divide-y divide-border/30">
-                {filteredHistory.map((d: any) => {
+                {filteredHistory.map((d) => {
                   const isClosed = d.status === 'CLOSED';
                   const variance = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
                   const hasVar = isClosed && d.actual_cash !== null && d.actual_cash !== undefined;
@@ -457,7 +457,7 @@ export function SettlementHistoryView({
                                         <span className="text-right">Biller</span>
                                       </div>
                                       <div className="divide-y divide-border/30">
-                                        {daySettlements.map((inv: any) => (
+                                        {daySettlements.map((inv) => (
                                           <div key={inv.invoice_id} className="grid grid-cols-[1.2fr_1.3fr_0.9fr_0.9fr_1fr_0.9fr] gap-x-3 px-4 py-2.5 items-center hover:bg-muted/20 transition-colors">
                                             <button
                                               onClick={() => handleViewInvoice(inv)}
@@ -551,7 +551,7 @@ export function SettlementHistoryView({
                                         )}
 
                                         {/* Cash Transactions Feed */}
-                                        {dayCashTransactions.map((tx: any) => {
+                                        {dayCashTransactions.map((tx) => {
                                           const isIn = tx.type === 'CASH_IN';
                                           return (
                                             <div key={tx.transaction_id} className={clsx(
@@ -601,8 +601,8 @@ export function SettlementHistoryView({
 
                                       {/* Cash Movement Totals Footer */}
                                       {(() => {
-                                        const cashInSum = dayCashTransactions.filter((t: any) => t.type === 'CASH_IN').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-                                        const cashOutSum = dayCashTransactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                                        const cashInSum = dayCashTransactions.filter((t) => t.type === 'CASH_IN').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                                        const cashOutSum = dayCashTransactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
                                         const netCash = cashInSum - cashOutSum;
                                         return (
                                           <div className="grid grid-cols-[0.8fr_0.6fr_2fr_1fr_0.8fr] gap-x-3 px-4 py-3 border-t border-border/80 bg-muted/40 font-bold">

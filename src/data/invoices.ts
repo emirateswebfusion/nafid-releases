@@ -28,6 +28,10 @@ export interface Invoice {
   scrap_invoice_number?: string | null;
   points_redeemed?: number | null;
   points_redeemed_discount?: number | null;
+  converted_from_invoice_id?: string | null;
+  converted_from_invoice_number?: string | null;
+  converted_to_invoice_id?: string | null;
+  converted_to_invoice_number?: string | null;
   actual_refund_paid?: number | null;
   supply_type?: string | null;
   is_deleted?: number | null;

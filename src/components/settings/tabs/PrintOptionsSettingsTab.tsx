@@ -6,31 +6,32 @@ import { FONT_OPTIONS } from '../settingsConstants';
 import { useBillingUIStore } from '../../../store/billingUIStore';
 import { CODE_TYPES } from '../../../labelCodeTypes';
 import { CashDrawerAutoCloseSettings } from './CashDrawerAutoCloseSettings';
+import type { SettingsForm } from '../settingsFormTypes';
 
 export interface PrintOptionsSettingsTabProps {
   autoOpenCashDrawer: boolean; setAutoOpenCashDrawer: (v: boolean) => void;
   autoCloseCashDrawer: boolean; setAutoCloseCashDrawer: (v: boolean) => void;
   autoCloseCashDrawerTime: string; setAutoCloseCashDrawerTime: (v: string) => void;
   autoPrintBarcode: boolean; setAutoPrintBarcode: (v: boolean) => void;
-  billSettings: any; setBillSettings: (v: any) => void;
-  billingUIConfig: any; setBillingUIConfig: (v: any) => void;
-  defaultOpeningBalance: any; setDefaultOpeningBalance: (v: any) => void;
+  billSettings: SettingsForm['billSettings']; setBillSettings: SettingsForm['setBillSettings'];
+  billingUIConfig: SettingsForm['billingUIConfig']; setBillingUIConfig: SettingsForm['setBillingUIConfig'];
+  defaultOpeningBalance: SettingsForm['defaultOpeningBalance']; setDefaultOpeningBalance: SettingsForm['setDefaultOpeningBalance'];
   enableConvertToGst: boolean; setEnableConvertToGst: (v: boolean) => void;
-  labelCodeType: any; setLabelCodeType: (v: any) => void;
+  labelCodeType: SettingsForm['labelCodeType']; setLabelCodeType: SettingsForm['setLabelCodeType'];
   labelShowShopName: boolean; setLabelShowShopName: (v: boolean) => void;
   openCashDrawerOnPending: boolean; setOpenCashDrawerOnPending: (v: boolean) => void;
   receiptFont: string; setReceiptFont: (v: string) => void;
-  scrapBillSettings: any; setScrapBillSettings: (v: any) => void;
+  scrapBillSettings: SettingsForm['scrapBillSettings']; setScrapBillSettings: SettingsForm['setScrapBillSettings'];
   showFullyPaidCashInLedger: boolean; setShowFullyPaidCashInLedger: (v: boolean) => void;
   showPriceOverrideMrp: boolean; setShowPriceOverrideMrp: (v: boolean) => void;
   showProductOffers: boolean; setShowProductOffers: (v: boolean) => void;
   loyaltyEnabled: boolean; setLoyaltyEnabled: (v: boolean) => void;
-  loyaltyEarningRate: number | string; setLoyaltyEarningRate: (v: any) => void;
-  loyaltyRedemptionRate: number | string; setLoyaltyRedemptionRate: (v: any) => void;
+  loyaltyEarningRate: number | string; setLoyaltyEarningRate: SettingsForm['setLoyaltyEarningRate'];
+  loyaltyRedemptionRate: number | string; setLoyaltyRedemptionRate: SettingsForm['setLoyaltyRedemptionRate'];
   loyaltyAwardOnPending: boolean; setLoyaltyAwardOnPending: (v: boolean) => void;
   enableScrap: boolean; setEnableScrap: (v: boolean) => void;
-  previewFormat: any; setPreviewFormat: (v: any) => void;
-  previewStyle: any; setPreviewStyle: (v: any) => void;
+  previewFormat: SettingsForm['previewFormat']; setPreviewFormat: SettingsForm['setPreviewFormat'];
+  previewStyle: SettingsForm['previewStyle']; setPreviewStyle: SettingsForm['setPreviewStyle'];
 }
 
 export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = ({

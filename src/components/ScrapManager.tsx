@@ -144,7 +144,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         if (hasBridge('dbPaymentGetSources')) {
           paymentSourcesApi.getSources(tid || 'global').then((sources: any[]) => {
             if (Array.isArray(sources)) {
-              setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+              setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
             }
           }).catch(() => {});
         }
@@ -269,7 +269,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     setIsAddingItemSaving, setIsSavingHeader, setIsSavingTx, setReprintSuccess, showStatus, tenantId, view,
   });
 
-  const handleStartEditTx = (tx: any) => {
+  const handleStartEditTx = (tx: ScrapInvoiceTxRow) => {
     setEditingTxItem(tx);
     setEditTxForm({
       scrap_category_id: tx.scrap_category_id || '',

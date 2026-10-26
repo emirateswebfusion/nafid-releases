@@ -133,7 +133,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         .then((res) => {
           if (res?.connect_code) setConnectCode(res.connect_code);
         })
-        .catch((err: any) => {
+        .catch((err) => {
           console.warn('[SettingsManager] fetchApi connect-code failed:', err);
           const tId = useAuthStore.getState().tenantId || 'STORE';
           setConnectCode('NF-' + tId.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase());
@@ -755,12 +755,12 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       // C. Service Charge Product & Barcode
       productsApi.ensureServiceItem({ tenant_id: currentTenant })
         .then(() => productsApi.getProducts({ tenant_id: currentTenant, search: 'Service Charge' }))
-        .then((svcProducts: any) => {
+        .then((svcProducts) => {
           const svcProd = Array.isArray(svcProducts)
             ? svcProducts
-                .filter((p: any) => Number(p.is_service_item) === 1 || String(p.name || '').trim() === 'Service Charge')
-                .sort((a: any, b: any) => {
-                  const rank = (p: any) => (Number(p.is_service_item) === 1 ? (String(p.sku_barcode || '') === '99' ? 0 : 1) : 2);
+                .filter((p) => Number(p.is_service_item) === 1 || String(p.name || '').trim() === 'Service Charge')
+                .sort((a, b) => {
+                  const rank = (p: { is_service_item?: unknown; sku_barcode?: unknown }) => (Number(p.is_service_item) === 1 ? (String(p.sku_barcode || '') === '99' ? 0 : 1) : 2);
                   return rank(a) - rank(b) || String(a.created_at || '').localeCompare(String(a.created_at || ''));
                 })[0]
             : null;
@@ -771,7 +771,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
             updateSnapshotField(s => ({ ...s, serviceChargeBarcode: barcode }));
           }
         })
-        .catch((err: any) => console.error('[SettingsManager] Failed to load Service Charge settings', err));
+        .catch((err) => console.error('[SettingsManager] Failed to load Service Charge settings', err));
 
     } catch (err) {
       logError('[SettingsManager] ERROR in loadSettings: ' + ((err as Error)?.message || String(err)));

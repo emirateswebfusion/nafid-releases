@@ -19,7 +19,7 @@ export interface UseCashierInvoiceViewContext {
  */
 export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
   const { setInvoiceItems, setLoadingItems, setSelectedInvoice, setShowInvoiceModal } = ctx;
-  const handleViewInvoice = async (inv: any) => {
+  const handleViewInvoice = async (inv: CashierInvoiceRow) => {
     setSelectedInvoice(inv);
     setShowInvoiceModal(true);
     setLoadingItems(true);
@@ -45,14 +45,14 @@ export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
       if (Array.isArray(allCombos)) combosList = allCombos;
     } catch { /* ignore */ }
 
-    const nonService = invoiceItems.filter((i: any) => !i.is_service_item);
-    const productIds = [...new Set(nonService.map((i: any) => i.product_id).filter(Boolean))] as string[];
+    const nonService = invoiceItems.filter((i) => !i.is_service_item);
+    const productIds = [...new Set(nonService.map((i) => i.product_id).filter(Boolean))] as string[];
     const productMap: Record<string, any> = {};
     if (productIds.length > 0) {
       try {
         const products = await productsApi.getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
         if (Array.isArray(products)) {
-          products.forEach((p: any) => { productMap[p.product_id] = p; });
+          products.forEach((p) => { productMap[p.product_id] = p; });
         }
       } catch {
         // ignore product lookup failures
@@ -67,7 +67,7 @@ export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
         } catch { /* ignore */ }
       }
 
-      const matchedCombo = combosList.find((c: any) =>
+      const matchedCombo = combosList.find((c) =>
         (item.combo_id && c.combo_id === item.combo_id) ||
         (item.name && c.name && c.name.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
         (item.product_id && c.combo_id === item.product_id)

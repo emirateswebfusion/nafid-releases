@@ -117,7 +117,7 @@ export function PartyManager({
     try {
       const res = await partyConnectCloud.requests().catch(() => null);
       if (res && Array.isArray(res)) {
-        setPendingRequests(res.filter((r: any) => r.status === 'PENDING'));
+        setPendingRequests(res.filter((r) => r.status === 'PENDING'));
       }
     } catch (e) {
       console.warn('Failed to fetch connect requests:', e);

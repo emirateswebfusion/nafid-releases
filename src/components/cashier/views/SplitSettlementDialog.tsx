@@ -178,7 +178,7 @@ export function SplitSettlementDialog({
                     <Select
                       value={selectedUpiSourceId || upiSources[0]?.source_id || ''}
                       onChange={(val) => setSelectedUpiSourceId(val)}
-                      options={upiSources.map((s: any) => ({
+                      options={upiSources.map((s) => ({
                         value: s.source_id,
                         label: `${s.name} (${s.upi_id || 'No UPI ID'})`
                       }))}

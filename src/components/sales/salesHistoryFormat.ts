@@ -138,8 +138,8 @@ export function getUpiDetailsFromInvoice(inv: any, upiSourcesList: any[] = []) {
     };
   }
   if (inv.payment_method === 'UPI' && upiSourcesList && upiSourcesList.length > 0) {
-    const matched = (sd?.upi_source_id ? upiSourcesList.find((s: any) => s.source_id === sd.upi_source_id) : null)
-      || upiSourcesList.find((s: any) => s.is_default === 1)
+    const matched = (sd?.upi_source_id ? upiSourcesList.find((s) => s.source_id === sd.upi_source_id) : null)
+      || upiSourcesList.find((s) => s.is_default === 1)
       || upiSourcesList[0];
     if (matched) {
       return {

@@ -291,7 +291,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     }, 0);
   };
 
-  const selectSupplier = (supplier: any) => {
+  const selectSupplier = (supplier: { name: string; party_id: string }) => {
     setSupplierName(supplier.name);
     setSupplierId(supplier.party_id);
     setSupplierSearch('');

@@ -94,7 +94,7 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
             } catch { /* ignore */ }
           }
           const iName = String(item?.name || '').toLowerCase().trim();
-          const matchedCombo = combosList.find((c: any) => {
+          const matchedCombo = combosList.find((c) => {
             const cName = String(c?.name || '').toLowerCase().trim();
             return (item?.combo_id && c?.combo_id === item.combo_id) ||
               (cName && iName && cName === iName) ||

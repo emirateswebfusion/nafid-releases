@@ -495,7 +495,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
                         <Tooltip 
                           contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', fontSize: '12px' }}
-                          formatter={(val: any) => [`₹${val}`, '']}
+                          formatter={(val) => [`₹${val}`, '']}
                         />
                         <Area type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" name="Sales Revenue" />
                         <Area type="monotone" dataKey="profit" stroke="#06b6d4" strokeWidth={2.5} fillOpacity={1} fill="url(#colorProfit)" name="Gross Profit" />

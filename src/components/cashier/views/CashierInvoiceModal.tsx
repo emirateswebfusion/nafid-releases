@@ -80,7 +80,7 @@ export function CashierInvoiceModal({
                       try {
                         const fetched = await invoicesApi.getInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
                         if (Array.isArray(fetched) && fetched.length > 0) {
-                          const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
+                          const exact = fetched.find((i) => i.invoice_id === selectedInvoice.invoice_id);
                           if (exact) freshInvoice = exact;
                         }
                       } catch { /* ignore */ }
@@ -291,7 +291,7 @@ export function CashierInvoiceModal({
           {(() => {
             const isGstBill = selectedInvoice.invoice_type === 'GST' || 
                               Number(selectedInvoice.tax_total) > 0 || 
-                              invoiceItems.some((it: any) => Number(it.tax_amount) > 0 || Number(it.cgst_rate) > 0 || Number(it.tax_rate) > 0);
+                              invoiceItems.some((it) => Number(it.tax_amount) > 0 || Number(it.cgst_rate) > 0 || Number(it.tax_rate) > 0);
 
             return (
               <div>
@@ -424,7 +424,7 @@ export function CashierInvoiceModal({
                                   </div>
                                   {comboItemsParsed && comboItemsParsed.length > 0 && (
                                     <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
-                                      Includes: {comboItemsParsed.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+                                      Includes: {comboItemsParsed.map((ci) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
                                     </div>
                                   )}
                                   {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (

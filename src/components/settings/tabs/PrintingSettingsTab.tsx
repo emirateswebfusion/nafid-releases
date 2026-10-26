@@ -1,22 +1,23 @@
 import React from 'react';
 import { Printer, Receipt, FileText, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
+import type { SettingsForm } from '../settingsFormTypes';
 
 export interface PrintingSettingsTabProps {
-  printFormat: any;
-  setPrintFormat: (v: any) => void;
-  a5Orientation: any;
-  setA5Orientation: (v: any) => void;
-  timeFormat: any;
-  setTimeFormat: (v: any) => void;
-  a4Style: any;
-  setA4Style: (v: any) => void;
-  thermalStyle: any;
-  setThermalStyle: (v: any) => void;
-  setPreviewStyle: (v: any) => void;
-  setPreviewFormat: (v: any) => void;
+  printFormat: SettingsForm['printFormat'];
+  setPrintFormat: SettingsForm['setPrintFormat'];
+  a5Orientation: SettingsForm['a5Orientation'];
+  setA5Orientation: SettingsForm['setA5Orientation'];
+  timeFormat: SettingsForm['timeFormat'];
+  setTimeFormat: SettingsForm['setTimeFormat'];
+  a4Style: SettingsForm['a4Style'];
+  setA4Style: SettingsForm['setA4Style'];
+  thermalStyle: SettingsForm['thermalStyle'];
+  setThermalStyle: SettingsForm['setThermalStyle'];
+  setPreviewStyle: SettingsForm['setPreviewStyle'];
+  setPreviewFormat: SettingsForm['setPreviewFormat'];
   printWidth: number;
-  setActiveSection: (v: any) => void;
+  setActiveSection: (v: string) => void;
 }
 
 export const PrintingSettingsTab: React.FC<PrintingSettingsTabProps> = ({

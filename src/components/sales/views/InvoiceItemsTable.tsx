@@ -152,7 +152,7 @@ export function InvoiceItemsTable({
                             </div>
                             {comboItemsParsed && comboItemsParsed.length > 0 && (
                               <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
-                                Includes: {comboItemsParsed.filter(Boolean).map((ci: any) => typeof ci === 'string' ? ci : `${ci.product_name || ci.name || 'Product'} (x${ci.quantity ?? 1})`).join(', ')}
+                                Includes: {comboItemsParsed.filter(Boolean).map((ci) => typeof ci === 'string' ? ci : `${ci.product_name || ci.name || 'Product'} (x${ci.quantity ?? 1})`).join(', ')}
                               </div>
                             )}
                             {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (

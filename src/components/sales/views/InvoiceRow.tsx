@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Receipt, FileText, Clock, User, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '../../../utils/money';
 import { getSalesHistoryAmount } from '../../../utils/salesHistoryAmount';
+import type { SalesInvoiceRow } from '../salesTypes';
 
 /* ─── Payment Badge ─── */
 export function PaymentBadge({ method }: { method: string }) {
@@ -29,7 +30,7 @@ export function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 /* ─── Invoice Row ─── */
-export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint }: { inv: any; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: any) => void; onPrint?: (inv: any) => void }) {
+export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint }: { inv: any; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void }) {
   const { date, time } = formatDate(inv.created_at || '');
   const isCredit = inv.payment_method === 'CREDIT';
   const isConvertedBos = !!inv.converted_to_invoice_id;

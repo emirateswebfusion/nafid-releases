@@ -75,7 +75,7 @@ export function InvoiceDetailModal({
                 const isKnownExcluded = convertibleMap[selectedInvoice.invoice_id] === false;
                 const isEligible = isBos && isNotConverted && !isKnownExcluded && (
                   convertibleMap[selectedInvoice.invoice_id] === true ||
-                  (items.length > 0 && items.some((it: any) => 
+                  (items.length > 0 && items.some((it) => 
                     Number(it?.tax_amount) > 0 || 
                     Number(it?.cgst_rate) > 0 || 
                     Boolean(it?.hsn_sac_code) || 

@@ -96,7 +96,7 @@ export function SalesAnalyticsView({
                 }}
                 labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 900, marginBottom: 4 }}
                 itemStyle={{ color: 'hsl(var(--primary))' }}
-                formatter={(v: any) => [formatCurrency(Number(v)), 'Revenue']}
+                formatter={(v) => [formatCurrency(Number(v)), 'Revenue']}
                 cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1.5, strokeDasharray: '4 4' }}
               />
               <Area

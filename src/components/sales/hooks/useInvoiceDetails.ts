@@ -27,7 +27,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
       let combosList: any[] = [];
       
       // Only query combo offers if at least one item looks like a combo
-      const mightHaveCombos = invoiceItems.some((i: any) => 
+      const mightHaveCombos = invoiceItems.some((i) => 
         Boolean(i?.combo_id || i?.isCombo || (i?.combo_details && i.combo_details !== 'null'))
       );
       if (mightHaveCombos && hasBridge('dbGetComboOffers')) {
@@ -50,8 +50,8 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
         }
       }
 
-      const nonService = invoiceItems.filter((i: any) => !i?.is_service_item);
-      const productIds = [...new Set(nonService.map((i: any) => i?.product_id).filter(Boolean))] as string[];
+      const nonService = invoiceItems.filter((i) => !i?.is_service_item);
+      const productIds = [...new Set(nonService.map((i) => i?.product_id).filter(Boolean))] as string[];
       const missingProductIds = productIds.filter(id => !productsCacheRef.current.has(id));
 
       if (missingProductIds.length > 0) {
@@ -62,7 +62,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
             []
           );
           if (Array.isArray(products)) {
-            products.forEach((p: any) => { if (p?.product_id) productsCacheRef.current.set(p.product_id, p); });
+            products.forEach((p) => { if (p?.product_id) productsCacheRef.current.set(p.product_id, p); });
           }
         } catch {
           // ignore product lookup failures
@@ -86,7 +86,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
           }
 
           const itemNameClean = String(item?.name || '').toLowerCase().trim();
-          const matchedCombo = combosList.find((c: any) => {
+          const matchedCombo = combosList.find((c) => {
             const cNameClean = String(c?.name || '').toLowerCase().trim();
             return (item?.combo_id && c?.combo_id === item.combo_id) ||
               (cNameClean && itemNameClean && cNameClean === itemNameClean) ||
@@ -180,7 +180,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
       try {
         const [data, returned] = await Promise.all([
           withTimeout(
-            getInvoiceItems(invoiceId).catch((err: any) => {
+            getInvoiceItems(invoiceId).catch((err) => {
               console.error('[SalesHistory] dbGetInvoiceItems error:', err);
               return [];
             }),
@@ -188,7 +188,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
             []
           ),
           withTimeout(
-            returnsApi.getAlreadyReturnedQuantities(invoiceId).catch((err: any) => {
+            returnsApi.getAlreadyReturnedQuantities(invoiceId).catch((err) => {
               console.error('[SalesHistory] dbGetAlreadyReturnedQuantities error:', err);
               return [];
             }),
@@ -199,12 +199,12 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
 
         const invoiceItems = Array.isArray(data) ? data : [];
         const returnedMap: Record<string, number> = {};
-        (Array.isArray(returned) ? returned : []).forEach((r: any) => {
+        (Array.isArray(returned) ? returned : []).forEach((r) => {
           if (r?.invoice_item_id) {
             returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
           }
         });
-        const fullyReturned = invoiceItems.length > 0 && invoiceItems.every((item: any) =>
+        const fullyReturned = invoiceItems.length > 0 && invoiceItems.every((item) =>
           Number(item.quantity) - (returnedMap[item.item_id] || 0) <= 0
         );
 

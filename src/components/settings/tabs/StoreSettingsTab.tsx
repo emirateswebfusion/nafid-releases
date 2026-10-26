@@ -5,6 +5,7 @@ import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { INDIAN_STATES } from '../settingsConstants';
 import { SUPPORTED_TIMEZONES, setStoreTimezone } from '../../../utils/timezoneHelper';
+import type { SettingsForm } from '../settingsFormTypes';
 
 export interface StoreSettingsTabProps {
   connectCode: string;
@@ -17,7 +18,7 @@ export interface StoreSettingsTabProps {
   shopWebsite: string; setShopWebsite: (v: string) => void;
   shopGstin: string; setShopGstin: (v: string) => void;
   shopState: string; setShopState: (v: string) => void;
-  gstProfitPercentage: number | string; setGstProfitPercentage: (v: any) => void;
+  gstProfitPercentage: number | string; setGstProfitPercentage: SettingsForm['setGstProfitPercentage'];
   gstConversionTaxInclusive: boolean; setGstConversionTaxInclusive: (v: boolean) => void;
   storeTimezone: string; setStoreTimezoneState: (v: string) => void;
   bankName: string; setBankName: (v: string) => void;
@@ -27,20 +28,20 @@ export interface StoreSettingsTabProps {
   upiId: string; setUpiId: (v: string) => void;
   showUpiQr: boolean; setShowUpiQr: (v: boolean) => void;
   terminalCode: string; setTerminalCode: (v: string) => void;
-  invoiceStartNumber: number | string; setInvoiceStartNumber: (v: any) => void;
+  invoiceStartNumber: number | string; setInvoiceStartNumber: SettingsForm['setInvoiceStartNumber'];
   enableThreeInvoiceSeries: boolean; setEnableThreeInvoiceSeries: (v: boolean) => void;
   b2bPrefix: string; setB2bPrefix: (v: string) => void;
-  b2bStartNumber: number | string; setB2bStartNumber: (v: any) => void;
+  b2bStartNumber: number | string; setB2bStartNumber: SettingsForm['setB2bStartNumber'];
   b2cPrefix: string; setB2cPrefix: (v: string) => void;
-  b2cStartNumber: number | string; setB2cStartNumber: (v: any) => void;
+  b2cStartNumber: number | string; setB2cStartNumber: SettingsForm['setB2cStartNumber'];
   returnPrefix: string; setReturnPrefix: (v: string) => void;
-  returnStartNumber: number | string; setReturnStartNumber: (v: any) => void;
+  returnStartNumber: number | string; setReturnStartNumber: SettingsForm['setReturnStartNumber'];
   scrapPrefix: string; setScrapPrefix: (v: string) => void;
-  scrapStartNumber: number | string; setScrapStartNumber: (v: any) => void;
+  scrapStartNumber: number | string; setScrapStartNumber: SettingsForm['setScrapStartNumber'];
   quotationPrefix: string; setQuotationPrefix: (v: string) => void;
-  quotationStartNumber: number | string; setQuotationStartNumber: (v: any) => void;
+  quotationStartNumber: number | string; setQuotationStartNumber: SettingsForm['setQuotationStartNumber'];
   purchaseBillPrefix: string; setPurchaseBillPrefix: (v: string) => void;
-  purchaseBillStartNumber: number | string; setPurchaseBillStartNumber: (v: any) => void;
+  purchaseBillStartNumber: number | string; setPurchaseBillStartNumber: SettingsForm['setPurchaseBillStartNumber'];
 }
 
 export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({

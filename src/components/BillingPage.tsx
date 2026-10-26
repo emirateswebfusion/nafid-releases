@@ -332,12 +332,12 @@ export function BillingPage() {
   const lastSelectedSourceId = typeof localStorage !== 'undefined' ? localStorage.getItem('last_selected_upi_source_id') : null;
 
   const currentSelectedUpi = upiPageConfig.billing && upiSources.length > 0
-    ? (upiSources.find((s: any) =>
+    ? (upiSources.find((s) =>
          (activeTab?.selectedUpiSourceId && s.source_id === activeTab.selectedUpiSourceId) ||
          (activeTab?.selectedUpiId && (s.source_id === activeTab.selectedUpiId || s.upi_id === activeTab.selectedUpiId))
        )
-       || (lastSelectedSourceId ? upiSources.find((s: any) => s.source_id === lastSelectedSourceId || s.upi_id === lastSelectedSourceId) : null)
-       || upiSources.find((s: any) => s.is_default === 1)
+       || (lastSelectedSourceId ? upiSources.find((s) => s.source_id === lastSelectedSourceId || s.upi_id === lastSelectedSourceId) : null)
+       || upiSources.find((s) => s.is_default === 1)
        || upiSources[0])
     : null;
 

@@ -2,11 +2,12 @@ import React from 'react';
 import { Key, Tags, Upload, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
+import type { SettingsForm } from '../settingsFormTypes';
 
 export interface ProductsSettingsTabProps {
   isAdminRole: boolean;
   activeProductsTab: string;
-  setActiveProductsTab: (tab: any) => void;
+  setActiveProductsTab: SettingsForm['setActiveProductsTab'];
   priceCoding: Record<string, string>;
   setPriceCoding: (v: Record<string, string>) => void;
   serviceChargeBarcode: string;

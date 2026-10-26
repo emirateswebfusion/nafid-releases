@@ -150,11 +150,11 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     const accounts = await fetchSystemAccounts();
     if (accounts) {
       matchingAccount = userId
-        ? accounts.find((account: any) => account.user_id === userId) || null
+        ? accounts.find((account) => account.user_id === userId) || null
         : null;
       if (userId && !matchingAccount) userId = '';
       if (!userId) {
-        matchingAccount = accounts.find((account: any) => String(account.email || '').trim().toLowerCase() === email) || null;
+        matchingAccount = accounts.find((account) => String(account.email || '').trim().toLowerCase() === email) || null;
       }
       if (matchingAccount) {
         const linkedStaff = staffList.find(staff => staff.user_id === matchingAccount.user_id && staff.staff_id !== formData.staff_id);
@@ -232,8 +232,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         if (!users) return;
         const email = String(staff.user_email || staff.email || '').trim().toLowerCase();
         const account = staff.user_id
-          ? users.find((user: any) => user.user_id === staff.user_id)
-          : users.find((user: any) => String(user.email || '').trim().toLowerCase() === email);
+          ? users.find((user) => user.user_id === staff.user_id)
+          : users.find((user) => String(user.email || '').trim().toLowerCase() === email);
         if (!account) return;
         const linkedStaff = staffList.find(candidate => candidate.user_id === account.user_id && candidate.staff_id !== staff.staff_id);
         if (linkedStaff) return;

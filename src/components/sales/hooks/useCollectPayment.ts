@@ -37,7 +37,7 @@ export function useCollectPayment(ctx: UseCollectPaymentContext) {
         ? Math.max(0, invGrandTotal - collectReceivedAmount)
         : (collectReceivedAmount > invGrandTotal ? (collectReceivedAmount - invGrandTotal) : 0);
 
-      const selectedCollectSource = upiSources.find((s: any) => s.source_id === collectUpiSourceId) || upiSources[0];
+      const selectedCollectSource = upiSources.find((s) => s.source_id === collectUpiSourceId) || upiSources[0];
       const collectSplitDetails = collectPaymentMethod === 'UPI' && selectedCollectSource
         ? { upi_id: selectedCollectSource.upi_id, upi_name: selectedCollectSource.name, upi_source_id: selectedCollectSource.source_id }
         : selectedInvoice.split_details;
