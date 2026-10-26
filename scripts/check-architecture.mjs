@@ -12,7 +12,7 @@
  *   R4. src/data/** (except client.ts) must not read `window` directly.
  *   R5. src/store/** must not import UI components.
  *   R6. electron/services|db|sync/** must not import electron/ipc/** (dependency direction).
- *   R7. Files in src/components/** and electron/** over the 800-line budget are capped at their
+ *   R7. Files in src/** (except the generated data/dbRows.ts) and electron/** over the 800-line budget are capped at their
  *       baseline size. New files may not exceed the budget.
  *   R8. electron/ipc/** contains no SQL (`.prepare(`) and does not import electron/db/statements:
  *       handlers only register channels (`handle(channel, service.fn)`); SQL lives in electron/db.
@@ -23,6 +23,7 @@
  *       shrink, never grow (`startupBaselineLines`). Schema / data changes go into a numbered migration in
  *       electron/db/migrations/, listed in migrations/index.ts.
  *
+ *  R14. src/components/ holds folders only: every component lives in its feature folder (or app/, auth/, print/, ui/).
  *  R13. Every eslint-disable states its reason (`-- why`), and the total number of suppressions may only shrink
  *       (arch-baseline.json `lintSuppressions`): fix the code instead of adding one.
  *  R12. electron/sync/** and electron/main.ts may only call `.prepare(` for the dynamic query builders grandfathered
@@ -81,7 +82,7 @@ for (const full of walk(path.join(root, 'src'), (n) => /\.(ts|tsx)$/.test(n))) {
   if (file.startsWith('src/store/') && /from\s+['"][^'"]*components\//.test(source)) violations.push(`${file}: stores must not import UI components.`);
 
   const lines = source.split('\n').length;
-  if (file.startsWith('src/components/') && lines > SIZE_BUDGET) sizes[file] = lines;
+  if (file !== 'src/data/dbRows.ts' && lines > SIZE_BUDGET) sizes[file] = lines; // dbRows.ts is generated
 }
 
 const syncPrepares = {};
@@ -105,6 +106,11 @@ for (const full of walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))) 
   }
   if (lines > SIZE_BUDGET) sizes[file] = lines;
   if ((file.startsWith('electron/sync/') || file === 'electron/main.ts') && prepares > 0) syncPrepares[file] = prepares;
+}
+
+// R14: no loose files directly in src/components.
+for (const name of readdirSync(path.join(root, 'src/components'))) {
+  if (statSync(path.join(root, 'src/components', name)).isFile()) violations.push(`src/components/${name}: put it in its feature folder (src/components/<feature>/), or app/, auth/, print/, ui/ (R14).`);
 }
 
 // R13: lint suppressions need a reason and may not grow.

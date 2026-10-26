@@ -1,7 +1,7 @@
 # Nafid POS — Offline AI Knowledge Integration & Capability Registry Design
 
 **Application:** Nafid POS  
-**Module:** Offline AI Business Assistant (`src/services/offlineAiService.ts`, `src/components/AiAssistant.tsx`)  
+**Module:** Offline AI Business Assistant (`src/services/offlineAiService.ts`, `src/components/ai-assistant/AiAssistant.tsx`)  
 **Design Standard:** 100% Offline-First, Zero Cloud LLM Dependency, Real Implementation Reference, Deterministic Local Database Execution.  
 **Deliverable File:** `docs/ai-knowledge/ai-integration-design.md`  
 
@@ -107,7 +107,7 @@ export const SALES_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'SALES_TODAY',
     module: 'sales',
     pageName: 'Sales History / Billing',
-    sourceComponent: 'src/components/SalesHistory.tsx',
+    sourceComponent: 'src/components/sales/SalesHistory.tsx',
     intentKey: 'SALES_TODAY',
     patterns: {
       en: [/today('s)? sales/i, /sales (today|so far)/i, /how much did we sell today/i],
@@ -144,7 +144,7 @@ export const SALES_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'INVOICE_LOOKUP',
     module: 'sales',
     pageName: 'Sales History',
-    sourceComponent: 'src/components/SalesHistory.tsx',
+    sourceComponent: 'src/components/sales/SalesHistory.tsx',
     intentKey: 'INVOICE_LOOKUP',
     patterns: {
       en: [/invoice (number|details|info) #?([A-Za-z0-9-]+)/i, /bill #?([A-Za-z0-9-]+)/i],
@@ -181,7 +181,7 @@ export const SALES_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'INVOICE_DELETE_MUTATION',
     module: 'sales',
     pageName: 'Sales History',
-    sourceComponent: 'src/components/SalesHistory.tsx',
+    sourceComponent: 'src/components/sales/SalesHistory.tsx',
     intentKey: 'INVOICE_DELETE',
     patterns: {
       en: [/delete invoice #?([A-Za-z0-9-]+)/i, /void bill #?([A-Za-z0-9-]+)/i],
@@ -231,7 +231,7 @@ export const INVENTORY_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'INVENTORY_LOW_STOCK',
     module: 'inventory',
     pageName: 'Inventory Manager',
-    sourceComponent: 'src/components/InventoryManager.tsx',
+    sourceComponent: 'src/components/inventory/InventoryManager.tsx',
     intentKey: 'INVENTORY_LOW_STOCK',
     patterns: {
       en: [/low stock( items)?/i, /out of stock/i, /which items need reorder/i],
@@ -261,7 +261,7 @@ export const INVENTORY_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'STOCK_ADJUST_MUTATION',
     module: 'inventory',
     pageName: 'Inventory Manager',
-    sourceComponent: 'src/components/InventoryManager.tsx',
+    sourceComponent: 'src/components/inventory/InventoryManager.tsx',
     intentKey: 'STOCK_ADJUST',
     patterns: {
       en: [/adjust stock of (.+) by ([+-]?\d+)/i, /set stock of (.+) to (\d+)/i],
@@ -317,7 +317,7 @@ export const CASH_REGISTER_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'CASH_DRAWER_CURRENT',
     module: 'cash_register',
     pageName: 'Cashier Settlement',
-    sourceComponent: 'src/components/CashierSettlement.tsx',
+    sourceComponent: 'src/components/cashier/CashierSettlement.tsx',
     intentKey: 'CASH_DRAWER_CURRENT',
     patterns: {
       en: [/cash in drawer/i, /till balance/i, /how much cash do we have right now/i],
@@ -347,7 +347,7 @@ export const CASH_REGISTER_CAPABILITY_REGISTRY: CapabilityRegistryEntry[] = [
     id: 'RECORD_EXPENSE_MUTATION',
     module: 'cash_register',
     pageName: 'Cashier Settlement',
-    sourceComponent: 'src/components/CashierSettlement.tsx',
+    sourceComponent: 'src/components/cashier/CashierSettlement.tsx',
     intentKey: 'RECORD_EXPENSE',
     patterns: {
       en: [/record expense of (\d+) for (.+)/i, /paid (\d+) for (.+)/i],

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, isAiAssistantAvailable, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags } from '../featureFlags';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, isAiAssistantAvailable, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags } from '../config/featureFlags';
 import { isDesktopRuntime } from '../data/client';
 import { settingsApi } from '../data/settings';
 

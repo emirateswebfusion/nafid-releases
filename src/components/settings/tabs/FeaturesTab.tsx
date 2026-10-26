@@ -1,7 +1,7 @@
 import React from 'react';
 import { Power, AlertCircle, TrendingUp, Handshake, Layers, Check, FileText, Wallet } from 'lucide-react';
 import clsx from 'clsx';
-import { FEATURE_LIST, type FeatureFlags, useFeatureFlagsStore, sanitizeFeatureFlags } from '../../../featureFlags';
+import { FEATURE_LIST, type FeatureFlags, useFeatureFlagsStore, sanitizeFeatureFlags } from '../../../config/featureFlags';
 import type { SettingsForm } from '../settingsFormTypes';
 
 export interface FeaturesTabProps {

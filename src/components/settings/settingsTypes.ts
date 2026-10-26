@@ -3,7 +3,7 @@ import type { printingApi } from '../../data/printing';
 import type { Product } from '../../data/products';
 import type { EffectiveCloudState } from '../../data/sync';
 import type { SettingsFormState } from './hooks/useSettingsFormState';
-import type { FeatureFlags } from '../../featureFlags';
+import type { FeatureFlags } from '../../config/featureFlags';
 
 /** Stored printer settings with connection fields edited by the hardware tab. */
 export type PrinterConfig = KnownSettings['receipt_printer_config'] & {

@@ -2,7 +2,7 @@ import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { isAdminRole } from '../../../utils/permissions';
-import { sanitizeFeatureFlags, DEFAULT_FEATURE_FLAGS, useFeatureFlagsStore } from '../../../featureFlags';
+import { sanitizeFeatureFlags, DEFAULT_FEATURE_FLAGS, useFeatureFlagsStore } from '../../../config/featureFlags';
 import { setSetting } from '../../../data/settings';
 import { STAFF_DATA_MASKING_KEY } from '../../../utils/staffDataMasking';
 import { EMERGENCY_PANIC_CONFIG_KEY } from '../../../utils/emergencyPurge';
@@ -13,7 +13,7 @@ import { setAppTimeFormat } from '../../../utils/receiptGenerator';
 import { useCartStore } from '../../../store/cartStore';
 import { useBillingUIStore } from '../../../store/billingUIStore';
 import type { ShopDomain } from '../../../store/cartStore';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 import type { SettingsSnapshotOverrides } from '../settingsTypes';
 import type { SettingsFormState } from './useSettingsFormState';
 

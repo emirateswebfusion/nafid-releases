@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { Shield, User, SlidersHorizontal, Check, Lock, EyeOff, Eye } from 'lucide-react';
-import { PermissionSelector } from '../../PermissionSelector';
+import { PermissionSelector } from '../PermissionSelector';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 
 export interface StaffAccessTabProps {

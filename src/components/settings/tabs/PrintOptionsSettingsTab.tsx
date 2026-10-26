@@ -1,10 +1,10 @@
-import { useFeatureFlagsStore } from '../../../featureFlags';
+import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import React from 'react';
 import { FileText, Shield, AlertCircle, Info, CheckCircle2, Tags } from 'lucide-react';
 import clsx from 'clsx';
 import { FONT_OPTIONS } from '../settingsUtils';
 import { useBillingUIStore } from '../../../store/billingUIStore';
-import { CODE_TYPES } from '../../../labelCodeTypes';
+import { CODE_TYPES } from '../../../config/labelCodeTypes';
 import { CashDrawerAutoCloseSettings } from './CashDrawerAutoCloseSettings';
 import type { SettingsForm } from '../settingsFormTypes';
 

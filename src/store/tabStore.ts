@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { CartItem, InvoiceType } from './cartStore';
 import { useCartStore } from './cartStore';
-import { useFeatureFlagsStore } from '../featureFlags';
+import { useFeatureFlagsStore } from '../config/featureFlags';
 
 export type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT' | 'SPLIT';
 

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { getSetting } from '../../../data/settings';
 import { bridgeEvents } from '../../../data/events';
-import { type CodeType } from '../../../labelCodeTypes';
+import { type CodeType } from '../../../config/labelCodeTypes';
 import { listGrades } from '../../../data/grades';
 import { listPricingTiers } from '../../../data/pricingTiers';
 import { listParties } from '../../../data/parties';

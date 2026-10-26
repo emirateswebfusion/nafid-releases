@@ -10,7 +10,7 @@ import { useCartStore } from '../../../store/cartStore';
 import type { UserRole, InvoiceType, CartItem } from '../../../store/cartStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { Tab } from '../../../store/tabStore';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 import type { Invoice } from '../../../data/invoices';
 
 export interface BillingHeaderProps {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { type Product, DEFAULT_FORM } from '../inventoryUtils';
-import { type CodeType, DEFAULT_CODE_TYPE } from '../../../labelCodeTypes';
+import { type CodeType, DEFAULT_CODE_TYPE } from '../../../config/labelCodeTypes';
 
 /**
  * State of the inventory screen: product list, filters and sort, selection, the add / edit product form, grades,

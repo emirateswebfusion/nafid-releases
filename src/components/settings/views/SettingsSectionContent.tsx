@@ -1,11 +1,11 @@
 import React from 'react';
-import { EmergencyPurgeSettings } from '../../EmergencyPurgeSettings';
-import { StaffDataMaskingSettings } from '../../StaffDataMaskingSettings';
-import { DesignSettings } from '../../DesignSettings';
-import { LedgerTerminologySettings } from '../../LedgerTerminologySettings';
-import { BillingUICustomizer } from '../../BillingUICustomizer';
+import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
+import { StaffDataMaskingSettings } from '../StaffDataMaskingSettings';
+import { DesignSettings } from '../../design-settings/DesignSettings';
+import { LedgerTerminologySettings } from '../LedgerTerminologySettings';
+import { BillingUICustomizer } from '../../billing-ui-customizer/BillingUICustomizer';
 import { useBillingUIStore } from '../../../store/billingUIStore';
-import { DashboardCardCustomizer } from '../../DashboardCardCustomizer';
+import { DashboardCardCustomizer } from '../../owner-dashboard/DashboardCardCustomizer';
 import { StoreSettingsTab } from '../tabs/StoreSettingsTab';
 import { WhatsAppSettingsTab } from '../tabs/WhatsAppSettingsTab';
 import { HardwareSettingsTab } from '../tabs/HardwareSettingsTab';
@@ -16,7 +16,7 @@ import { PrintOptionsSettingsTab } from '../tabs/PrintOptionsSettingsTab';
 import { SystemPreferencesTab } from '../tabs/SystemPreferencesTab';
 import { FeaturesTab } from '../tabs/FeaturesTab';
 import { NetworkSyncTab } from '../tabs/NetworkSyncTab';
-import type { FeatureFlags, FeatureKey } from '../../../featureFlags';
+import type { FeatureFlags, FeatureKey } from '../../../config/featureFlags';
 import type { SettingsFormState } from '../hooks/useSettingsFormState';
 
 export interface SettingsSectionContentProps {
