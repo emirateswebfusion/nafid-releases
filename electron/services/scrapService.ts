@@ -1,3 +1,4 @@
+import type { PartyLedgerRow, PartyRow, ScrapCategoryInput, ScrapCategoryRow, ScrapInvoiceItemInput, ScrapInvoiceListRow, ScrapTotalRow, ScrapTransactionInput, ScrapTransactionRow, ScrapTransactionUpdateInput, SettingRow } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localDate } from './storeTime.js';
@@ -21,7 +22,7 @@ export function getScrapCategories(tenantId: string) {
 }
 
 /** IPC `db:addScrapCategory` */
-export function addScrapCategory(cat: any) {
+export function addScrapCategory(cat: ScrapCategoryInput) {
   try {
     const db = getDb();
     scrapSql.insertScrapCategory(db).run(cat.scrap_category_id, cat.tenant_id, cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs');
@@ -33,7 +34,7 @@ export function addScrapCategory(cat: any) {
 }
 
 /** IPC `db:updateScrapCategory` */
-export function updateScrapCategory(cat: any) {
+export function updateScrapCategory(cat: ScrapCategoryInput) {
   try {
     const db = getDb();
     scrapSql.updateScrapCategoryByScrapCategoryId(db).run(cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs', cat.scrap_category_id);
@@ -60,7 +61,7 @@ export function deleteScrapCategory(scrapCategoryId: string) {
 export function deduplicateScrapCategories() {
   try {
     const db = getDb();
-    const dupes: any[] = scrapSql.findScrapCategories2(db).all();
+    const dupes = scrapSql.findScrapCategories2(db).all() as ScrapCategoryRow[];
     let removed = 0;
     for (const d of dupes) {
       const result = scrapSql.deleteScrapCategoryByScrapCategoryId(db).run(d.scrap_category_id, d.keep_rowid);
@@ -74,7 +75,7 @@ export function deduplicateScrapCategories() {
 }
 
 /** IPC `db:addScrapTransaction` */
-export function addScrapTransaction(t: any) {
+export function addScrapTransaction(t: ScrapTransactionInput) {
   try {
     const db = getDb();
     const qtyNum = Number(t.quantity) || 0;
@@ -166,7 +167,7 @@ export function getNextScrapInvoiceNumber({ tenant_id }: { tenant_id: string }) 
     const configKey = 'scrap_invoice_counter';
 
     const result = db.transaction(() => {
-      const row: any = scrapSql.findSettingsByKey(db).get('global', configKey);
+      const row = scrapSql.findSettingsByKey(db).get('global', configKey) as SettingRow | undefined;
       let counter = 1;
       // Use the stored prefix as-is — do NOT override prefixes that happen to contain '-SCR-'.
       // The stored prefix is whatever the user configured in Settings.
@@ -217,7 +218,7 @@ export function peekNextScrapInvoiceNumber({ tenant_id }: { tenant_id: string })
     const terminalCode = getOrInitTerminalCode(db);
     const defaultPrefix = `${terminalCode}-SCR-`;
 
-    const row: any = scrapSql.findSettingsByKey(db).get('global', 'scrap_invoice_counter');
+    const row = scrapSql.findSettingsByKey(db).get('global', 'scrap_invoice_counter') as SettingRow | undefined;
     let counter = 1;
     let prefix = defaultPrefix;
 
@@ -254,7 +255,7 @@ export function getScrapInvoiceByNumber({ tenant_id, scrap_invoice_number }: { t
   try {
     const db = getDb();
     if (!tenant_id || !scrap_invoice_number) return null;
-    const rows: any[] = scrapSql.findScrapTransactionsByScrapInvoiceNumber(db).all(tenant_id, scrap_invoice_number);
+    const rows = scrapSql.findScrapTransactionsByScrapInvoiceNumber(db).all(tenant_id, scrap_invoice_number) as ScrapTransactionRow[];
     if (rows.length === 0) return null;
     const totalAmount = rows.reduce((sum, r) => sum + r.total_amount, 0);
     const paymentStatus = rows[0]?.payment_status || 'PENDING';
@@ -270,7 +271,7 @@ export function getScrapInvoiceList({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     if (!tenant_id) return [];
-    const rows: any[] = scrapSql.findScrapTransactionsByScrap_AndType(db).all(tenant_id);
+    const rows = scrapSql.findScrapTransactionsByScrap_AndType(db).all(tenant_id) as ScrapInvoiceListRow[];
     return rows;
   } catch (error) {
     console.error('[db:getScrapInvoiceList]', error);
@@ -303,11 +304,11 @@ export function updateScrapInvoiceHeader({ tenant_id, scrap_invoice_number, part
 }
 
 /** IPC `db:updateScrapInvoiceFull` */
-export function updateScrapInvoiceFull({ tenant_id, scrap_invoice_number, party_name, customer_phone, customer_address, payment_status, items }: { tenant_id: string; scrap_invoice_number: string; party_name?: string; customer_phone?: string; customer_address?: string; payment_status?: string; items: any[] }) {
+export function updateScrapInvoiceFull({ tenant_id, scrap_invoice_number, party_name, customer_phone, customer_address, payment_status, items }: { tenant_id: string; scrap_invoice_number: string; party_name?: string; customer_phone?: string; customer_address?: string; payment_status?: string; items: ScrapInvoiceItemInput[] }) {
   try {
     const db = getDb();
     const result = db.transaction(() => {
-      const existingRows: any[] = scrapSql.findScrapTransactionsByScrapInvoiceNumber2(db).all(tenant_id, scrap_invoice_number);
+      const existingRows = scrapSql.findScrapTransactionsByScrapInvoiceNumber2(db).all(tenant_id, scrap_invoice_number) as ScrapTransactionRow[];
 
       for (const row of existingRows) {
         const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
@@ -357,10 +358,10 @@ export function updateScrapInvoiceFull({ tenant_id, scrap_invoice_number, party_
 }
 
 /** IPC `db:updateScrapTransaction` */
-export function updateScrapTransaction(args: any) {
+export function updateScrapTransaction(args: ScrapTransactionUpdateInput) {
   try {
     const db = getDb();
-    const row: any = scrapSql.findScrapTransactionsByTransactionId(db).get(args.transaction_id, args.tenant_id);
+    const row = scrapSql.findScrapTransactionsByTransactionId(db).get(args.transaction_id, args.tenant_id) as ScrapTransactionRow | undefined;
     if (!row) return { success: false, error: 'Transaction not found' };
 
     const oldCatId = row.scrap_category_id;
@@ -409,7 +410,7 @@ export function updateScrapTransaction(args: any) {
 export function deleteScrapTransaction({ tenant_id, transaction_id }: { tenant_id: string; transaction_id: string }) {
   try {
     const db = getDb();
-    const row: any = scrapSql.findScrapTransactionsByTransactionId2(db).get(transaction_id, tenant_id);
+    const row = scrapSql.findScrapTransactionsByTransactionId2(db).get(transaction_id, tenant_id) as ScrapTransactionRow | undefined;
     if (!row) return { success: false, error: 'Transaction not found' };
     const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
     const result = db.transaction(() => {
@@ -428,7 +429,7 @@ export function deleteScrapTransaction({ tenant_id, transaction_id }: { tenant_i
 export function deleteScrapInvoice({ tenant_id, scrap_invoice_number }: { tenant_id: string; scrap_invoice_number: string }) {
   try {
     const db = getDb();
-    const rows: any[] = scrapSql.findScrapTransactionsByScrapInvoiceNumber2(db).all(tenant_id, scrap_invoice_number);
+    const rows = scrapSql.findScrapTransactionsByScrapInvoiceNumber2(db).all(tenant_id, scrap_invoice_number) as ScrapTransactionRow[];
     const result = db.transaction(() => {
       for (const row of rows) {
         const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
@@ -437,10 +438,10 @@ export function deleteScrapInvoice({ tenant_id, scrap_invoice_number }: { tenant
       }
       scrapSql.updateScrapTransactionIsDeleted(db)
         .run(tenant_id, scrap_invoice_number);
-      const ledgerEntries: any[] = scrapSql.findPartyLedgerByReferenceNumber(db).all(tenant_id, scrap_invoice_number);
+      const ledgerEntries = scrapSql.findPartyLedgerByReferenceNumber(db).all(tenant_id, scrap_invoice_number) as PartyLedgerRow[];
       for (const entry of ledgerEntries) {
         scrapSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-        recalcPartyBalances(db, entry.party_id);
+        recalcPartyBalances(db, entry.party_id as string);
       }
       return { success: true };
     })();
@@ -467,11 +468,11 @@ export function upsertScrapCreditLedger({ tenant_id, scrap_invoice_number, payme
     if (!tenant_id || !scrap_invoice_number) return { success: false, error: 'tenant_id and scrap_invoice_number are required' };
 
     const result = db.transaction(() => {
-      let existingEntry: any = scrapSql.findOnePartyLedgerByReferenceNumber(db).get(tenant_id, scrap_invoice_number);
+      let existingEntry = scrapSql.findOnePartyLedgerByReferenceNumber(db).get(tenant_id, scrap_invoice_number) as PartyLedgerRow | null | undefined;
 
-      const removeEntry = (entry: any) => {
+      const removeEntry = (entry: PartyLedgerRow) => {
         scrapSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-        recalcPartyBalances(db, entry.party_id);
+        recalcPartyBalances(db, entry.party_id as string);
       };
 
       if (payment_status !== 'CREDIT') {
@@ -482,16 +483,16 @@ export function upsertScrapCreditLedger({ tenant_id, scrap_invoice_number, payme
       const name = party_name ? String(party_name).trim() : '';
       if (!name) return { success: false, error: 'Party name is required for Credit payment' };
 
-      const totalRow: any = scrapSql.findScrapTransactionsByScrapInvoiceNumberCOALESCESUMtotalAmountAndTotal(db).get(tenant_id, scrap_invoice_number);
-      const total = parseFloat(totalRow?.total) || 0;
+      const totalRow = scrapSql.findScrapTransactionsByScrapInvoiceNumberCOALESCESUMtotalAmountAndTotal(db).get(tenant_id, scrap_invoice_number) as ScrapTotalRow | undefined;
+      const total = parseFloat(totalRow?.total as string) || 0;
       if (total <= 0) return { success: false, error: 'Invoice total is zero' };
 
       const phone = customer_phone ? String(customer_phone).trim() : '';
       const address = customer_address ? String(customer_address).trim() : null;
 
-      let party: any = scrapSql.findPartiesByPhone(db).get(tenant_id, phone) || null;
+      let party: PartyRow | null = scrapSql.findPartiesByPhone(db).get(tenant_id, phone) as PartyRow | undefined || null;
       if (!party) {
-        party = scrapSql.findPartiesByName(db).get(tenant_id, name) || null;
+        party = scrapSql.findPartiesByName(db).get(tenant_id, name) as PartyRow | undefined || null;
       }
 
       if (!party) {
@@ -500,8 +501,8 @@ export function upsertScrapCreditLedger({ tenant_id, scrap_invoice_number, payme
         party = { party_id: partyId };
       }
 
-      const partyBal: any = scrapSql.findPartiesByPartyId(db).get(party.party_id);
-      const currentBalance = parseFloat(partyBal?.balance) || 0;
+      const partyBal = scrapSql.findPartiesByPartyId(db).get(party.party_id) as PartyRow | undefined;
+      const currentBalance = parseFloat(partyBal?.balance as string) || 0;
       const newBalance = currentBalance - total;
 
       // Party changed → move the entry to the new party
@@ -513,10 +514,10 @@ export function upsertScrapCreditLedger({ tenant_id, scrap_invoice_number, payme
       if (existingEntry) {
         // Same party → update in place (keeps ledger_id stable for sync)
         scrapSql.updatePartyLedgerByLedgerId(db).run(total, `Scrap purchase ${scrap_invoice_number} - ${name}`, user_id || null, user_name || null, existingEntry.ledger_id);
-        const entries = scrapSql.findPartyLedgerByPartyId(db).all(party.party_id) as any[];
+        const entries = scrapSql.findPartyLedgerByPartyId(db).all(party.party_id) as PartyLedgerRow[];
         let running = 0;
         for (const row of entries) {
-          running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+          running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
           scrapSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
         }
         recalcPartyBalances(db, party.party_id);

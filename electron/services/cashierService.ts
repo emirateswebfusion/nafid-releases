@@ -1,3 +1,4 @@
+import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, CustomerRow, InvoiceRow, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
 import { findOpenDrawersBeforeDate } from './cashDrawerSession.js';
@@ -20,14 +21,14 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
     if (!drawer || drawer.status !== 'OPEN') {
       const activeTenantId = tenant_id || 'global';
       let autoOpenSetting = false;
-      const autoOpenRow = cashierSql.findOneSettingByKey(db).get(activeTenantId, activeTenantId) as any;
+      const autoOpenRow = cashierSql.findOneSettingByKey(db).get(activeTenantId, activeTenantId) as SettingRow | undefined;
       if (autoOpenRow && autoOpenRow.value !== undefined && autoOpenRow.value !== null) {
         try { autoOpenSetting = Boolean(JSON.parse(autoOpenRow.value)); } catch { autoOpenSetting = String(autoOpenRow.value).trim() === 'true'; }
       }
 
       if (autoOpenSetting) {
         let defaultBal = 0;
-        const balRow = cashierSql.findOneSettingByKeyDefaultOpeningBalance(db).get(activeTenantId, activeTenantId) as any;
+        const balRow = cashierSql.findOneSettingByKeyDefaultOpeningBalance(db).get(activeTenantId, activeTenantId) as SettingRow | undefined;
         if (balRow && balRow.value !== undefined && balRow.value !== null) {
           try { defaultBal = Number(JSON.parse(balRow.value)) || 0; } catch { defaultBal = Number(balRow.value) || 0; }
         }
@@ -36,7 +37,7 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
         const storeTz = getStoreTimezoneSetting(db, activeTenantId);
         const cleanDate = business_date ? parseCleanDate(business_date, storeTz) : localDate();
 
-        const existing = cashierSql.findOneCashDrawerByBusinessDate(db).get(activeTenantId, cleanDate, cleanDate) as any;
+        const existing = cashierSql.findOneCashDrawerByBusinessDate(db).get(activeTenantId, cleanDate, cleanDate) as CashDrawerRow | undefined;
 
         if (!existing) {
           const drawer_id = crypto.randomUUID();
@@ -60,7 +61,7 @@ export function setOpeningBalance({ tenant_id, opening_balance, user_id, user_na
     autoCloseOverdueDrawers(db, tenant_id);
     const date = localDate();
 
-    const existing = cashierSql.findOneCashDrawerByBusinessDateOpen(db).get(tenant_id, date, date) as any;
+    const existing = cashierSql.findOneCashDrawerByBusinessDateOpen(db).get(tenant_id, date, date) as CashDrawerRow | undefined;
 
     // One session at a time: a drawer left open on an earlier day must be closed before today's is opened.
     const older = existing ? [] : findOpenDrawersBeforeDate(db, tenant_id, date);
@@ -90,7 +91,7 @@ export function setOpeningBalance({ tenant_id, opening_balance, user_id, user_na
     }
     
     const dId = existing ? existing.drawer_id : '';
-    const targetDrawer = cashierSql.findOneCashDrawerByBusinessDateOpen(db).get(tenant_id, date, date) as any;
+    const targetDrawer = cashierSql.findOneCashDrawerByBusinessDateOpen(db).get(tenant_id, date, date) as CashDrawerRow | undefined;
     if (targetDrawer) {
       cashierSql.updateCashTransactionDrawerId(db).run(targetDrawer.drawer_id, tenant_id, date, date);
       reconcileCashDrawer(db, tenant_id, targetDrawer);
@@ -127,7 +128,7 @@ export function getPendingInvoices({ tenant_id, search }: { tenant_id: string; s
 
 /** IPC `db:cashier:settlePayment` */
 export function settlePayment({ tenant_id, invoice_id, received_amount, discount_amount, payment_method, payment_source_id, split_details, user_id, user_name }: {
-  tenant_id: string; invoice_id: string; received_amount: number; discount_amount?: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string
+  tenant_id: string; invoice_id: string; received_amount: number; discount_amount?: number; payment_method: string; payment_source_id?: string; split_details?: SplitDetails | string | null; user_id: string; user_name?: string
 }) {
   const db = getDb();
   const validMethods = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'SPLIT'];
@@ -137,7 +138,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
   
   try {
     const tx = db.transaction(() => {
-      const invoice = (cashierSql.findInvoicesByInvoiceId(db).get(invoice_id) || cashierSql.findInvoicesByInvoiceId2(db).get(invoice_id, tenant_id)) as any;
+      const invoice = (cashierSql.findInvoicesByInvoiceId(db).get(invoice_id) || cashierSql.findInvoicesByInvoiceId2(db).get(invoice_id, tenant_id)) as InvoiceRow | undefined;
       if (!invoice) throw new Error('Invoice not found');
       
       const targetTenantId = invoice.tenant_id || tenant_id || 'global';
@@ -163,15 +164,15 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
       // If invoice was created with 0 points_earned (e.g. pending bill) but customer exists and loyalty is enabled, award points now!
       if (invoice.customer_id && (!invoice.points_earned || Number(invoice.points_earned) <= 0)) {
         try {
-          const lCfgRow: any = cashierSql.findSettingsByKey(db).get(targetTenantId)
-            || cashierSql.findSettingsByKeyLoyaltyConfig(db).get();
-          let lCfg: any = null;
+          const lCfgRow: SettingRow | undefined = cashierSql.findSettingsByKey(db).get(targetTenantId) as SettingRow | undefined
+            || cashierSql.findSettingsByKeyLoyaltyConfig(db).get() as SettingRow | undefined;
+          let lCfg: Record<string, unknown> | null = null;
           if (lCfgRow?.value) {
             lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
           }
-          const flagsRow: any = cashierSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId)
-            || cashierSql.findSettingsByKeyFeatureFlags2(db).get();
-          let flags: any = null;
+          const flagsRow: SettingRow | undefined = cashierSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
+            || cashierSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
+          let flags: Record<string, unknown> | null = null;
           if (flagsRow?.value) {
             flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
           }
@@ -180,7 +181,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
             const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
             const ptsEarned = Math.floor(Math.max(0, Number(newGrandTotal) || 0) / earningRate);
             if (ptsEarned > 0) {
-              const custRow: any = cashierSql.findCustomersByCustomerId(db).get(invoice.customer_id);
+              const custRow = cashierSql.findCustomersByCustomerId(db).get(invoice.customer_id) as CustomerRow | undefined;
               const prevBal = Number(custRow?.current_points_balance) || 0;
               const newBal = prevBal + ptsEarned;
               const nowTimestamp = localTimestamp();
@@ -208,7 +209,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
       const date = localDate();
       const drawer = getOpenCashDrawer(db, targetTenantId, date);
 
-      let parsedSplitObj: any = null;
+      let parsedSplitObj: SplitDetails | null = null;
       if (split_details && split_details !== 'null') {
         try {
           parsedSplitObj = typeof split_details === 'string' ? JSON.parse(split_details) : split_details;
@@ -225,7 +226,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
         }
       } else if (payment_source_id) {
         // Non-cash payment against a configured bank / card / UPI source
-        const source = cashierSql.findPaymentSourcesBySourceIdAndIsEnabled(db).get(payment_source_id, tenant_id) as any;
+        const source = cashierSql.findPaymentSourcesBySourceIdAndIsEnabled(db).get(payment_source_id, tenant_id) as PaymentSourceRow | undefined;
         if (source) {
           const newBalance = Number(source.current_balance) + received;
           cashierSql.insertPaymentSourceTransaction(db).run(
@@ -340,9 +341,9 @@ export function dayClosing({ tenant_id, actual_cash, closing_remarks, user_id, u
       const date = business_date ? (typeof business_date === 'string' ? parseCleanDate(business_date) : localDate(new Date(business_date))) : localDate();
       const parts = date.split('-');
       const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : date;
-      let drawer = cashierSql.findOneCashDrawerByBusinessDate2(db).get(tenant_id, date, altDate, date, `${date}%`, date, altDate) as any;
+      let drawer = cashierSql.findOneCashDrawerByBusinessDate2(db).get(tenant_id, date, altDate, date, `${date}%`, date, altDate) as CashDrawerRow | undefined;
       if (!drawer) {
-        drawer = cashierSql.findOneCashDrawerByStatus(db).get(tenant_id) as any;
+        drawer = cashierSql.findOneCashDrawerByStatus(db).get(tenant_id) as CashDrawerRow | undefined;
       }
       if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
@@ -400,7 +401,7 @@ export function reopenDrawer({ tenant_id, drawer_id, user_id, user_name }: { ten
   const db = getDb();
   try {
     const tx = db.transaction(() => {
-      const drawer = cashierSql.findCashDrawerByDrawerId(db).get(drawer_id, tenant_id) as any;
+      const drawer = cashierSql.findCashDrawerByDrawerId(db).get(drawer_id, tenant_id) as CashDrawerRow | undefined;
       if (!drawer) throw new Error('Cash drawer not found');
 
       cashierSql.updateCashDrawerByDrawerIdOpen(db).run(drawer_id);
@@ -431,9 +432,9 @@ export function reopenDrawer({ tenant_id, drawer_id, user_id, user_name }: { ten
 export function deleteTransaction({ tenant_id, transaction_id, user_id, user_name }: { tenant_id: string; transaction_id: string; user_id: string; user_name?: string }) {
   const db = getDb();
   try {
-    let targetDrawerId: string | null = null;
+    let targetDrawerId: string | null | undefined = null;
     const tx = db.transaction(() => {
-      const transaction = cashierSql.findCashTransactionsByTransactionId(db).get(transaction_id, tenant_id) as any;
+      const transaction = cashierSql.findCashTransactionsByTransactionId(db).get(transaction_id, tenant_id) as CashTransactionRow | undefined;
       if (!transaction) throw new Error('Transaction not found');
 
       targetDrawerId = transaction.drawer_id;
@@ -441,7 +442,7 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
       cashierSql.deleteCashTransactionByTransactionId(db).run(transaction_id, tenant_id);
 
       if (targetDrawerId) {
-        const drawer = cashierSql.findCashDrawerByDrawerId2(db).get(targetDrawerId) as any;
+        const drawer = cashierSql.findCashDrawerByDrawerId2(db).get(targetDrawerId) as CashDrawerRow | undefined;
         if (drawer) {
           reconcileCashDrawer(db, tenant_id, drawer);
         }
@@ -473,9 +474,9 @@ export function getTransactions({ tenant_id }: { tenant_id: string }) {
     const db = getDb();
     const date = localDate();
     const dateLike = `${date}%`;
-    let drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, date, date, dateLike, date) as any[];
+    let drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, date, date, dateLike, date) as CashDrawerRow[];
     if (!drawers || drawers.length === 0) {
-      drawers = cashierSql.findOneCashDrawerByStatusOpen(db).all(tenant_id) as any[];
+      drawers = cashierSql.findOneCashDrawerByStatusOpen(db).all(tenant_id) as CashDrawerRow[];
     }
     const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
     if (drawerIds.length === 0) {
@@ -494,7 +495,7 @@ export function getHistory({ tenant_id, limit = 30, offset = 0 }: { tenant_id: s
   try {
     const db = getDb();
     autoCloseOverdueDrawers(db, tenant_id);
-    const rows = cashierSql.findInvoices(db).all(tenant_id, limit, offset) as any[];
+    const rows = cashierSql.findInvoices(db).all(tenant_id, limit, offset) as CashDrawerRow[];
 
     if (Array.isArray(rows)) {
       rows.forEach(r => reconcileCashDrawer(db, tenant_id, r));
@@ -530,7 +531,7 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
     }
     const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
-    const drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as any[];
+    const drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as CashDrawerRow[];
     const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
     if (drawerIds.length === 0) {
       return cashierSql.findCashTransactions(db).all(tenant_id, cleanDate, dateLike, cleanDate);
@@ -586,7 +587,7 @@ export function addCategory({ tenant_id, name, type }: { tenant_id: string; name
 export function deleteCategory({ category_id, tenant_id }: { category_id: string; tenant_id: string }) {
   try {
     const db = getDb();
-    const cat = cashierSql.findCashCategoriesByCategoryId(db).get(category_id, tenant_id) as any;
+    const cat = cashierSql.findCashCategoriesByCategoryId(db).get(category_id, tenant_id) as CashCategoryRow | undefined;
     if (!cat) return { success: false, error: 'Category not found' };
     if (cat.is_default === 1) return { success: false, error: 'Cannot delete default category' };
     cashierSql.deleteCashCategoryByCategoryId(db).run(category_id, tenant_id);

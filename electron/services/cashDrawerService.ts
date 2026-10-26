@@ -2,12 +2,14 @@ import crypto from 'node:crypto';
 import { localDate, parseCleanDate, getStoreTimezoneSetting } from './storeTime.js';
 import * as cashDrawerSql from '../db/statements/cashDrawer.js';
 import { AUTO_CLOSE_BACKSTOP_MINUTES, computeDrawerTotals, findOpenDrawers, getAutoCloseConfig, getAutoCloseDueMs, getSessionSinceMs, isFrozenDrawer } from './cashDrawerSession.js';
+import type { Db } from '../db/statements/types.js';
+import type { CashDrawerRow, InvoiceCashFields, InvoicePaymentFields, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
 
 export { computeDrawerTotals } from './cashDrawerSession.js';
 export type { DrawerTotals } from './cashDrawerSession.js';
 
 
-export function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?: string): any {
+export function deduplicateAndGetOpenDrawer(db: Db, tenantId: string, dateStr?: string): CashDrawerRow | null {
   if (!db) return null;
   const activeTenantId = tenantId || 'global';
   const storeTz = getStoreTimezoneSetting(db, activeTenantId);
@@ -16,13 +18,13 @@ export function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?:
   const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
   const dateLike = `${cleanDate}%`;
 
-  const candidates = cashDrawerSql.findCashDrawerByBusinessDate(db).all(activeTenantId, cleanDate, altDate, cleanDate, dateLike, cleanDate, altDate) as any[];
+  const candidates = cashDrawerSql.findCashDrawerByBusinessDate(db).all(activeTenantId, cleanDate, altDate, cleanDate, dateLike, cleanDate, altDate) as CashDrawerRow[];
 
-  let primary: any = null;
+  let primary: CashDrawerRow | null = null;
   if (candidates && candidates.length > 0) {
     primary = candidates[0];
   } else {
-    const openCandidates = cashDrawerSql.findCashDrawerByStatus(db).all(activeTenantId) as any[];
+    const openCandidates = cashDrawerSql.findCashDrawerByStatus(db).all(activeTenantId) as CashDrawerRow[];
     if (openCandidates && openCandidates.length > 0) {
       primary = openCandidates[0];
     }
@@ -48,11 +50,11 @@ export function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?:
   return reconcileCashDrawer(db, activeTenantId, primary);
 }
 
-export function getOpenCashDrawer(db: any, tenantId: string, dateStr?: string): any {
+export function getOpenCashDrawer(db: Db, tenantId: string, dateStr?: string): CashDrawerRow | null {
   return deduplicateAndGetOpenDrawer(db, tenantId, dateStr);
 }
 
-export function getCashAmountFromInvoice(inv: any): number {
+export function getCashAmountFromInvoice(inv: InvoiceCashFields | null | undefined): number {
   if (!inv) return 0;
   const pm = (inv.payment_method || '').toUpperCase();
   const grand = Math.max(0, Number(inv.grand_total) || 0);
@@ -71,12 +73,12 @@ export function getCashAmountFromInvoice(inv: any): number {
   if (pm === 'SPLIT' || pm === 'CREDIT') {
     if (inv.split_details && inv.split_details !== 'null') {
       try {
-        let sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+        let sd: unknown = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
         while (typeof sd === 'string') {
           try { sd = JSON.parse(sd); } catch { break; }
         }
         if (sd && typeof sd === 'object') {
-          const cashSplit = Math.max(0, Number(sd.cash) || 0);
+          const cashSplit = Math.max(0, Number((sd as SplitDetails).cash) || 0);
           if (cashSplit > 0) return Math.min(cashSplit, netPayable);
         }
       } catch { /* ignore */ }
@@ -93,13 +95,15 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const differs = (a: unknown, b: number) => Math.abs((Number(a) || 0) - b) > 0.001;
 
 /** Recompute a drawer's totals from its session and store them when they changed. Frozen drawers are returned as stored. */
-export function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
+export function reconcileCashDrawer(db: Db, tenantId: string, drawer: CashDrawerRow): CashDrawerRow;
+export function reconcileCashDrawer(db: Db, tenantId: string, drawer: CashDrawerRow | null | undefined): CashDrawerRow | null | undefined;
+export function reconcileCashDrawer(db: Db, tenantId: string, drawer: CashDrawerRow | null | undefined): CashDrawerRow | null | undefined {
   if (!drawer || !tenantId) return drawer;
   try {
     getSessionSinceMs(db, tenantId);
     if (drawer.status === 'OPEN' && drawer.drawer_id) {
       // Installing sessions may just have closed this drawer (left open on an earlier day).
-      const fresh = cashDrawerSql.findCashDrawerByDrawerId(db).get(drawer.drawer_id) as any;
+      const fresh = cashDrawerSql.findCashDrawerByDrawerId(db).get(drawer.drawer_id) as CashDrawerRow | undefined;
       if (fresh && fresh.status !== 'OPEN') Object.assign(drawer, fresh);
     }
     if (isFrozenDrawer(db, tenantId, drawer)) return drawer;
@@ -133,7 +137,7 @@ export function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any
 }
 
 /** Close an open drawer without a count: counted cash = expected, so no short / excess. Returns false if it was not open. */
-export function closeDrawerAutomatically(db: any, tenantId: string, drawer: any, closedAtIso: string, remarks: string, closedBy: string | null): boolean {
+export function closeDrawerAutomatically(db: Db, tenantId: string, drawer: CashDrawerRow, closedAtIso: string, remarks: string, closedBy: string | null): boolean {
   const t = computeDrawerTotals(db, tenantId, { ...drawer, status: 'OPEN' });
   const r = cashDrawerSql.closeDrawerAutomatically(db).run(
     t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, t.expected, closedAtIso, remarks, closedBy, drawer.drawer_id,
@@ -146,7 +150,7 @@ export function closeDrawerAutomatically(db: any, tenantId: string, drawer: any,
  * renderer asks the cashier at the due time; this catches a closed app or an unanswered prompt). With auto close off,
  * drawers stay open until the cashier closes them.
  */
-export function autoCloseOverdueDrawers(db: any, tenantId: string) {
+export function autoCloseOverdueDrawers(db: Db, tenantId: string) {
   if (!tenantId) return;
   try {
     getSessionSinceMs(db, tenantId);
@@ -164,9 +168,9 @@ export function autoCloseOverdueDrawers(db: any, tenantId: string) {
 }
 
 export function adjustCashDrawerForInvoice(
-  db: any,
+  db: Db,
   tenantId: string,
-  invoiceCreatedAt: string | Date | undefined,
+  invoiceCreatedAt: string | Date | null | undefined,
   oldCashAmount: number,
   newCashAmount: number
 ) {
@@ -189,12 +193,12 @@ export function adjustCashDrawerForInvoice(
     try {
       let defaultBal = 0;
       let autoOpenSetting = false;
-      const autoOpenRow = cashDrawerSql.findOneSettingByKey(db).get(tenantId, tenantId) as any;
+      const autoOpenRow = cashDrawerSql.findOneSettingByKey(db).get(tenantId, tenantId) as SettingRow | undefined;
       if (autoOpenRow && autoOpenRow.value !== undefined && autoOpenRow.value !== null) {
         try { autoOpenSetting = Boolean(JSON.parse(autoOpenRow.value)); } catch { autoOpenSetting = String(autoOpenRow.value).trim() === 'true'; }
       }
       if (autoOpenSetting) {
-        const balRow = cashDrawerSql.findOneSettingByKeyDefaultOpeningBalance(db).get(tenantId, tenantId) as any;
+        const balRow = cashDrawerSql.findOneSettingByKeyDefaultOpeningBalance(db).get(tenantId, tenantId) as SettingRow | undefined;
         if (balRow && balRow.value !== undefined && balRow.value !== null) {
           try { defaultBal = Number(JSON.parse(balRow.value)) || 0; } catch { defaultBal = Number(balRow.value) || 0; }
         }
@@ -203,7 +207,7 @@ export function adjustCashDrawerForInvoice(
 
       const drawerId = crypto.randomUUID();
       cashDrawerSql.insertCashDrawer(db).run(drawerId, tenantId, businessDate, defaultBal, defaultBal, defaultBal);
-      drawer = cashDrawerSql.findCashDrawerByDrawerId(db).get(drawerId) as any;
+      drawer = cashDrawerSql.findCashDrawerByDrawerId(db).get(drawerId) as CashDrawerRow | null;
     } catch (e) {
       console.error('[Cashier] Auto-create drawer error:', (e as Error).message);
     }
@@ -219,15 +223,15 @@ export function adjustCashDrawerForInvoice(
 }
 
 export function adjustPaymentSourcesForInvoice(
-  db: any,
+  db: Db,
   tenantId: string,
-  invoice: any,
+  invoice: InvoicePaymentFields | null | undefined,
   isDeleteOrCancel: boolean = false
 ) {
   if (!db || !tenantId || !invoice) return;
   try {
     const pm = (invoice.payment_method || '').toUpperCase();
-    let splitObj: any = null;
+    let splitObj: SplitDetails | null = null;
     if (invoice.split_details && invoice.split_details !== 'null') {
       if (typeof invoice.split_details === 'string') {
         try { splitObj = JSON.parse(invoice.split_details); } catch { /* ignore */ }
@@ -236,14 +240,14 @@ export function adjustPaymentSourcesForInvoice(
       }
     }
 
-    const processSourceTransaction = (sourceId: string | undefined, sourceType: string, amount: number) => {
+    const processSourceTransaction = (sourceId: string | null | undefined, sourceType: string, amount: number) => {
       if (amount <= 0) return;
-      let source: any = null;
+      let source: PaymentSourceRow | null | undefined = null;
       if (sourceId) {
-        source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as any;
+        source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
       }
       if (!source) {
-        source = cashDrawerSql.findOnePaymentSourceByTypeAndIsEnabled(db).get(tenantId, sourceType) as any;
+        source = cashDrawerSql.findOnePaymentSourceByTypeAndIsEnabled(db).get(tenantId, sourceType) as PaymentSourceRow | undefined;
       }
       if (source) {
         const delta = isDeleteOrCancel ? -amount : amount;

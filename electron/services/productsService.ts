@@ -1,3 +1,4 @@
+import type { BarcodeRow, ProductInput, ProductQueryArgs, ProductRow } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { parseCleanDate, getUtcRangeForStoreDateRange, localTimestamp } from './storeTime.js';
 import { resolveGstApplicability } from '../utils/gst.js';
@@ -8,7 +9,7 @@ import { buildProductSearchConditions } from '../db/statements/productSearch.js'
 
 
 /** IPC `db:getProducts` */
-export function getProducts(arg: any) {
+export function getProducts(arg: string | ProductQueryArgs) {
   try {
     const db = getDb();
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
@@ -19,13 +20,13 @@ export function getProducts(arg: any) {
 
     console.log(`[db:getProducts] Called — tenantId=${tenantId} arg=${JSON.stringify(arg)}`);
 
-    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField && (!arg.stockStatus || arg.stockStatus === 'all'))) {
+    if (typeof arg === 'string' || (!(arg as ProductQueryArgs).limit && !(arg as ProductQueryArgs).search && !(arg as ProductQueryArgs).barcode && !(arg as ProductQueryArgs).sortBy && !(arg as ProductQueryArgs).filterDate && !(arg as ProductQueryArgs).isGst && !(arg as ProductQueryArgs).dateField && (!(arg as ProductQueryArgs).stockStatus || (arg as ProductQueryArgs).stockStatus === 'all'))) {
       const rows = productsSql.findProductsBySkipStockUpdate(db).all(tenantId, tenantId, tenantId, tenantId);
       console.log(`[db:getProducts] Full list query → ${rows.length} rows returned for tenant ${tenantId}`);
       return rows;
     }
 
-    const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField, stockStatus } = arg;
+    const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField, stockStatus } = (arg as ProductQueryArgs);
     let query = `
       SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
         CASE WHEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) != 0
@@ -62,7 +63,7 @@ export function getProducts(arg: any) {
       ) pb_latest ON p.product_id = pb_latest.product_id
       WHERE p.tenant_id = ? AND p.is_deleted = 0
     `;
-    const params: any[] = [tenantId, tenantId, tenantId, tenantId];
+    const params: unknown[] = [tenantId, tenantId, tenantId, tenantId];
 
     if (isGst !== undefined) {
        query += ' AND p.is_gst_applicable = ?';
@@ -101,7 +102,7 @@ export function getProducts(arg: any) {
      if (filterDate && String(filterDate).trim() !== '') {
         const dateCol = dateField === 'updated_at' ? 'COALESCE(p.updated_at, p.created_at)' : 'p.created_at';
         const cleanStart = parseCleanDate(filterDate);
-        const cleanEnd = arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '' ? parseCleanDate(arg.filterDateEnd) : cleanStart;
+        const cleanEnd = (arg as ProductQueryArgs).filterDateEnd && String((arg as ProductQueryArgs).filterDateEnd).trim() !== '' ? parseCleanDate((arg as ProductQueryArgs).filterDateEnd as string) : cleanStart;
         const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
         query += ` AND (${dateCol} >= ? AND ${dateCol} <= ?)`;
         params.push(startUtc, endUtc);
@@ -173,45 +174,45 @@ export function getProductsByIds({ tenant_id, product_ids }: { tenant_id: string
 }
 
 /** IPC `db:getProductsCount` */
-export function getProductsCount(arg: any) {
+export function getProductsCount(arg: string | ProductQueryArgs) {
   try {
     const db = getDb();
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) return 0;
 
     let query = 'SELECT COUNT(*) as count FROM products WHERE tenant_id = ? AND is_deleted = 0';
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
     
-    if (arg?.search) {
-       const cond = buildProductSearchConditions(arg.search, '');
+    if ((arg as ProductQueryArgs)?.search) {
+       const cond = buildProductSearchConditions((arg as ProductQueryArgs).search as string, '');
        query += ` AND ${cond.sql}`;
        params.push(...cond.params);
     }
 
-    if (arg?.filterDate && String(arg.filterDate).trim() !== '') {
-       const dateCol = arg?.dateField === 'updated_at' ? 'COALESCE(updated_at, created_at)' : 'created_at';
-       const cleanStart = parseCleanDate(arg.filterDate);
-       const cleanEnd = arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '' ? parseCleanDate(arg.filterDateEnd) : cleanStart;
+    if ((arg as ProductQueryArgs)?.filterDate && String((arg as ProductQueryArgs).filterDate).trim() !== '') {
+       const dateCol = (arg as ProductQueryArgs)?.dateField === 'updated_at' ? 'COALESCE(updated_at, created_at)' : 'created_at';
+       const cleanStart = parseCleanDate((arg as ProductQueryArgs).filterDate as string);
+       const cleanEnd = (arg as ProductQueryArgs).filterDateEnd && String((arg as ProductQueryArgs).filterDateEnd).trim() !== '' ? parseCleanDate((arg as ProductQueryArgs).filterDateEnd as string) : cleanStart;
        const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
        query += ` AND (${dateCol} >= ? AND ${dateCol} <= ?)`;
        params.push(startUtc, endUtc);
     }
 
-    if (arg?.stockStatus && arg.stockStatus !== 'all') {
-      if (arg.stockStatus === 'low_stock' || arg.stockStatus === 'low') {
+    if ((arg as ProductQueryArgs)?.stockStatus && (arg as ProductQueryArgs).stockStatus !== 'all') {
+      if ((arg as ProductQueryArgs).stockStatus === 'low_stock' || (arg as ProductQueryArgs).stockStatus === 'low') {
         query += ' AND current_stock <= reorder_level AND reorder_level > 0 AND current_stock > 0';
-      } else if (arg.stockStatus === 'out_of_stock' || arg.stockStatus === 'out') {
+      } else if ((arg as ProductQueryArgs).stockStatus === 'out_of_stock' || (arg as ProductQueryArgs).stockStatus === 'out') {
         query += ' AND current_stock <= 0';
-      } else if (arg.stockStatus === 'in_stock' || arg.stockStatus === 'in') {
+      } else if ((arg as ProductQueryArgs).stockStatus === 'in_stock' || (arg as ProductQueryArgs).stockStatus === 'in') {
         query += ' AND current_stock > 0';
-      } else if (arg.stockStatus === 'no_barcode' || arg.stockStatus === 'no_code') {
+      } else if ((arg as ProductQueryArgs).stockStatus === 'no_barcode' || (arg as ProductQueryArgs).stockStatus === 'no_code') {
         query += " AND (sku_barcode IS NULL OR TRIM(sku_barcode) = '')";
       }
     }
 
-    if (arg?.isGst !== undefined) {
+    if ((arg as ProductQueryArgs)?.isGst !== undefined) {
       query += ' AND is_gst_applicable = ?';
-      params.push(arg.isGst ? 1 : 0);
+      params.push((arg as ProductQueryArgs).isGst ? 1 : 0);
     }
 
     const result = db.prepare(query).get(...params) as { count: number };
@@ -222,7 +223,7 @@ export function getProductsCount(arg: any) {
 }
 
 /** IPC `db:addProduct` */
-export function addProduct(p: any) {
+export function addProduct(p: ProductInput) {
   try {
     const db = getDb();
     const cleanBarcode = (p.sku_barcode && String(p.sku_barcode).trim() !== '') ? String(p.sku_barcode).trim() : null;
@@ -269,18 +270,18 @@ export function ensureServiceItem({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     // Gather every live Service Charge candidate: flagged items or rows literally named 'Service Charge'.
-    const candidates = productsSql.findProductsByIsServiceItem(db).all(tenant_id) as any[];
-    const isFlagged = (p: any) => Number(p.is_service_item) === 1;
-    const hasBarcode99 = (p: any) => String(p.sku_barcode || '').trim() === '99';
+    const candidates = productsSql.findProductsByIsServiceItem(db).all(tenant_id) as ProductRow[];
+    const isFlagged = (p: ProductRow) => Number(p.is_service_item) === 1;
+    const hasBarcode99 = (p: ProductRow) => String(p.sku_barcode || '').trim() === '99';
 
     // Deterministic canonical pick:
     //   1. flagged + barcode '99'   (the easy-scan item)
     //   2. flagged                  (the true service item)
     //   3. named 'Service Charge' + barcode '99'
     //   4. named 'Service Charge'    (oldest first)
-    const canonical = candidates.find((p: any) => isFlagged(p) && hasBarcode99(p))
-      || candidates.find((p: any) => isFlagged(p))
-      || candidates.find((p: any) => hasBarcode99(p))
+    const canonical = candidates.find((p: ProductRow) => isFlagged(p) && hasBarcode99(p))
+      || candidates.find((p: ProductRow) => isFlagged(p))
+      || candidates.find((p: ProductRow) => hasBarcode99(p))
       || candidates[0];
 
     if (!canonical) {
@@ -294,7 +295,7 @@ export function ensureServiceItem({ tenant_id }: { tenant_id: string }) {
 
     // Soft-delete every duplicate so only the canonical one survives (locally + pushed to cloud).
     const softDelete = productsSql.updateProductIsDeleted(db);
-    const deletedHadBarcode99 = candidates.some((c: any) => c.product_id !== canonical.product_id && hasBarcode99(c));
+    const deletedHadBarcode99 = candidates.some((c: ProductRow) => c.product_id !== canonical.product_id && hasBarcode99(c));
     for (const c of candidates) {
       if (c.product_id !== canonical.product_id) softDelete.run(tenant_id, c.product_id);
     }
@@ -322,7 +323,7 @@ export function ensureServiceItem({ tenant_id }: { tenant_id: string }) {
 }
 
 /** IPC `db:updateProduct` */
-export function updateProduct(p: any) {
+export function updateProduct(p: ProductInput) {
   try {
     const db = getDb();
     const cleanBarcode = (p.sku_barcode && String(p.sku_barcode).trim() !== '') ? String(p.sku_barcode).trim() : null;
@@ -381,7 +382,7 @@ export function updateProductName({ tenant_id, product_id, name }: { tenant_id: 
 }
 
 /** IPC `db:deleteProduct` */
-export function deleteProduct(productId: any) {
+export function deleteProduct(productId: string) {
   try {
     const db = getDb();
     // Soft delete
@@ -411,7 +412,7 @@ export function bulkDeleteProducts(productIds: string[]) {
 }
 
 /** IPC `db:bulkImportProducts` */
-export function bulkImportProducts(products: any[]) {
+export function bulkImportProducts(products: ProductInput[]) {
   try {
     const db = getDb();
     
@@ -485,15 +486,15 @@ export function bulkImportProducts(products: any[]) {
 
         let existingId: string | null = null;
         if (cleanBarcode) {
-          const row = findExistingByBarcode.get(tenantId, cleanBarcode) as any;
+          const row = findExistingByBarcode.get(tenantId, cleanBarcode) as ProductRow | undefined;
           if (row?.product_id) existingId = row.product_id;
         }
         if (!existingId && cleanItemCode) {
-          const row = findExistingByItemCode.get(tenantId, cleanItemCode) as any;
+          const row = findExistingByItemCode.get(tenantId, cleanItemCode) as ProductRow | undefined;
           if (row?.product_id) existingId = row.product_id;
         }
         if (!existingId && cleanName) {
-          const row = findExistingByName.get(tenantId, cleanName, p.brand_manufacturer || '') as any;
+          const row = findExistingByName.get(tenantId, cleanName, p.brand_manufacturer || '') as ProductRow | undefined;
           if (row?.product_id) existingId = row.product_id;
         }
 
@@ -635,12 +636,12 @@ export function getPendingPrintProducts({ tenant_id, limit, date, dateEnd, only_
 }
 
 /** IPC `db:adjustStock` */
-export function adjustStock({ product_id, delta, pcsDelta }: any) {
+export function adjustStock({ product_id, delta, pcsDelta }: { product_id: string; delta?: number | null; pcsDelta?: number | null }) {
   try {
     const db = getDb();
     if (pcsDelta != null) {
-      const row = productsSql.findProductsByProductId(db).get(product_id) as any;
-      let da: Record<string, any> = {};
+      const row = productsSql.findProductsByProductId(db).get(product_id) as ProductRow | undefined;
+      let da: Record<string, unknown> = {};
       try { da = JSON.parse(row?.domain_attributes || '{}'); } catch { /* keep empty */ }
       const current = Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
       const nextPcs = Math.max(0, current + pcsDelta);
@@ -689,7 +690,7 @@ export function getProductSalesSummary({ tenant_id, fromDate, toDate }: { tenant
     if (!tenant_id) return [];
 
     let dateClause = '';
-    const params: any[] = [tenant_id];
+    const params: unknown[] = [tenant_id];
 
     if (fromDate) {
       const cleanStart = parseCleanDate(fromDate);
@@ -726,7 +727,7 @@ export function generateBarcode({ tenant_id, item_code, strip_suffix }: { tenant
     const suffix = strip_suffix || '';
     let nextNum = 1;
     if (prefix) {
-      const rows = productsSql.findProductsSkuBarcode(db).all(tenant_id, `${prefix}%`) as any[];
+      const rows = productsSql.findProductsSkuBarcode(db).all(tenant_id, `${prefix}%`) as BarcodeRow[];
       for (const row of rows) {
         let base = row.sku_barcode.slice(prefix.length);
         // Strip known suffix (priceCode) from the end before extracting digits
@@ -744,7 +745,7 @@ export function generateBarcode({ tenant_id, item_code, strip_suffix }: { tenant
         }
       }
     } else {
-      const rows = productsSql.findProductsSkuBarcode2(db).all(tenant_id) as any[];
+      const rows = productsSql.findProductsSkuBarcode2(db).all(tenant_id) as BarcodeRow[];
       for (const row of rows) {
         let base = row.sku_barcode;
         // Strip known suffix from the end

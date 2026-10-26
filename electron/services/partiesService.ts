@@ -1,3 +1,4 @@
+import type { CustomerRow, PartyInput, PartyLedgerEntryInput, PartyLedgerRow, PartyRow } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { backfillCreditInvoices, reconcileAllPartyBalances, recalcPartyBalances } from './partyLedgerService.js';
 import { deterministicUUID } from '../utils/ids.js';
@@ -6,13 +7,13 @@ import * as partiesSql from '../db/statements/parties.js';
 /** parties use-cases for the main process (called by electron/ipc handlers). */
 
 /** IPC `db:getParties` */
-export function getParties(tenantId: string, includeDeleted: any = false) {
+export function getParties(tenantId: string, includeDeleted: unknown = false) {
   try {
     const db = getDb();
     if (!tenantId) return [];
     backfillCreditInvoices(db);
     reconcileAllPartyBalances(db, tenantId);
-    const parties = partiesSql.listPartiesWithBalances(db, Boolean(includeDeleted)).all(tenantId) as any[];
+    const parties = partiesSql.listPartiesWithBalances(db, Boolean(includeDeleted)).all(tenantId) as PartyRow[];
     for (const p of parties) {
       if (p.current_balance !== undefined && p.current_balance !== null) {
         p.balance = Number(p.current_balance);
@@ -32,7 +33,7 @@ export function getParties(tenantId: string, includeDeleted: any = false) {
 }
 
 /** IPC `db:addParty` */
-export function addParty(p: any) {
+export function addParty(p: PartyInput) {
   try {
     const db = getDb();
     const nameClean = (p.name || '').trim().toLowerCase();
@@ -45,22 +46,22 @@ export function addParty(p: any) {
 
     const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
     const creditPeriodEnabled = p.credit_period_enabled ? 1 : 0;
-    const creditPeriodDays = Math.max(1, parseInt(p.credit_period_days, 10) || 30);
+    const creditPeriodDays = Math.max(1, parseInt(p.credit_period_days as string, 10) || 30);
     const creditPeriodBasis = p.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined ? (p.restrict_on_credit_expiry ? 1 : 0) : 1;
     const whatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined ? (p.whatsapp_alerts_enabled ? 1 : 0) : 1;
     const bt = p.balance_type || 'RECEIVABLE';
     const initialBalance = bt === 'RECEIVABLE'
-      ? Math.abs(p.balance || 0)
-      : -Math.abs(p.balance || 0);
+      ? Math.abs((p.balance as number) || 0)
+      : -Math.abs((p.balance as number) || 0);
     const partyType = p.party_type || 'CUSTOMER';
     const customCategory = p.custom_category || null;
 
     partiesSql.insertParty(db).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry, whatsappAlertsEnabled);
 
     // Create opening balance ledger entry
-    if (p.balance && parseFloat(p.balance) > 0) {
-      const amount = Math.abs(parseFloat(p.balance));
+    if (p.balance && parseFloat(p.balance as unknown as string) > 0) {
+      const amount = Math.abs(parseFloat(p.balance as unknown as string));
       const ledgerId = deterministicUUID(`party_opening:${p.party_id}`);
       partiesSql.insertPartyLedger(db).run(
         ledgerId, p.party_id, p.tenant_id,
@@ -82,7 +83,7 @@ export function addParty(p: any) {
 }
 
 /** IPC `db:bulkImportParties` */
-export function bulkImportParties(parties: any[]) {
+export function bulkImportParties(parties: PartyInput[]) {
   try {
     const db = getDb();
     const transaction = db.transaction((partyList) => {
@@ -99,17 +100,17 @@ export function bulkImportParties(parties: any[]) {
         const phoneClean = (p.phone || '').replace(/\D/g, '');
         const nameClean = (p.name || '').trim().toLowerCase();
 
-        let existing: any = null;
+        let existing: PartyRow | null | undefined = null;
         if (p.tenant_id) {
-          const tenantParties = selectPhoneStmt.all(p.tenant_id) as any[];
+          const tenantParties = selectPhoneStmt.all(p.tenant_id) as PartyRow[];
           if (phoneClean.length >= 7) {
-            existing = tenantParties.find((party: any) => {
+            existing = tenantParties.find((party: PartyRow) => {
               const pDigits = (party.phone || '').replace(/\D/g, '');
               return pDigits.length >= 7 && (pDigits === phoneClean || (phoneClean.length >= 10 && pDigits.slice(-10) === phoneClean.slice(-10)));
             });
           }
           if (!existing && nameClean) {
-            existing = tenantParties.find((party: any) => (party.name || '').trim().toLowerCase() === nameClean);
+            existing = tenantParties.find((party: PartyRow) => (party.name || '').trim().toLowerCase() === nameClean);
           }
         }
 
@@ -129,8 +130,8 @@ export function bulkImportParties(parties: any[]) {
         } else {
           const bt = p.balance_type || (p.party_type === 'SUPPLIER' ? 'PAYABLE' : 'RECEIVABLE');
           const initialBalance = bt === 'RECEIVABLE'
-            ? Math.abs(p.balance || 0)
-            : -Math.abs(p.balance || 0);
+            ? Math.abs((p.balance as number) || 0)
+            : -Math.abs((p.balance as number) || 0);
           const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
           const partyType = p.party_type || 'SUPPLIER';
 
@@ -153,8 +154,8 @@ export function bulkImportParties(parties: any[]) {
             timestamp
           );
 
-          if (p.balance && parseFloat(p.balance) !== 0) {
-            const amount = Math.abs(parseFloat(p.balance));
+          if (p.balance && parseFloat(p.balance as unknown as string) !== 0) {
+            const amount = Math.abs(parseFloat(p.balance as unknown as string));
             const ledgerId = deterministicUUID(`party_opening:${p.party_id}`);
             insertLedgerStmt.run(
               ledgerId, p.party_id, p.tenant_id, timestamp,
@@ -180,7 +181,7 @@ export function bulkImportParties(parties: any[]) {
 }
 
 /** IPC `db:updateParty` */
-export function updateParty(p: any) {
+export function updateParty(p: Partial<PartyInput> & { party_id: string }) {
   try {
     const db = getDb();
     const hasTier = p.pricing_tier_id !== undefined;
@@ -195,7 +196,7 @@ export function updateParty(p: any) {
     const hasWhatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined;
 
     let updateSql = `UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?`;
-    const params: any[] = [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null];
+    const params: unknown[] = [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null];
 
     if (hasTier) {
       updateSql += `, pricing_tier_id = ?`;
@@ -211,7 +212,7 @@ export function updateParty(p: any) {
     }
     if (hasCreditPeriodDays) {
       updateSql += `, credit_period_days = ?`;
-      params.push(Math.max(1, parseInt(p.credit_period_days, 10) || 30));
+      params.push(Math.max(1, parseInt(p.credit_period_days as string, 10) || 30));
     }
     if (hasCreditPeriodBasis) {
       updateSql += `, credit_period_basis = ?`;
@@ -235,7 +236,7 @@ export function updateParty(p: any) {
     }
 
     // Fetch existing party details before update to ensure robust matching even if name or phone changed
-    const oldPartyRow: any = partiesSql.findPartiesByPartyId(db).get(p.party_id);
+    const oldPartyRow = partiesSql.findPartiesByPartyId(db).get(p.party_id) as PartyRow | undefined;
     const tenantId = p.tenant_id || oldPartyRow?.tenant_id;
     const oldPhone = (oldPartyRow?.phone || '').trim();
     const oldName = (oldPartyRow?.name || '').trim();
@@ -249,18 +250,18 @@ export function updateParty(p: any) {
 
     // Synchronize to matching customer in customers table if exists
     try {
-      let cust: any = null;
+      let cust: CustomerRow | null | undefined = null;
       if (newPhone) {
-        cust = partiesSql.findCustomersByPhone(db).get(tenantId, newPhone);
+        cust = partiesSql.findCustomersByPhone(db).get(tenantId, newPhone) as CustomerRow | undefined;
       }
       if (!cust && oldPhone) {
-        cust = partiesSql.findCustomersByPhone(db).get(tenantId, oldPhone);
+        cust = partiesSql.findCustomersByPhone(db).get(tenantId, oldPhone) as CustomerRow | undefined;
       }
       if (!cust && newName) {
-        cust = partiesSql.findCustomers(db).get(tenantId, newName.toLowerCase());
+        cust = partiesSql.findCustomers(db).get(tenantId, newName.toLowerCase()) as CustomerRow | undefined;
       }
       if (!cust && oldName) {
-        cust = partiesSql.findCustomers(db).get(tenantId, oldName.toLowerCase());
+        cust = partiesSql.findCustomers(db).get(tenantId, oldName.toLowerCase()) as CustomerRow | undefined;
       }
       if (cust) {
         partiesSql.updateCustomerByCustomerId(db).run(
@@ -271,11 +272,11 @@ export function updateParty(p: any) {
           p.notes !== undefined ? (p.notes ? p.notes.trim() : null) : null,
           hasCreditLimit ? creditLimit : null,
           hasCreditPeriodEnabled ? (p.credit_period_enabled ? 1 : 0) : null,
-          hasCreditPeriodDays ? Math.max(1, parseInt(p.credit_period_days, 10) || 30) : null,
+          hasCreditPeriodDays ? Math.max(1, parseInt(p.credit_period_days as string, 10) || 30) : null,
           hasCreditPeriodBasis ? (p.credit_period_basis || 'BILL_BASED') : null,
           hasRestrictOnCreditExpiry ? (p.restrict_on_credit_expiry ? 1 : 0) : null,
           hasTier ? (p.pricing_tier_id || null) : null,
-          cust.customer_id, tenantId
+          cust.customer_id as string, tenantId as string
         );
       }
     } catch (syncErr) {
@@ -335,8 +336,8 @@ export function mergeParties(payload: { tenant_id: string; primary_party_id: str
       return { success: false, error: 'Invalid parameters for party merge' };
     }
 
-    const primaryParty = partiesSql.findPartiesByPartyId2(db).get(primary_party_id, tenant_id) as any;
-    const secondaryParty = partiesSql.findPartiesByPartyId3(db).get(secondary_party_id, tenant_id) as any;
+    const primaryParty = partiesSql.findPartiesByPartyId2(db).get(primary_party_id, tenant_id) as PartyRow | undefined;
+    const secondaryParty = partiesSql.findPartiesByPartyId3(db).get(secondary_party_id, tenant_id) as PartyRow | undefined;
 
     if (!primaryParty || !secondaryParty) {
       return { success: false, error: 'One or both parties not found' };
@@ -374,7 +375,7 @@ export function mergeParties(payload: { tenant_id: string; primary_party_id: str
 }
 
 /** IPC `db:getPartyLedger` */
-export function getPartyLedger(partyId: string, includeDeleted: any = false) {
+export function getPartyLedger(partyId: string, includeDeleted: unknown = false) {
   try {
     const db = getDb();
     backfillCreditInvoices(db);
@@ -401,7 +402,7 @@ export function getPartyLedger(partyId: string, includeDeleted: any = false) {
     try { db.exec(`ALTER TABLE party_ledger ADD COLUMN is_deleted INTEGER DEFAULT 0`); } catch { /* ignore */ }
     // Clean up any legacy orphan purchase bill ledger entries where the purchase bill was deleted
     try {
-      const orphans = partiesSql.findPartyLedgerByPartyIdAndBillNumber(db).all(partyId) as any[];
+      const orphans = partiesSql.findPartyLedgerByPartyIdAndBillNumber(db).all(partyId) as PartyLedgerRow[];
       if (orphans.length > 0) {
         for (const orphan of orphans) {
           partiesSql.updatePartyLedgerIsDeleted(db).run(orphan.ledger_id);
@@ -412,7 +413,7 @@ export function getPartyLedger(partyId: string, includeDeleted: any = false) {
 
     // Clean up any ledger entries where the invoice was deleted (is_deleted = 1)
     try {
-      const deletedInvoiceEntries = partiesSql.findPartyLedgerByPartyIdAndInvoiceNumber(db).all(partyId) as any[];
+      const deletedInvoiceEntries = partiesSql.findPartyLedgerByPartyIdAndInvoiceNumber(db).all(partyId) as PartyLedgerRow[];
 
       if (deletedInvoiceEntries.length > 0) {
         console.log(`[db:getPartyLedger] Cleaning up ${deletedInvoiceEntries.length} entries for deleted invoices`);
@@ -437,11 +438,11 @@ export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: st
   try {
     const db = getDb();
     partiesSql.updatePartyLedgerIsDeletedAlt(db).run(ledger_id, party_id);
-    const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as any[];
+    const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as PartyLedgerRow[];
 
     let running = 0;
     for (const row of entries) {
-      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
       partiesSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
     }
     recalcPartyBalances(db, party_id);
@@ -453,16 +454,16 @@ export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: st
 }
 
 /** IPC `db:addPartyLedgerEntry` */
-export function addPartyLedgerEntry(entry: any) {
+export function addPartyLedgerEntry(entry: PartyLedgerEntryInput) {
   try {
     const db = getDb();
     
     // Get current party balance
-    const party = partiesSql.findPartiesByPartyIdBalance(db).get(entry.party_id) as any;
+    const party = partiesSql.findPartiesByPartyIdBalance(db).get(entry.party_id) as PartyRow | undefined;
     if (!party) return { success: false, error: 'Party not found' };
 
-    const currentBalance = parseFloat(party.balance) || 0;
-    const parsedAmount = Math.abs(parseFloat(entry.amount));
+    const currentBalance = parseFloat(party.balance as string) || 0;
+    const parsedAmount = Math.abs(parseFloat(entry.amount as string));
     const creditAmount = entry.transaction_type === 'CREDIT' ? parsedAmount : 0;
     const debitAmount = entry.transaction_type === 'DEBIT' ? parsedAmount : 0;
     const balanceType = entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
@@ -495,15 +496,15 @@ export function addPartyLedgerEntry(entry: any) {
 }
 
 /** IPC `db:updatePartyLedgerEntry` */
-export function updatePartyLedgerEntry(entry: any) {
+export function updatePartyLedgerEntry(entry: Partial<PartyLedgerEntryInput> & { ledger_id: string; party_id: string }) {
   try {
     const db = getDb();
 
-    const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(entry.ledger_id, entry.party_id) as any;
+    const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(entry.ledger_id, entry.party_id) as PartyLedgerRow | undefined;
     if (!existing) return { success: false, error: 'Ledger entry not found' };
 
-    const parsedAmount = entry.amount !== undefined ? Math.abs(parseFloat(entry.amount)) : (existing.credit_amount || existing.debit_amount || 0);
-    const txType = entry.transaction_type || (existing.credit_amount > 0 ? 'CREDIT' : 'DEBIT');
+    const parsedAmount = entry.amount !== undefined ? Math.abs(parseFloat(entry.amount as string)) : (existing.credit_amount || existing.debit_amount || 0);
+    const txType = entry.transaction_type || ((existing.credit_amount as number) > 0 ? 'CREDIT' : 'DEBIT');
     const creditAmount = txType === 'CREDIT' ? parsedAmount : 0;
     const debitAmount = txType === 'DEBIT' ? parsedAmount : 0;
 
@@ -520,11 +521,11 @@ export function updatePartyLedgerEntry(entry: any) {
     );
 
     // Recalculate running balances for all entries
-    const entries = partiesSql.findPartyLedgerByPartyId(db).all(entry.party_id) as any[];
+    const entries = partiesSql.findPartyLedgerByPartyId(db).all(entry.party_id) as PartyLedgerRow[];
 
     let running = 0;
     for (const row of entries) {
-      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
       partiesSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
     }
 
@@ -545,11 +546,11 @@ export function deletePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: str
     partiesSql.updatePartyLedgerIsDeletedIsDeleted2(db).run(ledger_id, party_id);
 
     // Recalculate running balance
-    const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as any[];
+    const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as PartyLedgerRow[];
 
     let running = 0;
     for (const row of entries) {
-      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
       partiesSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
     }
 
