@@ -1,17 +1,16 @@
 {
-  "errors": 214,
-  "warnings": 59,
+  "errors": 97,
+  "warnings": 57,
   "byRule": {
     "react-hooks/rules-of-hooks": 1,
     "react-hooks/set-state-in-effect": 36,
     "react-hooks/refs": 13,
-    "react-hooks/exhaustive-deps": 59,
-    "@typescript-eslint/no-explicit-any": 132,
+    "react-hooks/exhaustive-deps": 57,
     "react-hooks/immutability": 11,
     "react-hooks/preserve-manual-memoization": 5,
     "react-hooks/purity": 2,
-    "react-hooks/use-memo": 2,
-    "react-refresh/only-export-components": 12
+    "react-refresh/only-export-components": 12,
+    "@typescript-eslint/no-explicit-any": 17
   },
-  "updatedAt": "2026-10-26T13:17:34.738Z"
+  "updatedAt": "2026-10-26T13:23:24.485Z"
 }
