@@ -1,3 +1,4 @@
+import type { DisplayInvoiceItem, DisplayComboItem } from '../../sales/invoiceDisplayTypes';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import clsx from 'clsx';
@@ -239,7 +240,7 @@ export function CashierInvoiceModal({
               </div>
               {(() => {
                 if (selectedInvoice.payment_method !== 'SPLIT') return null;
-                let sd: any = null;
+                let sd: Record<string, unknown> | null = null;
                 if (selectedInvoice.split_details) {
                   try { sd = typeof selectedInvoice.split_details === 'string' ? JSON.parse(selectedInvoice.split_details) : selectedInvoice.split_details; } catch { /* ignore */ }
                 }
@@ -338,7 +339,7 @@ export function CashierInvoiceModal({
                           </td>
                         </tr>
                       ) : invoiceItems.map((item, i) => {
-                        let comboItemsParsed: any[] | undefined = item.combo_items;
+                        let comboItemsParsed: DisplayComboItem[] | undefined = item.combo_items;
                         if (!comboItemsParsed && item.combo_details) {
                           try {
                             const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
@@ -373,7 +374,7 @@ export function CashierInvoiceModal({
                           }
                         }
                         const itemTaxRate = calculatedRate > 0 ? calculatedRate : 0;
-                        const itemHsn = item.hsn_sac_code || item.hsn_code || (item as any).hsn;
+                        const itemHsn = item.hsn_sac_code || item.hsn_code || (item as DisplayInvoiceItem).hsn;
                         const isInterItem = selectedInvoice.supply_type === 'INTER' || itemIgstRate > 0;
                         const effCgstR = itemCgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
                         const effSgstR = itemSgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);

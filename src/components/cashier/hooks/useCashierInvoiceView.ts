@@ -1,3 +1,6 @@
+import type { DisplayInvoiceItem, DisplayComboItem } from '../../sales/invoiceDisplayTypes';
+import type { ComboOfferWithItems } from '../../../data/combos';
+import type { Product } from '../../../data/products';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
@@ -37,9 +40,9 @@ export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
 
   // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
   // Mirrors the recovery logic used when editing a bill in BillingPage.
-  const enrichItemsWithMrp = async (invoiceItems: any[]): Promise<any[]> => {
+  const enrichItemsWithMrp = async (invoiceItems: DisplayInvoiceItem[]): Promise<DisplayInvoiceItem[]> => {
     const { tenantId } = useAuthStore.getState();
-    let combosList: any[] = [];
+    let combosList: ComboOfferWithItems[] = [];
     try {
       const allCombos = await combosApi.getComboOffers({ tenant_id: tenantId || 'global' });
       if (Array.isArray(allCombos)) combosList = allCombos;
@@ -47,7 +50,7 @@ export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
 
     const nonService = invoiceItems.filter((i) => !i.is_service_item);
     const productIds = [...new Set(nonService.map((i) => i.product_id).filter(Boolean))] as string[];
-    const productMap: Record<string, any> = {};
+    const productMap: Record<string, Product> = {};
     if (productIds.length > 0) {
       try {
         const products = await productsApi.getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
@@ -59,7 +62,7 @@ export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
       }
     }
     return invoiceItems.map(item => {
-      let comboItemsParsed: any[] | undefined = undefined;
+      let comboItemsParsed: DisplayComboItem[] | undefined = undefined;
       if (item.combo_details) {
         try {
           const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;

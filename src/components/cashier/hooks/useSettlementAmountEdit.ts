@@ -35,7 +35,7 @@ export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
     const rawNet = getRawNet(inv);
     const net = rawNet < 0 ? rawNet + plusVal : Math.max(0, rawNet - rd);
 
-    let existingSplit: any = null;
+    let existingSplit: Record<string, unknown> | null = null;
     if (inv.split_details) {
       try {
         existingSplit = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
