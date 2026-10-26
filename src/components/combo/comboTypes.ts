@@ -1,3 +1,4 @@
+import type * as Rows from '../../data/dbRows';
 /** Combo offers screen: combo and product rows plus the effective offer price helper. */
 export interface ComboItem {
   combo_item_id?: string;
@@ -11,15 +12,7 @@ export interface ComboItem {
   uom?: string;
 }
 
-export interface ComboOffer {
-  combo_id: string;
-  tenant_id: string;
-  name: string;
-  sku_barcode: string | null;
-  combo_price: number;
-  is_active: number;
-  description: string | null;
-  created_at?: string;
+export interface ComboOffer extends Rows.ComboOffersRow {
   items: ComboItem[];
 }
 

@@ -6,10 +6,10 @@ export interface StaffRecordPayload {
   staff_id?: string;
   tenant_id: string;
   name: string;
-  phone?: string;
-  email?: string;
-  role_designation?: string;
-  joining_date?: string;
+  phone?: string | null;
+  email?: string | null;
+  role_designation?: string | null;
+  joining_date?: string | null;
   monthly_salary: number;
   status: 'ACTIVE' | 'INACTIVE';
   user_id?: string;

@@ -52,7 +52,7 @@ export function usePaymentSourceActions(ctx: UsePaymentSourceActionsContext) {
     setEditing(s);
     setForm({
       name: s.name,
-      type: s.type,
+      type: s.type as 'UPI' | 'CARD' | 'BANK',
       bank_name: s.bank_name || '',
       account_number: s.account_number || '',
       holder_name: s.holder_name || '',

@@ -89,7 +89,7 @@ export function StaffList({
                   <p className="text-[10px] text-muted-foreground truncate">{s.role_designation || 'Staff Member'}</p>
                   <div className="flex items-center justify-between gap-1 mt-1 text-[10px] font-bold text-muted-foreground">
                     <span className="font-mono text-muted-foreground/70">{s.staff_code}</span>
-                    <span className={clsx(s.current_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600')}>
+                    <span className={clsx((s.current_balance ?? 0) > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600')}>
                       Bal: {formatCurrency(s.current_balance)}
                     </span>
                   </div>

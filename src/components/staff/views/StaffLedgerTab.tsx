@@ -52,7 +52,7 @@ export function StaffLedgerTab({
             ) : (
               ledgerEntries.map(l => (
                 <tr key={l.ledger_id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-[11px] text-muted-foreground font-mono">{new Date(l.transaction_date).toLocaleDateString('en-IN')}</td>
+                  <td className="px-4 py-3 text-[11px] text-muted-foreground font-mono">{new Date(l.transaction_date as string).toLocaleDateString('en-IN')}</td>
                   <td className="px-4 py-3 font-bold text-foreground">
                     <div className="flex items-center gap-2">
                       {l.reference_type === 'STAFF_PURCHASE' && (
@@ -63,8 +63,8 @@ export function StaffLedgerTab({
                       <span>{l.description}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-emerald-600 tabular-nums">{l.debit_amount > 0 ? `+${formatCurrency(l.debit_amount)}` : '—'}</td>
-                  <td className="px-4 py-3 text-right font-bold text-rose-500 tabular-nums">{l.credit_amount > 0 ? `−${formatCurrency(l.credit_amount)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-bold text-emerald-600 tabular-nums">{(l.debit_amount ?? 0) > 0 ? `+${formatCurrency(l.debit_amount)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-bold text-rose-500 tabular-nums">{(l.credit_amount ?? 0) > 0 ? `−${formatCurrency(l.credit_amount)}` : '—'}</td>
                   <td className="px-4 py-3 text-right font-black text-foreground tabular-nums">{formatCurrency(l.running_balance)}</td>
                 </tr>
               ))

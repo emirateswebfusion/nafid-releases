@@ -61,7 +61,7 @@ export const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: str
   CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
 };
 
-export function formatDate(dateStr: string) {
+export function formatDate(dateStr: string | null | undefined) {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return {

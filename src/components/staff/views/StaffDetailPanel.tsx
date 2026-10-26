@@ -70,7 +70,7 @@ export function StaffDetailPanel({
               </div>
               <button
                 onClick={async () => {
-                  setTxnData({ type: 'SALARY_ACCRUAL', amount: selectedStaff.monthly_salary, payment_method: 'N/A', notes: `Accrual for ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` });
+                  setTxnData({ type: 'SALARY_ACCRUAL', amount: selectedStaff.monthly_salary as number, payment_method: 'N/A', notes: `Accrual for ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` });
                   setShowTxnModal(true);
                 }}
                 className="px-3.5 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all cursor-pointer flex items-center gap-1.5"
@@ -83,7 +83,7 @@ export function StaffDetailPanel({
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
                 <input
                   type="number"
-                  value={selectedStaff.monthly_salary}
+                  value={selectedStaff.monthly_salary as number}
                   onChange={e => {
                     const v = Number(e.target.value) || 0;
                     setStaffList(staffList.map(s => s.staff_id === selectedStaff.staff_id ? { ...s, monthly_salary: v } : s));
@@ -140,7 +140,7 @@ export function StaffDetailPanel({
                         )}
                         <p className="text-xs font-bold text-foreground">{l.description}</p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(l.transaction_date).toLocaleString('en-IN')}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(l.transaction_date as string).toLocaleString('en-IN')}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-black text-rose-500 tabular-nums">−{formatCurrency(l.credit_amount)}</p>

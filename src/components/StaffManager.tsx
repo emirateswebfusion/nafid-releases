@@ -395,8 +395,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         shopName: storeName,
         staffName: selectedStaff.name,
         staffCode: selectedStaff.staff_code,
-        monthlySalary: selectedStaff.monthly_salary,
-        currentBalance: selectedStaff.current_balance,
+        monthlySalary: selectedStaff.monthly_salary as number,
+        currentBalance: selectedStaff.current_balance as number,
       });
 
       const res = await whatsappApi.sendInvoice({

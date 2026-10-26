@@ -1,20 +1,10 @@
 /** Customers screen display helpers: dates, initials, bill type and payment method labels / badges. */
-import { getStoreTimezone } from '../../utils/timezoneHelper';
-import { parseUTCDate, getAppTimeFormat } from '../../utils/receiptGenerator';
 import { type InvoiceRecord } from './customerTypes';
 import clsx from 'clsx';
 
-export function formatDate(d: string) {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
-}
+export { formatShortDate as formatDate } from '../../utils/dateDisplay';
 
-export function formatDateTime(d: string) {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
-}
+export { formatDateTime } from '../../utils/dateDisplay';
 
 export function getInitials(name: string): string {
   if (!name) return 'C';

@@ -3,6 +3,7 @@ import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { settingsApi } from '../../../data/settings';
 import { partiesApi } from '../../../data/parties';
 import type { PartyManagerState } from './usePartyManagerState';
+import type { LedgerEntry } from '../partyTypes';
 
 export interface UsePartyLoadersContext {
   showStatus: (text: string, type: "success" | "error") => void;
@@ -62,7 +63,7 @@ export function usePartyLoaders(ctx: UsePartyLoadersContext) {
         showStatus('Ledger: ' + (data as { error?: string }).error, 'error');
       } else {
         const entries = Array.isArray(data) ? data : [];
-        setLedger(entries);
+        setLedger(entries as LedgerEntry[]);
         const latestBal = entries.length > 0 ? Number(entries[entries.length - 1].running_balance) || 0 : 0;
         const gBal = entries.filter(e => (e.balance_type || 'GST') === 'GST').reduce((s, e) => s + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
         const eBal = entries.filter(e => e.balance_type === 'ESTIMATE').reduce((s, e) => s + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);

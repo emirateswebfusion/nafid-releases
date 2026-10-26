@@ -1,7 +1,7 @@
 /** Scrap screen display helpers: amount and stock formatting, dates, day grouping, avatar colour and initials. */
 import { formatCurrency as formatMoney } from '../../utils/money';
 import { getStoreTimezone } from '../../utils/timezoneHelper';
-import { parseUTCDate, getAppTimeFormat } from '../../utils/receiptGenerator';
+import { parseUTCDate } from '../../utils/receiptGenerator';
 
 export const formatCurrency = (amount: number | undefined | null) =>
   amount == null || isNaN(amount) ? '-' : formatMoney(amount);
@@ -13,11 +13,7 @@ export const formatStock = (stock: number | string | undefined | null) => {
   return parseFloat(n.toFixed(3)).toString();
 };
 
-export const formatDateTime = (d: string) => {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
-};
+export { formatDateTime } from '../../utils/dateDisplay';
 
 export const formatGroupDate = (dateStr?: string) => {
   if (!dateStr) return '-';

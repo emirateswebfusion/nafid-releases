@@ -12,22 +12,9 @@ import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
 import { isDesktopRuntime } from '../data/client';
 import { warrantiesApi } from '../data/warranties';
+import type * as Rows from '../data/dbRows';
 
-interface Warranty {
-  warranty_id: string;
-  invoice_id?: string;
-  invoice_item_id?: string;
-  bill_number?: string;
-  brand?: string;
-  customer_name: string;
-  customer_phone?: string;
-  product_name: string;
-  product_details?: string;
-  purchase_date: string;
-  warranty_period_days: number;
-  expiry_date: string;
-  notes?: string;
-  created_at?: string;
+interface Warranty extends Rows.WarrantiesRow {
 }
 
 export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {

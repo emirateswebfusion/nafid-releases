@@ -2,6 +2,9 @@ import type { Invoice, InvoiceItem, InvoiceItemWithProduct } from './data/invoic
 import type { Product } from './data/products';
 import type { Party } from './data/parties';
 import type { Grade } from './data/grades';
+import type { StaffListItem } from './data/staff';
+import type { ComboOfferWithItems } from './data/combos';
+import type { PaymentSource } from './data/paymentSources';
 import type { PricingTier } from './data/pricingTiers';
 import type * as Rows from './data/dbRows';
 export interface SyncProgress {
@@ -84,12 +87,12 @@ export interface IElectronAPI {
   dbGetProductPricing: (tenantId: string) => Promise<Rows.ProductPricingRow[]>;
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
-  dbGetStaff: (params: { tenant_id: string; search?: string; status?: string }) => Promise<any[]>;
+  dbGetStaff: (params: { tenant_id: string; search?: string; status?: string }) => Promise<StaffListItem[]>;
   dbSaveStaff: (params: unknown) => Promise<any>;
-  dbVerifyBillerPin: (params: { tenant_id: string; pin: string }) => Promise<{ success: boolean; staff?: any; error?: string }>;
-  dbGetStaffLedger: (params: { tenant_id: string; staff_id: string }) => Promise<any[]>;
+  dbVerifyBillerPin: (params: { tenant_id: string; pin: string }) => Promise<{ success: boolean; staff?: Rows.StaffRow; error?: string }>;
+  dbGetStaffLedger: (params: { tenant_id: string; staff_id: string }) => Promise<Rows.StaffLedgerRow[]>;
   dbAddStaffTransaction: (params: unknown) => Promise<{ success: boolean; transaction_id?: string; ledger_id?: string; new_balance?: number; error?: string }>;
-  dbGetStaffAttendance: (params: { tenant_id: string; staff_id?: string; date?: string; month?: string }) => Promise<any[]>;
+  dbGetStaffAttendance: (params: { tenant_id: string; staff_id?: string; date?: string; month?: string }) => Promise<Rows.StaffAttendanceRow[]>;
   dbSaveStaffAttendance: (params: unknown) => Promise<{ success: boolean; attendance_id?: string; error?: string }>;
 
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
@@ -195,7 +198,7 @@ export interface IElectronAPI {
   dbRestoreParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbMergeParties: (payload: { tenant_id: string; primary_party_id: string; secondary_party_id: string }) => Promise<{ success: boolean; error?: string; primary_party_id?: string; secondary_party_id?: string }>;
   dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
-  dbGetPartyLedger: (party_id: string, includeDeleted?: boolean) => Promise<any[]>;
+  dbGetPartyLedger: (party_id: string, includeDeleted?: boolean) => Promise<Rows.PartyLedgerRow[]>;
   dbAddPartyLedgerEntry: (entry: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePartyLedgerEntry: (entry: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => Promise<{ success: boolean; error?: string }>;
@@ -232,15 +235,15 @@ export interface IElectronAPI {
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;
   dbPeekNextQuotationNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;
   dbSaveQuotation: (q: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbGetQuotations: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
-  dbGetQuotationItems: (quotation_id: string) => Promise<any[]>;
+  dbGetQuotations: (args: { tenant_id: string; search?: string }) => Promise<Rows.QuotationsRow[]>;
+  dbGetQuotationItems: (quotation_id: string) => Promise<Rows.QuotationItemsRow[]>;
   dbUpdateQuotationStatus: (args: { quotation_id: string; status?: string; converted_to_invoice?: number; invoice_id?: string }) => Promise<{ success: boolean; error?: string }>;
   dbDeleteQuotation: (quotation_id: string) => Promise<{ success: boolean; error?: string }>;
   dbUpdateQuotation: (q: unknown) => Promise<{ success: boolean; error?: string }>;
 
   // Warranties
   dbSaveWarranty: (w: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbGetWarranties: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbGetWarranties: (args: { tenant_id: string; search?: string }) => Promise<Rows.WarrantiesRow[]>;
   dbDeleteWarranty: (warranty_id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Cashier & Settlement
@@ -266,11 +269,11 @@ export interface IElectronAPI {
   dbCashierDeleteCategory: (params: { category_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
 
   // Payment Methods (BANK / CARD / UPI sources)
-  dbPaymentGetSources: (tenant_id: string) => Promise<any[]>;
+  dbPaymentGetSources: (tenant_id: string) => Promise<PaymentSource[]>;
   dbPaymentAddSource: (source: unknown) => Promise<{ success: boolean; source_id?: string; error?: string }>;
   dbPaymentUpdateSource: (source: unknown) => Promise<{ success: boolean; error?: string }>;
   dbPaymentDeleteSource: (params: { source_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
-  dbPaymentGetTransactions: (params: { source_id: string; tenant_id: string }) => Promise<any[]>;
+  dbPaymentGetTransactions: (params: { source_id: string; tenant_id: string }) => Promise<Rows.PaymentSourceTransactionsRow[]>;
   dbPaymentAddTransaction: (tx: unknown) => Promise<{ success: boolean; balance?: number; error?: string }>;
 
   // Purchase Bills
@@ -287,15 +290,15 @@ export interface IElectronAPI {
 
   // Returns
   dbCreateReturn: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbGetReturns: (filters: { tenant_id: string; invoice_id?: string; limit?: number; offset?: number; search?: string }) => Promise<any[]>;
-  dbGetReturnItems: (return_id: string) => Promise<any[]>;
+  dbGetReturns: (filters: { tenant_id: string; invoice_id?: string; limit?: number; offset?: number; search?: string }) => Promise<Rows.ReturnsRow[]>;
+  dbGetReturnItems: (return_id: string) => Promise<Rows.ReturnItemsRow[]>;
   dbDeleteReturn: (return_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; returnNumber?: string; error?: string }>;
   dbPeekNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; returnNumber?: string; error?: string }>;
-  dbGetAlreadyReturnedQuantities: (invoiceId: string) => Promise<any[]>;
-  dbGetReturnableInvoices: (payload: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => Promise<any[]>;
+  dbGetAlreadyReturnedQuantities: (invoiceId: string) => Promise<{ invoice_item_id: string; returned_qty: number }[]>;
+  dbGetReturnableInvoices: (payload: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => Promise<Invoice[]>;
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<any>;
-  dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<Rows.ReturnsRow[]>;
   dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
 
   // Hold Bill
@@ -310,7 +313,7 @@ export interface IElectronAPI {
   syncGetPending: (payload: { tenant_id: string }) => Promise<{ success: boolean; pending: { invoices: Rows.InvoicesRow[]; products: Rows.ProductsRow[] }; error?: string }>;
 
   // Combo Offers
-  dbGetComboOffers: (params: { tenant_id: string; search?: string; only_active?: boolean }) => Promise<any[]>;
+  dbGetComboOffers: (params: { tenant_id: string; search?: string; only_active?: boolean }) => Promise<ComboOfferWithItems[]>;
   dbGetComboOfferDetails: (params: { combo_id: string; tenant_id: string }) => Promise<any>;
   dbSaveComboOffer: (combo: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeleteComboOffer: (params: { combo_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;

@@ -45,7 +45,7 @@ export function useComboActions(ctx: UseComboActionsContext) {
       sku_barcode: combo.sku_barcode || '',
       combo_price: String(combo.combo_price),
       description: combo.description || '',
-      is_active: combo.is_active,
+      is_active: combo.is_active as number,
     });
     setSelectedItems(combo.items.map(i => ({ ...i })));
     setProductSearch('');

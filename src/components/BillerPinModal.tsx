@@ -11,7 +11,7 @@ interface BillerPinModalProps {
   isOpen: boolean;
   tenantId: string;
   onClose: () => void;
-  onVerified: (staff: { staff_id: string; staff_code: string; name: string; role_designation?: string }) => void;
+  onVerified: (staff: { staff_id: string; staff_code: string; name: string; role_designation?: string | null }) => void;
 }
 
 export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: BillerPinModalProps) {
@@ -48,10 +48,11 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
     try {
       if (hasBridge('dbVerifyBillerPin')) {
         const res = await staffApi.verifyBillerPin({ tenant_id: tenantId, pin: fullPin });
-        if (res.success && res.staff) {
+        const staff = res.staff;
+        if (res.success && staff) {
           setSuccess(true);
           setTimeout(() => {
-            onVerified(res.staff);
+            onVerified(staff);
           }, 300);
         } else {
           setError(res.error || 'Invalid Biller PIN');

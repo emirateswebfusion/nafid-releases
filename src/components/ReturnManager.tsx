@@ -16,40 +16,20 @@ import { printingApi } from '../data/printing';
 import { returnsApi } from '../data/returns';
 import { settingsApi } from '../data/settings';
 import { formatCurrency } from '../utils/money';
+import type * as Rows from '../data/dbRows';
 
-interface ReturnInvoice {
-  return_id: string;
-  invoice_id: string;
-  return_number: string;
-  customer_name: string | null;
-  customer_phone: string | null;
-  customer_address?: string | null;
+interface ReturnInvoice extends Rows.ReturnsRow {
   customer_state?: string | null;
   biller_name?: string | null;
-  subtotal: number;
-  tax_total: number;
-  grand_total: number;
-  reason: string | null;
-  return_date: string;
-  created_at: string;
 }
 
-interface ReturnItem {
-  return_item_id: string;
-  return_id: string;
-  invoice_item_id: string | null;
-  product_id: string;
-  name: string;
-  quantity: number;
-  unit_price: number;
-  tax_amount: number;
-  total: number;
+interface ReturnItem extends Rows.ReturnItemsRow {
   sku_barcode?: string;
   item_code?: string;
 }
 
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | null) {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
@@ -155,7 +135,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         items: items.map(item => {
           const itemAny = item as any;
           return {
-            name: item.name,
+            name: item.name as string,
             quantity: item.quantity,
             unit_price: item.unit_price,
             total: item.total,
@@ -211,7 +191,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
   const todayReturns = returns.filter(r => {
     try {
-      const datePart = r.return_date.split('T')[0];
+      const datePart = (r.return_date as string).split('T')[0];
       return datePart === todayStr;
     } catch {
       return false;
