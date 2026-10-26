@@ -64,7 +64,7 @@ function primaryKeyColumns(table: string, columns: TableColumn[]): string[] {
   throw new Error(`Cannot create outbox triggers: ${table} has no primary key or *_id column`);
 }
 
-function rowKeyExpression(row: 'NEW' | 'OLD', primaryKeys: string[]): string {
+function rowKeyExpression(row: string, primaryKeys: string[]): string {
   return primaryKeys
     .map((column) => `COALESCE(CAST(${row}.${quoteIdentifier(column)} AS TEXT), '')`)
     .join(" || ':' || ");
@@ -76,7 +76,7 @@ function rowKeyPredicate(row: 'NEW' | 'OLD', primaryKeys: string[]): string {
     .join(' AND ');
 }
 
-function tenantExpression(db: Db, table: string, columns: TableColumn[], row: 'NEW' | 'OLD'): string {
+function tenantExpression(db: Db, table: string, columns: TableColumn[], row: string): string {
   if (columns.some((column) => column.name === 'tenant_id')) {
     return `COALESCE(${row}."tenant_id", 'global')`;
   }
@@ -92,7 +92,7 @@ function tenantExpression(db: Db, table: string, columns: TableColumn[], row: 'N
   return "'global'";
 }
 
-function jsonPayloadExpression(columns: TableColumn[], row: 'NEW' | 'OLD', updated: boolean): string {
+function jsonPayloadExpression(columns: TableColumn[], row: string, updated: boolean): string {
   const origin = "COALESCE((SELECT \"value\" FROM \"sync_meta\" WHERE \"key\" = 'origin'), '00000000')";
   const args = columns.flatMap((column) => {
     const value = updated && column.name === 'row_version'
@@ -212,6 +212,29 @@ export function pruneOutbox(db: Db): void {
   db.prepare("DELETE FROM sync_outbox WHERE sent_at IS NOT NULL AND sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 days')").run();
   const engine = db.prepare("SELECT value FROM settings WHERE key = 'sync_engine' AND value = 'outbox' LIMIT 1").get();
   if (!engine) db.prepare("DELETE FROM sync_outbox WHERE sent_at IS NULL AND created_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days')").run();
+}
+
+/** Rows marked `sync_status = 'PENDING'` outside the triggers (legacy writes before the outbox engine, migration 004)
+ * get an UPSERT op built from their current values when no op exists for them (sent or not): rows the outbox already
+ * sent are never re-sent, rows whose ops were cleared (migration 005) or pruned are. Run before each
+ * outbox push so switching a terminal to the outbox engine never strands a pending row. Returns the ops added. */
+export function enqueueLegacyPendingRows(db: Db, tables: readonly string[]): number {
+  const origin = "COALESCE((SELECT \"value\" FROM \"sync_meta\" WHERE \"key\" = 'origin'), '00000000')";
+  let added = 0;
+  for (const table of tables) {
+    const columns = tableColumns(db, table);
+    if (!columns.some((column) => column.name === 'sync_status')) continue;
+    const primaryKeys = primaryKeyColumns(table, columns);
+    const entityId = rowKeyExpression('t', primaryKeys);
+    added += db.prepare(`INSERT INTO sync_outbox (op_id, tenant_id, entity, entity_id, op, row_version, payload, origin, created_at)
+      SELECT lower(hex(randomblob(16))), ${tenantExpression(db, table, columns, 't')}, ${quoteLiteral(table)}, ${entityId}, 'UPSERT',
+             COALESCE(t."row_version", 0), ${jsonPayloadExpression(columns, 't', false)}, ${origin}, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      FROM ${quoteIdentifier(table)} AS t
+      WHERE t."sync_status" = 'PENDING'
+        AND NOT EXISTS (SELECT 1 FROM sync_outbox o WHERE o.entity = ${quoteLiteral(table)} AND o.entity_id = ${entityId})`)
+      .run().changes;
+  }
+  return added;
 }
 
 export function countPendingOps(db: Db): number {

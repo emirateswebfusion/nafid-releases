@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
-import { listPendingOps, withSyncApplyGuard } from '../db/statements/outbox.js';
+import { enqueueLegacyPendingRows, listPendingOps, withSyncApplyGuard } from '../db/statements/outbox.js';
+import { SYNCED_TABLES } from '../db/migrations/002-sync-outbox.js';
 import * as sql from '../db/statements/sync/outboxSync.js';
 import { LOCAL_DEVICE_SETTING_KEYS } from './entities/settingsSync.js';
 import { fetchWithFallback, clearAuthAndNotify, getMeta, setMeta } from './syncTransport.js';
@@ -27,6 +28,7 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
     if (!response.ok) throw new Error(`Outbox HTTP ${response.status}`);
     return response.json() as Promise<unknown>;
   };
+  enqueueLegacyPendingRows(db, SYNCED_TABLES);
   const through = sql.queueBoundary(db);
   let after = 0;
   for (;;) {
