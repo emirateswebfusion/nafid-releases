@@ -139,7 +139,7 @@ export interface IElectronAPI {
   dbUpdateScrapInvoiceHeader: (args: unknown) => Promise<{ success: boolean; error?: string }>;
   openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
   printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number, sp?: number, spType?: 'SP' | 'OFF') => Promise<{ success: boolean; error?: string }>;
-  printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => Promise<{ success: boolean; error?: string; printed?: string[] }>;
+  printBulkBarcodes: (tenant_id: string, items: BulkPrintItem[]) => Promise<{ success: boolean; error?: string; printed?: string[] }>;
   getBulkPrintItems: () => Promise<BulkPrintItem[]>;
   getPrinters: () => Promise<{ name: string; displayName?: string; isDefault?: boolean; status?: number }[]>;
   getReceiptText: () => Promise<string>;

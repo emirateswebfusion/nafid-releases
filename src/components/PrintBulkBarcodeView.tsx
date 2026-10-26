@@ -153,7 +153,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   while (currentIndex < flatItems.length) {
     const pageLabels = Array.from({ length: colCount }, (_, colIndex) => {
       const hasLabel = currentIndex + colIndex < flatItems.length;
-      const item = hasLabel ? flatItems[currentIndex + colIndex] as BulkPrintItem & { sp?: number; spType?: string } : null;
+      const item = hasLabel ? flatItems[currentIndex + colIndex] : null;
       const barcodeModuleWidth = item
         ? Math.min(1.6, Math.max(0.4, labelContentWidthPx / code128Modules(String(item.barcode || ''))))
         : 1;

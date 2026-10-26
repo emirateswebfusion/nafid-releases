@@ -6,6 +6,8 @@ export interface BulkPrintItem {
   quantity: number;
   name?: string;
   price?: number;
+  sp?: number;
+  spType?: 'SP' | 'OFF';
 }
 
 /** Receipt/A4/barcode printing and the cash drawer kick. Channel catalog — the only way UI code reaches these IPC channels. */

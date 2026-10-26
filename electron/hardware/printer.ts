@@ -6,6 +6,7 @@ import * as printerSql from '../db/statements/printer.js';
 import { buildReceiptHtml } from './receiptHtml.js';
 import { getSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
 import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
+import type { BulkPrintItem } from './printingTypes.js';
 
 function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barcode') {
   try {
@@ -45,7 +46,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
   }
 }
 
-let currentBulkPrintItems: { barcode: string; quantity: number; name?: string; price?: number }[] = [];
+let currentBulkPrintItems: BulkPrintItem[] = [];
 let currentReceiptText: string = '';
 let currentA4Html: string = '';
 let pendingReceiptHeightPx: number = 0; // measured by renderer before printReady; used by printReceiptUSB
@@ -335,7 +336,7 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: { barcode: string; quantity: number; name?: string; price?: number }[] }) => {
+  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: BulkPrintItem[] }) => {
     console.log(`[Hardware] Printing Bulk Barcodes (${items.length} items) for tenant: ${tenant_id}`);
     const config = getPrinterConfig(tenant_id, 'barcode');
     const codeType = getLabelCodeType(tenant_id);
@@ -432,7 +433,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     });
   });
 }
-function printBulkBarcodeUSB(items: { barcode: string; quantity: number; name?: string; price?: number }[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
+function printBulkBarcodeUSB(items: BulkPrintItem[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
   return pendingPrint(async (resolve, reject) => {
     currentBulkPrintItems = items;
     const labelW = Math.max(20, Math.round(widthMm || 50));

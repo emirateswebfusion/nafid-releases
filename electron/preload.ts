@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { BulkPrintItem } from './hardware/printingTypes.js';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   logError: (message: string, error?: unknown) => ipcRenderer.invoke('log:error', { message, error }),
@@ -99,8 +100,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printReceipt: (tenant_id: string, data: string) => ipcRenderer.invoke('hardware:printReceipt', { tenant_id, textData: data }),
   openCashDrawer: (tenant_id: string) => ipcRenderer.invoke('hardware:openCashDrawer', tenant_id),
   printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number, sp?: number, spType?: 'SP' | 'OFF') => ipcRenderer.invoke('hardware:printBarcode', { tenant_id, barcode, price, name, quantity, sp, spType }),
-  printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => ipcRenderer.invoke('hardware:printBulkBarcodes', { tenant_id, items }),
-  getBulkPrintItems: () => ipcRenderer.invoke('hardware:getBulkPrintItems'),
+  printBulkBarcodes: (tenant_id: string, items: BulkPrintItem[]) => ipcRenderer.invoke('hardware:printBulkBarcodes', { tenant_id, items }),
+  getBulkPrintItems: (): Promise<BulkPrintItem[]> => ipcRenderer.invoke('hardware:getBulkPrintItems'),
   getReceiptText: () => ipcRenderer.invoke('hardware:getReceiptText'),
   getA4Html: () => ipcRenderer.invoke('hardware:getA4Html'),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),

@@ -12,6 +12,7 @@ import { isDesktopRuntime } from '../data/client';
 import { gradesApi } from '../data/grades';
 import { printingApi } from '../data/printing';
 import { productsApi } from '../data/products';
+import { buildBulkPrintItem } from '../utils/bulkPrintItem';
 
 interface RowData {
   id: string;
@@ -491,34 +492,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       const printItems = pendingProducts.map(p => {
         const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
         const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
-        const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-          ? gradeRate 
-          : Number(p.base_price);
-
-        let sp: number | undefined;
-        let spType: 'SP' | 'OFF' = 'SP';
-        if (p.offer_price) {
-          sp = Number(p.offer_price);
-          spType = 'OFF';
-        } else if (p.discount_flat) {
-          sp = effectiveMrp - Number(p.discount_flat);
-          spType = 'SP';
-        } else if (p.discount_percent) {
-          sp = effectiveMrp * (1 - Number(p.discount_percent) / 100);
-          spType = 'SP';
-        }
-        if (sp !== undefined && sp === effectiveMrp) {
-           sp = undefined;
-        }
-
-        return {
-          barcode: p.sku_barcode as string,
-          price: effectiveMrp,
-          name: p.name,
-          quantity: Math.max(1, p.current_stock as number),
-          sp,
-          spType
-        };
+        return buildBulkPrintItem(p, gradeRate);
       });
 
       const printRes = await printingApi.printBulkBarcodes(tenantId || 'global', printItems);
