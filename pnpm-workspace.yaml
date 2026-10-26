@@ -4,4 +4,9 @@ allowBuilds:
   better-sqlite3: true
   electron: true
   electron-winstaller: true
+  esbuild: false
   protobufjs: true
+
+# Security: patched js-yaml (electron-updater pins an older 4.x).
+overrides:
+  js-yaml: '>=4.3.2 <5'
