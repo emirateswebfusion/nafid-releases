@@ -62,10 +62,10 @@ function formatToWhatsAppJid(phone: string): string {
 async function startWhatsAppConnection(): Promise<void> {
   try {
     const baileys = await getBaileys();
-    const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
+    const { makeWASocket, DisconnectReason, useMultiFileAuthState: loadMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
 
     const sessionDir = getWhatsAppSessionDir();
-    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    const { state, saveCreds } = await loadMultiFileAuthState(sessionDir);
     const { version } = await fetchLatestBaileysVersion();
 
     connectionStatus = 'connecting';

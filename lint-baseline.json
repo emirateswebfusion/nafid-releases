@@ -1,8 +1,6 @@
 {
-  "errors": 1,
+  "errors": 0,
   "warnings": 0,
-  "byRule": {
-    "react-hooks/rules-of-hooks": 1
-  },
-  "updatedAt": "2026-10-26T14:47:30.315Z"
+  "byRule": {},
+  "updatedAt": "2026-10-26T14:53:49.780Z"
 }
