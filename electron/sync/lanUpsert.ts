@@ -131,7 +131,7 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
         if (col === 'split_details' && (val === 'null' || val === 'undefined' || val === '')) {
           val = null;
         }
-        paramObj[col] = val !== undefined ? val : null;
+        paramObj[col] = val !== undefined ? val : (col === 'row_version' ? 0 : null);
       }
 
       if (allCols.includes('sync_status')) {

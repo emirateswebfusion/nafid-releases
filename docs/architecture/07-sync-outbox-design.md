@@ -95,6 +95,10 @@ CREATE INDEX idx_sync_outbox_pending ON sync_outbox(tenant_id, sent_at, created_
 ## 7.4 Rollout (numbered migrations, one release each)
 
 1. **Done:** POS migration `electron/db/migrations/002-sync-outbox.ts`; server migration `src/db/migrations/tenant/095_sync_versions.sql`. Schema only; no behaviour change.
+   Until step 4 the new columns stay local: push bodies drop `row_version` / `origin` (`syncPushBody` in
+   `electron/sync/syncTransport.ts`), and LAN ingest stores `row_version = 0` for rows from terminals without the
+   migration (`electron/sync/lanUpsert.ts`). `sync-run.mts` (both modes) and `lan-run.mts` (same and mixed versions)
+   are unchanged; IPC responses only gain the two columns.
 2. **Dual write:** services enqueue ops and bump `row_version`; the pusher still uses `PENDING` rows. Characterization:
    `sync-run.mts` unchanged; new unit / characterization tests assert one op per write and per delete.
 3. **Server accepts ops** (`POST /api/sync/ops`) with the version rule and idempotency table; old per-entity endpoints

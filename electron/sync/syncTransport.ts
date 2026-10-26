@@ -7,6 +7,15 @@ import { CURSOR_REPLAY_SECONDS, FETCH_TIMEOUT_MS, PULL_MAX_PAGES, PULL_MAX_RETRI
 import { notifyOnlineStatus } from './syncProgress.js';
 import * as syncTransportSql from '../db/statements/sync/syncTransport.js';
 
+/** Outbox bookkeeping columns (migration 002). They stay local until the pusher switches to the outbox
+ * (docs/architecture/07-sync-outbox-design.md, rollout step 4), so push bodies keep their pre-outbox shape. */
+const LOCAL_ONLY_SYNC_KEYS = new Set(['row_version', 'origin']);
+
+/** JSON body of a sync push, without the local-only outbox columns (at any depth: items travel inside parents). */
+export function syncPushBody(body: Record<string, unknown>): string {
+  return JSON.stringify(body, (key, value) => (LOCAL_ONLY_SYNC_KEYS.has(key) ? undefined : value));
+}
+
 /** Sync transport: LAN / cloud endpoints and connectivity, fetch with fallback, batched push with outbox reconciliation, pull cursors and paginated pulls. */
 export interface SyncEndpoints {
   primaryUrl: string;
@@ -215,7 +224,7 @@ export async function pushBatch<T>(
       const { response } = await fetchWithFallback(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ [bodyKey]: batch }),
+        body: syncPushBody({ [bodyKey]: batch }),
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 

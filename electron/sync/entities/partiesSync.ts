@@ -2,7 +2,7 @@ import { getDb } from '../../db/localDb.js';
 import { syncState } from '../syncState.js';
 import { BATCH_SIZE, FETCH_TIMEOUT_MS, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { clearAuthAndNotify, fetchWithFallback, pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import { clearAuthAndNotify, fetchWithFallback, pullPaginated, pushBatch, reconcilePending, syncPushBody } from '../syncTransport.js';
 import * as partiesSyncSql from '../../db/statements/sync/partiesSync.js';
 
 /** Parties sync: parties, party ledger, customers, loyalty transactions and users (push and pull). */
@@ -113,7 +113,7 @@ export async function pushCustomers(token: string, tenantId: string): Promise<bo
     const { response } = await fetchWithFallback('/api/sync/customers', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customers: pending }),
+      body: syncPushBody({ customers: pending }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
@@ -257,7 +257,7 @@ export async function pushLoyaltyTransactions(token: string, tenantId: string): 
     const { response } = await fetchWithFallback('/api/sync/loyalty-transactions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loyalty_transactions: pending }),
+      body: syncPushBody({ loyalty_transactions: pending }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {

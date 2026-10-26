@@ -12,6 +12,8 @@ export interface CashCategoriesRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `cash_drawer`. */
@@ -37,6 +39,8 @@ export interface CashDrawerRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `cash_transactions`. */
@@ -55,6 +59,8 @@ export interface CashTransactionsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `cashier_audit_log`. */
@@ -69,6 +75,8 @@ export interface CashierAuditLogRow {
   performed_at: string | null;
   sync_status: string | null;
   created_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `combo_items`. */
@@ -79,6 +87,8 @@ export interface ComboItemsRow {
   product_id: string;
   quantity: number;
   created_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `combo_offers`. */
@@ -95,6 +105,8 @@ export interface ComboOffersRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `customers`. */
@@ -121,6 +133,8 @@ export interface CustomersRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `ecommerce_product_mappings`. */
@@ -202,6 +216,8 @@ export interface InvoiceItemsRow {
   bos_total: number | null;
   qty_from_paper_stock: number | null;
   is_deleted: number | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `invoices`. */
@@ -259,6 +275,8 @@ export interface InvoicesRow {
   actual_refund_paid: number | null;
   notes: string | null;
   description: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `loyalty_transactions`. */
@@ -277,6 +295,8 @@ export interface LoyaltyTransactionsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `parties`. */
@@ -307,6 +327,8 @@ export interface PartiesRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `party_ledger`. */
@@ -329,6 +351,8 @@ export interface PartyLedgerRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `payment_source_transactions`. */
@@ -348,6 +372,8 @@ export interface PaymentSourceTransactionsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `payment_sources`. */
@@ -370,6 +396,8 @@ export interface PaymentSourcesRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `pricing_tiers`. */
@@ -385,6 +413,8 @@ export interface PricingTiersRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `product_grades`. */
@@ -401,6 +431,8 @@ export interface ProductGradesRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `product_pricing`. */
@@ -415,6 +447,8 @@ export interface ProductPricingRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `products`. */
@@ -450,6 +484,8 @@ export interface ProductsRow {
   print_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `purchase_bill_items`. */
@@ -471,6 +507,8 @@ export interface PurchaseBillItemsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `purchase_bills`. */
@@ -489,6 +527,8 @@ export interface PurchaseBillsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `quotation_items`. */
@@ -513,6 +553,8 @@ export interface QuotationItemsRow {
   igst_amount: number | null;
   sync_status: string | null;
   created_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `quotations`. */
@@ -539,6 +581,8 @@ export interface QuotationsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `return_items`. */
@@ -555,6 +599,8 @@ export interface ReturnItemsRow {
   total: number;
   sync_status: string | null;
   created_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `returns`. */
@@ -578,6 +624,8 @@ export interface ReturnsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `schema_migrations`. */
@@ -601,6 +649,8 @@ export interface ScrapCategoriesRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `scrap_transactions`. */
@@ -624,6 +674,8 @@ export interface ScrapTransactionsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `settings`. */
@@ -633,6 +685,8 @@ export interface SettingsRow {
   value: string | null;
   sync_status: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
 
 /** Row of `shop_closing_reports`. */
@@ -748,6 +802,22 @@ export interface SyncMetaRow {
   value: string;
 }
 
+/** Row of `sync_outbox`. */
+export interface SyncOutboxRow {
+  op_id: string;
+  tenant_id: string;
+  entity: string;
+  entity_id: string;
+  op: string;
+  row_version: number;
+  payload: string | null;
+  origin: string;
+  created_at: string;
+  attempts: number;
+  last_error: string | null;
+  sent_at: string | null;
+}
+
 /** Row of `users`. */
 export interface UsersRow {
   user_id: string;
@@ -781,4 +851,6 @@ export interface WarrantiesRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  row_version: number;
+  origin: string | null;
 }
