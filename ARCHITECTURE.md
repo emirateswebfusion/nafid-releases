@@ -7,8 +7,9 @@ Offline-first Electron desktop point of sale (React 19 renderer + Node main proc
 Renderer (src/)                         Main process (electron/)                  Cloud
 components → hooks/store → data ──IPC──▶ ipc (register) → services → db/statements
                  │            ▲ events          │
-                 └── lib/api.ts ────────────────┼──────── HTTPS ───────────────▶ nafid-server
-                                         sync/syncWorker.ts ── /api/sync/* ────▶ nafid-server
+                 └── data/cloud/* ──────────────┼──────── HTTPS ───────────────▶ nafid-server
+                                         sync/ (legacy engine, or outbox ── /api/sync/* ────▶ nafid-server
+                                                engine behind "Sync engine (beta)")
 ```
 
 | Need | Go to |
