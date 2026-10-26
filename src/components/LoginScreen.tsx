@@ -46,7 +46,7 @@ export function LoginScreen() {
     if (Object.keys(errors).length) { setFieldErrors(errors); return; }
     setLoading(true);
     const res = await login(email, password);
-    if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Login failed.'));
+    if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Login failed.'));
     setLoading(false);
   };
 
@@ -59,7 +59,7 @@ export function LoginScreen() {
     if (res.success) {
       setSuccessMsg("If that email is registered, you'll receive a reset link shortly.");
     } else {
-      setError(typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Failed to send reset link.'));
+      setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Failed to send reset link.'));
     }
     setLoading(false);
   };
@@ -75,7 +75,7 @@ export function LoginScreen() {
       setSuccessMsg('All set! Your password has been updated. Redirecting you to sign in...');
       setTimeout(() => { setTab('login'); clearMessages(); }, 1500);
     } else {
-      setError(typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Failed to reset password.'));
+      setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Failed to reset password.'));
     }
     setLoading(false);
   };

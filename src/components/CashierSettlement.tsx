@@ -108,7 +108,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [splitBank, setSplitBank] = useState<number | ''>('');
   const [splitSubmitting, setSplitSubmitting] = useState(false);
 
-  const getRawNet = (inv: any): number => {
+  const getRawNet = (inv: import('../data/invoices').Invoice): number => {
     const scrapD = Number(inv.scrap_deduction) || 0;
     const returnD = Number(inv.return_deduction) || 0;
     const totalDeductions = scrapD + returnD;
@@ -170,7 +170,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const playNewBillSound = useCallback(() => {
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
@@ -187,7 +187,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     } catch { /* ignore */ }
   }, []);
 
-  const processInvoicesUpdate = useCallback((invs: any[]) => {
+  const processInvoicesUpdate = useCallback((invs: import('../data/invoices').Invoice[]) => {
     if (!Array.isArray(invs)) return;
     if (!initialLoadedRef.current) {
       knownInvoiceIdsRef.current = new Set(invs.map((i) => i.invoice_id));
@@ -269,7 +269,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     loadFlags(tenantId || 'global');
     getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
     if (hasBridge('dbPaymentGetSources')) {
-      paymentSourcesApi.getSources(tenantId || 'global').then((sources: any[]) => {
+      paymentSourcesApi.getSources(tenantId || 'global').then((sources) => {
         if (Array.isArray(sources)) {
           setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
@@ -292,7 +292,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     window.addEventListener('checkout:completed', refresh);
     window.addEventListener('storage', refresh);
     return () => {
-      if (typeof unsubscribeSync === 'function') (unsubscribeSync as any)();
+      if (typeof unsubscribeSync === 'function') unsubscribeSync();
       window.removeEventListener('focus', refresh);
       window.removeEventListener('checkout:completed', refresh);
       window.removeEventListener('storage', refresh);

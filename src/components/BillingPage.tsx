@@ -296,7 +296,7 @@ export function BillingPage() {
     if (scrapNumber) updates.reservedScrapInvoiceNumber = scrapNumber;
     if (quotationNumber) updates.reservedQuotationNumber = quotationNumber;
     if (returnNumber) updates.reservedReturnNumber = returnNumber;
-    if (Object.keys(updates).length) updateActiveTab(updates as any);
+    if (Object.keys(updates).length) updateActiveTab(updates);
   };
 
   const rawPaymentMethod = activeTab?.paymentMethod;
@@ -307,11 +307,11 @@ export function BillingPage() {
   const rawSplitDetails = activeTab?.splitDetails;
   const splitDetails: SplitDetails = typeof rawSplitDetails === 'string'
     ? (() => {
-        let curr: any = rawSplitDetails;
+        let curr: unknown = rawSplitDetails;
         while (typeof curr === 'string') {
           try { curr = JSON.parse(curr); } catch { break; }
         }
-        return (typeof curr === 'object' && curr !== null) ? curr : { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
+        return (typeof curr === 'object' && curr !== null) ? curr as SplitDetails : { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
       })()
     : (rawSplitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 });
   const splitTotal = (paymentMethod === 'SPLIT' || paymentMethod === 'CREDIT') ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.cheque) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;

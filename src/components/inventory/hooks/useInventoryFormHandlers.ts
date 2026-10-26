@@ -9,7 +9,7 @@ import type { InventoryState } from './useInventoryState';
 
 export interface UseInventoryFormHandlersContext {
   encodePurchasePriceCode: (price: unknown) => string;
-  getEffectiveMrp: (data?: unknown) => number;
+  getEffectiveMrp: (data?: InventoryState['formData']) => number;
   stripPurchasePriceCode: (barcode: string, price: unknown) => string;
   tenantId: string | null;
   inv: InventoryState;

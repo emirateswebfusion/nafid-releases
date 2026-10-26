@@ -203,7 +203,7 @@ export function CustomersPage({
       credit_period_enabled: Boolean(cust.credit_period_enabled),
       credit_period_days: String(cust.credit_period_days || 30),
       credit_period_basis: cust.credit_period_basis || 'BILL_BASED',
-      restrict_on_credit_expiry: cust.restrict_on_credit_expiry !== false && (cust.restrict_on_credit_expiry as any) !== 0,
+      restrict_on_credit_expiry: cust.restrict_on_credit_expiry !== false && cust.restrict_on_credit_expiry !== 0,
     });
     setEditModalOpen(true);
   };

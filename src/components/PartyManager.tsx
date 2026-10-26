@@ -68,7 +68,7 @@ export function PartyManager({
     setViewingLedgerVoucher, editReturnView, setEditReturnView,
   } = pm;
 
-  const getPartyBalance = useCallback((p: any): number => {
+  const getPartyBalance = useCallback((p: Party): number => {
     if (!p) return 0;
     if (enablePartyGst && !enablePartyEstimate) {
       if (p.current_gst_balance !== undefined && p.current_gst_balance !== null && !isNaN(Number(p.current_gst_balance))) {
@@ -327,7 +327,7 @@ export function PartyManager({
       gstin: party.gstin || '',
       opening_balance: '',
       balance_type: party.balance_type as 'PAYABLE' | 'RECEIVABLE',
-      party_type: (party.party_type as any) || 'CUSTOMER',
+      party_type: (party.party_type as typeof partyForm.party_type) || 'CUSTOMER',
       custom_category: party.custom_category || '',
       notes: party.notes || '',
       pricing_tier_id: party.pricing_tier_id || '',
@@ -335,9 +335,9 @@ export function PartyManager({
       credit_period_enabled: Boolean(party.credit_period_enabled),
       credit_period_days: String(party.credit_period_days || 30),
       credit_period_basis: party.credit_period_basis || 'BILL_BASED',
-      restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && (party.restrict_on_credit_expiry as any) !== 0,
+      restrict_on_credit_expiry: party.restrict_on_credit_expiry !== false && party.restrict_on_credit_expiry !== 0,
       whatsapp_alerts_enabled: party.whatsapp_alerts_enabled !== 0 && party.whatsapp_alerts_enabled !== false,
-      connect_code: (party as any).connect_code || '',
+      connect_code: party.connect_code || '',
     });
     setView('party_form');
   };

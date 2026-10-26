@@ -347,7 +347,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => handleRangeChange(tab.id as any)}
+                  onClick={() => handleRangeChange(tab.id as Parameters<typeof handleRangeChange>[0])}
                   className={clsx(
                     "px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer",
                     dateRange === tab.id

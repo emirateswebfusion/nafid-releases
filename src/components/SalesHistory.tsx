@@ -78,7 +78,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   // High-performance in-memory cache for instant zero-lag bill drawer rendering
   const invoiceDetailsCache = useRef<Map<string, InvoiceDetailsCacheEntry>>(new Map());
   const prefetchInvoiceRef = useRef<(id: string) => void>(() => {});
-  const loadInvoicesRef = useRef<any>(null);
+  const loadInvoicesRef = useRef<((reset?: boolean) => Promise<void>) | null>(null);
   const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
   const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT'>('CASH');
   const [collectReceivedAmount, setCollectReceivedAmount] = useState(0);
@@ -214,7 +214,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   useEffect(() => {
     getUpiPageConfig(useAuthStore.getState().tenantId || 'global').then(setUpiPageConfig);
     if (hasBridge('dbPaymentGetSources')) {
-      paymentSourcesApi.getSources(useAuthStore.getState().tenantId || 'global').then((sources: any[]) => {
+      paymentSourcesApi.getSources(useAuthStore.getState().tenantId || 'global').then((sources) => {
         if (Array.isArray(sources)) {
           setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
@@ -223,7 +223,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (isDesktopRuntime()) {
       const unsub = bridgeEvents.onSyncDataUpdated(() => {
         console.log('[SalesHistory] 🔄 Auto-sync data updated event received! Reloading invoices from SQLite...');
-        loadInvoicesRef.current(true);
+        loadInvoicesRef.current!(true);
       });
       return () => {
         unsub?.();
@@ -443,7 +443,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const dailySales = useMemo(() => groupByDay(invoices), [invoices]);
 
   const groupedInvoices = useMemo(() => {
-    const groups: { date: string; items: any[] }[] = [];
+    const groups: { date: string; items: SalesInvoiceRow[] }[] = [];
     for (const inv of invoices) {
       const key = formatGroupDate(inv.created_at);
       const last = groups[groups.length - 1];

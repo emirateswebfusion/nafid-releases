@@ -154,7 +154,7 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
                   <button
                     key={ratio.id}
                     type="button"
-                    onClick={() => handleUpdate({ splitRatio: ratio.id as any })}
+                    onClick={() => handleUpdate({ splitRatio: ratio.id as BillingUIConfig['splitRatio'] })}
                     className={clsx(
                       "p-3 rounded-xl border text-center space-y-1 transition-all cursor-pointer",
                       config.splitRatio === ratio.id 

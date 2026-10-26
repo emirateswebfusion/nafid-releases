@@ -88,7 +88,7 @@ export function PrintReceiptView({ text }: { text: string }) {
   const rows = useMemo(() => parseReceiptToRows(receiptText), [receiptText]);
 
   const qrPayloads = useMemo(
-    () => Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as any).payload))),
+    () => Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as Extract<typeof r, { type: 'qr' }>).payload))),
     [rows]
   );
   const isQrReady = qrPayloads.length === 0 || qrPayloads.every((payload) => Boolean(qrImages[payload]));

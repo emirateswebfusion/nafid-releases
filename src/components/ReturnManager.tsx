@@ -24,6 +24,7 @@ interface ReturnInvoice extends Rows.ReturnsRow {
 }
 
 interface ReturnItem extends Rows.ReturnItemsRow {
+  billing_type?: string | null; pieces_sold?: number | null; pieces_override?: number | null; unit?: string | null; uom?: string | null;
   sku_barcode?: string;
   item_code?: string;
 }
@@ -133,7 +134,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         date: formatBillDateTime(r.return_date || r.created_at || Date.now()),
         billerName: billSettings.showBillerName !== false ? (r.biller_name || useAuthStore.getState().userName || undefined) : undefined,
         items: items.map(item => {
-          const itemAny = item as any;
+          const itemAny = item;
           return {
             name: item.name as string,
             quantity: item.quantity,

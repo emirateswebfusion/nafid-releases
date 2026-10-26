@@ -208,7 +208,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
               ].map(opt => (
                 <div
                   key={opt.id}
-                  onClick={() => setConfig({ ...config, stock_valuation_mode: opt.id as any })}
+                  onClick={() => setConfig({ ...config, stock_valuation_mode: opt.id as typeof config.stock_valuation_mode })}
                   className={clsx(
                     "p-4 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between",
                     config.stock_valuation_mode === opt.id
@@ -345,7 +345,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 ].map(scope => (
                   <div
                     key={scope.id}
-                    onClick={() => setConfig({ ...config, sales_history_scope: scope.id as any })}
+                    onClick={() => setConfig({ ...config, sales_history_scope: scope.id as typeof config.sales_history_scope })}
                     className={clsx(
                       "p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 text-left",
                       config.sales_history_scope === scope.id
@@ -395,7 +395,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 ].map(mode => (
                   <div
                     key={mode.id}
-                    onClick={() => setConfig({ ...config, sales_revenue_mode: mode.id as any })}
+                    onClick={() => setConfig({ ...config, sales_revenue_mode: mode.id as typeof config.sales_revenue_mode })}
                     className={clsx(
                       "p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 text-left",
                       config.sales_revenue_mode === mode.id

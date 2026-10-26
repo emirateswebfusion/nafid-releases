@@ -21,7 +21,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const [shopNameReady, setShopNameReady] = useState(false);
   const [showShopName, setShowShopName] = useState(true);
   const [showShopNameReady, setShowShopNameReady] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Parameters<typeof printingApi.printBulkBarcodes>[1]>([]);
   const [columns, setColumns] = useState(1);
   const [labelWidthPx, setLabelWidthPx] = useState(189);
   const [labelHeightPx, setLabelHeightPx] = useState(94);
@@ -137,9 +137,9 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const colCount = Math.max(1, columns || 1);
   const labelContentWidthPx = Math.max(60, Math.floor(labelWidthPx / colCount) - 16);
 
-  const pages: any[] = [];
+  const pages: React.ReactNode[] = [];
 
-  const flatItems: any[] = [];
+  const flatItems: typeof items = [];
   items.forEach(item => {
     for (let i = 0; i < (item.quantity || 1); i++) {
       flatItems.push(item);

@@ -56,5 +56,5 @@ export type ScrapInvoiceTxRow = {
 export type ScrapUpiSourceRow = {
   source_id: string;
   name: string;
-  upi_id?: string;
+  upi_id?: string | null;
 };

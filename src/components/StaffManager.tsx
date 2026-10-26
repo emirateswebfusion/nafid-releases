@@ -146,7 +146,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     const email = formData.email.trim().toLowerCase();
     if (!email) throw new Error('Email is required for a system login account');
     let userId = formData.user_id;
-    let matchingAccount: any = null;
+    let matchingAccount: (SavedSystemAccount & { email?: string }) | null = null;
     const accounts = await fetchSystemAccounts();
     if (accounts) {
       matchingAccount = userId
@@ -157,7 +157,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         matchingAccount = accounts.find((account) => String(account.email || '').trim().toLowerCase() === email) || null;
       }
       if (matchingAccount) {
-        const linkedStaff = staffList.find(staff => staff.user_id === matchingAccount.user_id && staff.staff_id !== formData.staff_id);
+        const linkedStaff = staffList.find(staff => staff.user_id === matchingAccount!.user_id && staff.staff_id !== formData.staff_id);
         if (linkedStaff) {
           throw new Error(`This login account is already linked to ${linkedStaff.name}`);
         }
@@ -210,7 +210,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       email: staff.user_email || staff.email || '',
       password: '',
       role_designation: staff.role_designation || '',
-      user_role: (staff.user_role as any) || 'STAFF',
+      user_role: (staff.user_role as typeof formData.user_role) || 'STAFF',
       permissions: staff.permissions || [],
       roleTouched: false,
       permissionsTouched: false,
@@ -268,7 +268,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
     setSaving(true);
     let profileSaved = false;
-    let savedStaff: any;
+    let savedStaff: Partial<StaffMember> | undefined;
     try {
       if (hasBridge('dbSaveStaff')) {
         savedStaff = await staffApi.saveStaff({

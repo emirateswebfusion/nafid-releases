@@ -39,7 +39,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const { tenantId } = useAuthStore();
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<RowData[]>([createEmptyRow()]);
-  const [grades, setGrades] = useState<any[]>([]);
+  const [grades, setGrades] = useState<Awaited<ReturnType<typeof gradesApi.getGrades>>>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -216,16 +216,16 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     return base;
   };
 
-  const updateRow = (index: number, field: keyof RowData, value: any) => {
+  const updateRow = (index: number, field: keyof RowData, value: string | boolean) => {
     const newRows = [...rows];
     const row = { ...newRows[index] };
     
     if (field === 'discount_percent') {
-      row.discount_percent = value;
+      row.discount_percent = value as string;
       if (value === '') {
         row.discount_flat = '';
       } else {
-        const pct = parseFloat(value);
+        const pct = parseFloat(value as string);
         const base = getEffectiveMrp(row);
         if (!isNaN(pct) && base) {
           row.discount_flat = ((base * pct) / 100).toFixed(2);
@@ -233,11 +233,11 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       }
     } else if (field === 'discount_flat') {
-      row.discount_flat = value;
+      row.discount_flat = value as string;
       if (value === '') {
         row.discount_percent = '';
       } else {
-        const flat = parseFloat(value);
+        const flat = parseFloat(value as string);
         const base = getEffectiveMrp(row);
         if (!isNaN(flat) && base) {
           row.discount_percent = ((flat / base) * 100).toFixed(2);
@@ -245,14 +245,14 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       }
     } else if (field === 'offer_price') {
-      row.offer_price = value;
+      row.offer_price = value as string;
       if (value !== '') {
         row.discount_percent = '';
         row.discount_flat = '';
       }
     } else if (field === 'mrp' || field === 'grade_id') {
-      if (field === 'mrp') row.mrp = value;
-      if (field === 'grade_id') row.grade_id = value;
+      if (field === 'mrp') row.mrp = value as string;
+      if (field === 'grade_id') row.grade_id = value as string;
 
       if (row.discount_percent) {
         const pct = parseFloat(row.discount_percent);
@@ -268,13 +268,13 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       }
     } else if (field === 'billing_type') {
-      row.billing_type = value;
+      row.billing_type = value as RowData['billing_type'];
     } else if (field === 'uom') {
-      row.uom = value;
+      row.uom = value as string;
       const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
-      row.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
+      row.billing_type = weightUoms.includes(value as string) ? 'WEIGHT' : 'PIECE';
     } else {
-      (row as any)[field] = value;
+      (row as unknown as Record<keyof RowData, string | boolean>)[field] = value;
     }
 
     if (field === 'category') {
@@ -374,7 +374,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setMessage(null);
 
     let nextBarcode = await getNextBarcode();
-    const productsToInsert: any[] = [];
+    const productsToInsert: Parameters<typeof productsApi.bulkImportProducts>[0] = [];
     for (const r of validData) {
       let barcode = r.sku_barcode.trim();
       if (!barcode) {

@@ -268,7 +268,7 @@ export function PaperPreviewModal({
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
   const qrPayloads = useMemo(() => {
     if (format !== 'thermal') return [];
-    return Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as any).payload)));
+    return Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as Extract<typeof r, { type: 'qr' }>).payload)));
   }, [rows, format]);
 
   useEffect(() => {

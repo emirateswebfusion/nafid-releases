@@ -238,7 +238,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       if (viewMode === 'gst' && !isGst) return false;
 
       // Filter out Paper-only products if setting is OFF
-      if (!showPaperOnlyProducts && Number(p.current_stock) <= 0 && Number((p as any).paper_stock || 0) > 0) {
+      if (!showPaperOnlyProducts && Number(p.current_stock) <= 0 && Number(p.paper_stock || 0) > 0) {
         return false;
       }
 
@@ -246,9 +246,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       if (stockFilter === 'low_stock') {
         if (!(Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0 && Number(p.current_stock) > 0)) return false;
       } else if (stockFilter === 'out_of_stock') {
-        if (Number(p.current_stock) > 0 || Number((p as any).paper_stock || 0) > 0) return false;
+        if (Number(p.current_stock) > 0 || Number(p.paper_stock || 0) > 0) return false;
       } else if (stockFilter === 'in_stock') {
-        if (Number(p.current_stock) <= 0 && Number((p as any).paper_stock || 0) <= 0) return false;
+        if (Number(p.current_stock) <= 0 && Number(p.paper_stock || 0) <= 0) return false;
       } else if (stockFilter === 'no_barcode') {
         if (p.sku_barcode && String(p.sku_barcode).trim() !== '') return false;
       }
@@ -312,7 +312,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return code;
   };
 
-  const stripPurchasePriceCode = (barcode: string, price: any) => {
+  const stripPurchasePriceCode = (barcode: string, price: unknown) => {
     const code = encodePurchasePriceCode(price);
     // Strip the new dotted format first, then the legacy dotless format
     for (const candidate of [code, code.replace(/\./g, '')]) {
@@ -323,11 +323,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return barcode;
   };
 
-  const handleDomainAttrChange = (field: string, value: any) => {
+  const handleDomainAttrChange = (field: string, value: unknown) => {
     setFormData(prev => {
       const nextAttrs = { ...prev.domain_attributes, [field]: value };
       if (field === 'pcs') {
-        nextAttrs.pcs_stock = value;
+        nextAttrs.pcs_stock = value as typeof prev.domain_attributes.pcs_stock;
       }
       return {
         ...prev,
@@ -344,7 +344,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     (s.phone && s.phone.includes(supplierSearch))
   );
 
-  const getEffectiveMrp = (data: any = formData) => {
+  const getEffectiveMrp = (data: typeof formData = formData) => {
     const appliedGrade = data.grade_id ? grades.find(g => g.grade_id === data.grade_id) : null;
     const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
     return gradeRate !== null && data.pricing_mode === 'GRADE_RATE' 

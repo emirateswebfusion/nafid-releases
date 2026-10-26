@@ -43,7 +43,7 @@ export interface CardMetaItem {
   id: string;
   title: string;
   desc: string;
-  icon: any;
+  icon: typeof ShoppingCart;
   color: string;
   bgColor: string;
   badge?: string;

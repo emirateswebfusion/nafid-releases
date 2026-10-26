@@ -88,7 +88,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [supplierId, setSupplierId] = useState('');
   const [billDate, setBillDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [billNotes, setBillNotes] = useState('');
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof partiesApi.getParties>>>([]);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const purchaseFormRootRef = useRef<HTMLDivElement>(null);
   const billDateInputRef = useRef<HTMLInputElement>(null);
@@ -117,11 +117,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           purchase_bill_id: editingBill.purchase_bill_id,
           bill_number: editingBill.bill_number,
           invoice_number: editingBill?.invoice_number,
-          payment_type: (editingBill as any)?.payment_type || 'CASH',
-          total_amount: Number((editingBill as any)?.total_amount) || 0,
+          payment_type: editingBill?.payment_type || 'CASH',
+          total_amount: Number(editingBill?.total_amount) || 0,
         }
       : undefined,
-    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, (editingBill as any)?.payment_type]
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBill?.payment_type]
   );
   const estEditingData = useMemo(() =>
     editingBill?.bill_type === 'ESTIMATE'
@@ -129,11 +129,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           purchase_bill_id: editingBill.purchase_bill_id,
           bill_number: editingBill.bill_number,
           invoice_number: editingBill?.invoice_number,
-          payment_type: (editingBill as any)?.payment_type || 'CASH',
-          total_amount: Number((editingBill as any)?.total_amount) || 0,
+          payment_type: editingBill?.payment_type || 'CASH',
+          total_amount: Number(editingBill?.total_amount) || 0,
         }
       : undefined,
-    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, (editingBill as any)?.payment_type]
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBill?.payment_type]
   );
 
   // Stable memoized cross-section addItem callbacks

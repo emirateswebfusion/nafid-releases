@@ -28,13 +28,13 @@ import type { PrinterConfig } from './settings/settingsTypes';
 interface SidebarItem {
   id: string;
   label: string;
-  icon: typeof Settings;
+  icon: typeof Settings | typeof WhatsAppIcon;
   ownerOnly?: boolean;
 }
 
 interface SidebarGroup {
   category: string;
-  icon: typeof Settings;
+  icon: typeof Settings | typeof WhatsAppIcon;
   items: SidebarItem[];
 }
 
@@ -55,9 +55,9 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
   },
   {
     category: 'Integrations & Services',
-    icon: WhatsAppIcon as any,
+    icon: WhatsAppIcon,
     items: [
-      { id: 'whatsapp', label: 'WhatsApp Integration', icon: WhatsAppIcon as any },
+      { id: 'whatsapp', label: 'WhatsApp Integration', icon: WhatsAppIcon },
     ],
   },
   {
@@ -606,8 +606,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         isOpen={previewFormat !== null}
         onClose={() => { setPreviewFormat(null); setPreviewStyle(null); }}
         format={previewFormat || 'thermal'}
-        thermalStyle={(previewStyle as any) || thermalStyle}
-        a4Style={(previewStyle as any) || a4Style}
+        thermalStyle={(previewStyle as typeof thermalStyle) || thermalStyle}
+        a4Style={(previewStyle as typeof a4Style) || a4Style}
         paperWidth={printWidth}
         onSelectStyle={(s) => { if (previewFormat === 'thermal') setThermalStyle(s as Parameters<typeof setThermalStyle>[0]); else setA4Style(s as Parameters<typeof setA4Style>[0]); }}
         showProductOffers={showProductOffers}

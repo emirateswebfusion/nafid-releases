@@ -32,7 +32,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
-  const pollIntervalRef = useRef<any>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = async () => {
     try {

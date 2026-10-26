@@ -142,7 +142,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         }
         getUpiPageConfig(tid || 'global').then(setUpiPageConfig);
         if (hasBridge('dbPaymentGetSources')) {
-          paymentSourcesApi.getSources(tid || 'global').then((sources: any[]) => {
+          paymentSourcesApi.getSources(tid || 'global').then((sources) => {
             if (Array.isArray(sources)) {
               setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
             }
