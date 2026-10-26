@@ -1,9 +1,10 @@
+import type { CheckoutPayload, InvoiceItem, InvoiceRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as invoicesSql from '../db/statements/invoices.js';
 /** Held (parked) bills: hold, list, recall, release and expire. Called by electron/ipc handlers via invoicesService. */
 
 /** IPC `db:holdBill` */
-export function holdBill(payload: any) {
+export function holdBill(payload: CheckoutPayload) {
   const { items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
@@ -107,19 +108,19 @@ export function recallHeldBill({ invoice_id }: { invoice_id: string }) {
     const db = getDb();
     if (!invoice_id) return { success: false, error: 'Missing invoice ID' };
 
-    let resultInvoice: any = null;
-    let resultItems: any[] = [];
+    let resultInvoice: InvoiceRow | null | undefined = null;
+    let resultItems: InvoiceItem[] = [];
 
     const transaction = db.transaction(() => {
       // 1. Get the held invoice
-      resultInvoice = invoicesSql.findInvoicesByInvoiceIdAndInvoiceType(db).get(invoice_id) as any;
+      resultInvoice = invoicesSql.findInvoicesByInvoiceIdAndInvoiceType(db).get(invoice_id) as InvoiceRow;
 
       if (!resultInvoice) {
         throw new Error('Held bill not found or already recalled');
       }
 
       // 2. Get line items
-      resultItems = invoicesSql.findInvoiceItemsByInvoiceId(db).all(invoice_id) as any[];
+      resultItems = invoicesSql.findInvoiceItemsByInvoiceId(db).all(invoice_id) as InvoiceItem[];
 
       // 3. Revert stock (add back stock reserved during hold)
       const stockStmt = invoicesSql.updateProductCurrentStockCurrentStock2(db);
@@ -161,13 +162,13 @@ export function releaseHeldBill({ invoice_id }: { invoice_id: string }) {
     const db = getDb();
     const transaction = db.transaction(() => {
       // 1. Check it's a valid held bill
-      const invoice = invoicesSql.findInvoicesByInvoiceIdAndInvoiceTypeHold(db).get(invoice_id) as any;
+      const invoice = invoicesSql.findInvoicesByInvoiceIdAndInvoiceTypeHold(db).get(invoice_id) as InvoiceRow;
       if (!invoice) {
         throw new Error('Held bill not found');
       }
 
       // 2. Get items to revert stock
-      const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity(db).all(invoice_id) as any[];
+      const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity(db).all(invoice_id) as InvoiceItem[];
 
       // 3. Revert stock (add back)
       const stockStmt = invoicesSql.updateProductCurrentStockCurrentStock2(db);
@@ -211,11 +212,11 @@ export function expireStaleHeldBills({ tenant_id }: { tenant_id: string }) {
 
     const transaction = db.transaction(() => {
       // 1. Find all expired held bills
-      const expired = invoicesSql.findInvoicesByInvoiceType(db).all(tenant_id) as any[];
+      const expired = invoicesSql.findInvoicesByInvoiceType(db).all(tenant_id) as InvoiceRow[];
 
       for (const bill of expired) {
         // 2. Get items to revert stock
-        const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity(db).all(bill.invoice_id) as any[];
+        const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity(db).all(bill.invoice_id) as InvoiceItem[];
 
         // 3. Revert stock
         const stockStmt = invoicesSql.updateProductCurrentStockCurrentStock2(db);

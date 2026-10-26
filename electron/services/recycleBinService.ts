@@ -1,3 +1,4 @@
+import type { ColumnRow, InvoiceItem, InvoiceRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { dbEmergencyPurgeLocalData } from './emergencyPurgeService.js';
 import { localAuthenticateUser } from './localAuthService.js';
@@ -68,7 +69,7 @@ export function getDeletedInvoices(tenantId: string) {
   try {
     const db = getDb();
     const tid = tenantId || 'global';
-    const cols = recycleBinSql.pragmaTableInfo(db).all() as any[];
+    const cols = recycleBinSql.pragmaTableInfo(db).all() as ColumnRow[];
     const hasDeletedAt = cols.some(c => c.name === 'deleted_at');
     const orderClause = hasDeletedAt ? 'ORDER BY COALESCE(deleted_at, updated_at) DESC' : 'ORDER BY updated_at DESC';
     const deletedAtCol = hasDeletedAt ? ', deleted_at' : ', updated_at AS deleted_at';
@@ -83,11 +84,11 @@ export function getDeletedInvoices(tenantId: string) {
 export function restoreInvoice(invoice_id: string) {
   try {
     const db = getDb();
-    let restoredInv: any = null;
+    let restoredInv: InvoiceRow | null = null as InvoiceRow | null;
     let oldCash = 0;
 
     db.transaction(() => {
-      const inv = recycleBinSql.findInvoicesByInvoiceId(db).get(invoice_id) as any;
+      const inv = recycleBinSql.findInvoicesByInvoiceId(db).get(invoice_id) as InvoiceRow;
       if (!inv) throw new Error('Invoice not found');
       restoredInv = inv;
       oldCash = getCashAmountFromInvoice(inv);
@@ -95,7 +96,7 @@ export function restoreInvoice(invoice_id: string) {
       const isConversionCopy = !!(inv && (inv.converted_from_invoice_id || inv.converted_from_invoice_number));
 
       if (!isConversionCopy) {
-        const items = recycleBinSql.findInvoiceItemsByInvoiceId(db).all(invoice_id) as any[];
+        const items = recycleBinSql.findInvoiceItemsByInvoiceId(db).all(invoice_id) as InvoiceItem[];
         for (const item of items) {
           // Deduct stock back (re-apply the sale)
           recycleBinSql.updateProductCurrentStock(db)
@@ -105,7 +106,7 @@ export function restoreInvoice(invoice_id: string) {
 
       try { recycleBinSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) { /* ignore */ }
       
-      const invCols = recycleBinSql.pragmaTableInfo(db).all() as any[];
+      const invCols = recycleBinSql.pragmaTableInfo(db).all() as ColumnRow[];
       const hasDeletedAt = invCols.some(c => c.name === 'deleted_at');
       if (hasDeletedAt) {
         recycleBinSql.updateInvoiceIsDeletedAndDeletedAt(db).run(invoice_id);
@@ -266,13 +267,13 @@ export function getRecycleBinSummary(tenantId: string) {
     const db = getDb();
     const tid = tenantId || 'global';
 
-    const invRow = recycleBinSql.countInvoices(db).get(tid) as any;
+    const invRow = recycleBinSql.countInvoices(db).get(tid) as { count: number; total: number };
 
-    const prodRow = recycleBinSql.countProducts(db).get(tid) as any;
+    const prodRow = recycleBinSql.countProducts(db).get(tid) as { count: number; total: number };
 
-    const custRow = recycleBinSql.countCustomers(db).get(tid) as any;
+    const custRow = recycleBinSql.countCustomers(db).get(tid) as { count: number; total: number };
 
-    const partyRow = recycleBinSql.countParties(db).get(tid) as any;
+    const partyRow = recycleBinSql.countParties(db).get(tid) as { count: number; total: number };
 
     return {
       invoices: invRow?.count || 0,
@@ -296,7 +297,7 @@ export function emptyRecycleBin(payload: { category: string; tenant_id: string }
 
     db.transaction(() => {
       if (cat === 'SALES_BILLS' || cat === 'ALL') {
-        const delInvs = recycleBinSql.findInvoices(db).all(tid) as any[];
+        const delInvs = recycleBinSql.findInvoices(db).all(tid) as InvoiceRow[];
         for (const row of delInvs) {
           try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(row.invoice_id); } catch (e) { /* ignore */ }
           recycleBinSql.deleteInvoiceByInvoiceId2(db).run(row.invoice_id);

@@ -1,3 +1,4 @@
+import type { SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as settingsSql from '../db/statements/settings.js';
 import { withPreservedLanKey } from './lanPairing.js';
@@ -30,10 +31,10 @@ export function getAll({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     const tid = tenant_id || 'global';
-    const rows = settingsSql.findSettings(db).all(tid) as any[];
+    const rows = settingsSql.findSettings(db).all(tid) as SettingRow[];
 
-    const resultMap: Record<string, any> = {};
-    const parseVal = (rawVal: any) => {
+    const resultMap: Record<string, unknown> = {};
+    const parseVal = (rawVal: string | null | undefined) => {
       if (rawVal === undefined || rawVal === null) return null;
       try {
         let parsed = JSON.parse(rawVal);
@@ -71,23 +72,23 @@ export function get({ tenant_id, key }: { tenant_id: string; key: string }) {
     const db = getDb();
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
 
-    let row: any = null;
+    let row: SettingRow | null | undefined = null;
     if (isLocalDeviceKey) {
-      row = settingsSql.findSettingsByKey(db).get(key);
+      row = settingsSql.findSettingsByKey(db).get(key) as SettingRow | null | undefined;
       if (!row && tenant_id && tenant_id !== 'global') {
-        row = settingsSql.findSettingsByKeyValue(db).get(tenant_id, key);
+        row = settingsSql.findSettingsByKeyValue(db).get(tenant_id, key) as SettingRow | null | undefined;
       }
       if (!row) {
-        row = settingsSql.findOneSettingByKey(db).get(key);
+        row = settingsSql.findOneSettingByKey(db).get(key) as SettingRow | null | undefined;
       }
     } else {
       const tid = tenant_id || 'global';
-      row = settingsSql.findSettingsByKeyValue(db).get(tid, key);
+      row = settingsSql.findSettingsByKeyValue(db).get(tid, key) as SettingRow | null | undefined;
       if (!row && tid !== 'global') {
-        row = settingsSql.findSettingsByKey(db).get(key);
+        row = settingsSql.findSettingsByKey(db).get(key) as SettingRow | null | undefined;
       }
       if (!row) {
-        row = settingsSql.findOneSettingByKey(db).get(key);
+        row = settingsSql.findOneSettingByKey(db).get(key) as SettingRow | null | undefined;
       }
     }
 
@@ -113,13 +114,13 @@ export function get({ tenant_id, key }: { tenant_id: string; key: string }) {
 }
 
 /** IPC `settings:set` */
-export async function set({ tenant_id, key, value }: { tenant_id: string; key: string; value: any }) {
+export async function set({ tenant_id, key, value }: { tenant_id: string; key: string; value: unknown }) {
   try {
     const db = getDb();
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
     const tid = tenant_id || 'global';
-    if (key === 'network_sync_config' && value && typeof value === 'object') value = withPreservedLanKey(value);
+    if (key === 'network_sync_config' && value && typeof value === 'object') value = withPreservedLanKey(value as Record<string, unknown>);
     const valString = typeof value === 'string' ? value : JSON.stringify(value);
 
     const upsertStmt = settingsSql.upsertSetting(db);
@@ -134,8 +135,8 @@ export async function set({ tenant_id, key, value }: { tenant_id: string; key: s
     if (key === 'network_sync_config' && value && typeof value === 'object') {
       const { startLocalHostServer, stopLocalHostServer } = await import('../sync/localHostServer.js');
       const { reloadSyncConfig } = await import('../sync/syncWorker.js');
-      if ((value.syncMode === 'LAN' || value.syncMode === 'HYBRID') && value.lanRole === 'PRIMARY') {
-        startLocalHostServer(Number(value.lanPort) || 3888);
+      if (((value as Record<string, unknown>).syncMode === 'LAN' || (value as Record<string, unknown>).syncMode === 'HYBRID') && (value as Record<string, unknown>).lanRole === 'PRIMARY') {
+        startLocalHostServer(Number((value as Record<string, unknown>).lanPort) || 3888);
       } else {
         stopLocalHostServer();
       }

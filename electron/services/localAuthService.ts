@@ -1,3 +1,4 @@
+import type { SettingRow, UserRow } from './typesB.js';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { getOpenDb } from '../db/localDb.js';
@@ -52,7 +53,7 @@ export function localSaveUser(user: {
 }) {
   const db = getOpenDb();
   if (!db || !user.email) return;
-  const existing: any = localAuthSql.findUsersByUserId(db).get(user.user_id, user.email);
+  const existing: UserRow = localAuthSql.findUsersByUserId(db).get(user.user_id, user.email) as UserRow;
   const now = toIsoTimestamp();
 
   if (existing) {
@@ -101,7 +102,7 @@ export function localAuthenticateUser(email: string, password: string): {
 } {
   const db = getOpenDb();
   if (!db) return { success: false, error: 'Local database unavailable' };
-  const user: any = localAuthSql.findUsers(db).get(email);
+  const user: UserRow = localAuthSql.findUsers(db).get(email) as UserRow;
   if (!user) {
     return { success: false, error: 'User not found in local database cache. Please login online once.' };
   }
@@ -113,7 +114,7 @@ export function localAuthenticateUser(email: string, password: string): {
   }
 
   try {
-    const tenantStatusRow: any = localAuthSql.findOneSettingByKey(db).get(user.tenant_id);
+    const tenantStatusRow: SettingRow = localAuthSql.findOneSettingByKey(db).get(user.tenant_id) as SettingRow;
     if (tenantStatusRow?.value === 'TERMINATED' || tenantStatusRow?.value === 'SUSPENDED') {
       return { success: false, error: 'This store subscription has been terminated or suspended by administration.' };
     }

@@ -1,3 +1,4 @@
+import type { InvoiceItem, InvoiceRow, LedgerRow, ReturnRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localTimestamp, localDate } from './storeTime.js';
@@ -66,9 +67,9 @@ export function createReturn(payload: {
       stockStmt.run(item.quantity, item.product_id);
     }
 
-    let origInv: any = null;
+    let origInv: InvoiceRow | null | undefined = null;
     if (returnData.invoice_id) {
-      origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id);
+      origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id) as InvoiceRow | null | undefined;
     }
     const origPm = (origInv?.payment_method || '').toUpperCase();
     let origSplitCredit = 0;
@@ -193,8 +194,8 @@ export function getReturnInvoiceByNumber({ tenant_id, return_number }: { tenant_
 
   // 3. Fallback: match by numeric part
   if (qNum) {
-    const list = returnsSql.findReturns(db).all(tenant_id) as any[];
-    const match = list.find((r: any) => {
+    const list = returnsSql.findReturns(db).all(tenant_id) as ReturnRow[];
+    const match = list.find((r: ReturnRow) => {
       const numStr = (String(r.return_number || '').match(/\d+/g) || []).join('');
       return numStr === qNum || Number(numStr) === Number(qNum) || numStr.endsWith(qNum);
     });
@@ -217,7 +218,7 @@ export function settleReturnInvoice({ tenant_id, return_number, adjusted_invoice
   if (amt <= 0) return { success: false, error: 'Invalid adjustment amount' };
   
   // Get return details for ledger sync
-  const returnData = returnsSql.findReturnsByReturnNumber3(db).get(tenant_id, return_number) as any;
+  const returnData = returnsSql.findReturnsByReturnNumber3(db).get(tenant_id, return_number) as ReturnRow;
   
   const res = returnsSql.updateReturnAdjustedAmountAndAdjustedInvoiceNumber(db).run(amt, adjusted_invoice_number, tenant_id, return_number);
   
@@ -284,17 +285,17 @@ export function deleteReturn(return_id: string) {
   try {
     const db = getDb();
     const transaction = db.transaction(() => {
-      const returnRow = returnsSql.findReturnsByReturnId(db).get(return_id) as any;
+      const returnRow = returnsSql.findReturnsByReturnId(db).get(return_id) as ReturnRow;
       if (!returnRow) return;
 
-      const items = returnsSql.findReturnItemsByReturnIdProductIdAndQuantity(db).all(return_id) as any[];
+      const items = returnsSql.findReturnItemsByReturnIdProductIdAndQuantity(db).all(return_id) as InvoiceItem[];
       for (const item of items) {
         returnsSql.updateProductCurrentStockAlt(db).run(item.quantity, item.product_id);
       }
 
       // Restore original invoice balance_amount if it was a credit bill
       if (returnRow.invoice_id) {
-        const origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnRow.invoice_id) as any;
+        const origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnRow.invoice_id) as InvoiceRow;
         if (origInv) {
           const origPm = (origInv.payment_method || '').toUpperCase();
           let origSplitCredit = 0;
@@ -313,7 +314,7 @@ export function deleteReturn(return_id: string) {
       }
 
       // Soft delete party ledger entries for this return
-      const ledgerRows = returnsSql.findPartyLedgerByReferenceNumber(db).all(returnRow.return_number, returnRow.return_number, returnRow.return_number) as any[];
+      const ledgerRows = returnsSql.findPartyLedgerByReferenceNumber(db).all(returnRow.return_number, returnRow.return_number, returnRow.return_number) as LedgerRow[];
 
       const affectedParties = new Set<string>();
       for (const row of ledgerRows) {
@@ -342,7 +343,7 @@ export function getNextReturnNumber(payload: { tenant_id: string; prefix?: strin
   const terminalCode = getOrInitTerminalCode(db);
   const defaultPrefix = `${terminalCode}-RTN-`;
   const result = db.transaction(() => {
-    const confRow: any = returnsSql.findSettingsByKey(db).get('global', 'return_counter');
+    const confRow: SettingRow = returnsSql.findSettingsByKey(db).get('global', 'return_counter') as SettingRow;
     let prefix = defaultPrefix;
     let counter = 1;
     if (payload.prefix) {
@@ -360,7 +361,7 @@ export function getNextReturnNumber(payload: { tenant_id: string; prefix?: strin
         // Invalid JSON — use defaults
       }
     }
-    const usedRows: any[] = returnsSql.findReturnsReturnNumber(db).all(`${prefix}%`);
+    const usedRows: ReturnRow[] = returnsSql.findReturnsReturnNumber(db).all(`${prefix}%`) as ReturnRow[];
     let maxUsed = 0;
     for (const row of usedRows) {
       const usedNum = parseInt(String(row.return_number).slice(prefix.length), 10);
@@ -379,7 +380,7 @@ export function peekNextReturnNumber(payload: { tenant_id: string; prefix?: stri
   const db = getDb();
   const terminalCode = getOrInitTerminalCode(db);
   const defaultPrefix = `${terminalCode}-RTN-`;
-  const confRow: any = returnsSql.findSettingsByKey(db).get('global', 'return_counter');
+  const confRow: SettingRow = returnsSql.findSettingsByKey(db).get('global', 'return_counter') as SettingRow;
   let prefix = defaultPrefix;
   let counter = 1;
   if (payload.prefix) {
@@ -398,7 +399,7 @@ export function peekNextReturnNumber(payload: { tenant_id: string; prefix?: stri
       // Invalid JSON — use defaults
     }
   }
-  const usedRows: any[] = returnsSql.findReturnsReturnNumber(db).all(`${prefix}%`);
+  const usedRows: ReturnRow[] = returnsSql.findReturnsReturnNumber(db).all(`${prefix}%`) as ReturnRow[];
   let maxUsed = 0;
   for (const row of usedRows) {
     const usedNum = parseInt(String(row.return_number).slice(prefix.length), 10);

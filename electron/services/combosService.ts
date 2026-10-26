@@ -1,3 +1,4 @@
+import type { ComboRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import crypto from 'node:crypto';
 import * as combosSql from '../db/statements/combos.js';
@@ -10,7 +11,7 @@ export function getComboOffers({ tenant_id, search, only_active }: { tenant_id: 
     if (!tenant_id) return [];
     
     const { statement, params } = combosSql.getComboOffersStatement(db, { tenant_id, only_active, search });
-    const rows = statement.all(...params) as any[];
+    const rows = statement.all(...params) as ComboRow[];
 
     return rows.map(r => {
       let items = [];
@@ -28,10 +29,10 @@ export function getComboOfferDetails({ combo_id }: { combo_id: string }) {
   try {
     const db = getDb();
     if (!combo_id) return null;
-    const combo = combosSql.findComboOffersByComboId(db).get(combo_id) as any;
+    const combo = combosSql.findComboOffersByComboId(db).get(combo_id) as ComboRow;
     if (!combo) return null;
 
-    const items = combosSql.findComboItemsByComboId(db).all(combo_id) as any[];
+    const items = combosSql.findComboItemsByComboId(db).all(combo_id) as Record<string, unknown>[];
 
     return { ...combo, items };
   } catch (error) {

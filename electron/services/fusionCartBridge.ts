@@ -34,6 +34,8 @@ export interface FusionCartProductPayload {
   stock_status?: 'in_stock' | 'out_of_stock';
 }
 
+import type { FusionOrder, FusionProduct, FusionStore } from './typesB.js';
+
 export class FusionCartBridge {
   private baseUrl: string;
 
@@ -51,7 +53,7 @@ export class FusionCartBridge {
     return this.baseUrl;
   }
 
-  private async request<T = any>(endpoint: string, options: RequestInit = {}): Promise<{ success: boolean; data?: T; error?: string }> {
+  private async request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<{ success: boolean; data?: T; error?: string }> {
     try {
       const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
       const headers = new Headers(options.headers || {});
@@ -71,7 +73,7 @@ export class FusionCartBridge {
       clearTimeout(timeout);
 
       const contentType = res.headers.get('content-type') || '';
-      let resData: any = null;
+      let resData: { message?: string } | null = null;
       if (contentType.includes('application/json')) {
         resData = await res.json();
       } else {
@@ -88,7 +90,7 @@ export class FusionCartBridge {
 
       return {
         success: true,
-        data: resData,
+        data: resData as T,
       };
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
@@ -112,7 +114,7 @@ export class FusionCartBridge {
   /**
    * Register store / vendor on FusionCart
    */
-  async registerVendor(payload: FusionCartVendorPayload): Promise<{ success: boolean; store?: any; error?: string }> {
+  async registerVendor(payload: FusionCartVendorPayload): Promise<{ success: boolean; store?: FusionStore; error?: string }> {
     const slug = (payload.slug || payload.store_name)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -149,24 +151,24 @@ export class FusionCartBridge {
       return { success: false, error: res.error };
     }
 
-    return { success: true, store: res.data };
+    return { success: true, store: res.data as FusionStore };
   }
 
   /**
    * Retrieve vendor / store details by ID or Slug
    */
-  async getStore(storeIdOrSlug: number | string): Promise<{ success: boolean; store?: any; error?: string }> {
+  async getStore(storeIdOrSlug: number | string): Promise<{ success: boolean; store?: FusionStore; error?: string }> {
     const res = await this.request(`/store/${encodeURIComponent(storeIdOrSlug)}`);
     if (!res.success) {
       return { success: false, error: res.error };
     }
-    return { success: true, store: res.data };
+    return { success: true, store: res.data as FusionStore };
   }
 
   /**
    * Update online store settings
    */
-  async updateStore(storeId: number | string, data: Partial<FusionCartVendorPayload>): Promise<{ success: boolean; store?: any; error?: string }> {
+  async updateStore(storeId: number | string, data: Partial<FusionCartVendorPayload>): Promise<{ success: boolean; store?: FusionStore; error?: string }> {
     const res = await this.request(`/store/${encodeURIComponent(storeId)}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -174,13 +176,13 @@ export class FusionCartBridge {
     if (!res.success) {
       return { success: false, error: res.error };
     }
-    return { success: true, store: res.data };
+    return { success: true, store: res.data as FusionStore };
   }
 
   /**
    * Publish or update product on FusionCart
    */
-  async syncProduct(fusionCartProductId: number | null, payload: FusionCartProductPayload): Promise<{ success: boolean; product?: any; error?: string }> {
+  async syncProduct(fusionCartProductId: number | null, payload: FusionCartProductPayload): Promise<{ success: boolean; product?: FusionProduct; error?: string }> {
     if (fusionCartProductId) {
       // Update existing
       const res = await this.request(`/product/${fusionCartProductId}`, {
@@ -190,7 +192,7 @@ export class FusionCartBridge {
       if (!res.success) {
         return { success: false, error: res.error };
       }
-      return { success: true, product: res.data };
+      return { success: true, product: res.data as FusionProduct };
     } else {
       // Create new
       const res = await this.request('/product', {
@@ -200,7 +202,7 @@ export class FusionCartBridge {
       if (!res.success) {
         return { success: false, error: res.error };
       }
-      return { success: true, product: res.data };
+      return { success: true, product: res.data as FusionProduct };
     }
   }
 
@@ -221,13 +223,13 @@ export class FusionCartBridge {
   /**
    * Fetch online orders for this store
    */
-  async getOrders(storeId: number): Promise<{ success: boolean; orders?: any[]; error?: string }> {
-    const res = await this.request(`/order?store_id=${storeId}`);
+  async getOrders(storeId: number): Promise<{ success: boolean; orders?: FusionOrder[]; error?: string }> {
+    const res = await this.request<FusionOrder[] | { data?: FusionOrder[] }>(`/order?store_id=${storeId}`);
     if (!res.success) {
       return { success: false, error: res.error };
     }
 
-    let list: any[] = [];
+    let list: FusionOrder[] = [];
     if (Array.isArray(res.data)) {
       list = res.data;
     } else if (res.data && Array.isArray(res.data.data)) {
@@ -235,7 +237,7 @@ export class FusionCartBridge {
     }
 
     // Filter strictly by store_id
-    const filtered = list.filter((order: any) => {
+    const filtered = list.filter((order: FusionOrder) => {
       const orderStoreId = order.store_id || order.store?.id;
       return orderStoreId == storeId;
     });

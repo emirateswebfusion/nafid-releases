@@ -1,11 +1,12 @@
+import type { ServiceDb, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as storeTimeSql from '../db/statements/storeTime.js';
 
 /** Store-timezone aware clock helpers. Business dates are always computed in the store timezone. */
-export function getStoreTimezoneSetting(db: any, tenantId?: string): string {
+export function getStoreTimezoneSetting(db: ServiceDb | null | undefined, tenantId?: string): string {
   try {
     if (!db || !tenantId) return 'Asia/Kolkata';
-    const row = storeTimeSql.findOneSettingByKey(db).get(tenantId) as any;
+    const row = storeTimeSql.findOneSettingByKey(db).get(tenantId) as SettingRow;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if (typeof parsed === 'string' && parsed) return parsed;
@@ -86,7 +87,7 @@ export function getUtcRangeForStoreDateRange(fromDate?: string, toDate?: string,
   }
 }
 
-export function parseCleanDate(dStr: any, timeZone?: string): string {
+export function parseCleanDate(dStr: unknown, timeZone?: string): string {
   const activeTz = timeZone || (typeof getDb === 'function' && getDb() ? getStoreTimezoneSetting(getDb(), 'global') : 'Asia/Kolkata');
   if (!dStr) {
     try {

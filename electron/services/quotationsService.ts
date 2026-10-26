@@ -1,3 +1,4 @@
+import type { ColumnRow, InvoiceItem, QuotationInput, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
 import { triggerUrgentQuotationSync } from '../sync/syncWorker.js';
@@ -12,7 +13,7 @@ export function getNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
     const configKey = 'quotation_counter';
 
     const result = db.transaction(() => {
-      const row: any = quotationsSql.findSettingsByKey(db).get('global', configKey);
+      const row: SettingRow = quotationsSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
       let counter = 1;
       let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-QTN-`, counter: 1 };
 
@@ -53,7 +54,7 @@ export function peekNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
     const terminalCode = getOrInitTerminalCode(db);
     const defaultPrefix = `${terminalCode}-QTN-`;
 
-    const row: any = quotationsSql.findSettingsByKey(db).get('global', 'quotation_counter');
+    const row: SettingRow = quotationsSql.findSettingsByKey(db).get('global', 'quotation_counter') as SettingRow;
     if (row) {
       try {
         const config = JSON.parse(row.value);
@@ -75,11 +76,11 @@ export function peekNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
 }
 
 /** IPC `db:saveQuotation` */
-export function saveQuotation(q: any) {
+export function saveQuotation(q: QuotationInput) {
   try {
     const db = getDb();
     const result = db.transaction(() => {
-      const qCols = quotationsSql.pragmaTableInfo(db).all().map((c: any) => c.name);
+      const qCols = (quotationsSql.pragmaTableInfo(db).all() as ColumnRow[]).map((c: ColumnRow) => c.name);
       if (qCols.includes('customer_gstin')) {
         quotationsSql.upsertQuotation(db).run(
           q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null,
@@ -94,7 +95,7 @@ export function saveQuotation(q: any) {
       // Delete old items before inserting new ones to prevent duplicate rows
       quotationsSql.deleteQuotationItemByQuotationId(db).run(q.quotation_id);
 
-      const qiCols = quotationsSql.pragmaTableInfo2(db).all().map((c: any) => c.name);
+      const qiCols = (quotationsSql.pragmaTableInfo2(db).all() as ColumnRow[]).map((c: ColumnRow) => c.name);
       if (qiCols.includes('hsn_code')) {
         const stmt = quotationsSql.insertQuotationItem(db);
         for (const item of q.items) {
@@ -139,30 +140,30 @@ export function getQuotations({ tenant_id, search }: { tenant_id: string; search
 export async function getQuotationItems(quotationId: string) {
   try {
     const db = getDb();
-    const qiCols = quotationsSql.pragmaTableInfo2(db).all().map((c: any) => c.name);
+    const qiCols = (quotationsSql.pragmaTableInfo2(db).all() as ColumnRow[]).map((c: ColumnRow) => c.name);
     let selectFields = 'qi.*';
     if (qiCols.includes('hsn_code')) {
       selectFields = "qi.*, COALESCE(NULLIF(TRIM(qi.hsn_code), ''), p.hsn_sac_code, '') AS hsn_code, COALESCE(NULLIF(TRIM(qi.uom), ''), p.uom, 'PCS') AS uom, COALESCE(NULLIF(qi.tax_rate_percent, 0), p.tax_rate_percent, qi.tax_rate_percent, 0) AS tax_rate_percent, COALESCE(p.is_gst_applicable, 1) AS is_gst_applicable";
     } else {
       selectFields = "qi.*, COALESCE(p.hsn_sac_code, '') AS hsn_code, COALESCE(p.uom, 'PCS') AS uom, COALESCE(p.tax_rate_percent, 0) AS tax_rate_percent, COALESCE(p.is_gst_applicable, 1) AS is_gst_applicable";
     }
-        let items = quotationsSql.listQuotationItems(db, selectFields).all(quotationId);
+        let items = quotationsSql.listQuotationItems(db, selectFields).all(quotationId) as InvoiceItem[];
     if ((!items || items.length === 0) && quotationId) {
-      const q = quotationsSql.findQuotationsByQuotationId(db).get(quotationId) as any;
+      const q = quotationsSql.findQuotationsByQuotationId(db).get(quotationId) as QuotationInput;
       if (q && (Number(q.subtotal) > 0 || Number(q.grand_total) > 0)) {
         console.log(`[db:getQuotationItems] Repairing missing items for quotation ${quotationId}...`);
         quotationsSql.updateQuotationByQuotationId(db).run(quotationId);
         triggerUrgentQuotationSync().catch(() => {});
         await new Promise(r => setTimeout(r, 300));
-        items = quotationsSql.listQuotationItems(db, selectFields).all(quotationId);
+        items = quotationsSql.listQuotationItems(db, selectFields).all(quotationId) as InvoiceItem[];
       }
     }
     if (Array.isArray(items) && items.length > 1) {
-      const timestamps: number[] = items.map((i: any) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
+      const timestamps: number[] = items.map((i: InvoiceItem) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
       const uniqueTs = Array.from(new Set<number>(timestamps));
       if (uniqueTs.length > 1) {
         const latestTs = Math.max(...uniqueTs);
-        items = items.filter((i: any) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
+        items = items.filter((i: InvoiceItem) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
       }
     }
     return items;
@@ -189,11 +190,11 @@ export function deleteQuotation(quotationId: string) {
 }
 
 /** IPC `db:updateQuotation` */
-export function updateQuotation(q: any) {
+export function updateQuotation(q: QuotationInput) {
   try {
     const db = getDb();
     const result = db.transaction(() => {
-      const qCols = quotationsSql.pragmaTableInfo(db).all().map((c: any) => c.name);
+      const qCols = (quotationsSql.pragmaTableInfo(db).all() as ColumnRow[]).map((c: ColumnRow) => c.name);
       if (qCols.includes('customer_gstin')) {
         quotationsSql.updateQuotationByQuotationId2(db).run(
           q.customer_name || null, q.customer_phone || null, q.customer_address || null,
@@ -209,7 +210,7 @@ export function updateQuotation(q: any) {
       quotationsSql.deleteQuotationItemByQuotationId(db).run(q.quotation_id);
 
       // Insert new items
-      const qiCols = quotationsSql.pragmaTableInfo2(db).all().map((c: any) => c.name);
+      const qiCols = (quotationsSql.pragmaTableInfo2(db).all() as ColumnRow[]).map((c: ColumnRow) => c.name);
       if (qiCols.includes('hsn_code')) {
         const stmt = quotationsSql.insertQuotationItem(db);
         for (const item of q.items) {

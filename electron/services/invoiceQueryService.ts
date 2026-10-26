@@ -26,7 +26,7 @@ export function getInvoices(filters?: { user_id?: string; tenant_id?: string; ro
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
-    const params: any[] = [activeTenantId];
+    const params: unknown[] = [activeTenantId];
 
     // Direct invoice_id or invoice_number lookup shortcut
     if (invoice_id) {
@@ -211,7 +211,7 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
-    const params: any[] = [activeTenantId];
+    const params: unknown[] = [activeTenantId];
 
     if (filters?.only_user_invoices && user_id) {
       query += ' AND i.user_id = ?';
@@ -272,7 +272,7 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
       params.push(startUtc, endUtc);
     }
 
-    const row = db.prepare(query).get(...params) as any;
+    const row = db.prepare(query).get(...params) as Record<string, number>;
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
     const totalSalesBeforeDeductions = row ? Number(row.totalSalesBeforeDeductions) || 0 : 0;
     const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
@@ -293,7 +293,7 @@ export function getDashboardStats(tenantId: string) {
     const db = getDb();
     const dateStr = localDate(new Date(), tenantId);
     const { startUtc, endUtc } = getUtcRangeForStoreDateRange(dateStr, dateStr, tenantId);
-    const row = invoicesSql.findInvoicesByConvertedFrom_(db).get(tenantId, startUtc, endUtc) as any;
+    const row = invoicesSql.findInvoicesByConvertedFrom_(db).get(tenantId, startUtc, endUtc) as Record<string, number>;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error) {
     console.error('[db:getDashboardStats]', error);

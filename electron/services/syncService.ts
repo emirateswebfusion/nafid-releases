@@ -1,3 +1,4 @@
+import type { CloudAccessUpdate } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as syncSql from '../db/statements/sync.js';
 import { LAN_KEY_HEADER, getLanPairingKey, normalizeLanKey } from './lanPairing.js';
@@ -8,15 +9,15 @@ export function debugSyncState(tenant_id: string) {
   try {
     const db = getDb();
     const tables = ['products', 'invoices', 'cash_transactions', 'cash_drawer', 'cashier_audit_log'];
-    const counts: Record<string, any> = {};
+    const counts: Record<string, unknown> = {};
     for (const t of tables) {
       try {
-        const row = syncSql.countSyncStatusForTable(db, t).get(tenant_id) as any;
+        const row = syncSql.countSyncStatusForTable(db, t).get(tenant_id) as Record<string, number>;
         counts[t] = row;
       } catch (e) { counts[t] = { error: (e as Error).message }; }
     }
-    const cursors = syncSql.findSyncMeta(db).all(`pull_cursor:${tenant_id}:%`) as any[];
-    const isSyncActive = syncSql.findSyncMetaByKey(db).get(`cash_drawer_conflict_fix_v2:${tenant_id}`) as any;
+    const cursors = syncSql.findSyncMeta(db).all(`pull_cursor:${tenant_id}:%`) as Record<string, unknown>[];
+    const isSyncActive = syncSql.findSyncMetaByKey(db).get(`cash_drawer_conflict_fix_v2:${tenant_id}`) as unknown;
     console.log('[db:debugSyncState] Table counts:', JSON.stringify(counts, null, 2));
     console.log('[db:debugSyncState] Pull cursors:', JSON.stringify(cursors, null, 2));
     return { counts, cursors, healingFlagSet: !!isSyncActive };
@@ -79,7 +80,7 @@ export async function getCloudAccessState(tenantId?: string) {
 }
 
 /** IPC `sync:updateCloudAccessConfig` */
-export async function updateCloudAccessConfig(payload: { config: any; tenant_id?: string }) {
+export async function updateCloudAccessConfig(payload: { config: CloudAccessUpdate; tenant_id?: string }) {
   try {
     const { updateCloudAccessConfig } = await import('../sync/syncWorker.js');
     return updateCloudAccessConfig(payload.config, payload.tenant_id);

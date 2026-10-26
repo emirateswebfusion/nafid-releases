@@ -1,3 +1,4 @@
+import type { PaymentSourceInput, PaymentTransactionInput } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import crypto from 'node:crypto';
 import * as paymentSourcesSql from '../db/statements/paymentSources.js';
@@ -16,14 +17,14 @@ export function getSources(tenant_id: string) {
 }
 
 /** IPC `db:payments:addSource` */
-export function addSource(s: any) {
+export function addSource(s: PaymentSourceInput) {
   try {
     const db = getDb();
     if (!s?.tenant_id || !s?.name || !s?.type) return { success: false, error: 'tenant_id, name and type are required' };
     if (!['BANK', 'CARD', 'UPI'].includes(s.type)) return { success: false, error: 'type must be BANK, CARD or UPI' };
 
     const tx = db.transaction(() => {
-      const opening = parseFloat(s.opening_balance) || 0;
+      const opening = parseFloat(s.opening_balance as string) || 0;
       const makeDefault = s.is_default === true || s.is_default === 1;
       const source_id = s.source_id || crypto.randomUUID();
 
@@ -58,13 +59,13 @@ export function addSource(s: any) {
 }
 
 /** IPC `db:payments:updateSource` */
-export function updateSource(s: any) {
+export function updateSource(s: PaymentSourceInput) {
   try {
     const db = getDb();
     if (!s?.source_id || !s?.tenant_id) return { success: false, error: 'source_id and tenant_id are required' };
 
     const tx = db.transaction(() => {
-      const existing = paymentSourcesSql.findPaymentSourcesBySourceId(db).get(s.source_id, s.tenant_id) as any;
+      const existing = paymentSourcesSql.findPaymentSourcesBySourceId(db).get(s.source_id, s.tenant_id) as PaymentSourceInput;
       if (!existing) throw new Error('Payment source not found');
 
       if (s.is_default === true) {
@@ -74,9 +75,9 @@ export function updateSource(s: any) {
 
       let newOpening: number | null = null;
       if (s.opening_balance !== undefined) {
-        const parsedOpening = parseFloat(s.opening_balance) || 0;
+        const parsedOpening = parseFloat(s.opening_balance as string) || 0;
         if (parsedOpening !== Number(existing.opening_balance)) {
-          const txCount = (paymentSourcesSql.countPaymentSourceTransactionsBySourceId(db).get(s.source_id) as any).cnt;
+          const txCount = (paymentSourcesSql.countPaymentSourceTransactionsBySourceId(db).get(s.source_id) as { cnt: number }).cnt;
           if (txCount > 0) throw new Error('Opening balance can only be changed when there are no transactions on this source');
           newOpening = parsedOpening;
         }
@@ -138,7 +139,7 @@ export function getTransactions({ source_id, tenant_id }: { source_id: string; t
 }
 
 /** IPC `db:payments:addTransaction` */
-export function addTransaction(t: any) {
+export function addTransaction(t: PaymentTransactionInput) {
   try {
     const db = getDb();
     if (!t?.tenant_id || !t?.source_id) return { success: false, error: 'tenant_id and source_id are required' };
@@ -147,7 +148,7 @@ export function addTransaction(t: any) {
     if (!isFinite(amount) || amount <= 0) return { success: false, error: 'amount must be a positive number' };
 
     const tx = db.transaction(() => {
-      const source = paymentSourcesSql.findPaymentSourcesBySourceId(db).get(t.source_id, t.tenant_id) as any;
+      const source = paymentSourcesSql.findPaymentSourcesBySourceId(db).get(t.source_id, t.tenant_id) as PaymentSourceInput;
       if (!source) throw new Error('Payment source not found');
 
       const currentBalance = Number(source.current_balance) || 0;
