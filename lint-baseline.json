@@ -1,24 +1,17 @@
 {
-  "errors": 237,
+  "errors": 214,
   "warnings": 59,
   "byRule": {
-    "no-dupe-else-if": 2,
-    "no-async-promise-executor": 4,
     "react-hooks/rules-of-hooks": 1,
     "react-hooks/set-state-in-effect": 36,
     "react-hooks/refs": 13,
     "react-hooks/exhaustive-deps": 59,
     "@typescript-eslint/no-explicit-any": 132,
     "react-hooks/immutability": 11,
-    "@typescript-eslint/parser": 2,
     "react-hooks/preserve-manual-memoization": 5,
     "react-hooks/purity": 2,
     "react-hooks/use-memo": 2,
-    "no-extra-boolean-cast": 1,
-    "@typescript-eslint/no-empty-object-type": 11,
-    "no-irregular-whitespace": 1,
-    "react-refresh/only-export-components": 12,
-    "prefer-const": 2
+    "react-refresh/only-export-components": 12
   },
-  "updatedAt": "2026-10-26T12:41:09.081Z"
+  "updatedAt": "2026-10-26T13:04:27.868Z"
 }

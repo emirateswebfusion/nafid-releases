@@ -1,5 +1,5 @@
 import type * as B from '../billingTypes';
-﻿import React from 'react';
+import React from 'react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
 import { useCartStore, type CartItem } from '../../../store/cartStore';

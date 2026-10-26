@@ -74,8 +74,6 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
         return 'Bill of Supply';
       };
 
-      let csvContent: string;
-      let filename: string;
       let exportedCount = 0;
 
       const parts: string[] = ['sales_report'];
@@ -86,7 +84,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
       if (filterDate) parts.push(filterDate);
       if (filterDateEnd && filterDateEnd !== filterDate) parts.push(`to-${filterDateEnd}`);
       parts.push(new Date().toLocaleDateString('en-CA'));
-      filename = parts.join('_') + '.csv';
+      const filename = parts.join('_') + '.csv';
 
       const headers = [
         'Invoice No.',
@@ -245,7 +243,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
         ]);
       }
 
-      csvContent = [headers.join(','), ...itemRows.map(r => r.join(','))].join('\n');
+      const csvContent = [headers.join(','), ...itemRows.map(r => r.join(','))].join('\n');
       exportedCount = itemRows.length > 0 ? itemRows.length - 1 : 0;
 
       const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });

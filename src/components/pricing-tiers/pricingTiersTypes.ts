@@ -11,8 +11,7 @@ export const isTierDefault = (t?: PricingTier, allTiers: PricingTier[] = []): bo
   return t.is_default === 1 || t.is_default === true || t.is_default === '1' || t.is_default === 'true';
 };
 
-export interface Product extends DataProduct {
-}
+export type Product = DataProduct;
 
 export interface MatrixRowProps {
   index: number;

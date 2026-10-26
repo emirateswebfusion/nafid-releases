@@ -380,8 +380,13 @@ export function initPrinter() {
   console.log('[Hardware] Printer service initialized');
 }
 
+function pendingPrint(setup: (resolve: () => void, reject: (reason: unknown) => void) => Promise<void>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    void setup(resolve, reject).catch(() => { /* Preserve pending outer promise on setup failure. */ });
+  });
+}
 function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number, columns?: number, sp?: number, spType?: string, codeType?: string): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     const labelW = Math.max(20, Math.round(widthMm || 50));
     const labelH = Math.max(12, Math.round(heightMm || 25));
     const windowWidth = Math.max(80, Math.round(labelW * 96 / 25.4));
@@ -398,9 +403,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         sandbox: true,
       }
     });
-
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
-
     const codeTypeParam = `&codeType=${codeType || 'barcode'}`;
     const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
     if (app.isPackaged) {
@@ -409,14 +412,12 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
       // Dev server URL — set ELECTRON_DEV_SERVER_URL in .env
       printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}`);
     }
-
     const timer = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
         printWindow.close();
         reject(new Error('USB print timeout'));
       }
     }, 20000);
-
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
       try {
         await executePrintWithFallback(printWindow, resolved.deviceName, labelW, labelH * 1000);
@@ -431,9 +432,8 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     });
   });
 }
-
 function printBulkBarcodeUSB(items: { barcode: string; quantity: number; name?: string; price?: number }[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     currentBulkPrintItems = items;
     const labelW = Math.max(20, Math.round(widthMm || 50));
     const labelH = Math.max(12, Math.round(heightMm || 25));
@@ -451,7 +451,6 @@ function printBulkBarcodeUSB(items: { barcode: string; quantity: number; name?: 
         sandbox: true,
       }
     });
-
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
 
     const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
@@ -554,7 +553,7 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
 }
 
 function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: boolean = false): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     const isA5 = pageSize === 'A5';
     const winWidth = isA5 ? (landscape ? 794 : 560) : (landscape ? 1123 : 794);
     const winHeight = isA5 ? (landscape ? 560 : 794) : (landscape ? 794 : 1123);
@@ -693,7 +692,7 @@ function executePrintWithFallback(
 }
 
 function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: string = 'global'): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     const printFmt = getPrintFormatConfig(tenantId);
     const receiptConfig = getPrinterConfig(tenantId, 'receipt');
     const leftMarginOffsetMm = Number(receiptConfig?.leftMarginOffsetMm ?? printFmt?.leftMarginOffsetMm ?? 0) || 0;

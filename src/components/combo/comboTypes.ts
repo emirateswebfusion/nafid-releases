@@ -17,8 +17,7 @@ export interface ComboOffer extends Rows.ComboOffersRow {
   items: ComboItem[];
 }
 
-export interface Product extends DataProduct {
-}
+export type Product = DataProduct;
 
 export function getEffectiveOfferPrice(prod: Partial<Product> & { product_price?: number }): number {
   const base = Number(prod.base_price || prod.product_price || 0);

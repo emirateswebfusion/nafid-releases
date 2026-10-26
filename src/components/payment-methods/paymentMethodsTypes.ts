@@ -10,8 +10,7 @@ export interface PaymentSource extends DataPaymentSource {
   last_transaction_date?: string | null;
 }
 
-export interface SourceTransaction extends Rows.PaymentSourceTransactionsRow {
-}
+export type SourceTransaction = Rows.PaymentSourceTransactionsRow;
 
 export { formatDateTime } from '../../utils/dateDisplay';
 

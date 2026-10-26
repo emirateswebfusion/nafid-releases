@@ -149,7 +149,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         }).catch(() => {});
 
         getSetting({ tenant_id: tenantId || 'global', key: 'gst_conversion_tax_inclusive' }).then((v) => {
-          if (v !== null && v !== undefined) setConversionTaxMode(Boolean(v) ? 'INCLUSIVE' : 'EXCLUSIVE');
+          if (v !== null && v !== undefined) setConversionTaxMode(v ? 'INCLUSIVE' : 'EXCLUSIVE');
         }).catch(() => {});
 
         getSetting({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY }).then((v) => {

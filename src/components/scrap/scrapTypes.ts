@@ -3,8 +3,7 @@ import type { ScrapTransactionWithCategory } from '../../data/scrap';
 /** Scrap screen types: view names, scrap category and scrap transaction rows. */
 export type View = 'list' | 'category_form' | 'transaction' | 'tx_form' | 'selling' | 'invoices' | 'invoice_detail';
 
-export interface ScrapCategory extends Rows.ScrapCategoriesRow {
-}
+export type ScrapCategory = Rows.ScrapCategoriesRow;
 
 /** A scrap transaction with its category name and unit (the data layer's joined row). */
 export type ScrapTransaction = ScrapTransactionWithCategory;

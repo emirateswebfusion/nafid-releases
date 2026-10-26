@@ -2,8 +2,7 @@
 import type { calculateMaskedStockValuation } from '../../utils/staffDataMasking';
 import type { Product as DataProduct } from '../../data/products';
 
-export interface Product extends DataProduct {
-}
+export type Product = DataProduct;
 
 export interface EnrichedProduct extends Product {
   rate: number;

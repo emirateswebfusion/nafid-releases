@@ -14,8 +14,7 @@ import { isDesktopRuntime } from '../data/client';
 import { warrantiesApi } from '../data/warranties';
 import type * as Rows from '../data/dbRows';
 
-interface Warranty extends Rows.WarrantiesRow {
-}
+type Warranty = Rows.WarrantiesRow;
 
 export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);

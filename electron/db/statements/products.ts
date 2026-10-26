@@ -391,8 +391,7 @@ export function getProductsStatement(db: Db, args: ProductListQuery) {
 
      if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
      else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
-     else if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
-     else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
+     // Removed duplicate date-sort branches; the first matches above retain precedence.
      else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
      else if (search) {
         const cleanSearch = String(search).trim();

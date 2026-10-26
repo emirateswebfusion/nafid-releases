@@ -419,7 +419,6 @@ export function CustomerDetailView({
             ) : (
               <div className="space-y-3">
                 {filteredInvoices.map(inv => (
-                  // eslint-disable-next-line @typescript-eslint/parser
                   <div
                     key={inv.invoice_id}
                     onClick={() => handleOpenInvoiceDetail(inv)}

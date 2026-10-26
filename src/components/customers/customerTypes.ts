@@ -8,8 +8,7 @@ export interface PricingTier {
   name: string;
 }
 
-export interface Customer extends CustomerListItem {
-}
+export type Customer = CustomerListItem;
 
 export interface Party extends DataParty {
   has_overdue?: boolean;
@@ -17,8 +16,7 @@ export interface Party extends DataParty {
   overdue_amount?: number;
 }
 
-export interface LoyaltyTx extends Rows.LoyaltyTransactionsRow {
-}
+export type LoyaltyTx = Rows.LoyaltyTransactionsRow;
 
 export interface InvoiceRecord extends Rows.InvoicesRow {
   biller_name?: string;

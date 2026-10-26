@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/parser
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { UserCheck, UserPlus, LogOut, GitMerge, Building2, Trash2, AlertTriangle, Loader2, Edit3, Filter, Save, Plus } from 'lucide-react';

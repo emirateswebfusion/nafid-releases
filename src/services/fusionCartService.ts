@@ -8,8 +8,7 @@ import type * as Rows from '../data/dbRows';
  * E-Commerce / FusionCart integration via Electron IPC APIs.
  */
 
-export interface EcommerceSettings extends Rows.EcommerceSettingsRow {
-}
+export type EcommerceSettings = Rows.EcommerceSettingsRow;
 
 export interface EcommerceProductItem {
   product_id: string;

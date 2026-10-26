@@ -3,8 +3,7 @@ import QRCode from 'qrcode';
 import type { Product as ProductRow } from '../../data/products';
 import type { Product as DataProduct } from '../../data/products';
 
-export interface Product extends DataProduct {
-}
+export type Product = DataProduct;
 
 export const toInventoryProducts = (rows: ProductRow[]): Product[] =>
   rows as unknown as Product[];

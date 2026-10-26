@@ -6,7 +6,7 @@ export interface PurchaseBill extends Rows.PurchaseBillsRow {
   supplier_phone?: string;
 }
 
-export interface PurchaseBillItem extends PurchaseBillItemWithProduct {}
+export type PurchaseBillItem = PurchaseBillItemWithProduct;
 
 export interface Product extends DataProduct {
   gst_purchase_quantity: number;
