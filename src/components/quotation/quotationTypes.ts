@@ -3,7 +3,7 @@ import { parseUTCDate } from '../../utils/receiptGenerator';
 
 /** Quotation screen: quotation and line-item rows as the quotations IPC returns them, and date labelling. */
 export interface Quotation {
-  quotation_id: string;
+  items?: QuotationItem[]; quotation_id: string;
   quotation_number: string;
   customer_name: string;
   customer_phone: string;
@@ -25,7 +25,7 @@ export interface Quotation {
 }
 
 export interface QuotationItem {
-  item_id: string;
+  created_at?: string; hsn_sac_code?: string; billing_type?: string; item_id: string;
   product_id: string;
   name: string;
   quantity: number;

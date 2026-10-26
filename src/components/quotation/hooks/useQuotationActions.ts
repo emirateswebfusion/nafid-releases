@@ -87,18 +87,18 @@ export function useQuotationActions(ctx: UseQuotationActionsContext) {
       const its = await quotationsApi.getQuotationItems(q.quotation_id);
       if (Array.isArray(its) && its.length > 0) {
         itemsToSet = its;
-      } else if (Array.isArray((q as any).items) && (q as any).items.length > 0) {
-        itemsToSet = (q as any).items;
+      } else if (Array.isArray((q as Quotation & { items: QuotationItem[] }).items) && (q as Quotation & { items: QuotationItem[] }).items.length > 0) {
+        itemsToSet = (q as Quotation & { items: QuotationItem[] }).items;
       }
-    } else if (Array.isArray((q as any).items)) {
-      itemsToSet = (q as any).items;
+    } else if (Array.isArray((q as Quotation & { items: QuotationItem[] }).items)) {
+      itemsToSet = (q as Quotation & { items: QuotationItem[] }).items;
     }
     if (itemsToSet.length > 1) {
-      const timestamps = itemsToSet.map((i: any) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
+      const timestamps = itemsToSet.map((i: QuotationItem) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
       const uniqueTs = Array.from(new Set(timestamps));
       if (uniqueTs.length > 1) {
         const latestTs = Math.max(...uniqueTs);
-        itemsToSet = itemsToSet.filter((i: any) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
+        itemsToSet = itemsToSet.filter((i: QuotationItem) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
       }
     }
     setQuotationItems(itemsToSet);
@@ -107,7 +107,7 @@ export function useQuotationActions(ctx: UseQuotationActionsContext) {
     // 1. If shop setting "Enable GST in Quotations" is enabled, quotation should display GST boxes!
     // 2. Or if explicitly marked as GST (q.is_gst === 1) or has tax total > 0
     // 3. Or if any item in the quotation has HSN code or GST applicable
-    const hasGstInItems = itemsToSet.some(i => Boolean(i.hsn_code || (i as any).hsn_sac_code || Number(i.tax_rate_percent) > 0 || i.is_gst_applicable));
+    const hasGstInItems = itemsToSet.some(i => Boolean(i.hsn_code || (i as QuotationItem).hsn_sac_code || Number(i.tax_rate_percent) > 0 || i.is_gst_applicable));
     const isGstDoc = quotationGstEnabledSetting || q.is_gst === 1 || Number(q.tax_total) > 0 || hasGstInItems;
     setPreviewGstEnabled(Boolean(isGstDoc));
 
