@@ -192,6 +192,12 @@ export function withSyncApplyGuard<T>(db: Db, fn: () => T): T {
   }
 }
 
+/** Removes a guard row left behind by a crash mid-pull (run at startup, before any sync). No-op before migration 003. */
+export function clearSyncApplyGuard(db: Db): void {
+  const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_apply_guard'").get();
+  if (exists) db.prepare('DELETE FROM sync_apply_guard').run();
+}
+
 export function countPendingOps(db: Db): number {
   const row = db.prepare('SELECT COUNT(*) AS count FROM sync_outbox WHERE sent_at IS NULL').get() as { count: number };
   return row.count;

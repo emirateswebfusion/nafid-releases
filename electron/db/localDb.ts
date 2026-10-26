@@ -10,6 +10,7 @@ import { runLegacyRepairs } from './migrationsRepairs.js';
 import { runColumnMigrations } from './migrationsColumns.js';
 import { runMigrations } from './migrations/runner.js';
 import { MIGRATIONS } from './migrations/index.js';
+import { clearSyncApplyGuard } from './statements/outbox.js';
 
 /** The open connection. Exported only for the db-layer modules (live binding); everything else calls getDb(). */
 export let db: Database.Database;
@@ -144,6 +145,12 @@ export function initDb() {
     runMigrations(db, MIGRATIONS);
   } catch (e: unknown) {
     console.error('[DB Migration] Versioned migration failed (retried on next start):', e instanceof Error ? e.message : e);
+  }
+  // A guard row left by a crash during a pull would stop every local write from being recorded.
+  try {
+    clearSyncApplyGuard(db);
+  } catch (e: unknown) {
+    console.error('[DB Migration] Could not clear the sync apply guard:', e instanceof Error ? e.message : e);
   }
 }
 

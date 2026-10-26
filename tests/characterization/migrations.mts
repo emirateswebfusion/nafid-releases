@@ -10,7 +10,7 @@ const { initDb, getDb } = await load('electron/db/localDb.ts');
 const { runMigrations } = await load('electron/db/migrations/runner.ts');
 const { MIGRATIONS } = await load('electron/db/migrations/index.ts');
 const { SYNCED_TABLES } = await load('electron/db/migrations/002-sync-outbox.ts');
-const { withSyncApplyGuard, countPendingOps, listPendingOps } = await load('electron/db/statements/outbox.ts');
+const { withSyncApplyGuard, countPendingOps, listPendingOps, clearSyncApplyGuard } = await load('electron/db/statements/outbox.ts');
 const { m003SyncOutboxTriggers } = await load('electron/db/migrations/003-sync-outbox-triggers.ts');
 
 const failures: string[] = [];
@@ -102,6 +102,9 @@ try {
 check('guard callback error propagates', guardError, 'guarded failure');
 check('throwing guard callback leaves no guard row', (db.prepare('SELECT COUNT(*) AS count FROM sync_apply_guard').get() as { count: number }).count, 0);
 check('throwing guarded write records no ops', countPendingOps(db), beforeGuardedWrite);
+db.prepare('INSERT INTO sync_apply_guard (id) VALUES (1)').run(); // as if the app crashed mid-pull
+clearSyncApplyGuard(db);
+check('startup clears a guard row left by a crash', (db.prepare('SELECT COUNT(*) AS count FROM sync_apply_guard').get() as { count: number }).count, 0);
 
 const pendingBeforeTriggerRecreation = countPendingOps(db);
 m003SyncOutboxTriggers.up(db);
