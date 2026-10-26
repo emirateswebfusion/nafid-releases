@@ -325,7 +325,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
   } = options;
 
   const recon = calculateLedgerStatement(
-    (party as any).ledger || [],
+    (party as PartyData & { ledger?: LedgerEntryData[] }).ledger || [],
     filter,
     party,
     terminology,

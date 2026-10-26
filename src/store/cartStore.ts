@@ -305,7 +305,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => {
         set({ isQuotationMode });
         try {
-          (window as any).useTabStore?.getState?.()?.syncActiveSnapshot?.();
+          (window as Window & { useTabStore?: { getState?: () => { syncActiveSnapshot?: () => void } } }).useTabStore?.getState?.()?.syncActiveSnapshot?.();
         } catch { /* ignore */ }
       },
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),

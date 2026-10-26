@@ -163,7 +163,7 @@ export function buildQuotationLines(items: CartItem[], opts: { isGstQuotation: b
     const amount = effectiveRate * qty;
     const dAmt = Math.max(0, (rate - effectiveRate) * qty);
 
-    const itemTaxRate = isGstQuotation && (item as any).is_gst_applicable !== false ? (Number(item.tax_rate_percent) || 0) : 0;
+    const itemTaxRate = isGstQuotation && (item as CartItem & { is_gst_applicable?: boolean; hsn_code?: string; hsn?: string }).is_gst_applicable !== false ? (Number(item.tax_rate_percent) || 0) : 0;
     const itemTax = isGstQuotation ? Math.round(amount * (itemTaxRate / 100) * 100) / 100 : 0;
     const halfRate = itemTaxRate / 2;
     const cgst_rate = isInterState ? 0 : halfRate;
@@ -185,7 +185,7 @@ export function buildQuotationLines(items: CartItem[], opts: { isGstQuotation: b
       discount_percent: item.discount_percent ?? null,
       offer_price: item.offer_price ?? null,
       discount_amount: dAmt,
-      hsn_code: item.hsn_sac_code || (item as any).hsn_code || (item as any).hsn || null,
+      hsn_code: item.hsn_sac_code || (item as CartItem & { is_gst_applicable?: boolean; hsn_code?: string; hsn?: string }).hsn_code || (item as CartItem & { is_gst_applicable?: boolean; hsn_code?: string; hsn?: string }).hsn || null,
       uom: item.uom || item.unit || (item.billing_type === 'WEIGHT' ? 'KG' : 'PCS'),
       taxable_amount: amount,
       tax_rate_percent: itemTaxRate,

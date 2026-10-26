@@ -59,8 +59,8 @@ export interface EcommerceOrder {
     slug: string;
   };
   created_at?: string;
-  billing_address?: any;
-  shipping_address?: any;
+  billing_address?: { title?: string; city?: string; address?: string; phone?: string; [key: string]: unknown };
+  shipping_address?: { title?: string; city?: string; address?: string; phone?: string; [key: string]: unknown };
   products?: Array<{
     id: number;
     name: string;
@@ -90,12 +90,12 @@ export const fusionCartService = {
     return ecommerceApi.testConnection({ url });
   },
 
-  async registerVendor(tenantId: string, data: any): Promise<{ success: boolean; settings?: EcommerceSettings; error?: string }> {
+  async registerVendor(tenantId: string, data: Record<string, unknown>): Promise<{ success: boolean; settings?: EcommerceSettings; error?: string }> {
     if (!hasBridge('ecommerceRegisterVendor')) return { success: false, error: 'Electron API unavailable' };
     return ecommerceApi.registerVendor({ tenant_id: tenantId, data });
   },
 
-  async refreshStatus(tenantId: string): Promise<{ success: boolean; settings?: EcommerceSettings; store?: any; error?: string }> {
+  async refreshStatus(tenantId: string): Promise<{ success: boolean; settings?: EcommerceSettings; store?: Record<string, unknown>; error?: string }> {
     if (!hasBridge('ecommerceRefreshStatus')) return { success: false, error: 'Electron API unavailable' };
     return ecommerceApi.refreshStatus({ tenant_id: tenantId });
   },
@@ -111,7 +111,7 @@ export const fusionCartService = {
     online_title_override?: string | null;
     online_description_override?: string | null;
     online_price_override?: number | null;
-  }): Promise<{ success: boolean; mapping?: any; error?: string }> {
+  }): Promise<{ success: boolean; mapping?: Record<string, unknown>; error?: string }> {
     if (!hasBridge('ecommerceUpdateMapping')) return { success: false, error: 'Electron API unavailable' };
     return ecommerceApi.updateMapping({
       tenant_id: tenantId,

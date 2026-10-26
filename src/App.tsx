@@ -311,32 +311,32 @@ function App() {
   useEffect(() => {
     if (!isDesktopRuntime() || !isAuthenticated) return;
     const tid = useAuthStore.getState().tenantId;
-    getSetting({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: unknown) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
     loadFlags(tid || 'global');
-    getSetting({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'time_format' }).then((v: unknown) => {
       if (v === '24h' || v === '12h') {
         setAppTimeFormat(v);
       } else {
         setAppTimeFormat('12h');
       }
     });
-    getSetting({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: any) => {
-      if (v) setStoreTimezone(v);
+    getSetting({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: unknown) => {
+      if (v) setStoreTimezone(v as string);
     });
 
     const handleSettingsUpdated = () => {
       const currentTid = useAuthStore.getState().tenantId;
       loadFlags(currentTid || 'global');
-      getSetting({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: unknown) => {
         if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
       });
-      getSetting({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: unknown) => {
         if (v === '24h' || v === '12h') setAppTimeFormat(v);
       });
-      getSetting({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: any) => {
-        if (v) setStoreTimezone(v);
+      getSetting({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: unknown) => {
+        if (v) setStoreTimezone(v as string);
       });
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);
@@ -779,7 +779,7 @@ function App() {
         </PermissionGuard>
       ) : showScrapManager ? (
         <PermissionGuard permission="scrap.view" onBack={() => setShowScrapManager(false)}>
-          <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
+          <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as import('./components/scrap/scrapTypes').View} />
         </PermissionGuard>
       ) : showQuotationManager ? (
         <PermissionGuard permission="quotations.view" onBack={() => setShowQuotationManager(false)}>

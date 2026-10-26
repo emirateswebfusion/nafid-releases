@@ -1,3 +1,4 @@
+type SalesAmountInvoice = { scrap_deduction?: number | string | null; return_deduction?: number | string | null; subtotal?: number | string | null; tax_total?: number | string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; actual_refund_paid?: number | string | null; grand_total?: number | string | null; invoice_type?: string | null };
 export interface SalesHistoryAmountSummary {
   amount: number;
   refund: boolean;
@@ -5,7 +6,7 @@ export interface SalesHistoryAmountSummary {
   refundDifference: number;
 }
 
-export function getSalesHistoryAmount(inv: any): SalesHistoryAmountSummary {
+export function getSalesHistoryAmount(inv: SalesAmountInvoice): SalesHistoryAmountSummary {
   const scrap = Number(inv?.scrap_deduction) || 0;
   const returned = Number(inv?.return_deduction) || 0;
   const subtotal = Number(inv?.subtotal) || 0;
@@ -28,7 +29,7 @@ export function getSalesHistoryAmount(inv: any): SalesHistoryAmountSummary {
   return { amount: getInvoiceNetTotal(inv), refund: false, discount, refundDifference: 0 };
 }
 
-export function getInvoicePreDeductionTotal(inv: any): number {
+export function getInvoicePreDeductionTotal(inv: SalesAmountInvoice): number {
   if (!inv) return 0;
   const subtotal = Number(inv.subtotal) || 0;
   const tax = Number(inv.tax_total) || 0;
@@ -37,7 +38,7 @@ export function getInvoicePreDeductionTotal(inv: any): number {
   return Math.max(0, subtotal + tax - discount - pointsDiscount);
 }
 
-export function getInvoiceNetTotal(inv: any): number {
+export function getInvoiceNetTotal(inv: SalesAmountInvoice): number {
   if (!inv) return 0;
   const storedNet = Number(inv.grand_total);
   if (inv.grand_total != null && Number.isFinite(storedNet)) {
