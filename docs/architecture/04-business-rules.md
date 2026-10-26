@@ -73,6 +73,9 @@ Permission keys are the shared contract with the server (`requirePermission('sal
 checks on both sides. Add a new permission key in **both** `src/utils/permissions.ts` (with its UI group/label) and
 `nafid-server/src/services/permissions.ts`.
 
+`products.create` requires the explicit `products.create` permission, wildcard, or admin/owner bypass. Other
+`products.*` permissions retain the broad fallback for `products.view`.
+
 ## 4.4 Domain glossary
 
 | Term | Meaning |

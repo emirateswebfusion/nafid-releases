@@ -145,11 +145,18 @@ describe('hasPermission', () => {
     expect(hasPermission(cashUser, 'cash_register.view')).toBe(true);
   });
 
-  // SUSPECT: permissions.ts line 276 checks if userPerms has ANY 'products.' permission to grant 'products.create',
-  // meaning a user with only 'products.view' is erroneously granted 'products.create'.
-  it('grants products.create if user has any products permission (current behavior)', () => {
+  it('requires products.create explicitly while retaining broad products.view fallback', () => {
     const readOnlyUser: UserPermissions = { role: 'STAFF', permissions: ['products.view'] };
-    expect(hasPermission(readOnlyUser, 'products.create')).toBe(true);
+    expect(hasPermission(readOnlyUser, 'products.view')).toBe(true);
+    expect(hasPermission(readOnlyUser, 'products.view_gst')).toBe(true);
+    expect(hasPermission(readOnlyUser, 'products.create')).toBe(false);
+
+    const productEditor: UserPermissions = { role: 'STAFF', permissions: ['products.edit'] };
+    expect(hasPermission(productEditor, 'products.create')).toBe(false);
+
+    const productCreator: UserPermissions = { role: 'STAFF', permissions: ['products.create'] };
+    expect(hasPermission(productCreator, 'products.create')).toBe(true);
+    expect(hasPermission(productCreator, 'products.create_gst')).toBe(true);
   });
 
   it('falls back to restrictedPage string when permissions list is missing', () => {

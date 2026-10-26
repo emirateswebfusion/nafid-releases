@@ -273,9 +273,6 @@ export function hasPermission(user: UserPermissions | null | undefined, permissi
     if (permissionKey === 'products.view') {
       if (userPerms.some(p => p.startsWith('products.'))) return true;
     }
-    if (permissionKey === 'products.create') {
-      if (userPerms.some(p => p.startsWith('products.'))) return true;
-    }
     if (permissionKey === 'purchases.view') {
       if (userPerms.some(p => p.startsWith('purchases.'))) return true;
     }
