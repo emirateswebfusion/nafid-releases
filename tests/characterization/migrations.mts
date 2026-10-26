@@ -127,6 +127,14 @@ check('second run leaves migration records unchanged', recorded(), versionsBefor
   m004ResyncRecalibratedReturns.up(db);
   const st = (id: string) => (db.prepare('SELECT sync_status FROM returns WHERE return_id = ?').get(id) as { sync_status: string }).sync_status;
   check('004 re-pushes returns of discounted invoices', [st('r-disc'), st('r-plain')], ['PENDING', 'SYNCED']);
+  const { enqueueLegacyPendingRows } = await load('electron/db/statements/outbox.ts');
+  db.prepare("DELETE FROM sync_outbox WHERE entity = 'returns' AND entity_id IN ('r-disc', 'r-plain')").run(); // as on a terminal whose ops were pruned / never recorded
+  const before = (db.prepare("SELECT COUNT(*) n FROM sync_outbox WHERE entity = 'returns' AND entity_id = 'r-disc' AND sent_at IS NULL").get() as { n: number }).n;
+  enqueueLegacyPendingRows(db, ['returns']);
+  const opsFor = () => (db.prepare("SELECT COUNT(*) n FROM sync_outbox WHERE entity = 'returns' AND entity_id = 'r-disc' AND sent_at IS NULL").get() as { n: number }).n;
+  check('legacy PENDING row gets one outbox op (none for SYNCED)', [before, opsFor(), (db.prepare("SELECT COUNT(*) n FROM sync_outbox WHERE entity_id = 'r-plain'").get() as { n: number }).n], [0, 1, 0]);
+  enqueueLegacyPendingRows(db, ['returns']);
+  check('legacy backfill is idempotent while the op is unsent', opsFor(), 1);
 }
 
 let ran = 0;
