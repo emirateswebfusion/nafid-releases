@@ -15,7 +15,12 @@ const dir = path.join(tree, 'electron/db/statements');
 const fragment = (p: string) => /placeholder/i.test(p) ? '?' : /col$/i.test(p) ? (/deleted/i.test(p) ? ', deleted_at' : 'gst_balance')
   : /select|fields/i.test(p) ? '*' : /^t$|table/i.test(p) ? 'products' : '';
 const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'], sumPurchaseBillsForDate: ['total_amount'],
-  markSyncedIfUnchanged: ['products', 'product_id', 'updated_at'], markSynced: ['products', 'product_id'], selectMaxTimestamp: ['updated_at', 'products'] };
+  markSyncedIfUnchanged: ['products', 'product_id', 'updated_at'], markSynced: ['products', 'product_id'], selectMaxTimestamp: ['updated_at', 'products'],
+  deltaRowsQuery: ['products', 'updated_at', '', '2026-01-01 00:00:00'], pendingBillsQuery: ['2026-01-01 00:00:00', 'x'],
+  tableRowsQuery: ['invoices', ['updated_at', 'created_at'], '2026-01-01 00:00:00', 10, 0],
+  upsertRows: ['settings', ['tenant_id', 'key', 'value'], ['tenant_id', 'key'], ['value']], countPendingRows: [['products', 'invoices']],
+  updateCustomerProfile: [['gstin', 'notes', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry']],
+  updatePartyProfile: [['pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'party_type', 'custom_category', 'whatsapp_alerts_enabled']] };
 let ok = 0; const bad: string[] = [];
 const files = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(path.join(d, e.name)).map((x) => path.join(e.name, x)) : [e.name]);
 for (const f of files(dir).filter((f) => f.endsWith('.ts') && f !== 'types.ts')) {

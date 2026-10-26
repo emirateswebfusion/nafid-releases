@@ -234,30 +234,10 @@ export function startLocalHostServer(port: number = 3888) {
 
         const fetchDeltaRows = (tName: string, tsCol = 'updated_at', customWhere = '', attachItems = false) => {
           const rawSince = sinceMap[tName];
-          let q = `SELECT * FROM ${tName}`;
-          const whereParts: string[] = [];
-          const qParams: unknown[] = [];
-
-          if (customWhere) {
-            whereParts.push(customWhere);
-          }
-
-          if (rawSince) {
-            const cleanUtc = toNormalizedUtc(rawSince);
-            if (cleanUtc) {
-              whereParts.push(`replace(substr(${tsCol}, 1, 19), 'T', ' ') > ?`);
-              qParams.push(cleanUtc);
-            }
-          }
-
-          if (whereParts.length > 0) {
-            q += ` WHERE ${whereParts.join(' AND ')}`;
-          }
-
-          q += ` ORDER BY ${tsCol} DESC LIMIT 2000`;
+          const { statement: deltaStmt, params: qParams } = localHostServerSql.deltaRowsQuery(db, tName, tsCol, customWhere, rawSince ? toNormalizedUtc(rawSince) : null);
 
           try {
-            const rows = db.prepare(q).all(...qParams);
+            const rows = deltaStmt.all(...qParams);
             if (attachItems && rows.length > 0) {
               if (tName === 'invoices') {
                 for (const inv of rows) {
@@ -314,27 +294,8 @@ export function startLocalHostServer(port: number = 3888) {
       if (pathname === '/api/sync/pending-bills-lightweight' && req.method === 'GET') {
         const rawSince = url.searchParams.get('since');
         const lastId = url.searchParams.get('last_id');
-        let q = `
-          SELECT invoice_id, tenant_id, invoice_number, customer_name, grand_total, payment_method, user_id, created_at, updated_at
-          FROM invoices
-          WHERE payment_method = 'PENDING'
-            AND (is_deleted IS NULL OR is_deleted = 0)
-        `;
-        const qParams: unknown[] = [];
-        if (rawSince) {
-          const sinceUtc = toNormalizedUtc(rawSince);
-          if (sinceUtc) {
-            if (lastId) {
-              q += ` AND (replace(substr(created_at, 1, 19), 'T', ' ') > ? OR (replace(substr(created_at, 1, 19), 'T', ' ') = ? AND invoice_id > ?))`;
-              qParams.push(sinceUtc, sinceUtc, lastId);
-            } else {
-              q += ` AND (replace(substr(created_at, 1, 19), 'T', ' ') > ?)`;
-              qParams.push(sinceUtc);
-            }
-          }
-        }
-        q += ` ORDER BY created_at ASC, invoice_id ASC LIMIT 50`;
-        const rows = db.prepare(q).all(...qParams);
+        const { statement: pendingStmt, params: qParams } = localHostServerSql.pendingBillsQuery(db, rawSince ? toNormalizedUtc(rawSince) : null, lastId);
+        const rows = pendingStmt.all(...qParams);
         return sendJson(res, 200, { success: true, count: rows.length, bills: rows });
       }
 
@@ -375,58 +336,15 @@ export function startLocalHostServer(port: number = 3888) {
         if (req.method === 'GET') {
           const rawSince = url.searchParams.get('since');
           const meta = getTableMeta(db, tableName);
-          let query = `SELECT * FROM ${tableName}`;
-          const params: unknown[] = [];
-          const whereClauses: string[] = [];
-
-          if (tableName === 'invoices') {
-            whereClauses.push(`invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`);
-          } else if (tableName === 'settings') {
-            const excludedKeys = [
-              'terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
-              'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter',
-              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config',
-              'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name'
-            ];
-            const placeholders = excludedKeys.map(() => '?').join(',');
-            whereClauses.push(`key NOT IN (${placeholders})`);
-            params.push(...excludedKeys);
-          }
-
-          if (rawSince && meta) {
-            const cleanUtc = toNormalizedUtc(rawSince);
-            if (cleanUtc) {
-              const hasUpdated = meta.allCols.includes('updated_at');
-              const hasCreated = meta.allCols.includes('created_at');
-              if (hasUpdated && hasCreated) {
-                whereClauses.push(`(replace(substr(updated_at, 1, 19), 'T', ' ') > ? OR replace(substr(created_at, 1, 19), 'T', ' ') > ?)`);
-                params.push(cleanUtc, cleanUtc);
-              } else if (hasUpdated) {
-                whereClauses.push(`replace(substr(updated_at, 1, 19), 'T', ' ') > ?`);
-                params.push(cleanUtc);
-              } else if (hasCreated) {
-                whereClauses.push(`replace(substr(created_at, 1, 19), 'T', ' ') > ?`);
-                params.push(cleanUtc);
-              }
-            }
-          }
-
-          if (whereClauses.length > 0) {
-            query += ` WHERE ${whereClauses.join(' AND ')}`;
-          }
-
-          const orderCol = meta?.allCols.includes('created_at') ? 'created_at' : (meta?.allCols.includes('updated_at') ? 'updated_at' : null);
-          if (orderCol) {
-            query += ` ORDER BY ${orderCol} DESC`;
-          }
           const rawLimit = Number(url.searchParams.get('limit'));
           const limit = !isNaN(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 500;
           const rawOffset = Number(url.searchParams.get('offset'));
           const offset = !isNaN(rawOffset) && rawOffset > 0 ? rawOffset : 0;
-          query += ` LIMIT ${limit} OFFSET ${offset}`;
+          const sinceUtc = rawSince ? toNormalizedUtc(rawSince) : null;
+          const { statement: tableStmt, params } = localHostServerSql.tableRowsQuery(db, tableName, meta?.allCols, sinceUtc, limit, offset);
 
           try {
-            const rows = db.prepare(query).all(...params);
+            const rows = tableStmt.all(...params);
 
             // Attach nested items for header-detail records
             if (tableName === 'invoices') {

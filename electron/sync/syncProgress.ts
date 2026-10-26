@@ -2,12 +2,12 @@ import { BrowserWindow, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
 import { syncState } from './syncState.js';
 import { getAuthConfig } from './syncConfig.js';
+import * as syncProgressSql from '../db/statements/sync/syncProgress.js';
 
 /** Sync progress and renderer notifications: phases, percent / label updates, cycle completion and online status. */
 export function getTotalPendingRecords(db: import('better-sqlite3').Database, tenantId: string): number {
   const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items', 'combo_offers', 'quotations', 'quotation_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance'];
-  const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
-  const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
+  const rows = syncProgressSql.countPendingRows(db, tables).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
 }
 

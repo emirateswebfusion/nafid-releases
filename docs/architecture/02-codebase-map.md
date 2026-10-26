@@ -114,9 +114,9 @@ electron/
 
 Dependency direction: `main → ipc → services → db/statements`, `sync → services/db`; `hardware`/`whatsapp` are adapters.
 *Enforced:* `services`, `db`, `sync` never import `ipc`; `ipc` contains no `.prepare(` and never imports
-`db/statements`; services, sync and `main.ts` may not add inline `.prepare(` (SQL in `db/statements`, `db/statements/sync/*`,
-`db/statements/main.ts`; 6 date-range filter builders in services and 5 dynamic query builders in sync are grandfathered,
-shrink-only).
+`db/statements`; services, sync and `main.ts` contain no `.prepare(` at all: every statement, including the dynamic query
+builders (`getProductsStatement`, `getInvoicesStatement`, `deltaRowsQuery`, …, returning `{ statement, params }`), lives in
+`db/statements`, `db/statements/sync/*` or `db/statements/main.ts`. Services resolve inputs such as store-day UTC ranges first.
 
 ## Size budgets
 

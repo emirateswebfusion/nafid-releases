@@ -195,43 +195,43 @@ export function updateParty(p: Partial<PartyInput> & { party_id: string }) {
     const hasRestrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined;
     const hasWhatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined;
 
-    let updateSql = `UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?`;
+    const columns: partiesSql.PartyProfileColumn[] = [];
     const params: unknown[] = [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null];
 
     if (hasTier) {
-      updateSql += `, pricing_tier_id = ?`;
+      columns.push('pricing_tier_id');
       params.push(p.pricing_tier_id || null);
     }
     if (hasCreditLimit) {
-      updateSql += `, credit_limit = ?`;
+      columns.push('credit_limit');
       params.push(creditLimit);
     }
     if (hasCreditPeriodEnabled) {
-      updateSql += `, credit_period_enabled = ?`;
+      columns.push('credit_period_enabled');
       params.push(p.credit_period_enabled ? 1 : 0);
     }
     if (hasCreditPeriodDays) {
-      updateSql += `, credit_period_days = ?`;
+      columns.push('credit_period_days');
       params.push(Math.max(1, parseInt(p.credit_period_days as string, 10) || 30));
     }
     if (hasCreditPeriodBasis) {
-      updateSql += `, credit_period_basis = ?`;
+      columns.push('credit_period_basis');
       params.push(p.credit_period_basis || 'BILL_BASED');
     }
     if (hasRestrictOnCreditExpiry) {
-      updateSql += `, restrict_on_credit_expiry = ?`;
+      columns.push('restrict_on_credit_expiry');
       params.push(p.restrict_on_credit_expiry ? 1 : 0);
     }
     if (hasPartyType) {
-      updateSql += `, party_type = ?`;
+      columns.push('party_type');
       params.push(p.party_type || 'CUSTOMER');
     }
     if (hasCustomCategory) {
-      updateSql += `, custom_category = ?`;
+      columns.push('custom_category');
       params.push(p.custom_category || null);
     }
     if (hasWhatsappAlertsEnabled) {
-      updateSql += `, whatsapp_alerts_enabled = ?`;
+      columns.push('whatsapp_alerts_enabled');
       params.push(p.whatsapp_alerts_enabled ? 1 : 0);
     }
 
@@ -243,10 +243,9 @@ export function updateParty(p: Partial<PartyInput> & { party_id: string }) {
     const newPhone = (p.phone || '').trim();
     const newName = (p.name || '').trim();
 
-    updateSql += `, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`;
     params.push(p.party_id);
 
-    db.prepare(updateSql).run(...params);
+    partiesSql.updatePartyProfile(db, columns).run(...params);
 
     // Synchronize to matching customer in customers table if exists
     try {

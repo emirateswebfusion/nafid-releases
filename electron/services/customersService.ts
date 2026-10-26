@@ -225,39 +225,35 @@ export function updateCustomer(c: CustomerInput) {
     const creditPeriodBasis = c.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = hasRestrictOnCreditExpiry ? (c.restrict_on_credit_expiry ? 1 : 0) : 1;
 
-    let updateSql = `
-      UPDATE customers
-      SET name = ?, phone = ?, address = ?,
-          pricing_tier_id = ?
-    `;
+    const columns: customersSql.CustomerProfileColumn[] = [];
     const params: unknown[] = [c.name, c.phone || null, c.address || null, c.pricing_tier_id || null];
 
     if (c.gstin !== undefined) {
-      updateSql += `, gstin = ?`;
+      columns.push('gstin');
       params.push(c.gstin ? c.gstin.trim().toUpperCase() : null);
     }
     if (c.notes !== undefined) {
-      updateSql += `, notes = ?`;
+      columns.push('notes');
       params.push(c.notes ? c.notes.trim() : null);
     }
     if (hasCreditLimit) {
-      updateSql += `, credit_limit = ?`;
+      columns.push('credit_limit');
       params.push(creditLimit);
     }
     if (hasCreditPeriodEnabled) {
-      updateSql += `, credit_period_enabled = ?`;
+      columns.push('credit_period_enabled');
       params.push(creditPeriodEnabled);
     }
     if (hasCreditPeriodDays) {
-      updateSql += `, credit_period_days = ?`;
+      columns.push('credit_period_days');
       params.push(creditPeriodDays);
     }
     if (hasCreditPeriodBasis) {
-      updateSql += `, credit_period_basis = ?`;
+      columns.push('credit_period_basis');
       params.push(creditPeriodBasis);
     }
     if (hasRestrictOnCreditExpiry) {
-      updateSql += `, restrict_on_credit_expiry = ?`;
+      columns.push('restrict_on_credit_expiry');
       params.push(restrictOnCreditExpiry);
     }
 
@@ -268,10 +264,9 @@ export function updateCustomer(c: CustomerInput) {
     const newPhone = (c.phone || '').trim();
     const newName = (c.name || '').trim();
 
-    updateSql += `, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`;
     params.push(c.customer_id, c.tenant_id);
 
-    db.prepare(updateSql).run(...params);
+    customersSql.updateCustomerProfile(db, columns).run(...params);
 
     // Sync to matching party in parties
     let matchedParty: CustomerCreditRow | null | undefined = null;

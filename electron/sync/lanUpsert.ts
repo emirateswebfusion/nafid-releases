@@ -108,16 +108,7 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
   const { allCols, pkCols, updateCols } = meta;
   const syncedIds: string[] = [];
 
-  let sql = `INSERT INTO ${tableName} (${allCols.join(', ')}) VALUES (${allCols.map(c => `@${c}`).join(', ')})`;
-  if (tableName === 'product_pricing') {
-    sql += ` ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
-  } else if (pkCols.length > 0 && updateCols.length > 0) {
-    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
-  } else if (pkCols.length > 0) {
-    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO NOTHING`;
-  }
-
-  const stmt = db.prepare(sql);
+  const stmt = lanUpsertSql.upsertRows(db, tableName, allCols, pkCols, updateCols);
 
   const tx = db.transaction((rows: Record<string, unknown>[]) => {
     for (const rawRow of rows) {

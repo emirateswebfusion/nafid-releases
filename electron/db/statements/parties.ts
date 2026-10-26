@@ -217,3 +217,12 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
 export const listPartyLedger = (db: Db, includeDeleted: boolean) => db.prepare(includeDeleted
       ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC`
       : `SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC`);
+
+/** Columns `updatePartyProfile` may set besides name / phone / address / gstin / notes. */
+export type PartyProfileColumn = 'pricing_tier_id' | 'credit_limit' | 'credit_period_enabled' | 'credit_period_days' | 'credit_period_basis'
+  | 'restrict_on_credit_expiry' | 'party_type' | 'custom_category' | 'whatsapp_alerts_enabled';
+
+/** Update a party's profile. Params: name, phone, address, gstin, notes, one value per column in `columns`, party_id. */
+export function updatePartyProfile(db: Db, columns: readonly PartyProfileColumn[]) {
+  return db.prepare(`UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?${columns.map((c) => `, ${c} = ?`).join('')}, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`);
+}

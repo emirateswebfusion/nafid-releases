@@ -1,16 +1,7 @@
 {
   "ipcCounts": {},
-  "servicePrepareCounts": {
-    "electron/services/customersService.ts": 1,
-    "electron/services/invoiceQueryService.ts": 2,
-    "electron/services/partiesService.ts": 1,
-    "electron/services/productsService.ts": 2
-  },
-  "syncPrepareCounts": {
-    "electron/sync/lanUpsert.ts": 1,
-    "electron/sync/localHostServer.ts": 3,
-    "electron/sync/syncProgress.ts": 1
-  },
+  "servicePrepareCounts": {},
+  "syncPrepareCounts": {},
   "sizeCaps": {},
   "startupBaselineLines": {
     "electron/db/localDb.ts": 313,
@@ -20,5 +11,5 @@
     "electron/db/schemaCoreTables.ts": 407,
     "electron/db/schemaExtendedTables.ts": 409
   },
-  "updatedAt": "2026-10-26T03:45:50.096Z"
+  "updatedAt": "2026-10-26T07:34:50.534Z"
 }

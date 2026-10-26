@@ -257,3 +257,16 @@ export function findCustomersStatement(db: Db, args: { tenant_id: string; name: 
   query += ` ORDER BY name COLLATE NOCASE ASC LIMIT 25`;
   return { statement: db.prepare(query), params };
 }
+
+/** Columns `updateCustomerProfile` may set besides name / phone / address / pricing tier (in this order of use). */
+export type CustomerProfileColumn = 'gstin' | 'notes' | 'credit_limit' | 'credit_period_enabled' | 'credit_period_days' | 'credit_period_basis' | 'restrict_on_credit_expiry';
+
+/** Update a customer's profile. Params: name, phone, address, pricing_tier_id, one value per column in `columns`,
+ * customer_id, tenant_id. */
+export function updateCustomerProfile(db: Db, columns: readonly CustomerProfileColumn[]) {
+  return db.prepare(`
+      UPDATE customers
+      SET name = ?, phone = ?, address = ?,
+          pricing_tier_id = ?
+    ${columns.map((c) => `, ${c} = ?`).join('')}, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`);
+}

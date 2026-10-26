@@ -63,3 +63,16 @@ export const updateCashDrawer2 = (db: Db) => db.prepare(`
 export const updateProducts2 = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`);
 export const updateScrapTransactions = (db: Db) => db.prepare(`UPDATE scrap_transactions SET payment_status = 'SETTLED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_invoice_number = ?`);
 export const deleteQuotationItems = (db: Db) => db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?');
+
+/** Insert-or-update rows of a table by named parameters (`@col`), keyed on its primary key (product_pricing: product + tier). */
+export function upsertRows(db: Db, tableName: string, allCols: string[], pkCols: string[], updateCols: string[]) {
+  let sql = `INSERT INTO ${tableName} (${allCols.join(', ')}) VALUES (${allCols.map(c => `@${c}`).join(', ')})`;
+  if (tableName === 'product_pricing') {
+    sql += ` ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
+  } else if (pkCols.length > 0 && updateCols.length > 0) {
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
+  } else if (pkCols.length > 0) {
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO NOTHING`;
+  }
+  return db.prepare(sql);
+}

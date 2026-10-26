@@ -4,7 +4,13 @@ import { parseCleanDate, getUtcRangeForStoreDateRange, localTimestamp } from './
 import { resolveGstApplicability } from '../utils/gst.js';
 import crypto from 'node:crypto';
 import * as productsSql from '../db/statements/products.js';
-import { buildProductSearchConditions } from '../db/statements/productSearch.js';
+
+/** UTC bounds of the store days from `filterDate` to `filterDateEnd` (or the same day). */
+function storeDateRangeUtc(filterDate: string, filterDateEnd: string | undefined, tenantId: string) {
+  const cleanStart = parseCleanDate(filterDate);
+  const cleanEnd = filterDateEnd && String(filterDateEnd).trim() !== '' ? parseCleanDate(filterDateEnd as string) : cleanStart;
+  return getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
+}
 /** products use-cases for the main process (called by electron/ipc handlers). */
 
 
@@ -27,133 +33,11 @@ export function getProducts(arg: string | ProductQueryArgs) {
     }
 
     const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField, stockStatus } = (arg as ProductQueryArgs);
-    let query = `
-      SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
-        CASE WHEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)) != 0
-             THEN (COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0))
-             WHEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL) IS NOT NULL
-             THEN CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_stock') AS REAL)
-             ELSE 0
-        END as paper_stock,
-        COALESCE(CAST(JSON_EXTRACT(p.domain_attributes, '$.gst_purchase_price') AS REAL), pb_latest.purchase_price, CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_purchase_price') AS REAL)) as gst_purchase_price,
-        COALESCE(CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_mrp') AS REAL), pb_latest.selling_price, CAST(JSON_EXTRACT(p.domain_attributes, '$.paper_base_price') AS REAL)) as paper_mrp
-      FROM products p 
-      LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
-      LEFT JOIN (
-        SELECT product_id, SUM(quantity) as paper_in
-        FROM purchase_bill_items
-        WHERE skip_stock_update = 1 AND tenant_id = ?
-        GROUP BY product_id
-      ) pb_paper ON p.product_id = pb_paper.product_id
-      LEFT JOIN (
-        SELECT product_id, SUM(qty_from_paper_stock) as paper_out
-        FROM invoice_items
-        WHERE tenant_id = ?
-        GROUP BY product_id
-      ) inv_paper ON p.product_id = inv_paper.product_id
-      LEFT JOIN (
-        SELECT pbi.product_id, pbi.purchase_price, pbi.selling_price
-        FROM purchase_bill_items pbi
-        INNER JOIN (
-          SELECT product_id, MAX(rowid) as max_rowid
-          FROM purchase_bill_items
-          WHERE skip_stock_update = 1 AND tenant_id = ?
-          GROUP BY product_id
-        ) latest ON pbi.rowid = latest.max_rowid
-      ) pb_latest ON p.product_id = pb_latest.product_id
-      WHERE p.tenant_id = ? AND p.is_deleted = 0
-    `;
-    const params: unknown[] = [tenantId, tenantId, tenantId, tenantId];
-
-    if (isGst !== undefined) {
-       query += ' AND p.is_gst_applicable = ?';
-       params.push(isGst ? 1 : 0);
-    }
-
-    if (stockStatus && stockStatus !== 'all') {
-      if (stockStatus === 'low_stock' || stockStatus === 'low') {
-        query += ' AND p.current_stock <= p.reorder_level AND p.reorder_level > 0 AND p.current_stock > 0';
-      } else if (stockStatus === 'out_of_stock' || stockStatus === 'out') {
-        query += ' AND p.current_stock <= 0 AND COALESCE((COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)), CAST(JSON_EXTRACT(p.domain_attributes, \'$.paper_stock\') AS REAL), 0) <= 0';
-      } else if (stockStatus === 'in_stock' || stockStatus === 'in') {
-        query += ' AND (p.current_stock > 0 OR COALESCE((COALESCE(pb_paper.paper_in, 0) - COALESCE(inv_paper.paper_out, 0)), CAST(JSON_EXTRACT(p.domain_attributes, \'$.paper_stock\') AS REAL), 0) > 0)';
-      } else if (stockStatus === 'no_barcode' || stockStatus === 'no_code') {
-        query += " AND (p.sku_barcode IS NULL OR TRIM(p.sku_barcode) = '')";
-      }
-    }
-
-    if (barcode) {
-       const cleanBarcode = String(barcode).trim();
-       const cleanBarcodeNoSpace = cleanBarcode.replace(/\s+/g, '');
-       const cleanBarcodeClean = cleanBarcode.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-       if (cleanBarcodeClean.length > 0) {
-         query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR CLEAN_STR(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ? OR CLEAN_STR(p.item_code) = ?)';
-         params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcodeClean, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcodeClean);
-       } else {
-         query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR REPLACE(p.sku_barcode, \' \', \'\') = ? OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?) OR REPLACE(p.item_code, \' \', \'\') = ?)';
-         params.push(cleanBarcode, cleanBarcode, cleanBarcodeNoSpace, cleanBarcode, cleanBarcode, cleanBarcodeNoSpace);
-       }
-     } else if (search) {
-        const cond = buildProductSearchConditions(search, 'p.');
-        query += ` AND ${cond.sql}`;
-        params.push(...cond.params);
-     }
-
-     if (filterDate && String(filterDate).trim() !== '') {
-        const dateCol = dateField === 'updated_at' ? 'COALESCE(p.updated_at, p.created_at)' : 'p.created_at';
-        const cleanStart = parseCleanDate(filterDate);
-        const cleanEnd = (arg as ProductQueryArgs).filterDateEnd && String((arg as ProductQueryArgs).filterDateEnd).trim() !== '' ? parseCleanDate((arg as ProductQueryArgs).filterDateEnd as string) : cleanStart;
-        const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
-        query += ` AND (${dateCol} >= ? AND ${dateCol} <= ?)`;
-        params.push(startUtc, endUtc);
-     }
-
-     if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
-     else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
-     else if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
-     else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
-     else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
-     else if (search) {
-        const cleanSearch = String(search).trim();
-        const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
-        const cleanSearchClean = cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-        query += ` ORDER BY ` +
-          `CASE ` +
-            `WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? OR REPLACE(p.sku_barcode, ' ', '') = ? OR REPLACE(p.item_code, ' ', '') = ? OR CLEAN_STR(p.sku_barcode) = ? OR CLEAN_STR(p.item_code) = ? THEN 1 ` +
-            `WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 2 ` +
-            `WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? OR REPLACE(p.sku_barcode, ' ', '') LIKE ? OR REPLACE(p.item_code, ' ', '') LIKE ? OR CLEAN_STR(p.sku_barcode) LIKE ? OR CLEAN_STR(p.item_code) LIKE ? THEN 3 ` +
-            `WHEN LOWER(p.name) = LOWER(?) OR REPLACE(p.name, ' ', '') = ? OR CLEAN_STR(p.name) = ? THEN 4 ` +
-            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 5 ` +
-            `WHEN p.name LIKE ? OR REPLACE(p.name, ' ', '') LIKE ? OR CLEAN_STR(p.name) LIKE ? THEN 6 ` +
-            `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 7 ` +
-            `WHEN p.brand_manufacturer LIKE ? OR REPLACE(p.brand_manufacturer, ' ', '') LIKE ? OR CLEAN_STR(p.brand_manufacturer) LIKE ? THEN 8 ` +
-            `ELSE 9 ` +
-          `END ASC, ` +
-          `p.name COLLATE NOCASE ASC, ` +
-          `p.product_id ASC`;
-        params.push(
-          cleanSearch, cleanSearch, cleanSearchNoSpace, cleanSearchNoSpace, cleanSearchClean, cleanSearchClean,
-          `${cleanSearch}%`, `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`, `${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`, `%${cleanSearchClean}%`,
-          cleanSearch, cleanSearchNoSpace, cleanSearchClean,
-          `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`,
-          `${cleanSearch}%`, `${cleanSearchNoSpace}%`, `${cleanSearchClean}%`,
-          `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearchClean}%`
-        );
-     }
-    else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
-
-    if (limit) {
-       query += ' LIMIT ?';
-       params.push(limit);
-    }
-    if (offset) {
-       query += ' OFFSET ?';
-       params.push(offset);
-    }
-
-    return db.prepare(query).all(...params);
+    const dateRange = filterDate && String(filterDate).trim() !== ''
+      ? storeDateRangeUtc(filterDate, (arg as ProductQueryArgs).filterDateEnd, tenantId)
+      : null;
+    const { statement, params } = productsSql.getProductsStatement(db, { tenantId, limit, offset, search, sortBy, barcode, isGst, dateField, stockStatus, dateRange });
+    return statement.all(...params);
   } catch (error) {
     console.error('[db:getProducts]', error);
     return { error: 'Operation failed' };
@@ -180,42 +64,12 @@ export function getProductsCount(arg: string | ProductQueryArgs) {
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) return 0;
 
-    let query = 'SELECT COUNT(*) as count FROM products WHERE tenant_id = ? AND is_deleted = 0';
-    const params: unknown[] = [tenantId];
-    
-    if ((arg as ProductQueryArgs)?.search) {
-       const cond = buildProductSearchConditions((arg as ProductQueryArgs).search as string, '');
-       query += ` AND ${cond.sql}`;
-       params.push(...cond.params);
-    }
-
-    if ((arg as ProductQueryArgs)?.filterDate && String((arg as ProductQueryArgs).filterDate).trim() !== '') {
-       const dateCol = (arg as ProductQueryArgs)?.dateField === 'updated_at' ? 'COALESCE(updated_at, created_at)' : 'created_at';
-       const cleanStart = parseCleanDate((arg as ProductQueryArgs).filterDate as string);
-       const cleanEnd = (arg as ProductQueryArgs).filterDateEnd && String((arg as ProductQueryArgs).filterDateEnd).trim() !== '' ? parseCleanDate((arg as ProductQueryArgs).filterDateEnd as string) : cleanStart;
-       const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanStart, cleanEnd, tenantId);
-       query += ` AND (${dateCol} >= ? AND ${dateCol} <= ?)`;
-       params.push(startUtc, endUtc);
-    }
-
-    if ((arg as ProductQueryArgs)?.stockStatus && (arg as ProductQueryArgs).stockStatus !== 'all') {
-      if ((arg as ProductQueryArgs).stockStatus === 'low_stock' || (arg as ProductQueryArgs).stockStatus === 'low') {
-        query += ' AND current_stock <= reorder_level AND reorder_level > 0 AND current_stock > 0';
-      } else if ((arg as ProductQueryArgs).stockStatus === 'out_of_stock' || (arg as ProductQueryArgs).stockStatus === 'out') {
-        query += ' AND current_stock <= 0';
-      } else if ((arg as ProductQueryArgs).stockStatus === 'in_stock' || (arg as ProductQueryArgs).stockStatus === 'in') {
-        query += ' AND current_stock > 0';
-      } else if ((arg as ProductQueryArgs).stockStatus === 'no_barcode' || (arg as ProductQueryArgs).stockStatus === 'no_code') {
-        query += " AND (sku_barcode IS NULL OR TRIM(sku_barcode) = '')";
-      }
-    }
-
-    if ((arg as ProductQueryArgs)?.isGst !== undefined) {
-      query += ' AND is_gst_applicable = ?';
-      params.push((arg as ProductQueryArgs).isGst ? 1 : 0);
-    }
-
-    const result = db.prepare(query).get(...params) as { count: number };
+    const countArgs = arg as ProductQueryArgs;
+    const dateRange = countArgs?.filterDate && String(countArgs.filterDate).trim() !== ''
+      ? storeDateRangeUtc(countArgs.filterDate as string, countArgs.filterDateEnd, tenantId)
+      : null;
+    const { statement, params } = productsSql.getProductsCountStatement(db, tenantId, countArgs, dateRange);
+    const result = statement.get(...params) as { count: number };
     return result ? result.count : 0;
   } catch (error) {
     return 0;
