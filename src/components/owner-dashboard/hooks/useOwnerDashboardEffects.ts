@@ -27,7 +27,7 @@ export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
 
   useEffect(() => {
     if (!isDesktopRuntime() || !tenantId) return;
-    settingsApi.get({ tenant_id: tenantId || 'global', key: 'network_sync_config' }).then((cfg: any) => {
+    settingsApi.get({ tenant_id: tenantId || 'global', key: 'network_sync_config' }).then((cfg: { syncMode?: 'CLOUD' | 'LAN' | 'HYBRID' } | null) => {
       if (cfg && cfg.syncMode) setSyncMode(cfg.syncMode);
     }).catch(() => {});
   }, [tenantId, setSyncMode]);
@@ -62,7 +62,7 @@ export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
-    settingsApi.get({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+    settingsApi.get({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: unknown) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
   }, [tenantId, setEnableScrap]);
