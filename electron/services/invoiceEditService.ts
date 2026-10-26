@@ -6,6 +6,7 @@ import { localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { recentCheckoutsCache } from './invoiceCheckoutService.js';
+import type { CustomerRow, InvoiceItemRow, InvoiceRow, LoyaltyConfig, SettingRow, SplitDetails, UserRow } from './typesA.js';
 /** Changes to saved invoices: discounts, edits, payment updates, deletion. Called by electron/ipc handlers via invoicesService. */
 
 /** IPC `db:applyInvoiceDiscount` */
@@ -19,7 +20,7 @@ export function applyInvoiceDiscount({ invoice_id, discount_type, discount_value
       return { success: false, error: 'Admin access required to apply discounts' };
     }
     
-    const invoice = invoicesSql.findInvoicesByInvoiceIdSubtotalAndTaxTotal(db).get(invoice_id) as any;
+    const invoice = invoicesSql.findInvoicesByInvoiceIdSubtotalAndTaxTotal(db).get(invoice_id) as InvoiceRow | undefined;
     if (!invoice) return { success: false, error: 'Invoice not found' };
 
     let discount_total = 0;
@@ -68,6 +69,23 @@ export async function updateInvoice(payload: {
   scrap_invoice_number?: string;
   return_deduction?: number;
   return_invoice_number?: string;
+  created_at?: string;
+  split_details?: SplitDetails | string | null;
+  cgst_total?: number;
+  sgst_total?: number;
+  igst_total?: number;
+  supply_type?: string;
+  notes?: string | null;
+  description?: string | null;
+  points_earned?: number | null;
+  points_redeemed?: number | null;
+  points_redeemed_discount?: number | null;
+  previous_points_balance?: number | null;
+  remaining_points_balance?: number | null;
+  customer_id?: string | null;
+  is_staff?: boolean | number | null;
+  isStaffCustomer?: boolean;
+  staff_id?: string | null;
   items: Array<{
     item_id?: string;
     product_id: string;
@@ -77,6 +95,19 @@ export async function updateInvoice(payload: {
     tax_amount: number;
     total: number;
     isServiceItem?: boolean;
+    pieces_sold?: number | null;
+    pieces_override?: number | null;
+    billing_type?: string | null;
+    uom?: string | null;
+    unit?: string | null;
+    cgst_rate?: number | null;
+    sgst_rate?: number | null;
+    igst_rate?: number | null;
+    cgst_amount?: number | null;
+    sgst_amount?: number | null;
+    igst_amount?: number | null;
+    hsn_sac_code?: string | null;
+    supply_type?: string | null;
   }>;
 }) {
   // Permission check: allow ADMIN role OR staff with sales.edit permission
@@ -89,7 +120,7 @@ export async function updateInvoice(payload: {
   if (!isAdmin && !hasEditPerm && payload.user_id) {
     try {
       const db = getDb();
-      const u = invoicesSql.findUsersByUserId(db).get(payload.user_id) as any;
+      const u = invoicesSql.findUsersByUserId(db).get(payload.user_id) as UserRow | undefined;
       if (u) {
         const uRole = (u.role || '').toUpperCase();
         if (['ADMIN', 'SUPER_ADMIN', 'OWNER', 'ADMINISTRATOR'].includes(uRole)) hasDbPerm = true;
@@ -104,7 +135,7 @@ export async function updateInvoice(payload: {
   }
   const { items, ...invoice } = payload;
   const db = getDb();
-  const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as any;
+  const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as InvoiceRow | undefined;
   if (!existingInv) {
     return { success: false, error: 'Invoice not found' };
   }
@@ -115,7 +146,7 @@ export async function updateInvoice(payload: {
   const finalBalanceAmount = payload.balance_amount !== undefined ? payload.balance_amount : (existingInv?.balance_amount ?? null);
 
   // Deduplication guard: block duplicate update calls within a 4-second window for the same invoice
-  const itemsSig = (items || []).map((i: any) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
+  const itemsSig = (items || []).map((i) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
   const headerSig = JSON.stringify(invoice);
   const updateCacheKey = `update:${existingInv.tenant_id || payload.tenant_id}:${payload.invoice_id}:${invoice.grand_total}:${itemsSig}:${headerSig}`;
   const now = Date.now();
@@ -135,10 +166,10 @@ export async function updateInvoice(payload: {
     );
 
     // 1. Get old items for stock adjustment
-    const oldItems = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity2(db).all(payload.invoice_id) as any[];
+    const oldItems = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity2(db).all(payload.invoice_id) as InvoiceItemRow[];
 
-    const updatedCreatedAt = (invoice as any).created_at
-      ? (isNaN(new Date((invoice as any).created_at).getTime()) ? null : new Date((invoice as any).created_at).toISOString())
+    const updatedCreatedAt = invoice.created_at
+      ? (isNaN(new Date(invoice.created_at).getTime()) ? null : new Date(invoice.created_at).toISOString())
       : null;
 
     // 2. Update invoice header
@@ -147,22 +178,22 @@ export async function updateInvoice(payload: {
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
       invoice.grand_total, invoice.payment_method || 'PENDING',
       finalReceivedAmount, finalActualRefundPaid, finalBalanceAmount,
-      (invoice as any).split_details && typeof (invoice as any).split_details === 'object' ? JSON.stringify((invoice as any).split_details) : ((invoice as any).split_details && (invoice as any).split_details !== 'null' ? (invoice as any).split_details : null),
+      invoice.split_details && typeof invoice.split_details === 'object' ? JSON.stringify(invoice.split_details) : (invoice.split_details && invoice.split_details !== 'null' ? invoice.split_details : null),
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
       invoice.customer_address || null,
       invoice.scrap_deduction ?? 0, invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0, invoice.return_invoice_number || null,
       customerId || null,
-      (invoice as any).cgst_total ?? 0, (invoice as any).sgst_total ?? 0,
-      (invoice as any).igst_total ?? 0, (invoice as any).supply_type || 'INTRA',
-      (invoice as any).notes || (invoice as any).description || null,
-      (invoice as any).description || (invoice as any).notes || null,
-      (invoice as any).points_earned ?? null,
-      (invoice as any).points_redeemed ?? null,
-      (invoice as any).points_redeemed_discount ?? null,
-      (invoice as any).previous_points_balance ?? null,
-      (invoice as any).remaining_points_balance ?? null,
+      invoice.cgst_total ?? 0, invoice.sgst_total ?? 0,
+      invoice.igst_total ?? 0, invoice.supply_type || 'INTRA',
+      invoice.notes || invoice.description || null,
+      invoice.description || invoice.notes || null,
+      invoice.points_earned ?? null,
+      invoice.points_redeemed ?? null,
+      invoice.points_redeemed_discount ?? null,
+      invoice.previous_points_balance ?? null,
+      invoice.remaining_points_balance ?? null,
       updatedCreatedAt,
       payload.invoice_id
     );
@@ -183,18 +214,18 @@ export async function updateInvoice(payload: {
         item.unit_price ?? 0,
         item.tax_amount ?? 0,
         item.total ?? 0,
-        (item as any).pieces_sold ?? (item as any).pieces_override ?? null,
-        (item as any).isServiceItem ? 1 : 0,
-        (item as any).billing_type || null,
-        (item as any).uom || (item as any).unit || null,
-        (item as any).cgst_rate ?? 0,
-        (item as any).sgst_rate ?? 0,
-        (item as any).igst_rate ?? 0,
-        (item as any).cgst_amount ?? 0,
-        (item as any).sgst_amount ?? 0,
-        (item as any).igst_amount ?? 0,
-        (item as any).hsn_sac_code || null,
-        (item as any).supply_type || (invoice as any).supply_type || 'INTRA',
+        item.pieces_sold ?? item.pieces_override ?? null,
+        item.isServiceItem ? 1 : 0,
+        item.billing_type || null,
+        item.uom || item.unit || null,
+        item.cgst_rate ?? 0,
+        item.sgst_rate ?? 0,
+        item.igst_rate ?? 0,
+        item.cgst_amount ?? 0,
+        item.sgst_amount ?? 0,
+        item.igst_amount ?? 0,
+        item.hsn_sac_code || null,
+        item.supply_type || invoice.supply_type || 'INTRA',
       );
     }
 
@@ -203,7 +234,7 @@ export async function updateInvoice(payload: {
     const svcStmt = invoicesSql.findProductsByProductIdIsServiceItem(db);
     const isServiceItem = (pid: string) => {
       if (isServiceItemLookup[pid] === undefined) {
-        const row = svcStmt.get(pid) as any;
+        const row = svcStmt.get(pid) as { is_service_item?: number | boolean | null } | undefined;
         isServiceItemLookup[pid] = row ? !!row.is_service_item : false;
       }
       return isServiceItemLookup[pid];
@@ -235,48 +266,48 @@ export async function updateInvoice(payload: {
       payment_method: invoice.payment_method,
       received_amount: finalReceivedAmount,
       balance_amount: finalBalanceAmount,
-      customer_id: customerId || (payload as any).customer_id || (invoice as any).customer_id || existingInv.customer_id,
+      customer_id: customerId || payload.customer_id || invoice.customer_id || existingInv.customer_id,
       customer_name: invoice.customer_name,
       customer_phone: invoice.customer_phone,
       customer_address: invoice.customer_address,
       customer_gstin: invoice.customer_gstin,
-      split_details: (invoice as any).split_details || (payload as any).split_details || existingInv.split_details,
+      split_details: invoice.split_details || payload.split_details || existingInv.split_details,
       user_id: payload.role,
       user_name: payload.role,
       created_at: updatedCreatedAt || existingInv.created_at,
-      is_staff: Boolean((payload as any).is_staff || (payload as any).isStaffCustomer || existingInv.is_staff),
-      staff_id: (payload as any).staff_id || null,
+      is_staff: Boolean(payload.is_staff || payload.isStaffCustomer || existingInv.is_staff),
+      staff_id: payload.staff_id || null,
     });
     resetBackfillThrottle(); // reset so next db:getParties re-scans
 
     // Sync Loyalty Points on invoice update
-    const targetCustId = customerId || (payload as any).customer_id || (invoice as any).customer_id || existingInv.customer_id;
+    const targetCustId = customerId || payload.customer_id || invoice.customer_id || existingInv.customer_id;
     if (targetCustId) {
       try {
         const targetTenantId = payload.tenant_id || existingInv.tenant_id || 'global';
-        const lCfgRow: any = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(targetTenantId)
-          || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get();
-        let lCfg: any = null;
+        const lCfgRow: SettingRow | undefined = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(targetTenantId) as SettingRow | undefined
+          || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get() as SettingRow | undefined;
+        let lCfg: unknown = null;
         if (lCfgRow?.value) {
           lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
         }
-        const flagsRow: any = invoicesSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId)
-          || invoicesSql.findSettingsByKeyFeatureFlags2(db).get();
-        let flags: any = null;
+        const flagsRow: SettingRow | undefined = invoicesSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
+          || invoicesSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
+        let flags: unknown = null;
         if (flagsRow?.value) {
           flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
         }
-        const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
+        const isLoyaltyOn = Boolean((lCfg as Record<string, unknown>)?.enabled) || Boolean((flags as Record<string, unknown>)?.loyalty);
 
         if (isLoyaltyOn) {
-          const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
-          const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
+          const earningRate = Math.max(1, Number((lCfg as Record<string, unknown>)?.earningRate) || 100);
+          const awardOnPending = Boolean((lCfg as LoyaltyConfig)?.awardPointsOnPending);
           const newPaymentMethod = (invoice.payment_method || existingInv.payment_method || '').toUpperCase();
           const shouldEarn = newPaymentMethod !== 'PENDING' || awardOnPending;
 
           let targetPointsEarned: number;
-          if ((invoice as any).points_earned !== undefined && (invoice as any).points_earned !== null) {
-            targetPointsEarned = Number((invoice as any).points_earned) || 0;
+          if (invoice.points_earned !== undefined && invoice.points_earned !== null) {
+            targetPointsEarned = Number(invoice.points_earned) || 0;
           } else if (shouldEarn) {
             targetPointsEarned = Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / earningRate);
           } else {
@@ -287,7 +318,7 @@ export async function updateInvoice(payload: {
           const diffEarned = targetPointsEarned - prevEarned;
 
           if (diffEarned !== 0) {
-            const custRow: any = invoicesSql.findCustomersByCustomerIdCurrentPointsBalance(db).get(targetCustId);
+            const custRow: CustomerRow | undefined = invoicesSql.findCustomersByCustomerIdCurrentPointsBalance(db).get(targetCustId) as CustomerRow | undefined;
             const curBal = Number(custRow?.current_points_balance) || 0;
             const newBal = Math.max(0, curBal + diffEarned);
             const nowTs = localTimestamp();
@@ -323,8 +354,8 @@ export async function updateInvoice(payload: {
     transaction();
 
     const newCash = getCashAmountFromInvoice(payload);
-    const effectiveInvDate = (invoice as any).created_at
-      ? (isNaN(new Date((invoice as any).created_at).getTime()) ? existingInv.created_at : new Date((invoice as any).created_at).toISOString())
+    const effectiveInvDate = invoice.created_at
+      ? (isNaN(new Date(invoice.created_at).getTime()) ? existingInv.created_at : new Date(invoice.created_at).toISOString())
       : existingInv.created_at;
     if (existingInv) {
       adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, effectiveInvDate, oldCash, newCash);
@@ -354,11 +385,14 @@ export function updateInvoicePayment(payload: {
   payment_method: string;
   received_amount: number;
   balance_amount: number;
-  split_details?: any;
+  split_details?: SplitDetails | string | null;
+  is_staff?: boolean | number | null;
+  isStaffCustomer?: boolean;
+  staff_id?: string | null;
 }) {
   try {
     const db = getDb();
-    const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as any;
+    const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as InvoiceRow | undefined;
     if (!existingInv) {
       return { success: false, error: 'Invoice not found' };
     }
@@ -412,8 +446,8 @@ export function updateInvoicePayment(payload: {
       customer_gstin: existingInv.customer_gstin,
       split_details: payload.split_details ?? existingInv.split_details,
       created_at: existingInv.created_at,
-      is_staff: Boolean(existingInv.is_staff || (payload as any).is_staff),
-      staff_id: (payload as any).staff_id || null,
+      is_staff: Boolean(existingInv.is_staff || payload.is_staff),
+      staff_id: payload.staff_id || null,
     });
     resetBackfillThrottle(); // reset so next db:getParties re-scans
 
@@ -423,24 +457,24 @@ export function updateInvoicePayment(payload: {
       if (newPm !== 'PENDING') {
         try {
           const targetTenantId = existingInv.tenant_id || payload.tenant_id || 'global';
-          const lCfgRow: any = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(targetTenantId)
-            || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get();
-          let lCfg: any = null;
+          const lCfgRow: SettingRow | undefined = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(targetTenantId) as SettingRow | undefined
+            || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get() as SettingRow | undefined;
+          let lCfg: unknown = null;
           if (lCfgRow?.value) {
             lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
           }
-          const flagsRow: any = invoicesSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId)
-            || invoicesSql.findSettingsByKeyFeatureFlags2(db).get();
-          let flags: any = null;
+          const flagsRow: SettingRow | undefined = invoicesSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
+            || invoicesSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
+          let flags: unknown = null;
           if (flagsRow?.value) {
             flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
           }
-          const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
+          const isLoyaltyOn = Boolean((lCfg as Record<string, unknown>)?.enabled) || Boolean((flags as Record<string, unknown>)?.loyalty);
           if (isLoyaltyOn) {
-            const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
+            const earningRate = Math.max(1, Number((lCfg as Record<string, unknown>)?.earningRate) || 100);
             const ptsEarned = Math.floor(Math.max(0, Number(existingInv.grand_total) || 0) / earningRate);
             if (ptsEarned > 0) {
-              const custRow: any = invoicesSql.findCustomersByCustomerIdCurrentPointsBalance(db).get(existingInv.customer_id);
+              const custRow: CustomerRow | undefined = invoicesSql.findCustomersByCustomerIdCurrentPointsBalance(db).get(existingInv.customer_id) as CustomerRow | undefined;
               const prevBal = Number(custRow?.current_points_balance) || 0;
               const newBal = prevBal + ptsEarned;
               const nowTimestamp = localTimestamp();
@@ -487,17 +521,17 @@ export function updateInvoicePayment(payload: {
 export function deleteInvoice(invoice_id: string) {
   try {
     const db = getDb();
-    const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as any;
+    const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
     const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
 
     db.transaction(() => {
-      const inv = invoicesSql.findInvoicesByInvoiceId3(db).get(invoice_id) as any;
+      const inv = invoicesSql.findInvoicesByInvoiceId3(db).get(invoice_id) as InvoiceRow;
 
       // A conversion copy never moved stock — do NOT restore it (would double stock).
       // The superseded BoS owns the deduction.
       const isConversionCopy = !!(inv && inv.converted_from_invoice_id);
 
-      const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity3(db).all(invoice_id) as any[];
+      const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity3(db).all(invoice_id) as InvoiceItemRow[];
       const restoreStockStmt = invoicesSql.updateProductCurrentStockCurrentStock4(db);
       if (!isConversionCopy) {
         for (const item of items) {
@@ -530,11 +564,11 @@ export function deleteInvoice(invoice_id: string) {
     }
 
     if (existingInv) {
-      adjustPaymentSourcesForInvoice(db, existingInv.tenant_id, existingInv, true);
+      adjustPaymentSourcesForInvoice(db, existingInv.tenant_id as string, existingInv, true);
     }
 
     if (existingInv && oldCash > 0) {
-      adjustCashDrawerForInvoice(db, existingInv.tenant_id, existingInv.created_at, oldCash, 0);
+      adjustCashDrawerForInvoice(db, existingInv.tenant_id as string, existingInv.created_at as string, oldCash, 0);
     }
 
     return { success: true };

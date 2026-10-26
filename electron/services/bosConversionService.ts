@@ -1,3 +1,4 @@
+import type { DomainAttributes, InvoiceItemRow, InvoiceRow, ProductRow, PurchaseBillItemRow, SeriesSetting, SettingRow } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { getGuaranteedNextInvoiceNumber, peekGuaranteedNextInvoiceNumber, requestServerInvoiceNumber } from './invoiceNumberService.js';
 import crypto from 'node:crypto';
@@ -12,16 +13,16 @@ export function previewConvertBosToGst(payload: {
 }) {
   try {
     const db = getDb();
-    const parseSetting = (row: any): any => {
+    const parseSetting = (row: SettingRow | null | undefined): unknown => {
       if (!row) return null;
       try { return JSON.parse(row.value); } catch { return row.value; }
     };
 
-    const profitPctRow: any = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_profit_percentage');
-    const profitPercentage = profitPctRow ? Number(parseSetting(profitPctRow) || 0) || 30 : 30;
+    const profitPctRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_profit_percentage') as SettingRow | undefined;
+    const profitPercentage = profitPctRow ? Number((parseSetting(profitPctRow) as number) || 0) || 30 : 30;
     const multiplier = 1 + (profitPercentage / 100);
 
-    const taxInclusiveRow: any = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_conversion_tax_inclusive');
+    const taxInclusiveRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_conversion_tax_inclusive') as SettingRow | undefined;
     const isTaxInclusive = payload.tax_mode ? (payload.tax_mode === 'INCLUSIVE') : Boolean(taxInclusiveRow ? parseSetting(taxInclusiveRow) : false);
 
     let totalBosAmount = 0;
@@ -49,11 +50,11 @@ export function previewConvertBosToGst(payload: {
     }> = [];
 
     for (const invoice_id of payload.invoice_ids) {
-      const inv: any = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id);
+      const inv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
       if (!inv) continue;
       const tid = inv.tenant_id || payload.tenant_id || 'global';
 
-      const items: any[] = invoicesSql.findInvoiceItemsByInvoiceId3(db).all(invoice_id);
+      const items = invoicesSql.findInvoiceItemsByInvoiceId3(db).all(invoice_id) as InvoiceItemRow[];
       let newSubtotal = 0;
       let newTotalTax = 0;
       let hasRealGst = false;
@@ -63,7 +64,7 @@ export function previewConvertBosToGst(payload: {
 
       for (const item of items) {
         const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
-        const gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as any;
+        const gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as ProductRow | undefined;
 
         if (!gstProduct) {
           skippedItems.push(item.name || item.product_id);
@@ -72,9 +73,9 @@ export function previewConvertBosToGst(payload: {
 
         const originalQty = Number(item.quantity) || 0;
 
-        const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as any[];
+        const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as PurchaseBillItemRow[];
 
-        let da: Record<string, any> = {};
+        let da: DomainAttributes = {};
         try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch { /* ignore */ }
 
         const isRealGstProduct = gstProduct.is_gst_applicable === 1 && da.gst_type !== 'PAPER';
@@ -94,7 +95,7 @@ export function previewConvertBosToGst(payload: {
           continue;
         }
 
-        const gstSoldRow = invoicesSql.findInvoiceItemsByProductIdAndInvoiceType(db).get(gstProduct.product_id, tid, invoice_id) as any;
+        const gstSoldRow = invoicesSql.findInvoiceItemsByProductIdAndInvoiceType(db).get(gstProduct.product_id, tid, invoice_id) as { total_gst_sold?: number | string | null } | undefined;
         const totalGstSold = gstSoldRow ? Number(gstSoldRow.total_gst_sold) : 0;
 
         let remainingSold = totalGstSold;
@@ -301,22 +302,22 @@ export async function convertBosToGst(payload: {
     const db = getDb();
 
     // Some settings are stored raw (server-synced) and some JSON-encoded — parse both.
-    const parseSetting = (row: any): any => {
+    const parseSetting = (row: SettingRow | null | undefined): unknown => {
       if (!row) return null;
       try { return JSON.parse(row.value); } catch { return row.value; }
     };
 
     // Get shop state
-    const shopStateRow: any = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'shop_state');
-    const shopState: string = shopStateRow ? (parseSetting(shopStateRow) || 'KL') : 'KL';
+    const shopStateRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'shop_state') as SettingRow | undefined;
+    const shopState: string = shopStateRow ? ((parseSetting(shopStateRow) as string) || 'KL') : 'KL';
 
     // Get profit percentage
-    const profitPctRow: any = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_profit_percentage');
-    const profitPercentage = profitPctRow ? Number(parseSetting(profitPctRow) || 0) || 30 : 30;
+    const profitPctRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_profit_percentage') as SettingRow | undefined;
+    const profitPercentage = profitPctRow ? Number((parseSetting(profitPctRow) as number) || 0) || 30 : 30;
     const multiplier = 1 + (profitPercentage / 100);
 
     // Get tax inclusive setting
-    const taxInclusiveRow: any = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_conversion_tax_inclusive');
+    const taxInclusiveRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'gst_conversion_tax_inclusive') as SettingRow | undefined;
     const isTaxInclusive = payload.tax_mode ? (payload.tax_mode === 'INCLUSIVE') : Boolean(taxInclusiveRow ? parseSetting(taxInclusiveRow) : false);
 
     const results: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string }[] = [];
@@ -324,19 +325,19 @@ export async function convertBosToGst(payload: {
     for (const invoice_id of payload.invoice_ids) {
       // Look up invoice number first so it's available even if the transaction fails
       let invoiceNumber = '';
-      const invLookup: any = invoicesSql.findInvoicesByInvoiceIdInvoiceNumberAndInvoiceType(db).get(invoice_id);
+      const invLookup = invoicesSql.findInvoicesByInvoiceIdInvoiceNumberAndInvoiceType(db).get(invoice_id) as InvoiceRow | undefined;
       if (invLookup) {
         invoiceNumber = invLookup.invoice_number;
       }
 
       try {
-        const numberInvoice: any = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id);
+        const numberInvoice = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
         let preallocatedInvoiceNumber = '';
         if (numberInvoice && numberInvoice.invoice_type !== 'GST' && !numberInvoice.converted_to_invoice_id) {
           const numberTid = numberInvoice.tenant_id || payload.tenant_id || 'global';
-          const numberTripleRow: any = invoicesSql.findSettingsByKey(db).get(numberTid, 'three_invoice_series')
-            || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series');
-          const numberTriple = numberTripleRow ? parseSetting(numberTripleRow) : null;
+          const numberTripleRow: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(numberTid, 'three_invoice_series') as SettingRow | undefined
+            || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow | undefined;
+          const numberTriple = numberTripleRow ? (parseSetting(numberTripleRow) as SeriesSetting) : null;
           const numberIsB2B = Boolean(numberInvoice.customer_gstin && String(numberInvoice.customer_gstin).trim() !== '');
           const numberSeries = numberTriple?.enabled ? (numberIsB2B ? 'gst_b2b' : 'gst_b2c') : 'gst';
           const numberConfigKey = numberSeries === 'gst_b2b' ? 'gst_b2b_invoice_counter_config'
@@ -349,7 +350,7 @@ export async function convertBosToGst(payload: {
 
         const invoice = db.transaction(() => {
           // Get the invoice
-          const inv: any = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id);
+          const inv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
           if (!inv) throw new Error('Invoice not found');
           if (inv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
           if (inv.converted_to_invoice_id) throw new Error('Invoice is already converted');
@@ -358,9 +359,9 @@ export async function convertBosToGst(payload: {
           const oldInvoiceNumber = inv.invoice_number;
 
           // Check if three invoice series is enabled
-          const tripleSeriesRow: any = invoicesSql.findSettingsByKey(db).get(tid, 'three_invoice_series')
-            || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series');
-          const tripleSeries = tripleSeriesRow ? parseSetting(tripleSeriesRow) : null;
+          const tripleSeriesRow: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(tid, 'three_invoice_series') as SettingRow | undefined
+            || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow | undefined;
+          const tripleSeries = tripleSeriesRow ? (parseSetting(tripleSeriesRow) as SeriesSetting) : null;
 
           const isB2B = Boolean(inv.customer_gstin && inv.customer_gstin.trim() !== '');
           let configKey = 'gst_invoice_counter_config';
@@ -369,9 +370,9 @@ export async function convertBosToGst(payload: {
             configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
           } else {
             // Dedicated GST counter so GST invoices NEVER steal or continue regular Bill of Supply numbers
-            const dualSeriesRow2: any = invoicesSql.findSettingsByKey(db).get(tid, 'dual_invoice_series')
-              || invoicesSql.findSettingsByKey(db).get('global', 'dual_invoice_series');
-            const dualSeries2 = dualSeriesRow2 ? parseSetting(dualSeriesRow2) : null;
+            const dualSeriesRow2: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(tid, 'dual_invoice_series') as SettingRow | undefined
+              || invoicesSql.findSettingsByKey(db).get('global', 'dual_invoice_series') as SettingRow | undefined;
+            const dualSeries2 = dualSeriesRow2 ? (parseSetting(dualSeriesRow2) as SeriesSetting) : null;
             if (dualSeries2 && dualSeries2.enabled) {
               configKey = 'gst_invoice_counter_config';
             } else {
@@ -384,7 +385,7 @@ export async function convertBosToGst(payload: {
             : getGuaranteedNextInvoiceNumber(db, tid, configKey);
 
           // Get invoice items
-          const items: any[] = invoicesSql.findInvoiceItemsByInvoiceId3(db).all(invoice_id);
+          const items = invoicesSql.findInvoiceItemsByInvoiceId3(db).all(invoice_id) as InvoiceItemRow[];
 
           let newSubtotal = 0;
           let newTotalTax = 0;
@@ -393,7 +394,7 @@ export async function convertBosToGst(payload: {
 
           for (const item of items) {
             const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
-            const gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as any;
+            const gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as ProductRow | undefined;
 
             if (!gstProduct) {
               skippedItems.push(`${item.name || item.product_id} (Product not found)`);
@@ -404,9 +405,9 @@ export async function convertBosToGst(payload: {
 
             // ─── Compute available GST stock WITH rates from all GST purchase bills (FIFO) ───
             // Includes both Real GST purchases (skip_stock_update = 0) and Paper GST purchases (skip_stock_update = 1)
-            const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as any[];
+            const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as PurchaseBillItemRow[];
 
-            let da: Record<string, any> = {};
+            let da: DomainAttributes = {};
             try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch { /* ignore */ }
 
             // A product is Real GST if is_gst_applicable is 1 and its gst_type is not explicitly PAPER
@@ -427,7 +428,7 @@ export async function convertBosToGst(payload: {
             }
 
             // Total GST quantity already sold on existing GST invoices
-            const gstSoldRow = invoicesSql.findInvoiceItemsByProductIdAndInvoiceType(db).get(gstProduct.product_id, tid, invoice_id) as any;
+            const gstSoldRow = invoicesSql.findInvoiceItemsByProductIdAndInvoiceType(db).get(gstProduct.product_id, tid, invoice_id) as { total_gst_sold?: number | string | null } | undefined;
             const totalGstSold = gstSoldRow ? Number(gstSoldRow.total_gst_sold) : 0;
 
             // Calculate remaining qty per purchase bill item (FIFO consumption)
@@ -568,7 +569,7 @@ export async function convertBosToGst(payload: {
 
             copyItems.push({
               item_id: crypto.randomUUID(),
-              source_item_id: item.item_id,
+              source_item_id: item.item_id as string,
               product_id: gstProduct.product_id,
               name: gstProduct.name,
               quantity: qtyToConvert,
