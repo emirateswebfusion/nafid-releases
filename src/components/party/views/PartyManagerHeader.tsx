@@ -67,7 +67,7 @@ export function PartyManagerHeader({
               </div>
               <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
                 {view === 'list'
-                  ? `${parties.length} ${parties.length === 1 ? 'party' : 'parties'} · Track balances &amp; payments`
+                  ? `${parties.length} ${parties.length === 1 ? 'party' : 'parties'} · Track balances & payments`
                   : view === 'party_form'
                   ? 'Fill in party details below'
                   : `Recording transaction for ${selectedParty?.name || 'Party'}`}
