@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   setViewingLedgerVoucher: vi.fn(),
 }));
 
-vi.mock('../../src/data/client', () => ({
+vi.mock('../../src/data/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/data/client')>()),
   hasBridge: (channel: string) => channel === 'dbGetScrapInvoiceByNumber',
 }));
 vi.mock('../../src/data/invoices', () => ({ invoicesApi: { getInvoices: vi.fn() } }));
