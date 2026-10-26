@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, nativeImage } from 'electron';
+import { app, BrowserWindow, session, nativeImage, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
@@ -224,6 +224,26 @@ function createWindow(): BrowserWindow {
         });
       }
     }
+  });
+
+  // Navigation guard: the main window only ever shows the app. Pop-ups are the blank print windows the renderer writes
+  // into (sandboxed, without the preload bridge); web links (e.g. WhatsApp) open in the system browser; anything else is
+  // refused, so injected content cannot load remote pages with the app's privileges.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === '' || url === 'about:blank') {
+      return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+    }
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    const current = win.webContents.getURL();
+    try {
+      if (new URL(url).origin === new URL(current).origin && !url.startsWith('file:')) return;
+    } catch { /* unparsable URL: refuse below */ }
+    if (url.startsWith('file:') && current.startsWith('file:')) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
   });
 
   win.webContents.on('render-process-gone', (_event, details) => {
