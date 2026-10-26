@@ -6,7 +6,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tree = path.resolve(process.argv[2]);
@@ -49,13 +49,13 @@ const idsOf = (body: any): string[] => {
 const handlers: Map<string, Function> = ((globalThis as any).__handlers ||= new Map());
 const realErr = console.error;
 console.log = () => {}; console.warn = () => {}; console.error = () => {};
-const { initDb, getDb } = await import(path.join(tree, 'electron/db/localDb.ts'));
+const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
-const ipc = await import(path.join(tree, 'electron/ipc/index.ts'));
+const ipc = await import(pathToFileURL(path.join(tree, 'electron/ipc/index.ts')).href);
 ipc.registerAllIpcHandlers();
 const event = { sender: { send() {}, isDestroyed: () => false } };
 const call = async (ch: string, ...args: unknown[]) => { const fn = handlers.get(ch); return fn ? fn(event, ...args) : undefined; };
-const scenario = await import(path.join(here, 'scenario.mts'));
+const scenario = await import(pathToFileURL(path.join(here, 'scenario.mts')).href);
 await scenario.default(call, []);
 
 const tables = (getDb().prepare(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`).all() as { name: string }[]).map(t => t.name);

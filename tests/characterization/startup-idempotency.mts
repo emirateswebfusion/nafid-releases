@@ -4,6 +4,7 @@
 // runs initDb() three times and fails when the third start writes anything (the second may still normalise rows the
 // first one created, e.g. ISO timestamps of backfilled parties; a repair that rewrites rows every start shows up in both).
 // Usage: EQ_USERDATA=<fresh dir> npx tsx startup-idempotency.mts <tree>
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -35,7 +36,7 @@ Database.prototype.exec = function (sql: string) {
   return r;
 };
 
-const { initDb, getDb } = await import(path.join(tree, 'electron/db/localDb.ts'));
+const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
 const db = getDb();
 const T = 'tenant-1';

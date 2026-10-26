@@ -6,7 +6,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const [mode, treeArg, portArg, keyArg, outArg] = process.argv.slice(2);
@@ -15,14 +15,14 @@ const port = Number(portArg);
 const handlers: Map<string, Function> = ((globalThis as any).__handlers ||= new Map());
 const realLog = console.error;
 console.log = () => {}; console.warn = () => {}; console.error = () => {};
-const { initDb, getDb } = await import(path.join(tree, 'electron/db/localDb.ts'));
+const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
-(await import(path.join(tree, 'electron/ipc/index.ts'))).registerAllIpcHandlers();
+(await import(pathToFileURL(path.join(tree, 'electron/ipc/index.ts')).href)).registerAllIpcHandlers();
 const event = { sender: { send() {}, isDestroyed: () => false } };
 const call = async (ch: string, ...args: unknown[]) => handlers.get(ch)!(event, ...args);
 
 if (mode === 'primary') {
-  const scenario = await import(path.join(here, 'scenario.mts'));
+  const scenario = await import(pathToFileURL(path.join(here, 'scenario.mts')).href);
   await scenario.default(call, []);
   await call('settings:set', { tenant_id: 'global', key: 'network_sync_config', value: { syncMode: 'LAN', lanRole: 'PRIMARY', lanHostIp: '127.0.0.1', lanPort: port, syncFrequency: 'NORMAL' } });
   const cfg = JSON.parse((getDb().prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND tenant_id = 'global'`).get() as { value: string }).value);

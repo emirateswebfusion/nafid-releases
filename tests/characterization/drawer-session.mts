@@ -2,10 +2,11 @@
 // including after midnight; a drawer from an earlier day must be closed before today's opens; drawers closed before
 // sessions existed keep their totals; auto close (off by default) closes overdue drawers and can be snoozed.
 // Usage: EQ_USERDATA=<fresh dir> npx tsx drawer-session.mts <tree>
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const [tree] = process.argv.slice(2);
-const load = (p: string) => import(path.join(tree, p));
+const load = (p: string) => import(pathToFileURL(path.join(tree, p)).href);
 const { initDb, getDb } = await load('electron/db/localDb.ts');
 initDb();
 const db = getDb();

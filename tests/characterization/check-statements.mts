@@ -4,11 +4,12 @@
  * fragments. Usage: EQ_USERDATA=<empty dir> npx tsx check-statements.mts <treeRoot>
  */
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const tree = path.resolve(process.argv[2]);
 console.log = () => {}; console.warn = () => {};
-const { initDb, getDb } = await import(path.join(tree, 'electron/db/localDb.ts'));
+const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
 const db = getDb();
 const dir = path.join(tree, 'electron/db/statements');
@@ -20,12 +21,13 @@ const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE ten
   tableRowsQuery: ['invoices', ['updated_at', 'created_at'], '2026-01-01 00:00:00', 10, 0],
   upsertRows: ['settings', ['tenant_id', 'key', 'value'], ['tenant_id', 'key'], ['value']], countPendingRows: [['products', 'invoices']],
   updateCustomerProfile: [['gstin', 'notes', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry']],
+  withSyncApplyGuard: [() => undefined], buildOutboxTriggerStatements: [['products']], listPendingOps: [10],
   updatePartyProfile: [['pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'party_type', 'custom_category', 'whatsapp_alerts_enabled']] };
 let ok = 0; const bad: string[] = [];
 const files = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(path.join(d, e.name)).map((x) => path.join(e.name, x)) : [e.name]);
 for (const f of files(dir).filter((f) => f.endsWith('.ts') && f !== 'types.ts')) {
   const src = fs.readFileSync(path.join(dir, f), 'utf8');
-  const mod = await import(path.join(dir, f));
+  const mod = await import(pathToFileURL(path.join(dir, f)).href);
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn !== 'function') continue;
     const params = (src.match(new RegExp(`export (?:const ${name} = \\(|function ${name}\\()db: Db, ([^)]*?)\\)(?: =>| \\{|:)`))?.[1] ?? '').split(',').map((s) => s.trim().split(':')[0]).filter(Boolean);

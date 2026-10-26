@@ -2,10 +2,11 @@
 // a failing one rolls back and is retried, versions are unique. Also checks every released migration applies on top
 // of the startup baseline of a fresh database.
 // Usage: EQ_USERDATA=<fresh dir> npx tsx migrations.mts <tree>
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const [tree] = process.argv.slice(2);
-const load = (p: string) => import(path.join(tree, p));
+const load = (p: string) => import(pathToFileURL(path.join(tree, p)).href);
 const { initDb, getDb } = await load('electron/db/localDb.ts');
 const { runMigrations } = await load('electron/db/migrations/runner.ts');
 const { MIGRATIONS } = await load('electron/db/migrations/index.ts');

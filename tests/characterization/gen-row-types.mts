@@ -4,11 +4,12 @@
 // Columns are typed by SQLite affinity (INTEGER / REAL / NUMERIC -> number, everything else -> string) and allow null
 // unless declared NOT NULL or part of the primary key.
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const [tree, out] = process.argv.slice(2);
 console.log = () => {}; console.warn = () => {};
-const { initDb, getDb } = await import(path.join(tree, 'electron/db/localDb.ts'));
+const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
 const db = getDb();
 

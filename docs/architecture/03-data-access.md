@@ -61,7 +61,12 @@ const inv = await scrapApi.getScrapInvoiceByNumber({ tenant_id, scrap_invoice_nu
    `event` (e.g. to stream progress to `event.sender`) may use `ipcMain.handle` directly.
 2. **Register** — only if you created a new handler file: add it to `electron/ipc/index.ts`.
 3. **Preload** — `electron/preload.ts`: `dbDoThing: (payload: …) => ipcRenderer.invoke('db:doThing', payload)`.
-4. **Type** — `src/global.d.ts` → `IElectronAPI.dbDoThing: (payload: …) => Promise<…>` (no new `any`).
+4. **Type** — `src/global.d.ts` → `IElectronAPI.dbDoThing: (payload: …) => Promise<…>`. Inputs the service validates
+   are `unknown`; the output is a type from `src/data/`: a generated row (`Rows.XxxRow` from `src/data/dbRows.ts`) or a
+   shape defined next to the domain catalog that `extends` / `Pick`s rows for joined or aliased columns (e.g. `Product`,
+   `Invoice`, `PurchaseSearchProduct`, `DeletedProduct`). Derive it from the SQL that produces the value. Never `any`;
+   never import `electron/` types into `src/`. After a schema change regenerate the rows with
+   `tests/characterization/gen-row-types.mts` (see `tests/characterization/README.md`).
 5. **Repository** — add `doThing: 'dbDoThing'` to the domain's `bindBridge({...})` in `src/data/<domain>.ts`
    (or a typed wrapper function next to it). UI code calls `<domain>Api.doThing(...)`.
 

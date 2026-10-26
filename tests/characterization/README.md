@@ -29,9 +29,31 @@ node $H/compare.mjs base.json cand.json
 EQ_USERDATA=/tmp/eq/db-chk npx tsx $H/check-statements.mts cand
 ```
 
-On Windows, `await import()` of an absolute `C:\...` path fails (`ERR_UNSUPPORTED_ESM_URL_SCHEME`): run under WSL, or in a
-scratch copy wrap the three `path.join(...)` imports in `pathToFileURL(...).href`, and set
-`NODE_PATH=<eq>/node_modules;<pos repo>/node_modules` so main-process dependencies resolve.
+### Windows (Git Bash)
+
+The scripts import trees through `pathToFileURL`, so they run on Windows as they are. Use the same workdir as above
+under `%TEMP%` (only `tsx` and the `electron` stub are needed there) and point `NODE_PATH` at both `node_modules`
+folders so main-process dependencies resolve. The repo's better-sqlite3 must be the **Node** build: after
+`npm run rebuild` (Electron build, used by `npm run dev`) the harnesses fail with `NODE_MODULE_VERSION`; reinstall the
+Node build before running them (`cd node_modules/better-sqlite3 && npx prebuild-install`, or keep a copy of the Node
+`build/Release/better_sqlite3.node` and copy it back), and run `npm run rebuild` again before `npm run dev`.
+
+```bash
+H="C:/<path>/nafid-pos/tests/characterization"; EQ="$TEMP/nafid-eq"; cd "$EQ"
+export NODE_PATH="$EQ/node_modules;C:/<path>/nafid-pos/node_modules"
+EQ_USERDATA="$EQ/u1" npx tsx "$H/run.mts" cand cand.json
+```
+
+### Which harness for which change
+
+| Change | Run |
+|---|---|
+| `electron/ipc`, `electron/services`, `electron/db/statements` | `run.mts` (base vs cand) and `check-statements.mts` |
+| `electron/sync/*`, server sync routes | `sync-run.mts` (login and `EQ_NO_LOGIN=1`), `lan-run.mts` |
+| `electron/db/localDb.ts`, `migrations*.ts`, startup repairs | `startup-idempotency.mts`, `migrations.mts` |
+| A new migration | `migrations.mts`, then regenerate row types: `EQ_USERDATA=<empty> npx tsx $H/gen-row-types.mts cand <pos repo>/src/data/dbRows.ts` |
+| Cash drawer rules | `drawer-session.mts` |
+| Emergency purge | `emergency-run.mts` |
 
 Use a fresh `EQ_USERDATA` directory per run, and run baseline and candidate back to back: a few handlers have
 time-window guards (e.g. duplicate-request blocking), so a much slower run can differ for timing reasons only. Last result (22 Oct 2026, refactor branch vs `HEAD`): 1,527 calls over 224 handlers, 0 differences. On 23 Oct (sync placeholder fix): 1,519 calls over 223 handlers; 13 intended differences in

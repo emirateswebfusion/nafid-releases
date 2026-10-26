@@ -4,6 +4,7 @@
  * setting is ignored. Usage: EQ_USERDATA=<empty dir> npx tsx emergency-run.mts <treeRoot> <out.json>
  */
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -38,11 +39,11 @@ const requests: string[] = [];
 const handlers: Map<string, Function> = ((globalThis as any).__handlers ||= new Map());
 const realErr = console.error;
 console.log = () => {}; console.warn = () => {}; console.error = () => {};
-const { initDb, getDb } = await import(path.join(tree, 'electron/db/localDb.ts'));
+const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
-(await import(path.join(tree, 'electron/ipc/index.ts'))).registerAllIpcHandlers();
+(await import(pathToFileURL(path.join(tree, 'electron/ipc/index.ts')).href)).registerAllIpcHandlers();
 const call = async (ch: string, ...args: unknown[]) => handlers.get(ch)!({ sender: { send() {}, isDestroyed: () => false } }, ...args);
-const { localSaveUser } = await import(path.join(tree, 'electron/services/localAuthService.ts'));
+const { localSaveUser } = await import(pathToFileURL(path.join(tree, 'electron/services/localAuthService.ts')).href);
 localSaveUser({ user_id: 'admin1', tenant_id: 't1', name: 'Owner', email: 'owner@shop.in', password_hash: bcrypt.hashSync('owner-pass', 4), role: 'ADMIN' });
 localSaveUser({ user_id: 'staff1', tenant_id: 't1', name: 'Biller', email: 'biller@shop.in', password_hash: bcrypt.hashSync('staff-pass', 4), role: 'STAFF' });
 await call('db:addProduct', { product_id: 'p1', tenant_id: 't1', name: 'Rod', base_price: 100, purchase_price: 70, is_gst_applicable: 1, tax_rate_percent: 18, uom: 'Pcs', current_stock: 10, reorder_level: 1, hsn_sac_code: '7308', category: 'G', domain_attributes: {} });
