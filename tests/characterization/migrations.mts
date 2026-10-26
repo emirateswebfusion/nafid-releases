@@ -64,6 +64,8 @@ check('business update stores terminal origin on row', (db.prepare('SELECT origi
 
 db.prepare("UPDATE products SET sync_status = 'PENDING' WHERE product_id = ?").run(productId);
 check('sync_status-only update records no op', productOps().length, 2);
+db.prepare('UPDATE products SET name = ?, base_price = base_price WHERE product_id = ?').run('Updated outbox test', productId);
+check('same-value business update records no op (balance recalculations)', productOps().length, 2);
 db.prepare("UPDATE products SET updated_at = '2026-10-26T00:00:00.000Z' WHERE product_id = ?").run(productId);
 check('updated_at-only update records no op', productOps().length, 2);
 
