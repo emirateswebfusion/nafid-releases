@@ -4,6 +4,7 @@ import { BATCH_SIZE, FETCH_TIMEOUT_MS, parseIsDeleted, toSqliteDate } from '../s
 import { notifyPullProgress } from '../syncProgress.js';
 import { clearAuthAndNotify, fetchWithFallback, pullPaginated, pushBatch, reconcilePending, syncPushBody } from '../syncTransport.js';
 import * as partiesSyncSql from '../../db/statements/sync/partiesSync.js';
+import { withSyncApplyGuard } from '../../db/statements/outbox.js';
 
 /** Parties sync: parties, party ledger, customers, loyalty transactions and users (push and pull). */
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
@@ -63,7 +64,7 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
       }
     });
 
-    tx(cloudUsers);
+    withSyncApplyGuard(db, () => tx(cloudUsers));
     if (hasChanged) {
       lastUsersHash = currentHash;
       console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);

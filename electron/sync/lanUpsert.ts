@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import * as lanUpsertSql from '../db/statements/sync/lanUpsert.js';
+import { withSyncApplyGuard } from '../db/statements/outbox.js';
 
 /** LAN host data merge: table metadata (cached per table) and the row upsert used by the LAN push endpoints. */
 function parseCleanDate(dStr: unknown): string {
@@ -364,6 +365,6 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
     }
   });
 
-  tx(items);
+  withSyncApplyGuard(db, () => tx(items));
   return syncedIds;
 }

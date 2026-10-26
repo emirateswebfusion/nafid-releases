@@ -1,8 +1,8 @@
 # 7. Sync outbox design (proposal)
 
-Status: **proposal, not implemented**. Today's sync is pinned by `tests/characterization/sync-run.mts` (cloud push / pull,
-login and no-login) and `lan-run.mts` (LAN primary / secondary); any change below must keep those green or update their
-goldens in a reviewed diff. File references are to `nafid-pos` unless prefixed with `server:` (`nafid-server`).
+Status: **rollout steps 1 and 2 implemented**. Today's sync is pinned by `tests/characterization/sync-run.mts` (cloud
+push / pull, login and no-login) and `lan-run.mts` (LAN primary / secondary); any change below must keep those green or
+update their goldens in a reviewed diff. File references are to `nafid-pos` unless prefixed with `server:` (`nafid-server`).
 
 ## 7.1 How sync works today
 
@@ -65,16 +65,30 @@ CREATE TABLE sync_outbox (
 CREATE INDEX idx_sync_outbox_pending ON sync_outbox(tenant_id, sent_at, created_at);
 ```
 
-- Every business write enqueues its op **in the same transaction** through one statements helper
-  (`electron/db/statements/outbox.ts: enqueueOp`), called from the services that already write the row. This replaces
-  per-table `PENDING` scanning (#8) and makes deletes first-class (`op = 'DELETE'`, tombstone; #5).
-- The pusher sends ops in `created_at` order with their `op_id`; ops the server acknowledges get `sent_at`. Retries
-  resend the same `op_id` (#6). `sync_status` stays for display only during the transition.
+- Rollout step 2 records local row changes with three SQLite triggers per table in `SYNCED_TABLES`. The migration
+  discovers columns and primary keys with `PRAGMA table_info`; updates watch every business column except
+  `sync_status`, `updated_at`, `row_version` and `origin`. Inserts create `UPSERT` ops and set the new row's `origin`;
+  business updates increment `row_version` and refresh `origin`; deletes create `DELETE` tombstones. Re-running the
+  migration drops and recreates the triggers without enqueueing existing rows.
+- Each op gets a random 32-character hex `op_id`, an ISO UTC `created_at`, a full `json_object` payload for upserts,
+  and the terminal origin from `sync_meta.origin`. The migration creates that origin once as an 8-character lowercase
+  hex id. Composite primary keys are joined with `:` in primary-key order. If a synced table has no primary key, the
+  trigger generator uses its first `*_id` column; it fails migration if neither exists.
+- The single-row `sync_apply_guard` marks the synchronous apply of data received from cloud or LAN. `withSyncApplyGuard`
+  supports nested calls and removes the row in `finally`, including when the callback throws. The generic paginated
+  pull wraps its row-application callback; direct user and lightweight-bill pulls and the LAN upsert are guarded too.
+  Table tenant ids are used directly; when a table lacks `tenant_id`, the trigger reads it from its parent row where
+  possible and otherwise records `global`.
+- The existing pusher remains unchanged: it sends `PENDING` rows and strips `row_version` / `origin` from push bodies.
+  Step 2 therefore dual-writes trigger ops while the legacy pusher still runs. The later outbox pusher will send ops
+  in `created_at` order with their `op_id`; acknowledged ops get `sent_at` and retries resend the same id (#6).
+  `sync_status` remains during the transition.
 
 ### Versions instead of timestamps
 
-- Add `row_version INTEGER NOT NULL DEFAULT 0` to synced tables locally and on the server. Each local write sets
-  `row_version = row_version + 1` and records `origin`.
+- Add `row_version INTEGER NOT NULL DEFAULT 0` to synced tables locally and on the server. In step 2, inserts use the
+  row's current version (normally zero), business updates use `OLD.row_version + 1`, and deletes emit a tombstone at
+  `OLD.row_version + 1`; the update trigger records the current terminal in the row's `origin`.
 - Server rule per op: apply if `incoming.row_version > stored.row_version`, or equal version and `origin` sorts higher
   (deterministic tie-break); otherwise reject with the server's current row in the response, which the client applies
   (conflict = server copy wins, client edit kept in the outbox with `last_error = 'conflict'` for review). Fixes #1, #7.
@@ -99,8 +113,11 @@ CREATE INDEX idx_sync_outbox_pending ON sync_outbox(tenant_id, sent_at, created_
    `electron/sync/syncTransport.ts`), and LAN ingest stores `row_version = 0` for rows from terminals without the
    migration (`electron/sync/lanUpsert.ts`). `sync-run.mts` (both modes) and `lan-run.mts` (same and mixed versions)
    are unchanged; IPC responses only gain the two columns.
-2. **Dual write:** services enqueue ops and bump `row_version`; the pusher still uses `PENDING` rows. Characterization:
-   `sync-run.mts` unchanged; new unit / characterization tests assert one op per write and per delete.
+2. **Done (dual write):** SQLite triggers record local inserts, business updates and deletes for every synced table;
+   cloud / LAN row applies use `sync_apply_guard`. The pusher still uses `PENDING` rows and strips the two local-only
+   columns. `migrations.mts` asserts all triggers, insert / update / status-only / delete versions, nested and throwing
+   guards, and idempotent trigger recreation. `sync-run.mts`, `run.mts`, `startup-idempotency.mts` and `lan-run.mts`
+   remain characterization gates.
 3. **Server accepts ops** (`POST /api/sync/ops`) with the version rule and idempotency table; old per-entity endpoints
    stay for older terminals.
 4. **Switch the pusher** to the outbox and the puller to `server_seq`; `sync-run.mts` golden updated in a reviewed diff

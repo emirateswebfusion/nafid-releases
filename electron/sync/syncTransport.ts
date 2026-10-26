@@ -6,6 +6,7 @@ import { calculateEffectiveCloudAccess } from './cloudAccess.js';
 import { CURSOR_REPLAY_SECONDS, FETCH_TIMEOUT_MS, PULL_MAX_PAGES, PULL_MAX_RETRIES, PULL_PAGE_SIZE, getAuthConfig, toSqliteDate } from './syncConfig.js';
 import { notifyOnlineStatus } from './syncProgress.js';
 import * as syncTransportSql from '../db/statements/sync/syncTransport.js';
+import { withSyncApplyGuard } from '../db/statements/outbox.js';
 
 /** Outbox bookkeeping columns (migration 002). They stay local until the pusher switches to the outbox
  * (docs/architecture/07-sync-outbox-design.md, rollout step 4), so push bodies keep their pre-outbox shape. */
@@ -426,7 +427,7 @@ export async function pullPaginated(opts: {
     }
     if (rows.length === 0) break;
 
-    reconciled += opts.processPage(rows);
+    reconciled += withSyncApplyGuard(getDb(), () => opts.processPage(rows));
     count += rows.length;
     for (const r of rows) {
       const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;

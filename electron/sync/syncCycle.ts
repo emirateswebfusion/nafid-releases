@@ -14,6 +14,7 @@ import { PULL_CONCURRENCY, getAuthConfig, toSqliteDate } from './syncConfig.js';
 import { getTotalPendingRecords, notifyCycleComplete, notifyOnlineStatus, notifyPercent, notifyProgress, notifyRenderer } from './syncProgress.js';
 import { clearAuthAndNotify, cursorKey, fetchWithFallback, getMeta, getSyncEndpoints, replaySince, setMeta } from './syncTransport.js';
 import * as syncCycleSql from '../db/statements/sync/syncCycle.js';
+import { withSyncApplyGuard } from '../db/statements/outbox.js';
 
 /** One sync cycle: cloud status check, lightweight pending-bill pull, unified delta pull and the full push / pull sequence. */
 export async function checkCloudStatus(token: string, tenantId: string, sinceTimestamp: string | null): Promise<{ success: boolean; hasChanges: boolean; maxUpdatedAt?: string | null }> {
@@ -88,7 +89,7 @@ export async function pullLightweightPendingBills(token: string, tenantId: strin
       }
     });
 
-    tx(res.bills);
+    withSyncApplyGuard(db, () => tx(res.bills));
     if (lastTs && lastId) {
       setMeta(cursorKey(tenantId, 'pending_bills_lightweight_ts'), lastTs);
       setMeta(cursorKey(tenantId, 'pending_bills_lightweight_id'), lastId);

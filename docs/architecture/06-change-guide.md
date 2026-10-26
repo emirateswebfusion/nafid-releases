@@ -20,7 +20,7 @@
 | A main-process use-case | `electron/services/<domain>Service.ts` | Validates, applies rules, runs statements in `db.transaction`; never imports `electron/ipc/` |
 | An IPC channel | `electron/ipc/<domain>Handlers.ts` | One line: `handle('db:doThing', domainService.doThing)` |
 | Printer / scale / scanner / WhatsApp behaviour | `electron/hardware/*`, `electron/whatsapp/*` | Adapters only |
-| A synced table or column | `electron/sync/syncWorker.ts` + `nafid-server/src/routes/sync/*` + server migration | Characterization test first; update both repos and the docs together |
+| A synced table or column | `electron/sync/entities/*Sync.ts` + `nafid-server/src/routes/sync/*` + server migration | A new synced table needs: add it to `SYNCED_TABLES` and a migration that re-creates the outbox triggers. Characterization test first; update both repos and the docs together |
 
 ## 6.2 Workflow for any change
 
@@ -120,5 +120,5 @@ npm run package:win    # rebuild natives + build + electron-builder
 | Versioned SQLite migrations | **Done (26 Oct):** runner `electron/db/migrations/` (`schema_migrations` + `user_version`, one transaction per migration); the inline repairs are a frozen, idempotent startup baseline (guard R10); first migration `001-returns-indexes`; `tests/characterization/migrations.mts` | Move a baseline repair into a migration only when it is provably one-time (old shapes can still arrive by sync) |
 | Sync SQL | **Done (26 Oct):** 201 statements moved verbatim from `electron/sync/*` and `main.ts` to `electron/db/statements/sync/*` and `statements/main.ts` (duplicates merged; guard R12; `check-statements` covers them). Proven: IPC 1,548 calls, sync (login and no-login) and LAN harnesses identical to HEAD, compiled CJS loads. 5 dynamic query builders stay in sync, capped | Move a builder when it is next changed |
 | Dynamic query builders | **Done (26 Oct):** the last 11 (`getProducts` / count, `getInvoices` / summary, customer and party profile updates, LAN delta / table / pending-bills queries, LAN upsert, pending-row count) are builders in `electron/db/statements` returning `{ statement, params }` with the same SQL and parameter order; services compute store-day ranges first. Guard baselines at 0. Proven: IPC 1,548 calls, sync (login / no-login) and LAN harnesses identical; 800 statements prepare | — |
-| Sync outbox + LAN auth | LAN auth done (pairing key). Outbox: **design proposal** in `07-sync-outbox-design.md` (current flow, 8 concrete loss / resurrection paths, outbox + row versions + server sequence, 5-step rollout) | Owner answers §7.5, then implement step by step behind the sync / LAN harnesses |
+| Sync outbox + LAN auth | LAN auth done (pairing key). Outbox rollout step 2 is implemented: SQLite triggers record local writes, and cloud / LAN applies use `sync_apply_guard`; design and remaining rollout steps are in `07-sync-outbox-design.md` | Continue with step 3 behind the sync / LAN harnesses |
 | Cloud calls | **Done (26 Oct):** all renderer HTTP in `src/data/cloud/*` over `client.ts` (`src/lib/api.ts` removed; guard R11) | — |
