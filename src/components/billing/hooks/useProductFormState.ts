@@ -79,6 +79,7 @@ export function useProductFormState(tenantId: string | null) {
 
   useEffect(() => {
     if (!isDesktopRuntime() || !tenantId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- tenantId becoming unavailable clears tenant-specific price coding after the session change commits.
       setProductPriceCoding(null);
       return;
     }

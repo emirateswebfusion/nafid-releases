@@ -3,7 +3,7 @@ import React from 'react';
 import { QrCode, Building, Landmark, Receipt, TrendingUp, Check, Copy, Smartphone } from 'lucide-react';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
-import { INDIAN_STATES } from '../settingsConstants';
+import { INDIAN_STATES } from '../settingsUtils';
 import { SUPPORTED_TIMEZONES, setStoreTimezone } from '../../../utils/timezoneHelper';
 import type { SettingsForm } from '../settingsFormTypes';
 

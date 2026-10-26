@@ -39,6 +39,7 @@ export const UpiAccountSelectModal: React.FC<UpiAccountSelectModalProps> = ({
       }, 50);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentSelectedUpi excluded: tracking account selection would restart the focus timer after each selection.
   }, [isOpen, upiSources]);
 
   if (!isOpen) return null;

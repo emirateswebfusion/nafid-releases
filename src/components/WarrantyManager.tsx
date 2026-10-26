@@ -44,9 +44,12 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     ? new Date(new Date(form.purchase_date).getTime() + form.warranty_period_days * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA')
     : '';
 
-  useEffect(() => { loadWarranties(); }, []);
+  useEffect(() => {
+    loadWarranties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadWarranties is a render-local helper; warranty records load once when the manager opens.
+  }, []);
 
-  const loadWarranties = async () => {
+  async function loadWarranties() {
     setLoading(true);
     try {
       if (isDesktopRuntime()) {
@@ -57,7 +60,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
       console.error('[WarrantyManager] Failed to load warranties:', err);
     }
     setLoading(false);
-  };
+  }
 
   const handleSave = async () => {
     if (!form.customer_name || !form.product_name || !form.purchase_date) {

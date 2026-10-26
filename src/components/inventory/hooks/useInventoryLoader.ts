@@ -2,7 +2,7 @@ import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { listProducts, countProducts } from '../../../data/products';
-import { toInventoryProducts } from '../inventoryHelpers';
+import { toInventoryProducts } from '../inventoryUtils';
 import { sortProductsBySearchPriority } from '../../../utils/productSort';
 import type { InventoryState } from './useInventoryState';
 

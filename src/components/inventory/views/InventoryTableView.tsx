@@ -3,7 +3,7 @@ import { RefreshCw, AlertTriangle, Plus, Minus, Pencil, Trash, Printer, X, Packa
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
 import { ScrollText } from '../../ScrollText';
-import { type Product } from '../inventoryHelpers';
+import { type Product } from '../inventoryUtils';
 
 export interface InventoryTableViewProps {
   view: 'list' | 'add' | 'edit';

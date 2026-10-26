@@ -13,6 +13,7 @@ import { pricingTiersApi } from '../data/pricingTiers';
 import { settingsApi } from '../data/settings';
 import { formatCurrency } from '../utils/money';
 import { type PricingTier, type Customer, type Party, type LoyaltyTx, type InvoiceRecord, type View, type DetailTab, type InvoiceItemRow } from './customers/customerTypes';
+import { findMatchingPartyForCustomer } from './customers/customerUtils';
 import { EditCustomerModal } from './customers/views/EditCustomerModal';
 import { AddCustomerModal } from './customers/views/AddCustomerModal';
 import { CustomerInvoiceModal } from './customers/views/CustomerInvoiceModal';
@@ -137,24 +138,6 @@ export function CustomersPage({
     setTimeout(() => setStatusMessage(null), 3000);
   }, []);
 
-  const findMatchingPartyForCustomer = (cust: Customer | null | undefined, partyList: Party[]): Party | null => {
-    if (!cust) return null;
-    const custDigits = (cust.phone || '').replace(/\D/g, '');
-    const cleanName = (cust.name || '').trim().toLowerCase();
-
-    return partyList.find(p => {
-      if (!p) return false;
-      if (p.party_id === cust.customer_id) return true;
-      const pDigits = (p.phone || '').replace(/\D/g, '');
-      if (custDigits && pDigits) {
-        if (custDigits === pDigits) return true;
-        if (custDigits.length >= 7 && pDigits.length >= 7 && custDigits.slice(-10) === pDigits.slice(-10)) return true;
-      }
-      if (cleanName && p.name && p.name.trim().toLowerCase() === cleanName) return true;
-      return false;
-    }) || null;
-  };
-
   const handleDeleteCustomerClick = (cust: Customer, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!isOwner) {
@@ -233,9 +216,21 @@ export function CustomersPage({
     setSelectedCustomer, setView, setViewingInvoice, showStatus, tenantId, viewingInvoice,
   });
 
-  const filtersMountedRef = useRef(false); useEffect(() => { loadCustomers(true); }, []); // initial load; the filter effect below skips its mount run
-  useEffect(() => { if (!filtersMountedRef.current) { filtersMountedRef.current = true; return; } loadCustomers(false); setVisibleCount(50); }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
-  useEffect(() => { loadPricingTiers(); }, [loadPricingTiers]);
+  const filtersMountedRef = useRef(false);
+  useEffect(() => {
+    loadCustomers(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCustomers is mount-only here; the separate filter effect owns list refreshes.
+  }, []); // initial load; the filter effect below skips its mount run
+  useEffect(() => {
+    if (!filtersMountedRef.current) { filtersMountedRef.current = true; return; }
+    loadCustomers(false);
+    setVisibleCount(50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCustomers excluded: filter changes remain the only customer-list refresh triggers.
+  }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadPricingTiers loads the settings needed by the initial customer list.
+    loadPricingTiers();
+  }, [loadPricingTiers]);
 
   // ── Intersection Observer & Scroll for infinite scrolling ──
   useEffect(() => {
@@ -293,6 +288,7 @@ export function CustomersPage({
   // Debounce search query with 0ms instant clear
   useEffect(() => {
     if (!searchQuery.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- an empty searchQuery clears the debounced filter immediately to preserve the 0ms clear behavior.
       setDebouncedSearchQuery('');
       return;
     }
@@ -367,6 +363,7 @@ export function CustomersPage({
       loadCustomerDetails(found);
     }
     setInitialLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCustomerDetails is a render-local opener; this ref-guarded handoff should run once for the initial customer.
   }, [initialCustomerIdOrQuery, customers]);
 
   /* ─── Bill CSV export + individual download/print ─── */

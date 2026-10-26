@@ -95,7 +95,7 @@ export function useScrapInvoiceEdit(ctx: UseScrapInvoiceEditContext) {
       });
     });
     syncActiveSnapshot();
-  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount, setIsPastBillMode]);
+  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount, setIsPastBillMode, setIsScrapMode, setSelectedReturnInvoice, syncActiveSnapshot]);
 
   useEffect(() => {
     if (pendingScrapInvoiceToEdit) {

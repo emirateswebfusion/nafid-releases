@@ -1,7 +1,8 @@
 import React from 'react';
 import { Package, Printer, Save } from 'lucide-react';
 import { useCartStore } from '../../../store/cartStore';
-import { DomainField, type Product } from '../inventoryHelpers';
+import { DomainField } from '../inventoryHelpers';
+import type { Product } from '../inventoryUtils';
 import { GstPurchaseSection } from './form/GstPurchaseSection';
 import { StockSection } from './form/StockSection';
 import { DiscountSection } from './form/DiscountSection';

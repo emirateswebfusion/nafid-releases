@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Megaphone, Plus, Eye, Trash2, Loader2, X, Image as ImageIcon, Phone, Flame, ToggleLeft, ToggleRight, RefreshCw, Heart, Share2 } from 'lucide-react';
 import clsx from 'clsx';
 import { adsCloud } from '../data/cloud/ads';
@@ -33,9 +33,9 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const showToast = (text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', title?: string) => {
+  const showToast = useCallback((text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', title?: string) => {
     setToast({ text, type, title });
-  };
+  }, []);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -45,7 +45,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const [contactPhone, setContactPhone] = useState('');
   const [callToAction, setCallToAction] = useState('VISIT_STORE');
 
-  const fetchAds = async () => {
+  const fetchAds = useCallback(async () => {
     setLoading(true);
     try {
       const data = await adsCloud.myAds();
@@ -62,11 +62,12 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchAds starts the initial network load on mount; keeping this effect preserves when its loading state appears.
     fetchAds();
-  }, []);
+  }, [fetchAds]);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

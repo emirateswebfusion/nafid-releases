@@ -2,7 +2,7 @@ import React from 'react';
 import { Receipt, Loader2, Printer, Edit3, Building2, Phone } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from '../../ui/Modal';
-import { formatDateTime } from '../partyHelpers';
+import { formatDateTime } from '../partyUtils';
 import { useAuthStore } from '../../../store/authStore';
 import { hasPermission } from '../../../utils/permissions';
 

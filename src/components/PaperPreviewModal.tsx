@@ -273,6 +273,7 @@ export function PaperPreviewModal({
 
   useEffect(() => {
     if (qrPayloads.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- qrPayloads becoming empty clears stale rendered QR images immediately.
       setQrImages({});
       return;
     }

@@ -391,6 +391,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
 
     window.addEventListener('open-edit-bill', handler);
     return () => window.removeEventListener('open-edit-bill', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addTab, applyPartyTier, authRole, nextTabNumber, searchRef, setIsLoadingEditBill, setLocalKgStr, setLocalPcsStr, syncActiveSnapshot, tenantId, and updateActiveTab are captured for the one-time localStorage handoff; resubscribing would reprocess the edit request and rewrite the active cart.
   }, []);
 
   // Listen for Return from Sales History — activates return mode with pre-loaded invoice
@@ -531,6 +532,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
 
     window.addEventListener('open-return-mode', handler);
     return () => window.removeEventListener('open-return-mode', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addItem, clearCart, reserveReturnNumberForTab, setHardwareError, setReturnMode, setSelectedReturnInvoice, syncActiveSnapshot, tenantId, and updateActiveTab are captured for the one-time localStorage handoff; resubscribing would reprocess the return request and rewrite the active cart.
   }, []);
 
   // Load invoice items into cart for return processing (like scrap loads categories)
@@ -657,6 +659,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
 
     window.addEventListener('open-quotation-edit', handler);
     return () => window.removeEventListener('open-quotation-edit', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addItem, clearCart, quotationGstEnabledSetting, searchRef, setCustomerState, setEditingQuotation, setInvoiceType, setQuotationMode, setQuotationTerms, syncActiveSnapshot, tenantId, and updateActiveTab are captured for the one-time localStorage handoff; resubscribing would reprocess the edit request and rewrite the active cart.
   }, []);
 
   // Listen for open-new-quotation event

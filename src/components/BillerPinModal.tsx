@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
@@ -21,15 +21,15 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const inputRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
+  const inputRef0 = useRef<HTMLInputElement>(null);
+  const inputRef1 = useRef<HTMLInputElement>(null);
+  const inputRef2 = useRef<HTMLInputElement>(null);
+  const inputRef3 = useRef<HTMLInputElement>(null);
+  const inputRefs = useMemo(() => [inputRef0, inputRef1, inputRef2, inputRef3], [inputRef0, inputRef1, inputRef2, inputRef3]);
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isOpen resets the PIN and modal flags when the dialog opens, preventing stale credentials from reappearing.
       setPinDigits(['', '', '', '']);
       setError('');
       setLoading(false);
@@ -38,7 +38,7 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
         inputRefs[0].current?.focus();
       }, 100);
     }
-  }, [isOpen]);
+  }, [isOpen, inputRefs]);
 
   const verifyPin = async (fullPin: string) => {
     if (fullPin.length !== 4) return;

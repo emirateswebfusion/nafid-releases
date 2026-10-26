@@ -180,6 +180,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   // Debounce search input with 0ms instant clear
   useEffect(() => {
     if (!search.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- search becoming empty clears the debounced filter immediately for the existing 0ms clear behavior.
       setDebouncedSearch('');
       setIsSearching(false);
       return;
@@ -200,13 +201,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- filter changes reset pagination before the replacement invoice request starts.
     setOffset(0);
     setHasMore(true);
     loadInvoices(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadInvoices is recreated per render; filter and accounting values are the intended refresh triggers.
   }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig, accountingView]);
 
   useEffect(() => {
     if ((accountingView === 'REAL_SALES' || invoiceTypeFilter === 'BILL_OF_SUPPLY') && taxPercentageFilter !== '') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- accountingView and invoiceTypeFilter clear a tax filter that is invalid in the selected view.
       setTaxPercentageFilter('');
     }
   }, [accountingView, invoiceTypeFilter, taxPercentageFilter]);
@@ -238,6 +242,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   useEffect(() => {
     const initialSearch = localStorage.getItem('salesHistoryInitialSearch');
     if (initialSearch) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- salesHistoryInitialSearch is a one-time navigation handoff consumed after mount.
       setSearch(initialSearch);
       localStorage.removeItem('salesHistoryInitialSearch');
     }
@@ -281,7 +286,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (isFetching || !hasMore || !sentinelRef.current) return;
     const observer = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && !isFetching && hasMore) {
-        loadInvoices(false);
+        loadInvoicesRef.current!(false);
       }
     }, { threshold: 0.1, rootMargin: '150px' });
 

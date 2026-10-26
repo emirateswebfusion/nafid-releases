@@ -96,6 +96,6 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
         .then(res => { if (res) setPriceCoding(res); })
         .catch(console.error);
     }
-  }, [tenantId, editingData, type]);
+  }, [tenantId, editingData, type, onItemsLoaded, setBillItems, setBillNumber, setInvoiceNumber, setManualRoundOff, setPaymentType, setPeekedBillNumber, setPriceCoding]);
 
 }

@@ -14,9 +14,10 @@ export function useTenantAdmins(ctx: UseTenantAdminsContext) {
   const { checkingAll, setAdmins, setCheckingAll, setConnectionHealth, setLoading } = ctx.sd;
   useEffect(() => {
     fetchAdmins();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAdmins is a render-local helper; the tenant admin list loads once when the dashboard opens.
   }, []);
 
-  const fetchAdmins = async () => {
+  async function fetchAdmins() {
     setLoading(true);
     try {
       const data = await superAdminCloud.admins<TenantAdmin[]>();
@@ -28,9 +29,9 @@ export function useTenantAdmins(ctx: UseTenantAdminsContext) {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const checkAllHealth = async (tenantList: TenantAdmin[]) => {
+  async function checkAllHealth(tenantList: TenantAdmin[]) {
     if (checkingAll) return;
     setCheckingAll(true);
     
@@ -62,7 +63,7 @@ export function useTenantAdmins(ctx: UseTenantAdminsContext) {
       }
     }
     setCheckingAll(false);
-  };
+  }
 
   return { fetchAdmins, checkAllHealth };
 }

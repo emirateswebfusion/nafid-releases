@@ -311,11 +311,12 @@ export function PartyManager({
       fetchPendingRequests();
       return list;
     } catch {
-      showStatus('Failed to load parties', 'error');
+      setStatusMessage({ text: 'Failed to load parties', type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3500);
     } finally {
       setLoading(false);
     }
-  }, [tenantId, fetchPendingRequests, setLoading, setParties, showStatus]);
+  }, [tenantId, fetchPendingRequests, setLoading, setParties, setStatusMessage]);
 
   const startEditingParty = (party: Party, returnTo: 'list' | 'ledger' = 'list') => {
     setEditReturnView(returnTo);

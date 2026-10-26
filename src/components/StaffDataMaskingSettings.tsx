@@ -40,9 +40,10 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
     if (!isControlled) {
       loadConfig();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadConfig is render-local; tenantId and isControlled are the intended reload triggers.
   }, [tenantId, isControlled]);
 
-  const loadConfig = async () => {
+  async function loadConfig() {
     setLoading(true);
     try {
       if (isDesktopRuntime()) {
@@ -57,7 +58,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleSave = async () => {
     setSaving(true);

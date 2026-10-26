@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type Product, DEFAULT_FORM } from '../inventoryHelpers';
+import { type Product, DEFAULT_FORM } from '../inventoryUtils';
 import { type CodeType, DEFAULT_CODE_TYPE } from '../../../labelCodeTypes';
 
 /**

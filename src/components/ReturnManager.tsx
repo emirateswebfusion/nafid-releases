@@ -63,6 +63,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   }, [tenantId, search]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadReturns starts the current tenant/search request after the screen commits.
     loadReturns();
   }, [loadReturns]);
 

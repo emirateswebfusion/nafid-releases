@@ -225,6 +225,7 @@ export function useBillingEntry(ctx: UseBillingEntryContext) {
         useTabStore.getState().syncActiveSnapshot();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- addTab, isCashSettlementEnabled, isQuotationMode, quotationGstEnabledSetting, reserveQuotationNumberForTab, searchRef, syncActiveSnapshot, tabCounterRef, and updateActiveTab are captured for one-time tab initialization; rerunning could create tabs or reserve duplicate numbers.
   }, []);
 
   const initialized = useRef(false);

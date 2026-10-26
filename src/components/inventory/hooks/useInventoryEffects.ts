@@ -9,7 +9,7 @@ import { listParties } from '../../../data/parties';
 import { purchasesApi } from '../../../data/purchases';
 import QRCode from 'qrcode';
 import { useAuthStore } from '../../../store/authStore';
-import { toInventoryProducts } from '../inventoryHelpers';
+import { toInventoryProducts } from '../inventoryUtils';
 import { listProducts } from '../../../data/products';
 import type { InventoryState } from './useInventoryState';
 
@@ -44,7 +44,7 @@ export interface UseInventoryEffectsContext {
  * reloads on filter changes, scroll restore, pricing refresh, form focus and the name / category suggestion boxes.
  */
 export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
-  const { categoryContainerRef, filterDateEndRef, filterDateRef, firstInputRef, hasMoreRef, isFetchingRef, lastInteractedProductId, listScrollRef, loadProducts, nameContainerRef, nameSearchTimeout, offsetRef, openAdd, refreshProductPricing, savedScrollTop, searchInputRef, searchQueryRef, sentinelRef, sortByRef, stockFilterRef, tenantId, viewModeRef } = ctx;
+  const { categoryContainerRef, filterDateEndRef, filterDateRef, firstInputRef, hasMoreRef, isFetchingRef, lastInteractedProductId, listScrollRef, loadProducts, nameContainerRef, nameSearchTimeout: nameSearchTimeoutRef, offsetRef, openAdd, refreshProductPricing, savedScrollTop, searchInputRef, searchQueryRef, sentinelRef, sortByRef, stockFilterRef, tenantId, viewModeRef } = ctx;
   const { debouncedSearchQuery, filterDate, filterDateEnd, formData, hasMore, labelCodeType, offset, searchQuery, setDebouncedSearchQuery, setEnableRealPaperStock, setFormData, setGrades, setHasMore, setHighlightedProductId, setIsSearching, setLabelCodeType, setNameSuggestions, setOffset, setPriceCoding, setPricingTiers, setQrPreviewUrl, setSelectedNameIndex, setShowCategorySuggestions, setShowPaperOnlyProducts, setShowPriceTiersInInventory, setShowProductGstBadge, setShowZeroPaperStock, setStatusMessage, setSuppliers, setViewMode, sortBy, statusMessage, stockFilter, view, viewMode } = ctx.inv;
   useEffect(() => {
     const loadSettings = () => {
@@ -158,6 +158,7 @@ export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openAdd excluded: tracking its tenant-scoped callback would resubscribe the keyboard listener beyond the original view-only trigger.
   }, [view]);
 
   // Restore scroll position and highlight product row when returning to list
@@ -243,6 +244,7 @@ export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
         })
         .catch(console.error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshProductPricing excluded: the initial pricing/settings load remains tied to tenantId as before.
   }, [tenantId, setGrades, setLabelCodeType, setPriceCoding, setPricingTiers, setSuppliers, setViewMode]);
 
   useEffect(() => {
@@ -294,8 +296,8 @@ export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
       setNameSuggestions([]);
       return;
     }
-    if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
-    nameSearchTimeout.current = setTimeout(async () => {
+    if (nameSearchTimeoutRef.current) clearTimeout(nameSearchTimeoutRef.current);
+    nameSearchTimeoutRef.current = setTimeout(async () => {
       if (!isDesktopRuntime()) return;
       const { tenantId } = useAuthStore.getState();
       const products = toInventoryProducts(await listProducts({
@@ -305,14 +307,14 @@ export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
         sortBy: 'name'
       }));
       if (Array.isArray(products)) {
-        setNameSuggestions(products.filter((p: import('../inventoryHelpers').Product) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
+        setNameSuggestions(products.filter((p: import('../inventoryUtils').Product) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
         setSelectedNameIndex(0);
       }
     }, 300);
     return () => {
-      if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
+      if (nameSearchTimeoutRef.current) clearTimeout(nameSearchTimeoutRef.current);
     };
-  }, [formData.name, setNameSuggestions, setSelectedNameIndex, nameSearchTimeout]);
+  }, [formData.name, setNameSuggestions, setSelectedNameIndex, nameSearchTimeoutRef]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

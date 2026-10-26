@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Settings, Printer, Save, Loader2, CheckCircle2, AlertCircle, Wifi, X, EyeOff, Palette, Store, Package, Monitor, ChevronRight, Shield, FileText, Power, BookOpen, Layers, AlertOctagon, LayoutGrid } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
@@ -115,26 +115,17 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const { role, updateDomain, tenantId } = useAuthStore();
   const form = useSettingsFormState();
   const {
-    loading, setLoading, saving, saveRevision, message, setMessage,
-    showBulkSheet, setShowBulkSheet, barcodePrinter, setBarcodePrinter, receiptPrinter, setReceiptPrinter,
-    a4Printer, scale, setOsPrinters, setPrintersLoading, setActiveHardwareTab, setActiveProductsTab,
+    loading, setLoading, saving, message, setMessage,
+    showBulkSheet, setShowBulkSheet, setBarcodePrinter, setReceiptPrinter,
+    setOsPrinters, setPrintersLoading, setActiveHardwareTab, setActiveProductsTab,
     setUpdateStatus, setUpdateInfo, setUpdateReady, setLastChecked, setIsDownloading, setDownloadProgress,
     pass, setPass, setChangingPass, confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen, appVersion,
-    priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone,
-    shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, showProductOffers,
-    showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, billSettings,
-    scrapBillSettings, printFormat, a5Orientation, labelCodeType, labelShowShopName, printWidth,
+    shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, showProductOffers, receiptFont, billSettings,
+    a5Orientation, printWidth,
     thermalStyle, setThermalStyle, a4Style, setA4Style, previewFormat, setPreviewFormat,
     previewStyle, setPreviewStyle, bankName, bankAccount, bankIfsc, bankBranch,
-    enableScrap, showCashRegister, setShowCashRegister, autoPrintBarcode, loyaltyEnabled, setLoyaltyEnabled,
-    loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, enablePartyGst, enablePartyEstimate, enableRealPaperStock,
-    showPaperStockInGst, showPaperStockInEstimate, showZeroPaperStock, showPaperOnlyProducts, enableConvertToGst, billingUIConfig,
-    staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
-    b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, gstProfitPercentage, gstConversionTaxInclusive,
-    returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber,
-    purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, showProductGstBadge, showPriceTiersInInventory,
-    serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, setDetectedLocalIp,
-    setNetworkDetails, lanPort, syncFrequency, setEffectiveCloudState,
+    setShowCashRegister, setLoyaltyEnabled, returnPrefix, returnStartNumber, setDetectedLocalIp,
+    setNetworkDetails, setEffectiveCloudState,
   } = form;
 
   useEffect(() => {
@@ -170,7 +161,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     updatedFlags = sanitizeFeatureFlags(updatedFlags);
     useFeatureFlagsStore.getState().setFlags(updatedFlags);
   };
-  const initialSnapshot = useRef<string>('');
+  const [initialSnapshot, setInitialSnapshot] = useState('');
 
   useEffect(() => {
     if (hasBridge('appGetNetworkDetails')) {
@@ -208,12 +199,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   }, [tenantId, setDetectedLocalIp, setEffectiveCloudState, setNetworkDetails]);
 
   const updateSnapshotField = (updater: (prevObj: Record<string, unknown>) => Record<string, unknown>) => {
-    try {
-      if (initialSnapshot.current) {
-        const snap = JSON.parse(initialSnapshot.current);
-        initialSnapshot.current = JSON.stringify(updater(snap));
-      }
-    } catch { /* ignore */ }
+    setInitialSnapshot((snapshot) => {
+      try {
+        if (snapshot) return JSON.stringify(updater(JSON.parse(snapshot)));
+      } catch { /* ignore */ }
+      return snapshot;
+    });
   };
 
   const fetchPrinters = async (showToast = false) => {
@@ -260,15 +251,30 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   };
 
   const { buildSettingsSnapshot, loadSettings } = useSettingsLoader({
-    form, featureFlags, fetchPrinters, initialSnapshot, loadFlags, returnPrefix, returnStartNumber,
+    form, featureFlags, fetchPrinters, setInitialSnapshot, loadFlags, returnPrefix, returnStartNumber,
     updateSnapshotField,
   });
+
+  const {
+    barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr,
+    showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer,
+    defaultOpeningBalance, printFormat, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix,
+    b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister,
+    autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, scrapBillSettings,
+    gstProfitPercentage, gstConversionTaxInclusive, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber,
+    purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode,
+    timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, enablePartyGst, enablePartyEstimate,
+    enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate,
+    showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig,
+    emergencyPanicConfig, shopClosingConfig, saveRevision,
+  } = form;
 
   const getSettingsSnapshot = () => buildSettingsSnapshot();
 
   const hasChanges = useMemo(() => {
-    if (!initialSnapshot.current) return false;
-    return getSettingsSnapshot() !== initialSnapshot.current;
+    if (!initialSnapshot) return false;
+    return getSettingsSnapshot() !== initialSnapshot;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getSettingsSnapshot and initialSnapshot are excluded so the original form-field and saveRevision changes remain the dirty-check triggers.
   }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision]);
 
   useEffect(() => {
@@ -282,6 +288,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       isMounted = false;
       clearTimeout(safetyTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSettings is a render-local loader; this effect intentionally performs the settings load only on mount.
   }, [setLoading]);
 
   useEffect(() => {
@@ -313,7 +320,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   }, [setDownloadProgress, setIsDownloading, setLastChecked, setUpdateInfo, setUpdateReady, setUpdateStatus]);
 
   const { handleSave } = useSettingsSave({
-    form, activeSection, buildSettingsSnapshot, featureFlags, initialSnapshot, localDomain, returnPrefix,
+    form, activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix,
     returnStartNumber, role, shopDomain, updateDomain,
   });
 

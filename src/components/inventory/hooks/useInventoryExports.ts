@@ -1,7 +1,7 @@
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { printingApi } from '../../../data/printing';
-import { type Product, toInventoryProducts } from '../inventoryHelpers';
+import { type Product, toInventoryProducts } from '../inventoryUtils';
 import { useAuthStore } from '../../../store/authStore';
 import { listProducts, getProductPricing } from '../../../data/products';
 import { listPricingTiers } from '../../../data/pricingTiers';

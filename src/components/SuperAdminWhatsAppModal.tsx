@@ -56,6 +56,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- isOpen starts the status request before polling begins for the opened modal.
     fetchStatus();
 
     // Poll status every 3 seconds while modal is open

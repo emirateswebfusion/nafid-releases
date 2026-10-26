@@ -1,15 +1,8 @@
 {
-  "errors": 80,
-  "warnings": 57,
+  "errors": 1,
+  "warnings": 0,
   "byRule": {
-    "react-hooks/rules-of-hooks": 1,
-    "react-hooks/set-state-in-effect": 36,
-    "react-hooks/refs": 13,
-    "react-hooks/exhaustive-deps": 57,
-    "react-hooks/immutability": 11,
-    "react-hooks/preserve-manual-memoization": 5,
-    "react-hooks/purity": 2,
-    "react-refresh/only-export-components": 12
+    "react-hooks/rules-of-hooks": 1
   },
-  "updatedAt": "2026-10-26T13:39:57.922Z"
+  "updatedAt": "2026-10-26T14:40:37.622Z"
 }

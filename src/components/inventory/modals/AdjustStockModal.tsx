@@ -2,7 +2,7 @@ import React from 'react';
 import { Plus, Minus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from '../../ui/Modal';
-import type { Product } from '../inventoryHelpers';
+import type { Product } from '../inventoryUtils';
 
 export interface AdjustStockModalProps {
   adjustModal: { product: Product; mode: 'add' | 'reduce' } | null;

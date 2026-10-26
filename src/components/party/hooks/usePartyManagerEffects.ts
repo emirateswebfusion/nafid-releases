@@ -96,6 +96,7 @@ export function usePartyManagerEffects(ctx: UsePartyManagerEffectsContext) {
         clearTimeout(t3);
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parties and visibleCount excluded: tracking restoration updates would re-scroll and re-highlight after each list update and can repeat setVisibleCount.
   }, [view, lastInteractedPartyId, listScrollRef, savedScrollTop, setHighlightedPartyId, setVisibleCount]);
 
   useEffect(() => { loadParties(); }, [loadParties]);
@@ -154,6 +155,7 @@ export function usePartyManagerEffects(ctx: UsePartyManagerEffectsContext) {
       setSearchQuery(initialPartyIdOrQuery);
       setDebouncedSearchQuery(initialPartyIdOrQuery);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadLedger excluded: the initial target should not reload its ledger after callback changes.
   }, [initialPartyIdOrQuery, parties, processedInitialTargetRef, setDebouncedSearchQuery, setSearchQuery, setSelectedParty, setView]);
 
 }

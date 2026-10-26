@@ -91,7 +91,8 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
       }
     }, 200);
     return () => clearTimeout(timer);
-  }, [customerName, customerPhone, findMatchingParty, allCustomersList, tenantId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loyaltyCustomerData.customerId, applyPartyTier, and updateActiveTab excluded: this matcher writes the customer id, so tracking those changes would repeat the debounce and backend lookup.
+  }, [customerName, customerPhone, findMatchingParty, allCustomersList, tenantId, setLoyaltyCustomerData, setPointsToRedeem, setShowLoyaltyRedemption]);
 
   // Ensure redeemed points does not exceed active customer balance
   useEffect(() => {
@@ -102,6 +103,7 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
     } else if (pointsToRedeem > bal) {
       setPointsToRedeem(bal);
     }
-  }, [loyaltyCustomerData.customerId, loyaltyCustomerData.pointsBalance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pointsToRedeem and showLoyaltyRedemption excluded: this effect clamps them, so tracking typing or its own reset would rerun the clamp.
+  }, [loyaltyCustomerData.customerId, loyaltyCustomerData.pointsBalance, setPointsToRedeem, setShowLoyaltyRedemption]);
 
 }

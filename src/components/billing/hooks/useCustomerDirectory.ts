@@ -54,6 +54,7 @@ export function useCustomerDirectory({ tenantId, staffCreditBilling, parties, cu
         })
         .catch(() => {});
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- staffCreditBilling or tenantId turning off this directory clears stale staff matches after the setting change commits.
       setAllStaffList([]);
     }
   }, [staffCreditBilling, tenantId]);
@@ -63,6 +64,7 @@ export function useCustomerDirectory({ tenantId, staffCreditBilling, parties, cu
     const nameQuery = customerName.trim();
     const phoneQuery = customerPhone.trim();
     if ((!nameQuery && !phoneQuery) || !isDesktopRuntime()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- customerName or customerPhone clearing the search removes stale autofill results immediately.
       setCustomerSearchResults([]);
       return;
     }

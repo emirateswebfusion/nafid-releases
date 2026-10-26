@@ -70,6 +70,7 @@ export function ItemRateInput({
 
   useEffect(() => {
     if (!isFocused) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- rate and isFocused refresh the draft only while blurred, so active typing remains untouched.
       setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
     }
   }, [rate, isFocused]);
@@ -309,6 +310,7 @@ export function ItemRateInput({
 
   useLayoutEffect(() => {
     if (!shouldShowMenu) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- shouldShowMenu clears the floating position after the suggestion menu closes.
       setMenuPosition(null);
       return;
     }

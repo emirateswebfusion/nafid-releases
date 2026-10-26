@@ -85,6 +85,7 @@ export function useQuotationLoader(ctx: UseQuotationLoaderContext) {
         if (typeof unsub === 'function') (unsub as () => void)();
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadQuotations excluded: initial and sync loads remain attached to the original tenantId trigger.
   }, [tenantId]);
 
   return { loadQuotations };

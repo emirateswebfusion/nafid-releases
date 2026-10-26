@@ -8,6 +8,7 @@ export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: stri
 
   useEffect(() => {
     if (partyObj && partyObj.balance != null && Number(partyObj.balance) !== 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- partyObj starts the badge entrance transition after the customer selection commits.
       setActiveParty(partyObj);
       setMounted(true);
       const timer = setTimeout(() => {
@@ -22,6 +23,7 @@ export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: stri
       }, 300);
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- partyObj identity changes with parent renders; its displayed fields trigger the badge transition without restarting it.
   }, [partyObj?.name, partyObj?.phone, partyObj?.balance]);
 
   if (!mounted || !activeParty) return null;

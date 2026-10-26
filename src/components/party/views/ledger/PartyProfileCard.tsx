@@ -1,4 +1,4 @@
-import { getInitials, formatDate } from '../../partyHelpers';
+import { getInitials, formatDate } from '../../partyUtils';
 import { Pencil, Link, Phone, FileText, MapPin } from 'lucide-react';
 import { hasBridge } from '../../../../data/client';
 import { partiesApi } from '../../../../data/parties';

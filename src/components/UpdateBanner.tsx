@@ -18,7 +18,11 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
     const stored = localStorage.getItem('vendora-update-banner-dismissed');
     if (stored) {
       const hoursSince = (Date.now() - Number(stored)) / (1000 * 60 * 60);
-      if (hoursSince < 24) { setDismissed(true); return; }
+      if (hoursSince < 24) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- vendora-update-banner-dismissed hides the banner immediately when its saved suppression window is active.
+        setDismissed(true);
+        return;
+      }
       localStorage.removeItem('vendora-update-banner-dismissed');
     }
 

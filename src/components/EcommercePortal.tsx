@@ -16,6 +16,32 @@ interface EcommercePortalProps {
   onClose: () => void;
 }
 
+function filterEcommerceProducts(
+  products: EcommerceProductItem[],
+  productSearch: string,
+  productFilter: string,
+  categoryFilter: string,
+  stockFilter: string,
+): EcommerceProductItem[] {
+  return products.filter(prod => {
+    if (productSearch.trim()) {
+      const q = productSearch.toLowerCase().trim();
+      const matchesName = prod.name.toLowerCase().includes(q);
+      const matchesSku = prod.sku_barcode ? prod.sku_barcode.toLowerCase().includes(q) : false;
+      const matchesCat = prod.category ? prod.category.toLowerCase().includes(q) : false;
+      if (!matchesName && !matchesSku && !matchesCat) return false;
+    }
+    if (productFilter === 'online' && prod.is_online_enabled !== 1) return false;
+    if (productFilter === 'offline' && prod.is_online_enabled === 1) return false;
+    if (productFilter === 'failed' && prod.sync_status !== 'FAILED') return false;
+    if (categoryFilter !== 'all' && (prod.category || '').toLowerCase() !== categoryFilter.toLowerCase()) return false;
+    if (stockFilter === 'instock' && (prod.current_stock as number) <= 0) return false;
+    if (stockFilter === 'outstock' && (prod.current_stock as number) !== 0) return false;
+    if (stockFilter === 'negative' && (prod.current_stock as number) >= 0) return false;
+    return true;
+  });
+}
+
 export function EcommercePortal({ onClose }: EcommercePortalProps) {
   const { tenantId, shopName, userName } = useAuthStore();
   const currentTenantId = tenantId || 'global';
@@ -95,24 +121,6 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
     }
   }, [setConnectionStatus, setPingLatency, setTestingConnection]);
 
-  // Refresh Remote Status from FusionCart
-  const refreshStatus = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const res = await fusionCartService.refreshStatus(currentTenantId);
-      if (res.settings) {
-        setSettings(res.settings);
-      }
-      await checkConnection(res.settings?.fusioncart_url);
-      if (activeTab === 'products') await loadProducts();
-      if (activeTab === 'orders') await loadOrders();
-    } catch (err) {
-      console.error('[EcommercePortal] refreshStatus failed', err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [currentTenantId, activeTab, checkConnection, setRefreshing, setSettings]);
-
   // Load Products Catalog
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -138,6 +146,25 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
       setOrdersLoading(false);
     }
   }, [currentTenantId, setOrders, setOrdersLoading]);
+
+  // Refresh Remote Status from FusionCart
+  const refreshStatus = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fusionCartService.refreshStatus(currentTenantId);
+      if (res.settings) {
+        setSettings(res.settings);
+      }
+      await checkConnection(res.settings?.fusioncart_url);
+      if (activeTab === 'products') await loadProducts();
+      if (activeTab === 'orders') await loadOrders();
+    } catch (err) {
+      console.error('[EcommercePortal] refreshStatus failed', err);
+    } finally {
+      setRefreshing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadProducts and loadOrders excluded: their filter-dependent identities are outside the original tenant and tab refresh triggers.
+  }, [currentTenantId, activeTab, checkConnection, setRefreshing, setSettings]);
 
   // Initial Load
   useEffect(() => {
@@ -338,32 +365,11 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
   const isVendorApproved = regStatus === 'ACTIVE' || regStatus === 'APPROVED';
 
   // Filtered Products
-  const filteredProductsList = useMemo(() => {
-    return products.filter(prod => {
-      // Search
-      if (productSearch.trim()) {
-        const q = productSearch.toLowerCase().trim();
-        const matchesName = prod.name.toLowerCase().includes(q);
-        const matchesSku = prod.sku_barcode ? prod.sku_barcode.toLowerCase().includes(q) : false;
-        const matchesCat = prod.category ? prod.category.toLowerCase().includes(q) : false;
-        if (!matchesName && !matchesSku && !matchesCat) return false;
-      }
-      // Status
-      if (productFilter === 'online' && prod.is_online_enabled !== 1) return false;
-      if (productFilter === 'offline' && prod.is_online_enabled === 1) return false;
-      if (productFilter === 'failed' && prod.sync_status !== 'FAILED') return false;
-
-      // Category
-      if (categoryFilter !== 'all' && (prod.category || '').toLowerCase() !== categoryFilter.toLowerCase()) return false;
-
-      // Stock
-      if (stockFilter === 'instock' && (prod.current_stock as number) <= 0) return false;
-      if (stockFilter === 'outstock' && (prod.current_stock as number) !== 0) return false;
-      if (stockFilter === 'negative' && (prod.current_stock as number) >= 0) return false;
-
-      return true;
-    });
-  }, [products, productSearch, productFilter, categoryFilter, stockFilter]);
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- this original memo keeps the product-list identity stable while its filters and data are unchanged.
+  const filteredProductsList = useMemo(
+    () => filterEcommerceProducts(products, productSearch, productFilter, categoryFilter, stockFilter),
+    [products, productSearch, productFilter, categoryFilter, stockFilter],
+  );
 
   // Filtered orders list
   const filteredOrders = useMemo(() => {

@@ -241,6 +241,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   }, [tenantId, startDate, endDate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchFinancialData is the report's range-triggered load; effect timing preserves its current loading sequence.
     fetchFinancialData();
   }, [fetchFinancialData]);
 

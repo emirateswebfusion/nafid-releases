@@ -53,6 +53,7 @@ export function useBillingModeSync(ctx: UseBillingModeSyncContext) {
       clearScrapDeduction();
     }
     prevScrapMode.current = isScrapMode;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- items, removeItem, and clearScrapDeduction excluded: tracking cart edits would repeat the mode-transition cleanup.
   }, [isScrapMode, activeTabId]);
 
   // Clean up return items when return mode toggles
@@ -87,6 +88,7 @@ export function useBillingModeSync(ctx: UseBillingModeSyncContext) {
       syncActiveSnapshot();
     }
     prevReturnMode.current = isReturnMode;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clearReturnDeduction, reserveInvoiceNumberForTab, reserveReturnNumberForTab, syncActiveSnapshot, and updateActiveTab excluded: tracking these callbacks would repeat invoice cleanup or number reservations.
   }, [isReturnMode, activeTabId, setSelectedReturnInvoice]);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import UpdateBanner from './components/UpdateBanner';
 import { PermissionGuard } from './components/PermissionGuard';
 import { BillingPage } from './components/BillingPage';
@@ -71,6 +71,7 @@ function App() {
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
       const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- location.hash initializes print-route state after mount to preserve the current route transition.
       setPrintBarcodeData(urlParams.get('barcode'));
       
       const paramPrice = urlParams.get('price');
@@ -125,10 +126,14 @@ function App() {
   const [scrapManagerInitialView, setScrapManagerInitialView] = useState<string>('list');
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
-  enableScrapRef.current = enableScrap;
   const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
   const featureFlagsRef = useRef(featureFlags);
-  featureFlagsRef.current = featureFlags;
+  useLayoutEffect(() => {
+    enableScrapRef.current = enableScrap;
+  });
+  useLayoutEffect(() => {
+    featureFlagsRef.current = featureFlags;
+  });
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showReturnManager, setShowReturnManager] = useState(false);
@@ -146,7 +151,7 @@ function App() {
   const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
   const [syncComplete, setSyncComplete] = useState(false);
 
-  const QUOTES = [
+  const QUOTES = useMemo(() => [
     { text: "The best among you are those who bring benefit to others.", author: "Muhammad (SAW)" },
     { text: "Take advantage of five before five: your youth before your old age, your health before your sickness, your wealth before your poverty, your free time before your preoccupation, and your life before your death.", author: "Muhammad (SAW)" },
     { text: "Verily, with hardship comes ease.", author: "Muhammad (SAW)" },
@@ -197,7 +202,7 @@ function App() {
     { text: "Energy and persistence conquer all things.", author: "Benjamin Franklin" },
     { text: "You are never too old to set another goal or to dream a new dream.", author: "C.S. Lewis" },
     { text: "Fall seven times, stand up eight.", author: "Japanese Proverb" },
-  ];
+  ], []);
 
   const [shuffledQuotes, setShuffledQuotes] = useState<number[]>([]);
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -215,10 +220,11 @@ function App() {
   // Pre-shuffle all quotes when syncing starts
   useEffect(() => {
     if (isSyncing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isSyncing starts a fresh quote permutation; keeping the reset in this effect preserves sync-start timing.
       setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
       setQuoteIndex(0);
     }
-  }, [isSyncing]);
+  }, [isSyncing, QUOTES]);
 
   useEffect(() => {
     checkAuth();
@@ -234,6 +240,7 @@ function App() {
   // Reset syncChecked and sync state when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isAuthenticated becoming false resets transient sync UI after logout, preserving the existing transition timing.
       setSyncChecked(false);
       setIsSyncing(false);
       setSyncProgress(null);
@@ -261,6 +268,7 @@ function App() {
       }).catch((error) => {
         console.error('[App] Sync failed:', error);
       });
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncChecked locks the initial request before its promise settles to prevent duplicate syncs.
       setSyncChecked(true);
     }
   }, [isAuthenticated, isCloudSyncPaused, syncChecked]);
@@ -306,7 +314,7 @@ function App() {
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [isSyncing, shuffledQuotes]);
+  }, [isSyncing, shuffledQuotes, QUOTES]);
 
   useEffect(() => {
     if (!isDesktopRuntime() || !isAuthenticated) return;

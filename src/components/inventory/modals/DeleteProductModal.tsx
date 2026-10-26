@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, Loader2, Trash } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
-import type { Product } from '../inventoryHelpers';
+import type { Product } from '../inventoryUtils';
 
 export interface DeleteProductModalProps {
   deleteConfirmProduct: Product | null;

@@ -52,7 +52,7 @@ export function useBillingPopoverEffects(ctx: UseBillingPopoverEffectsContext) {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [searchContainerRef, setPastBillResults, setResults, setSearchQuery, gradeFormDialogRef, productFormDialogRef, setShowProductCreateForm, setReturnDeductionDropdownStyle, setReturnDeductionResults, setScrapDeductionDropdownStyle, setScrapDeductionResults]);
+  }, [searchContainerRef, setPastBillResults, setResults, setSearchQuery, gradeFormDialogRef, productFormDialogRef, returnDeductionInputRef, scrapDeductionInputRef, setShowProductCreateForm, setReturnDeductionDropdownStyle, setReturnDeductionResults, setScrapDeductionDropdownStyle, setScrapDeductionResults]);
 
   useEffect(() => {
     if (!showProductCreateForm) return;

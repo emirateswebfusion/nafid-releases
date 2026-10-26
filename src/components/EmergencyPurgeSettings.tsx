@@ -72,6 +72,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
         })
         .catch(() => {});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- isControlled only determines whether internalConfig is parent-owned; switching ownership should not refetch terminal_code or mutate hidden config.
   }, [tenantId]);
 
   const handleSaveConfig = async () => {

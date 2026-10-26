@@ -21,7 +21,7 @@ import type { SettingsFormState } from './useSettingsFormState';
 export interface UseSettingsLoaderContext {
   featureFlags: FeatureFlags | null;
   fetchPrinters: (showToast?: boolean) => Promise<void>;
-  initialSnapshot: React.RefObject<string>;
+  setInitialSnapshot: React.Dispatch<React.SetStateAction<string>>;
   loadFlags: (tenantId: string) => Promise<void>;
   returnPrefix: string;
   returnStartNumber: string | number;
@@ -30,7 +30,7 @@ export interface UseSettingsLoaderContext {
 }
 
 export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
-  const { featureFlags, fetchPrinters, initialSnapshot, loadFlags, returnPrefix, returnStartNumber, updateSnapshotField } = ctx;
+  const { featureFlags, fetchPrinters, setInitialSnapshot, loadFlags, returnPrefix, returnStartNumber, updateSnapshotField } = ctx;
   const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableScrap, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, openCashDrawerOnPending, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, setA4Printer, setA4Style, setA5Orientation, setAppVersion, setAutoCloseCashDrawer, setAutoCloseCashDrawerTime, setAutoOpenCashDrawer, setAutoPrintBarcode, setB2bPrefix, setB2bStartNumber, setB2cPrefix, setB2cStartNumber, setBankAccount, setBankBranch, setBankIfsc, setBankName, setBarcodePrinter, setBillingUIConfig, setBillSettings, setConnectCode, setDefaultOpeningBalance, setEmergencyPanicConfig, setEnableConvertToGst, setEnablePartyEstimate, setEnablePartyGst, setEnableRealPaperStock, setEnableScrap, setEnableThreeInvoiceSeries, setGstConversionTaxInclusive, setGstProfitPercentage, setInventoryDefaultView, setInvoiceStartNumber, setLabelCodeType, setLabelShowShopName, setLanHostIp, setLanPort, setLanRole, setLoading, setLoyaltyAwardOnPending, setLoyaltyEarningRate, setLoyaltyEnabled, setLoyaltyRedemptionRate, setOpenCashDrawerOnPending, setPriceCoding, setPrintFormat, setPrintWidth, setPurchaseBillPrefix, setPurchaseBillStartNumber, setQuotationPrefix, setQuotationStartNumber, setReceiptFont, setReceiptPrinter, setReturnPrefix, setReturnStartNumber, setScale, setScrapBillSettings, setScrapPrefix, setScrapStartNumber, setServiceChargeBarcode, setServiceChargeProduct, setShopAddress, setShopClosingConfig, setShopEmail, setShopGstin, setShopNameLocal, setShopPhone, setShopState, setShopWebsite, setShowCashRegister, setShowFullyPaidCashInLedger, setShowPaperOnlyProducts, setShowPaperStockInEstimate, setShowPaperStockInGst, setShowPriceOverrideMrp, setShowPriceTiersInInventory, setShowProductGstBadge, setShowProductOffers, setShowUpiQr, setShowZeroPaperStock, setStaffDataMaskingConfig, setStockReportDefaultView, setStoreTimezoneState, setSyncFrequency, setSyncMode, setTerminalCode, setThermalStyle, setTimeFormat, setUpiId, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showCashRegister, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
   const buildSettingsSnapshot = (overrides: Partial<SettingsFormState> & { featureFlags?: FeatureFlags | null } = {}) => JSON.stringify({
     barcodePrinter: overrides.barcodePrinter !== undefined ? overrides.barcodePrinter : barcodePrinter,
@@ -662,7 +662,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       const finalConvertGst = convertGstVal !== null && convertGstVal !== undefined ? Boolean(convertGstVal) : true;
       setEnableConvertToGst(finalConvertGst);
 
-      initialSnapshot.current = buildSettingsSnapshot({
+      setInitialSnapshot(buildSettingsSnapshot({
         barcodePrinter: finalBarcode,
         receiptPrinter: finalReceipt,
         a4Printer: finalA4,
@@ -738,7 +738,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         emergencyPanicConfig: finalEmergencyPanic,
         shopClosingConfig: finalShopClosing,
         featureFlags: finalFlags
-      });
+      }));
 
       // Settings loaded: dismiss skeleton loader immediately (<30ms)
       setLoading(false);

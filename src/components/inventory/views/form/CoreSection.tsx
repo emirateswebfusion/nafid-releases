@@ -3,7 +3,7 @@ import { PackagePlus, Package, X, Check, Plus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { Select } from '../../../ui/Select';
 import Barcode from 'react-barcode';
-import type { Product } from '../../inventoryHelpers';
+import type { Product } from '../../inventoryUtils';
 import type { InventoryFormViewProps } from '../InventoryFormView';
 
 export interface CoreSectionProps {

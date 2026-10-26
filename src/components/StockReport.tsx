@@ -239,6 +239,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       maxPct: max,
       lowStockItems: lowAcc,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- billQtyMap excluded: filteredProducts already tracks this map, so a direct dependency would duplicate the aggregation trigger on report-data updates.
   }, [filteredProducts, getMrp, gradeMap]);
 
   const isStaff = isStaffRole(role);

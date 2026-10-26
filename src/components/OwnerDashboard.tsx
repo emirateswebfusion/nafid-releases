@@ -54,6 +54,9 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         od, cardOrder, role, setCardOrder, tenantId, userId, visibleCardIds,
     });
 
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is checked at render time to preserve the existing two-minute sync indicator.
+    const isLastSyncRecent = Boolean(lastSyncTime && Date.now() - lastSyncTime < 120000);
+
     const canOpenSettings = hasPermission({ role, permissions }, 'settings.view');
     return (
         <div className="fixed inset-0 z-40 flex flex-col bg-background">
@@ -135,7 +138,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                 <div className="px-8 py-3.5 border-t border-border bg-muted/30 relative z-0">
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                         <div className="flex items-center gap-2">
-                            <span className={`w-1.5 h-1.5 rounded-full ${lastSyncTime && Date.now() - lastSyncTime < 120000 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${isLastSyncRecent ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                             <span>Last sync: <span className="font-medium text-foreground/70">{displayTime}</span></span>
                         </div>
                         <DigitalClock variant="footer" />

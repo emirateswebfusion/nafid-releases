@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { CheckCircle2, Plus, X, DollarSign, Clock, AlertTriangle, Bell, Zap } from 'lucide-react';
 import { CustomDialog, type DialogVariant } from './ui/CustomDialog';
 import { FloatToast } from './ui/FloatToast';
@@ -280,13 +280,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (hasBridge('runInitialSync')) {
       syncApi.runInitialSync().catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load begins the initial settlement query after the screen commits.
     Promise.all([load()]).finally(() => setLoading(false));
   }, [load, tenantId, loadFlags]);
 
   // Auto-refresh: keep the settlement page in sync with the billing counter.
   // Newly printed bills (PENDING) appear here instantly without manual reload.
   const loadRef = useRef(load);
-  loadRef.current = load;
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
   useEffect(() => {
     const refresh = () => { loadRef.current(); };
     const unsubscribeSync = bridgeEvents.onSyncDataUpdated(refresh);
@@ -316,6 +319,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         }
       });
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- drawer, tenantId, and loading determine when a prior-shift warning should be cleared.
       setYesterdayNotClosed(false);
       setYesterdayDrawer(null);
     }

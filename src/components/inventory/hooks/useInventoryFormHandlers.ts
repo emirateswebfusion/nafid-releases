@@ -1,4 +1,4 @@
-import { type Product } from '../inventoryHelpers';
+import { type Product } from '../inventoryUtils';
 import { isDesktopRuntime } from '../../../data/client';
 import { adjustStock } from '../../../data/products';
 import { v4 as uuidv4 } from 'uuid';

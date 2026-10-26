@@ -3,7 +3,8 @@ import { Printer } from 'lucide-react';
 import Barcode from 'react-barcode';
 import clsx from 'clsx';
 import { Modal } from '../../ui/Modal';
-import { QRCodePreview, type Product } from '../inventoryHelpers';
+import { QRCodePreview } from '../inventoryHelpers';
+import type { Product } from '../inventoryUtils';
 
 export interface BarcodePrintModalProps {
   printModalProduct: Product | null;

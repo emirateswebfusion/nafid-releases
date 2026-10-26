@@ -56,6 +56,7 @@ export function useAiConversations(ctx: UseAiConversationsContext) {
       }
       return prev;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeConvId excluded: changing chats must not rerun the mount-time conversation-list cleanup.
   }, [setConversations]);
 
   const handleDeleteConversationClick = (e: React.MouseEvent, conv: Conversation) => {

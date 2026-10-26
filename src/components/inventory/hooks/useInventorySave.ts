@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { isDesktopRuntime } from '../../../data/client';
 import { updateProduct, createProduct, setProductPricing } from '../../../data/products';
 import { purchasesApi } from '../../../data/purchases';
-import { type Product } from '../inventoryHelpers';
+import { type Product } from '../inventoryUtils';
 import { listGrades, createGrade } from '../../../data/grades';
 import type { InventoryState } from './useInventoryState';
 

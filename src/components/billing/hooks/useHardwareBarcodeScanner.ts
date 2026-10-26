@@ -121,6 +121,7 @@ export function useHardwareBarcodeScanner(ctx: UseHardwareBarcodeScannerContext)
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, syncActiveSnapshot, setPastBillResults, setResults, setReturnSearchResults, setSearchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSelectProduct excluded: it is a render-local callback, and tracking it would resubscribe the hardware scanner on callback changes.
+  }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, searchRef, setHardwareError, syncActiveSnapshot, setPastBillResults, setResults, setReturnSearchResults, setSearchQuery]);
 
 }

@@ -3,7 +3,8 @@ import { Shield, Download, Eye, EyeOff, RotateCcw, AlertCircle, CheckCircle2, Lo
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
 import { useThemeStore } from '../../../store/themeStore';
-import { formatTimeAgo, formatBytes, DefaultStockReportViewSelector } from '../settingsConstants';
+import { DefaultStockReportViewSelector } from '../settingsConstants';
+import { formatTimeAgo, formatBytes } from '../settingsUtils';
 import type { SettingsForm } from '../settingsFormTypes';
 
 export interface SystemPreferencesTabProps {

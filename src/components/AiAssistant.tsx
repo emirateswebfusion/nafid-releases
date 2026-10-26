@@ -66,6 +66,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     } catch { /* ignore */ }
 
     const loaded = loadConversationsFromStorage();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- convStorageKey switches account-scoped storage after commit, preserving the current account transition.
     setConversations(loaded);
     try {
       const savedActiveId = localStorage.getItem(activeIdStorageKey);
@@ -102,6 +103,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     return found || conversations[0];
   }, [conversations, activeConvId]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- messages remains a fresh empty fallback without an active conversation to preserve the original scroll effect timing.
   const messages = activeConversation?.messages || [];
 
   useEffect(() => {
@@ -119,11 +121,13 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        // eslint-disable-next-line react-hooks/immutability -- the custom hook declares this callback later in render, before the mount-time listener can run.
         handleCreateNewChat();
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCreateNewChat excluded: the shortcut intentionally captures its original mount-time callback.
   }, []);
 
   const { handleCreateNewChat, handleDeleteConversationClick, executeDeleteConversation, handleRenameConversationClick, executeRenameConversation, executeClearAllConversations } = useAiConversations({

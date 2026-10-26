@@ -2,7 +2,7 @@ import { useFeatureFlagsStore } from '../../../featureFlags';
 import React from 'react';
 import { FileText, Shield, AlertCircle, Info, CheckCircle2, Tags } from 'lucide-react';
 import clsx from 'clsx';
-import { FONT_OPTIONS } from '../settingsConstants';
+import { FONT_OPTIONS } from '../settingsUtils';
 import { useBillingUIStore } from '../../../store/billingUIStore';
 import { CODE_TYPES } from '../../../labelCodeTypes';
 import { CashDrawerAutoCloseSettings } from './CashDrawerAutoCloseSettings';

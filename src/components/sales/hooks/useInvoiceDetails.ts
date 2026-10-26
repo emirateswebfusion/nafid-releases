@@ -241,6 +241,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
 
     invoiceDetailsCache.current.set(invoiceId, { items: [], returned: [], canReturn: true, promise });
     return promise;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enrichItemsWithMrp and withTimeout excluded: the cached invoice fetcher keeps its original mount-time closure.
   }, []);
 
   return { fetchInvoiceDetails };

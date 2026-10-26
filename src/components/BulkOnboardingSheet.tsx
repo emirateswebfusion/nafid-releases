@@ -52,18 +52,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const [printDateEnd, setPrintDateEnd] = useState('');
   const [printOnlyPending, setPrintOnlyPending] = useState(true);
 
-  useEffect(() => {
-    loadGrades();
-  }, []);
-
-  useEffect(() => {
-    loadPendingPrintCount();
-  }, [printDate, printDateEnd, printOnlyPending]);
-
-  useEffect(() => {
-    setTimeout(() => firstInputRef.current?.focus(), 50);
-  }, []);
-
   const loadGrades = async () => {
     if (isDesktopRuntime()) {
       try {
@@ -90,6 +78,22 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       }
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadGrades is the initial grade lookup; its result populates the form options after mount.
+    loadGrades();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadGrades excluded: the sheet loads grades once when it opens.
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadPendingPrintCount fetches the count for the current print date filters after mount or filter changes.
+    loadPendingPrintCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tenantId excluded: only the print-date filters triggered this count refresh before the lint fix.
+  }, [printDate, printDateEnd, printOnlyPending]);
+
+  useEffect(() => {
+    setTimeout(() => firstInputRef.current?.focus(), 50);
+  }, []);
 
   function createEmptyRow(): RowData {
     return {

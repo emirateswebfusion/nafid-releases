@@ -82,6 +82,7 @@ export function usePricingTiersData(ctx: UsePricingTiersDataContext) {
     return () => {
       if (typeof unsub === 'function') unsub();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData excluded: initial and sync reloads remain attached to the original tenantId trigger.
   }, [tenantId]);
 
   return { loadData };

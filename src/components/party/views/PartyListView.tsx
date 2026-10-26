@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, CheckCircle2, X, Search, Loader2, UserPlus, Activity, TrendingUp, TrendingDown, AlertTriangle, Tag, BookOpen, Phone, Pencil, Trash, ChevronRight, LayoutList, Table, Clock, CreditCard, Calendar } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
-import { formatDate, getInitials, nameToHue } from '../partyHelpers';
+import { formatDate, getInitials, nameToHue } from '../partyUtils';
 
 export interface PartyListViewProps {
   pendingRequests: import('../hooks/usePartyManagerState').PartyManagerState['pendingRequests'];

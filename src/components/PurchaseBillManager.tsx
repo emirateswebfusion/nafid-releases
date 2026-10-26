@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   X, Trash2, User,
@@ -42,6 +42,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [isExporting, setIsExporting] = useState(false);
   const [editingBill, setEditingBill] = useState<PurchaseBill | null>(null);
   const [editHasItems, setEditHasItems] = useState(false);
+  const handleEditItemsLoaded = useCallback(() => setEditHasItems(true), []);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
@@ -109,6 +110,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
+  const editingBillDetails = editingBill as (PurchaseBill & { payment_type?: string; total_amount?: number | string | null }) | null;
+  const editingBillPaymentType = editingBillDetails?.payment_type;
+  const editingBillTotalAmount = Number(editingBillDetails?.total_amount) || 0;
+
   // Stable memoized editingData objects to prevent infinite re-render cascades
   // (Inline object literals cause child useEffect([editingData]) to fire on every render)
   const gstEditingData = useMemo(() =>
@@ -117,11 +122,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           purchase_bill_id: editingBill.purchase_bill_id,
           bill_number: editingBill.bill_number,
           invoice_number: editingBill?.invoice_number,
-          payment_type: editingBill?.payment_type || 'CASH',
-          total_amount: Number(editingBill?.total_amount) || 0,
+          payment_type: editingBillPaymentType || 'CASH',
+          total_amount: editingBillTotalAmount,
         }
       : undefined,
-    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBill?.payment_type]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editingBill object and editingBillTotalAmount excluded: the original memo tracks only the listed bill fields, so unrelated record or total changes must not refresh the child editor.
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBillPaymentType]
   );
   const estEditingData = useMemo(() =>
     editingBill?.bill_type === 'ESTIMATE'
@@ -129,16 +135,23 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           purchase_bill_id: editingBill.purchase_bill_id,
           bill_number: editingBill.bill_number,
           invoice_number: editingBill?.invoice_number,
-          payment_type: editingBill?.payment_type || 'CASH',
-          total_amount: Number(editingBill?.total_amount) || 0,
+          payment_type: editingBillPaymentType || 'CASH',
+          total_amount: editingBillTotalAmount,
         }
       : undefined,
-    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBill?.payment_type]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editingBill object and editingBillTotalAmount excluded: the original memo tracks only the listed bill fields, so unrelated record or total changes must not refresh the child editor.
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBillPaymentType]
   );
 
   // Stable memoized cross-section addItem callbacks
-  const gstOtherAddItem = useMemo(() => estRef.current?.addItem ?? undefined, [estRef.current?.addItem]);
-  const estOtherAddItem = useMemo(() => gstRef.current?.addItem ?? undefined, [gstRef.current?.addItem]);
+  const gstOtherAddItem = useCallback<PurchaseBillFormHandle['addItem']>((item) => {
+    estRef.current?.addItem(item);
+  }, [estRef]);
+  const estOtherAddItem = useCallback<PurchaseBillFormHandle['addItem']>((item) => {
+    gstRef.current?.addItem(item);
+  }, [gstRef]);
+  const getEstimateItems = useCallback(() => estRef.current?.getItems?.() || [], [estRef]);
+  const getGstItems = useCallback(() => gstRef.current?.getItems?.() || [], [gstRef]);
 
   // Bulk share: copy ALL items from source section to destination section (keeps both in sync)
   const handleBulkShare = async (source: 'GST' | 'ESTIMATE') => {
@@ -182,7 +195,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     setLoading(false);
   };
 
-  useEffect(() => { loadBills(); }, [tenantId, searchQuery]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadBills starts the purchase-list request after tenant or search changes.
+    loadBills();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadBills is render-local; tenantId and searchQuery are the intended fetch triggers.
+  }, [tenantId, searchQuery]);
 
   useEffect(() => {
     if (showAddForm && isDesktopRuntime() && tenantId) {
@@ -663,12 +680,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 notes={billNotes}
                 onStatusMessage={setStatusMessage}
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
-                onItemsLoaded={() => setEditHasItems(true)}
+                onItemsLoaded={handleEditItemsLoaded}
                 onItemsChange={setGstHasItems}
                 onShareAll={() => handleBulkShare('GST')}
                 otherSectionAddItem={gstOtherAddItem}
                 editingData={gstEditingData}
-                getOtherSectionItems={() => estRef.current?.getItems?.() || []}
+                getOtherSectionItems={getEstimateItems}
               />
             </div>
             <div className={billType === 'ESTIMATE' ? 'block' : 'hidden'}>
@@ -682,12 +699,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 notes={billNotes}
                 onStatusMessage={setStatusMessage}
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
-                onItemsLoaded={() => setEditHasItems(true)}
+                onItemsLoaded={handleEditItemsLoaded}
                 onItemsChange={setEstHasItems}
                 onShareAll={() => handleBulkShare('ESTIMATE')}
                 otherSectionAddItem={estOtherAddItem}
                 editingData={estEditingData}
-                getOtherSectionItems={() => gstRef.current?.getItems?.() || []}
+                getOtherSectionItems={getGstItems}
               />
             </div>
           </div>

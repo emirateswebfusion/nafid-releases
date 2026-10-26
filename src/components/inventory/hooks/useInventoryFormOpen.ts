@@ -1,7 +1,7 @@
 import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { listProducts, getProductPricing } from '../../../data/products';
-import { DEFAULT_FORM, type Product, isGstProduct } from '../inventoryHelpers';
+import { DEFAULT_FORM, type Product, isGstProduct } from '../inventoryUtils';
 import { purchasesApi } from '../../../data/purchases';
 import type { InventoryState } from './useInventoryState';
 
@@ -18,7 +18,7 @@ export interface UseInventoryFormOpenContext {
  * last purchase).
  */
 export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
-  const { lastInteractedProductId, listScrollRef, savedScrollTop, tenantId } = ctx;
+  const { lastInteractedProductId: lastInteractedProductIdRef, listScrollRef, savedScrollTop: savedScrollTopRef, tenantId } = ctx;
   const { grades, setEditingProduct, setFormData, setTierPrices, setView } = ctx.inv;
   const openAdd = async () => {
     let nextBarcode = '';
@@ -53,9 +53,9 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
   };
 
   const openEdit = (product: Product) => {
-    lastInteractedProductId.current = product.product_id;
+    lastInteractedProductIdRef.current = product.product_id;
     if (listScrollRef.current) {
-      savedScrollTop.current = listScrollRef.current.scrollTop;
+      savedScrollTopRef.current = listScrollRef.current.scrollTop;
     }
     setEditingProduct(product);
     const validGradeId = product.grade_id && grades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { deleteProduct, bulkDeleteProducts } from '../../../data/products';
-import type { Product } from '../inventoryHelpers';
+import type { Product } from '../inventoryUtils';
 import type { InventoryState } from './useInventoryState';
 
 export interface UseInventoryListActionsContext {

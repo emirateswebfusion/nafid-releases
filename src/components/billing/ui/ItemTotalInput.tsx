@@ -42,6 +42,7 @@ export function ItemTotalInput({
 
   useEffect(() => {
     if (!isFocused) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- total and isFocused refresh the draft only while blurred, so active typing remains untouched.
       setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : (total === 0 ? '0' : ''));
       setIsDirty(false);
     }

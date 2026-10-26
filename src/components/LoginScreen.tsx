@@ -84,6 +84,7 @@ export function LoginScreen() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- window.location.search seeds reset-password state from a deep link after mount.
       setResetToken(token);
       setTab('reset-password');
     }

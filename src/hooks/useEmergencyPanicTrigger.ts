@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { 
   DEFAULT_EMERGENCY_PANIC_CONFIG, 
   EMERGENCY_PANIC_CONFIG_KEY, 
@@ -26,7 +26,9 @@ export function useEmergencyPanicTrigger() {
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configRef = useRef<EmergencyPanicConfig>(panicConfig);
   const pendingReasonRef = useRef('LOCAL_PANIC');
-  configRef.current = panicConfig;
+  useLayoutEffect(() => {
+    configRef.current = panicConfig;
+  });
 
   // Load panic configuration from settings
   useEffect(() => {

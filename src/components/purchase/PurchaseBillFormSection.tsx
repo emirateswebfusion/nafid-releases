@@ -419,7 +419,8 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           .catch(console.error);
       }
     }
-  }, [showProductCreateForm, tenantId, editingProductItemId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- newProductBarcode is excluded so assigning the generated value does not restart the focus timer or barcode lookup.
+  }, [showProductCreateForm, tenantId, editingProductItemId, firstInputRef, setNewProductBarcode]);
 
   const isEstimate = type === 'ESTIMATE';
   return (

@@ -22,10 +22,10 @@ export interface UseNumberReservationsContext {
 
 /** Reserves the next invoice / scrap / quotation / return number for the active tab, and switches GST vs bill-of-supply numbering. */
 export function useNumberReservations(ctx: UseNumberReservationsContext) {
-  const { customerGstin, editingActive, editingQuotationId, enableThreeInvoiceSeries, getActiveTab, invoiceType, isB2B, isQuotationMode, isReturnMode, isScrapMode, setInvoiceType, syncActiveSnapshot, tenantId, updateActiveTab } = ctx;
+  const { customerGstin, editingActive, editingQuotationId, enableThreeInvoiceSeries, getActiveTab, invoiceType, isQuotationMode, isReturnMode, isScrapMode, setInvoiceType, syncActiveSnapshot, tenantId, updateActiveTab } = ctx;
     const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
     await reserveInvoiceNumber({ tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode, editingActive }, forceRefresh);
-  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isB2B, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
+  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
 
   const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
     setInvoiceType(type);

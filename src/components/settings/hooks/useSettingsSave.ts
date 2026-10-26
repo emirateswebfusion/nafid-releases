@@ -21,7 +21,7 @@ export interface UseSettingsSaveContext {
   activeSection: string;
   buildSettingsSnapshot: (overrides?: SettingsSnapshotOverrides) => string;
   featureFlags: FeatureFlags | null;
-  initialSnapshot: React.RefObject<string>;
+  setInitialSnapshot: React.Dispatch<React.SetStateAction<string>>;
   localDomain: "GENERAL" | "HARDWARE" | "JEWELRY" | "GROCERY";
   returnPrefix: string;
   returnStartNumber: string | number;
@@ -32,7 +32,7 @@ export interface UseSettingsSaveContext {
 }
 
 export function useSettingsSave(ctx: UseSettingsSaveContext) {
-  const { activeSection, buildSettingsSnapshot, featureFlags, initialSnapshot, localDomain, returnPrefix, returnStartNumber, role, shopDomain, updateDomain } = ctx;
+  const { activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix, returnStartNumber, role, shopDomain, updateDomain } = ctx;
   const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, detectedLocalIp, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, openCashDrawerOnPending, osPrinters, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, serviceChargeProduct, setBarcodePrinter, setEnableScrap, setMessage, setReceiptPrinter, setSaveRevision, setSaving, setServiceChargeProduct, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showFullyPaidCashInLedger, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
   const handleSave = async () => {
     if (!isDesktopRuntime()) return;
@@ -256,7 +256,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
           text: `${label} saved successfully!`
         });
       }
-      initialSnapshot.current = buildSettingsSnapshot({
+      setInitialSnapshot(buildSettingsSnapshot({
         barcodePrinter: formattedBarcodePrinter,
         receiptPrinter: formattedReceiptPrinter,
         a4Printer,
@@ -332,7 +332,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         emergencyPanicConfig,
         shopClosingConfig,
         featureFlags
-      });
+      }));
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {

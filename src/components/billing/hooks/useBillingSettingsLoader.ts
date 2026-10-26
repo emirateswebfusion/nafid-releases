@@ -250,7 +250,17 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
     return () => {
       if (typeof unsubSync === 'function') unsubSync();
     };
-  }, [tenantId, setAutoPrintBarcode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- shopName is written by this settings load; including it would repeat all settings and pricing requests after that write.
+  }, [
+    tenantId, loadFlags, setAllowBillerOverride, setAutoPrintBarcode, setBankAccountState, setBankBranchState,
+    setBankIfscState, setBankNameState, setBosTaxInclusive, setBosTaxRatePercent, setEnableRealPaperStock,
+    setEnableScrap, setEnableThreeInvoiceSeries, setLoyaltyAwardOnPending, setLoyaltyEarningRate,
+    setLoyaltyEnabled, setLoyaltyRedemptionRate, setPartiesForTier, setPricingTiers, setProductPricingMap,
+    setProductPricingMapLoaded, setQuotationGstEnabledSetting, setSelectedTierId, setShopAddress, setShopEmail,
+    setShopGstin, setShopNameState, setShopPhone, setShopState, setShopWebsite, setShowCashRegister,
+    setShowDescriptionState, setShowPaperInEstSetting, setShowPaperInGstSetting, setShowUpiQr,
+    setTerminalCodeState, setUpiId, setUpiPageConfig, setUpiSources,
+  ]);
 
   // Listen for settings updates to immediately refresh Computer Code display and tab bill numbers
   useEffect(() => {
@@ -341,6 +351,14 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);
     return () => window.removeEventListener('settings:updated', handleSettingsUpdated);
-  }, [reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tenantId excluded: including it would re-register the settings:updated listener across tenant changes.
+  }, [
+    reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab,
+    reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode, loadFlags,
+    setBankAccountState, setBankBranchState, setBankIfscState, setBankNameState,
+    setLoyaltyAwardOnPending, setLoyaltyEarningRate, setLoyaltyEnabled, setLoyaltyRedemptionRate,
+    setShopAddress, setShopGstin, setShopNameState, setShopPhone, setShowDescriptionState,
+    setTerminalCodeState,
+  ]);
 
 }

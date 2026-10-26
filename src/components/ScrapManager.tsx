@@ -123,9 +123,10 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   useEffect(() => {
     loadData();
     if (initialView === 'invoices') loadInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialView selects the mount-time view, while loadData and loadInvoices are the corresponding one-time requests.
   }, []);
 
-  const loadData = async () => {
+  async function loadData() {
     setLoading(true);
     try {
       if (isDesktopRuntime()) {
@@ -153,7 +154,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       console.error('[ScrapManager] Failed to load data:', err);
     }
     setLoading(false);
-  };
+  }
 
   const loadTransactions = async (categoryId?: string) => {
     if (isDesktopRuntime()) {
@@ -162,12 +163,12 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     }
   };
 
-  const loadInvoices = async () => {
+  async function loadInvoices() {
     if (isDesktopRuntime()) {
       const invs = await scrapApi.getScrapInvoiceList({ tenant_id: tenantId || '' });
       if (Array.isArray(invs)) setInvoices(invs);
     }
-  };
+  }
 
   const openInvoiceDetail = async (invoiceNumber: string) => {
     setSelectedInvoiceNumber(invoiceNumber);
@@ -220,7 +221,11 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
   // Selling search effect
   useEffect(() => {
-    if (sellingSearch.length < 2) { setSellingResults([]); return; }
+    if (sellingSearch.length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sellingSearch dropping below two characters clears stale category suggestions immediately.
+      setSellingResults([]);
+      return;
+    }
     const t = setTimeout(async () => {
       if (!isDesktopRuntime()) return;
       const res = await scrapApi.getScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });

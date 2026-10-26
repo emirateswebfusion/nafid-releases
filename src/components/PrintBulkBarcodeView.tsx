@@ -75,6 +75,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1]);
     const cols = parseInt(params.get('columns') || '1', 10);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- window.location.hash supplies the one-time print layout after the route mounts.
     setColumns(cols || 1);
     const wMm = parseInt(params.get('labelWidthMm') || '50', 10) || 50;
     const hMm = parseInt(params.get('labelHeightMm') || '25', 10) || 25;

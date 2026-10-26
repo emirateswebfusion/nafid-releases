@@ -9,7 +9,7 @@ import { isLegacyBillerRole } from '../utils/permissions';
 import { parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 
-import { type Product, isGstProduct } from './inventory/inventoryHelpers';
+import { type Product, isGstProduct } from './inventory/inventoryUtils';
 import { InventoryTableView } from './inventory/views/InventoryTableView';
 import { InventoryFormView } from './inventory/views/InventoryFormView';
 import { CreateGradeModal } from './inventory/modals/CreateGradeModal';
