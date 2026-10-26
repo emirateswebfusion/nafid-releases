@@ -1,7 +1,7 @@
 import { useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useTerminologyStore } from '../store/terminologyStore';
-import { fetchApi } from '../lib/api';
+import { partyConnectCloud } from '../data/cloud/partyConnect';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DeleteTxModal } from './party/modals/DeleteTxModal';
 import { DeletePartyModal } from './party/modals/DeletePartyModal';
@@ -100,7 +100,7 @@ export function PartyManager({
 
   const fetchMyConnectCode = useCallback(async () => {
     try {
-      const res = await fetchApi('/settings/connect-code').catch(() => null);
+      const res = await partyConnectCloud.getConnectCode().catch(() => null);
       if (res?.connect_code) {
         setMyConnectCode(res.connect_code);
       } else {
@@ -115,7 +115,7 @@ export function PartyManager({
   const fetchPendingRequests = useCallback(async () => {
     fetchMyConnectCode();
     try {
-      const res = await fetchApi('/parties/connect/requests').catch(() => null);
+      const res = await partyConnectCloud.requests().catch(() => null);
       if (res && Array.isArray(res)) {
         setPendingRequests(res.filter((r: any) => r.status === 'PENDING'));
       }
@@ -132,10 +132,7 @@ export function PartyManager({
     setSearching(true);
     setSearchResult(null);
     try {
-      const res = await fetchApi('/parties/connect/search', {
-        method: 'POST',
-        body: JSON.stringify({ query: connectCodeInput.trim() })
-      });
+      const res = await partyConnectCloud.search(connectCodeInput.trim());
       if (res) {
         setSearchResult(res);
         setPartyNameForConnect(res.name || '');
@@ -151,12 +148,9 @@ export function PartyManager({
     if (!searchResult?.connect_code) return;
     setIsSavingParty(true);
     try {
-      await fetchApi('/parties/connect/request', {
-        method: 'POST',
-        body: JSON.stringify({
-          receiver_connect_code: searchResult.connect_code,
-          party_name: partyNameForConnect.trim() || searchResult.name,
-        })
+      await partyConnectCloud.request({
+        receiver_connect_code: searchResult.connect_code,
+        party_name: partyNameForConnect.trim() || searchResult.name,
       });
       setShowConnectModal(false);
       setConnectCodeInput('');
@@ -172,10 +166,7 @@ export function PartyManager({
 
   const handleRespondConnectRequest = async (requestId: string, action: 'ACCEPT' | 'REJECT') => {
     try {
-      await fetchApi('/parties/connect/respond', {
-        method: 'POST',
-        body: JSON.stringify({ request_id: requestId, action })
-      });
+      await partyConnectCloud.respond(requestId, action);
       showStatus(action === 'ACCEPT' ? 'Ledger Connection Accepted! 🟢' : 'Connection Request Declined', 'success');
       fetchPendingRequests();
       loadParties();

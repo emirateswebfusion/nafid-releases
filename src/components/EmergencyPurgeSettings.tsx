@@ -10,7 +10,7 @@ import {
   type EmergencyPanicConfig,
   type EmergencyWipeCommand
 } from '../utils/emergencyPurge';
-import { fetchApi } from '../lib/api';
+import { emergencyCloud } from '../data/cloud/emergency';
 import { useAuthStore } from '../store/authStore';
 import { hasBridge } from '../data/client';
 import { settingsApi } from '../data/settings';
@@ -110,9 +110,8 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
     setSendingWipeSignal(true);
     setRemoteWipeError('');
     try {
-      const command = (await fetchApi('/emergency/wipe-commands', {
-        method: 'POST',
-        body: JSON.stringify({ password: remoteWipePassword, target_terminal: remoteWipeTarget, wipe_mode: config.wipe_mode }),
+      const command = (await emergencyCloud.issueWipeCommand({
+        password: remoteWipePassword, target_terminal: remoteWipeTarget, wipe_mode: config.wipe_mode,
       })) as EmergencyWipeCommand;
       console.warn(`[EmergencyPurgeSettings] Wipe command ${command.command_id} issued for ${command.target_terminal}`);
       setWipeSignalSent(true);

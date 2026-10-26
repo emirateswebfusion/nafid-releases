@@ -18,7 +18,7 @@ SQLite database that synchronises with the cloud API (`nafid-server`) in the bac
 │  │ (the ONLY bridge users)      │  bridge   │        │                                │  │
 │  │                              │◀──────────│ electron/db/localDb.ts (SQLite)         │  │
 │  │ src/data/events.ts  ◀──── push events ───│ electron/sync/syncWorker.ts ───────────────┼──▶ nafid-server
-│  │ src/lib/api.ts (cloud REST) ─────────────────────────────────────────────────────────┼──▶ /auth, /api/*
+│  │ src/data/cloud/* (cloud REST) ───────────────────────────────────────────────────────┼──▶ /auth, /api/*
 │  └──────────────────────────────┘           │ electron/sync/localHostServer.ts ◀─────────┼── other terminals (LAN)
 │                                             │ electron/hardware, electron/whatsapp    │  │
 │                                             └─────────────────────────────────────────┘  │
@@ -37,7 +37,7 @@ SQLite database that synchronises with the cloud API (`nafid-server`) in the bac
 |---|---|---|
 | UI → local data | `ipcRenderer.invoke` through the preload bridge | `src/data/<domain>.ts` → `electron/preload.ts` → `electron/ipc/*Handlers.ts` → `electron/services/*` |
 | Main → UI (push) | `webContents.send` events (`onSyncDataUpdated`, `onBarcodeScanned`, `onScaleWeight`, …) | `src/data/events.ts` (`bridgeEvents`) |
-| UI → cloud | HTTPS + Bearer JWT | `src/lib/api.ts` (`fetchApi`); login/password flows in `src/store/authStore.ts` |
+| UI → cloud | HTTPS + Bearer JWT | `src/data/cloud/*` repositories over `src/data/cloud/client.ts` (`cloudFetch`, `cloudRequest`; the only `fetch` caller) |
 | Main → cloud | Background sync worker (HTTPS, JWT saved by `authApi.saveToken`) | `electron/sync/syncWorker.ts` ↔ `nafid-server` `/api/sync/*` |
 | Terminal ↔ terminal | LAN HTTP server on the primary terminal | `electron/sync/localHostServer.ts` |
 | Main → devices | ESC/POS printer, cash drawer kick, serial scale, keyboard-wedge scanner | `electron/hardware/*` |

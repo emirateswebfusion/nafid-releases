@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Megaphone, Plus, Eye, Trash2, Loader2, X, Image as ImageIcon, Phone, Flame, ToggleLeft, ToggleRight, RefreshCw, Heart, Share2 } from 'lucide-react';
 import clsx from 'clsx';
-import { fetchApi } from '../lib/api';
+import { adsCloud } from '../data/cloud/ads';
 import { useAuthStore } from '../store/authStore';
 import { FloatToast, type ToastMessage } from './ui/FloatToast';
 
@@ -48,7 +48,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const fetchAds = async () => {
     setLoading(true);
     try {
-      const data = await fetchApi('/ads/my-ads');
+      const data = await adsCloud.myAds();
       if (Array.isArray(data)) {
         setAds(data);
       }
@@ -98,17 +98,14 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
 
     setSubmitting(true);
     try {
-      const res = await fetchApi('/ads', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          image_url: imageUrl.trim(),
-          aspect_ratio: aspectRatio,
-          contact_phone: contactPhone.trim() || null,
-          call_to_action: callToAction,
-          shop_name: shopName || 'Our Store',
-        }),
+      const res = await adsCloud.create({
+        title: title.trim(),
+        description: description.trim() || null,
+        image_url: imageUrl.trim(),
+        aspect_ratio: aspectRatio,
+        contact_phone: contactPhone.trim() || null,
+        call_to_action: callToAction,
+        shop_name: shopName || 'Our Store',
       });
 
       if (res && res.ad_id) {
@@ -133,10 +130,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const handleToggleStatus = async (ad: Advertisement) => {
     const newStatus = ad.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     try {
-      await fetchApi(`/ads/${ad.ad_id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: newStatus }),
-      });
+      await adsCloud.setStatus(ad.ad_id, newStatus);
       setAds(prev => prev.map(item => item.ad_id === ad.ad_id ? { ...item, status: newStatus } : item));
       showToast(newStatus === 'ACTIVE' ? 'Advertisement resumed & visible' : 'Advertisement paused', 'info', 'STATUS UPDATED');
     } catch (err: any) {
@@ -147,7 +141,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const handleDeleteAd = async (adId: string) => {
     if (!window.confirm('Are you sure you want to delete this advertisement?')) return;
     try {
-      await fetchApi(`/ads/${adId}`, { method: 'DELETE' });
+      await adsCloud.remove(adId);
       setAds(prev => prev.filter(item => item.ad_id !== adId));
       showToast('Advertisement deleted successfully', 'success', 'DELETED');
     } catch (err: any) {

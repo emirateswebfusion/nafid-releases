@@ -32,7 +32,6 @@ src/
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
   utils/                  pure rules and generators (money, pricing, checkout lines, tax, numbering, HTML)
   services/               long-running renderer services (offline AI engine, FusionCart client)
-  lib/api.ts              cloud REST client (`fetchApi`, JWT + 401 handling)
   featureFlags.ts, labelCodeTypes.ts   static configuration/types
   global.d.ts             the typed bridge contract (`IElectronAPI`)
 ```
@@ -47,7 +46,7 @@ src/
 | `data/**` | Bridge access, DTO types, mapping | `data/client` only | React, stores, UI, `any` *(enforced)* |
 | `utils/**` | Pure functions (no IO, no React) | other `utils` | `data`, `store`, `components`, `window` |
 | `services/**` | Long-running/background logic in the renderer | `data`, `utils`, `lib` | `components` |
-| `lib/api.ts` | HTTP to `nafid-server` | `store/authStore`, `data/auth` | UI |
+| `data/cloud/*` | HTTP to `nafid-server` (`client.ts` is the only `fetch` caller) | nothing above `data/` (the auth store registers the token / 401 handlers) | UI, stores |
 
 Dependency direction: `components → hooks / store → services → data / lib → utils`. Never the reverse.
 

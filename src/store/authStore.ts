@@ -5,6 +5,8 @@ import { authApi } from '../data/auth';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { settingsApi } from '../data/settings';
 import { syncApi } from '../data/sync';
+import { CLOUD_API, registerCloudAuth } from '../data/cloud/client';
+import { authCloud } from '../data/cloud/authCloud';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -41,8 +43,6 @@ function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN' | 'ADM
   return 'STAFF';
 }
 
-// Cloud API URL — set VITE_CLOUD_API in .env
-const CLOUD_API = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 const BROWSER_AUTH_KEY = 'nafid_pos_auth_session';
 
 function decodeJwtPayload(token: string): any {
@@ -299,11 +299,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       // Reset local store confirmation state before logging in
       useCartStore.getState().resetDomainConfirmation();
       const baseUrl = apiBase.replace(/\/$/, '');
-      const res = await fetch(`${baseUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await authCloud.login(baseUrl, email, password);
       const data = await res.json();
 
       if (!res.ok) {
@@ -435,14 +431,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     if (!token || !tenantId) return { success: false, error: 'Not authenticated' };
 
     try {
-      const res = await fetch(`${CLOUD_API}/auth/tenant/domain`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ domain_type: domain }),
-      });
+      const res = await authCloud.updateTenantDomain(token, domain);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
 
@@ -473,11 +462,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
   
   forgotPassword: async (email: string) => {
     try {
-      const res = await fetch(`${CLOUD_API}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const res = await authCloud.forgotPassword(email);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Request failed') };
       return { success: true };
@@ -488,11 +473,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
   resetPassword: async (token: string, password: string) => {
     try {
-      const res = await fetch(`${CLOUD_API}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
-      });
+      const res = await authCloud.resetPassword(token, password);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Reset failed') };
       return { success: true };
@@ -506,14 +487,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     if (!token) return { success: false, error: 'Not authenticated' };
 
     try {
-      const res = await fetch(`${CLOUD_API}/auth/change-password`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ oldPassword, newPassword }),
-      });
+      const res = await authCloud.changePassword(token, oldPassword, newPassword);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
       return { success: true };
@@ -522,3 +496,25 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     }
   }
 }));
+
+// Cloud calls (src/data/cloud) take the session token from this store; a 401 pauses cloud sync and asks to sign in.
+registerCloudAuth({
+  getToken: async () => {
+    let token = useAuthStore.getState().token;
+    // Auto-recover the token from the stored Electron config if the in-memory session was cleared.
+    if (!token && typeof window !== 'undefined' && hasBridge('authGetToken')) {
+      try {
+        const stored = await authApi.getToken();
+        if (stored?.jwt_token) {
+          token = stored.jwt_token;
+          useAuthStore.setState({ token: stored.jwt_token });
+        }
+      } catch { /* keep going without a token */ }
+    }
+    return token;
+  },
+  onUnauthorized: () => {
+    useAuthStore.getState().setCloudSyncPaused(true, 'Token expired — Cloud Sync paused. Re-login to resume cloud sync.');
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-session-expired-modal'));
+  },
+});

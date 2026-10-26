@@ -13,6 +13,7 @@ import { hasBridge } from '../data/client';
 import { settingsApi } from '../data/settings';
 import { staffApi } from '../data/staff';
 import { whatsappApi } from '../data/whatsapp';
+import { staffCloud } from '../data/cloud/staffCloud';
 import { type StaffMember, type SavedSystemAccount } from './staff/staffTypes';
 import { useStaffManagerState } from './staff/hooks/useStaffManagerState';
 import { StaffTransactionModal } from './staff/views/StaffTransactionModal';
@@ -20,9 +21,6 @@ import { StaffFormModal } from './staff/views/StaffFormModal';
 import { StaffDetailPanel } from './staff/views/StaffDetailPanel';
 import { StaffProfileHeader } from './staff/views/StaffProfileHeader';
 import { StaffList } from './staff/views/StaffList';
-
-// Cloud API URL — set VITE_CLOUD_API in .env
-const CLOUD_API = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 
 export function StaffManager({ onClose }: { onClose: () => void }) {
   useCloseOnEscape(onClose);
@@ -64,9 +62,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         }
       } else {
         // Web fallback
-        const res = await fetch(`${CLOUD_API}/api/staff?search=${encodeURIComponent(searchQuery)}&status=${statusFilter}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await staffCloud.list(token, searchQuery, statusFilter);
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
@@ -124,10 +120,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const fetchSystemAccounts = async () => {
     if (!token) return null;
     try {
-      const response = await fetch(`${CLOUD_API}/auth/staff`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        signal: AbortSignal.timeout(5000),
-      });
+      const response = await staffCloud.listAccounts(token);
       if (!response.ok) return null;
       const users = await response.json();
       return Array.isArray(users) ? users : null;
@@ -139,11 +132,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const saveSystemAccount = async (): Promise<SavedSystemAccount | undefined> => {
     if (!formData.showSystemAccountSection) {
       if (!formData.user_id) return undefined;
-      const response = await fetch(`${CLOUD_API}/auth/staff/${encodeURIComponent(formData.user_id)}/login`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ login_enabled: false }),
-      });
+      const response = await staffCloud.setLoginEnabled(token, formData.user_id, false);
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || 'Could not disable the login account');
       return {
@@ -182,28 +171,20 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       throw new Error('Passwords must be at least 8 characters');
     }
 
-    const isExistingAccount = Boolean(userId);
     const role = matchingAccount && !formData.roleTouched
       ? (matchingAccount.role === 'ADMIN' ? 'ADMIN' : 'STAFF')
       : formData.user_role;
     const permissions = matchingAccount && !formData.permissionsTouched
       ? (Array.isArray(matchingAccount.permissions) ? matchingAccount.permissions : [])
       : formData.permissions;
-    const response = await fetch(
-      `${CLOUD_API}/auth/staff${isExistingAccount ? `/${encodeURIComponent(userId)}` : ''}`,
-      {
-        method: isExistingAccount ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email,
-          password: formData.password || undefined,
-          role,
-          permissions,
-          login_enabled: true,
-        }),
-      }
-    );
+    const response = await staffCloud.saveAccount(token, userId, {
+      name: formData.name.trim(),
+      email,
+      password: formData.password || undefined,
+      role,
+      permissions,
+      login_enabled: true,
+    });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 409 && result?.error === 'Email already registered') {
@@ -305,22 +286,18 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         });
         profileSaved = true;
       } else {
-        const res = await fetch(`${CLOUD_API}/api/staff`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            staff_id: formData.staff_id || undefined,
-            tenant_id: tenantId,
-            name: formData.name.trim(),
-            phone: formData.phone.trim() || undefined,
-            email: formData.email.trim() || undefined,
-            role_designation: formData.role_designation.trim() || undefined,
-            joining_date: formData.joining_date || undefined,
-            monthly_salary: Number(formData.monthly_salary) || 0,
-            status: formData.status,
-            user_id: formData.user_id || undefined,
-            biller_pin: formData.biller_pin.trim() || undefined,
-          })
+        const res = await staffCloud.saveStaff(token, {
+          staff_id: formData.staff_id || undefined,
+          tenant_id: tenantId,
+          name: formData.name.trim(),
+          phone: formData.phone.trim() || undefined,
+          email: formData.email.trim() || undefined,
+          role_designation: formData.role_designation.trim() || undefined,
+          joining_date: formData.joining_date || undefined,
+          monthly_salary: Number(formData.monthly_salary) || 0,
+          status: formData.status,
+          user_id: formData.user_id || undefined,
+          biller_pin: formData.biller_pin.trim() || undefined,
         });
         if (res.ok) {
           savedStaff = await res.json();
@@ -354,11 +331,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           if (hasBridge('dbSaveStaff')) {
             await staffApi.saveStaff(linkedStaff);
           } else {
-            const linkResponse = await fetch(`${CLOUD_API}/api/staff`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify(linkedStaff),
-            });
+            const linkResponse = await staffCloud.saveStaff(token, linkedStaff);
             const linkResult = await linkResponse.json().catch(() => ({}));
             if (!linkResponse.ok) throw new Error(linkResult?.error || 'Login was saved but could not be linked to the staff profile');
           }
@@ -481,11 +454,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       if (hasBridge('dbSaveStaff')) {
         await staffApi.saveStaff(payload);
       } else {
-        const response = await fetch(`${CLOUD_API}/api/staff`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify(payload),
-        });
+        const response = await staffCloud.saveStaff(token, payload);
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result?.error || 'Failed to update monthly salary');
       }

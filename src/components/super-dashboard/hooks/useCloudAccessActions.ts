@@ -1,5 +1,5 @@
 import { type TenantAdmin } from '../superDashboardTypes';
-import { fetchApi } from '../../../lib/api';
+import { superAdminCloud } from '../../../data/cloud/superAdmin';
 import { hasBridge } from '../../../data/client';
 import { syncApi } from '../../../data/sync';
 import type { SuperDashboardState } from './useSuperDashboardState';
@@ -17,7 +17,7 @@ export function useCloudAccessActions(ctx: UseCloudAccessActionsContext) {
     setCloudAccessMsg('');
     setCloudModalOpen(true);
     try {
-      const data = await fetchApi(`/super-admin/cloud-access/${admin.tenant_id}`);
+      const data = await superAdminCloud.getCloudAccess(admin.tenant_id);
       if (data) {
         setCloudAccessEnabled(data.cloud_access_enabled !== false);
         setCloudScheduleEnabled(!!data.cloud_schedule_enabled);
@@ -60,10 +60,7 @@ export function useCloudAccessActions(ctx: UseCloudAccessActionsContext) {
         cloud_manual_override: cloudManualOverride,
         cloud_schedules: cloudSchedules,
       };
-      await fetchApi(`/super-admin/cloud-access/${selectedCloudTenant.tenant_id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      });
+      await superAdminCloud.setCloudAccess(selectedCloudTenant.tenant_id, payload);
       if (hasBridge('updateCloudAccessConfig')) {
         await syncApi.updateCloudAccessConfig({ config: payload, tenant_id: selectedCloudTenant.tenant_id });
       }

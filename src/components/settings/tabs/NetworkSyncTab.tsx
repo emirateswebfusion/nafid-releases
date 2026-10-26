@@ -5,6 +5,8 @@ import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { hasBridge } from '../../../data/client';
 import { syncApi } from '../../../data/sync';
+import { CLOUD_API } from '../../../data/cloud/client';
+import { healthCloud } from '../../../data/cloud/health';
 import { LanPairingKeyPanel } from './LanPairingKeyPanel';
 
 export interface NetworkSyncTabProps {
@@ -95,8 +97,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
           setMessage({ type: 'error', text: result.error || 'Connection failed' });
         }
       } else {
-        // Cloud API URL — set VITE_CLOUD_API in .env
-        const defaultCloud = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
+        const defaultCloud = CLOUD_API;
         if (syncMode === 'LAN' || syncMode === 'HYBRID') {
           if (lanRole === 'PRIMARY') {
             const hostIp = detectedLocalIp || cleanHost || '192.168.1.100';
@@ -107,7 +108,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
           } else {
             const host = cleanHost || '192.168.1.100';
             try {
-              const res = await fetch(`http://${host}:${port}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+              const res = await healthCloud.check(`http://${host}:${port}`, 3500);
               if (res.ok) {
                 setMessage({
                   type: 'success',
@@ -115,7 +116,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
                 });
               } else if (syncMode === 'HYBRID') {
                 try {
-                  const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+                  const cloudRes = await healthCloud.check(defaultCloud, 3500);
                   if (cloudRes.ok) {
                     setMessage({
                       type: 'success',
@@ -142,7 +143,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
             } catch {
               if (syncMode === 'HYBRID') {
                 try {
-                  const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+                  const cloudRes = await healthCloud.check(defaultCloud, 3500);
                   if (cloudRes.ok) {
                     setMessage({
                       type: 'success',
@@ -170,7 +171,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
           }
         } else {
           try {
-            const res = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+            const res = await healthCloud.check(defaultCloud, 3500);
             if (res.ok) {
               setMessage({
                 type: 'success',

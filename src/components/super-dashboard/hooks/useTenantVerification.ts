@@ -1,5 +1,5 @@
 import type React from 'react';
-import { fetchApi } from '../../../lib/api';
+import { superAdminCloud } from '../../../data/cloud/superAdmin';
 import type { SuperDashboardState } from './useSuperDashboardState';
 
 export interface UseTenantVerificationContext {
@@ -14,10 +14,7 @@ export function useTenantVerification(ctx: UseTenantVerificationContext) {
     setVerificationStatus('sending');
     setVerificationError('');
     try {
-      const res = await fetchApi('/super-admin/request-view-code', {
-        method: 'POST',
-        body: JSON.stringify({ tenant_id: verificationTenantId })
-      });
+      const res = await superAdminCloud.requestViewCode(verificationTenantId);
       if (res.success) {
         setVerificationStatus('waiting');
       } else {
@@ -36,10 +33,7 @@ export function useTenantVerification(ctx: UseTenantVerificationContext) {
     setVerificationStatus('verifying');
     setVerificationError('');
     try {
-      const res = await fetchApi('/super-admin/verify-view-code', {
-        method: 'POST',
-        body: JSON.stringify({ tenant_id: verificationTenantId, code: verificationCode })
-      });
+      const res = await superAdminCloud.verifyViewCode(verificationTenantId, verificationCode);
       if (res.success) {
         setUnmaskedCredentials(prev => ({
           ...prev,

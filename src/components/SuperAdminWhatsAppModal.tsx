@@ -12,7 +12,7 @@ import {
   Radio,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { fetchApi } from '../lib/api';
+import { superAdminCloud } from '../data/cloud/superAdmin';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 
 interface SuperAdminWhatsAppModalProps {
@@ -36,7 +36,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
 
   const fetchStatus = async () => {
     try {
-      const res = await fetchApi('/super-admin/whatsapp/status');
+      const res = await superAdminCloud.whatsappStatus();
       if (res) {
         setStatus(res.status);
         setQrCode(res.qrCode || null);
@@ -73,7 +73,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
-      const res = await fetchApi('/super-admin/whatsapp/connect', { method: 'POST' });
+      const res = await superAdminCloud.whatsappConnect();
       if (res.error) {
         setErrorMsg(res.error);
       } else {
@@ -94,7 +94,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
     setSuccessMsg(null);
     setConfirmDisconnect(false);
     try {
-      const res = await fetchApi('/super-admin/whatsapp/disconnect', { method: 'POST' });
+      const res = await superAdminCloud.whatsappDisconnect();
       if (res.success) {
         setStatus('disconnected');
         setQrCode(null);

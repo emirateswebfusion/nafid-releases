@@ -2,7 +2,7 @@ import type React from 'react';
 import { logError, appApi } from '../../../data/app';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
-import { fetchApi } from '../../../lib/api';
+import { partyConnectCloud } from '../../../data/cloud/partyConnect';
 import { settingsApi, setSetting } from '../../../data/settings';
 import { STAFF_DATA_MASKING_KEY, parseStaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/staffDataMasking';
 import { EMERGENCY_PANIC_CONFIG_KEY, parseEmergencyPanicConfig, DEFAULT_EMERGENCY_PANIC_CONFIG } from '../../../utils/emergencyPurge';
@@ -129,8 +129,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       const currentTenant = tenantId || 'global';
       logError(`[SettingsManager] tenantId: ${currentTenant}`);
 
-      fetchApi('/settings/connect-code')
-        .then((res: any) => {
+      partyConnectCloud.getConnectCode()
+        .then((res) => {
           if (res?.connect_code) setConnectCode(res.connect_code);
         })
         .catch((err: any) => {

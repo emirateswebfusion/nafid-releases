@@ -1,7 +1,7 @@
 import type React from 'react';
 import { processOfflineAiQuery } from '../../../services/offlineAiService';
 import { type ChatMessage } from '../aiAssistantTypes';
-import { fetchApi } from '../../../lib/api';
+import { aiAssistantCloud } from '../../../data/cloud/aiAssistant';
 import type { Conversation } from '../aiAssistantTypes';
 import type { AiAssistantState } from './useAiAssistantState';
 
@@ -112,10 +112,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
           role: m.role,
           content: m.content,
         }));
-        res = await fetchApi('/api/ai-assistant/chat', {
-          method: 'POST',
-          body: JSON.stringify({ message: q, history: historyPayload }),
-        });
+        res = await aiAssistantCloud.chat(q, historyPayload);
         setIsOfflineMode(false);
       } catch {
         res = await handleOfflineQuery(q);

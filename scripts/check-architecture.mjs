@@ -18,6 +18,7 @@
  *       handlers only register channels (`handle(channel, service.fn)`); SQL lives in electron/db.
  *   R9. electron/services/** may only call `.prepare(` for dynamic filter builders grandfathered in
  *       arch-baseline.json (`servicePrepareCounts`, shrink-only); new SQL goes to electron/db/statements.
+ *  R11. Only src/data/cloud/client.ts may call `fetch(`: cloud requests go through src/data/cloud/* repositories.
  *  R10. The startup baseline (schema + inline repairs that run on every start) is frozen: its files may
  *       shrink, never grow (`startupBaselineLines`). Schema / data changes go into a numbered migration in
  *       electron/db/migrations/, listed in migrations/index.ts.
@@ -73,6 +74,7 @@ for (const full of walk(path.join(root, 'src'), (n) => /\.(ts|tsx)$/.test(n))) {
   }
 
   if (/^\s*import[^;]*from\s+['"]electron['"]/m.test(source)) violations.push(`${file}: renderer must not import the electron package.`);
+  if (file !== 'src/data/cloud/client.ts' && /(^|[^\w.])fetch\(/m.test(source)) violations.push(`${file}: calls fetch(). Add a function to a src/data/cloud/* repository (it uses cloudFetch / cloudRequest).`);
   if (file.startsWith('src/store/') && /from\s+['"][^'"]*components\//.test(source)) violations.push(`${file}: stores must not import UI components.`);
 
   const lines = source.split('\n').length;

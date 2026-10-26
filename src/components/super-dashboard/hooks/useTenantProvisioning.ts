@@ -1,5 +1,5 @@
 import type React from 'react';
-import { fetchApi } from '../../../lib/api';
+import { superAdminCloud } from '../../../data/cloud/superAdmin';
 import { type TenantAdmin } from '../superDashboardTypes';
 import type { SuperDashboardState } from './useSuperDashboardState';
 
@@ -22,12 +22,9 @@ export function useTenantProvisioning(ctx: UseTenantProvisioningContext) {
     setTestStatus('testing');
     setTestError('');
     try {
-      const res = await fetchApi('/super-admin/test-connection', {
-        method: 'POST',
-        body: JSON.stringify({
-          db_connection_string: dbConnectionString,
-          tenant_id: editingAdmin?.tenant_id
-        })
+      const res = await superAdminCloud.testConnection({
+        db_connection_string: dbConnectionString,
+        tenant_id: editingAdmin?.tenant_id
       });
       if (res.success) {
         setTestStatus('success');
@@ -99,29 +96,23 @@ export function useTenantProvisioning(ctx: UseTenantProvisioningContext) {
     // Prepare API call promise
     const apiPromise = (async () => {
       if (editingAdmin) {
-        return await fetchApi(`/super-admin/admins/${editingAdmin.tenant_id}`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            name: shopName,
-            domain_type: domainType,
-            db_connection_string: dbConnectionString,
-            neon_mail_id: neonMailId || undefined,
-            neon_password: neonPassword || undefined
-          })
+        return await superAdminCloud.updateAdmin(editingAdmin.tenant_id, {
+          name: shopName,
+          domain_type: domainType,
+          db_connection_string: dbConnectionString,
+          neon_mail_id: neonMailId || undefined,
+          neon_password: neonPassword || undefined
         });
       } else {
-        return await fetchApi('/super-admin/admins', {
-          method: 'POST',
-          body: JSON.stringify({
-            shop_name: shopName,
-            domain_type: domainType,
-            owner_email: ownerEmail,
-            owner_password: ownerPassword,
-            owner_name: ownerName || undefined,
-            db_connection_string: dbConnectionString,
-            neon_mail_id: neonMailId || undefined,
-            neon_password: neonPassword || undefined
-          })
+        return await superAdminCloud.createAdmin({
+          shop_name: shopName,
+          domain_type: domainType,
+          owner_email: ownerEmail,
+          owner_password: ownerPassword,
+          owner_name: ownerName || undefined,
+          db_connection_string: dbConnectionString,
+          neon_mail_id: neonMailId || undefined,
+          neon_password: neonPassword || undefined
         });
       }
     })();

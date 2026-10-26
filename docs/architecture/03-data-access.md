@@ -6,7 +6,7 @@ All data the renderer reads or writes goes through one of three doors:
 |---|---|---|---|
 | Local data (default) | `src/data/<domain>.ts` | IPC → main process → SQLite | Everything the POS does offline: products, billing, parties, cashier, settings… |
 | Push events | `src/data/events.ts` (`bridgeEvents`) | main → renderer events | Sync finished, barcode scanned, scale weight, update status, token expired… |
-| Cloud API | `src/lib/api.ts` (`fetchApi`) | HTTPS + JWT | Online-only features: AI assistant, ads, super-admin, party connect. Login/password flows live in `store/authStore.ts` |
+| Cloud API | `src/data/cloud/*` (`client.ts`: `cloudFetch`, `cloudRequest`) | HTTPS + JWT | Online-only features: AI assistant, ads, super-admin, party connect. Login/password flows live in `store/authStore.ts` |
 
 ## 3.1 The IPC data layer (`src/data/`)
 
@@ -74,12 +74,19 @@ Main → renderer events follow the same path with `bindEvents` in `src/data/eve
   in a repository wrapper to turn failures into exceptions — pick one style per domain.
 - `src/data/**` contains no React, no toasts, no formatting.
 
-## 3.2 Cloud REST (`src/lib/api.ts`)
+## 3.2 Cloud REST (`src/data/cloud/`)
 
-`fetchApi(endpoint, init)` adds `Authorization: Bearer <jwt>` (recovering the token from the bridge if the store lost it),
-parses JSON, and on **401** pauses cloud sync and opens the session-expired modal. Base URL: `VITE_CLOUD_API`.
+`client.ts` is the only module that calls `fetch` (guard R11). Base URL `CLOUD_API` = `VITE_CLOUD_API`.
+- `cloudFetch<T>(endpoint, init)` adds `Authorization: Bearer <jwt>` and JSON headers, parses the body, throws
+  `Error(body.error)` when the response is not OK, and on **401** pauses cloud sync and opens the session-expired modal.
+- `cloudRequest(url, init)` returns the raw `Response` for callers that inspect status / bodies themselves (login,
+  staff accounts, health checks); a `/path` is relative to `CLOUD_API`.
+- The data layer does not import stores: `store/authStore.ts` calls `registerCloudAuth({ getToken, onUnauthorized })`
+  (token recovery from the bridge, sync pause + modal).
+- One repository per domain exports `<domain>Cloud`: `ads`, `aiAssistant`, `authCloud`, `emergency`, `health`,
+  `partyConnect`, `sales`, `staffCloud`, `superAdmin`. UI code calls them, never `fetch`.
 Before adding a cloud call, confirm the route is mounted in `nafid-server/src/index.ts` (the REST contract is documented
-in `nafid-server/docs/architecture/02-http-api.md`). Target: group cloud calls by domain in `src/data/cloud/*` as they grow.
+in `nafid-server/docs/architecture/02-http-api.md`).
 
 ## 3.3 Main-process data layer
 

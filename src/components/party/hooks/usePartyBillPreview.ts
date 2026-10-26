@@ -2,7 +2,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { hasBridge } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
 import { returnsApi } from '../../../data/returns';
-import { fetchApi } from '../../../lib/api';
+import { salesCloud } from '../../../data/cloud/sales';
 import { scrapApi } from '../../../data/scrap';
 import { generateReceiptText, formatBillDateTime } from '../../../utils/receiptGenerator';
 import { printingApi } from '../../../data/printing';
@@ -85,7 +85,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
         }
         if (!foundInvoice) {
           try {
-            const res = await fetchApi(`/sales?search=${encodeURIComponent(term)}`);
+            const res = await salesCloud.search(term);
             const list = Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
             if (list.length > 0) {
               foundInvoice = list[0];
@@ -126,7 +126,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
           if (Array.isArray(items)) invoiceItems = items;
         } else {
           try {
-            const itemsRes = await fetchApi(`/sales/${foundInvoice.invoice_id}/items`);
+            const itemsRes = await salesCloud.items(foundInvoice.invoice_id);
             if (Array.isArray(itemsRes)) invoiceItems = itemsRes;
           } catch { /* ignore */ }
         }
