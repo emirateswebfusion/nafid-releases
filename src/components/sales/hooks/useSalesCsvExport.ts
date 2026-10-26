@@ -141,7 +141,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
         if (!Array.isArray(items)) items = [];
 
         const missingHsnProductIds = items.filter((it) => !it.hsn_sac_code && it.product_id).map((it) => it.product_id);
-        const fallbackProductMap: Record<string, any> = {};
+        const fallbackProductMap: Record<string, import('../../../data/products').Product> = {};
         if (missingHsnProductIds.length > 0) {
           try {
             const fetched = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: missingHsnProductIds });

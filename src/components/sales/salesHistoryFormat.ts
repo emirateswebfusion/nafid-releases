@@ -1,3 +1,7 @@
+import type { Invoice } from '../../data/invoices';
+import type { PaymentSource } from '../../data/paymentSources';
+import type { UpiSourceOption } from './salesTypes';
+import type { DisplaySplitDetails } from './invoiceDisplayTypes';
 /** Sales History display helpers: payment labels/colours, tax rate filter options, date formatting, day grouping,
  * revenue per payment filter, invoice type info and split / UPI payment details. */
 import { getStoreTimezone } from '../../utils/timezoneHelper';
@@ -65,7 +69,7 @@ export function formatGroupDate(dateStr?: string) {
 
 // For SPLIT invoices filtered by a specific payment method, return only that payment's portion.
 // For non-SPLIT invoices, return the net total only if payment method matches the filter.
-export function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): number {
+export function getInvoiceRevenueForFilter(inv: Invoice, paymentFilter: string): number {
   if (!inv) return 0;
   const pmFilter = paymentFilter?.toUpperCase();
   const invPm = inv.payment_method?.toUpperCase() || 'PENDING';
@@ -90,7 +94,7 @@ export function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): num
   return 0;
 }
 
-export function groupByDay(invoices: any[]) {
+export function groupByDay(invoices: Invoice[]) {
   const tz = getStoreTimezone();
   const map = new Map<string, number>();
   for (const inv of invoices) {
@@ -100,7 +104,7 @@ export function groupByDay(invoices: any[]) {
   return Array.from(map, ([date, sales]) => ({ date, sales }));
 }
 
-export function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: string; text: string; border: string } {
+export function getInvoiceTypeInfo(inv: Invoice): { label: string; icon: typeof Building; bg: string; text: string; border: string } {
   if (inv.invoice_type === 'GST' && inv.customer_gstin) {
     return { label: 'B2B', icon: Building, bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20' };
   }
@@ -110,7 +114,7 @@ export function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: st
   return { label: 'Bill of Supply', icon: FileText, bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20' };
 }
 
-export function parseSplitDetails(splitDetailsRaw: any) {
+export function parseSplitDetails(splitDetailsRaw: unknown) {
   if (!splitDetailsRaw || splitDetailsRaw === 'null') return null;
   let curr = splitDetailsRaw;
   let depth = 0;
@@ -122,10 +126,10 @@ export function parseSplitDetails(splitDetailsRaw: any) {
       break;
     }
   }
-  return (curr && typeof curr === 'object') ? curr : null;
+  return (curr && typeof curr === 'object') ? curr as DisplaySplitDetails : null;
 }
 
-export function getUpiDetailsFromInvoice(inv: any, upiSourcesList: any[] = []) {
+export function getUpiDetailsFromInvoice(inv: Invoice, upiSourcesList: (UpiSourceOption & Pick<Partial<PaymentSource>, 'is_default'>)[] = []) {
   if (!inv) return null;
   const sd = parseSplitDetails(inv.split_details);
   if (sd?.upi_name || sd?.upi_id) {

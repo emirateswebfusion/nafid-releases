@@ -1,3 +1,4 @@
+import type { DisplayComboItem, DisplayInvoiceItem } from '../invoiceDisplayTypes';
 import { RefreshCw, Boxes, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/money';
@@ -65,7 +66,7 @@ export function InvoiceItemsTable({
                     </td>
                   </tr>
                 ) : items.map((item, i) => {
-                  let comboItemsParsed: any[] | undefined = item.combo_items;
+                  let comboItemsParsed: DisplayComboItem[] | undefined = item.combo_items;
                   if (!comboItemsParsed && item.combo_details) {
                     try {
                       const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
@@ -100,7 +101,7 @@ export function InvoiceItemsTable({
                     }
                   }
                   const itemTaxRate = calculatedRate > 0 ? calculatedRate : 0;
-                  const itemHsn = item.hsn_sac_code || item.hsn_code || (item as any).hsn;
+                  const itemHsn = item.hsn_sac_code || item.hsn_code || (item as DisplayInvoiceItem).hsn;
                   const isInterItem = selectedInvoice.supply_type === 'INTER' || itemIgstRate > 0;
                   const effCgstR = itemCgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
                   const effSgstR = itemSgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);

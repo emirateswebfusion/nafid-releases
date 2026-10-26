@@ -1,3 +1,5 @@
+import type { DisplayInvoice } from '../invoiceDisplayTypes';
+import type { UpiSourceOption } from '../salesTypes';
 /** Sales History list row (`InvoiceRow`) and its payment / invoice-type badges. */
 import { PAYMENT_COLORS, PAYMENT_LABELS, getInvoiceTypeInfo, formatDate, parseSplitDetails, getUpiDetailsFromInvoice } from '../salesHistoryFormat';
 import clsx from 'clsx';
@@ -18,7 +20,7 @@ export function PaymentBadge({ method }: { method: string }) {
 }
 
 /* ─── Invoice Type Badge ─── */
-export function InvoiceTypeBadge({ inv }: { inv: any }) {
+export function InvoiceTypeBadge({ inv }: { inv: DisplayInvoice }) {
   const info = getInvoiceTypeInfo(inv);
   const Icon = info.icon;
   return (
@@ -30,7 +32,7 @@ export function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 /* ─── Invoice Row ─── */
-export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint }: { inv: any; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void }) {
+export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint }: { inv: DisplayInvoice; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: UpiSourceOption[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void }) {
   const { date, time } = formatDate(inv.created_at || '');
   const isCredit = inv.payment_method === 'CREDIT';
   const isConvertedBos = !!inv.converted_to_invoice_id;
@@ -106,7 +108,7 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
             <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 flex-wrap">
               <span>{inv.item_count || 0} item{(inv.item_count || 0) !== 1 ? 's' : ''}</span>
               {(inv.description || inv.notes) && (
-                <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md max-w-[140px] truncate" title={inv.description || inv.notes}>
+                <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md max-w-[140px] truncate" title={(inv.description || inv.notes)!}>
                   <FileText className="w-2.5 h-2.5 shrink-0" />
                   <span className="truncate">{inv.description || inv.notes}</span>
                 </span>
@@ -172,9 +174,9 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
             return null;
           })()}
         </div>
-        {isCredit && inv.balance_amount < 0 && (
+        {isCredit && inv.balance_amount! < 0 && (
           <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
-            Due: {formatCurrency(Math.abs(inv.balance_amount))}
+            Due: {formatCurrency(Math.abs(inv.balance_amount!))}
           </div>
         )}
       </td>

@@ -1,3 +1,6 @@
+import type { DisplayInvoiceItem, DisplayComboItem } from '../invoiceDisplayTypes';
+import type { Product } from '../../../data/products';
+import type { ComboOfferWithItems } from '../../../data/combos';
 import React, { useRef, useCallback } from 'react';
 import { useAuthStore } from '../../../store/authStore';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
@@ -19,12 +22,12 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
   const { invoiceDetailsCache, selectedInvoiceIdRef, setItems, withTimeout } = ctx;
   // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
   // Mirrors the recovery logic used when editing a bill in BillingPage.
-  const enrichItemsWithMrp = async (invoiceItems: any[]): Promise<any[]> => {
+  const enrichItemsWithMrp = async (invoiceItems: DisplayInvoiceItem[]): Promise<DisplayInvoiceItem[]> => {
     if (!Array.isArray(invoiceItems) || invoiceItems.length === 0) return [];
     try {
       const { tenantId } = useAuthStore.getState();
       const effectiveTenantId = tenantId || 'global';
-      let combosList: any[] = [];
+      let combosList: ComboOfferWithItems[] = [];
       
       // Only query combo offers if at least one item looks like a combo
       const mightHaveCombos = invoiceItems.some((i) => 
@@ -69,7 +72,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
         }
       }
 
-      const productMap: Record<string, any> = {};
+      const productMap: Record<string, Product> = {};
       productIds.forEach(id => {
         const p = productsCacheRef.current.get(id);
         if (p) productMap[id] = p;
@@ -77,7 +80,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
 
       return invoiceItems.map(item => {
         try {
-          let comboItemsParsed: any[] | undefined = undefined;
+          let comboItemsParsed: DisplayComboItem[] | undefined = undefined;
           if (item?.combo_details) {
             try {
               const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
@@ -160,11 +163,11 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
     }
   };
 
-  const productsCacheRef = useRef<Map<string, any>>(new Map());
+  const productsCacheRef = useRef<Map<string, Product>>(new Map());
 
-  const combosCacheRef = useRef<{ data: any[]; timestamp: number } | null>(null);
+  const combosCacheRef = useRef<{ data: ComboOfferWithItems[]; timestamp: number } | null>(null);
 
-  const fetchInvoiceDetails = useCallback(async (invoiceId: string): Promise<{ items: any[]; returned: any[]; canReturn: boolean }> => {
+  const fetchInvoiceDetails = useCallback(async (invoiceId: string): Promise<{ items: DisplayInvoiceItem[]; returned: Awaited<ReturnType<typeof returnsApi.getAlreadyReturnedQuantities>>; canReturn: boolean }> => {
     const cached = invoiceDetailsCache.current.get(invoiceId);
     if (cached && !cached.promise) {
       return cached;

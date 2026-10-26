@@ -1,14 +1,18 @@
+import type { DisplayInvoiceItem } from '../invoiceDisplayTypes';
+import type { Product } from '../../../data/products';
 import React, { useEffect } from 'react';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { invoicesApi, getInvoiceItems } from '../../../data/invoices';
 import { getProductsByIds } from '../../../data/products';
 import type { SalesInvoiceRow } from '../salesTypes';
 
+type ConversionPreview = { total_bos_amount?: number; total_taxable_amount?: number; total_tax_amount?: number; total_converted_amount?: number; has_real_gst?: boolean; has_paper?: boolean; has_skipped?: boolean; invoices?: { invoice_id: string; invoice_number: string; bos_grand_total: number; taxable_amount?: number; tax_amount?: number; converted_grand_total: number; points_discount?: number; scrap_deduction?: number; return_deduction?: number; deductions_total?: number; has_real_gst: boolean; has_paper: boolean; skipped_items: string[]; }[]; };
+
 export interface UseConversionPreviewContext {
   conversionOpen: boolean;
   conversionTaxMode: "EXCLUSIVE" | "INCLUSIVE";
   selectedBosInvoices: SalesInvoiceRow[];
-  setConversionPreview: React.Dispatch<React.SetStateAction<{ total_bos_amount?: number; total_taxable_amount?: number; total_tax_amount?: number; total_converted_amount?: number; has_real_gst?: boolean; has_paper?: boolean; has_skipped?: boolean; invoices?: { invoice_id: string; invoice_number: string; bos_grand_total: number; taxable_amount?: number; tax_amount?: number; converted_grand_total: number; points_discount?: number; scrap_deduction?: number; return_deduction?: number; deductions_total?: number; has_real_gst: boolean; has_paper: boolean; skipped_items: string[]; }[]; } | null>>;
+  setConversionPreview: React.Dispatch<React.SetStateAction<ConversionPreview | null>>;
   setConversionPreviewLoading: React.Dispatch<React.SetStateAction<boolean>>;
   tenantId: string | null;
 }
@@ -54,10 +58,10 @@ export function useConversionPreview(ctx: UseConversionPreviewContext) {
         let totalConverted = 0;
         let hasRealGst = false;
         let hasPaper = false;
-        const previewInvoices: any[] = [];
+        const previewInvoices: NonNullable<ConversionPreview['invoices']> = [];
 
         const allProductIds = new Set<string>();
-        const invoiceItemsMap: Record<string, any[]> = {};
+        const invoiceItemsMap: Record<string, DisplayInvoiceItem[]> = {};
 
         for (const inv of selectedBosInvoices) {
           if (isDesktopRuntime()) {
@@ -69,7 +73,7 @@ export function useConversionPreview(ctx: UseConversionPreviewContext) {
           }
         }
 
-        const productsMap: Record<string, any> = {};
+        const productsMap: Record<string, Product> = {};
         if (allProductIds.size > 0) {
           try {
             const prods = await getProductsByIds({
@@ -91,7 +95,7 @@ export function useConversionPreview(ctx: UseConversionPreviewContext) {
 
           for (const item of items) {
             const prod = productsMap[item.product_id];
-            let da: any = {};
+            let da: Record<string, unknown> = {};
             if (prod?.domain_attributes) {
               try { da = JSON.parse(prod.domain_attributes); } catch { /* ignore */ }
             }

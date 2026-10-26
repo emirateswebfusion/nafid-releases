@@ -9,7 +9,7 @@ export function StatCard({
   colorClass,
   sub,
 }: {
-  icon: any;
+  icon: import('lucide-react').LucideIcon;
   label: string;
   value: string;
   colorClass: string;

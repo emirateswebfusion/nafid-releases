@@ -1,3 +1,4 @@
+import type { Invoice, InvoiceItem, InvoiceFilters } from '../../../data/invoices';
 import type React from 'react';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { listInvoices, getInvoiceItems, invoicesApi } from '../../../data/invoices';
@@ -41,7 +42,7 @@ export interface UseSalesInvoiceLoaderContext {
  */
 export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
   const { accountingView, debouncedSearch, filterDate, filterDateEnd, invoiceTypeFilter, isFetching, LIMIT, maskingConfig, offset, paymentFilter, prefetchInvoiceRef, setDbSummary, setHasMore, setInvoices, setIsFetching, setLoading, setOffset, setTaxProductLoading, setTaxProductRows, setTaxProductTotals, taxFilterActive, taxPercentageFilter, taxProductRequestRef } = ctx;
-  const loadTaxProductRows = async (filters: any, targetRate: string) => {
+  const loadTaxProductRows = async (filters: InvoiceFilters, targetRate: string) => {
     if (!hasBridge('dbGetInvoices') || !hasBridge('dbGetInvoiceItems')) return;
     const requestId = ++taxProductRequestRef.current;
     setTaxProductLoading(true);
@@ -61,7 +62,7 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
           ? data.filter((inv) => inv.invoice_type === 'BILL_OF_SUPPLY')
           : data.filter((inv) => !inv.converted_from_invoice_id);
 
-      const itemsByInvoice: Record<string, any[]> = {};
+      const itemsByInvoice: Record<string, InvoiceItem[]> = {};
       await Promise.all(scopedData.map(async (inv) => {
         try {
           const invoiceItems = await getInvoiceItems(inv.invoice_id);
@@ -126,7 +127,7 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
           accounting_view: accountingView,
         };
 
-        const promises: Promise<any>[] = [
+        const promises: [Promise<Invoice[]>, Promise<Awaited<ReturnType<typeof invoicesApi.getInvoicesSummary>>>?] = [
           listInvoices({ ...filters, limit: LIMIT, offset: currentOffset })
         ];
         if (reset && hasBridge('dbGetInvoicesSummary')) {

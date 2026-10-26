@@ -1,3 +1,4 @@
+import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import clsx from 'clsx';
@@ -313,8 +314,8 @@ export function InvoiceDetailModal({
                   { label: 'Bank', value: Number(sd.bank_transfer || sd.bank) || 0, color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' },
                 ].filter(i => i.value > 0) : [];
 
-                const rawOldDue = sd?.old_due ?? sd?.old_balance ?? sd?.oldBalance ?? (selectedInvoice as any).old_balance ?? (selectedInvoice as any).old_due;
-                const rawNewDue = sd?.new_due ?? sd?.new_balance ?? sd?.customerBalance ?? (selectedInvoice as any).customer_balance ?? (selectedInvoice as any).new_due;
+                const rawOldDue = sd?.old_due ?? sd?.old_balance ?? sd?.oldBalance ?? (selectedInvoice as DisplayInvoice).old_balance ?? (selectedInvoice as DisplayInvoice).old_due;
+                const rawNewDue = sd?.new_due ?? sd?.new_balance ?? sd?.customerBalance ?? (selectedInvoice as DisplayInvoice).customer_balance ?? (selectedInvoice as DisplayInvoice).new_due;
                 const received = Number(selectedInvoice.received_amount) || 0;
                 const balance = Number(selectedInvoice.balance_amount) || 0;
                 const changeReturned = Math.max(0, received - (Number(selectedInvoice.grand_total) || 0));

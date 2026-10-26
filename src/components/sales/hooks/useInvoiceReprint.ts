@@ -1,3 +1,4 @@
+import type { DisplayComboItem } from '../invoiceDisplayTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
@@ -86,7 +87,7 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
         date: formatBillDateTime(selectedInvoice.created_at),
         billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (selectedInvoice.biller_name || undefined) : undefined,
         items: items.map(item => {
-          let comboItemsParsed: any[] | undefined = undefined;
+          let comboItemsParsed: DisplayComboItem[] | undefined = undefined;
           if (item.combo_details) {
             try {
               const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
