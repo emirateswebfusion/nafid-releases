@@ -1,5 +1,6 @@
 import type { Migration } from './runner.js';
 import { m001ReturnsIndexes } from './001-returns-indexes.js';
+import { m002SyncOutbox } from './002-sync-outbox.js';
 
 /**
  * Every versioned migration, in order. To change the schema or fix data: add `NNN-short-name.ts` exporting a
@@ -8,4 +9,5 @@ import { m001ReturnsIndexes } from './001-returns-indexes.js';
  */
 export const MIGRATIONS: readonly Migration[] = [
   m001ReturnsIndexes,
+  m002SyncOutbox,
 ];

@@ -94,9 +94,7 @@ CREATE INDEX idx_sync_outbox_pending ON sync_outbox(tenant_id, sent_at, created_
 
 ## 7.4 Rollout (numbered migrations, one release each)
 
-1. **POS migration `00N-sync-outbox`** (`electron/db/migrations/`): `sync_outbox` table, `row_version` columns
-   (default 0). **Server migration** `server:src/db/migrations/tenant/NNN_sync_versions.sql`: `row_version`, `server_seq`,
-   `sync_ops_applied`. No behaviour change yet.
+1. **Done:** POS migration `electron/db/migrations/002-sync-outbox.ts`; server migration `src/db/migrations/tenant/095_sync_versions.sql`. Schema only; no behaviour change.
 2. **Dual write:** services enqueue ops and bump `row_version`; the pusher still uses `PENDING` rows. Characterization:
    `sync-run.mts` unchanged; new unit / characterization tests assert one op per write and per delete.
 3. **Server accepts ops** (`POST /api/sync/ops`) with the version rule and idempotency table; old per-entity endpoints
