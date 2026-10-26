@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 ﻿import React from 'react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
@@ -17,7 +18,7 @@ export interface BillingCartViewProps {
   uiConfig: BillingUIConfig;
   isLoadingEditBill: boolean;
   productPricingMap: Record<string, Record<string, number>>;
-  pricingTiers: any[];
+  pricingTiers: B.Tier[];
   searchBarSection: React.ReactNode;
   customerDetailsSection: React.ReactNode;
   localKgStr: StringMap;

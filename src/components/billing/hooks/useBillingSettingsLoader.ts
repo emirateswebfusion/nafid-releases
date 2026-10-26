@@ -1,6 +1,7 @@
+import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import type { UpiPageConfig } from '../../../utils/upiConfig';
-import type { Party } from '../../../data/parties';
+
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { productsApi } from '../../../data/products';
 import { getSetting } from '../../../data/settings';
@@ -25,7 +26,7 @@ export interface UseBillingSettingsLoaderContext {
   reserveQuotationNumberForTab: (forceRefresh?: boolean) => Promise<void>;
   reserveReturnNumberForTab: (forceRefresh?: boolean) => Promise<void>;
   reserveScrapInvoiceNumberForTab: (forceRefresh?: boolean) => Promise<void>;
-  setPartiesForTier: React.Dispatch<React.SetStateAction<Party[]>>;
+  setPartiesForTier: React.Dispatch<React.SetStateAction<B.Party[]>>;
   setProductPricingMap: React.Dispatch<React.SetStateAction<Record<string, Record<string, number>>>>;
   setSelectedTierId: React.Dispatch<React.SetStateAction<string>>;
   setUpiPageConfig: React.Dispatch<React.SetStateAction<UpiPageConfig>>;
@@ -46,95 +47,95 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
     if (!isDesktopRuntime()) return;
     setProductPricingMapLoaded(false);
     productsApi.ensureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
-    getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
+    getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v) => {
       if (typeof v === 'string' && v.trim()) {
         setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
       }
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v) => {
       const resolved = typeof v === 'string' && v.trim() ? v.trim() : (shopName || '');
       setShopNameState(resolved);
       if (resolved) useAuthStore.setState({ shopName: resolved });
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v) => {
       setShopGstin(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v) => {
       setShopAddress(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v) => {
       setShopPhone(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_state' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_state' }).then((v) => {
       setShopState(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled' }).then((v) => {
       if (v !== undefined && v !== null) setQuotationGstEnabledSetting(v !== 'false' && v !== false);
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v) => {
       setShopEmail(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'shop_website' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'shop_website' }).then((v) => {
       setShopWebsite(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v) => {
       setUpiId(typeof v === 'string' ? v : '');
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v) => {
       if (typeof v === 'string') setBankNameState(v);
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v) => {
       if (typeof v === 'string') setBankAccountState(v);
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v) => {
       if (typeof v === 'string') setBankIfscState(v);
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v) => {
       if (typeof v === 'string') setBankBranchState(v);
     });
     getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
     if (hasBridge('dbPaymentGetSources')) {
-      paymentSourcesApi.getSources(tenantId || 'global').then((sources: any[]) => {
+      paymentSourcesApi.getSources(tenantId || 'global').then((sources) => {
         if (Array.isArray(sources)) {
-          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+          setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
         }
       }).catch(() => {});
     }
-    getSetting({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'enable_real_paper_stock' }).then((v) => {
       if (v !== null && v !== undefined) setEnableRealPaperStock(Boolean(v));
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_gst' }).then((v) => {
       if (v !== null && v !== undefined) setShowPaperInGstSetting(Boolean(v));
       else setShowPaperInGstSetting(true);
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_paper_stock_in_estimate' }).then((v) => {
       if (v !== null && v !== undefined) setShowPaperInEstSetting(Boolean(v));
       else setShowPaperInEstSetting(false);
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
     loadFlags(tenantId || 'global');
-    getSetting({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v) => {
       if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
     });
-    getSetting({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' }).then((v: any) => {
+    getSetting({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' }).then((v) => {
       if (v !== null && v !== undefined) setAutoPrintBarcode(Boolean(v));
     });
-    getSetting({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
+    getSetting<{ enabled?: boolean }>({ tenant_id: 'global', key: 'three_invoice_series' }).then((v) => {
       if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
     });
     const reloadLoyaltyConfig = () => {
       Promise.all([
-        getSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
-        getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
-      ]).then(([rawCfg, rawFlags]: [any, any]) => {
+        getSetting<B.LoyaltySetting | string>({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
+        getSetting<B.LoyaltyFlags | string>({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
+      ]).then(([rawCfg, rawFlags]) => {
         let cfg = rawCfg;
         if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { /* ignore */ } }
-        let flags = rawFlags;
+        let flags = rawFlags as B.LoyaltyFlags | null;
         if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch { /* ignore */ } }
 
         let isEnabled = false;
@@ -159,7 +160,7 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
       }).catch(() => {});
     };
     reloadLoyaltyConfig();
-    getSetting({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
+    getSetting<B.PrintSetting>({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v) => {
       if (v?.billSettings?.bosTaxRatePercent != null) {
         setBosTaxRatePercent(Number(v.billSettings.bosTaxRatePercent));
       }
@@ -174,13 +175,13 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
       pricingTiersApi.getPricingTiers(tenantId || 'global'),
       getSetting({ tenant_id: tenantId || 'global', key: 'mrp_sort_order' })
     ])
-      .then(([res, mrpSortRes]: [any, any]) => {
+      .then(([res, mrpSortRes]) => {
         if (Array.isArray(res)) {
-          const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
+          const active = res.filter((t) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
           const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
           const sortedWithMrp = sortTiersWithMrp(active, mrpSortOrder);
           setPricingTiers(sortedWithMrp);
-          const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
+          const defaultTier = active.find((t) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
           if (defaultTier) {
             setSelectedTierId(defaultTier.pricing_tier_id);
           }
@@ -188,7 +189,7 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
       })
       .catch(console.error);
     pricingTiersApi.getProductPricing(tenantId || 'global')
-      .then((rows: any) => {
+      .then((rows) => {
         if (Array.isArray(rows)) {
           const map: Record<string, Record<string, number>> = {};
           for (const r of rows) {
@@ -201,12 +202,12 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
       })
       .catch(console.error);
     getSetting({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override' })
-      .then((v: any) => {
+      .then((v) => {
         if (v !== null && v !== undefined) setAllowBillerOverride(Boolean(v));
       })
       .catch(console.error);
     listParties(tenantId || 'global')
-      .then((res: any) => {
+      .then((res) => {
         if (Array.isArray(res)) setPartiesForTier(res);
       })
       .catch(console.error);
@@ -217,13 +218,13 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
         pricingTiersApi.getPricingTiers(tid),
         getSetting({ tenant_id: tid, key: 'mrp_sort_order' })
       ])
-        .then(([res, mrpSortRes]: [any, any]) => {
+        .then(([res, mrpSortRes]) => {
           if (Array.isArray(res)) {
-            const active = res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
+            const active = res.filter((t) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
             const mrpSortOrder = (mrpSortRes !== null && mrpSortRes !== undefined && !isNaN(Number(mrpSortRes))) ? Number(mrpSortRes) : 0;
             const sortedWithMrp = sortTiersWithMrp(active, mrpSortOrder);
             setPricingTiers(sortedWithMrp);
-            const defaultTier = active.find((t: any) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
+            const defaultTier = active.find((t) => t.is_default === 1 || t.is_default === true || t.is_default === '1');
             if (defaultTier) {
               setSelectedTierId(prev => prev || defaultTier.pricing_tier_id);
             }
@@ -232,7 +233,7 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
         .catch(console.error);
 
       pricingTiersApi.getProductPricing(tid)
-        .then((rows: any) => {
+        .then((rows) => {
           if (Array.isArray(rows)) {
             const map: Record<string, Record<string, number>> = {};
             for (const r of rows) {
@@ -253,12 +254,12 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
 
   // Listen for settings updates to immediately refresh Computer Code display and tab bill numbers
   useEffect(() => {
-    const handleSettingsUpdated = (e: any) => {
+    const handleSettingsUpdated = (e: B.SettingsEvent) => {
       const newCode = e?.detail?.terminalCode;
       if (newCode) {
         setTerminalCodeState(newCode);
       } else if (isDesktopRuntime()) {
-        getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
+        getSetting({ tenant_id: 'global', key: 'terminal_code' }).then((v) => {
           if (typeof v === 'string' && v.trim()) {
             setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
           }
@@ -268,7 +269,7 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
         setShopNameState(e.detail.shopName);
         useAuthStore.setState({ shopName: e.detail.shopName });
       } else if (isDesktopRuntime()) {
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v) => {
           if (typeof v === 'string' && v.trim()) {
             setShopNameState(v.trim());
             useAuthStore.setState({ shopName: v.trim() });
@@ -276,39 +277,39 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
         });
       }
       if (isDesktopRuntime()) {
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v) => {
           if (typeof v === 'string') setShopAddress(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v) => {
           if (typeof v === 'string') setShopPhone(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v) => {
           if (typeof v === 'string') setShopGstin(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v) => {
           if (typeof v === 'string') setBankNameState(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v) => {
           if (typeof v === 'string') setBankAccountState(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v) => {
           if (typeof v === 'string') setBankIfscState(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
+        getSetting({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v) => {
           if (typeof v === 'string') setBankBranchState(v);
         });
-        getSetting({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
+        getSetting<B.PrintSetting>({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v) => {
           if (v?.billSettings?.showDescription !== undefined) {
             setShowDescriptionState(v.billSettings.showDescription !== false);
           }
         });
         Promise.all([
-          getSetting({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
-          getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
-        ]).then(([rawCfg, rawFlags]: [any, any]) => {
+          getSetting<B.LoyaltySetting | string>({ tenant_id: tenantId || 'global', key: 'loyalty_config' }),
+          getSetting<B.LoyaltyFlags | string>({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
+        ]).then(([rawCfg, rawFlags]) => {
           let cfg = rawCfg;
           if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { /* ignore */ } }
-          let flags = rawFlags;
+          let flags = rawFlags as B.LoyaltyFlags | null;
           if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch { /* ignore */ } }
 
           let isEnabled = false;

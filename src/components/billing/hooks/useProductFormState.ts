@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { gradesApi } from '../../../data/grades';
@@ -18,7 +19,7 @@ export function useProductFormState(tenantId: string | null) {
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
   const [newProductBarcode, setNewProductBarcode] = useState('');
-  const [editingProductSnapshot, setEditingProductSnapshot] = useState<any | null>(null);
+  const [editingProductSnapshot, setEditingProductSnapshot] = useState<B.BillingProduct | null>(null);
   const [productPriceCoding, setProductPriceCoding] = useState<Record<string, string> | null>(null);
   const [newProductBrand, setNewProductBrand] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
@@ -42,7 +43,7 @@ export function useProductFormState(tenantId: string | null) {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
   const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
-  const [newProductGrades, setNewProductGrades] = useState<any[]>([]);
+  const [newProductGrades, setNewProductGrades] = useState<B.Grade[]>([]);
   const [newProductGradeId, setNewProductGradeId] = useState('');
   const [newProductIsAddingGrade, setNewProductIsAddingGrade] = useState(false);
   const [newProductSavingGrade, setNewProductSavingGrade] = useState(false);
@@ -52,7 +53,7 @@ export function useProductFormState(tenantId: string | null) {
   const loadCategoriesAndGrades = useCallback(() => {
     if (!isDesktopRuntime() || !tenantId) return;
     listProducts({ tenant_id: tenantId, limit: 500 })
-      .then((res: any[]) => {
+      .then((res) => {
         if (Array.isArray(res)) {
           const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
           setConfiguredCategories(cats);
@@ -60,7 +61,7 @@ export function useProductFormState(tenantId: string | null) {
       })
       .catch(console.error);
     gradesApi.getGrades(tenantId)
-      .then((res: any[]) => {
+      .then((res) => {
         if (Array.isArray(res)) setNewProductGrades(res);
       })
       .catch(console.error);
@@ -81,8 +82,8 @@ export function useProductFormState(tenantId: string | null) {
       setProductPriceCoding(null);
       return;
     }
-    getSetting({ tenant_id: tenantId, key: 'price_coding' })
-      .then((value: any) => setProductPriceCoding(value && typeof value === 'object' ? value : null))
+    getSetting<Record<string, string>>({ tenant_id: tenantId, key: 'price_coding' })
+      .then((value) => setProductPriceCoding(value && typeof value === 'object' ? value : null))
       .catch(() => setProductPriceCoding(null));
   }, [tenantId]);
 

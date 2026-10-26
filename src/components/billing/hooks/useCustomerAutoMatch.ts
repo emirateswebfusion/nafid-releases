@@ -42,7 +42,7 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
     const timer = setTimeout(() => {
       applyPartyTier(customerName, customerPhone);
       const matched = findMatchingParty(customerName, customerPhone);
-      const custMatch = (allCustomersList || []).find((c: any) => {
+      const custMatch = (allCustomersList || []).find((c) => {
         if (!c) return false;
         const cp = String(c.phone || '').trim();
         const cn = String(c.name || '').trim().toLowerCase();
@@ -71,9 +71,9 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
             tenant_id: tenantId || 'global',
             phone: cleanPhone || undefined,
             name: cleanName || undefined,
-          }).then((res: any) => {
+          }).then((res) => {
             const list = Array.isArray(res) ? res : [];
-            const found = list.find((c: any) =>
+            const found = list.find((c) =>
               (cleanPhone && String(c.phone || '').trim() === cleanPhone) ||
               (cleanName && String(c.name || '').trim().toLowerCase() === cleanName)
             ) || list[0];

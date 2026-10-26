@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import { useState } from 'react';
 
 /**
@@ -8,9 +9,9 @@ import { useState } from 'react';
 export function useBillingSettings() {
   const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
   const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
-  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<B.Tier[]>([]);
   const [productPricingMapLoaded, setProductPricingMapLoaded] = useState(false);
-  const [upiSources, setUpiSources] = useState<any[]>([]);
+  const [upiSources, setUpiSources] = useState<B.UpiSource[]>([]);
   const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);

@@ -80,7 +80,7 @@ export function useScrapInvoiceEdit(ctx: UseScrapInvoiceEditContext) {
     });
 
     // Populate scrap items cleanly into cart
-    detail.transactions.forEach((tx: any) => {
+    detail.transactions.forEach((tx) => {
       addItem({
         product_id: tx.transaction_id || uuidv4(),
         scrap_category_id: tx.scrap_category_id,

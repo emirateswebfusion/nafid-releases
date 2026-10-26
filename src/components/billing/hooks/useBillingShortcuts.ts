@@ -47,7 +47,7 @@ export interface UseBillingShortcutsContext {
   setQuotationMode: (isQuotationMode: boolean) => void;
   setReturnDeductionSearchMode: React.Dispatch<React.SetStateAction<boolean>>;
   setReturnMode: (isReturnMode: boolean) => void;
-  setSelectedReturnInvoice: React.Dispatch<React.SetStateAction<Invoice | null>>;
+  setSelectedReturnInvoice: React.Dispatch<React.SetStateAction<Partial<Invoice> | null>>;
   splitCashInputRef: React.RefObject<HTMLInputElement | null>;
   splitCreditInputRef: React.RefObject<HTMLInputElement | null>;
   startEditingTotal: () => void;

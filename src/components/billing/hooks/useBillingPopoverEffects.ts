@@ -1,9 +1,9 @@
+import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { productsApi } from '../../../data/products';
 import type { ProductSearchResult } from '../productSearch';
 import type { Invoice } from '../../../data/invoices';
-import type { DeductionSearchRow } from '../deductionLookup';
 
 export interface UseBillingPopoverEffectsContext {
   editingProductId: string | null;
@@ -17,9 +17,9 @@ export interface UseBillingPopoverEffectsContext {
   setPastBillResults: React.Dispatch<React.SetStateAction<Invoice[]>>;
   setResults: React.Dispatch<React.SetStateAction<ProductSearchResult[]>>;
   setReturnDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
-  setReturnDeductionResults: React.Dispatch<React.SetStateAction<DeductionSearchRow[]>>;
+  setReturnDeductionResults: React.Dispatch<React.SetStateAction<B.ReturnDeductionRow[]>>;
   setScrapDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
-  setScrapDeductionResults: React.Dispatch<React.SetStateAction<DeductionSearchRow[]>>;
+  setScrapDeductionResults: React.Dispatch<React.SetStateAction<B.ScrapDeductionRow[]>>;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   setShowProductCreateForm: React.Dispatch<React.SetStateAction<boolean>>;
   showProductCreateForm: boolean;

@@ -1,3 +1,4 @@
+import type * as B from './billingTypes';
 import type { Party } from '../../data/parties';
 
 /**
@@ -10,7 +11,7 @@ import type { Party } from '../../data/parties';
  * A row from parties, customers, the customer search or the staff list. The bridge returns these untyped and their
  * shapes differ, so fields are read loosely; this is the single place that debt lives. Replace with domain types.
  */
-export type DirectoryRow = Record<string, any>;
+export type DirectoryRow = B.DirectoryRecord;
 
 /** One entry of the customer dropdown: a customer, a party or (when staff credit is on) a staff member. */
 export interface CustomerSuggestion {
@@ -30,7 +31,7 @@ export interface CustomerSuggestion {
 }
 
 /** A party (or customer) matched by name/phone, with the matching customer's id and loyalty points. */
-export type MatchedParty = Partial<Party> & DirectoryRow;
+export type MatchedParty = Partial<Omit<Party, keyof DirectoryRow>> & DirectoryRow;
 
 export interface DirectoryLists {
   parties: DirectoryRow[];

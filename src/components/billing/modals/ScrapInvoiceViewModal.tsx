@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import { Recycle } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { formatCurrency } from '../BillingConstants';
@@ -8,7 +9,7 @@ interface ScrapInvoiceViewModalProps {
   isOpen: boolean;
   onClose: () => void;
   loading: boolean;
-  data: any;
+  data: B.ScrapViewData | null;
 }
 
 export function ScrapInvoiceViewModal({
@@ -57,7 +58,7 @@ export function ScrapInvoiceViewModal({
               <div className="divide-y divide-border max-h-[320px] overflow-y-auto">
                 {data.transactions.length === 0 ? (
                   <div className="py-8 text-center text-muted-foreground text-sm">No transactions found</div>
-                ) : data.transactions.map((tx: any) => (
+                ) : data.transactions.map((tx) => (
                   <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
                     <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
                     <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>

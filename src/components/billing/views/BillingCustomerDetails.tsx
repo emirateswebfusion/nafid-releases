@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React from 'react';
 import { User, Phone, MapPin, Building } from 'lucide-react';
 import clsx from 'clsx';
@@ -259,13 +260,13 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
       {/* Real-time Credit Period & Overdue Status Warning Banner */}
       {(() => {
         const party = findMatchingParty(customerName, customerPhone);
-        if (!party || !(party as any).credit_period_enabled) return null;
+        if (!party || !(party as B.DirectoryRecord).credit_period_enabled) return null;
         const isCreditTx = paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && Number(splitDetails.credit) > 0);
-        const hasOverdue = Boolean((party as any).has_overdue);
-        const isRestricted = (party as any).restrict_on_credit_expiry !== false && (party as any).restrict_on_credit_expiry !== 0;
-        const overdueCount = (party as any).overdue_bills_count || 0;
-        const overdueAmt = Number((party as any).overdue_amount || 0);
-        const creditDays = (party as any).credit_period_days || 30;
+        const hasOverdue = Boolean((party as B.DirectoryRecord).has_overdue);
+        const isRestricted = (party as B.DirectoryRecord).restrict_on_credit_expiry !== false && (party as B.DirectoryRecord).restrict_on_credit_expiry !== 0;
+        const overdueCount = (party as B.DirectoryRecord).overdue_bills_count || 0;
+        const overdueAmt = Number((party as B.DirectoryRecord).overdue_amount || 0);
+        const creditDays = (party as B.DirectoryRecord).credit_period_days || 30;
         const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
         if (hasOverdue) {

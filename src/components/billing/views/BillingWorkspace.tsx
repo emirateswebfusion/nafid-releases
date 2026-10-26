@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React from 'react';
 import clsx from 'clsx';
 import { TrendingUp } from 'lucide-react';
@@ -207,14 +208,14 @@ export function BillingWorkspace({
               mostSoldProducts.map((prod) => (
                 <button
                   key={prod.product_id || prod.id || prod.name}
-                  onClick={() => handleSelectProduct(prod)}
+                  onClick={() => handleSelectProduct(prod as B.BillingProduct)}
                   className="w-full text-left p-2.5 rounded-xl border border-border bg-card hover:bg-accent/10 hover:border-primary/40 text-foreground transition-all cursor-pointer shadow-xs active:scale-95 flex flex-col gap-0.5 group"
                 >
                   <div className="text-xs font-bold truncate group-hover:text-primary transition-colors">{prod.name}</div>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
                     <span>₹{prod.base_price || 0}</span>
                     {prod.current_stock !== undefined && (
-                      <span className={clsx(prod.current_stock <= 5 ? "text-amber-500 font-bold" : "")}>
+                      <span className={clsx(prod.current_stock as number <= 5 ? "text-amber-500 font-bold" : "")}>
                         Stock: {prod.current_stock}
                       </span>
                     )}

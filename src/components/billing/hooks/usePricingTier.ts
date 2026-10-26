@@ -1,11 +1,12 @@
+import type * as B from '../billingTypes';
 import React, { useCallback, useEffect } from 'react';
 import { useCartStore } from '../../../store/cartStore';
 import type { MatchedParty } from '../customerDirectory';
-import type { PricingTier } from '../../../data/pricingTiers';
+
 
 export interface UsePricingTierContext {
   findMatchingParty: (name?: string, phone?: string) => MatchedParty | null;
-  pricingTiers: Array<PricingTier & { is_default?: number | boolean | string | null }>;
+  pricingTiers: B.Tier[];
   productPricingMap: Record<string, Record<string, number>>;
   productPricingMapLoaded: boolean;
   selectedTierId: string;
@@ -19,7 +20,7 @@ export interface UsePricingTierContext {
  */
 export function usePricingTier(ctx: UsePricingTierContext) {
   const { findMatchingParty, pricingTiers, productPricingMap, productPricingMapLoaded, selectedTierId, setSelectedTierId, syncActiveSnapshot } = ctx;
-  const getTierPriceForProduct = (product: any): number | undefined => {
+  const getTierPriceForProduct = (product: Pick<B.BillingProduct, 'product_id' | 'tier_prices'>): number | undefined => {
     if (!selectedTierId || !product) return undefined;
     if (!pricingTiers.some(t => t.pricing_tier_id === selectedTierId)) return undefined;
     const v = productPricingMap[product.product_id]?.[selectedTierId]

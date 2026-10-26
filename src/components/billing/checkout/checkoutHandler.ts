@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import type { Dispatch, SetStateAction, RefObject } from 'react';
 import type { CartItem, InvoiceType } from '../../../store/cartStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
@@ -91,7 +92,7 @@ export interface CheckoutContext {
   storeScrapDeduction: number;
   storeReturnDeduction: number;
   grandTotal: number;
-  findMatchingParty: (name?: string, phone?: string) => any;
+  findMatchingParty: B.PartyMatch;
   shopEmail: string;
   shopWebsite: string;
   bankNameState: string;
@@ -107,11 +108,11 @@ export interface CheckoutContext {
   igst: number;
   storeScrapInvoiceNumber: string;
   storeReturnInvoiceNumber: string;
-  currentSelectedUpi: any;
+  currentSelectedUpi: B.SelectedUpi;
   actualRefundPaid: number;
   returnConsumed: number;
   editingQuotationId: string | null;
-  setPartiesForTier: Dispatch<SetStateAction<any[]>>;
+  setPartiesForTier: Dispatch<SetStateAction<B.Party[]>>;
   setInvoiceType: (type: InvoiceType) => void;
   clearScrapDeduction: () => void;
   clearReturnDeduction: () => void;
@@ -330,13 +331,13 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
 
       // Check credit period expiry restriction (Cash purchases remain 100% available)
       if (billCreditAmount > 0 && matchedParty) {
-        const creditPeriodEnabled = Boolean((matchedParty as any).credit_period_enabled);
-        const restrictOnExpiry = (matchedParty as any).restrict_on_credit_expiry !== false && (matchedParty as any).restrict_on_credit_expiry !== 0;
-        const hasOverdue = Boolean((matchedParty as any).has_overdue);
+        const creditPeriodEnabled = Boolean((matchedParty as B.DirectoryRecord).credit_period_enabled);
+        const restrictOnExpiry = (matchedParty as B.DirectoryRecord).restrict_on_credit_expiry !== false && (matchedParty as B.DirectoryRecord).restrict_on_credit_expiry !== 0;
+        const hasOverdue = Boolean((matchedParty as B.DirectoryRecord).has_overdue);
 
         if (creditPeriodEnabled && restrictOnExpiry && hasOverdue) {
-          const overdueCount = (matchedParty as any).overdue_bills_count || 1;
-          const overdueAmt = (matchedParty as any).overdue_amount ? ` (₹${Number((matchedParty as any).overdue_amount).toFixed(2)})` : '';
+          const overdueCount = (matchedParty as B.DirectoryRecord).overdue_bills_count || 1;
+          const overdueAmt = (matchedParty as B.DirectoryRecord).overdue_amount ? ` (₹${Number((matchedParty as B.DirectoryRecord).overdue_amount).toFixed(2)})` : '';
           setHardwareError(
             `Credit purchases restricted for ${matchedParty.name}! Customer has ${overdueCount} overdue bill${overdueCount !== 1 ? 's' : ''}${overdueAmt} exceeding credit period. Please collect outstanding dues or switch to Cash/Card/UPI.`
           );
@@ -442,18 +443,18 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         billSettings,
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
-        ...(billCreditAmount > 0 && matchedParty && (matchedParty as any).credit_period_enabled ? {
+        ...(billCreditAmount > 0 && matchedParty && (matchedParty as B.DirectoryRecord).credit_period_enabled ? {
           dueDate: (() => {
-            const days = Number((matchedParty as any).credit_period_days) || 30;
+            const days = Number((matchedParty as B.DirectoryRecord).credit_period_days) || 30;
             const d = new Date();
             d.setDate(d.getDate() + days);
             return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
           })(),
-          creditPeriodDays: Number((matchedParty as any).credit_period_days) || 30,
+          creditPeriodDays: Number((matchedParty as B.DirectoryRecord).credit_period_days) || 30,
         } : {}),
       };
 
-      let result: any;
+      let result: B.CheckoutResult;
       const wantsLoyalty = loyaltyEnabled && !!(customerName || '').trim() && (!!(customerPhone || '').trim() || !!(customerAddress || '').trim() || loyaltyCustomerData.customerId);
       if (isEditing) {
         result = await invoicesApi.updateInvoice({
@@ -621,11 +622,11 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         try {
           if (useA4) {
             const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-            const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+            const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as B.InvoiceStyle);
             const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
             if (!printResult.success) {
               printSuccess = false;
-              if ((printResult as any).useDefaultDialog) {
+              if ((printResult as { useDefaultDialog?: boolean }).useDefaultDialog) {
                 const pw = window.open('', '_blank');
                 if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
               } else {
@@ -668,14 +669,14 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       if (isAutoWhatsApp && custPhone && hasBridge('whatsappSendInvoice')) {
         try {
           const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-          const fullHtml = generateInvoiceHtml(receiptData, invStyle as any);
+          const fullHtml = generateInvoiceHtml(receiptData, invStyle as B.InvoiceStyle);
           const waMessage = formatWhatsAppBillMessage({
             shopName: receiptData.shopName || shopName || 'Store',
             invoiceNumber: confirmedInvoiceNumber,
             date: receiptData.date || new Date().toLocaleDateString('en-IN'),
             customerName: customerName || undefined,
             customerPhone: custPhone,
-            items: (receiptItems || []).map((i: any) => ({
+            items: (receiptItems || []).map((i) => ({
               name: i.name,
               quantity: i.quantity,
               unit_price: Number(i.unit_price) || 0,
@@ -685,8 +686,8 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
             receivedAmount: effectiveReceivedAmount,
             balanceAmount: tracksPartyBalance ? partyNewBalance : effectiveBalanceAmount,
             paymentMethod: effectiveFinalPaymentMethod,
-            dueDate: (receiptData as any).dueDate,
-            creditPeriodDays: (receiptData as any).creditPeriodDays,
+            dueDate: (receiptData as typeof receiptData & { dueDate?: string; creditPeriodDays?: number }).dueDate,
+            creditPeriodDays: (receiptData as typeof receiptData & { dueDate?: string; creditPeriodDays?: number }).creditPeriodDays,
             customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
           });
 
@@ -707,7 +708,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       } catch (e) { /* ignore */ }
       // Refresh parties list so party balances update immediately
       listParties(tenantId || 'global')
-        .then((res: any) => {
+        .then((res) => {
           if (Array.isArray(res)) setPartiesForTier(res);
         })
         .catch(console.error);

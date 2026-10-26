@@ -43,8 +43,8 @@ export function useCartFocus(ctx: UseCartFocusContext) {
 
     if (el) {
       el.focus();
-      if ('select' in el && typeof (el as any).select === 'function') {
-        (el as any).select();
+      if ('select' in el && typeof (el as HTMLInputElement).select === 'function') {
+        (el as HTMLInputElement).select();
       }
       activeCartProductIdRef.current = productId;
       setFocusedRowProductId(productId);
@@ -124,13 +124,13 @@ export function useCartFocus(ctx: UseCartFocusContext) {
       if (idx < items.length - 1) {
         const nextPid = items[idx + 1].product_id;
         const nextRate = ratePcRefs.current[nextPid] || rateKgRefs.current[nextPid] || qtyRefs.current[nextPid];
-        if (nextRate) { nextRate.focus(); if ('select' in nextRate) (nextRate as any).select(); }
+        if (nextRate) { nextRate.focus(); if ('select' in nextRate) (nextRate as HTMLInputElement).select(); }
       }
     } else {
       if (idx > 0) {
         const prevPid = items[idx - 1].product_id;
         const prevRate = ratePcRefs.current[prevPid] || rateKgRefs.current[prevPid] || qtyRefs.current[prevPid];
-        if (prevRate) { prevRate.focus(); if ('select' in prevRate) (prevRate as any).select(); }
+        if (prevRate) { prevRate.focus(); if ('select' in prevRate) (prevRate as HTMLInputElement).select(); }
       } else {
         searchRef.current?.focus();
         searchRef.current?.select();

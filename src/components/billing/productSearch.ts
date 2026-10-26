@@ -1,3 +1,4 @@
+import type * as B from './billingTypes';
 import type { Product } from '../../data/products';
 import { sortProductsBySearchPriority, cleanSearchText } from '../../utils/productSort';
 
@@ -34,7 +35,7 @@ export function buildProductSearchResults(
   trimmed: string,
   { invoiceType, enableRealPaperStock, showPaperInGstSetting, showPaperInEstSetting }: ProductSearchOptions,
 ): ProductSearchResult[] {
-  const comboResults = (Array.isArray(combos) ? combos : []).map((c: any) => ({
+  const comboResults = (Array.isArray(combos) ? combos : []).map((c) => ({
     product_id: c.combo_id,
     name: c.name,
     sku_barcode: c.sku_barcode || '',
@@ -129,7 +130,7 @@ export function buildProductSearchResults(
     return qWords.length > 0 && qWords.every(isWordMatch);
   });
 
-  const deduped: any[] = [];
+  const deduped: ProductSearchResult[] = [];
   let serviceFound = false;
   for (const p of filteredProds) {
     const isServiceCharge = Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge';
@@ -140,9 +141,8 @@ export function buildProductSearchResults(
     deduped.push(p);
   }
 
-  return [...comboResults, ...deduped].slice(0, 50);
+  return [...comboResults, ...deduped].slice(0, 50) as ProductSearchResult[];
 }
 
 /** A product row of the most-sold strip, as the most-sold IPC returns it (untyped). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type MostSoldProductRow = any;
+export type MostSoldProductRow = B.MostSoldRow;

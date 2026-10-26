@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { getInvoiceItems, listInvoices } from '../../../data/invoices';
@@ -22,7 +23,7 @@ export interface UseSearchSelectionContext {
   focusCustomerFieldsReverse: () => void;
   focusFirstCartField: (pidOverride?: string) => boolean;
   focusLastCartField: (pidOverride?: string) => boolean;
-  getTierPriceForProduct: (product: ProductSearchResult) => number | undefined;
+  getTierPriceForProduct: (product: Pick<ProductSearchResult, 'product_id'> & Pick<B.BillingProduct, 'tier_prices'>) => number | undefined;
   isReturnMode: boolean;
   isScrapMode: boolean;
   items: CartItem[];
@@ -38,7 +39,7 @@ export interface UseSearchSelectionContext {
   setNewProductName: React.Dispatch<React.SetStateAction<string>>;
   setReturnMode: (isReturnMode: boolean) => void;
   setReturnRefundMethod: (method: "CASH" | "UPI" | "CARD" | "BANK_TRANSFER" | "STORE_CREDIT" | "ADJUST_BILL" | "CREDIT") => void;
-  setSelectedReturnInvoice: React.Dispatch<React.SetStateAction<Invoice | null>>;
+  setSelectedReturnInvoice: React.Dispatch<React.SetStateAction<Partial<Invoice> | null>>;
   setShowProductCreateForm: React.Dispatch<React.SetStateAction<boolean>>;
   showProductCreateForm: boolean;
   tenantId: string | null;
@@ -54,12 +55,12 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
   const { setSearchQuery, setResults, setScrapSearchResults, setReturnSearchResults, setPastBillResults, setIsPastBillMode, scrapSearchResults, isPastBillMode, pastBillResults, results, setSelectedIndex, searchQuery, selectedIndex, returnSearchResults } = ctx.productSearch;
   const { customerNameInputRef } = ctx.customerFields;
 
-  const handleSelectProduct = (product: any) => {
+  const handleSelectProduct = (product: B.BillingProduct) => {
     if (product?.isCombo) {
       addItem({
         product_id: product.product_id,
         name: product.name,
-        base_price: product.combo_price,
+        base_price: product.combo_price as number,
         purchase_price: 0,
         tax_rate_percent: 0,
         uom: 'Combo',
@@ -107,18 +108,18 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
       purchase_price: product.pricing_mode === 'GRADE_RATE' && product.grade_purchase_price !== undefined && product.grade_purchase_price !== null
         ? Number(product.grade_purchase_price)
         : (product.purchase_price ?? 0),
-      tax_rate_percent: Number(product.tax_rate_percent ?? (product as any).gst_percent ?? 0),
-      hsn_sac_code: product.hsn_sac_code || (product as any).hsn_code || (product as any).hsn || null,
-      is_gst_applicable: (product as any).is_gst_applicable !== 0,
-      uom: product.uom,
+      tax_rate_percent: Number(product.tax_rate_percent ?? (product as B.BillingProduct).gst_percent ?? 0),
+      hsn_sac_code: product.hsn_sac_code || (product as B.BillingProduct).hsn_code || (product as B.BillingProduct).hsn || null,
+      is_gst_applicable: (product as B.BillingProduct).is_gst_applicable !== 0,
+      uom: product.uom as string,
       billing_type: effectiveBillingType,
       pieces_per_kg: piecesPerKg,
-      grade_id: product.grade_id ?? null,
-      pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode,
-      grade_rate: product.grade_rate ?? null,
-      original_pricing_mode: product.pricing_mode,
-      original_grade_id: product.grade_id ?? null,
-      original_grade_rate: product.grade_rate ?? null,
+      grade_id: product.grade_id ?? null as unknown as string,
+      pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode as string,
+      grade_rate: product.grade_rate ?? null as unknown as number,
+      original_pricing_mode: product.pricing_mode as string,
+      original_grade_id: product.grade_id ?? null as unknown as string,
+      original_grade_rate: product.grade_rate ?? null as unknown as number,
       discount_percent: hasTierPrice ? null : (product.discount_percent ?? null),
       discount_flat: hasTierPrice ? null : (product.discount_flat ?? null),
       offer_price: hasTierPrice ? null : (product.offer_price ?? null),
@@ -147,7 +148,7 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
     }, 50);
   };
 
-  const handleSelectScrapItem = (cat: any) => {
+  const handleSelectScrapItem = (cat: import('../productSearch').ScrapCategoryResult) => {
     const rate = Number(cat.purchase_price ?? cat.rate ?? cat.selling_price) || 0;
     const scrapProdId = `SCRAP-${cat.scrap_category_id}`;
     const existing = items.find(i => i.product_id === scrapProdId || (i.isScrap && i.scrap_category_id === cat.scrap_category_id));
@@ -179,25 +180,25 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
     }, 50);
   };
 
-  const handleSelectReturnInvoice = async (inv: any) => {
+  const handleSelectReturnInvoice = async (inv: B.BillingInvoice) => {
     if (!isDesktopRuntime()) return;
     setSearchQuery('');
     setReturnSearchResults([]);
     setSelectedReturnInvoice(inv);
     try {
       const [rawItems, returnedQtys] = await Promise.all([
-        getInvoiceItems(inv.invoice_id),
-        returnsApi.getAlreadyReturnedQuantities(inv.invoice_id),
+        getInvoiceItems(inv.invoice_id as string),
+        returnsApi.getAlreadyReturnedQuantities(inv.invoice_id as string),
       ]);
       const returnedMap: Record<string, number> = {};
-      (returnedQtys || []).forEach((r: any) => {
+      (returnedQtys || []).forEach((r) => {
         returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
       });
-      const invSubtotal = Number(inv.subtotal) || (rawItems || []).reduce((s: number, i: any) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
+      const invSubtotal = Number(inv.subtotal) || (rawItems || []).reduce((s: number, i) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
       const invDiscount = (Number(inv.discount_total) || 0) + (Number(inv.points_redeemed_discount) || 0);
       const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
 
-      const enriched = (rawItems || []).map((item: any) => {
+      const enriched = (rawItems || []).map((item) => {
         const origPrice = Number(item.unit_price) || 0;
         const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
         const origTax = Number(item.tax_amount) || 0;
@@ -210,7 +211,7 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
           already_returned: returnedMap[item.item_id] || 0,
           available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
         };
-      }).filter((item: any) => item.available_to_return > 0);
+      }).filter((item) => item.available_to_return > 0);
 
       if (enriched.length === 0) {
         setSelectedReturnInvoice(null);
@@ -243,16 +244,16 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
       setReturnRefundMethod(isCreditInv ? 'CREDIT' : 'ADJUST_BILL');
 
       // Enrich with catalog product details if available
-      const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
-      const productMap: Record<string, any> = {};
+      const productIds: string[] = [...new Set((enriched || []).map((i) => i.product_id).filter(Boolean))];
+      const productMap: Record<string, B.BillingProduct> = {};
       if (productIds.length > 0) {
         try {
           const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
-          if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
+          if (Array.isArray(prods)) { prods.forEach((p) => { productMap[p.product_id] = p; }); }
         } catch (e) { /* ignore */ }
       }
 
-      enriched.forEach((item: any) => {
+      enriched.forEach((item: B.BillingInvoiceItem) => {
         const catProd = productMap[item.product_id];
         const productId = item.product_id || `return-${uuidv4()}`;
 
@@ -281,7 +282,7 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
           item_code: catProd?.item_code || item.item_code || '',
           base_price: Number(item.unit_price) || 0,
           purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
-          tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.tax_rate_percent || (catProd as any)?.gst_percent || 0),
+          tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.tax_rate_percent || (catProd as B.BillingProduct)?.gst_percent || 0),
           billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
           uom: effectiveUom,
           pieces_per_kg: piecesPerKg || 1,
@@ -305,16 +306,16 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
     }
   };
 
-  const handleSelectPastBill = async (invoice: any) => {
+  const handleSelectPastBill = async (invoice: B.BillingInvoice) => {
     if (!invoice || !isDesktopRuntime()) return;
     try {
       let invId = invoice.invoice_id || invoice.id;
       let fullInvoice = invoice;
 
       if (!invId && invoice.invoice_number) {
-        const fetched = await listInvoices({ search: invoice.invoice_number, tenant_id: invoice.tenant_id || tenantId });
+        const fetched = await listInvoices({ search: invoice.invoice_number, tenant_id: invoice.tenant_id || tenantId as string });
         if (Array.isArray(fetched) && fetched.length > 0) {
-          const matched = fetched.find((i: any) => i.invoice_number === invoice.invoice_number) || fetched[0];
+          const matched = fetched.find((i) => i.invoice_number === invoice.invoice_number) || fetched[0];
           invId = matched.invoice_id;
           fullInvoice = matched;
         }

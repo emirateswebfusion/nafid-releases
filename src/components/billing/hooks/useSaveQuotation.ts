@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -79,7 +80,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
         quotationNumber = numRes.quotationNumber || '';
       }
 
-      const hasGstItems = items.some(i => (i as any).is_gst_applicable || (i as any).hsn_sac_code || Number(i.tax_rate_percent) > 0);
+      const hasGstItems = items.some(i => (i as B.CartItem).is_gst_applicable || (i as B.CartItem).hsn_sac_code || Number(i.tax_rate_percent) > 0);
       const isGstQuotation = quotationGstEnabledSetting || invoiceType === 'GST' || hasGstItems;
       const isInterState = isGstQuotation && Boolean(customerState && shopState && customerState.trim().toLowerCase() !== shopState.trim().toLowerCase());
 

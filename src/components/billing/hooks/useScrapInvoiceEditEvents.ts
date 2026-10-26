@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import { useEffect } from 'react';
 import { useTabStore } from '../../../store/tabStore';
 import { useCartStore } from '../../../store/cartStore';
@@ -44,7 +45,7 @@ export function useScrapInvoiceEditEvents(ctx: UseScrapInvoiceEditEventsContext)
   }, []);
 
   useEffect(() => {
-    const handleEditScrapInvoiceEvent = (e: any) => {
+    const handleEditScrapInvoiceEvent = (e: B.ScrapEditEvent) => {
       const invNum = e.detail?.invoiceNumber;
       if (invNum) {
         useCartStore.getState().setIsScrapMode(true);
@@ -53,9 +54,9 @@ export function useScrapInvoiceEditEvents(ctx: UseScrapInvoiceEditEventsContext)
       }
     };
 
-    window.addEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
+    window.addEventListener('edit-scrap-invoice' as string, handleEditScrapInvoiceEvent as EventListener);
     return () => {
-      window.removeEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
+      window.removeEventListener('edit-scrap-invoice' as string, handleEditScrapInvoiceEvent as EventListener);
     };
   }, [loadScrapInvoiceForEdit, updateActiveTab]);
 
