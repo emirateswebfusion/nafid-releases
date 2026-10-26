@@ -82,12 +82,6 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>()((set, get) => ({
   },
 }));
 
-export async function loadFeatureFlags(tenantId?: string): Promise<FeatureFlags> {
-  const store = useFeatureFlagsStore.getState();
-  await store.loadFlags(tenantId || 'global');
-  return store.flags || sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
-}
-
 export function wereFeatureFlagsStored(): boolean {
   return cacheStored;
 }

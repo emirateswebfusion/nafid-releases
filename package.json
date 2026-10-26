@@ -17,6 +17,7 @@
     "package:all": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --mac",
     "lint": "eslint .",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "lint:unused": "npx --yes knip@5 --include files,exports,dependencies,devDependencies,unlisted,duplicates",
     "lint:baseline": "node scripts/lint-ratchet.mjs --update",
     "check:arch": "node scripts/check-architecture.mjs",
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",

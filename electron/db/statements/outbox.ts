@@ -237,6 +237,7 @@ export function enqueueLegacyPendingRows(db: Db, tables: readonly string[]): num
   return added;
 }
 
+/** @public Used by tests/characterization (migrations.mts). */
 export function countPendingOps(db: Db): number {
   const row = db.prepare('SELECT COUNT(*) AS count FROM sync_outbox WHERE sent_at IS NULL').get() as { count: number };
   return row.count;

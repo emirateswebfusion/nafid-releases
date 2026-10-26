@@ -46,7 +46,6 @@ export const insertPurchaseBillItem = (db: Db) => db.prepare(`
 
 export const updateProductCurrentStockAndPurchasePrice = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
 
-export const updateProductPurchasePrice = (db: Db) => db.prepare(`UPDATE products SET purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
 
 export const updateProductBasePrice = (db: Db) => db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
 
