@@ -41,7 +41,7 @@ export interface CartItem {
   rawUnitPrice?: number;
   originalTaxAmount?: number;
   returnSourceInvoiceId?: string;
-  returnSourceInvoiceNumber?: string;
+  returnSourceInvoiceNumber?: string | null;
   isCombo?: boolean;
   combo_id?: string;
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;

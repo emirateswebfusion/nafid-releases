@@ -1,6 +1,6 @@
 import type React from 'react';
 import { Receipt, Package, Users, Handshake } from 'lucide-react';
-export type { DeletedProduct, DeletedCustomer, DeletedParty } from '../../data/recycleBin';
+export type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from '../../data/recycleBin';
 
 /** Recycle bin screen: categories, deleted row shapes, toast / confirmation state, category config and date helpers. */
 
@@ -12,18 +12,7 @@ export interface RecycleBinProps {
   onNavigateToSalesHistory?: () => void;
 }
 
-export interface DeletedInvoice {
-  invoice_id: string;
-  invoice_number: string;
-  customer_name: string;
-  customer_phone: string;
-  grand_total: number;
-  payment_method: string;
-  invoice_type: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at?: string;
-}
+
 
 
 
@@ -66,7 +55,7 @@ export function timeAgo(dateStr: string | null): string {
   }
 }
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string | null): string {
   if (!dateStr) return 'N/A';
   try {
     const d = new Date(dateStr);

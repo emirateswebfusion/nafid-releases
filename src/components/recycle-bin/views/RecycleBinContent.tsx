@@ -24,7 +24,7 @@ export interface RecycleBinContentProps {
   isCurrentLoading: boolean;
   rb: RecycleBinState;
   restoreCustomer: (customer_id: string, name: string) => Promise<void>;
-  restoreInvoice: (invoice_id: string, invoice_number: string) => Promise<void>;
+  restoreInvoice: (invoice_id: string, invoice_number: string | null) => Promise<void>;
   restoreParty: (party_id: string, name: string) => Promise<void>;
   restoreProduct: (product_id: string, name: string) => Promise<void>;
 }

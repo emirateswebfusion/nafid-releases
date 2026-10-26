@@ -9,7 +9,7 @@ import type { PaymentSource } from './data/paymentSources';
 import type { PurchaseBillItemWithProduct, PurchaseSearchProduct } from './data/purchases';
 import type { ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
-import type { DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
+import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
 import type * as Rows from './data/dbRows';
 export interface SyncProgress {
   percent: number;
@@ -62,10 +62,10 @@ export interface IElectronAPI {
   dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; dateEnd?: string; only_pending?: boolean }) => Promise<Product[]>;
   dbCheckout: (payload: Record<string, unknown> & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; invoice_number?: string; error?: string }>;
   dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
-  dbGetInvoices: (filters: unknown) => Promise<any[]>;
+  dbGetInvoices: (filters: unknown) => Promise<Invoice[]>;
   dbGetInvoicesSummary: (filters: unknown) => Promise<{ totalSales: number; totalSalesBeforeDeductions?: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number }>;
   dbGetDashboardStats: (tenantId: string) => Promise<{ success: boolean; totalSales: number; invoiceCount: number; error?: string }>;
-  dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
+  dbGetInvoiceItems: (invoice_id: string) => Promise<InvoiceItem[]>;
   dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: unknown }) => Promise<{ success: boolean; error?: string }>;
   dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => Promise<CustomerListItem[]>;
@@ -122,7 +122,7 @@ export interface IElectronAPI {
   settingsSet: (payload: { tenant_id: string; key: string; value: unknown }) => Promise<{ success: boolean; error?: string }>;
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string; skipped?: boolean }>;
   dbDeleteInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetDeletedInvoices: (tenantId: string) => Promise<any[]>;
+  dbGetDeletedInvoices: (tenantId: string) => Promise<DeletedInvoice[]>;
   dbRestoreInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
   dbHardDeleteInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetDeletedProducts: (tenantId: string) => Promise<DeletedProduct[]>;

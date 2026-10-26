@@ -10,11 +10,11 @@ export interface InvoiceItemDisplay {
   discountLabel?: string;
   isPriceOverride?: boolean;
   brand?: string;
-  billing_type?: string;
+  billing_type?: string | null;
   pieces_override?: number;
   pieces_sold?: number;
   pieces_per_kg?: number;
-  unit?: string;
+  unit?: string | null;
   hsn?: string;
   hsn_code?: string;
   tax_rate_percent?: number;

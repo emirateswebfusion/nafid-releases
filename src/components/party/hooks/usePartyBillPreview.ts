@@ -101,7 +101,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
           if (Array.isArray(res)) {
             const entryAmt = entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount;
             const match = res.find(inv => {
-              const isPartyMatch = inv.party_id === selectedParty.party_id ||
+              const isPartyMatch =
                 (inv.customer_phone && selectedParty.phone && inv.customer_phone === selectedParty.phone) ||
                 (inv.customer_name && selectedParty.name && inv.customer_name.toLowerCase().trim() === selectedParty.name.toLowerCase().trim());
               if (!isPartyMatch) return false;
@@ -174,9 +174,9 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
           const receiptText = generateReceiptText({
             shopName: useAuthStore.getState().shopName || 'Store',
             invoiceNumber: viewingInvoice.invoice_number as string,
-            date: formatBillDateTime(viewingInvoice.created_at),
+            date: formatBillDateTime(viewingInvoice.created_at as string),
             items: (viewingInvoiceItems || []).map(i => ({
-              name: i.name,
+              name: i.name as string,
               quantity: Number(i.quantity) || 1,
               unit_price: Number(i.unit_price) || 0,
               total: Number(i.total) || (Number(i.quantity) * Number(i.unit_price)) || 0,

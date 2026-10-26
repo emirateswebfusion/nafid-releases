@@ -1,5 +1,5 @@
 {
-  "errors": 241,
+  "errors": 237,
   "warnings": 59,
   "byRule": {
     "no-dupe-else-if": 2,
@@ -8,7 +8,7 @@
     "react-hooks/set-state-in-effect": 36,
     "react-hooks/refs": 13,
     "react-hooks/exhaustive-deps": 59,
-    "@typescript-eslint/no-explicit-any": 135,
+    "@typescript-eslint/no-explicit-any": 132,
     "react-hooks/immutability": 11,
     "@typescript-eslint/parser": 2,
     "react-hooks/preserve-manual-memoization": 5,
@@ -18,8 +18,7 @@
     "@typescript-eslint/no-empty-object-type": 11,
     "no-irregular-whitespace": 1,
     "react-refresh/only-export-components": 12,
-    "prefer-const": 2,
-    "@typescript-eslint/no-unused-vars": 1
+    "prefer-const": 2
   },
-  "updatedAt": "2026-10-26T12:17:47.196Z"
+  "updatedAt": "2026-10-26T12:41:09.081Z"
 }

@@ -1,5 +1,8 @@
 import { bindBridge } from './client';
-import type { CustomersRow, PartiesRow, ProductsRow } from './dbRows';
+import type { CustomersRow, InvoicesRow, PartiesRow, ProductsRow } from './dbRows';
+
+/** A soft-deleted invoice as `db:getDeletedInvoices` selects it (`deleted_at` falls back to `updated_at` on old schemas). */
+export type DeletedInvoice = Pick<InvoicesRow, 'invoice_id' | 'invoice_number' | 'customer_name' | 'customer_phone' | 'grand_total' | 'payment_method' | 'invoice_type' | 'created_at' | 'updated_at' | 'deleted_at'>;
 
 /** A soft-deleted product as `db:getDeletedProducts` selects it (`barcode` = COALESCE(sku_barcode, '')). */
 export type DeletedProduct = Pick<ProductsRow, 'product_id' | 'name' | 'category' | 'current_stock' | 'base_price' | 'updated_at'> & {

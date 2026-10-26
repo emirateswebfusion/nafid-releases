@@ -7,7 +7,7 @@ export interface InvoiceCardsViewProps {
   filteredInvoices: DeletedInvoice[];
   handleInspectInvoice: (inv: DeletedInvoice) => Promise<void>;
   isAdmin: boolean;
-  restoreInvoice: (invoice_id: string, invoice_number: string) => Promise<void>;
+  restoreInvoice: (invoice_id: string, invoice_number: string | null) => Promise<void>;
 }
 
 /** Card grid of deleted sales bills with inspect, restore and permanent-delete actions. */

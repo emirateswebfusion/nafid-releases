@@ -12,11 +12,11 @@ export interface ReceiptItem {
   discountLabel?: string;
   isPriceOverride?: boolean;
   brand?: string;
-  billing_type?: string;
+  billing_type?: string | null;
   pieces_sold?: number;
   pieces_override?: number;
   pieces_per_kg?: number;
-  unit?: string;
+  unit?: string | null;
   hsn?: string;
   hsn_code?: string;
   hsn_sac_code?: string;
@@ -319,7 +319,7 @@ export interface ReceiptData {
   scrapInvoiceNumber?: string;
   returnDeduction?: number;
   returnInvoiceNumber?: string;
-  referenceInvoiceNumber?: string;
+  referenceInvoiceNumber?: string | null;
   refundMethod?: string;
   showProductOffers?: boolean;
   showPriceOverrideMrp?: boolean;

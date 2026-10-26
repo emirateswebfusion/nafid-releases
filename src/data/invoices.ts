@@ -1,82 +1,17 @@
 import { api, bindBridge } from './client';
+import type { InvoiceItemsRow, InvoicesRow } from './dbRows';
 
-export interface Invoice {
-  invoice_id: string;
-  tenant_id: string;
-  invoice_number: string;
-  invoice_type?: string | null;
-  customer_id?: string | null;
-  customer_name?: string | null;
-  customer_phone?: string | null;
-  customer_gstin?: string | null;
-  customer_state?: string | null;
-  customer_address?: string | null;
-  subtotal?: number | null;
-  tax_total?: number | null;
-  discount_total?: number | null;
-  discount_type?: string | null;
-  discount_value?: number | null;
-  grand_total?: number | null;
-  payment_method?: string | null;
-  split_details?: string | null;
-  received_amount?: number | null;
-  balance_amount?: number | null;
-  user_id?: string | null;
-  return_deduction?: number | null;
-  return_invoice_number?: string | null;
-  scrap_deduction?: number | null;
-  scrap_invoice_number?: string | null;
-  points_redeemed?: number | null;
-  points_redeemed_discount?: number | null;
-  converted_from_invoice_id?: string | null;
-  converted_from_invoice_number?: string | null;
-  converted_to_invoice_id?: string | null;
-  converted_to_invoice_number?: string | null;
-  actual_refund_paid?: number | null;
-  supply_type?: string | null;
-  cgst_total?: number | null;
-  sgst_total?: number | null;
-  igst_total?: number | null;
-  is_deleted?: number | null;
-  sync_status?: string | null;
-  /** Joined by the list query (`db:getInvoices`). */
+/** An invoice as the invoice queries return it: the stored row plus, from the list query (`db:getInvoices`), the
+ * biller / staff names and the line count. */
+export interface Invoice extends InvoicesRow {
   biller_name?: string | null;
   biller_staff_name?: string | null;
   sales_staff_name?: string | null;
   item_count?: number | null;
-  description?: string | null;
-  notes?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
 }
 
-export interface InvoiceItem {
-  item_id: string;
-  invoice_id: string;
-  tenant_id?: string | null;
-  product_id: string;
-  name?: string | null;
-  quantity: number;
-  unit_price: number;
-  tax_amount?: number | null;
-  total: number;
-  pieces_sold?: number | null;
-  billing_type?: string | null;
-  uom?: string | null;
-  is_service_item?: number | null;
-  hsn_sac_code?: string | null;
-  cgst_rate?: number | null;
-  sgst_rate?: number | null;
-  igst_rate?: number | null;
-  cgst_amount?: number | null;
-  sgst_amount?: number | null;
-  igst_amount?: number | null;
-  supply_type?: string | null;
-  combo_id?: string | null;
-  combo_details?: string | null;
-  qty_from_paper_stock?: number | null;
-  created_at?: string | null;
-}
+/** An invoice line as stored (`invoice_items`). */
+export type InvoiceItem = InvoiceItemsRow;
 
 /** An invoice line with the product columns joined by `findInvoiceItemsByInvoiceId` (held-bill recall, edit). */
 export interface InvoiceItemWithProduct extends InvoiceItem {

@@ -5,7 +5,7 @@ import type { RecycleBinState } from '../hooks/useRecycleBinState';
 
 export interface InvoiceInspectionModalProps {
   inspectingInvoice: DeletedInvoice;
-  restoreInvoice: (invoice_id: string, invoice_number: string) => void;
+  restoreInvoice: (invoice_id: string, invoice_number: string | null) => void;
   rb: RecycleBinState;
 }
 

@@ -47,7 +47,7 @@ export function useRecycleBinActions(ctx: UseRecycleBinActionsContext) {
   }, [setInspectingInvoice, setLoadingItems, setInspectingItems]);
 
   // ─── Restore Handlers ──────────────────────────────────────────────────────
-  const restoreInvoice = useCallback(async (invoice_id: string, invoice_number: string) => {
+  const restoreInvoice = useCallback(async (invoice_id: string, invoice_number: string | null) => {
     if (!hasBridge('dbRestoreInvoice')) return;
     const res = await recycleBinApi.restoreInvoice(invoice_id);
     if (res?.success) {
@@ -97,7 +97,7 @@ export function useRecycleBinActions(ctx: UseRecycleBinActionsContext) {
   }, [addToast, loadParties]);
 
   // ─── Permanent Delete Handlers ─────────────────────────────────────────────
-  const hardDeleteInvoice = useCallback(async (invoice_id: string, invoice_number: string) => {
+  const hardDeleteInvoice = useCallback(async (invoice_id: string, invoice_number: string | null) => {
     if (!hasBridge('dbHardDeleteInvoice')) return;
     const res = await recycleBinApi.hardDeleteInvoice(invoice_id);
     if (res?.success) {

@@ -148,17 +148,18 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
           // Payment method breakdown
           const method = (inv.payment_method || 'CASH').toUpperCase();
           if (method === 'SPLIT' && inv.split_details) {
-            let sd = inv.split_details;
+            let sd: unknown = inv.split_details;
             while (typeof sd === 'string') {
               try { sd = JSON.parse(sd); } catch { break; }
             }
             if (sd && typeof sd === 'object') {
-              pm.cash += Number(sd.cash) || 0;
-              pm.card += Number(sd.card) || 0;
-              pm.upi += Number(sd.upi) || 0;
-              pm.bank += Number(sd.bank_transfer || sd.bank) || 0;
-              pm.cheque += Number(sd.cheque) || 0;
-              pm.credit += Number(sd.credit) || 0;
+              const split = sd as Record<string, unknown>;
+              pm.cash += Number(split.cash) || 0;
+              pm.card += Number(split.card) || 0;
+              pm.upi += Number(split.upi) || 0;
+              pm.bank += Number(split.bank_transfer || split.bank) || 0;
+              pm.cheque += Number(split.cheque) || 0;
+              pm.credit += Number(split.credit) || 0;
             } else {
               pm.cash += grandTotal;
             }

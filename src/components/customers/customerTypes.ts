@@ -1,6 +1,7 @@
 import type * as Rows from '../../data/dbRows';
 import type { Party as DataParty } from '../../data/parties';
 import type { CustomerListItem } from '../../data/customers';
+import type { InvoiceItem } from '../../data/invoices';
 /** Row and view types of the customers screen (customer, party, loyalty transaction, invoice and item, combo offer). */
 export interface PricingTier {
   pricing_tier_id: string;
@@ -29,24 +30,12 @@ export interface InvoiceRecord extends Rows.InvoicesRow {
   credit_status?: 'OVERDUE' | 'DUE_SOON' | 'ACTIVE' | 'PAID' | 'NON_CREDIT' | string;
 }
 
-export interface InvoiceItemRow {
-  item_id?: string;
-  tax_amount?: number | null;
-  name?: string;
-  quantity?: number;
-  unit_price?: number;
-  total?: number;
-  billing_type?: string;
-  pieces_sold?: number;
+export interface InvoiceItemRow extends InvoiceItem {
   pieces_override?: number;
   unit?: string;
-  uom?: string;
   brand_manufacturer?: string;
   hsn_code?: string;
   tax_rate_percent?: number;
-  product_id?: string;
-  combo_id?: string;
-  combo_details?: string;
 }
 
 export type InvoiceStyle = 'standard' | 'boxed' | 'modern' | 'classic' | 'half-a4';
