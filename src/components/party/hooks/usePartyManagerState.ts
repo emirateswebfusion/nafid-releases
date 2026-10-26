@@ -14,7 +14,7 @@ export function usePartyManagerState() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(50);
-  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<import('../../../data/pricingTiers').PricingTier[]>([]);
   const [view, setView] = useState<View>('list');
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [listLayoutMode, setListLayoutMode] = useState<'table' | 'cards'>('table');
@@ -39,10 +39,10 @@ export function usePartyManagerState() {
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
   // Connected Ledger state
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<import('../partyTypes').PartyConnectionRequest[]>([]);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [connectCodeInput, setConnectCodeInput] = useState('');
-  const [searchResult, setSearchResult] = useState<any | null>(null);
+  const [searchResult, setSearchResult] = useState<import('../partyTypes').PartyConnectionSearch | null>(null);
   const [searching, setSearching] = useState(false);
   const [partyNameForConnect, setPartyNameForConnect] = useState('');
   const [myConnectCode, setMyConnectCode] = useState<string>('');
@@ -84,8 +84,8 @@ export function usePartyManagerState() {
   // Bill viewing states
   const [viewingBillModal, setViewingBillModal] = useState<boolean>(false);
   const [viewingBillLoading, setViewingBillLoading] = useState<boolean>(false);
-  const [viewingInvoice, setViewingInvoice] = useState<any | null>(null);
-  const [viewingInvoiceItems, setViewingInvoiceItems] = useState<any[]>([]);
+  const [viewingInvoice, setViewingInvoice] = useState<import('../partyTypes').PartyPreviewInvoice | null>(null);
+  const [viewingInvoiceItems, setViewingInvoiceItems] = useState<import('../partyTypes').PartyPreviewItem[]>([]);
   const [viewingLedgerVoucher, setViewingLedgerVoucher] = useState<LedgerEntry | null>(null);
   const [editReturnView, setEditReturnView] = useState<'list' | 'ledger'>('list');
 

@@ -41,8 +41,8 @@ export function useInventoryState() {
   const [showLowStockAlert, setShowLowStockAlert] = useState(true);
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
-  const [grades, setGrades] = useState<any[]>([]);
-  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [grades, setGrades] = useState<import('../../../data/grades').Grade[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<import('../../../data/pricingTiers').PricingTier[]>([]);
   const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
   const [allProductPricingMap, setAllProductPricingMap] = useState<Record<string, Record<string, number>>>({});
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
@@ -51,7 +51,7 @@ export function useInventoryState() {
   const [savingGrade, setSavingGrade] = useState(false);
   const [newGradeForm, setNewGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<(Omit<import('../../../data/parties').Party, 'tenant_id' | 'balance'> & { tenant_id: string | null; balance: number })[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
   const [showSupplierCreate, setShowSupplierCreate] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');

@@ -54,7 +54,7 @@ export function ScrapInvoiceDetailView({
               <div className="text-right">
                 <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Amount</p>
                 <p className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-0.5">
-                  {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount || 0), 0))}
+                  {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: ScrapInvoiceTxRow) => sum + Number(tx.total_amount || 0), 0))}
                 </p>
               </div>
             </div>
@@ -129,7 +129,7 @@ export function ScrapInvoiceDetailView({
           <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
             {invoiceDetailTxs.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground text-sm">No transactions found</div>
-            ) : invoiceDetailTxs.map((tx: any) => (
+            ) : invoiceDetailTxs.map((tx: ScrapInvoiceTxRow) => (
               <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center text-sm bg-card hover:bg-muted/20 transition-colors group">
                 <div className="col-span-3 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
                 <div className="col-span-2 text-right font-semibold">

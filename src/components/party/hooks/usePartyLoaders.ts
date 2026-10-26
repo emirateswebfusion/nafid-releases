@@ -58,8 +58,8 @@ export function usePartyLoaders(ctx: UsePartyLoadersContext) {
     setLedgerLoading(true);
     try {
       const data = await partiesApi.getPartyLedger(partyId);
-      if (data && !Array.isArray(data) && (data as any).error) {
-        showStatus('Ledger: ' + (data as any).error, 'error');
+      if (data && !Array.isArray(data) && (data as { error?: string }).error) {
+        showStatus('Ledger: ' + (data as { error?: string }).error, 'error');
       } else {
         const entries = Array.isArray(data) ? data : [];
         setLedger(entries);

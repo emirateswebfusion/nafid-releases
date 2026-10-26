@@ -139,7 +139,7 @@ export function AiMessageList({
                             }}
                             itemStyle={{ color: '#00a870', fontWeight: 600, fontSize: '12px' }}
                             labelStyle={{ color: '#a1a1aa', fontWeight: 700, marginBottom: '4px', fontSize: '11px' }}
-                            formatter={(value: any, name: any) => {
+                            formatter={(value: unknown, name: unknown) => {
                               const rawName = String(name || msg.chartData?.dataKey || '');
                               const label = humanizeKey(rawName);
                               const num = Number(value) || 0;

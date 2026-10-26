@@ -1,9 +1,9 @@
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/money';
-import type { StaffMember } from '../staffTypes';
+import type { StaffMember, StaffLedgerRow } from '../staffTypes';
 
 export interface StaffLedgerTabProps {
-  ledgerEntries: any[];
+  ledgerEntries: StaffLedgerRow[];
   /** Rendered only while it is set. */
   selectedStaff: StaffMember;
 }

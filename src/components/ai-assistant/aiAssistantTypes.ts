@@ -5,12 +5,12 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  data?: any;
+  data?: unknown;
   chartData?: {
     title?: string;
     labelKey: string;
     dataKey: string;
-    items: Array<Record<string, any>>;
+    items: Array<Record<string, unknown>>;
   };
   suggestedPrompts?: string[];
   timestamp: string;

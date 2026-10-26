@@ -56,8 +56,8 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
         });
       }
 
-      let foundInvoice: any = null;
-      let invoiceItems: any[] = [];
+      let foundInvoice: import('../partyTypes').PartyPreviewInvoice | null = null;
+      let invoiceItems: import('../partyTypes').PartyPreviewItem[] = [];
 
       for (const term of candidateTerms) {
         if (hasBridge('dbGetInvoices')) {
@@ -77,7 +77,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
             if (ret && ret.invoice_id) {
               const res = await invoicesApi.getInvoices({ search: ret.invoice_id, tenant_id: tId });
               if (Array.isArray(res) && res.length > 0) {
-                foundInvoice = res.find((inv: any) => inv.invoice_id === ret.invoice_id) || res[0];
+                foundInvoice = res.find((inv: { invoice_id?: string }) => inv.invoice_id === ret.invoice_id) || res[0];
                 break;
               }
             }
@@ -122,17 +122,17 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
       if (foundInvoice) {
         setViewingInvoice(foundInvoice);
         if (hasBridge('dbGetInvoiceItems')) {
-          const items = await invoicesApi.getInvoiceItems(foundInvoice.invoice_id);
+          const items = await invoicesApi.getInvoiceItems(foundInvoice.invoice_id as string);
           if (Array.isArray(items)) invoiceItems = items;
         } else {
           try {
-            const itemsRes = await salesCloud.items(foundInvoice.invoice_id);
+            const itemsRes = await salesCloud.items(foundInvoice.invoice_id as string);
             if (Array.isArray(itemsRes)) invoiceItems = itemsRes;
           } catch { /* ignore */ }
         }
         setViewingInvoiceItems(invoiceItems);
       } else {
-        let foundScrap: any = null;
+        let foundScrap: { scrap_invoice_number: string; created_at?: string; payment_status?: string; party_name?: string; customer_phone?: string; total_amount?: number; items?: import('../partyTypes').PartyPreviewItem[] } | null = null;
         for (const term of candidateTerms) {
           if (hasBridge('dbGetScrapInvoiceByNumber')) {
             const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId as string, scrap_invoice_number: term });
@@ -173,7 +173,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
           const tId = tenantId || 'global';
           const receiptText = generateReceiptText({
             shopName: useAuthStore.getState().shopName || 'Store',
-            invoiceNumber: viewingInvoice.invoice_number,
+            invoiceNumber: viewingInvoice.invoice_number as string,
             date: formatBillDateTime(viewingInvoice.created_at),
             items: (viewingInvoiceItems || []).map(i => ({
               name: i.name,
@@ -222,7 +222,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
       let itemsToEdit = viewingInvoiceItems;
       if (!itemsToEdit || itemsToEdit.length === 0) {
         if (hasBridge('dbGetInvoiceItems')) {
-          const data = await invoicesApi.getInvoiceItems(viewingInvoice.invoice_id);
+          const data = await invoicesApi.getInvoiceItems(viewingInvoice.invoice_id as string);
           itemsToEdit = Array.isArray(data) ? data : [];
         }
       }

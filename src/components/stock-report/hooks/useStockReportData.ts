@@ -61,7 +61,7 @@ export function useStockReportData(ctx: UseStockReportDataContext) {
           .then(items => {
             if (!Array.isArray(items)) return;
             const supplier = bill.supplier_name || 'Unknown';
-            items.forEach((item: any) => {
+            items.forEach((item: { product_id?: string }) => {
               const pid = item.product_id;
               if (!pid) return;
               if (!map.has(pid)) map.set(pid, new Set());
@@ -80,7 +80,7 @@ export function useStockReportData(ctx: UseStockReportDataContext) {
   const loadData = useCallback(async (forceRefresh = false) => {
     const cached = reportCache.get(cacheKey);
     if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      setProducts(cached.products.filter((p: any) => Number(p.is_service_item) !== 1));
+      setProducts(cached.products.filter((p: import('../stockReportTypes').Product) => Number(p.is_service_item) !== 1));
       setGrades(cached.grades);
       setLastUpdated(new Date(cached.timestamp));
       setLoading(false);
@@ -98,7 +98,7 @@ export function useStockReportData(ctx: UseStockReportDataContext) {
           partiesApi.getParties(cacheKey).catch(() => null),
         ]);
         if (Array.isArray(prodRes) && Array.isArray(gradeRes)) {
-          const nonServiceProducts = prodRes.filter((p: any) => Number(p.is_service_item) !== 1);
+          const nonServiceProducts = prodRes.filter((p: import('../stockReportTypes').Product) => Number(p.is_service_item) !== 1);
           setProducts(nonServiceProducts);
           setGrades(gradeRes);
           reportCache.set(cacheKey, { products: nonServiceProducts, grades: gradeRes, timestamp: Date.now() });
@@ -126,16 +126,16 @@ export function useStockReportData(ctx: UseStockReportDataContext) {
   useEffect(() => {
     if (isDesktopRuntime()) {
       settingsApi.get({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' })
-        .then((val: any) => {
+        .then((val: unknown) => {
           if (val === 'estimate' || val === 'gst' || val === 'combined') { setViewMode(val); return; }
           // Fallback: if GSTIN is set, default to GST tab; otherwise Estimate
           settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
-            .then((gstin: any) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
+            .then((gstin: unknown) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
             .catch(() => {});
         })
         .catch(() => {
           settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
-            .then((gstin: any) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
+            .then((gstin: unknown) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
             .catch(() => {});
         });
     }
@@ -148,7 +148,7 @@ export function useStockReportData(ctx: UseStockReportDataContext) {
     productsApi.getProductSalesSummary({ tenant_id: tenantId || 'global' })
       .then((res) => {
         if (!cancelled && Array.isArray(res))
-          setSalesSummary(res.filter((r: any) => Number(r.is_service_item) !== 1 && (r.name || '') !== 'Service Charge'));
+          setSalesSummary(res.filter((r: import('../stockReportTypes').StockSalesSummaryRow) => Number(r.is_service_item) !== 1 && (r.name || '') !== 'Service Charge'));
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setSalesLoading(false); });

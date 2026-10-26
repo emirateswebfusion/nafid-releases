@@ -118,7 +118,7 @@ export function ScrapInvoicesView({
                 </p>
               </div>
             ) : (
-              filteredInvoices.map((inv: any, idx: number) => {
+              filteredInvoices.map((inv: ScrapInvoiceRow, idx: number) => {
                 const invDate = formatGroupDate(inv.created_at);
                 const prevDate = idx > 0 ? formatGroupDate(filteredInvoices[idx - 1].created_at) : null;
                 const showHeader = invDate !== prevDate;

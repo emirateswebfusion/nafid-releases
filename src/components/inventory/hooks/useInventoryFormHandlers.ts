@@ -56,7 +56,7 @@ export function useInventoryFormHandlers(ctx: UseInventoryFormHandlersContext) {
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: unknown) => {
     setFormData(prev => {
       if (field === 'is_gst_applicable' && !value && String(prev.hsn_sac_code || '').trim()) {
         return prev;
@@ -90,12 +90,12 @@ export function useInventoryFormHandlers(ctx: UseInventoryFormHandlersContext) {
 
       if (field === 'uom') {
         const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
-        next.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
+        next.billing_type = weightUoms.includes(value as string) ? 'WEIGHT' : 'PIECE';
         setPrintQuantity(1);
       }
 
       if (field === 'current_stock' && view === 'add' && !['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(prev.uom)) {
-        setPrintQuantity(value === '' ? '' : value);
+        setPrintQuantity(value === '' ? '' : value as string | number);
       }
 
       if (field === 'gst_same_as_current' && value) {

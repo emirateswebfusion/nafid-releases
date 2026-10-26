@@ -11,9 +11,41 @@ export interface DataUploadModalProps {
   onImportSuccess?: (count: number, entity: UploadEntityType) => void;
 }
 
+export type ParsedRowData = {
+  name?: string;
+  base_price?: number;
+  purchase_price?: number;
+  current_stock?: number;
+  reorder_level?: number;
+  tax_rate_percent: number;
+  sku_barcode?: string;
+  item_code?: string;
+  category?: string;
+  brand_manufacturer?: string;
+  uom: string;
+  hsn_sac_code: string;
+  is_gst_applicable?: number;
+  tier_prices?: Record<string, number>;
+  phone?: string;
+  email?: string;
+  address?: string;
+  gstin?: string;
+  credit_limit?: number;
+  balance?: number;
+  balance_type?: string;
+  role_designation?: string;
+  monthly_salary?: number;
+  joining_date?: string;
+  party_type?: string;
+  discount_percent?: number | null;
+  discount_flat?: number | null;
+  offer_price?: number | null;
+  [key: string]: unknown;
+};
+
 export interface ParsedRow {
   id: string;
-  data: Record<string, any>;
+  data: ParsedRowData;
   isValid: boolean;
   errors: string[];
 }

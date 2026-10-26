@@ -55,7 +55,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     payment_type: string;
     total_amount?: number;
   };
-  getOtherSectionItems?: () => any[];
+  getOtherSectionItems?: () => PurchaseFormItem[];
 }>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [peekedBillNumber, setPeekedBillNumber] = useState('');
@@ -92,7 +92,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setConfiguredCategories, editingProductItemId,
   } = productForm;
   const [searchDropdownPos, setSearchDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<import("../../data/pricingTiers").PricingTier[]>([]);
   const activePricingTiers = useMemo(() => {
     return pricingTiers.filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
   }, [pricingTiers]);
@@ -125,7 +125,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   useEffect(() => {
     if (isDesktopRuntime() && tenantId && showProductCreateForm) {
       productsApi.getProducts({ tenant_id: tenantId, limit: 200 })
-        .then((res: any[]) => {
+        .then((res: import("../../data/products").Product[]) => {
           if (Array.isArray(res)) {
             const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
             setConfiguredCategories(cats);
@@ -133,12 +133,12 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         })
           .catch(console.error);
       gradesApi.getGrades(tenantId)
-        .then((res: any[]) => {
+        .then((res: import("../../data/grades").Grade[]) => {
           if (Array.isArray(res)) setNewProductGrades(res);
         })
         .catch(console.error);
       pricingTiersApi.getPricingTiers(tenantId)
-        .then((res: any[]) => {
+        .then((res: import("../../data/pricingTiers").PricingTier[]) => {
           if (Array.isArray(res)) setPricingTiers(res);
         })
         .catch(console.error);
@@ -182,7 +182,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         const da = typeof product.domain_attributes === 'string'
           ? JSON.parse(product.domain_attributes || '{}')
           : (product.domain_attributes || {});
-        return da.gst_type === 'PAPER' || Number(da.paper_stock || 0) > 0 || (Number(product.current_stock || 0) <= 0 && Number((product as any).paper_stock || 0) > 0);
+        return da.gst_type === 'PAPER' || Number(da.paper_stock || 0) > 0 || (Number(product.current_stock || 0) <= 0 && Number((product as typeof product & { paper_stock?: number }).paper_stock || 0) > 0);
       } catch { return false; }
     })();
 
@@ -220,7 +220,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
 // Real / Dummy toggle per GST-bill line: Dummy = paper stock / tax record only
   // (no stock add), Real = stock-in.
-  const toggleBillItemDummy = (item: any) => {
+  const toggleBillItemDummy = (item: PurchaseFormItem) => {
     const newVal = (item.skip_stock_update ?? 0) === 1 ? 0 : 1;
     setBillItems(prev => prev.map(i => i.product_id === item.product_id ? { ...i, skip_stock_update: newVal } : i));
   };
@@ -433,7 +433,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       // Only for NEW products; editing an existing product must keep its own barcode.
       if (!editingProductItemId && isDesktopRuntime() && tenantId && !newProductBarcode) {
         productsApi.getProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' })
-          .then((lastProduct: any[]) => {
+          .then((lastProduct: Array<{ sku_barcode?: string }>) => {
             if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
               const lastBarcode = lastProduct[0].sku_barcode;
               const match = lastBarcode.match(/(\d+)[^\d]*$/);
@@ -478,7 +478,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 block mb-1">Payment</label>
           <Select
             value={paymentType}
-            onChange={v => setPaymentType(v as any)}
+            onChange={v => setPaymentType(v as 'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER')}
             options={[
               { value: 'CASH', label: 'Cash' },
               { value: 'CREDIT', label: 'Credit' },

@@ -19,7 +19,7 @@ export function StaffTransactionModal({
           <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1">Transaction Type</label>
           <select
             value={txnData.type}
-            onChange={e => setTxnData({ ...txnData, type: e.target.value as any })}
+            onChange={e => setTxnData({ ...txnData, type: e.target.value as typeof txnData.type })}
             className="w-full px-3 py-2 text-xs font-bold bg-background border border-border rounded-xl outline-none focus:border-primary text-foreground"
           >
             <option value="ADVANCE">Salary Advance (Paid to Staff)</option>

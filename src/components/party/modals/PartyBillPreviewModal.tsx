@@ -9,11 +9,11 @@ import { hasPermission } from '../../../utils/permissions';
 export interface PartyBillPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  viewingInvoice: any;
-  viewingInvoiceItems: any[];
-  viewingLedgerVoucher: any;
+  viewingInvoice: import('../hooks/usePartyManagerState').PartyManagerState['viewingInvoice'];
+  viewingInvoiceItems: import('../hooks/usePartyManagerState').PartyManagerState['viewingInvoiceItems'];
+  viewingLedgerVoucher: import('../hooks/usePartyManagerState').PartyManagerState['viewingLedgerVoucher'];
   viewingBillLoading: boolean;
-  selectedParty: any;
+  selectedParty: import('../hooks/usePartyManagerState').PartyManagerState['selectedParty'];
   handlePrintBillInModal: () => void;
   handleEditBillFromModal?: () => void;
 }

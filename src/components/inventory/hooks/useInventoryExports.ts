@@ -175,7 +175,7 @@ export function useInventoryExports(ctx: UseInventoryExportsContext) {
 
       if (Array.isArray(result) && result.length > 0) {
         const activeTiers = Array.isArray(tiersRes)
-          ? tiersRes.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
+          ? tiersRes.filter((t: import('../../../data/pricingTiers').PricingTier) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
           : [];
 
         // Build product_id -> { [pricing_tier_id]: price }
@@ -200,7 +200,7 @@ export function useInventoryExports(ctx: UseInventoryExportsContext) {
             ? Number(appliedGrade.rate) 
             : Number(p.base_price);
 
-          const row: Record<string, any> = {
+          const row: Record<string, unknown> = {
             'Name': p.name || '',
             'Item Code': p.item_code || '',
             'Barcode': p.sku_barcode || '',
@@ -208,9 +208,9 @@ export function useInventoryExports(ctx: UseInventoryExportsContext) {
             'Brand': p.brand_manufacturer || '',
             'UOM': p.uom || '',
             'Purchase Price': displayPurchasePrice || 0,
-            'Paper Purchase': Number((p as any).gst_purchase_price || 0),
+            'Paper Purchase': Number((p as typeof p).gst_purchase_price || 0),
             'MRP': displayMrp || 0,
-            'Paper MRP': Number((p as any).paper_mrp || 0),
+            'Paper MRP': Number((p as typeof p).paper_mrp || 0),
           };
 
           // Dynamically add tier columns with their names

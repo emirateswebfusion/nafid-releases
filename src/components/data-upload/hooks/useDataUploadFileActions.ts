@@ -1,3 +1,4 @@
+declare function parseFloat(string: unknown): number;
 import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -38,7 +39,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          processRawData(results.data);
+          processRawData(results.data as Array<Record<string, unknown>>);
           setLoading(false);
         },
         error: (err) => {
@@ -55,7 +56,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-          processRawData(rawData);
+          processRawData(rawData as Array<Record<string, unknown>>);
         } catch (err) {
           setMessage({ type: 'error', text: `Failed to parse Excel file: ${(err as Error).message}` });
         } finally {
@@ -70,7 +71,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
     }
   };
 
-  const processRawData = (rows: any[]) => {
+  const processRawData = (rows: Record<string, unknown>[]) => {
     if (!Array.isArray(rows) || rows.length === 0) {
       setMessage({ type: 'error', text: 'Uploaded file contains no rows or invalid data.' });
       setParsedRows([]);
@@ -80,7 +81,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
     const headerMapping = entityType === 'products' ? PRODUCT_HEADER_MAP : PARTY_HEADER_MAP;
 
     const processed: ParsedRow[] = rows.map((rawRow, idx) => {
-      const mappedData: Record<string, any> = {};
+      const mappedData: import('../dataUploadTypes').ParsedRowData & Record<string, unknown> = {} as import('../dataUploadTypes').ParsedRowData;
       const errors: string[] = [];
 
       // Map raw headers to normalized field keys
@@ -93,10 +94,10 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
       });
 
       // Direct fallback matching
-      if (!mappedData.name && rawRow.name) mappedData.name = rawRow.name;
-      if (!mappedData.sku_barcode && rawRow.sku_barcode) mappedData.sku_barcode = rawRow.sku_barcode;
-      if (!mappedData.base_price && rawRow.base_price) mappedData.base_price = rawRow.base_price;
-      if (!mappedData.purchase_price && rawRow.purchase_price) mappedData.purchase_price = rawRow.purchase_price;
+      if (!mappedData.name && rawRow.name) mappedData.name = rawRow.name as string;
+      if (!mappedData.sku_barcode && rawRow.sku_barcode) mappedData.sku_barcode = rawRow.sku_barcode as string;
+      if (!mappedData.base_price && rawRow.base_price) mappedData.base_price = rawRow.base_price as number;
+      if (!mappedData.purchase_price && rawRow.purchase_price) mappedData.purchase_price = rawRow.purchase_price as number;
 
       // Clean values & Validate
       const name = String(mappedData.name || rawRow['Product Name'] || rawRow['Supplier Name'] || rawRow['Customer Name'] || rawRow['Staff Name'] || rawRow['Name'] || '').trim();

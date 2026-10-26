@@ -40,7 +40,7 @@ export function StockFilterBar({ sr, categories }: StockFilterBarProps) {
         </select>
         <select
           value={stockFilter}
-          onChange={e => setStockFilter(e.target.value as any)}
+          onChange={e => setStockFilter(e.target.value as typeof stockFilter)}
           className="bg-background border border-border rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
         >
           <option value="all">All Stock</option>

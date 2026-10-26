@@ -12,9 +12,9 @@ export interface BarcodePrintModalProps {
   printPrice: boolean;
   setPrintPrice: (v: boolean) => void;
   printQuantity: number | string;
-  setPrintQuantity: (v: any) => void;
+  setPrintQuantity: (v: number | string) => void;
   printProductLabel: (product: Product) => void;
-  grades: any[];
+  grades: import('../hooks/useInventoryState').InventoryState['grades'];
 }
 
 export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({

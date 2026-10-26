@@ -11,21 +11,21 @@ import { formatWhatsAppLedgerTxMessage } from '../../../utils/whatsappBillHelper
 const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
 
 export interface PartyTransactionFormProps {
-  selectedParty: any;
-  editingTx: any;
-  txForm: any;
-  setTxForm: React.Dispatch<React.SetStateAction<any>>;
+  selectedParty: NonNullable<import('../hooks/usePartyManagerState').PartyManagerState['selectedParty']>;
+  editingTx: import('../hooks/usePartyManagerState').PartyManagerState['editingTx'];
+  txForm: import('../hooks/usePartyManagerState').PartyManagerState['txForm'];
+  setTxForm: import('../hooks/usePartyManagerState').PartyManagerState['setTxForm'];
   isSavingTx: boolean;
   enablePartyEstimate: boolean;
   enablePartyGst: boolean;
   ledgerWhatsappEnabled: boolean;
   ledgerWhatsappIncludeShop: boolean;
-  shopDetails: any;
+  shopDetails: import('../hooks/usePartyManagerState').PartyManagerState['shopDetails'];
   shopName?: string;
-  statusMessage?: any;
-  getPartyBalance: (p: any) => number;
+  statusMessage?: import('../hooks/usePartyManagerState').PartyManagerState['statusMessage'];
+  getPartyBalance: (p: import('../partyTypes').Party) => number;
   handleSaveTx: (e: React.FormEvent) => void;
-  handleFormKeyDown: any;
+  handleFormKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
   onCancel: () => void;
 }
 

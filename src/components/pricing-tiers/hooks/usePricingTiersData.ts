@@ -37,14 +37,14 @@ export function usePricingTiersData(ctx: UsePricingTiersDataContext) {
 
       if (Array.isArray(tierRes)) {
         setTiers(sortTiersWithMrp(tierRes, mrpSortOrder));
-      } else if (tierRes && (tierRes as any).error) {
-        setError((tierRes as any).error || 'Failed to load pricing tiers');
+      } else if (tierRes && (tierRes as { error?: string }).error) {
+        setError((tierRes as { error?: string }).error || 'Failed to load pricing tiers');
       }
 
       if (Array.isArray(productRes)) {
-        setProducts(productRes.filter((p: any) => !p.is_deleted));
-      } else if (productRes && (productRes as any).error) {
-        setError((productRes as any).error || 'Failed to load products');
+        setProducts(productRes.filter((p: { is_deleted?: number }) => !p.is_deleted));
+      } else if (productRes && (productRes as { error?: string }).error) {
+        setError((productRes as { error?: string }).error || 'Failed to load products');
       }
 
       const map: Record<string, Record<string, string>> = {};
@@ -53,8 +53,8 @@ export function usePricingTiersData(ctx: UsePricingTiersDataContext) {
           if (!map[row.product_id]) map[row.product_id] = {};
           map[row.product_id][row.pricing_tier_id] = (row.price === null || row.price === undefined) ? '' : String(row.price);
         }
-      } else if (pricingRes && (pricingRes as any).error) {
-        setError((pricingRes as any).error || 'Failed to load product pricing');
+      } else if (pricingRes && (pricingRes as { error?: string }).error) {
+        setError((pricingRes as { error?: string }).error || 'Failed to load product pricing');
       }
       setPricingMap(map);
       setInitialPricingMap(map);

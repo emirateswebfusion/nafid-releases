@@ -55,7 +55,7 @@ export const DEFAULT_FORM = {
   gst_type: 'REAL' as 'REAL' | 'PAPER',
   hsn_sac_code: '',
   tax_rate_percent: 0,
-  domain_attributes: {} as Record<string, any>,
+  domain_attributes: {} as Record<string, unknown> & { dimensions?: string; material?: string; batch_number?: string; expiry_date?: string; purity?: string; weight_grams?: string; making_charge_pct?: string; hallmark_huid?: string; pcs?: string | number; pcs_stock?: string | number; paper_mrp?: string | number },
   discount_percent: '' as string | number | null,
   discount_flat: '' as string | number | null,
   offer_price: '' as string | number | null,

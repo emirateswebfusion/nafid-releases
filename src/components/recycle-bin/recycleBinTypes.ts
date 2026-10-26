@@ -107,7 +107,7 @@ export function formatDate(dateStr: string): string {
   }
 }
 
-export const CATEGORIES: { id: RecycleBinCategory; label: string; Icon: React.FC<any>; desc: string }[] = [
+export const CATEGORIES: { id: RecycleBinCategory; label: string; Icon: React.ComponentType<{ className?: string }>; desc: string }[] = [
   { id: 'SALES_BILLS', label: 'Sales Bills', Icon: Receipt, desc: 'Invoices, Estimates & Bills of Supply' },
   { id: 'PRODUCTS', label: 'Products & Stock', Icon: Package, desc: 'Inventory catalog items' },
   { id: 'CUSTOMERS', label: 'Customers', Icon: Users, desc: 'Customer directories & loyalty records' },

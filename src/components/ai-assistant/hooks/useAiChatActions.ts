@@ -62,7 +62,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
   };
 
   // Local Offline Analytics for POS
-  const handleOfflineQuery = async (queryText: string): Promise<any> => {
+  const handleOfflineQuery = async (queryText: string): Promise<Partial<ChatMessage> & { reply?: string }> => {
     if (!tenantId) throw new Error('No active store selected');
     const historyPayload = messages.slice(-6).map((m) => ({
       role: m.role,
@@ -106,13 +106,13 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
     setIsLoading(true);
 
     try {
-      let res: any;
+      let res: Partial<ChatMessage> & { reply?: string };
       try {
         const historyPayload = messages.slice(-6).map((m) => ({
           role: m.role,
           content: m.content,
         }));
-        res = await aiAssistantCloud.chat(q, historyPayload);
+        res = await aiAssistantCloud.chat(q, historyPayload) as Partial<ChatMessage> & { reply?: string };
         setIsOfflineMode(false);
       } catch {
         res = await handleOfflineQuery(q);

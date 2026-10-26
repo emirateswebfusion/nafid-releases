@@ -14,14 +14,14 @@ export function usePurchaseBillSummaries(ctx: UsePurchaseBillSummariesContext) {
     if (!isDesktopRuntime()) return;
     const gstBills = bills.filter(b => b.bill_type === 'GST');
     if (gstBills.length === 0) {
-      const summaries: Record<string, any> = {};
+      const summaries: Record<string, { totalQty: number; cgst: number; sgst: number; taxableAmount: number; itemsCount: number; hasPaper?: boolean; isAllPaper?: boolean; }> = {};
       const estBills = bills.filter(b => b.bill_type === 'ESTIMATE');
       if (estBills.length > 0) {
         const estResults = await Promise.allSettled(
           estBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
         );
         estBills.forEach((bill, idx) => {
-          const items: any[] = (estResults[idx] as any)?.value || [];
+          const items: import("../purchaseTypes").PurchaseBillItem[] = (estResults[idx] as PromiseFulfilledResult<import("../purchaseTypes").PurchaseBillItem[]>)?.value || [];
           if (Array.isArray(items)) {
             const hasPaper = items.some(i => i.skip_stock_update === 1);
             const isAllPaper = items.length > 0 && items.every(i => i.skip_stock_update === 1);
@@ -43,9 +43,9 @@ export function usePurchaseBillSummaries(ctx: UsePurchaseBillSummariesContext) {
     const results = await Promise.allSettled(
       gstBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
     );
-    const summaries: Record<string, any> = {};
+    const summaries: Record<string, { totalQty: number; cgst: number; sgst: number; taxableAmount: number; itemsCount: number; hasPaper?: boolean; isAllPaper?: boolean; }> = {};
     gstBills.forEach((bill, idx) => {
-      const items: any[] = (results[idx] as any)?.value || [];
+      const items: import("../purchaseTypes").PurchaseBillItem[] = (results[idx] as PromiseFulfilledResult<import("../purchaseTypes").PurchaseBillItem[]>)?.value || [];
       if (Array.isArray(items)) {
         const totalGst = items.reduce((acc, item) => {
           const rate = item.tax_rate_percent || 0;
@@ -74,7 +74,7 @@ export function usePurchaseBillSummaries(ctx: UsePurchaseBillSummariesContext) {
         estBills.map(b => purchasesApi.getPurchaseBillItems(b.purchase_bill_id))
       );
       estBills.forEach((bill, idx) => {
-        const items: any[] = (estResults[idx] as any)?.value || [];
+        const items: import("../purchaseTypes").PurchaseBillItem[] = (estResults[idx] as PromiseFulfilledResult<import("../purchaseTypes").PurchaseBillItem[]>)?.value || [];
         if (Array.isArray(items)) {
           const hasPaper = items.some(i => i.skip_stock_update === 1);
           const isAllPaper = items.length > 0 && items.every(i => i.skip_stock_update === 1);

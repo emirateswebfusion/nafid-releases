@@ -7,6 +7,8 @@ import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { Skeleton } from '../../ui/Skeleton';
 import type { Customer, Party, LoyaltyTx, InvoiceRecord, DetailTab } from '../customerTypes';
 
+type MatchedPartyCredit = Party & { credit_period_days?: number; has_overdue?: boolean; overdue_bills_count?: number; overdue_amount?: number; restrict_on_credit_expiry?: boolean | number };
+
 export interface CustomerDetailViewProps {
   billFilterEnd: string;
   billFilterStart: string;
@@ -139,11 +141,11 @@ export function CustomerDetailView({
         {(() => {
           const creditLimit = Number(selectedCustomer.credit_limit || matchedParty?.credit_limit || 0);
           const hasCreditPeriod = Boolean(selectedCustomer.credit_period_enabled || matchedParty?.credit_period_enabled);
-          const days = selectedCustomer.credit_period_days || (matchedParty as any)?.credit_period_days || 30;
-          const isOverdue = Boolean(selectedCustomer.has_overdue || (matchedParty as any)?.has_overdue);
-          const overdueBillsCount = selectedCustomer.overdue_bills_count || (matchedParty as any)?.overdue_bills_count || 0;
-          const overdueAmount = Number(selectedCustomer.overdue_amount || (matchedParty as any)?.overdue_amount || 0);
-          const isRestricted = selectedCustomer.restrict_on_credit_expiry !== false && (selectedCustomer.restrict_on_credit_expiry as any) !== 0 && (matchedParty as any)?.restrict_on_credit_expiry !== false;
+          const days = selectedCustomer.credit_period_days || (matchedParty as MatchedPartyCredit | null)?.credit_period_days || 30;
+          const isOverdue = Boolean(selectedCustomer.has_overdue || (matchedParty as MatchedPartyCredit | null)?.has_overdue);
+          const overdueBillsCount = selectedCustomer.overdue_bills_count || (matchedParty as MatchedPartyCredit | null)?.overdue_bills_count || 0;
+          const overdueAmount = Number(selectedCustomer.overdue_amount || (matchedParty as MatchedPartyCredit | null)?.overdue_amount || 0);
+          const isRestricted = selectedCustomer.restrict_on_credit_expiry !== false && (selectedCustomer.restrict_on_credit_expiry as unknown) !== 0 && (matchedParty as MatchedPartyCredit | null)?.restrict_on_credit_expiry !== false;
 
           if (!hasCreditPeriod && creditLimit <= 0) return null;
 

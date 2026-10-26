@@ -82,7 +82,7 @@ export function useQuotationLoader(ctx: UseQuotationLoaderContext) {
         loadQuotations();
       });
       return () => {
-        if (typeof unsub === 'function') (unsub as any)();
+        if (typeof unsub === 'function') (unsub as () => void)();
       };
     }
   }, [tenantId]);

@@ -27,13 +27,13 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
     if (editingData) {
       setBillNumber(editingData.bill_number);
       setInvoiceNumber(editingData.invoice_number || '');
-      setPaymentType((editingData.payment_type || 'CASH') as any);
+      setPaymentType((editingData.payment_type || 'CASH') as 'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER');
       setBillItems([]);
       if (isDesktopRuntime() && tenantId) {
         purchasesApi.getPurchaseBillItems(editingData.purchase_bill_id)
           .then(items => {
             if (Array.isArray(items)) {
-              const mapped = items.map((item: any) => ({
+              const mapped = items.map((item: { product_id: string; product_name: string; name: string; quantity: number | string; purchase_price: number | string; product_base_price?: number | string | null; selling_price?: number | string | null; product_offer_price?: number | string | null; offer_price?: number | string | null; product_stock?: number | string | null; is_gst_applicable?: number; tax_rate_percent?: number; hsn_sac_code?: string; skip_stock_update?: number | null }) => ({
                 product_id: item.product_id,
                 name: item.product_name || item.name,
                 quantity: String(item.quantity),
@@ -56,10 +56,10 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
               if (mapped.length > 0) onItemsLoaded?.();
 
               // Calculate the round-off for editing
-              const baseTotal = mapped.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
+              const baseTotal = mapped.reduce((sum: number, i: typeof mapped[number]) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
               let unroundedTotal = baseTotal;
               if (type === 'GST') {
-                const gstTotal = mapped.reduce((acc: number, item: any) => {
+                const gstTotal = mapped.reduce((acc: number, item: typeof mapped[number]) => {
                   const rate = item.tax_rate_percent || 0;
                   const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
                   if ((item.is_gst_applicable ?? 1) === 1 && rate > 0) {

@@ -13,9 +13,9 @@ export interface InventoryFormViewProps {
   loading: boolean;
   handleFormKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   firstInputRef: React.RefObject<HTMLInputElement | null>;
-  formData: any;
-  handleInputChange: (field: string, value: any) => void;
-  handleDomainAttrChange: (field: string, value: any) => void;
+  formData: import('../hooks/useInventoryState').InventoryState['formData'];
+  handleInputChange: (field: string, value: unknown) => void;
+  handleDomainAttrChange: (field: string, value: unknown) => void;
   generateBarcode: () => void;
   categoryContainerRef: React.RefObject<HTMLDivElement | null>;
   showCategorySuggestions: boolean;
@@ -31,14 +31,14 @@ export interface InventoryFormViewProps {
   setSelectedNameIndex: (idx: number) => void;
   selectNameSuggestion: (p: Product) => void;
   handleNameKeyDown: (e: React.KeyboardEvent) => void;
-  categoryGrades: any[];
+  categoryGrades: import('../hooks/useInventoryState').InventoryState['grades'];
   isAddingGrade: boolean;
   setIsAddingGrade: (v: boolean) => void;
-  grades: any[];
+  grades: import('../hooks/useInventoryState').InventoryState['grades'];
   handleDiscountPercentChange: (v: string) => void;
   handleDiscountFlatChange: (v: string) => void;
   handleOfferPriceChange: (v: string) => void;
-  activePricingTiers: any[];
+  activePricingTiers: import('../hooks/useInventoryState').InventoryState['pricingTiers'];
   tierPrices: Record<string, string>;
   setTierPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   enableRealPaperStock: boolean;
@@ -46,8 +46,8 @@ export interface InventoryFormViewProps {
   setShowSupplierCreate: (v: boolean) => void;
   supplierSearch: string;
   setSupplierSearch: (v: string) => void;
-  suppliers: any[];
-  filteredSuppliers: any[];
+  suppliers: import('../hooks/useInventoryState').InventoryState['suppliers'];
+  filteredSuppliers: import('../hooks/useInventoryState').InventoryState['suppliers'];
   newSupplierName: string;
   setNewSupplierName: (v: string) => void;
   newSupplierPhone: string;
@@ -55,16 +55,16 @@ export interface InventoryFormViewProps {
   newSupplierAddress: string;
   setNewSupplierAddress: (v: string) => void;
   handleCreateSupplier: () => void;
-  setFormData: React.Dispatch<React.SetStateAction<any>>;
+  setFormData: React.Dispatch<React.SetStateAction<import('../hooks/useInventoryState').InventoryState['formData']>>;
   labelCodeType: string;
   qrPreviewUrl: string | null;
   printQuantity: number | string;
-  setPrintQuantity: (v: any) => void;
+  setPrintQuantity: import('../hooks/useInventoryState').InventoryState['setPrintQuantity'];
   printPrice: boolean;
   setPrintPrice: (v: boolean) => void;
   printBarcode: () => void;
   handleSave: () => void;
-  setView: (v: any) => void;
+  setView: import('../hooks/useInventoryState').InventoryState['setView'];
 }
 
 export const InventoryFormView: React.FC<InventoryFormViewProps> = ({

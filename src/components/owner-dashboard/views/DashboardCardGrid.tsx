@@ -116,8 +116,8 @@ export function DashboardCardGrid({
                     </div>
                   ) : (
                     <>
-                      {(card as any).badge && (
-                        (card as any).badge === 'NEW' ? (
+                      {(card as { badge?: string }).badge && (
+                        (card as { badge?: string }).badge === 'NEW' ? (
                           <span className="animate-new-badge relative inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-gradient-to-r from-emerald-500/15 via-teal-500/20 to-emerald-500/15 border border-emerald-500/40 dark:border-emerald-400/40 px-2.5 py-0.5 rounded-full select-none">
                             <span className="relative flex h-2 w-2">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -128,7 +128,7 @@ export function DashboardCardGrid({
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full shadow-2xs">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {(card as any).badge}
+                            {(card as { badge?: string }).badge}
                           </span>
                         )
                       )}
