@@ -3,7 +3,7 @@ import { RotateCcw, AlertTriangle, ShoppingCart, Banknote, Package, Globe, Megap
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 import { useDashboardCardsStore } from '../../store/dashboardCardsStore';
-import { useFeatureFlagsStore, cashierPageTitle } from '../../featureFlags';
+import { useFeatureFlagsStore, cashierPageTitle } from '../../config/featureFlags';
 
 interface RestoreDefaultCardsDialogProps {
   isOpen: boolean;

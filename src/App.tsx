@@ -1,85 +1,31 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
-import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PrintA4View, PrintBarcodeView, PrintBulkBarcodeView, PrintReceiptView, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, preloadBilling } from './lazyScreens';
+import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, preloadBilling } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
 import { PermissionGuard } from './components/app/PermissionGuard';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { OwnerDashboard } from './components/owner-dashboard/OwnerDashboard';
 import { useCartStore } from './store/cartStore';
-import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
+import { useTabStore } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
 import { getSetting } from './data/settings';
-import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
-import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';
 import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { SessionExpiredModal } from './components/app/SessionExpiredModal';
-import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
-import { useFeatureFlagsStore, isAiAssistantAvailable, type FeatureKey } from './featureFlags';
+import { useFeatureFlagsStore, isAiAssistantAvailable } from './config/featureFlags';
 import { SplashScreen } from './components/app/SplashScreen';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
 import { EmergencyWipePrompt } from './components/app/EmergencyWipePrompt';
-import { hasBridge, isDesktopRuntime } from './data/client';
-import { bridgeEvents } from './data/events';
-import { syncApi } from './data/sync';
+import { isDesktopRuntime } from './data/client';
+import { useSyncStatus } from './components/app/hooks/useSyncStatus';
+import { useScreenEvents } from './components/app/hooks/useScreenEvents';
+import { SYNC_QUOTES } from './components/owner-dashboard/syncQuotes';
 
 function App() {
   const [showAiAssistant, setShowAiAssistant] = useState(false);
   const [showFinancialReport, setShowFinancialReport] = useState(false);
-  const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
-  const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
-  const [printBarcodeSp, setPrintBarcodeSp] = useState<string | null>(null);
-  const [printBarcodeSpType, setPrintBarcodeSpType] = useState<string | null>(null);
-  const [printBarcodeName, setPrintBarcodeName] = useState<string | null>(null);
-  const [printBarcodeQuantity, setPrintBarcodeQuantity] = useState<number>(1);
-  const [printBarcodeColumns, setPrintBarcodeColumns] = useState<number>(1);
-  const [printBarcodeCodeType, setPrintBarcodeCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
-  const [printBulkCodeType, setPrintBulkCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
-  const [printReceiptData, setPrintReceiptData] = useState<string | null>(null);
-  const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
-  const [showPrintA4, setShowPrintA4] = useState(false);
 
   const panic = useEmergencyPanicTrigger();
-
-  useEffect(() => {
-    if (window.location.hash.startsWith('#/print-barcode')) {
-      const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- location.hash initializes print-route state after mount to preserve the current route transition.
-      setPrintBarcodeData(urlParams.get('barcode'));
-      
-      const paramPrice = urlParams.get('price');
-      setPrintBarcodePrice(paramPrice !== null ? paramPrice : localStorage.getItem('printBarcodePrice'));
-      
-      const paramSp = urlParams.get('sp');
-      setPrintBarcodeSp(paramSp !== null ? paramSp : localStorage.getItem('printBarcodeSp'));
-
-      const paramSpType = urlParams.get('spType');
-      setPrintBarcodeSpType(paramSpType !== null ? paramSpType : localStorage.getItem('printBarcodeSpType'));
-      
-      const paramName = urlParams.get('name');
-      setPrintBarcodeName(paramName !== null ? paramName : localStorage.getItem('printBarcodeName'));
-
-      const paramQty = urlParams.get('quantity');
-      setPrintBarcodeQuantity(paramQty !== null ? parseInt(paramQty, 10) : 1);
-
-      const paramCols = urlParams.get('columns');
-      setPrintBarcodeColumns(paramCols !== null ? parseInt(paramCols, 10) : 1);
-      const paramCodeType = urlParams.get('codeType');
-      if (paramCodeType === 'barcode' || paramCodeType === 'qrcode') setPrintBarcodeCodeType(paramCodeType);
-      else setPrintBarcodeCodeType(DEFAULT_CODE_TYPE);
-    } else if (window.location.hash.startsWith('#/print-receipt')) {
-      const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
-      setPrintReceiptData(urlParams.get('text') || ''); // '' triggers IPC fallback in PrintReceiptView
-    } else if (window.location.hash.startsWith('#/print-bulk-barcode')) {
-      setShowPrintBulkBarcode(true);
-      const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
-      const bulkCodeType = urlParams.get('codeType');
-      if (bulkCodeType === 'barcode' || bulkCodeType === 'qrcode') setPrintBulkCodeType(bulkCodeType);
-      else setPrintBulkCodeType(DEFAULT_CODE_TYPE);
-    } else if (window.location.hash.startsWith('#/print-a4')) {
-      setShowPrintA4(true);
-    }
-  }, []);
 
   const { isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
@@ -119,85 +65,6 @@ function App() {
   const [customerTarget, setCustomerTarget] = useState<string | undefined>(undefined);
   const [showPaymentsPage, setShowPaymentsPage] = useState(false);
   const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncChecked, setSyncChecked] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
-  const [syncComplete, setSyncComplete] = useState(false);
-
-  const QUOTES = useMemo(() => [
-    { text: "The best among you are those who bring benefit to others.", author: "Muhammad (SAW)" },
-    { text: "Take advantage of five before five: your youth before your old age, your health before your sickness, your wealth before your poverty, your free time before your preoccupation, and your life before your death.", author: "Muhammad (SAW)" },
-    { text: "Verily, with hardship comes ease.", author: "Muhammad (SAW)" },
-    { text: "A good word is charity.", author: "Muhammad (SAW)" },
-    { text: "The strong person is not the one who can overpower others, but the one who controls themselves in times of anger.", author: "Muhammad (SAW)" },
-    { text: "Whoever does not thank people, does not thank Allah.", author: "Muhammad (SAW)" },
-    { text: "The best of you is the one who is best to his family.", author: "Muhammad (SAW)" },
-    { text: "Make things easy, do not make things difficult.", author: "Muhammad (SAW)" },
-    { text: "If you have no shame, do whatever you please.", author: "Muhammad (SAW)" },
-    { text: "A person will be with those whom they love.", author: "Muhammad (SAW)" },
-    { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
-    { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
-    { text: "Your time is limited, don't waste it living someone else's life.", author: "Steve Jobs" },
-    { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
-    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
-    { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
-    { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
-    { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
-    { text: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
-    { text: "Success usually comes to those who are too busy to be looking for it.", author: "Henry David Thoreau" },
-    { text: "What you get by achieving your goals is not as important as what you become.", author: "Zig Ziglar" },
-    { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
-    { text: "Your attitude, not your aptitude, will determine your altitude.", author: "Zig Ziglar" },
-    { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
-    { text: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt" },
-    { text: "A year from now you may wish you had started today.", author: "Karen Lamb" },
-    { text: "Opportunities don't happen. You create them.", author: "Chris Grosser" },
-    { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
-    { text: "Act as if what you do makes a difference. It does.", author: "William James" },
-    { text: "Hardships often prepare ordinary people for an extraordinary destiny.", author: "C.S. Lewis" },
-    { text: "The harder you work, the luckier you get.", author: "Gary Player" },
-    { text: "It always seems impossible until it is done.", author: "Nelson Mandela" },
-    { text: "Whether you think you can or you think you can't, you're right.", author: "Henry Ford" },
-    { text: "Do what you can, with what you have, where you are.", author: "Theodore Roosevelt" },
-    { text: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi" },
-    { text: "The only person you are destined to become is the person you decide to be.", author: "Ralph Waldo Emerson" },
-    { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
-    { text: "Dream big and dare to fail.", author: "Norman Vaughan" },
-    { text: "Act now. There is never any time but now.", author: "Molière" },
-    { text: "The best revenge is massive success.", author: "Frank Sinatra" },
-    { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
-    { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
-    { text: "Start where you are. Use what you have. Do what you can.", author: "Arthur Ashe" },
-    { text: "Focus on being productive instead of busy.", author: "Tim Ferriss" },
-    { text: "If opportunity doesn't knock, build a door.", author: "Milton Berle" },
-    { text: "Success is walking from failure to failure with no loss of enthusiasm.", author: "Winston Churchill" },
-    { text: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
-    { text: "Energy and persistence conquer all things.", author: "Benjamin Franklin" },
-    { text: "You are never too old to set another goal or to dream a new dream.", author: "C.S. Lewis" },
-    { text: "Fall seven times, stand up eight.", author: "Japanese Proverb" },
-  ], []);
-
-  const [shuffledQuotes, setShuffledQuotes] = useState<number[]>([]);
-  const [quoteIndex, setQuoteIndex] = useState(0);
-
-  // Fisher-Yates shuffle
-  function shuffleArray(arr: number[]): number[] {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  // Pre-shuffle all quotes when syncing starts
-  useEffect(() => {
-    if (isSyncing) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- isSyncing starts a fresh quote permutation; keeping the reset in this effect preserves sync-start timing.
-      setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
-      setQuoteIndex(0);
-    }
-  }, [isSyncing, QUOTES]);
 
   useEffect(() => {
     checkAuth();
@@ -210,84 +77,7 @@ function App() {
     }
   }, []);
 
-  // Reset syncChecked and sync state when user logs out
-  useEffect(() => {
-    if (!isAuthenticated) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- isAuthenticated becoming false resets transient sync UI after logout, preserving the existing transition timing.
-      setSyncChecked(false);
-      setIsSyncing(false);
-      setSyncProgress(null);
-      setSyncComplete(false);
-    }
-  }, [isAuthenticated]);
-
-  // Auto-hide sync complete bar after 4 seconds
-  useEffect(() => {
-    if (!syncComplete) return;
-    const timer = setTimeout(() => {
-      setSyncComplete(false);
-      setSyncProgress(null);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [syncComplete]);
-
-  // Trigger initial sync once on first login — progress events will activate the bar
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/print')) return;
-    if (isAuthenticated && !isCloudSyncPaused && !syncChecked && isDesktopRuntime()) {
-      console.log('[App] System authenticated. Starting cloud sync in background...');
-      syncApi.runInitialSync().then(() => {
-        console.log('[App] Initial sync completed.');
-      }).catch((error) => {
-        console.error('[App] Sync failed:', error);
-      });
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncChecked locks the initial request before its promise settles to prevent duplicate syncs.
-      setSyncChecked(true);
-    }
-  }, [isAuthenticated, isCloudSyncPaused, syncChecked]);
-
-  // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
-  useEffect(() => {
-    if (!hasBridge('onSyncProgress')) return;
-    const cleanup = bridgeEvents.onSyncProgress((progress) => {
-      setSyncProgress({
-        percent: progress.percent ?? 0,
-        label: progress.label ?? 'Syncing...',
-        recordsSynced: progress.recordsSynced ?? 0,
-        totalRecords: progress.totalRecords ?? 0,
-      });
-      setIsSyncing(true);
-      setSyncComplete(false);
-    });
-    return () => {
-      if (typeof cleanup === 'function') cleanup();
-    };
-  }, []);
-
-  // Listen to sync cycle complete to mark sync as done
-  useEffect(() => {
-    if (!hasBridge('onSyncCycleComplete')) return;
-    return bridgeEvents.onSyncCycleComplete(() => {
-      setSyncComplete(true);
-      setIsSyncing(false);
-    });
-  }, []);
-
-  // Rotate through shuffled quotes while syncing
-  useEffect(() => {
-    if (!isSyncing || shuffledQuotes.length === 0) return;
-    const interval = setInterval(() => {
-      setQuoteIndex(prev => {
-        const next = prev + 1;
-        if (next >= shuffledQuotes.length) {
-          setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
-          return 0;
-        }
-        return next;
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isSyncing, shuffledQuotes, QUOTES]);
+  const { isSyncing, syncProgress, syncComplete, shuffledQuotes, quoteIndex } = useSyncStatus({ isAuthenticated, isCloudSyncPaused });
 
   useEffect(() => {
     if (!isDesktopRuntime() || !isAuthenticated) return;
@@ -326,388 +116,14 @@ function App() {
     };
   }, [isAuthenticated, loadFlags]);
 
-  useEffect(() => {
-    const canOpen = (key: FeatureKey) => {
-      if (key === 'ai_assistant') {
-        return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
-      }
-      if (key === 'recycle_bin') {
-        return featureFlagsRef.current ? featureFlagsRef.current.recycle_bin !== false : true;
-      }
-      return Boolean(featureFlagsRef.current?.[key]);
-    };
-    const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
-    const handleOpenStockReport = () => { if (canOpen('stock_report')) setShowStockReport(true); };
-    const handleOpenHistory = () => { if (canOpen('sales_history')) setShowSalesHistory(true); };
-    const handleOpenStaff = () => { if (canOpen('staff')) setShowStaffManager(true); };
-    const handleOpenSettings = () => setShowSettingsManager(true);
-    const handleOpenSettingsGrades = () => { if (canOpen('categories_grades')) setShowSettingsGrades(true); };
-    const handleOpenSettingsPricingTiers = () => { if (canOpen('pricing_tiers')) setShowSettingsPricingTiers(true); };
-    const handleOpenParties = () => { if (canOpen('parties')) setShowPartyManager(true); };
-    const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current && canOpen('scrap')) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
-    const handleOpenQuotationManager = () => { if (canOpen('quotations')) setShowQuotationManager(true); };
-    const handleOpenWarrantyManager = () => { if (canOpen('warranties')) setShowWarrantyManager(true); };
-    const handleOpenReturnManager = () => { if (canOpen('returns')) setShowReturnManager(true); };
-    const handleOpenCashierSettlement = () => { if (canOpen('cash_settlement') || canOpen('cash_register')) setShowCashierSettlement(true); };
-    const handleOpenPurchaseBillManager = () => { if (canOpen('purchase_bills')) setShowPurchaseBillManager(true); };
-    const handleOpenCustomersPage = () => { if (canOpen('customers')) setShowCustomersPage(true); };
-    const handleOpenPaymentsPage = () => { if (canOpen('payments')) setShowPaymentsPage(true); };
-    const handleOpenEcommerce = () => { if (canOpen('ecommerce')) setShowEcommercePortal(true); };
-    const handleOpenNewQuotation = () => {
-      if (!canOpen('quotations')) return;
-      useCartStore.getState().setRole('BILLER');
-      useCartStore.getState().clearCart();
-      useCartStore.getState().setReturnMode(false);
-      useCartStore.getState().setIsScrapMode(false);
-      useCartStore.getState().setEditingQuotation(null, null);
-      useCartStore.getState().setEditingInvoice(null, null, null);
-      useCartStore.getState().setQuotationMode(true);
-      localStorage.setItem('pendingNewQuotation', 'true');
-
-      const quotationSnapshot: TabSnapshot = {
-        items: [],
-        invoiceType: 'BILL_OF_SUPPLY',
-        discountType: 'FIXED',
-        discountValue: 0,
-        customerState: 'KL',
-        scrapDeduction: 0,
-        scrapInvoiceNumber: '',
-        returnDeduction: 0,
-        returnInvoiceNumber: '',
-        isQuotationMode: true,
-        isReturnMode: false,
-        isScrapMode: false,
-        returnRefundMethod: 'ADJUST_BILL',
-        editingQuotationId: null,
-        editingQuotationNumber: null,
-        editingInvoiceId: null,
-        editingInvoiceNumber: null,
-        editingInvoiceRole: null,
-        pendingScrapInvoiceToEdit: null,
-      };
-
-      const tabStore = useTabStore.getState();
-      const existingTabs = tabStore.tabs;
-      const currentActiveTabId = tabStore.activeTabId;
-      const activeTab = existingTabs.find(t => t.id === currentActiveTabId);
-
-      if (activeTab && (!activeTab.snapshot?.items || activeTab.snapshot.items.length === 0) && !activeTab.snapshot?.editingInvoiceNumber) {
-        const updated = existingTabs.map(t => t.id === currentActiveTabId ? {
-          ...t,
-          title: 'New Quote',
-          customerName: '',
-          customerPhone: '',
-          customerGstin: '',
-          customerAddress: '',
-          receivedAmount: 0,
-          reservedInvoiceNumber: '',
-          reservedQuotationNumber: '',
-          snapshot: quotationSnapshot,
-        } : t);
-        useTabStore.setState({ tabs: updated });
-        saveStoredTabs(updated, currentActiveTabId);
-      } else {
-        tabStore.addTab(quotationSnapshot, 'New Quote');
-      }
-
-      setShowQuotationManager(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setRestrictedActivePage('BILLING');
-    };
-
-    const handleOpenQuotationEdit = () => {
-      if (!canOpen('quotations')) return;
-      useCartStore.getState().setRole('BILLER');
-      setShowQuotationManager(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setRestrictedActivePage('BILLING');
-    };
-
-    // Close all overlays and navigate to BillingPage in return mode
-    const handleOpenReturnMode = () => {
-      if (!canOpen('returns')) return;
-      useCartStore.getState().setRole('BILLER');
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowQuotationManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setRestrictedActivePage('BILLING');
-    };
-
-    // Close all overlays and navigate to BillingPage in scrap edit mode
-    const handleOpenScrapEdit = () => {
-      if (!canOpen('scrap') || !enableScrapRef.current) return;
-      useCartStore.getState().setRole('BILLER');
-      useCartStore.getState().setReturnMode(false);
-      useCartStore.getState().setQuotationMode(false);
-      useCartStore.getState().setIsScrapMode(true);
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowQuotationManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setRestrictedActivePage('BILLING');
-    };
-
-    const handleOpenEditBill = () => {
-      useCartStore.getState().setRole('BILLER');
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowQuotationManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setRestrictedActivePage('BILLING');
-    };
-
-    const handleOpenBilling = () => {
-      if (!canOpen('billing')) return;
-      if (isAdminRole(useAuthStore.getState().role)) {
-        useCartStore.getState().setRole('BILLER');
-      }
-      setShowQuotationManager(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setShowComboManager(false);
-      setShowFinancialReport(false);
-      setShowAiAssistant(false);
-      setShowAdsManager(false);
-      setRestrictedActivePage('BILLING');
-    };
-
-    const handleOpenDashboard = () => {
-      setShowQuotationManager(false);
-      setShowInventoryManager(false);
-      setShowStockReport(false);
-      setShowSalesHistory(false);
-      setShowRecycleBin(false);
-      setShowStaffManager(false);
-      setShowSettingsManager(false);
-      setShowSettingsGrades(false);
-      setShowSettingsPricingTiers(false);
-      setShowPartyManager(false);
-      setShowScrapManager(false);
-      setShowWarrantyManager(false);
-      setShowReturnManager(false);
-      setShowPurchaseBillManager(false);
-      setShowCustomersPage(false);
-      setShowPaymentsPage(false);
-      setShowCashierSettlement(false);
-      setShowComboManager(false);
-      setShowFinancialReport(false);
-      setShowAiAssistant(false);
-      setShowAdsManager(false);
-      setRestrictedActivePage('');
-    };
-
-    const handleOpenComboManager = () => setShowComboManager(true);
-    const handleOpenAdsManager = () => setShowAdsManager(true);
-    const handleOpenFinancialReport = () => setShowFinancialReport(true);
-    const handleOpenAiAssistant = () => {
-      if (isAiAssistantAvailable && canOpen('ai_assistant')) {
-        setShowAiAssistant(true);
-      }
-    };
-    window.addEventListener('open-billing-page', handleOpenBilling);
-    window.addEventListener('open-dashboard', handleOpenDashboard);
-    if (isAiAssistantAvailable) {
-      window.addEventListener('open-ai-assistant', handleOpenAiAssistant);
-    }
-    window.addEventListener('open-inventory-manager', handleOpenInv);
-    window.addEventListener('open-combo-manager', handleOpenComboManager);
-    window.addEventListener('open-ads-manager', handleOpenAdsManager);
-    window.addEventListener('open-financial-report', handleOpenFinancialReport);
-    window.addEventListener('open-stock-report', handleOpenStockReport);
-    window.addEventListener('open-sales-history', handleOpenHistory);
-    const handleOpenRecycleBin = (e?: Event) => {
-      const ce = e as CustomEvent;
-      if (ce?.detail?.initialCategory) {
-        setRecycleBinCategory(ce.detail.initialCategory);
-      } else {
-        setRecycleBinCategory('SALES_BILLS');
-      }
-      setShowRecycleBin(true);
-    };
-    window.addEventListener('open-recycle-bin', handleOpenRecycleBin);
-    window.addEventListener('open-staff-manager', handleOpenStaff);
-    window.addEventListener('open-settings-manager', handleOpenSettings);
-    window.addEventListener('open-settings-grades', handleOpenSettingsGrades);
-    window.addEventListener('open-settings-pricing-tiers', handleOpenSettingsPricingTiers);
-    window.addEventListener('open-parties-manager', handleOpenParties);
-    window.addEventListener('open-scrap-manager', handleOpenScrapManager);
-    window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
-    window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
-    window.addEventListener('open-returns-manager', handleOpenReturnManager);
-    window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
-    window.addEventListener('open-customers-page', handleOpenCustomersPage);
-    window.addEventListener('open-payments-page', handleOpenPaymentsPage);
-    window.addEventListener('open-ecommerce-portal', handleOpenEcommerce);
-    window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
-    window.addEventListener('open-new-quotation', handleOpenNewQuotation);
-    window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
-    window.addEventListener('open-return-mode', handleOpenReturnMode);
-    window.addEventListener('edit-scrap-invoice', handleOpenScrapEdit);
-    window.addEventListener('open-edit-bill', handleOpenEditBill);
-
-    let unsubscribeTokenExpired: (() => void) | undefined;
-    let unsubscribeScale: (() => void) | undefined;
-    if (isDesktopRuntime()) {
-      const unsub = bridgeEvents.onTokenExpired(() => {
-        console.warn('[App] Cloud session expired or unauthorized. Showing session expired modal...');
-        setShowSessionExpiredModal(true);
-      });
-      if (typeof unsub === 'function') {
-        unsubscribeTokenExpired = unsub;
-      }
-
-      unsubscribeScale = bridgeEvents.onScaleWeight((weight) => {
-        useScaleStore.getState().setLiveWeight(weight);
-      });
-    }
-
-    const handleOpenSessionExpiredModal = () => setShowSessionExpiredModal(true);
-    window.addEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
-
-    return () => {
-      if (unsubscribeTokenExpired) {
-        unsubscribeTokenExpired();
-      }
-      if (unsubscribeScale) {
-        unsubscribeScale();
-      }
-      window.removeEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
-      window.removeEventListener('open-billing-page', handleOpenBilling);
-      window.removeEventListener('open-dashboard', handleOpenDashboard);
-      if (isAiAssistantAvailable) {
-        window.removeEventListener('open-ai-assistant', handleOpenAiAssistant);
-      }
-      window.removeEventListener('open-inventory-manager', handleOpenInv);
-      window.removeEventListener('open-combo-manager', handleOpenComboManager);
-      window.removeEventListener('open-ads-manager', handleOpenAdsManager);
-      window.removeEventListener('open-stock-report', handleOpenStockReport);
-      window.removeEventListener('open-sales-history', handleOpenHistory);
-      window.removeEventListener('open-staff-manager', handleOpenStaff);
-      window.removeEventListener('open-settings-manager', handleOpenSettings);
-      window.removeEventListener('open-settings-grades', handleOpenSettingsGrades);
-      window.removeEventListener('open-settings-pricing-tiers', handleOpenSettingsPricingTiers);
-      window.removeEventListener('open-parties-manager', handleOpenParties);
-      window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
-      window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
-      window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
-      window.removeEventListener('open-returns-manager', handleOpenReturnManager);
-      window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
-      window.removeEventListener('open-customers-page', handleOpenCustomersPage);
-      window.removeEventListener('open-payments-page', handleOpenPaymentsPage);
-      window.removeEventListener('open-ecommerce-portal', handleOpenEcommerce);
-      window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
-      window.removeEventListener('open-new-quotation', handleOpenNewQuotation);
-      window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
-      window.removeEventListener('open-return-mode', handleOpenReturnMode);
-      window.removeEventListener('edit-scrap-invoice', handleOpenScrapEdit);
-      window.removeEventListener('open-edit-bill', handleOpenEditBill);
-    };
-  }, []);
+  useScreenEvents({
+    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
+  });
 
   // Fetch the billing chunk in the background once signed in (screens are lazy, see lazyScreens.ts).
   useEffect(() => {
     if (isAuthenticated) preloadBilling();
   }, [isAuthenticated]);
-
-  if (printBarcodeData) {
-    return <Suspense fallback={null}><PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} codeType={printBarcodeCodeType} /></Suspense>;
-  }
-
-  if (printReceiptData !== null) {
-    return <Suspense fallback={null}><PrintReceiptView text={printReceiptData} /></Suspense>;
-  }
-
-  if (showPrintBulkBarcode) {
-    return <Suspense fallback={null}><PrintBulkBarcodeView codeType={printBulkCodeType} /></Suspense>;
-  }
-
-  if (showPrintA4) {
-    return <Suspense fallback={null}><PrintA4View /></Suspense>;
-  }
 
   if (isLoading) {
     return <SplashScreen />;
@@ -896,7 +312,7 @@ function App() {
           syncComplete={syncComplete}
           shuffledQuotes={shuffledQuotes}
           quoteIndex={quoteIndex}
-          QUOTES={QUOTES}
+          QUOTES={SYNC_QUOTES}
         />
       )}
       </Suspense>

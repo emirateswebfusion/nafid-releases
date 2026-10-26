@@ -13,7 +13,7 @@ import { generateInvoiceHtml } from '../../../utils/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../../../utils/whatsappBillHelper';
 import { parsePrintFormat, formatPrinterError } from '../../../utils/printFormatHelper';
 import { useTabStore, type SplitDetails } from '../../../store/tabStore';
-import { useFeatureFlagsStore } from '../../../featureFlags';
+import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { buildCheckoutLines, buildReceiptLines, resolveSupplyType } from '../../../utils/checkoutLines';
 import { cashierApi } from '../../../data/cashier';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';

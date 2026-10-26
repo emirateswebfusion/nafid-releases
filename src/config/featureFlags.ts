@@ -105,4 +105,4 @@ export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {
   return sanitized;
 }
 
-export { useFeatureFlagsStore, cashierPageTitle, wereFeatureFlagsStored } from './store/featureFlagsStore';
+export { useFeatureFlagsStore, cashierPageTitle, wereFeatureFlagsStored } from '../store/featureFlagsStore';

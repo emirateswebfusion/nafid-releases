@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { PrintRouter } from './PrintRouter.tsx'
+import { PrintRouter } from './components/app/PrintRouter.tsx'
 
 import { ErrorBoundary } from './components/app/ErrorBoundary';
 

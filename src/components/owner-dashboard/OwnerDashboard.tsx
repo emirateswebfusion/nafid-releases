@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
-import { useFeatureFlagsStore } from '../../featureFlags';
+import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { hasPermission } from '../../utils/permissions';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { DigitalClock } from './DigitalClock';

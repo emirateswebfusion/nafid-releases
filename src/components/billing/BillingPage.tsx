@@ -5,7 +5,7 @@ import { useScaleStore } from '../../store/scaleStore';
 import { useAuthStore } from '../../store/authStore';
 import { useTabStore, type SplitDetails } from '../../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
-import { useFeatureFlagsStore } from '../../featureFlags';
+import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { isAdminRole } from '../../utils/permissions';
 import { useBillingUIStore } from '../../store/billingUIStore';
 

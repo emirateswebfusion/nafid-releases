@@ -2,7 +2,7 @@ import { KeyRound, Plus } from 'lucide-react';
 import { formatCurrency } from '../../../utils/money';
 import { StaffLedgerTab } from './StaffLedgerTab';
 import { StaffAttendanceTab } from './StaffAttendanceTab';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 import type { StaffMember } from '../staffTypes';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 

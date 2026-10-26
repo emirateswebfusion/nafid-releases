@@ -7,7 +7,7 @@ import { RedCrossButton } from '../ui/RedCrossButton';
 import { FloatToast } from '../ui/FloatToast';
 import { formatWhatsAppStaffSalaryMessage } from '../../utils/whatsappBillHelper';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
-import { useFeatureFlagsStore } from '../../featureFlags';
+import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { authApi } from '../../data/auth';
 import { hasBridge } from '../../data/client';
 import { settingsApi } from '../../data/settings';

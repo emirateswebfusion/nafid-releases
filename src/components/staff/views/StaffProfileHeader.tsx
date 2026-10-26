@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { UserX, UserCheck, Edit, Lock, User, DollarSign, CreditCard, BookOpen, Calendar } from 'lucide-react';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { formatCurrency } from '../../../utils/money';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 import type { StaffMember } from '../staffTypes';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 

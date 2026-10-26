@@ -5,7 +5,7 @@ import { FloatToast } from '../ui/FloatToast';
 import { useAuthStore } from '../../store/authStore';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { parseUTCDate } from '../../utils/receiptGenerator';
-import { cashierPageTitle, useFeatureFlagsStore } from '../../featureFlags';
+import { cashierPageTitle, useFeatureFlagsStore } from '../../config/featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../../utils/upiConfig';
 import { getStoreTimezone } from '../../utils/timezoneHelper';
 import { isAdminRole } from '../../utils/permissions';

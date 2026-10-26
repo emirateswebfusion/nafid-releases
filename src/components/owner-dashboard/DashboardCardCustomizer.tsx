@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
-import { useFeatureFlagsStore, cashierPageTitle } from '../../featureFlags';
+import { useFeatureFlagsStore, cashierPageTitle } from '../../config/featureFlags';
 import { useDashboardCardsStore } from '../../store/dashboardCardsStore';
 import { RestoreDefaultCardsDialog } from './RestoreDefaultCardsDialog';
 

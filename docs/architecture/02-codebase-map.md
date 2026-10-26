@@ -19,14 +19,16 @@
 
 ```text
 src/
-  main.tsx, App.tsx      composition root: providers, routing between screens, global listeners
-  PrintRouter.tsx        print-only windows (receipt / A4 / barcode views)
+  main.tsx               entry: renders PrintRouter for print windows (#/print-*), App otherwise
+  App.tsx                shell: which screen is open; the screen-opening events and sync status live in
+                         components/app/hooks (useScreenEvents, useSyncStatus); screens load lazily (components/app/lazyScreens.ts)
+  index.css, global.d.ts global styles; the typed bridge contract (`IElectronAPI`)
   components/             one folder per feature; no loose files here (guard R14)
     <feature>/<Screen>.tsx   the screen (orchestration) next to its views/, modals/, hooks/ (e.g. billing/BillingPage.tsx,
                              sales/SalesHistory.tsx, cashier/CashierSettlement.tsx, inventory/InventoryManager.tsx)
     billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
     settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
-    app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, session / emergency prompts
+    app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, prompts, PrintRouter, lazyScreens, hooks/
     auth/ print/          login screen; receipt / A4 / barcode print views
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
   data/                   THE data-access layer (one module per domain; see 03-data-access.md)
@@ -34,8 +36,7 @@ src/
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
   utils/                  pure rules and generators (money, pricing, checkout lines, tax, numbering, HTML)
   services/               long-running renderer services (offline AI engine, FusionCart client)
-  featureFlags.ts, labelCodeTypes.ts   static configuration/types
-  global.d.ts             the typed bridge contract (`IElectronAPI`)
+  config/                 static configuration: featureFlags.ts, labelCodeTypes.ts
 ```
 
 ### Responsibilities and allowed imports

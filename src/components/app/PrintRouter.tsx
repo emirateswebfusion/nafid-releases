@@ -1,8 +1,8 @@
-import { PrintA4View } from './components/print/PrintA4View';
-import { PrintBarcodeView } from './components/print/PrintBarcodeView';
-import { PrintBulkBarcodeView } from './components/print/PrintBulkBarcodeView';
-import { PrintReceiptView } from './components/print/PrintReceiptView';
-import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
+import { PrintA4View } from '../print/PrintA4View';
+import { PrintBarcodeView } from '../print/PrintBarcodeView';
+import { PrintBulkBarcodeView } from '../print/PrintBulkBarcodeView';
+import { PrintReceiptView } from '../print/PrintReceiptView';
+import { DEFAULT_CODE_TYPE, type CodeType } from '../../config/labelCodeTypes';
 
 export function PrintRouter() {
   const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';

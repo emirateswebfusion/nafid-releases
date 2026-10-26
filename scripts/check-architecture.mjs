@@ -12,7 +12,7 @@
  *   R4. src/data/** (except client.ts) must not read `window` directly.
  *   R5. src/store/** must not import UI components.
  *   R6. electron/services|db|sync/** must not import electron/ipc/** (dependency direction).
- *   R7. Files in src/components/** and electron/** over the 800-line budget are capped at their
+ *   R7. Files in src/** (except the generated data/dbRows.ts) and electron/** over the 800-line budget are capped at their
  *       baseline size. New files may not exceed the budget.
  *   R8. electron/ipc/** contains no SQL (`.prepare(`) and does not import electron/db/statements:
  *       handlers only register channels (`handle(channel, service.fn)`); SQL lives in electron/db.
@@ -82,7 +82,7 @@ for (const full of walk(path.join(root, 'src'), (n) => /\.(ts|tsx)$/.test(n))) {
   if (file.startsWith('src/store/') && /from\s+['"][^'"]*components\//.test(source)) violations.push(`${file}: stores must not import UI components.`);
 
   const lines = source.split('\n').length;
-  if (file.startsWith('src/components/') && lines > SIZE_BUDGET) sizes[file] = lines;
+  if (file !== 'src/data/dbRows.ts' && lines > SIZE_BUDGET) sizes[file] = lines; // dbRows.ts is generated
 }
 
 const syncPrepares = {};

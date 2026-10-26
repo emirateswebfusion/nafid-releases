@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
-import { DEFAULT_CODE_TYPE, type CodeType } from '../../labelCodeTypes';
+import { DEFAULT_CODE_TYPE, type CodeType } from '../../config/labelCodeTypes';
 import { useAuthStore } from '../../store/authStore';
 import { authApi } from '../../data/auth';
 import { hasBridge, isDesktopRuntime } from '../../data/client';

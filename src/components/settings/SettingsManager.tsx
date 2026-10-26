@@ -12,7 +12,7 @@ import { PaperPreviewModal } from './PaperPreviewModal';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { isAdminRole } from '../../utils/permissions';
 
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../featureFlags';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../config/featureFlags';
 import { appApi } from '../../data/app';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { bridgeEvents } from '../../data/events';

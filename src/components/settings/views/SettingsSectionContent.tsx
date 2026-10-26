@@ -16,7 +16,7 @@ import { PrintOptionsSettingsTab } from '../tabs/PrintOptionsSettingsTab';
 import { SystemPreferencesTab } from '../tabs/SystemPreferencesTab';
 import { FeaturesTab } from '../tabs/FeaturesTab';
 import { NetworkSyncTab } from '../tabs/NetworkSyncTab';
-import type { FeatureFlags, FeatureKey } from '../../../featureFlags';
+import type { FeatureFlags, FeatureKey } from '../../../config/featureFlags';
 import type { SettingsFormState } from '../hooks/useSettingsFormState';
 
 export interface SettingsSectionContentProps {

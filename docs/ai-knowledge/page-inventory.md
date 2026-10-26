@@ -1,7 +1,7 @@
 # Nafid POS — Complete Page Inventory & Route Map
 
 **Application:** Nafid POS (Desktop Hybrid Electron-React Application)  
-**Verification Method:** Static Code Analysis of `src/App.tsx`, `src/PrintRouter.tsx`, `src/featureFlags.ts`, `src/utils/permissions.ts`, `electron/main.ts`, `electron/preload.ts`, and all underlying React components.  
+**Verification Method:** Static Code Analysis of `src/App.tsx`, `src/components/app/PrintRouter.tsx`, `src/config/featureFlags.ts`, `src/utils/permissions.ts`, `electron/main.ts`, `electron/preload.ts`, and all underlying React components.  
 **Version:** 2.0.1  
 **Audit Date:** October 2026  
 

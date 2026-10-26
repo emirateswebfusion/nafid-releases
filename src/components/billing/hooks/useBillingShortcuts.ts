@@ -4,7 +4,7 @@ import { useKeyboardShortcuts } from '../../../hooks/useKeyboardShortcuts';
 import { useCartStore } from '../../../store/cartStore';
 import { type PaymentMethod } from '../BillingConstants';
 import type { SplitDetails, Tab } from '../../../store/tabStore';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 import type { ProductSearchState } from './useProductSearchState';
 import type { CustomerFieldState } from './useCustomerFieldState';
 

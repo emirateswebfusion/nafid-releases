@@ -2,7 +2,12 @@
   "ipcCounts": {},
   "servicePrepareCounts": {},
   "syncPrepareCounts": {},
-  "sizeCaps": {},
+  "sizeCaps": {
+    "src/services/offlineAiService.ts": 4121,
+    "src/utils/invoiceHtmlGenerator.ts": 1875,
+    "src/utils/quotationHtmlGenerator.ts": 807,
+    "src/utils/receiptGenerator.ts": 2449
+  },
   "startupBaselineLines": {
     "electron/db/localDb.ts": 312,
     "electron/db/migrationsColumns.ts": 518,
@@ -11,6 +16,6 @@
     "electron/db/schemaCoreTables.ts": 407,
     "electron/db/schemaExtendedTables.ts": 409
   },
-  "lintSuppressions": 94,
-  "updatedAt": "2026-10-26T21:58:55.018Z"
+  "lintSuppressions": 93,
+  "updatedAt": "2026-10-26T23:31:21.572Z"
 }

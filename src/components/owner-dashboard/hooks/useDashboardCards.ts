@@ -1,7 +1,7 @@
 import { ShoppingCart, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw } from 'lucide-react';
-import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../featureFlags';
+import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/permissions';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 
 export interface UseDashboardCardsContext {
   cardOrder: string[];

@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { useCartStore } from '../../../store/cartStore';
 import type { CartItem } from '../../../store/cartStore';
 import type { Tab } from '../../../store/tabStore';
-import type { FeatureFlags } from '../../../featureFlags';
+import type { FeatureFlags } from '../../../config/featureFlags';
 
 export interface UseBillingModeSyncContext {
   activeTab: Tab | undefined;
