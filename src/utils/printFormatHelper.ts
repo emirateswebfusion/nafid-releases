@@ -9,12 +9,12 @@ export interface PrintFormatConfig {
   showPriceOverrideMrp?: boolean;
   openCashDrawerOnPending?: boolean;
   receiptFont?: string;
-  billSettings?: any;
-  scrapBillSettings?: any;
-  [key: string]: any;
+  billSettings?: Partial<import('./receiptGenerator').BillSettings>;
+  scrapBillSettings?: Partial<import('./receiptGenerator').BillSettings>;
+  [key: string]: unknown;
 }
 
-export function parsePrintFormat(val: any): PrintFormatConfig {
+export function parsePrintFormat(val: unknown): PrintFormatConfig {
   const defaultThermal = 'standard';
   const defaultA4 = 'boxed';
 
@@ -34,9 +34,9 @@ export function parsePrintFormat(val: any): PrintFormatConfig {
     }
   }
   if (typeof val === 'object') {
-    const fmt = (val.format === 'half-a4' || val.format === 'a4' || val.format === 'thermal') ? val.format : 'thermal';
-    const thermalStyle = val.thermalStyle || (fmt === 'thermal' ? val.style : undefined) || defaultThermal;
-    const a4Style = val.a4Style || (fmt === 'a4' ? val.style : undefined) || defaultA4;
+    const fmt = ((val as PrintFormatConfig).format === 'half-a4' || (val as PrintFormatConfig).format === 'a4' || (val as PrintFormatConfig).format === 'thermal') ? (val as PrintFormatConfig).format : 'thermal';
+    const thermalStyle = (val as Partial<PrintFormatConfig>).thermalStyle || (fmt === 'thermal' ? (val as Partial<PrintFormatConfig>).style : undefined) || defaultThermal;
+    const a4Style = (val as Partial<PrintFormatConfig>).a4Style || (fmt === 'a4' ? (val as Partial<PrintFormatConfig>).style : undefined) || defaultA4;
     return { ...val, format: fmt, thermalStyle, a4Style };
   }
   return { format: 'thermal', thermalStyle: defaultThermal, a4Style: defaultA4 };

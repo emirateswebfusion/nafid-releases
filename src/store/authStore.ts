@@ -45,7 +45,7 @@ function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN' | 'ADM
 
 const BROWSER_AUTH_KEY = 'nafid_pos_auth_session';
 
-function decodeJwtPayload(token: string): any {
+function decodeJwtPayload(token: string): { exp?: number; role?: string; permissions?: string[]; restricted_page?: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length < 2) return null;
@@ -80,12 +80,12 @@ function parsePermissionsFromToken(token: string): string[] {
   return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
 }
 
-function formatError(err: any, fallback: string): string {
+function formatError(err: unknown, fallback: string): string {
   if (!err) return fallback;
   if (typeof err === 'string') return err;
   if (typeof err === 'object') {
-    if (typeof err.message === 'string') return err.message;
-    if (typeof err.error === 'string') return err.error;
+    if (typeof (err as { message?: unknown }).message === 'string') return (err as { message: string }).message;
+    if (typeof (err as { error?: unknown }).error === 'string') return (err as { error: string }).error;
     try {
       return JSON.stringify(err);
     } catch {
@@ -154,7 +154,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         if (stored?.jwt_token) {
           const expired = isTokenExpired(stored.jwt_token);
           const perms = parsePermissionsFromToken(stored.jwt_token);
-          let rawRole = (stored.role || '') as any;
+          let rawRole = (stored.role || '') as NonNullable<AuthState['role']>;
           if (rawRole === 'SUPER_ADMIN') {
             if (isDesktopRuntime()) await authApi.clearToken();
             set({ isAuthenticated: false, permissions: [] });
@@ -188,7 +188,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           });
           useCartStore.getState().setRole(rawRole);
           if (stored.domain_type) {
-            useCartStore.getState().setDomain(stored.domain_type as any);
+            useCartStore.getState().setDomain(stored.domain_type as Parameters<ReturnType<typeof useCartStore.getState>['setDomain']>[0]);
             // Check local DB for confirmation if offline/restarting
             const confirmed = await settingsApi.get({ 
               tenant_id: stored.tenant_id, 
@@ -243,7 +243,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
   // ── Login: call Cloud API then persist token via IPC ─────────────────────
   login: async (email, password, apiBase = CLOUD_API) => {
-    const applyOfflineLogin = async (user: any, reason: string) => {
+    const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string; tenant_id: string; user_id: string; name?: string }, reason: string) => {
       const roleVal = normalizeRole(user.role);
       if (roleVal === 'SUPER_ADMIN') {
         return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
@@ -321,7 +321,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         return { success: false, error: formatError(data?.error || data, 'Login failed') };
       }
 
-      let roleVal = (data.role || '') as any;
+      let roleVal = (data.role || '') as NonNullable<AuthState['role']>;
       if (roleVal === 'SUPER_ADMIN') {
         return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
       }
@@ -436,7 +436,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
 
       // Update local cart store
-      useCartStore.getState().setDomain(domain as any);
+      useCartStore.getState().setDomain(domain as Parameters<ReturnType<typeof useCartStore.getState>['setDomain']>[0]);
       useCartStore.getState().confirmDomain();
 
       // Update local config file via IPC (re-save current config with new domain)

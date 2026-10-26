@@ -15,7 +15,7 @@ export const MRP_TIER_ID = '__mrp__';
  * Combines custom pricing tiers with Base (MRP) pseudo-tier using mrp_sort_order.
  * Guarantees Base (MRP) is included at its assigned sort_order position.
  */
-export function sortTiersWithMrp(dbTiers: any[], mrpSortOrder: number = 0): PricingTier[] {
+export function sortTiersWithMrp(dbTiers: PricingTier[], mrpSortOrder: number = 0): PricingTier[] {
   const list: PricingTier[] = Array.isArray(dbTiers) ? dbTiers.filter(t => !t.is_deleted).map(t => ({ ...t })) : [];
 
   const hasDefaultCustomTier = list.some(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');

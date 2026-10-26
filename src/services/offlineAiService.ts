@@ -1,3 +1,6 @@
+type AiRow = { actual_cash?: number; amount?: number; avgOrder?: number; balance?: number; balance_amount?: number; base_price?: number; cash_in?: number; cash_out?: number; cash_sales?: number; count?: number; credit_amount?: number; current_balance?: number; current_cash?: number; current_stock?: number; debit_amount?: number; discount_total?: number; expected_closing?: number; grand_total?: number; gst_qty?: number; min_stock_alert?: number; offer_price?: number; opening_balance?: number; points_redeemed_discount?: number; purchase_price?: number; quantity?: number; received_amount?: number; reorder_level?: number; running_balance?: number; selling_price?: number; stock_quantity?: number; tax_rate_percent?: number; tax_total?: number; total?: number; total_amount?: number; total_qty?: number; total_revenue?: number; balance_type?: string; bill_date?: string; biller_name?: string; biller_staff_name?: string; business_date?: string; category?: string; code?: string; converted_to_invoice_id?: string; counter_name?: string; created_at?: string; created_by_name?: string; customer_id?: string; customer_name?: string; customer_phone?: string; date?: string; description?: string; expiry_date?: string; invoice_date?: string; invoice_number?: string; invoice_type?: string; item_code?: string; name?: string; notes?: string; party_id?: string; party_type?: string; payment_method?: string; payment_type?: string; phone?: string; product_name?: string; refund_method?: string; return_date?: string; return_id?: string; sku_barcode?: string; status?: string; supplier?: string; supplier_name?: string; transaction_date?: string; transaction_type?: string; type?: string; uom?: string; items?: AiRow[]; split_details?: string | Record<string, number> };
+type AiHistoryMessage = { role: string; content: string };
+type AiIntentParams = { customLabel?: string; checkToday?: boolean; rawQuery?: string; message?: string; messageMal?: string; days?: number; customerName?: string; code?: string; isLastHour?: boolean; metric?: string; year?: string; compareType?: string; isRevenue?: boolean; rangeType?: string; customFrom?: string; customTo?: string; specificDate?: string; compareWith?: string; method?: string; topic?: string; searchQuery?: string; productName?: string; minAmount?: number; limit?: number; isLowest?: boolean; includeBarcode?: boolean };
 import { cashierApi } from '../data/cashier';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { customersApi } from '../data/customers';
@@ -17,13 +20,13 @@ import { formatCurrency } from '../utils/money';
 
 export interface OfflineAiResponse {
   content: string;
-  data?: any;
+  data?: unknown;
   chartData?: {
     type?: string;
     title?: string;
     labelKey: string;
     dataKey: string;
-    items: Array<Record<string, any>>;
+    items: Array<Record<string, unknown>>;
   };
   suggestedPrompts?: string[];
   intent?: string;
@@ -355,7 +358,7 @@ function extractDateFromText(text: string): { fromDate?: string; toDate?: string
 export interface ParsedOfflineIntent {
   intent: string;
   domain?: string;
-  params: Record<string, any>;
+  params: AiIntentParams;
   clarificationRequired?: boolean;
 }
 
@@ -363,7 +366,7 @@ export interface ParsedOfflineIntent {
  * Offline AI Assistant Intent Parser
  */
 class OfflineAiIntentParser {
-  static parse(message: string, history: any[] = []): ParsedOfflineIntent {
+  static parse(message: string, history: AiHistoryMessage[] = []): ParsedOfflineIntent {
     const raw = message.trim();
     const text = normalizeInput(message);
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user')?.content?.toLowerCase() || '';
@@ -1560,7 +1563,7 @@ class OfflineAiIntentParser {
 export async function processOfflineAiQuery(
   queryText: string,
   tenantId: string,
-  history: any[] = []
+  history: AiHistoryMessage[] = []
 ): Promise<OfflineAiResponse> {
   if (!isDesktopRuntime() || !tenantId) {
     throw new Error('Local SQLite database connection is unavailable.');
@@ -1570,7 +1573,7 @@ export async function processOfflineAiQuery(
   const parsed = OfflineAiIntentParser.parse(queryText, history);
 
   // Helper to fetch filtered invoices with safe fallback
-  const fetchInvoices = async (fromDate: string, toDate: string): Promise<any[]> => {
+  const fetchInvoices = async (fromDate: string, toDate: string): Promise<AiRow[]> => {
     try {
       const invs = await invoicesApi.getInvoices({
         tenant_id: tenantId,
@@ -1602,17 +1605,17 @@ export async function processOfflineAiQuery(
     }
 
     const invs = await fetchInvoices(fromDate, toDate);
-    const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
-    const totalSales = validInvs.reduce((acc: number, inv: any) => acc + (Number(inv.grand_total) || 0), 0);
+    const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
+    const totalSales = validInvs.reduce((acc: number, inv: AiRow) => acc + (Number(inv.grand_total) || 0), 0);
     const totalInvoices = validInvs.length;
-    const totalTax = validInvs.reduce((acc: number, inv: any) => acc + (Number(inv.tax_total) || 0), 0);
-    const totalDiscount = validInvs.reduce((acc: number, inv: any) => acc + (Number(inv.discount_total) || 0) + (Number(inv.points_redeemed_discount) || 0), 0);
+    const totalTax = validInvs.reduce((acc: number, inv: AiRow) => acc + (Number(inv.tax_total) || 0), 0);
+    const totalDiscount = validInvs.reduce((acc: number, inv: AiRow) => acc + (Number(inv.discount_total) || 0) + (Number(inv.points_redeemed_discount) || 0), 0);
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
     return { totalSales, totalInvoices, totalTax, totalDiscount, avgOrder };
   };
 
   // Safe fetch helper for cash transactions
-  const fetchCashTransactions = async (fromDate?: string, toDate?: string): Promise<any[]> => {
+  const fetchCashTransactions = async (fromDate?: string, toDate?: string): Promise<AiRow[]> => {
     try {
       if (hasBridge('dbCashierGetDayTransactions')) {
         const res = await cashierApi.getDayTransactions({
@@ -1634,7 +1637,7 @@ export async function processOfflineAiQuery(
   };
 
   // Safe fetch helper for products
-  const fetchProducts = async (): Promise<any[]> => {
+  const fetchProducts = async (): Promise<AiRow[]> => {
     try {
       if (hasBridge('dbGetProducts')) {
         const res = await productsApi.getProducts({ tenant_id: tenantId });
@@ -1648,7 +1651,7 @@ export async function processOfflineAiQuery(
   };
 
   // Safe fetch helper for purchase bills
-  const fetchPurchaseBills = async (search?: string): Promise<any[]> => {
+  const fetchPurchaseBills = async (search?: string): Promise<AiRow[]> => {
     try {
       if (hasBridge('dbGetPurchaseBills')) {
         const res = await purchasesApi.getPurchaseBills({ tenant_id: tenantId, search, limit: 100 });
@@ -1662,7 +1665,7 @@ export async function processOfflineAiQuery(
   };
 
   // Safe fetch helper for parties
-  const fetchParties = async (): Promise<any[]> => {
+  const fetchParties = async (): Promise<AiRow[]> => {
     try {
       if (hasBridge('dbGetParties')) {
         const res = await partiesApi.getParties(tenantId);
@@ -1676,7 +1679,7 @@ export async function processOfflineAiQuery(
   };
 
   // Safe fetch helper for returns
-  const fetchReturns = async (): Promise<any[]> => {
+  const fetchReturns = async (): Promise<AiRow[]> => {
     try {
       if (hasBridge('dbGetReturns')) {
         const res = await returnsApi.getReturns({ tenant_id: tenantId });
@@ -1690,7 +1693,7 @@ export async function processOfflineAiQuery(
   };
 
   // Safe fetch helper for cash drawer
-  const fetchCashDrawer = async (bDate?: string): Promise<any> => {
+  const fetchCashDrawer = async (bDate?: string): Promise<Partial<AiRow> | null> => {
     try {
       if (hasBridge('dbCashierGetDrawer')) {
         const res = await cashierApi.getDrawer({ tenant_id: tenantId, business_date: bDate });
@@ -1753,17 +1756,17 @@ export async function processOfflineAiQuery(
       case 'SALES_HOURLY': {
         const todayRange = resolveDateRange('today', undefined, undefined, isMal);
         const invs = await fetchInvoices(todayRange.fromDate, todayRange.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         const now = new Date();
         const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-        const lastHourInvs = validInvs.filter((i: any) => {
-          const t = new Date(i.created_at).getTime();
+        const lastHourInvs = validInvs.filter((i: AiRow) => {
+          const t = new Date(i.created_at as string).getTime();
           return t >= oneHourAgo.getTime() && t <= now.getTime();
         });
 
-        const lastHourSales = lastHourInvs.reduce((acc: number, i: any) => acc + (Number(i.grand_total) || 0), 0);
+        const lastHourSales = lastHourInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0);
 
         const hourlyBuckets: Record<string, { hour: string; sales: number; count: number }> = {};
         for (let h = 8; h <= 22; h++) {
@@ -1771,8 +1774,8 @@ export async function processOfflineAiQuery(
           hourlyBuckets[hStr] = { hour: hStr, sales: 0, count: 0 };
         }
 
-        validInvs.forEach((i: any) => {
-          const d = new Date(i.created_at);
+        validInvs.forEach((i: AiRow) => {
+          const d = new Date(i.created_at as string);
           const h = d.getHours();
           const hStr = `${pad(h)}:00`;
           if (hourlyBuckets[hStr]) {
@@ -1786,10 +1789,10 @@ export async function processOfflineAiQuery(
         const md = isMal
           ? `### ⏱️ മണിക്കൂർ തിരിച്ചുള്ള സെയിൽസ് (Hourly Sales)\n\n` +
             `* **കഴിഞ്ഞ 1 മണിക്കൂറിലെ വിൽപ്പന (Last 1 Hour):** **${formatINR(lastHourSales)}** (${lastHourInvs.length} ബില്ലുകൾ)\n` +
-            `* **ഇന്നത്തെ ആകെ വിൽപ്പന:** **${formatINR(validInvs.reduce((acc: number, i: any) => acc + (Number(i.grand_total) || 0), 0))}**\n\n`
+            `* **ഇന്നത്തെ ആകെ വിൽപ്പന:** **${formatINR(validInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0))}**\n\n`
           : `### ⏱️ Hourly Sales Intelligence\n\n` +
             `* **Sales During Last Hour:** **${formatINR(lastHourSales)}** (${lastHourInvs.length} invoices)\n` +
-            `* **Total Sales Today:** **${formatINR(validInvs.reduce((acc: number, i: any) => acc + (Number(i.grand_total) || 0), 0))}** (${validInvs.length} invoices)\n\n`;
+            `* **Total Sales Today:** **${formatINR(validInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0))}** (${validInvs.length} invoices)\n\n`;
 
         return {
           content: md,
@@ -1819,7 +1822,7 @@ export async function processOfflineAiQuery(
 
         const summary = await fetchSummary(range.fromDate, range.toDate);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
         const pm = calculatePaymentBreakdown(validInvs);
         const avgDaily = range.daysCount > 0 ? summary.totalSales / range.daysCount : summary.totalSales;
 
@@ -1992,12 +1995,12 @@ export async function processOfflineAiQuery(
       case 'SALES_UNIQUE_CUSTOMERS': {
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         const customerSet = new Set<string>();
         let walkinCount = 0;
 
-        validInvs.forEach((i: any) => {
+        validInvs.forEach((i: AiRow) => {
           const ident = i.customer_phone || (i.customer_name && i.customer_name !== 'Walk-in Customer' ? i.customer_name : null);
           if (ident) customerSet.add(ident.trim().toLowerCase());
           else walkinCount++;
@@ -2021,11 +2024,11 @@ export async function processOfflineAiQuery(
       case 'SALES_INVOICE_EXTREMES': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         if (parsed.params.minAmount) {
           const threshold = parsed.params.minAmount;
-          const filtered = validInvs.filter((i: any) => Number(i.grand_total) >= threshold);
+          const filtered = validInvs.filter((i: AiRow) => Number(i.grand_total) >= threshold);
           const md = isMal
             ? `### 🧾 ₹${threshold.toLocaleString()}-ൽ കൂടുതൽ തുകയുള്ള ബില്ലുകൾ (${range.label})\n\n` +
               `* **ആകെ എണ്ണം:** **${filtered.length} ബില്ലുകൾ**\n`
@@ -2077,7 +2080,7 @@ export async function processOfflineAiQuery(
           isMal
         );
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
         const pm = calculatePaymentBreakdown(validInvs);
         const totalSales = pm.totalSales;
         const requestedMethod = parsed.params.method || 'ALL';
@@ -2134,7 +2137,7 @@ export async function processOfflineAiQuery(
 
       case 'SALES_CREDIT_OUTSTANDING': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
         const pm = calculatePaymentBreakdown(validInvs);
 
         const md = isMal
@@ -2171,10 +2174,10 @@ export async function processOfflineAiQuery(
       case 'SALES_INVOICE_TYPES': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         const typeMap: Record<string, { count: number; total: number }> = {};
-        validInvs.forEach((i: any) => {
+        validInvs.forEach((i: AiRow) => {
           const t = i.invoice_type || 'STANDARD';
           if (!typeMap[t]) typeMap[t] = { count: 0, total: 0 };
           typeMap[t].count += 1;
@@ -2201,7 +2204,7 @@ export async function processOfflineAiQuery(
         const toDate = targetYear ? `${targetYear}-12-31` : '2099-12-31';
 
         const invs = await fetchInvoices(fromDate, toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
 
         if (validInvs.length === 0) {
           const emptyMsg = targetYear
@@ -2221,7 +2224,7 @@ export async function processOfflineAiQuery(
 
         const monthMap: Record<string, { key: string; label: string; year: number; monthNum: number; sales: number; count: number }> = {};
 
-        validInvs.forEach((i: any) => {
+        validInvs.forEach((i: AiRow) => {
           const dateStr = (i.created_at || '').slice(0, 10);
           if (!dateStr || dateStr.length < 7) return;
           const monthKey = dateStr.slice(0, 7);
@@ -2313,10 +2316,10 @@ export async function processOfflineAiQuery(
       case 'SALES_DAILY_TREND': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         const dailyMap: Record<string, { date: string; sales: number; count: number }> = {};
-        validInvs.forEach((i: any) => {
+        validInvs.forEach((i: AiRow) => {
           const d = (i.created_at || '').slice(0, 10) || range.fromDate;
           if (!dailyMap[d]) dailyMap[d] = { date: d, sales: 0, count: 0 };
           dailyMap[d].sales += Number(i.grand_total) || 0;
@@ -2371,10 +2374,10 @@ export async function processOfflineAiQuery(
       case 'SALES_BILLER_STAFF': {
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         const billerMap: Record<string, { name: string; count: number; total: number }> = {};
-        validInvs.forEach((i: any) => {
+        validInvs.forEach((i: AiRow) => {
           const name = i.biller_name || i.biller_staff_name || 'Admin / Suhaib';
           if (!billerMap[name]) billerMap[name] = { name, count: 0, total: 0 };
           billerMap[name].count += 1;
@@ -2399,10 +2402,10 @@ export async function processOfflineAiQuery(
       case 'SALES_CUSTOMER_LEVEL': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id);
 
         const custMap: Record<string, { name: string; phone: string; count: number; total: number }> = {};
-        validInvs.forEach((i: any) => {
+        validInvs.forEach((i: AiRow) => {
           const name = i.customer_name || 'Walk-in Customer';
           if (name === 'Walk-in Customer') return;
           const phone = i.customer_phone || '';
@@ -2436,7 +2439,7 @@ export async function processOfflineAiQuery(
 
       case 'TOP_SELLING_PRODUCTS': {
         const range = resolveDateRange(parsed.params.rangeType || (parsed.params.customFrom ? 'custom' : 'today'), parsed.params.customFrom, parsed.params.customTo, isMal);
-        let summaryList: any[] = [];
+        let summaryList: Awaited<ReturnType<typeof productsApi.getProductSalesSummary>> = [];
         if (hasBridge('dbGetProductSalesSummary')) {
           try {
             summaryList = await productsApi.getProductSalesSummary({
@@ -2468,7 +2471,7 @@ export async function processOfflineAiQuery(
           md += isMal ? `ഈ കാലയളവിൽ ഉൽപ്പന്ന വിൽപ്പനകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല (${range.label}).` : `No product sales recorded for ${range.label}.`;
         }
 
-        const chartItems = (summaryList || []).slice(0, limit).map((p: any) => ({
+        const chartItems = (summaryList || []).slice(0, limit).map((p: Awaited<ReturnType<typeof productsApi.getProductSalesSummary>>[number]) => ({
           product: p.name,
           qty: p.total_qty || p.gst_qty || 0,
           revenue: Math.round((Number(p.total_revenue) || 0) * 100) / 100,
@@ -2507,8 +2510,8 @@ export async function processOfflineAiQuery(
       case 'EXPENSES_SUMMARY': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', parsed.params.customFrom, parsed.params.customTo, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const expenseTxs = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
-        const totalExpense = expenseTxs.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+        const expenseTxs = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
+        const totalExpense = expenseTxs.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
         const count = expenseTxs.length;
         const avg = count > 0 ? totalExpense / count : 0;
 
@@ -2528,11 +2531,11 @@ export async function processOfflineAiQuery(
       case 'EXPENSES_BY_CATEGORY': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const expenseTxs = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
+        const expenseTxs = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
 
         const catMap: Record<string, { count: number; total: number }> = {};
         let total = 0;
-        expenseTxs.forEach((t: any) => {
+        expenseTxs.forEach((t: AiRow) => {
           const c = t.category || (isMal ? 'മറ്റ് ചെലവുകൾ' : 'General / Other');
           const amt = Number(t.amount) || 0;
           if (!catMap[c]) catMap[c] = { count: 0, total: 0 };
@@ -2562,8 +2565,8 @@ export async function processOfflineAiQuery(
       case 'EXPENSES_LARGEST': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const expenseTxs = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
-        const sorted = expenseTxs.sort((a: any, b: any) => (Number(b.amount) || 0) - (Number(a.amount) || 0)).slice(0, 5);
+        const expenseTxs = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
+        const sorted = expenseTxs.sort((a: AiRow, b: AiRow) => (Number(b.amount) || 0) - (Number(a.amount) || 0)).slice(0, 5);
 
         let md = isMal
           ? `### 🔴 വലിയ ചെലവുകൾ — ${range.label}\n\n` +
@@ -2571,7 +2574,7 @@ export async function processOfflineAiQuery(
           : `### 🔴 Largest Expenses — ${range.label}\n\n` +
             `| Date | Category | Notes / Details | Amount |\n| :---: | :--- | :--- | :---: |\n`;
 
-        sorted.forEach((t: any) => {
+        sorted.forEach((t: AiRow) => {
           const d = (t.transaction_date || '').slice(0, 10) || '—';
           md += `| ${d} | ${t.category || 'General'} | ${t.notes || '—'} | **${formatINR(t.amount)}** |\n`;
         });
@@ -2588,8 +2591,8 @@ export async function processOfflineAiQuery(
           fetchCashTransactions(prevRange.fromDate, prevRange.toDate),
         ]);
 
-        const curTotal = curTxs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
-        const prevTotal = prevTxs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
+        const curTotal = curTxs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
+        const prevTotal = prevTxs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
         const diff = curTotal - prevTotal;
 
         const md = isMal
@@ -2608,7 +2611,7 @@ export async function processOfflineAiQuery(
       case 'EXPENSES_CASH_TODAY': {
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const todayCashOut = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
+        const todayCashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
 
         const md = isMal
           ? `### 💵 ഇന്ന് നൽകിയ ക്യാഷ് ചെലവുകൾ\n\n* **ഇന്നത്തെ ആകെ ക്യാഷ് ചെലവ്:** **${formatINR(todayCashOut)}**\n`
@@ -2622,7 +2625,7 @@ export async function processOfflineAiQuery(
       // ──────────────────────────────────────────────────────────────────────
       case 'INVENTORY_OUT_OF_STOCK': {
         const prods = await fetchProducts();
-        const outOfStock = prods.filter((p: any) => Number(p.current_stock || 0) <= 0);
+        const outOfStock = prods.filter((p: AiRow) => Number(p.current_stock || 0) <= 0);
 
         let md = isMal
           ? `### 🔴 തീർന്നുപോയ ഉൽപ്പന്നങ്ങൾ (Out of Stock)\n\n` +
@@ -2632,7 +2635,7 @@ export async function processOfflineAiQuery(
             `Found **${outOfStock.length} products** with zero or negative inventory:\n\n` +
             `| Product Name | Barcode / Code | Category | Unit Price |\n| :--- | :---: | :--- | :---: |\n`;
 
-        outOfStock.slice(0, 15).forEach((p: any) => {
+        outOfStock.slice(0, 15).forEach((p: AiRow) => {
           md += `| **${p.name}** | ${p.sku_barcode || p.item_code || '—'} | ${p.category || 'General'} | ${formatINR(p.base_price)} |\n`;
         });
 
@@ -2642,14 +2645,14 @@ export async function processOfflineAiQuery(
       case 'INVENTORY_LOW_STOCK':
       case 'LOW_STOCK_ALERT': {
         const prods = await fetchProducts();
-        const low = prods.filter((p: any) => Number(p.current_stock || 0) <= Number(p.reorder_level || 0));
-        const out = low.filter((p: any) => Number(p.current_stock || 0) <= 0);
+        const low = prods.filter((p: AiRow) => Number(p.current_stock || 0) <= Number(p.reorder_level || 0));
+        const out = low.filter((p: AiRow) => Number(p.current_stock || 0) <= 0);
 
         let md = isMal
           ? `### ⚠️ സ്റ്റോക്ക് മുന്നറിയിപ്പ് (Low Stock Alert)\n\nറീ-ഓർഡർ ലെവലിൽ എത്തിയ **${low.length}** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി (ഇതിൽ **${out.length}** എണ്ണം തീർന്നുപോയി):\n\n| ഉൽപ്പന്നം | കാറ്റഗറി | സ്റ്റോക്ക് | റീ-ഓർഡർ | സ്റ്റാറ്റസ് |\n| :--- | :--- | :---: | :---: | :---: |\n`
           : `### ⚠️ Low Stock Alert\n\nFound **${low.length} products** at or below reorder level (**${out.length}** out of stock):\n\n| Product | Category | Current Stock | Reorder Level | Status |\n| :--- | :--- | :---: | :---: | :---: |` + '\n';
 
-        low.slice(0, 15).forEach((p: any) => {
+        low.slice(0, 15).forEach((p: AiRow) => {
           const isZero = Number(p.current_stock) <= 0;
           const status = isMal ? (isZero ? '🔴 തീർന്നു' : '🟡 കുറവ്') : (isZero ? '🔴 Out of Stock' : '🟡 Low Stock');
           md += `| **${p.name}** | ${p.category || 'General'} | **${p.current_stock}** | ${p.reorder_level || 0} | ${status} |\n`;
@@ -2665,7 +2668,7 @@ export async function processOfflineAiQuery(
         let inStockUnits = 0;
         let inStockItems = 0;
 
-        prods.forEach((p: any) => {
+        prods.forEach((p: AiRow) => {
           const qty = Number(p.current_stock) || 0;
           if (qty > 0) {
             inStockItems++;
@@ -2691,7 +2694,7 @@ export async function processOfflineAiQuery(
       case 'INVENTORY_PRODUCT_STOCK': {
         const prods = await fetchProducts();
         const term = (parsed.params.productName || '').toLowerCase().trim();
-        const matched = prods.filter((p: any) =>
+        const matched = prods.filter((p: AiRow) =>
           p.name?.toLowerCase().includes(term) || (p.sku_barcode && p.sku_barcode.includes(term))
         );
 
@@ -2715,13 +2718,13 @@ export async function processOfflineAiQuery(
 
       case 'INVENTORY_TOP_STOCK': {
         const prods = await fetchProducts();
-        const sorted = prods.sort((a: any, b: any) => (Number(b.current_stock) || 0) - (Number(a.current_stock) || 0)).slice(0, 10);
+        const sorted = prods.sort((a: AiRow, b: AiRow) => (Number(b.current_stock) || 0) - (Number(a.current_stock) || 0)).slice(0, 10);
 
         let md = isMal
           ? `### 📈 കൂടുതൽ സ്റ്റോക്കുള്ള ഉൽപ്പന്നങ്ങൾ\n\n| ഉൽപ്പന്നം | സ്റ്റോക്ക് | കാറ്റഗറി |\n| :--- | :---: | :--- |\n`
           : `### 📈 Products with Highest Stock Quantity\n\n| Product Name | Current Stock | Category |\n| :--- | :---: | :--- |\n`;
 
-        sorted.forEach((p: any) => {
+        sorted.forEach((p: AiRow) => {
           md += `| **${p.name}** | **${p.current_stock || 0}** | ${p.category || 'General'} |\n`;
         });
 
@@ -2731,7 +2734,7 @@ export async function processOfflineAiQuery(
       case 'INVENTORY_BY_CATEGORY': {
         const prods = await fetchProducts();
         const catMap: Record<string, { items: number; totalStock: number }> = {};
-        prods.forEach((p: any) => {
+        prods.forEach((p: AiRow) => {
           const c = p.category || 'General';
           if (!catMap[c]) catMap[c] = { items: 0, totalStock: 0 };
           catMap[c].items++;
@@ -2762,12 +2765,12 @@ export async function processOfflineAiQuery(
       case 'PURCHASES_SUMMARY': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', parsed.params.customFrom, parsed.params.customTo, isMal);
         const bills = await fetchPurchaseBills();
-        const filtered = bills.filter((b: any) => {
+        const filtered = bills.filter((b: AiRow) => {
           const d = (b.bill_date || b.created_at || '').slice(0, 10);
           return d >= range.fromDate && d <= range.toDate;
         });
 
-        const total = filtered.reduce((acc: number, b: any) => acc + (Number(b.total_amount) || 0), 0);
+        const total = filtered.reduce((acc: number, b: AiRow) => acc + (Number(b.total_amount) || 0), 0);
         const count = filtered.length;
         const avg = count > 0 ? total / count : 0;
 
@@ -2787,13 +2790,13 @@ export async function processOfflineAiQuery(
       case 'PURCHASES_BY_SUPPLIER': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const bills = await fetchPurchaseBills();
-        const filtered = bills.filter((b: any) => {
+        const filtered = bills.filter((b: AiRow) => {
           const d = (b.bill_date || b.created_at || '').slice(0, 10);
           return d >= range.fromDate && d <= range.toDate;
         });
 
         const supMap: Record<string, { count: number; total: number }> = {};
-        filtered.forEach((b: any) => {
+        filtered.forEach((b: AiRow) => {
           const s = b.supplier_name || 'General Supplier';
           if (!supMap[s]) supMap[s] = { count: 0, total: 0 };
           supMap[s].count++;
@@ -2815,8 +2818,8 @@ export async function processOfflineAiQuery(
 
       case 'PURCHASES_UNPAID': {
         const bills = await fetchPurchaseBills();
-        const unpaid = bills.filter((b: any) => b.payment_type === 'CREDIT' || String(b.payment_type).toLowerCase().includes('pending'));
-        const total = unpaid.reduce((a: number, b: any) => a + (Number(b.total_amount) || 0), 0);
+        const unpaid = bills.filter((b: AiRow) => b.payment_type === 'CREDIT' || String(b.payment_type).toLowerCase().includes('pending'));
+        const total = unpaid.reduce((a: number, b: AiRow) => a + (Number(b.total_amount) || 0), 0);
 
         const md = isMal
           ? `### 📒 പണം നൽകാനുള്ള പർച്ചേസ് ബില്ലുകൾ (Unpaid Purchases)\n\n` +
@@ -2855,13 +2858,13 @@ export async function processOfflineAiQuery(
         const debtors: Array<{ name: string; phone: string; balance: number }> = [];
         const seenKeys = new Set<string>();
 
-        [...(partiesList || []), ...(custList || [])].forEach((p: any) => {
+        [...(partiesList || []), ...(custList || [])].forEach((p: AiRow) => {
           const bal = Math.round((Number(p.balance ?? p.current_balance ?? 0)) * 100) / 100;
           if (bal > 0 && bal >= minAmount) {
             const key = (p.party_id || p.customer_id || p.phone || p.name || '').toLowerCase();
             if (!seenKeys.has(key)) {
               seenKeys.add(key);
-              debtors.push({ name: p.name, phone: p.phone, balance: bal });
+              debtors.push({ name: p.name as string, phone: p.phone as string, balance: bal });
             }
           }
         });
@@ -2913,8 +2916,8 @@ export async function processOfflineAiQuery(
 
       case 'SUPPLIER_PAYABLES_TOTAL': {
         const parties = await fetchParties();
-        const suppliers = parties.filter((p: any) => p.party_type === 'SUPPLIER' || p.balance_type === 'CREDIT');
-        const total = suppliers.reduce((a: number, s: any) => a + Math.abs(Number(s.balance) || 0), 0);
+        const suppliers = parties.filter((p: AiRow) => p.party_type === 'SUPPLIER' || p.balance_type === 'CREDIT');
+        const total = suppliers.reduce((a: number, s: AiRow) => a + Math.abs(Number(s.balance) || 0), 0);
 
         const md = isMal
           ? `### 🏭 സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക (Payables)\n\n` +
@@ -2935,7 +2938,7 @@ export async function processOfflineAiQuery(
         const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
         const qLower = queryTerm.toLowerCase();
-        const matched = [...(partiesList || []), ...(custList || [])].filter((p: any) =>
+        const matched = [...(partiesList || []), ...(custList || [])].filter((p: AiRow) =>
           p.name?.toLowerCase().includes(qLower) || (p.phone && String(p.phone).includes(queryTerm))
         );
 
@@ -2968,10 +2971,10 @@ export async function processOfflineAiQuery(
                 `| Date | Description | Debit (-) | Credit (+) | Running Balance |\n` +
                 `| :---: | :--- | :---: | :---: | :---: |\n`;
 
-              entries.slice(0, 10).forEach((entry: any) => {
+              entries.slice(0, 10).forEach((entry: AiRow) => {
                 const d = entry.transaction_date ? String(entry.transaction_date).split('T')[0] : '—';
-                const dr = entry.debit_amount > 0 ? formatINR(entry.debit_amount) : '—';
-                const cr = entry.credit_amount > 0 ? formatINR(entry.credit_amount) : '—';
+                const dr = (entry.debit_amount as number) > 0 ? formatINR(entry.debit_amount) : '—';
+                const cr = (entry.credit_amount as number) > 0 ? formatINR(entry.credit_amount) : '—';
                 const rb = formatINR(Math.abs(Number(entry.running_balance || 0)));
                 md += `| ${d} | ${entry.description || 'Entry'} | ${dr} | ${cr} | **${rb}** |\n`;
               });
@@ -2992,8 +2995,8 @@ export async function processOfflineAiQuery(
           const invs = await fetchInvoices(range.fromDate, range.toDate);
           const pm = calculatePaymentBreakdown(invs);
           const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-          const cashIn = txs.filter((t: any) => t.type === 'CASH_IN').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
-          const cashOut = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
+          const cashIn = txs.filter((t: AiRow) => t.type === 'CASH_IN').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
+          const cashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
           const currentCash = pm.cash + cashIn - cashOut;
           drawer = {
             status: 'OPEN (Active Counter Session)',
@@ -3032,8 +3035,8 @@ export async function processOfflineAiQuery(
           const invs = await fetchInvoices(range.fromDate, range.toDate);
           const pm = calculatePaymentBreakdown(invs);
           const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-          const cashIn = txs.filter((t: any) => t.type === 'CASH_IN').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
-          const cashOut = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
+          const cashIn = txs.filter((t: AiRow) => t.type === 'CASH_IN').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
+          const cashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
           drawer = { cash_in: cashIn, cash_out: cashOut, cash_sales: pm.cash };
         }
 
@@ -3057,8 +3060,8 @@ export async function processOfflineAiQuery(
           const invs = await fetchInvoices(range.fromDate, range.toDate);
           const pm = calculatePaymentBreakdown(invs);
           const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-          const cashIn = txs.filter((t: any) => t.type === 'CASH_IN').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
-          const cashOut = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: any) => a + (Number(t.amount) || 0), 0);
+          const cashIn = txs.filter((t: AiRow) => t.type === 'CASH_IN').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
+          const cashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
           const currentCash = pm.cash + cashIn - cashOut;
           drawer = { expected_closing: currentCash, actual_cash: currentCash };
         }
@@ -3077,7 +3080,7 @@ export async function processOfflineAiQuery(
       }
 
       case 'CASH_DRAWER_PENDING_UNSETTLED': {
-        let pendingInvs: any[] = [];
+        let pendingInvs: AiRow[] = [];
         if (hasBridge('dbCashierGetPendingInvoices')) {
           try {
             pendingInvs = await cashierApi.getPendingInvoices({ tenant_id: tenantId });
@@ -3088,7 +3091,7 @@ export async function processOfflineAiQuery(
           : `### ⏳ Unsettled Pending Transactions\n\n* **Pending Transactions Awaiting Cash Settlement:** **${pendingInvs.length} invoices**\n`;
         if (pendingInvs.length > 0) {
           md += `\n| Invoice # | Amount | Biller |\n| :--- | :---: | :--- |\n`;
-          pendingInvs.slice(0, 10).forEach((inv: any) => {
+          pendingInvs.slice(0, 10).forEach((inv: AiRow) => {
             md += `| **${inv.invoice_number}** | ${formatINR(inv.grand_total)} | ${inv.biller_name || 'Counter'} |\n`;
           });
         } else {
@@ -3099,7 +3102,7 @@ export async function processOfflineAiQuery(
 
       case 'CASH_DRAWER_UNSETTLED_STATUS': {
         const todayStr = new Date().toISOString().slice(0, 10);
-        let settlements: any[] = [];
+        let settlements: AiRow[] = [];
         if (hasBridge('dbCashierGetDaySettlements')) {
           try {
             settlements = await cashierApi.getDaySettlements({ tenant_id: tenantId, business_date: todayStr });
@@ -3116,7 +3119,7 @@ export async function processOfflineAiQuery(
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
         const billerMap: Record<string, { name: string; count: number; total: number; cash: number }> = {};
-        invs.forEach((inv: any) => {
+        invs.forEach((inv: AiRow) => {
           const b = inv.biller_name || 'Counter Staff';
           if (!billerMap[b]) billerMap[b] = { name: b, count: 0, total: 0, cash: 0 };
           billerMap[b].count++;
@@ -3150,7 +3153,7 @@ export async function processOfflineAiQuery(
       // ──────────────────────────────────────────────────────────────────────
       case 'BILLS_UNPAID': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const unpaid = invs.filter((i: any) => !i.converted_to_invoice_id && (Number(i.balance_amount) > 0 || i.payment_method === 'CREDIT'));
+        const unpaid = invs.filter((i: AiRow) => !i.converted_to_invoice_id && (Number(i.balance_amount) > 0 || i.payment_method === 'CREDIT'));
 
         const md = isMal
           ? `### 📒 പണം ലഭിക്കാനുള്ള ബില്ലുകൾ (Unpaid Bills)\n\n` +
@@ -3163,7 +3166,7 @@ export async function processOfflineAiQuery(
 
       case 'BILLS_PARTIALLY_PAID': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const partial = invs.filter((i: any) => !i.converted_to_invoice_id && Number(i.received_amount) > 0 && Number(i.balance_amount) > 0);
+        const partial = invs.filter((i: AiRow) => !i.converted_to_invoice_id && Number(i.received_amount) > 0 && Number(i.balance_amount) > 0);
 
         const md = isMal
           ? `### 📒 ഭാഗികമായി പണം ലഭിച്ച ബില്ലുകൾ (Partially Paid Bills)\n\n` +
@@ -3180,11 +3183,11 @@ export async function processOfflineAiQuery(
       case 'RETURNS_SUMMARY': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const rets = await fetchReturns();
-        const filtered = rets.filter((r: any) => {
+        const filtered = rets.filter((r: AiRow) => {
           const d = (r.created_at || '').slice(0, 10);
           return !d || (d >= range.fromDate && d <= range.toDate);
         });
-        const total = filtered.reduce((a: number, r: any) => a + (Number(r.grand_total) || 0), 0);
+        const total = filtered.reduce((a: number, r: AiRow) => a + (Number(r.grand_total) || 0), 0);
 
         const md = isMal
           ? `### 🔄 സെയിൽസ് റിട്ടേൺസ് സംഗ്രഹം — ${range.label}\n\n` +
@@ -3200,7 +3203,7 @@ export async function processOfflineAiQuery(
       case 'RETURNS_ITEMS': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const rets = await fetchReturns();
-        const filtered = rets.filter((r: any) => {
+        const filtered = rets.filter((r: AiRow) => {
           const d = (r.created_at || '').slice(0, 10);
           return !d || (d >= range.fromDate && d <= range.toDate);
         });
@@ -3209,9 +3212,9 @@ export async function processOfflineAiQuery(
         if (hasBridge('dbGetReturnItems')) {
           for (const ret of filtered.slice(0, 50)) {
             try {
-              const items = await returnsApi.getReturnItems(ret.return_id);
+              const items = await returnsApi.getReturnItems(ret.return_id as string);
               if (Array.isArray(items)) {
-                items.forEach((it: any) => {
+                items.forEach((it: AiRow) => {
                   const name = it.product_name || it.name || 'Unnamed Product';
                   if (!itemMap[name]) itemMap[name] = { name, quantity: 0, total: 0 };
                   itemMap[name].quantity += Number(it.quantity) || 0;
@@ -3247,12 +3250,12 @@ export async function processOfflineAiQuery(
       case 'RETURNS_BY_METHOD': {
         const range = resolveDateRange(parsed.params.rangeType || 'this_month', undefined, undefined, isMal);
         const rets = await fetchReturns();
-        const filtered = rets.filter((r: any) => {
+        const filtered = rets.filter((r: AiRow) => {
           const d = (r.created_at || '').slice(0, 10);
           return !d || (d >= range.fromDate && d <= range.toDate);
         });
         const byMethod: Record<string, number> = {};
-        filtered.forEach((r: any) => {
+        filtered.forEach((r: AiRow) => {
           const m = r.refund_method || 'CASH';
           byMethod[m] = (byMethod[m] || 0) + (Number(r.grand_total) || 0);
         });
@@ -3272,7 +3275,7 @@ export async function processOfflineAiQuery(
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
         const minAmt = parsed.params.minAmount || 500;
-        const highDiscInvs = invs.filter((i: any) => Number(i.discount_total) >= minAmt);
+        const highDiscInvs = invs.filter((i: AiRow) => Number(i.discount_total) >= minAmt);
 
         const md = isMal
           ? `### 🏷️ ഡിസ്കൗണ്ട് റിപ്പോർട്ട് — ${range.label}\n\n` +
@@ -3296,7 +3299,7 @@ export async function processOfflineAiQuery(
       case 'PRODUCT_PRICE_LOOKUP': {
         const prods = await fetchProducts();
         const term = (parsed.params.productName || '').toLowerCase().trim();
-        const matched = prods.filter((p: any) => p.name?.toLowerCase().includes(term));
+        const matched = prods.filter((p: AiRow) => p.name?.toLowerCase().includes(term));
 
         if (matched.length === 0) {
           return { content: isMal ? `"${term}" എന്ന ഉൽപ്പന്നം കണ്ടെത്താനായില്ല.` : `Could not find product matching "${term}".` };
@@ -3323,7 +3326,7 @@ export async function processOfflineAiQuery(
       case 'PRODUCT_BARCODE_LOOKUP': {
         const prods = await fetchProducts();
         const code = (parsed.params.code || '').trim();
-        const matched = prods.filter((p: any) => p.sku_barcode === code || p.item_code === code);
+        const matched = prods.filter((p: AiRow) => p.sku_barcode === code || p.item_code === code);
 
         if (matched.length === 0) {
           return { content: isMal ? `"${code}" എന്ന ബാർകോഡിൽ ഉൽപ്പന്നങ്ങൾ ഒന്നുമില്ല.` : `No product found with barcode "${code}".` };
@@ -3348,7 +3351,7 @@ export async function processOfflineAiQuery(
       // ──────────────────────────────────────────────────────────────────────
       case 'DIAGNOSTIC_DEDUPLICATION_CHECK': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const convertedHoldBills = invs.filter((i: any) => i.converted_to_invoice_id);
+        const convertedHoldBills = invs.filter((i: AiRow) => i.converted_to_invoice_id);
 
         const md = isMal
           ? `### 🛡️ ഡാറ്റാബേസ് സമഗ്രതാ പരിശോധന (Deduplication Audit)\n\n` +
@@ -3367,7 +3370,7 @@ export async function processOfflineAiQuery(
 
       case 'DIAGNOSTIC_PAYMENT_RECONCILIATION': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD'].includes(i.invoice_type));
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD'].includes(i.invoice_type as string));
 
         const md = isMal
           ? `### ⚖️ പേയ്‌മെന്റ് അലോക്കേഷൻ റീകൺസിലിയേഷൻ\n\n` +
@@ -3389,22 +3392,22 @@ export async function processOfflineAiQuery(
         const pm = calculatePaymentBreakdown(invs);
 
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const expenseTxs = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
-        const totalExpense = expenseTxs.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+        const expenseTxs = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
+        const totalExpense = expenseTxs.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
         const purchases = await fetchPurchaseBills();
-        const rangePurchases = purchases.filter((p: any) => {
+        const rangePurchases = purchases.filter((p: AiRow) => {
           const d = (p.bill_date || p.created_at || '').substring(0, 10);
           return d >= range.fromDate && d <= range.toDate;
         });
-        const totalPurchases = rangePurchases.reduce((acc: number, p: any) => acc + (Number(p.grand_total || p.total_amount) || 0), 0);
+        const totalPurchases = rangePurchases.reduce((acc: number, p: AiRow) => acc + (Number(p.grand_total || p.total_amount) || 0), 0);
 
         const returns = await fetchReturns();
-        const rangeReturns = returns.filter((r: any) => {
+        const rangeReturns = returns.filter((r: AiRow) => {
           const d = (r.return_date || r.created_at || '').substring(0, 10);
           return d >= range.fromDate && d <= range.toDate;
         });
-        const totalReturns = rangeReturns.reduce((acc: number, r: any) => acc + (Number(r.grand_total || r.total) || 0), 0);
+        const totalReturns = rangeReturns.reduce((acc: number, r: AiRow) => acc + (Number(r.grand_total || r.total) || 0), 0);
 
         const netRevenue = Math.max(0, summary.totalSales - totalReturns);
         const netCashFlow = netRevenue - totalExpense;
@@ -3439,10 +3442,10 @@ export async function processOfflineAiQuery(
       case 'SALES_BY_COUNTER': {
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
 
         const counterMap: Record<string, { count: number; total: number; cash: number; digital: number }> = {};
-        validInvs.forEach((inv: any) => {
+        validInvs.forEach((inv: AiRow) => {
           const cName = inv.counter_name || inv.biller_name || inv.created_by_name || 'Counter 1 (Main)';
           if (!counterMap[cName]) {
             counterMap[cName] = { count: 0, total: 0, cash: 0, digital: 0 };
@@ -3478,8 +3481,8 @@ export async function processOfflineAiQuery(
 
       case 'SALES_LATEST_INVOICE_NUMBER': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
-        const sorted = [...validInvs].sort((a: any, b: any) => {
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
+        const sorted = [...validInvs].sort((a: AiRow, b: AiRow) => {
           const tA = new Date(a.created_at || a.invoice_date || 0).getTime();
           const tB = new Date(b.created_at || b.invoice_date || 0).getTime();
           return tB - tA;
@@ -3511,7 +3514,7 @@ export async function processOfflineAiQuery(
       case 'SALES_INVOICE_LIST': {
         const range = resolveDateRange(parsed.params.rangeType || 'today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
 
         let md = isMal
           ? `### 🧾 ഇന്ന് അടിച്ച ഇൻവോയ്സുകളുടെ ലിസ്റ്റ് (${validInvs.length} എണ്ണം)\n\n`
@@ -3521,7 +3524,7 @@ export async function processOfflineAiQuery(
           md += isMal ? `ഇന്ന് ഇതുവരെ ഇൻവോയ്സുകൾ അടിച്ചിട്ടില്ല.\n` : `No invoices generated today yet.\n`;
         } else {
           md += `| Invoice # | Customer | Payment Mode | Grand Total |\n| :--- | :--- | :---: | :---: |\n`;
-          validInvs.slice(0, 25).forEach((inv: any) => {
+          validInvs.slice(0, 25).forEach((inv: AiRow) => {
             md += `| **${inv.invoice_number}** | ${inv.customer_name || 'Walk-in'} | ${inv.payment_method || 'Cash'} | **${formatINR(inv.grand_total)}** |\n`;
           });
         }
@@ -3544,10 +3547,10 @@ export async function processOfflineAiQuery(
         }
 
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const matchingInvs: any[] = [];
+        const matchingInvs: AiRow[] = [];
         for (const inv of invs) {
           const items = inv.items || [];
-          if (items.some((it: any) => (it.name || '').toLowerCase().includes(prod.toLowerCase()))) {
+          if (items.some((it: AiRow) => (it.name || '').toLowerCase().includes(prod.toLowerCase()))) {
             matchingInvs.push(inv);
           }
         }
@@ -3560,8 +3563,8 @@ export async function processOfflineAiQuery(
           md += isMal ? `ഈ ഉൽപ്പന്നം അടങ്ങിയ ഇൻവോയ്സുകളൊന്നും കണ്ടെത്തിയില്ല.\n` : `No invoices found containing "${prod}".\n`;
         } else {
           md += `| Invoice # | Date | Customer | Quantity | Invoice Total |\n| :--- | :---: | :--- | :---: | :---: |\n`;
-          matchingInvs.slice(0, 20).forEach((inv: any) => {
-            const item = (inv.items || []).find((it: any) => (it.name || '').toLowerCase().includes(prod.toLowerCase()));
+          matchingInvs.slice(0, 20).forEach((inv: AiRow) => {
+            const item = (inv.items || []).find((it: AiRow) => (it.name || '').toLowerCase().includes(prod.toLowerCase()));
             md += `| **${inv.invoice_number}** | ${inv.invoice_date || (inv.created_at || '').substring(0, 10)} | ${inv.customer_name || 'Walk-in'} | ${formatQty(item?.quantity || 1)} | **${formatINR(inv.grand_total)}** |\n`;
           });
         }
@@ -3572,10 +3575,10 @@ export async function processOfflineAiQuery(
       case 'INVENTORY_TOTAL_COUNT': {
         const products = await fetchProducts();
         const totalItems = products.length;
-        const inStock = products.filter((p: any) => (Number(p.stock_quantity) || 0) > 0);
-        const totalUnits = products.reduce((acc: number, p: any) => acc + Math.max(0, Number(p.stock_quantity) || 0), 0);
-        const outOfStock = products.filter((p: any) => (Number(p.stock_quantity) || 0) <= 0);
-        const lowStock = inStock.filter((p: any) => (Number(p.stock_quantity) || 0) <= (Number(p.min_stock_alert) || 5));
+        const inStock = products.filter((p: AiRow) => (Number(p.stock_quantity) || 0) > 0);
+        const totalUnits = products.reduce((acc: number, p: AiRow) => acc + Math.max(0, Number(p.stock_quantity) || 0), 0);
+        const outOfStock = products.filter((p: AiRow) => (Number(p.stock_quantity) || 0) <= 0);
+        const lowStock = inStock.filter((p: AiRow) => (Number(p.stock_quantity) || 0) <= (Number(p.min_stock_alert) || 5));
 
         const md = isMal
           ? `### 📦 ഇൻവെന്ററി ആകെ ഉൽപ്പന്നങ്ങൾ\n\n` +
@@ -3596,7 +3599,7 @@ export async function processOfflineAiQuery(
 
       case 'INVENTORY_NEGATIVE_MARGIN': {
         const products = await fetchProducts();
-        const negativeMargin = products.filter((p: any) => {
+        const negativeMargin = products.filter((p: AiRow) => {
           const sp = Number(p.selling_price) || 0;
           const pp = Number(p.purchase_price) || 0;
           return pp > 0 && sp < pp;
@@ -3612,7 +3615,7 @@ export async function processOfflineAiQuery(
             ? `### ⚠️ വാങ്ങിയ വിലയേക്കാൾ കുറഞ്ഞ വിലയുള്ള ഉൽപ്പന്നങ്ങൾ (${negativeMargin.length} എണ്ണം)\n\n`
             : `### ⚠️ Products with Selling Price Lower Than Purchase Price (${negativeMargin.length})\n\n`;
           md += `| Product | Purchase Cost | Selling Price | Loss / Unit |\n| :--- | :---: | :---: | :---: |\n`;
-          negativeMargin.slice(0, 15).forEach((p: any) => {
+          negativeMargin.slice(0, 15).forEach((p: AiRow) => {
             const pp = Number(p.purchase_price) || 0;
             const sp = Number(p.selling_price) || 0;
             md += `| **${p.name}** | ${formatINR(pp)} | ${formatINR(sp)} | -${formatINR(pp - sp)} |\n`;
@@ -3625,8 +3628,8 @@ export async function processOfflineAiQuery(
       case 'INVENTORY_EXPIRY_ALERT': {
         const products = await fetchProducts();
         const today = new Date().toISOString().substring(0, 10);
-        const expired = products.filter((p: any) => p.expiry_date && p.expiry_date < today && (Number(p.stock_quantity) || 0) > 0);
-        const nearExpiry = products.filter((p: any) => {
+        const expired = products.filter((p: AiRow) => p.expiry_date && p.expiry_date < today && (Number(p.stock_quantity) || 0) > 0);
+        const nearExpiry = products.filter((p: AiRow) => {
           if (!p.expiry_date || p.expiry_date < today) return false;
           const diffDays = Math.round((new Date(p.expiry_date).getTime() - new Date(today).getTime()) / (86400000));
           return diffDays <= 30 && (Number(p.stock_quantity) || 0) > 0;
@@ -3643,7 +3646,7 @@ export async function processOfflineAiQuery(
             : `### ⏳ Product Expiry Alert\n\n* **Expired Products in Stock:** **${expired.length} items**\n* **Expiring Within 30 Days:** **${nearExpiry.length} items**\n\n`;
           if (expired.length > 0) {
             md += `#### 🚨 Expired Items:\n| Product | Stock | Expiry Date |\n| :--- | :---: | :---: |\n`;
-            expired.slice(0, 10).forEach((p: any) => {
+            expired.slice(0, 10).forEach((p: AiRow) => {
               md += `| **${p.name}** | ${formatQty(p.stock_quantity)} | ${p.expiry_date} |\n`;
             });
           }
@@ -3655,7 +3658,7 @@ export async function processOfflineAiQuery(
       case 'INVENTORY_NEW_PRODUCTS_TODAY': {
         const products = await fetchProducts();
         const today = new Date().toISOString().substring(0, 10);
-        const addedToday = products.filter((p: any) => (p.created_at || '').startsWith(today));
+        const addedToday = products.filter((p: AiRow) => (p.created_at || '').startsWith(today));
 
         let md = isMal
           ? `### 🆕 ഇന്ന് ചേർത്ത പുതിയ ഉൽപ്പന്നങ്ങൾ\n\n* **ഇന്ന് ചേർത്തവ:** **${addedToday.length} ഉൽപ്പന്നങ്ങൾ**\n`
@@ -3663,7 +3666,7 @@ export async function processOfflineAiQuery(
 
         if (addedToday.length > 0) {
           md += `\n| Product Name | Price | Stock |\n| :--- | :---: | :---: |\n`;
-          addedToday.slice(0, 15).forEach((p: any) => {
+          addedToday.slice(0, 15).forEach((p: AiRow) => {
             md += `| **${p.name}** | ${formatINR(p.selling_price)} | ${formatQty(p.stock_quantity)} |\n`;
           });
         }
@@ -3679,13 +3682,13 @@ export async function processOfflineAiQuery(
         const overdue: Array<{ name: string; phone: string; balance: number }> = [];
         const seen = new Set<string>();
 
-        [...(partiesList || []), ...(custList || [])].forEach((p: any) => {
+        [...(partiesList || []), ...(custList || [])].forEach((p: AiRow) => {
           const bal = Math.round((Number(p.balance ?? p.current_balance ?? 0)) * 100) / 100;
           if (bal > 0) {
             const key = (p.party_id || p.customer_id || p.phone || p.name || '').toLowerCase();
             if (!seen.has(key)) {
               seen.add(key);
-              overdue.push({ name: p.name, phone: p.phone, balance: bal });
+              overdue.push({ name: p.name as string, phone: p.phone as string, balance: bal });
             }
           }
         });
@@ -3714,8 +3717,8 @@ export async function processOfflineAiQuery(
       case 'CUSTOMER_PAYMENTS_COLLECTED_TODAY': {
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const collections = txs.filter((t: any) => t.type === 'CASH_IN' || t.transaction_type === 'CASH_IN' || t.category === 'CUSTOMER_PAYMENT');
-        const total = collections.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+        const collections = txs.filter((t: AiRow) => t.type === 'CASH_IN' || t.transaction_type === 'CASH_IN' || t.category === 'CUSTOMER_PAYMENT');
+        const total = collections.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
         const md = isMal
           ? `### 💵 ഇന്ന് കസ്റ്റമർമാരിൽ നിന്ന് ശേഖരിച്ച പണം\n\n* **ആകെ ശേഖരിച്ച തുക:** **${formatINR(total)}**\n* **രസീതുകൾ:** **${collections.length} എണ്ണം**\n`
@@ -3739,8 +3742,8 @@ export async function processOfflineAiQuery(
       case 'SUPPLIER_PAYMENTS_TODAY': {
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const supplierTxs = txs.filter((t: any) => (t.type === 'CASH_OUT' || t.transaction_type === 'CASH_OUT') && (t.category === 'SUPPLIER_PAYMENT' || t.party_type === 'SUPPLIER'));
-        const total = supplierTxs.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+        const supplierTxs = txs.filter((t: AiRow) => (t.type === 'CASH_OUT' || t.transaction_type === 'CASH_OUT') && (t.category === 'SUPPLIER_PAYMENT' || t.party_type === 'SUPPLIER'));
+        const total = supplierTxs.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
         const md = isMal
           ? `### 🏢 ഇന്ന് സപ്ലയർമാർക്ക് നൽകിയ പണം\n\n* **ആകെ നൽകിയ തുക:** **${formatINR(total)}**\n* **ഇടപാടുകൾ:** **${supplierTxs.length} എണ്ണം**\n`
@@ -3799,9 +3802,9 @@ export async function processOfflineAiQuery(
       case 'DIAGNOSTIC_MISSING_TRANSACTIONS': {
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
-        const holdInvs = invs.filter((i: any) => ['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
-        const convertedQuotes = invs.filter((i: any) => !!i.converted_to_invoice_id);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
+        const holdInvs = invs.filter((i: AiRow) => ['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
+        const convertedQuotes = invs.filter((i: AiRow) => !!i.converted_to_invoice_id);
 
         const md = isMal
           ? `### 🔍 കാണാതായ ഇടപാടുകളുടെ പരിശോധന (Transaction Audit)\n\n` +
@@ -3826,8 +3829,8 @@ export async function processOfflineAiQuery(
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const summary = await fetchSummary(range.fromDate, range.toDate);
         const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const validInvs = invs.filter((i: any) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type));
-        const computedSum = validInvs.reduce((acc: number, inv: any) => acc + (Number(inv.grand_total) || 0), 0);
+        const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
+        const computedSum = validInvs.reduce((acc: number, inv: AiRow) => acc + (Number(inv.grand_total) || 0), 0);
         const diff = Math.abs(computedSum - summary.totalSales);
 
         const md = isMal
@@ -3848,8 +3851,8 @@ export async function processOfflineAiQuery(
       case 'DIAGNOSTIC_EXPENSE_SUM_VERIFICATION': {
         const range = resolveDateRange('today', undefined, undefined, isMal);
         const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const expenseTxs = txs.filter((t: any) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
-        const sumLineItems = expenseTxs.reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+        const expenseTxs = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE');
+        const sumLineItems = expenseTxs.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
         const md = isMal
           ? `### ⚖️ ചെലവ് ഇടപാടുകളുടെ പരിശോധനാ റിപ്പോർട്ട്\n\n` +
@@ -3870,7 +3873,7 @@ export async function processOfflineAiQuery(
 
       case 'DIAGNOSTIC_INVOICE_TOTALS_INTEGRITY': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
-        const corrupted = invs.filter((i: any) => {
+        const corrupted = invs.filter((i: AiRow) => {
           const gt = Number(i.grand_total);
           return isNaN(gt) || gt < 0 || i.grand_total === null || i.grand_total === undefined;
         });
@@ -3891,7 +3894,7 @@ export async function processOfflineAiQuery(
       case 'DIAGNOSTIC_DUPLICATE_INVOICES': {
         const invs = await fetchInvoices('2000-01-01', '2099-12-31');
         const numCount: Record<string, number> = {};
-        invs.forEach((i: any) => {
+        invs.forEach((i: AiRow) => {
           if (i.invoice_number) {
             numCount[i.invoice_number] = (numCount[i.invoice_number] || 0) + 1;
           }
@@ -3913,10 +3916,10 @@ export async function processOfflineAiQuery(
 
       case 'DIAGNOSTIC_DUPLICATE_PRODUCTS': {
         const products = await fetchProducts();
-        const skuMap: Record<string, any[]> = {};
-        const nameMap: Record<string, any[]> = {};
+        const skuMap: Record<string, AiRow[]> = {};
+        const nameMap: Record<string, AiRow[]> = {};
 
-        products.forEach((p: any) => {
+        products.forEach((p: AiRow) => {
           if (p.sku_barcode && p.sku_barcode.trim()) {
             const k = p.sku_barcode.trim().toLowerCase();
             skuMap[k] = skuMap[k] || [];
@@ -4072,7 +4075,7 @@ export async function processOfflineAiQuery(
 /**
  * Helper to calculate precise payment breakdown from invoices list
  */
-function calculatePaymentBreakdown(invoices: any[]): {
+function calculatePaymentBreakdown(invoices: AiRow[]): {
   totalSales: number;
   cash: number;
   card: number;
@@ -4083,7 +4086,7 @@ function calculatePaymentBreakdown(invoices: any[]): {
 } {
   const pm = { totalSales: 0, cash: 0, card: 0, upi: 0, bank: 0, cheque: 0, credit: 0 };
 
-  (invoices || []).forEach((inv: any) => {
+  (invoices || []).forEach((inv: AiRow) => {
     if (inv.converted_to_invoice_id) return;
     const grandTotal = Number(inv.grand_total) || 0;
     pm.totalSales += grandTotal;

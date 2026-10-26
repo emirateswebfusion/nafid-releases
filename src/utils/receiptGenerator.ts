@@ -238,7 +238,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   }
 
   const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? new Date(dateInput as any) : d;
+  return isNaN(d.getTime()) ? new Date(dateInput as string) : d;
 }
 
 export function formatBillDateTime(date: Date | string | number): string {
@@ -296,7 +296,7 @@ export interface ReceiptData {
   oldBalance?: number;
   customerBalance?: number;
   paymentMethod?: string;
-  splitDetails?: any;
+  splitDetails?: string | Record<string, number>;
   isReprint?: boolean;
   invoiceType?: string;
   customerName?: string;
@@ -418,7 +418,7 @@ function formatBalanceLines(
   const pm = (data.paymentMethod || '').toUpperCase();
   const isCredit = pm === 'CREDIT' || (data.oldBalance != null && data.oldBalance !== 0) || (data.customerBalance != null) || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
 
-  let rawSd: any = data.splitDetails || (data as any).split_details;
+  let rawSd: string | Record<string, number> | undefined = data.splitDetails || (data as ReceiptData & { split_details?: string | Record<string, number> }).split_details;
   if (typeof rawSd === 'string') {
     try { rawSd = JSON.parse(rawSd); } catch { /* ignore */ }
   }

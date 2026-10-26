@@ -1821,7 +1821,7 @@ export function generatePurchaseBillHtml(
   <div class="totals-container">
     <div class="notes-box">
       <div style="font-weight: 700; color: #111827; margin-bottom: 4px; text-transform: uppercase; font-size: 11px;">Notes / Remarks</div>
-      <div style="color: #1a1a1a; white-space: pre-line;">${(bill as any).description || (bill as any).notes || 'No extra notes recorded.'}</div>
+      <div style="color: #1a1a1a; white-space: pre-line;">${(bill as typeof bill & { description?: string; notes?: string }).description || (bill as typeof bill & { description?: string; notes?: string }).notes || 'No extra notes recorded.'}</div>
     </div>
     <div class="totals-box">
       <div class="totals-row">
