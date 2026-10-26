@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import crypto from 'node:crypto';
+type IdentityRow = Record<string, unknown> & { customer_id: string; party_id: string; phone: string; name: string; last_purchase_date: string | null };
 import { toEpochMs } from '../utils/timestamps.js';
 
 /** Customer/party identity: resolution and upsert. De-duplication and the startup backfill live in customerDedupe.ts. */
@@ -78,18 +79,18 @@ export class CustomerIdentityService {
       // Look up existingCustomer and existingParty INDEPENDENTLY
       // Priority: 1) customer_id  2) Exact name + phone  3) Phone match (last 10 digits)  4) Case-insensitive name
       
-      let existingCustomer: any = null;
-      let existingParty: any = null;
+      let existingCustomer: IdentityRow | null | undefined = null;
+      let existingParty: IdentityRow | null | undefined = null;
 
       // 0. Try direct customer_id / party_id match first if provided
       if (rawData.customer_id) {
-        existingCustomer = db.prepare(`
+        existingCustomer = db.prepare<unknown[], IdentityRow>(`
           SELECT * FROM customers 
           WHERE tenant_id = ? AND customer_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           LIMIT 1
         `).get(tenantId, rawData.customer_id);
 
-        existingParty = db.prepare(`
+        existingParty = db.prepare<unknown[], IdentityRow>(`
           SELECT * FROM parties 
           WHERE tenant_id = ? AND party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           LIMIT 1
@@ -99,7 +100,7 @@ export class CustomerIdentityService {
       // 1. Try exact name + phone match
       if (name && phone) {
         if (!existingCustomer) {
-          existingCustomer = db.prepare(`
+          existingCustomer = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM customers 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND phone = ?
@@ -108,7 +109,7 @@ export class CustomerIdentityService {
         }
 
         if (!existingParty) {
-          existingParty = db.prepare(`
+          existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type = 'CUSTOMER' OR party_type IS NULL)
@@ -123,7 +124,7 @@ export class CustomerIdentityService {
       if (phoneClean.length >= 7) {
         const last10 = phoneClean.slice(-10);
         if (!existingCustomer) {
-          existingCustomer = db.prepare(`
+          existingCustomer = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM customers 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
@@ -131,7 +132,7 @@ export class CustomerIdentityService {
           `).get(tenantId, `%${last10}`);
         }
         if (!existingParty) {
-          existingParty = db.prepare(`
+          existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type = 'CUSTOMER' OR party_type IS NULL)
@@ -145,7 +146,7 @@ export class CustomerIdentityService {
       // 3. Try case-insensitive name match
       if (name) {
         if (!existingCustomer) {
-          existingCustomer = db.prepare(`
+          existingCustomer = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM customers 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?))
@@ -156,7 +157,7 @@ export class CustomerIdentityService {
           `).get(tenantId, name);
         }
         if (!existingParty) {
-          existingParty = db.prepare(`
+          existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type = 'CUSTOMER' OR party_type IS NULL)
@@ -171,11 +172,11 @@ export class CustomerIdentityService {
 
       // 4. Cross-check: If customer found but party not found, search party by customer's phone or name
       if (existingCustomer && !existingParty) {
-        const cPhone = (existingCustomer.phone || '').trim();
+        const cPhone = ((existingCustomer.phone as string) || ('' as string)).trim();
         const cClean = cPhone.replace(/\D/g, '');
-        const cName = (existingCustomer.name || '').trim();
+        const cName = ((existingCustomer.name as string) || ('' as string)).trim();
         if (cClean.length >= 7) {
-          existingParty = db.prepare(`
+          existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type = 'CUSTOMER' OR party_type IS NULL)
@@ -185,7 +186,7 @@ export class CustomerIdentityService {
           `).get(tenantId, `%${cClean.slice(-10)}`);
         }
         if (!existingParty && cName) {
-          existingParty = db.prepare(`
+          existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type = 'CUSTOMER' OR party_type IS NULL)
@@ -198,7 +199,7 @@ export class CustomerIdentityService {
 
       // 5. Fallback check for parties matching idx_parties_tenant_name_phone_customer
       if (!existingParty && displayName) {
-        existingParty = db.prepare(`
+        existingParty = db.prepare<unknown[], IdentityRow>(`
           SELECT * FROM parties 
           WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
             AND (party_type = 'CUSTOMER' OR party_type IS NULL)
@@ -214,12 +215,12 @@ export class CustomerIdentityService {
       // ========== PROCESS CUSTOMER ==========
       if (existingCustomer) {
         try {
-          const custHasRealName = existingCustomer.name && !['customer', 'walk-in', 'walk in', 'default'].includes(existingCustomer.name.trim().toLowerCase());
+          const custHasRealName = existingCustomer.name && !['customer', 'walk-in', 'walk in', 'default'].includes((existingCustomer.name as string).trim().toLowerCase());
           const finalCustName = custHasRealName ? existingCustomer.name : (displayName || existingCustomer.name);
-          const finalCustPhone = (existingCustomer.phone && existingCustomer.phone.trim() !== '') ? existingCustomer.phone : (phone || null);
-          const finalCustAddress = (existingCustomer.address && existingCustomer.address.trim() !== '') ? existingCustomer.address : (address || null);
-          const finalCustGstin = (existingCustomer.gstin && existingCustomer.gstin.trim() !== '') ? existingCustomer.gstin : (gstin || null);
-          const finalCustNotes = (existingCustomer.notes && existingCustomer.notes.trim() !== '') ? existingCustomer.notes : (notes || null);
+          const finalCustPhone = (existingCustomer.phone && (existingCustomer.phone as string).trim() !== '') ? existingCustomer.phone : (phone || null);
+          const finalCustAddress = (existingCustomer.address && (existingCustomer.address as string).trim() !== '') ? existingCustomer.address : (address || null);
+          const finalCustGstin = (existingCustomer.gstin && (existingCustomer.gstin as string).trim() !== '') ? existingCustomer.gstin : (gstin || null);
+          const finalCustNotes = (existingCustomer.notes && (existingCustomer.notes as string).trim() !== '') ? existingCustomer.notes : (notes || null);
 
           let lastPurchase: string | null = now;
           let unchanged = false;
@@ -232,7 +233,7 @@ export class CustomerIdentityService {
               && finalCustNotes === existingCustomer.notes;
           }
           if (!unchanged) {
-            db.prepare(`
+            db.prepare<unknown[], IdentityRow>(`
               UPDATE customers
               SET name = ?, phone = ?, address = ?,
                   gstin = ?, notes = ?,
@@ -248,7 +249,7 @@ export class CustomerIdentityService {
         } catch (_) {
           if (!history) {
             try {
-              db.prepare(`
+              db.prepare<unknown[], IdentityRow>(`
                 UPDATE customers
                 SET last_purchase_date = ?, is_deleted = 0, updated_at = CURRENT_TIMESTAMP
                 WHERE customer_id = ?
@@ -263,7 +264,7 @@ export class CustomerIdentityService {
         finalCustomerId = deterministicUUID(customerSeedKey);
 
         try {
-          db.prepare(`
+          db.prepare<unknown[], IdentityRow>(`
             INSERT INTO customers (
               customer_id, tenant_id, name, phone, address, gstin, notes, pricing_tier_id,
               credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry,
@@ -276,7 +277,7 @@ export class CustomerIdentityService {
             history ? purchaseIso : now, now, now
           );
         } catch (insertCustErr) {
-          const fallbackCust: any = db.prepare(`
+          const fallbackCust: IdentityRow = (db.prepare<unknown[], IdentityRow>(`
             SELECT customer_id FROM customers 
             WHERE tenant_id = ? AND (
               customer_id = ? 
@@ -284,11 +285,11 @@ export class CustomerIdentityService {
               OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?)
               OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM(?)))
             ) LIMIT 1
-          `).get(tenantId, finalCustomerId, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name);
+          `).get(tenantId, finalCustomerId, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name) as IdentityRow);
           if (fallbackCust) {
             finalCustomerId = fallbackCust.customer_id;
             try {
-              db.prepare('UPDATE customers SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?').run(finalCustomerId);
+              db.prepare<unknown[], IdentityRow>('UPDATE customers SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?').run(finalCustomerId);
             } catch { /* ignore */ }
           }
         }
@@ -297,12 +298,12 @@ export class CustomerIdentityService {
       // ========== PROCESS PARTY ==========
       if (existingParty) {
         try {
-          const partyHasRealName = existingParty.name && !['customer', 'walk-in', 'walk in', 'default'].includes(existingParty.name.trim().toLowerCase());
+          const partyHasRealName = existingParty.name && !['customer', 'walk-in', 'walk in', 'default'].includes((existingParty.name as string).trim().toLowerCase());
           const finalPartyName = partyHasRealName ? existingParty.name : (displayName || existingParty.name);
-          const finalPartyPhone = (existingParty.phone && existingParty.phone.trim() !== '') ? existingParty.phone : (phone || null);
-          const finalPartyAddress = (existingParty.address && existingParty.address.trim() !== '') ? existingParty.address : (address || null);
-          const finalPartyGstin = (existingParty.gstin && existingParty.gstin.trim() !== '') ? existingParty.gstin : (gstin || null);
-          const finalPartyNotes = (existingParty.notes && existingParty.notes.trim() !== '') ? existingParty.notes : (notes || null);
+          const finalPartyPhone = (existingParty.phone && (existingParty.phone as string).trim() !== '') ? existingParty.phone : (phone || null);
+          const finalPartyAddress = (existingParty.address && (existingParty.address as string).trim() !== '') ? existingParty.address : (address || null);
+          const finalPartyGstin = (existingParty.gstin && (existingParty.gstin as string).trim() !== '') ? existingParty.gstin : (gstin || null);
+          const finalPartyNotes = (existingParty.notes && (existingParty.notes as string).trim() !== '') ? existingParty.notes : (notes || null);
 
           const wasDeleted = existingParty.is_deleted === 1;
           const phoneChanged = !existingParty.phone && finalPartyPhone;
@@ -311,7 +312,7 @@ export class CustomerIdentityService {
           const nameChanged = !partyHasRealName && finalPartyName !== existingParty.name;
 
           if (wasDeleted || phoneChanged || addrChanged || gstinChanged || nameChanged) {
-            db.prepare(`
+            db.prepare<unknown[], IdentityRow>(`
               UPDATE parties
               SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?,
                   is_deleted = 0,
@@ -325,7 +326,7 @@ export class CustomerIdentityService {
           }
         } catch (_) {
           try {
-            db.prepare('UPDATE parties SET is_deleted = 0 WHERE party_id = ?').run(existingParty.party_id);
+            db.prepare<unknown[], IdentityRow>('UPDATE parties SET is_deleted = 0 WHERE party_id = ?').run(existingParty.party_id);
           } catch { /* ignore */ }
         }
       } else {
@@ -335,7 +336,7 @@ export class CustomerIdentityService {
         finalPartyId = deterministicUUID(partySeedKey);
 
         try {
-          db.prepare(`
+          db.prepare<unknown[], IdentityRow>(`
             INSERT INTO parties (
               party_id, tenant_id, name, phone, address, gstin, notes,
               balance, gst_balance, estimate_balance, balance_type, party_type,
@@ -349,7 +350,7 @@ export class CustomerIdentityService {
             now, now
           );
         } catch (insertPartyErr) {
-          const fallbackParty: any = db.prepare(`
+          const fallbackParty: IdentityRow = (db.prepare<unknown[], IdentityRow>(`
             SELECT party_id FROM parties 
             WHERE tenant_id = ? AND (
               party_id = ? 
@@ -361,12 +362,12 @@ export class CustomerIdentityService {
               CASE WHEN is_deleted = 0 THEN 0 ELSE 1 END,
               created_at ASC
             LIMIT 1
-          `).get(tenantId, finalPartyId, displayName, phone, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name);
+          `).get(tenantId, finalPartyId, displayName, phone, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name) as IdentityRow);
 
           if (fallbackParty) {
             finalPartyId = fallbackParty.party_id;
             try {
-              db.prepare('UPDATE parties SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE party_id = ?').run(finalPartyId);
+              db.prepare<unknown[], IdentityRow>('UPDATE parties SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE party_id = ?').run(finalPartyId);
             } catch { /* ignore */ }
           } else {
             console.warn('[CustomerIdentityService] Could not insert party and fallback lookup failed:', (insertPartyErr as Error).message);
@@ -393,12 +394,12 @@ export class CustomerIdentityService {
     db: Database.Database,
     tenantId: string,
     criteria: { name?: string; phone?: string; customer_id?: string }
-  ): any | null {
+  ): IdentityRow | null | undefined {
     if (!db || !tenantId) return null;
     const { name, phone, customer_id } = criteria;
 
     if (customer_id) {
-      return db.prepare('SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)')
+      return db.prepare<unknown[], IdentityRow>('SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)')
         .get(customer_id, tenantId);
     }
 
@@ -407,7 +408,7 @@ export class CustomerIdentityService {
     // 1. Phone match
     if (phoneClean.length >= 7) {
       const last10 = phoneClean.slice(-10);
-      const found = db.prepare(`
+      const found = db.prepare<unknown[], IdentityRow>(`
         SELECT * FROM customers 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
@@ -418,7 +419,7 @@ export class CustomerIdentityService {
 
     // 2. Exact name + phone
     if (name && phone) {
-      const found = db.prepare(`
+      const found = db.prepare<unknown[], IdentityRow>(`
         SELECT * FROM customers 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           AND name = ? AND phone = ?
@@ -429,7 +430,7 @@ export class CustomerIdentityService {
 
     // 3. Exact name
     if (name) {
-      const found = db.prepare(`
+      const found = db.prepare<unknown[], IdentityRow>(`
         SELECT * FROM customers 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           AND LOWER(TRIM(name)) = LOWER(?)
@@ -449,12 +450,12 @@ export class CustomerIdentityService {
     db: Database.Database,
     tenantId: string,
     criteria: { name?: string; phone?: string; party_id?: string; party_type?: string }
-  ): any | null {
+  ): IdentityRow | null | undefined {
     if (!db || !tenantId) return null;
     const { name, phone, party_id, party_type = 'CUSTOMER' } = criteria;
 
     if (party_id) {
-      return db.prepare('SELECT * FROM parties WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)')
+      return db.prepare<unknown[], IdentityRow>('SELECT * FROM parties WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)')
         .get(party_id, tenantId);
     }
 
@@ -463,7 +464,7 @@ export class CustomerIdentityService {
     // 1. Phone match
     if (phoneClean.length >= 7) {
       const last10 = phoneClean.slice(-10);
-      const found = db.prepare(`
+      const found = db.prepare<unknown[], IdentityRow>(`
         SELECT * FROM parties 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           AND party_type = ? AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') LIKE ?
@@ -474,7 +475,7 @@ export class CustomerIdentityService {
 
     // 2. Exact name + phone
     if (name && phone) {
-      const found = db.prepare(`
+      const found = db.prepare<unknown[], IdentityRow>(`
         SELECT * FROM parties 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           AND party_type = ? AND name = ? AND phone = ?
@@ -485,7 +486,7 @@ export class CustomerIdentityService {
 
     // 3. Exact name
     if (name) {
-      const found = db.prepare(`
+      const found = db.prepare<unknown[], IdentityRow>(`
         SELECT * FROM parties 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           AND party_type = ? AND LOWER(TRIM(name)) = LOWER(?)

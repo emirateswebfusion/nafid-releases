@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 export function runColumnMigrations(db: Database.Database) {
   // Migration: Add missing columns to invoices explicitly (including split_details)
   try {
-    const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
+    const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: unknown) => (c as { name: string }).name);
     const invoiceColsToEnsure: Record<string, string> = {
       split_details: 'TEXT',
       held_until: 'DATETIME',
@@ -59,7 +59,7 @@ export function runColumnMigrations(db: Database.Database) {
       SELECT product_pricing_id, product_id, pricing_tier_id, tenant_id 
       FROM product_pricing 
       WHERE product_pricing_id NOT LIKE '________-____-____-____-____________'
-    `).all() as any[];
+    `).all() as Record<string, unknown>[];
     if (Array.isArray(invalidRows) && invalidRows.length > 0) {
       const updStmt = db.prepare(`UPDATE product_pricing SET product_pricing_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
       for (const r of invalidRows) {
@@ -72,7 +72,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add bill_type column to purchase_bills
   try {
-    const pbCols = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
+    const pbCols = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!pbCols.includes('bill_type')) {
       console.log('[DB Migration] Adding bill_type to purchase_bills...');
       db.exec("ALTER TABLE purchase_bills ADD COLUMN bill_type TEXT DEFAULT 'GST'");
@@ -83,7 +83,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Normalize business_date in cash_drawer to pure YYYY-MM-DD
   try {
-    const drawers = db.prepare(`SELECT drawer_id, business_date FROM cash_drawer WHERE business_date IS NOT NULL`).all() as any[];
+    const drawers = db.prepare(`SELECT drawer_id, business_date FROM cash_drawer WHERE business_date IS NOT NULL`).all() as Record<string, unknown>[];
     if (Array.isArray(drawers) && drawers.length > 0) {
       const upd = db.prepare(`UPDATE cash_drawer SET business_date = ? WHERE drawer_id = ?`);
       for (const d of drawers) {
@@ -114,7 +114,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add invoice_number column to purchase_bills
   try {
-    const pbCols3 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
+    const pbCols3 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!pbCols3.includes('invoice_number')) {
       console.log('[DB Migration] Adding invoice_number to purchase_bills...');
       db.exec("ALTER TABLE purchase_bills ADD COLUMN invoice_number TEXT");
@@ -125,7 +125,7 @@ export function runColumnMigrations(db: Database.Database) {
 
     // Migration: Add payment_type column to purchase_bills
     try {
-      const pbCols4 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
+      const pbCols4 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: unknown) => (c as { name: string }).name);
       if (!pbCols4.includes('payment_type')) {
         console.log('[DB Migration] Adding payment_type to purchase_bills...');
         db.exec("ALTER TABLE purchase_bills ADD COLUMN payment_type TEXT DEFAULT 'CASH'");
@@ -140,7 +140,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add gst_balance & estimate_balance columns to parties
   try {
-    const partyCols = db.prepare(`PRAGMA table_info(parties)`).all().map((c: any) => c.name);
+    const partyCols = db.prepare(`PRAGMA table_info(parties)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!partyCols.includes('gst_balance')) {
       console.log('[DB Migration] Adding gst_balance to parties...');
       db.exec("ALTER TABLE parties ADD COLUMN gst_balance REAL NOT NULL DEFAULT 0");
@@ -183,7 +183,7 @@ export function runColumnMigrations(db: Database.Database) {
     }
 
     // Customers table credit columns migration
-    const custCols = db.prepare(`PRAGMA table_info(customers)`).all().map((c: any) => c.name);
+    const custCols = db.prepare(`PRAGMA table_info(customers)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!custCols.includes('credit_limit')) {
       console.log('[DB Migration] Adding credit_limit to customers...');
       db.exec("ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0");
@@ -221,7 +221,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add balance_type & payment_method columns to party_ledger
   try {
-    const ledgerCols = db.prepare(`PRAGMA table_info(party_ledger)`).all().map((c: any) => c.name);
+    const ledgerCols = db.prepare(`PRAGMA table_info(party_ledger)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!ledgerCols.includes('balance_type')) {
       console.log('[DB Migration] Adding balance_type to party_ledger...');
       db.exec("ALTER TABLE party_ledger ADD COLUMN balance_type TEXT DEFAULT 'GST'");
@@ -236,7 +236,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add restricted_page and password_hash columns to users
   try {
-    const uCols = db.prepare(`PRAGMA table_info(users)`).all().map((c: any) => c.name);
+    const uCols = db.prepare(`PRAGMA table_info(users)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!uCols.includes('restricted_page')) {
       console.log('[DB Migration] Adding restricted_page to users...');
       db.exec("ALTER TABLE users ADD COLUMN restricted_page TEXT");
@@ -259,7 +259,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Backfill settled_at for historical non-pending invoices where settled_at IS NULL
   try {
-    const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
+    const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: unknown) => (c as { name: string }).name);
     if (invCols.includes('settled_at')) {
       db.exec("UPDATE invoices SET settled_at = created_at WHERE payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (settled_at IS NULL OR settled_at = '')");
     }
@@ -269,7 +269,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add partial-adjustment columns to returns
   try {
-    const retCols = db.prepare(`PRAGMA table_info(returns)`).all().map((c: any) => c.name);
+    const retCols = db.prepare(`PRAGMA table_info(returns)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!retCols.includes('adjusted_amount')) {
       console.log('[DB Migration] Adding adjusted_amount to returns...');
       db.exec("ALTER TABLE returns ADD COLUMN adjusted_amount REAL NOT NULL DEFAULT 0");
@@ -297,7 +297,7 @@ export function runColumnMigrations(db: Database.Database) {
       FROM returns r
       JOIN invoices i ON r.invoice_id = i.invoice_id
       WHERE i.subtotal > 0 AND (COALESCE(i.discount_total, 0) + COALESCE(i.points_redeemed_discount, 0)) > 0
-    `).all() as any[];
+    `).all() as Record<string, unknown>[];
 
     if (historicalReturns.length > 0) {
       const updateReturnStmt = db.prepare(`UPDATE returns SET subtotal = ?, grand_total = ? WHERE return_id = ?`);
@@ -317,7 +317,7 @@ export function runColumnMigrations(db: Database.Database) {
           if (invSubtotal <= 0 || invDiscount <= 0) continue;
           const discountRatio = Math.min(1, Math.max(0, invDiscount / invSubtotal));
 
-          const rItems = getReturnItemsStmt.all(ret.return_id) as any[];
+          const rItems = getReturnItemsStmt.all(ret.return_id) as Record<string, unknown>[];
           let newRetSubtotal = 0;
           for (const item of rItems) {
             const currentTotal = Number(item.total) || 0;
@@ -345,7 +345,7 @@ export function runColumnMigrations(db: Database.Database) {
 
   // Migration: Add skip_stock_update to purchase_bill_items and qty_from_paper_stock to invoice_items
   try {
-    const pbiCols = db.prepare(`PRAGMA table_info(purchase_bill_items)`).all().map((c: any) => c.name);
+    const pbiCols = db.prepare(`PRAGMA table_info(purchase_bill_items)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!pbiCols.includes('skip_stock_update')) {
       console.log('[DB Migration] Adding skip_stock_update to purchase_bill_items...');
       db.exec("ALTER TABLE purchase_bill_items ADD COLUMN skip_stock_update INTEGER DEFAULT 0");
@@ -355,7 +355,7 @@ export function runColumnMigrations(db: Database.Database) {
   }
 
   try {
-    const iiCols = db.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: any) => c.name);
+    const iiCols = db.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!iiCols.includes('qty_from_paper_stock')) {
       console.log('[DB Migration] Adding qty_from_paper_stock to invoice_items...');
       db.exec("ALTER TABLE invoice_items ADD COLUMN qty_from_paper_stock REAL DEFAULT 0");
@@ -377,7 +377,7 @@ export function runColumnMigrations(db: Database.Database) {
   }
 
   try {
-    const wCols = db.prepare(`PRAGMA table_info(warranties)`).all().map((c: any) => c.name);
+    const wCols = db.prepare(`PRAGMA table_info(warranties)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!wCols.includes('bill_number')) {
       console.log('[DB Migration] Adding bill_number to warranties...');
       db.exec("ALTER TABLE warranties ADD COLUMN bill_number TEXT");
@@ -393,14 +393,14 @@ export function runColumnMigrations(db: Database.Database) {
   // Migration: allow temp (billing-only) items — invoice_items & return_items must not
   // FK-reference products, because temp items are sold without creating a products row.
   try {
-    const iiSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as any;
-    if (iiSql && /FOREIGN KEY\s*\(\s*product_id\s*\)\s*REFERENCES\s*products/i.test(iiSql.sql)) {
+    const iiSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as Record<string, unknown>;
+    if (iiSql && /FOREIGN KEY\s*\(\s*product_id\s*\)\s*REFERENCES\s*products/i.test((iiSql.sql as string))) {
       console.log('[DB Migration] Removing products FK from invoice_items (temp billing items support)...');
       db.exec('PRAGMA foreign_keys=off;');
       const migrateInvoiceItems = db.transaction(() => {
-        const tableCols = db.prepare("PRAGMA table_info(invoice_items)").all() as any[];
-        const colDefs = tableCols.map((c: any) => {
-          let def = `"${c.name}" ${c.type}`;
+        const tableCols = db.prepare("PRAGMA table_info(invoice_items)").all() as Record<string, unknown>[];
+        const colDefs = tableCols.map((c: Record<string, unknown>) => {
+          let def = `"${(c as { name: string }).name}" ${c.type}`;
           if (c.pk) def += ' PRIMARY KEY';
           if (c.notnull && !c.pk) def += ' NOT NULL';
           if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
@@ -412,7 +412,7 @@ export function runColumnMigrations(db: Database.Database) {
               FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
           );
         `);
-        const cols = tableCols.map((c: any) => `"${c.name}"`).join(', ');
+        const cols = tableCols.map((c: unknown) => `"${(c as { name: string }).name}"`).join(', ');
         db.exec(`INSERT INTO invoice_items_new (${cols}) SELECT ${cols} FROM invoice_items;`);
         db.exec('DROP TABLE invoice_items;');
         db.exec('ALTER TABLE invoice_items_new RENAME TO invoice_items;');
@@ -426,14 +426,14 @@ export function runColumnMigrations(db: Database.Database) {
   }
 
   try {
-    const riSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='return_items'").get() as any;
-    if (riSql && /FOREIGN KEY\s*\(\s*product_id\s*\)\s*REFERENCES\s*products/i.test(riSql.sql)) {
+    const riSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='return_items'").get() as Record<string, unknown>;
+    if (riSql && /FOREIGN KEY\s*\(\s*product_id\s*\)\s*REFERENCES\s*products/i.test((riSql.sql as string))) {
       console.log('[DB Migration] Removing products FK from return_items (temp billing items support)...');
       db.exec('PRAGMA foreign_keys=off;');
       const migrateReturnItems = db.transaction(() => {
-        const tableCols = db.prepare("PRAGMA table_info(return_items)").all() as any[];
-        const colDefs = tableCols.map((c: any) => {
-          let def = `"${c.name}" ${c.type}`;
+        const tableCols = db.prepare("PRAGMA table_info(return_items)").all() as Record<string, unknown>[];
+        const colDefs = tableCols.map((c: Record<string, unknown>) => {
+          let def = `"${(c as { name: string }).name}" ${c.type}`;
           if (c.pk) def += ' PRIMARY KEY';
           if (c.notnull && !c.pk) def += ' NOT NULL';
           if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
@@ -445,7 +445,7 @@ export function runColumnMigrations(db: Database.Database) {
               FOREIGN KEY (return_id) REFERENCES returns(return_id)
           );
         `);
-        const cols = tableCols.map((c: any) => `"${c.name}"`).join(', ');
+        const cols = tableCols.map((c: unknown) => `"${(c as { name: string }).name}"`).join(', ');
         db.exec(`INSERT INTO return_items_new (${cols}) SELECT ${cols} FROM return_items;`);
         db.exec('DROP TABLE return_items;');
         db.exec('ALTER TABLE return_items_new RENAME TO return_items;');

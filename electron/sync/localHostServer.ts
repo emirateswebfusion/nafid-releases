@@ -33,7 +33,7 @@ const ALLOWED_TABLES = new Set([
   'combo_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance', 'sync_meta'
 ]);
 
-function parseJsonBody(req: http.IncomingMessage): Promise<any> {
+function parseJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     req.setEncoding('utf-8');
     let data = '';
@@ -56,7 +56,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Private-Network': 'true',
 };
 
-function sendJson(res: http.ServerResponse, statusCode: number, payload: any) {
+function sendJson(res: http.ServerResponse, statusCode: number, payload: Record<string, unknown>) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json', ...CORS_HEADERS });
   res.end(JSON.stringify(payload));
 }
@@ -117,12 +117,12 @@ export function startLocalHostServer(port: number = 3888) {
 
         // Key counter per terminal prefix & series to keep sequence counters isolated across computers
         const terminalCounterKey = `terminal_counter_${series || 'normal'}_${prefix}`;
-        const row: any = localHostServerSql.selectSettings(db).get(terminalCounterKey);
+        const row: Record<string, unknown> = (localHostServerSql.selectSettings(db).get(terminalCounterKey) as Record<string, unknown>);
         
         let counter = 1;
         if (row && row.value) {
           try {
-            const parsed = JSON.parse(row.value);
+            const parsed = JSON.parse((row.value as string));
             counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
           } catch {
             counter = 1;
@@ -130,10 +130,10 @@ export function startLocalHostServer(port: number = 3888) {
         } else {
           // Fallback to global configKey counter if no terminal-specific counter exists yet
           const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
-          const globalRow: any = localHostServerSql.selectSettings(db).get(configKey);
+          const globalRow: Record<string, unknown> = (localHostServerSql.selectSettings(db).get(configKey) as Record<string, unknown>);
           if (globalRow && globalRow.value) {
             try {
-              const gParsed = JSON.parse(globalRow.value);
+              const gParsed = JSON.parse((globalRow.value as string));
               if (!gParsed.prefix || gParsed.prefix === prefix) {
                 counter = typeof gParsed.counter === 'number' && gParsed.counter > 0 ? gParsed.counter : 1;
               }
@@ -157,14 +157,14 @@ export function startLocalHostServer(port: number = 3888) {
 
       if (pathname === '/api/returns/next-number' && req.method === 'GET') {
         const reqPrefix = url.searchParams.get('prefix');
-        const confRow: any = localHostServerSql.selectSettings(db).get('return_counter');
+        const confRow: Record<string, unknown> = (localHostServerSql.selectSettings(db).get('return_counter') as Record<string, unknown>);
         let prefix = 'RTN-';
         let counter = 1;
         if (reqPrefix) {
           prefix = reqPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || 'RTN-';
         } else if (confRow && confRow.value) {
           try {
-            const cfg = JSON.parse(confRow.value);
+            const cfg = JSON.parse((confRow.value as string));
             prefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : 'RTN-';
             counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
           } catch { /* ignore */ }
@@ -199,7 +199,7 @@ export function startLocalHostServer(port: number = 3888) {
             if (!meta) continue;
             const tsCol = meta.allCols.includes('updated_at') ? 'updated_at' : (meta.allCols.includes('created_at') ? 'created_at' : null);
             if (!tsCol) continue;
-            const row: any = localHostServerSql.selectMaxTimestamp(db, tsCol, t).get();
+            const row: Record<string, unknown> = (localHostServerSql.selectMaxTimestamp(db, tsCol, t).get() as Record<string, unknown>);
             if (row && row.max_ts) {
               const rowTs = String(row.max_ts).trim();
               if (!maxUpdatedAt || rowTs > maxUpdatedAt) {
@@ -229,14 +229,14 @@ export function startLocalHostServer(port: number = 3888) {
       // ── Unified Delta Pull for LAN (1 Request for All Tables) ─────────────
       if (pathname === '/api/sync/delta-pull' && req.method === 'POST') {
         const body = await parseJsonBody(req);
-        const sinceMap: Record<string, string | null> = body.since || {};
-        const resultData: Record<string, any[]> = {};
+        const sinceMap: Record<string, string | null> = (body.since as Record<string, string | null>) || ({} as Record<string, string | null>);
+        const resultData: Record<string, Record<string, unknown>[]> = {};
 
         const fetchDeltaRows = (tName: string, tsCol = 'updated_at', customWhere = '', attachItems = false) => {
           const rawSince = sinceMap[tName];
           let q = `SELECT * FROM ${tName}`;
           const whereParts: string[] = [];
-          const qParams: any[] = [];
+          const qParams: unknown[] = [];
 
           if (customWhere) {
             whereParts.push(customWhere);
@@ -257,23 +257,23 @@ export function startLocalHostServer(port: number = 3888) {
           q += ` ORDER BY ${tsCol} DESC LIMIT 2000`;
 
           try {
-            const rows = db.prepare(q).all(...qParams) as any[];
+            const rows = db.prepare(q).all(...qParams);
             if (attachItems && rows.length > 0) {
               if (tName === 'invoices') {
                 for (const inv of rows) {
-                  inv.items = localHostServerSql.selectInvoiceItems(db).all(inv.invoice_id);
+                  (inv as Record<string, unknown>).items = localHostServerSql.selectInvoiceItems(db).all((inv as Record<string, unknown>).invoice_id);
                 }
               } else if (tName === 'purchase_bills') {
                 for (const bill of rows) {
-                  bill.items = localHostServerSql.selectPurchaseBillItems(db).all(bill.purchase_bill_id);
+                  (bill as Record<string, unknown>).items = localHostServerSql.selectPurchaseBillItems(db).all((bill as Record<string, unknown>).purchase_bill_id);
                 }
               } else if (tName === 'returns') {
                 for (const ret of rows) {
-                  ret.items = localHostServerSql.selectReturnItems(db).all(ret.return_id);
+                  (ret as Record<string, unknown>).items = localHostServerSql.selectReturnItems(db).all((ret as Record<string, unknown>).return_id);
                 }
               } else if (tName === 'quotations') {
                 for (const qu of rows) {
-                  qu.items = localHostServerSql.selectQuotationItems(db).all(qu.quotation_id);
+                  (qu as Record<string, unknown>).items = localHostServerSql.selectQuotationItems(db).all((qu as Record<string, unknown>).quotation_id);
                 }
               }
             }
@@ -284,28 +284,28 @@ export function startLocalHostServer(port: number = 3888) {
           }
         };
 
-        resultData.product_grades = fetchDeltaRows('product_grades', 'updated_at');
-        resultData.pricing_tiers = fetchDeltaRows('pricing_tiers', 'updated_at');
-        resultData.product_pricing = fetchDeltaRows('product_pricing', 'updated_at');
-        resultData.products = fetchDeltaRows('products', 'updated_at');
-        resultData.settings = fetchDeltaRows('settings', 'updated_at', `key NOT IN ('terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config', 'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter', 'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config', 'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name')`);
-        resultData.parties = fetchDeltaRows('parties', 'updated_at');
-        resultData.party_ledger = fetchDeltaRows('party_ledger', 'created_at');
-        resultData.customers = fetchDeltaRows('customers', 'updated_at');
-        resultData.loyalty_transactions = fetchDeltaRows('loyalty_transactions', 'created_at');
-        resultData.scrap_categories = fetchDeltaRows('scrap_categories', 'updated_at');
-        resultData.scrap_transactions = fetchDeltaRows('scrap_transactions', 'created_at');
-        resultData.purchase_bills = fetchDeltaRows('purchase_bills', 'updated_at', '', true);
-        resultData.cash_drawer = fetchDeltaRows('cash_drawer', 'updated_at');
-        resultData.cash_transactions = fetchDeltaRows('cash_transactions', 'created_at');
-        resultData.cashier_audit_log = fetchDeltaRows('cashier_audit_log', 'created_at');
-        resultData.cash_categories = fetchDeltaRows('cash_categories', 'updated_at');
-        resultData.returns = fetchDeltaRows('returns', 'created_at', '', true);
-        resultData.payment_sources = fetchDeltaRows('payment_sources', 'updated_at');
-        resultData.payment_source_transactions = fetchDeltaRows('payment_source_transactions', 'created_at');
-        resultData.combo_offers = fetchDeltaRows('combo_offers', 'updated_at');
-        resultData.quotations = fetchDeltaRows('quotations', 'updated_at', '', true);
-        resultData.invoices = fetchDeltaRows('invoices', 'created_at', `invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`, true);
+        resultData.product_grades = (fetchDeltaRows('product_grades', 'updated_at') as Record<string, unknown>[]);
+        resultData.pricing_tiers = (fetchDeltaRows('pricing_tiers', 'updated_at') as Record<string, unknown>[]);
+        resultData.product_pricing = (fetchDeltaRows('product_pricing', 'updated_at') as Record<string, unknown>[]);
+        resultData.products = (fetchDeltaRows('products', 'updated_at') as Record<string, unknown>[]);
+        resultData.settings = (fetchDeltaRows('settings', 'updated_at', `key NOT IN ('terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config', 'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter', 'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config', 'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name')`) as Record<string, unknown>[]);
+        resultData.parties = (fetchDeltaRows('parties', 'updated_at') as Record<string, unknown>[]);
+        resultData.party_ledger = (fetchDeltaRows('party_ledger', 'created_at') as Record<string, unknown>[]);
+        resultData.customers = (fetchDeltaRows('customers', 'updated_at') as Record<string, unknown>[]);
+        resultData.loyalty_transactions = (fetchDeltaRows('loyalty_transactions', 'created_at') as Record<string, unknown>[]);
+        resultData.scrap_categories = (fetchDeltaRows('scrap_categories', 'updated_at') as Record<string, unknown>[]);
+        resultData.scrap_transactions = (fetchDeltaRows('scrap_transactions', 'created_at') as Record<string, unknown>[]);
+        resultData.purchase_bills = (fetchDeltaRows('purchase_bills', 'updated_at', '', true) as Record<string, unknown>[]);
+        resultData.cash_drawer = (fetchDeltaRows('cash_drawer', 'updated_at') as Record<string, unknown>[]);
+        resultData.cash_transactions = (fetchDeltaRows('cash_transactions', 'created_at') as Record<string, unknown>[]);
+        resultData.cashier_audit_log = (fetchDeltaRows('cashier_audit_log', 'created_at') as Record<string, unknown>[]);
+        resultData.cash_categories = (fetchDeltaRows('cash_categories', 'updated_at') as Record<string, unknown>[]);
+        resultData.returns = (fetchDeltaRows('returns', 'created_at', '', true) as Record<string, unknown>[]);
+        resultData.payment_sources = (fetchDeltaRows('payment_sources', 'updated_at') as Record<string, unknown>[]);
+        resultData.payment_source_transactions = (fetchDeltaRows('payment_source_transactions', 'created_at') as Record<string, unknown>[]);
+        resultData.combo_offers = (fetchDeltaRows('combo_offers', 'updated_at') as Record<string, unknown>[]);
+        resultData.quotations = (fetchDeltaRows('quotations', 'updated_at', '', true) as Record<string, unknown>[]);
+        resultData.invoices = (fetchDeltaRows('invoices', 'created_at', `invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`, true) as Record<string, unknown>[]);
 
         return sendJson(res, 200, { success: true, data: resultData });
       }
@@ -320,7 +320,7 @@ export function startLocalHostServer(port: number = 3888) {
           WHERE payment_method = 'PENDING'
             AND (is_deleted IS NULL OR is_deleted = 0)
         `;
-        const qParams: any[] = [];
+        const qParams: unknown[] = [];
         if (rawSince) {
           const sinceUtc = toNormalizedUtc(rawSince);
           if (sinceUtc) {
@@ -334,7 +334,7 @@ export function startLocalHostServer(port: number = 3888) {
           }
         }
         q += ` ORDER BY created_at ASC, invoice_id ASC LIMIT 50`;
-        const rows = db.prepare(q).all(...qParams) as any[];
+        const rows = db.prepare(q).all(...qParams);
         return sendJson(res, 200, { success: true, count: rows.length, bills: rows });
       }
 
@@ -358,7 +358,7 @@ export function startLocalHostServer(port: number = 3888) {
               'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config',
               'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name'
             ];
-            items = items.filter((i: any) => !localDeviceKeys.includes(i.key));
+            items = items.filter((i: Record<string, unknown>) => !localDeviceKeys.includes((i.key as string)));
           }
           const synced = upsertTableRows(db, tableName, items);
           if (synced && synced.length > 0) {
@@ -376,7 +376,7 @@ export function startLocalHostServer(port: number = 3888) {
           const rawSince = url.searchParams.get('since');
           const meta = getTableMeta(db, tableName);
           let query = `SELECT * FROM ${tableName}`;
-          const params: any[] = [];
+          const params: unknown[] = [];
           const whereClauses: string[] = [];
 
           if (tableName === 'invoices') {
@@ -426,24 +426,24 @@ export function startLocalHostServer(port: number = 3888) {
           query += ` LIMIT ${limit} OFFSET ${offset}`;
 
           try {
-            const rows = db.prepare(query).all(...params) as any[];
+            const rows = db.prepare(query).all(...params);
 
             // Attach nested items for header-detail records
             if (tableName === 'invoices') {
               for (const inv of rows) {
-                inv.items = localHostServerSql.selectInvoiceItems(db).all(inv.invoice_id);
+                (inv as Record<string, unknown>).items = localHostServerSql.selectInvoiceItems(db).all((inv as Record<string, unknown>).invoice_id);
               }
             } else if (tableName === 'purchase_bills') {
               for (const bill of rows) {
-                bill.items = localHostServerSql.selectPurchaseBillItems(db).all(bill.purchase_bill_id);
+                (bill as Record<string, unknown>).items = localHostServerSql.selectPurchaseBillItems(db).all((bill as Record<string, unknown>).purchase_bill_id);
               }
             } else if (tableName === 'returns') {
               for (const ret of rows) {
-                ret.items = localHostServerSql.selectReturnItems(db).all(ret.return_id);
+                (ret as Record<string, unknown>).items = localHostServerSql.selectReturnItems(db).all((ret as Record<string, unknown>).return_id);
               }
             } else if (tableName === 'quotations') {
               for (const q of rows) {
-                q.items = localHostServerSql.selectQuotationItems(db).all(q.quotation_id);
+                (q as Record<string, unknown>).items = localHostServerSql.selectQuotationItems(db).all((q as Record<string, unknown>).quotation_id);
               }
             }
 
@@ -466,7 +466,7 @@ export function startLocalHostServer(port: number = 3888) {
     console.log(`[LocalHostServer] [${toIsoTimestamp()}] [Local LAN Host] Server active and listening on http://0.0.0.0:${port}`);
   });
 
-  server.on('error', (err: any) => {
+  server.on('error', (err: NodeJS.ErrnoException) => {
     console.error(`[LocalHostServer] [${toIsoTimestamp()}] [Local LAN Host] Server error:`, err.message);
     if (server) {
       try { server.close(); } catch { /* ignore */ }

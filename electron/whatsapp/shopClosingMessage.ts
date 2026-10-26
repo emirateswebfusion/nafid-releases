@@ -14,7 +14,7 @@ function formatCurrency(amount: number | null | undefined): string {
 /**
  * Format the WhatsApp closing message based on checklist
  */
-export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopClosingChecklist): string {
+export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof import('./shopClosingSummary.js').buildShopClosingSummaryData>, checklist: ShopClosingChecklist): string {
   const lines: string[] = [];
 
   // Header
@@ -56,15 +56,15 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
       lines.push(`• Total Invoices: *${summaryData.totalInvoices}*`);
     }
     if (checklist.sales) {
-      lines.push(`• Net Sales: *${formatCurrency(summaryData.netSales)}*`);
+      lines.push(`• Net Sales: *${formatCurrency((summaryData.netSales as number | null | undefined))}*`);
       if (checklist.grossSales !== false && summaryData.grossSales > 0 && summaryData.totalDiscount > 0) {
-        lines.push(`• Gross Sales: ${formatCurrency(summaryData.grossSales)}`);
+        lines.push(`• Gross Sales: ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
       }
       if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {
-        lines.push(`• Total Discount: -${formatCurrency(summaryData.totalDiscount)}`);
+        lines.push(`• Total Discount: -${formatCurrency((summaryData.totalDiscount as number | null | undefined))}`);
       }
       if (checklist.taxCollected !== false && summaryData.totalTax > 0) {
-        lines.push(`• Tax Collected: ${formatCurrency(summaryData.totalTax)}`);
+        lines.push(`• Tax Collected: ${formatCurrency((summaryData.totalTax as number | null | undefined))}`);
       }
     }
   }
@@ -114,8 +114,8 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   // Credit & Collections
   if (checklist.creditSales || checklist.customerPayments) {
     const items: string[] = [];
-    if (checklist.creditSales) items.push(`• Credit Sales Issued: *${formatCurrency(summaryData.creditSalesAmount)}*`);
-    if (checklist.customerPayments) items.push(`• Customer Ledger Collections: *${formatCurrency(summaryData.customerPaymentsCollected)}*`);
+    if (checklist.creditSales) items.push(`• Credit Sales Issued: *${formatCurrency((summaryData.creditSalesAmount as number | null | undefined))}*`);
+    if (checklist.customerPayments) items.push(`• Customer Ledger Collections: *${formatCurrency((summaryData.customerPaymentsCollected as number | null | undefined))}*`);
     if (items.length > 0) {
       lines.push(``);
       lines.push(`📑 *CREDIT & COLLECTIONS*`);
@@ -127,9 +127,9 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   if (checklist.partyTransactions && summaryData.partyTransactionItems && summaryData.partyTransactionItems.length > 0) {
     lines.push(``);
     lines.push(`👥 *PARTY TRANSACTIONS:*`);
-    summaryData.partyTransactionItems.forEach((pt: any) => {
+    summaryData.partyTransactionItems.forEach((pt: Record<string, unknown>) => {
       const typeNote = pt.type ? ` (${pt.type})` : '';
-      lines.push(`• -${pt.partyName} : *${formatCurrency(pt.amount)}*${typeNote}`);
+      lines.push(`• -${pt.partyName} : *${formatCurrency((pt.amount as number | null | undefined))}*${typeNote}`);
     });
   }
 
@@ -137,10 +137,10 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   if (checklist.staffTransactions && summaryData.staffTransactionItems && summaryData.staffTransactionItems.length > 0) {
     lines.push(``);
     lines.push(`👔 *STAFF TRANSACTIONS:*`);
-    summaryData.staffTransactionItems.forEach((st: any) => {
+    summaryData.staffTransactionItems.forEach((st: Record<string, unknown>) => {
       const typeNote = st.type ? ` (${st.type})` : '';
       const notesTxt = st.notes ? ` - ${st.notes}` : '';
-      lines.push(`• -${st.staffName} : *${formatCurrency(st.amount)}*${typeNote}${notesTxt}`);
+      lines.push(`• -${st.staffName} : *${formatCurrency((st.amount as number | null | undefined))}*${typeNote}${notesTxt}`);
     });
   }
 
@@ -149,15 +149,15 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
     lines.push(``);
     lines.push(`💰 *CASH DRAWER RECONCILIATION*`);
     if (checklist.cashBalances) {
-      lines.push(`• Opening Balance: ${formatCurrency(summaryData.openingBalance)}`);
-      lines.push(`• Expected Closing Cash: *${formatCurrency(summaryData.expectedClosingCash)}*`);
-      lines.push(`• Actual Counted Cash: *${formatCurrency(summaryData.actualCashCounted)}*`);
+      lines.push(`• Opening Balance: ${formatCurrency((summaryData.openingBalance as number | null | undefined))}`);
+      lines.push(`• Expected Closing Cash: *${formatCurrency((summaryData.expectedClosingCash as number | null | undefined))}*`);
+      lines.push(`• Actual Counted Cash: *${formatCurrency((summaryData.actualCashCounted as number | null | undefined))}*`);
     }
     if (checklist.cashDifferences) {
       if (summaryData.cashShortage > 0) {
-        lines.push(`• ⚠️ *Cash Shortage:* -${formatCurrency(summaryData.cashShortage)}`);
+        lines.push(`• ⚠️ *Cash Shortage:* -${formatCurrency((summaryData.cashShortage as number | null | undefined))}`);
       } else if (summaryData.cashExcess > 0) {
-        lines.push(`• ➕ *Cash Excess:* +${formatCurrency(summaryData.cashExcess)}`);
+        lines.push(`• ➕ *Cash Excess:* +${formatCurrency((summaryData.cashExcess as number | null | undefined))}`);
       } else {
         lines.push(`• ✅ *Cash Variance:* Balanced (₹0.00)`);
       }
@@ -168,11 +168,11 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   if (checklist.cashInOut || checklist.expenses) {
     const items: string[] = [];
     if (checklist.cashInOut) {
-      items.push(`• Cash In (Deposits): +${formatCurrency(summaryData.totalCashIn)} (${summaryData.cashInCount} entry)`);
-      items.push(`• Cash Out (Withdrawals): -${formatCurrency(summaryData.totalCashOut)} (${summaryData.cashOutCount} entry)`);
+      items.push(`• Cash In (Deposits): +${formatCurrency((summaryData.totalCashIn as number | null | undefined))} (${summaryData.cashInCount} entry)`);
+      items.push(`• Cash Out (Withdrawals): -${formatCurrency((summaryData.totalCashOut as number | null | undefined))} (${summaryData.cashOutCount} entry)`);
     }
     if (checklist.expenses) {
-      items.push(`• Business Expenses: *${formatCurrency(summaryData.totalExpenses)}*`);
+      items.push(`• Business Expenses: *${formatCurrency((summaryData.totalExpenses as number | null | undefined))}*`);
     }
     if (items.length > 0) {
       lines.push(``);
@@ -185,29 +185,29 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   if (checklist.cashInList && summaryData.cashInItems && summaryData.cashInItems.length > 0) {
     lines.push(``);
     lines.push(`📥 *CASH IN ENTRIES:*`);
-    summaryData.cashInItems.forEach((ci: any) => {
-      lines.push(`• ${ci.description}: *+${formatCurrency(ci.amount)}*`);
+    summaryData.cashInItems.forEach((ci: Record<string, unknown>) => {
+      lines.push(`• ${ci.description}: *+${formatCurrency((ci.amount as number | null | undefined))}*`);
     });
-    lines.push(`*Total Cash In:* +${formatCurrency(summaryData.totalCashIn)}`);
+    lines.push(`*Total Cash In:* +${formatCurrency((summaryData.totalCashIn as number | null | undefined))}`);
   }
 
   // Itemized Expenses List
   if (checklist.expensesList && summaryData.expensesItems && summaryData.expensesItems.length > 0) {
     lines.push(``);
     lines.push(`🧾 *EXPENSES LIST:*`);
-    summaryData.expensesItems.forEach((exp: any) => {
-      lines.push(`• ${exp.description}: *${formatCurrency(exp.amount)}*`);
+    summaryData.expensesItems.forEach((exp: Record<string, unknown>) => {
+      lines.push(`• ${exp.description}: *${formatCurrency((exp.amount as number | null | undefined))}*`);
     });
-    lines.push(`*Total Expenses:* ${formatCurrency(summaryData.totalExpenses)}`);
+    lines.push(`*Total Expenses:* ${formatCurrency((summaryData.totalExpenses as number | null | undefined))}`);
   }
 
   // Scrap Transactions & Deductions
   if (checklist.scrap && summaryData.scrapSummary && (summaryData.scrapSummary.totalAmount > 0 || summaryData.scrapSummary.count > 0)) {
     lines.push(``);
     lines.push(`♻️ *SCRAP ENTRIES:*`);
-    summaryData.scrapSummary.items.forEach((sc: any) => {
-      const qtyTxt = sc.quantity > 0 ? ` (${sc.quantity} ${sc.unit || 'Kgs'}${sc.rate > 0 ? ` @ ${formatCurrency(sc.rate)}` : ''})` : '';
-      lines.push(`• ${sc.categoryName}${qtyTxt}: *${formatCurrency(sc.totalAmount)}*`);
+    summaryData.scrapSummary.items.forEach((sc: Record<string, unknown>) => {
+      const qtyTxt = (sc.quantity as number) > 0 ? ` (${sc.quantity} ${sc.unit || 'Kgs'}${(sc.rate as number) > 0 ? ` @ ${formatCurrency((sc.rate as number | null | undefined))}` : ''})` : '';
+      lines.push(`• ${sc.categoryName}${qtyTxt}: *${formatCurrency((sc.totalAmount as number | null | undefined))}*`);
     });
     lines.push(`*Total Scrap:* ${formatCurrency(summaryData.scrapSummary.totalAmount)}`);
   }
@@ -215,8 +215,8 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   // Returns & Refunds
   if (checklist.returns || checklist.refunds) {
     const items: string[] = [];
-    if (checklist.returns) items.push(`• Sales Returns: *${formatCurrency(summaryData.returnsAmount)}* (${summaryData.returnsCount} return)`);
-    if (checklist.refunds) items.push(`• Refunds Paid Out: *${formatCurrency(summaryData.refundsPaidAmount)}*`);
+    if (checklist.returns) items.push(`• Sales Returns: *${formatCurrency((summaryData.returnsAmount as number | null | undefined))}* (${summaryData.returnsCount} return)`);
+    if (checklist.refunds) items.push(`• Refunds Paid Out: *${formatCurrency((summaryData.refundsPaidAmount as number | null | undefined))}*`);
     if (items.length > 0) {
       lines.push(``);
       lines.push(`↩️ *RETURNS & REFUNDS*`);
@@ -228,15 +228,15 @@ export function formatClosingWhatsAppMessage(summaryData: any, checklist: ShopCl
   if (checklist.purchases && summaryData.purchasesAmount > 0) {
     lines.push(``);
     lines.push(`📦 *PURCHASES*`);
-    lines.push(`• Supplier Bills: *${formatCurrency(summaryData.purchasesAmount)}* (${summaryData.purchasesCount} bill)`);
+    lines.push(`• Supplier Bills: *${formatCurrency((summaryData.purchasesAmount as number | null | undefined))}* (${summaryData.purchasesCount} bill)`);
   }
 
   // Multi-counter breakdown
   if (checklist.counterDetails && summaryData.countersSummary && summaryData.countersSummary.length > 1) {
     lines.push(``);
     lines.push(`🖩 *MULTI-COUNTER BREAKDOWN*`);
-    summaryData.countersSummary.forEach((c: any) => {
-      lines.push(`• *${c.counterCode}*: ${c.invoiceCount} bills | Net: ${formatCurrency(c.netSales)} (Cash: ${formatCurrency(c.cashSales)})`);
+    summaryData.countersSummary.forEach((c: Record<string, unknown>) => {
+      lines.push(`• *${c.counterCode}*: ${c.invoiceCount} bills | Net: ${formatCurrency((c.netSales as number | null | undefined))} (Cash: ${formatCurrency((c.cashSales as number | null | undefined))})`);
     });
   }
 

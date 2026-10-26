@@ -127,7 +127,7 @@ export function getSyncPrefix(): string {
 
 export async function fetchWithFallback(
   urlPath: string,
-  options: RequestInit & { signal?: any } = {}
+  options: RequestInit & { signal?: AbortSignal | null } = {}
 ): Promise<{ response: Response; activeUrl: string; activeRoute: 'LAN' | 'CLOUD' }> {
   const endpoints = getSyncEndpoints();
 
@@ -162,7 +162,7 @@ export async function fetchWithFallback(
         syncState.currentActiveRoute = endpoints.fallbackRoute!;
         notifyOnlineStatus(true, 'CLOUD');
         return { response: res, activeUrl: endpoints.fallbackUrl, activeRoute: endpoints.fallbackRoute! };
-      } catch (fallbackErr: any) {
+      } catch (fallbackErr: unknown) {
         syncState.currentActiveRoute = 'NONE';
         notifyOnlineStatus(false);
         throw fallbackErr;
@@ -237,7 +237,7 @@ export async function pushBatch<T>(
         return [];
       }
 
-      const result: any = await response.json();
+      const result: { synced: string[]; failed: { error: string }[]; synced_count?: number; failed_count?: number } = await response.json();
       if (result.synced?.length > 0) {
         console.log(`${getSyncPrefix()} ${label}: ${result.synced_count ?? result.synced.length} synced, ${result.failed_count ?? 0} failed.`);
       } else if (result.failed?.length > 0) {
@@ -265,15 +265,15 @@ export async function pushBatch<T>(
 
 // ── Reconcile helper ────────────────────────────────────────────────────────────
 export function reconcilePending(
-  db: any,
+  db: import('better-sqlite3').Database,
   table: string,
   idColumn: string,
-  cloudRows: any[],
+  cloudRows: Record<string, unknown>[],
   tsColumn: string = 'updated_at'
 ): number {
   if (cloudRows.length === 0) return 0;
 
-  let updateStmt: any;
+  let updateStmt: import('better-sqlite3').Statement;
   try {
     updateStmt = syncTransportSql.markSyncedIfUnchanged(db, table, idColumn, tsColumn);
   } catch {
@@ -284,7 +284,7 @@ export function reconcilePending(
   for (const row of cloudRows) {
     try {
       const tsVal = row[tsColumn] || row.updated_at || row.created_at;
-      const result = updateStmt.run(row[idColumn], toSqliteDate(tsVal));
+      const result = updateStmt.run(row[idColumn], toSqliteDate((tsVal as string | number | Date | null | undefined)));
       if (result.changes > 0) count++;
     } catch {
       try {
@@ -350,7 +350,7 @@ export async function pullPaginated(opts: {
   pageSize?: number;
   tsColumn?: 'updated_at' | 'created_at';
   onProgress?: (fetched: number) => void;
-  processPage: (rows: any[]) => number;
+  processPage: (rows: Record<string, unknown>[]) => number;
 }): Promise<{ count: number; reconciled: number; failed: boolean; hasChanged: boolean }> {
   if (!syncState.isSyncActive) return { count: 0, reconciled: 0, failed: true, hasChanged: false };
   const pageSize = opts.pageSize ?? PULL_PAGE_SIZE;
@@ -364,7 +364,7 @@ export async function pullPaginated(opts: {
   let hasChanged = false;
   const fetchedRowSignatures: string[] = [];
 
-  const fetchPage = async (offsetVal: number): Promise<any[] | null> => {
+  const fetchPage = async (offsetVal: number): Promise<Record<string, unknown>[] | null> => {
     if (!syncState.isSyncActive) return null;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offsetVal) });
     if (since) params.set('since', since);

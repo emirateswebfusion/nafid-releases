@@ -180,7 +180,7 @@ export function reloadSyncConfig() {
   syncState.authExpiredNotified = false;
   scheduleNextSyncCycle();
   setTimeout(() => {
-    runSyncCycle().catch((e: any) => console.error('[SyncWorker] Immediate sync on reloadSyncConfig error:', e.message));
+    runSyncCycle().catch((e: Error) => console.error('[SyncWorker] Immediate sync on reloadSyncConfig error:', e.message));
   }, 500);
 }
 

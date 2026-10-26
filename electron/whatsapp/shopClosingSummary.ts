@@ -4,14 +4,14 @@ import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
  * Build consolidated summary data from POS database
  */
 export function buildShopClosingSummaryData(
-  db: any,
+  db: import('better-sqlite3').Database,
   tenantId: string = 'global',
   businessDate?: string,
-  providedDrawer?: any,
+  providedDrawer?: Record<string, unknown>,
   closedByName?: string,
-  reconcileCashDrawerFn?: (db: any, tid: string, drawer: any) => any,
-  getStoreTimezoneSettingFn?: (db: any, tid?: string) => string
-): any {
+  reconcileCashDrawerFn?: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>,
+  getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string
+) {
   const tid = tenantId || 'global';
   const tz = getStoreTimezoneSettingFn ? getStoreTimezoneSettingFn(db, tid) : 'Asia/Kolkata';
 
@@ -33,13 +33,13 @@ export function buildShopClosingSummaryData(
   let shopName = 'Nafid Store';
   try {
     const shopRow = shopClosingReportSql.findOneSettingByKeyShopName(db)
-      .get(tid, tid) as any;
+      .get(tid, tid) as Record<string, unknown>;
     if (shopRow?.value) {
       try {
-        const parsed = JSON.parse(shopRow.value);
-        shopName = typeof parsed === 'string' ? parsed : shopRow.value;
+        const parsed = JSON.parse((shopRow.value as string));
+        shopName = typeof parsed === 'string' ? parsed : shopRow.value as string;
       } catch {
-        shopName = shopRow.value;
+        shopName = (shopRow.value as string);
       }
     }
   } catch { /* ignore */ }
@@ -48,13 +48,13 @@ export function buildShopClosingSummaryData(
   let counterCode = 'POS 1';
   try {
     const termRow = shopClosingReportSql.findOneSettingByKeyTerminalCode(db)
-      .get(tid) as any;
+      .get(tid) as Record<string, unknown>;
     if (termRow?.value) {
       try {
-        const parsed = JSON.parse(termRow.value);
-        counterCode = typeof parsed === 'string' ? parsed : termRow.value;
+        const parsed = JSON.parse((termRow.value as string));
+        counterCode = typeof parsed === 'string' ? parsed : termRow.value as string;
       } catch {
-        counterCode = termRow.value;
+        counterCode = (termRow.value as string);
       }
     }
   } catch { /* ignore */ }
@@ -64,7 +64,7 @@ export function buildShopClosingSummaryData(
   if (!drawer) {
     try {
       drawer = shopClosingReportSql.findOneCashDrawerByBusinessDate(db)
-        .get(tid, bDate, altDate, bDate, dateLike, bDate) as any;
+        .get(tid, bDate, altDate, bDate, dateLike, bDate) as Record<string, unknown>;
     } catch { /* ignore */ }
   }
 
@@ -95,14 +95,14 @@ export function buildShopClosingSummaryData(
   let staffName = closedByName || '';
   if (!staffName && drawer?.closed_by) {
     try {
-      const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.closed_by) as any;
-      if (userRow) staffName = userRow.name || '';
+      const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.closed_by) as Record<string, unknown>;
+      if (userRow) staffName = (userRow.name as string) || ('' as string);
     } catch { /* ignore */ }
   }
   if (!staffName && drawer?.opened_by) {
     try {
-      const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.opened_by) as any;
-      if (userRow) staffName = userRow.name || '';
+      const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.opened_by) as Record<string, unknown>;
+      if (userRow) staffName = (userRow.name as string) || ('' as string);
     } catch { /* ignore */ }
   }
 
@@ -110,7 +110,7 @@ export function buildShopClosingSummaryData(
   let closingTimestamp = '';
   if (drawer?.closed_at) {
     try {
-      const d = new Date(drawer.closed_at);
+      const d = new Date((drawer.closed_at as string | number));
       closingTimestamp = d.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
     } catch {
       closingTimestamp = String(drawer.closed_at);
@@ -143,7 +143,7 @@ export function buildShopClosingSummaryData(
 
   try {
     const invoices = shopClosingReportSql.findInvoicesByConvertedFrom_(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
 
     if (Array.isArray(invoices)) {
       totalInvoices = invoices.length;
@@ -162,11 +162,11 @@ export function buildShopClosingSummaryData(
         grossSales += (disc > 0 || scrapDed > 0 || returnDed > 0 ? (gTotal + disc + scrapDed + returnDed) : (sub > 0 && Math.abs((sub + tax) - gTotal) > 0.01 ? (sub + tax) : gTotal));
         refundsPaidAmount += refundPaid;
 
-        const pm = (inv.payment_method || 'CASH').toUpperCase();
+        const pm = ((inv.payment_method as string) || ('CASH' as string)).toUpperCase();
         let invCashPortion = 0;
 
         if (pm === 'SPLIT' && inv.split_details) {
-          let sd: any = inv.split_details;
+          let sd: Record<string, unknown> = (inv.split_details as Record<string, unknown>);
           while (typeof sd === 'string') {
             try { sd = JSON.parse(sd); } catch { break; }
           }
@@ -231,7 +231,7 @@ export function buildShopClosingSummaryData(
         if (!counterGroupMap[invCounter]) {
           counterGroupMap[invCounter] = {
             counterCode: invCounter,
-            billerName: inv.staff_user_name || undefined,
+            billerName: (inv.staff_user_name as string | undefined) || (undefined as string | undefined),
             invoiceCount: 0,
             netSales: 0,
             cashSales: 0,
@@ -257,19 +257,19 @@ export function buildShopClosingSummaryData(
 
   try {
     const txRows = shopClosingReportSql.findCashTransactions(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
 
     if (Array.isArray(txRows)) {
       for (const row of txRows) {
         const amt = Math.round(Number(row.amount || 0) * 100) / 100;
-        const desc = (row.notes || row.category || (row.type === 'CASH_IN' ? 'Deposit' : 'Expense')).trim();
+        const desc = ((row.notes as string) || (row.category as string) || (row.type === 'CASH_IN' ? 'Deposit' : 'Expense')).trim();
         if (row.type === 'CASH_IN') {
           totalCashIn += amt;
           cashInCount++;
           cashInItems.push({
             description: desc,
             amount: amt,
-            time: row.transaction_date,
+            time: (row.transaction_date as string | undefined),
           });
         } else if (row.type === 'CASH_OUT') {
           totalCashOut += amt;
@@ -277,7 +277,7 @@ export function buildShopClosingSummaryData(
           expensesItems.push({
             description: desc,
             amount: amt,
-            time: row.transaction_date,
+            time: (row.transaction_date as string | undefined),
           });
         }
       }
@@ -295,14 +295,14 @@ export function buildShopClosingSummaryData(
 
   try {
     const plRows = shopClosingReportSql.findPartyLedger(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
 
     if (Array.isArray(plRows)) {
       for (const pl of plRows) {
         const credit = Math.round(Number(pl.credit_amount || 0) * 100) / 100;
         const debit = Math.round(Number(pl.debit_amount || 0) * 100) / 100;
-        const partyName = (pl.party_name || pl.party_id || 'Party').trim();
-        const descUpper = (pl.description || '').toUpperCase();
+        const partyName = ((pl.party_name as string) || (pl.party_id as string) || 'Party').trim();
+        const descUpper = ((pl.description as string) || ('' as string)).toUpperCase();
         const isExplicitGot = descUpper.includes('GOT CASH') || descUpper.includes('CASH RECEIVED') || descUpper.includes('RECEIPT');
         const isExplicitGave = descUpper.includes('GAVE CASH') || descUpper.includes('CASH PAID') || descUpper.includes('PAYMENT');
 
@@ -317,7 +317,7 @@ export function buildShopClosingSummaryData(
             partyName,
             type: 'Got Cash',
             amount: amt,
-            description: pl.description || undefined,
+            description: (pl.description as string | undefined) || (undefined as string | undefined),
           });
         } else if (credit > 0 || (debit > 0 && isExplicitGave)) {
           const amt = credit > 0 ? credit : debit;
@@ -325,7 +325,7 @@ export function buildShopClosingSummaryData(
             partyName,
             type: 'Gave Cash',
             amount: amt,
-            description: pl.description || undefined,
+            description: (pl.description as string | undefined) || (undefined as string | undefined),
           });
         }
       }
@@ -339,16 +339,16 @@ export function buildShopClosingSummaryData(
   const staffTransactionItems: Array<{ staffName: string; type: string; amount: number; notes?: string }> = [];
   try {
     const stRows = shopClosingReportSql.findStaffTransactions(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
 
     if (Array.isArray(stRows)) {
       for (const st of stRows) {
         const amt = Math.round(Number(st.amount || 0) * 100) / 100;
         staffTransactionItems.push({
-          staffName: (st.staff_name || 'Staff').trim(),
-          type: st.type || 'Payment',
+          staffName: ((st.staff_name as string) || ('Staff' as string)).trim(),
+          type: (st.type as string) || ('Payment' as string),
           amount: amt,
-          notes: st.notes || undefined,
+          notes: (st.notes as string | undefined) || (undefined as string | undefined),
         });
       }
     }
@@ -369,7 +369,7 @@ export function buildShopClosingSummaryData(
 
   try {
     const scrapRows = shopClosingReportSql.findScrapTransactions(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as any[];
+      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
 
     if (Array.isArray(scrapRows)) {
       for (const sr of scrapRows) {
@@ -377,19 +377,19 @@ export function buildShopClosingSummaryData(
         scrapSummary.totalAmount += total;
         scrapSummary.count++;
         scrapSummary.items.push({
-          categoryName: sr.category_name || (sr.type === 'PURCHASE' ? 'Scrap Purchase' : 'Scrap Sale'),
+          categoryName: (sr.category_name as string) || (sr.type === 'PURCHASE' ? 'Scrap Purchase' : 'Scrap Sale'),
           quantity: Number(sr.quantity || 0),
-          unit: sr.unit || 'Kgs',
+          unit: (sr.unit as string | undefined) || ('Kgs' as string | undefined),
           rate: Number(sr.rate || 0),
           totalAmount: total,
-          partyName: sr.party_name || undefined,
+          partyName: (sr.party_name as string | undefined) || (undefined as string | undefined),
         });
       }
     }
 
     // Also check invoices for scrap deductions
     const invScrapRow = shopClosingReportSql.countInvoicesByConvertedFrom_(db)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
+      .get(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>;
 
     if (invScrapRow && Number(invScrapRow.total_inv_scrap) > 0) {
       const invScrapAmt = Math.round(Number(invScrapRow.total_inv_scrap) * 100) / 100;
@@ -414,7 +414,7 @@ export function buildShopClosingSummaryData(
   let returnsAmount = 0;
   try {
     const retRow = shopClosingReportSql.countReturns(db)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike) as any;
+      .get(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>;
 
     if (retRow) {
       returnsCount = Number(retRow.ret_count || 0);
@@ -430,8 +430,8 @@ export function buildShopClosingSummaryData(
   try {
     let amountCol: 'grand_total' | 'total_amount' = 'grand_total';
     try {
-      const tableInfo = shopClosingReportSql.pragmaTableInfo(db).all() as any[];
-      const colNames = (tableInfo || []).map((c: any) => c.name);
+      const tableInfo = shopClosingReportSql.pragmaTableInfo(db).all() as Record<string, unknown>[];
+      const colNames = (tableInfo || []).map((c: unknown) => (c as { name: string }).name);
       if (colNames.includes('total_amount')) {
         amountCol = 'total_amount';
       } else if (colNames.includes('grand_total')) {
@@ -440,7 +440,7 @@ export function buildShopClosingSummaryData(
     } catch { /* ignore */ }
 
     const pbRow = shopClosingReportSql.sumPurchaseBillsForDate(db, amountCol)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike, bDate, bDate) as any;
+      .get(tid, bDate, altDate, bDate, altDate, dateLike, bDate, bDate) as Record<string, unknown>;
 
     if (pbRow) {
       purchasesCount = Number(pbRow.pb_count || 0);

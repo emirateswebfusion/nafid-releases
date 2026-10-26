@@ -5,17 +5,17 @@ import QRCode from 'qrcode';
 import pino from 'pino';
 
 // Dynamic import holder for Baileys ESM
-let baileysModule: any = null;
+let baileysModule: typeof import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }) | null = null;
 
 async function getBaileys() {
   if (!baileysModule) {
-    baileysModule = await (eval('import("@whiskeysockets/baileys")') as Promise<any>);
+    baileysModule = await (eval('import("@whiskeysockets/baileys")') as Promise<typeof import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } })>);
   }
   return baileysModule;
 }
 
 // WhatsApp session and state variables
-let sock: any = null;
+let sock: import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).WASocket | null = null;
 let currentQrBase64: string | null = null;
 let connectionStatus: 'disconnected' | 'connecting' | 'syncing' | 'connected' = 'disconnected';
 let connectedPhone: string | null = null;
@@ -83,7 +83,7 @@ async function startWhatsAppConnection(): Promise<void> {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', async (update: any) => {
+    sock.ev.on('connection.update', async (update: Partial<import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).ConnectionState>) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
@@ -97,7 +97,7 @@ async function startWhatsAppConnection(): Promise<void> {
       }
 
       if (connection === 'close') {
-        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         console.log(`[WhatsApp] Connection closed. Reason code: ${statusCode}, Reconnecting: ${shouldReconnect}`);
 
@@ -266,7 +266,7 @@ export async function sendWhatsAppBill({
   const jid = formatToWhatsAppJid(phone);
 
   try {
-    let sentMsg: any;
+    let sentMsg: import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).WAMessage | undefined;
     if (pdfBuffer && pdfBuffer.length > 0) {
       // Send PDF Document with message as caption
       sentMsg = await sock.sendMessage(jid, {
@@ -282,7 +282,7 @@ export async function sendWhatsAppBill({
       });
     }
 
-    return { success: true, messageId: sentMsg?.key?.id };
+    return { success: true, messageId: sentMsg?.key?.id as string | undefined };
   } catch (error) {
     console.error('[WhatsApp] Send Message Error:', error);
     return { success: false, error: (error as Error).message || 'Failed to send WhatsApp message.' };

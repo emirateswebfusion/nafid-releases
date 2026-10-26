@@ -61,11 +61,11 @@ function isValidPhoneNumber(phone: string): boolean {
 /**
  * Read configuration from settings table
  */
-function getShopClosingConfig(db: any, tenantId: string = 'global'): ShopClosingOverviewConfig {
+function getShopClosingConfig(db: import('better-sqlite3').Database, tenantId: string = 'global'): ShopClosingOverviewConfig {
   try {
     const tid = tenantId || 'global';
     const row = shopClosingReportSql.findOneSettingByKey(db)
-      .get(tid, tid) as any;
+      .get(tid, tid) as Record<string, unknown>;
 
     if (row && row.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
@@ -88,7 +88,7 @@ function getShopClosingConfig(db: any, tenantId: string = 'global'): ShopClosing
  * Save configuration to settings table (Admin check enforced)
  */
 function saveShopClosingConfig(
-  db: any,
+  db: import('better-sqlite3').Database,
   tenantId: string = 'global',
   config: Partial<ShopClosingOverviewConfig>,
   userRole?: string
@@ -139,20 +139,20 @@ export async function sendShopClosingReport({
   reconcileCashDrawerFn,
   getStoreTimezoneSettingFn,
 }: {
-  db: any;
+  db: unknown;
   tenantId?: string;
   businessDate?: string;
   triggerType?: 'SETTLEMENT_CLOSE' | 'SCHEDULED' | 'MANUAL';
   force?: boolean;
   customPhone?: string;
   customChecklist?: ShopClosingChecklist;
-  currentDrawer?: any;
+  currentDrawer?: unknown;
   closedByName?: string;
-  reconcileCashDrawerFn?: (db: any, tid: string, drawer: any) => any;
-  getStoreTimezoneSettingFn?: (db: any, tid?: string) => string;
+  reconcileCashDrawerFn?: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>;
+  getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string;
 }): Promise<{ success: boolean; messageId?: string; error?: string; reportId?: string }> {
   const tid = tenantId || 'global';
-  const config = getShopClosingConfig(db, tid);
+  const config = getShopClosingConfig((db as import('better-sqlite3').Database), tid);
 
   // If not manual test/force, check if enabled
   if (!force && !config.enabled) {
@@ -166,10 +166,10 @@ export async function sendShopClosingReport({
 
   const checklist = customChecklist || config.checklist || DEFAULT_CHECKLIST;
   const summaryData = buildShopClosingSummaryData(
-    db,
+    (db as import('better-sqlite3').Database),
     tid,
     businessDate,
-    currentDrawer,
+    (currentDrawer as Record<string, unknown> | undefined),
     closedByName,
     reconcileCashDrawerFn,
     getStoreTimezoneSettingFn
@@ -180,8 +180,8 @@ export async function sendShopClosingReport({
   // Deduplication check: avoid spamming owner multiple times for the same business date & trigger
   if (!force) {
     try {
-      const recent = shopClosingReportSql.findOneShopClosingReportByBusinessDateAndTriggerType(db)
-        .get(tid, bDate, triggerType) as any;
+      const recent = shopClosingReportSql.findOneShopClosingReportByBusinessDateAndTriggerType((db as import("../db/statements/types").Db))
+        .get(tid, bDate, triggerType) as Record<string, unknown>;
 
       if (recent) {
         console.log(`[ShopClosing] Duplicate prevented: ${triggerType} report already sent for date ${bDate} at ${recent.created_at}`);
@@ -197,7 +197,7 @@ export async function sendShopClosingReport({
 
   // Log as PENDING
   try {
-    shopClosingReportSql.insertShopClosingReport(db).run(
+    shopClosingReportSql.insertShopClosingReport((db as import("../db/statements/types").Db)).run(
       reportId,
       tid,
       bDate,
@@ -221,7 +221,7 @@ export async function sendShopClosingReport({
 
     if (res.success) {
       try {
-        shopClosingReportSql.updateShopClosingReportById(db).run(res.messageId || null, reportId);
+        shopClosingReportSql.updateShopClosingReportById((db as import("../db/statements/types").Db)).run(res.messageId || null, reportId);
       } catch { /* ignore */ }
 
       notifyRendererReportsUpdated();
@@ -229,7 +229,7 @@ export async function sendShopClosingReport({
     } else {
       const errorMsg = res.error || 'WhatsApp message dispatch failed.';
       try {
-        shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage(db).run(errorMsg, reportId);
+        shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage((db as import("../db/statements/types").Db)).run(errorMsg, reportId);
       } catch { /* ignore */ }
 
       notifyRendererReportsUpdated();
@@ -238,7 +238,7 @@ export async function sendShopClosingReport({
   } catch (err) {
     const errorMsg = (err as Error)?.message || 'Unexpected error sending WhatsApp report.';
     try {
-      shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage(db).run(errorMsg, reportId);
+      shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage((db as import("../db/statements/types").Db)).run(errorMsg, reportId);
     } catch { /* ignore */ }
 
     notifyRendererReportsUpdated();
@@ -249,9 +249,9 @@ export async function sendShopClosingReport({
 /**
  * Retry failed report
  */
-async function retryShopClosingReport(db: any, reportId: string): Promise<{ success: boolean; error?: string }> {
+async function retryShopClosingReport(db: import('better-sqlite3').Database, reportId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const row = shopClosingReportSql.findShopClosingReportsById(db).get(reportId) as any;
+    const row = shopClosingReportSql.findShopClosingReportsById(db).get(reportId) as { recipient_phone: string; message_text: string };
     if (!row) return { success: false, error: 'Report record not found' };
 
     const res = await sendWhatsAppBill({
@@ -278,11 +278,11 @@ async function retryShopClosingReport(db: any, reportId: string): Promise<{ succ
 /**
  * Query report history
  */
-function getShopClosingHistory(db: any, tenantId: string = 'global', limit: number = 30): any[] {
+function getShopClosingHistory(db: import('better-sqlite3').Database, tenantId: string = 'global', limit: number = 30): Record<string, unknown>[] {
   try {
     const tid = tenantId || 'global';
     return shopClosingReportSql.findShopClosingReports(db)
-      .all(tid, limit) as any[];
+      .all(tid, limit) as Record<string, unknown>[];
   } catch (err) {
     console.error('[ShopClosing] getShopClosingHistory error:', (err as Error).message);
     return [];
@@ -306,10 +306,10 @@ let scheduledTimer: NodeJS.Timeout | null = null;
 let lastScheduledCheckDate: string = '';
 
 function startShopClosingScheduler(
-  db: any,
+  db: import('better-sqlite3').Database,
   getTenantIdFn?: () => string,
-  reconcileCashDrawerFn?: (db: any, tid: string, drawer: any) => any,
-  getStoreTimezoneSettingFn?: (db: any, tid?: string) => string
+  reconcileCashDrawerFn?: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>,
+  getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string
 ): void {
   if (scheduledTimer) clearInterval(scheduledTimer);
 
@@ -339,7 +339,7 @@ function startShopClosingScheduler(
       if (timeParts >= config.scheduledTime) {
         // Check if scheduled report was already sent for today
         const existing = shopClosingReportSql.findOneShopClosingReportByBusinessDateAndTriggerTypeSent(db)
-          .get(tid, storeBusinessDate) as any;
+          .get(tid, storeBusinessDate) as Record<string, unknown>;
 
         if (!existing && lastScheduledCheckDate !== `${storeBusinessDate}_${config.scheduledTime}`) {
           lastScheduledCheckDate = `${storeBusinessDate}_${config.scheduledTime}`;
@@ -366,9 +366,9 @@ function startShopClosingScheduler(
  * Register Shop Closing IPC Handlers
  */
 export function initShopClosingIpc(helpers: {
-  reconcileCashDrawerFn: (db: any, tid: string, drawer: any) => any;
-  getStoreTimezoneSettingFn: (db: any, tid?: string) => string;
-  getDbFn: () => any;
+  reconcileCashDrawerFn: (db: import('better-sqlite3').Database, tid: string, drawer: Record<string, unknown>) => Record<string, unknown>;
+  getStoreTimezoneSettingFn: (db: import('better-sqlite3').Database, tid?: string) => string;
+  getDbFn: () => import('better-sqlite3').Database;
   getTenantIdFn?: () => string;
 }): void {
   const { reconcileCashDrawerFn, getStoreTimezoneSettingFn, getDbFn, getTenantIdFn } = helpers;
@@ -389,9 +389,9 @@ export function initShopClosingIpc(helpers: {
   ipcMain.handle('shopClosing:getPreview', (_event, { tenant_id, business_date, checklist }: { tenant_id?: string; business_date?: string; checklist?: ShopClosingChecklist }) => {
     try {
       const db = getDbFn();
-      const cfg = getShopClosingConfig(db, tenant_id);
+      const cfg = getShopClosingConfig((db as import('better-sqlite3').Database), tenant_id);
       const effectiveChecklist = checklist || cfg.checklist || DEFAULT_CHECKLIST;
-      const summary = buildShopClosingSummaryData(db, tenant_id, business_date, undefined, undefined, reconcileCashDrawerFn, getStoreTimezoneSettingFn);
+      const summary = buildShopClosingSummaryData((db as import('better-sqlite3').Database), tenant_id, business_date, undefined, undefined, reconcileCashDrawerFn, getStoreTimezoneSettingFn);
 
       // In Settings Real-time Preview:
       // If the current shift / business day does not yet contain entries for any enabled itemized checklist section,

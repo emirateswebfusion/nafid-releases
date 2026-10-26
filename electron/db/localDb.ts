@@ -51,7 +51,7 @@ export function initDb() {
             let hasIsDeleted = false;
             if (hasProducts) {
               const cols = testDb.prepare("PRAGMA table_info(products)").all() as { name: string }[];
-              hasIsDeleted = cols.some(c => c.name === 'is_deleted');
+              hasIsDeleted = cols.some(c => (c as { name: string }).name === 'is_deleted');
             }
             testDb.close();
             isValid = hasProducts && hasInvoices && hasParties && hasIsDeleted;
@@ -154,7 +154,7 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
   if (!d) return;
   invoiceColumnsEnsured = true;
   try {
-    const invCols = d.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
+    const invCols = d.prepare(`PRAGMA table_info(invoices)`).all().map((c: unknown) => (c as { name: string }).name);
     const invoiceColsToEnsure: Record<string, string> = {
       split_details: 'TEXT',
       held_until: 'DATETIME',
@@ -196,7 +196,7 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       }
     }
 
-    const itemCols = d.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: any) => c.name);
+    const itemCols = d.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: unknown) => (c as { name: string }).name);
     const itemColsToEnsure: Record<string, string> = {
       is_deleted: 'INTEGER DEFAULT 0',
       pieces_sold: 'INTEGER',

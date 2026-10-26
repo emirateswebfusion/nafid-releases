@@ -11,7 +11,7 @@ export function runLegacyRepairs(db: Database.Database) {
 
      // If user had total_amount instead of grand_total
      const invInfo = db.prepare(`PRAGMA table_info(invoices)`).all();
-     if (invInfo.some((c: any) => c.name === 'total_amount') && invInfo.some((c: any) => c.name === 'grand_total')) {
+     if (invInfo.some((c: unknown) => (c as { name: string }).name === 'total_amount') && invInfo.some((c: unknown) => (c as { name: string }).name === 'grand_total')) {
         db.exec("UPDATE invoices SET grand_total = total_amount WHERE grand_total = 0 AND total_amount > 0");
      }
   } catch (e) { /* ignore */ }
@@ -33,20 +33,20 @@ export function runLegacyRepairs(db: Database.Database) {
       JOIN products p ON pbi.product_id = p.product_id
       WHERE (pb.bill_type = 'GST' OR pbi.skip_stock_update = 1)
       ORDER BY pbi.rowid ASC
-    `).all() as any[];
+    `).all() as Record<string, unknown>[];
     for (const row of stalePaperProducts) {
-      let da: Record<string, any> = {};
-      try { da = JSON.parse(row.domain_attributes || '{}'); } catch { /* ignore */ }
+      let da: Record<string, unknown> = {};
+      try { da = JSON.parse((row.domain_attributes as string) || ('{}' as string)); } catch { /* ignore */ }
       // REAL products without paper stock carry no paper prices (initDb's real-product cleanup removes them); adding
       // them back here made the two repairs rewrite those products on every start.
       if (da.gst_type === 'REAL' && (!da.paper_stock || Number(da.paper_stock) <= 0)) continue;
       let changed = false;
-      if (row.purchase_price > 0 && !da.gst_purchase_price) {
+      if ((row.purchase_price as number) > 0 && !da.gst_purchase_price) {
         da.gst_purchase_price = row.purchase_price;
         da.paper_purchase_price = row.purchase_price;
         changed = true;
       }
-      if (row.selling_price > 0 && !da.paper_mrp) {
+      if ((row.selling_price as number) > 0 && !da.paper_mrp) {
         da.paper_mrp = row.selling_price;
         da.paper_base_price = row.selling_price;
         changed = true;
@@ -142,8 +142,8 @@ export function runLegacyRepairs(db: Database.Database) {
 
   // Fix inline constraint for products table by recreating it if needed
   try {
-    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as any;
-    if (tableSql && (!/UNIQUE\s*\([^)]*brand_manufacturer[^)]*\)/i.test(tableSql.sql) || !/UNIQUE\s*\([^)]*sku_barcode[^)]*\)/i.test(tableSql.sql))) {
+    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as Record<string, unknown>;
+    if (tableSql && (!/UNIQUE\s*\([^)]*brand_manufacturer[^)]*\)/i.test((tableSql.sql as string)) || !/UNIQUE\s*\([^)]*sku_barcode[^)]*\)/i.test((tableSql.sql as string)))) {
       console.log('[DB Migration] Recreating products table to fix inline UNIQUE constraint...');
       db.exec('PRAGMA foreign_keys=off;');
       
@@ -185,7 +185,7 @@ export function runLegacyRepairs(db: Database.Database) {
           );
         `);
         const columnsInfo = db.prepare("PRAGMA table_info(products)").all();
-        const columnNames = columnsInfo.map((c: any) => c.name).join(', ');
+        const columnNames = columnsInfo.map((c: unknown) => (c as { name: string }).name).join(', ');
         db.exec(`INSERT INTO products_new (${columnNames}) SELECT ${columnNames} FROM products;`);
         db.exec('DROP TABLE products;');
         db.exec('ALTER TABLE products_new RENAME TO products;');
@@ -201,8 +201,8 @@ export function runLegacyRepairs(db: Database.Database) {
 
   // Fix NOT NULL constraint for product_grades.offer_price by recreating it if needed
   try {
-    const info = db.prepare("PRAGMA table_info(product_grades)").all() as any[];
-    const offerPriceCol = info.find(c => c.name === 'offer_price');
+    const info = db.prepare("PRAGMA table_info(product_grades)").all() as Record<string, unknown>[];
+    const offerPriceCol = info.find(c => (c as { name: string }).name === 'offer_price');
     if (offerPriceCol && offerPriceCol.notnull === 1) {
       console.log('[DB Migration] Recreating product_grades table to allow NULL for offer_price...');
       db.exec('PRAGMA foreign_keys=off;');
@@ -226,7 +226,7 @@ export function runLegacyRepairs(db: Database.Database) {
           );
         `);
         const columnsInfo = db.prepare("PRAGMA table_info(product_grades)").all();
-        const columnNames = columnsInfo.map((c: any) => c.name).join(', ');
+        const columnNames = columnsInfo.map((c: unknown) => (c as { name: string }).name).join(', ');
         db.exec(`INSERT INTO product_grades_new (${columnNames}) SELECT ${columnNames} FROM product_grades;`);
         db.exec('DROP TABLE product_grades;');
         db.exec('ALTER TABLE product_grades_new RENAME TO product_grades;');
@@ -242,8 +242,8 @@ export function runLegacyRepairs(db: Database.Database) {
 
   // Repair corrupted invoice_items foreign key pointing to products_old
   try {
-    const invItemsInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as any;
-    if (invItemsInfo && invItemsInfo.sql.includes('products_old')) {
+    const invItemsInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as Record<string, unknown>;
+    if (invItemsInfo && (invItemsInfo.sql as string).includes('products_old')) {
       console.log('[DB Migration] Repairing corrupted invoice_items foreign key...');
       db.exec('PRAGMA foreign_keys=off;');
       const repairTable = db.transaction(() => {
@@ -262,7 +262,7 @@ export function runLegacyRepairs(db: Database.Database) {
               FOREIGN KEY (product_id) REFERENCES products(product_id)
           );
          `);
-         const cols = db.prepare("PRAGMA table_info(invoice_items)").all().map((c: any) => c.name).join(', ');
+         const cols = db.prepare("PRAGMA table_info(invoice_items)").all().map((c: unknown) => (c as { name: string }).name).join(', ');
          db.exec(`INSERT INTO invoice_items_new (${cols}) SELECT ${cols} FROM invoice_items;`);
          db.exec('DROP TABLE invoice_items;');
          db.exec('ALTER TABLE invoice_items_new RENAME TO invoice_items;');
@@ -278,7 +278,7 @@ export function runLegacyRepairs(db: Database.Database) {
   // Migrate settings table to include tenant_id if it's missing
   try {
     const settingsInfo = db.prepare(`PRAGMA table_info(settings)`).all();
-    if (!settingsInfo.some((c: any) => c.name === 'tenant_id')) {
+    if (!settingsInfo.some((c: unknown) => (c as { name: string }).name === 'tenant_id')) {
       console.log('[DB Migration] Upgrading settings table to support tenant_id...');
       db.exec(`
         CREATE TABLE settings_new (
@@ -354,9 +354,9 @@ export function runLegacyRepairs(db: Database.Database) {
   try {
     const hasScrapItems = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='scrap_items'").get();
     if (hasScrapItems) {
-      const legacyItems: any[] = db.prepare(
+      const legacyItems: Record<string, unknown>[] = (db.prepare(
         "SELECT si.*, sc.name as cat_name FROM scrap_items si LEFT JOIN scrap_categories sc ON si.scrap_category_id = sc.scrap_category_id WHERE si.is_deleted = 0"
-      ).all();
+      ).all() as Record<string, unknown>[]);
       for (const item of legacyItems) {
         if (item.scrap_category_id && item.cat_name) {
           // Item has a category: add its stock to the category
@@ -375,9 +375,9 @@ export function runLegacyRepairs(db: Database.Database) {
         }
       }
       // Migrate scrap_transactions to reference scrap_categories
-      const legacyTxs: any[] = db.prepare(
+      const legacyTxs: Record<string, unknown>[] = (db.prepare(
         `SELECT st.*, si.scrap_category_id as si_cat_id FROM scrap_transactions st LEFT JOIN scrap_items si ON st.scrap_item_id = si.scrap_item_id`
-      ).all();
+      ).all() as Record<string, unknown>[]);
       for (const tx of legacyTxs) {
         const catId = tx.si_cat_id || tx.scrap_category_id;
         if (catId && !tx.scrap_category_id) {
@@ -395,7 +395,7 @@ export function runLegacyRepairs(db: Database.Database) {
   // Drop legacy scrap_item_id / scarp_item_id columns from scrap_transactions
   // Recreate the table to ensure the column is fully removed (more reliable than ALTER DROP COLUMN)
   try {
-    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: unknown) => (c as { name: string }).name);
     const hasLegacyCol = scrapTxCols.includes('scrap_item_id') || scrapTxCols.includes('scarp_item_id');
     if (hasLegacyCol) {
       console.log('[DB Migration] Recreating scrap_transactions to remove legacy columns...');
@@ -422,7 +422,7 @@ export function runLegacyRepairs(db: Database.Database) {
           );
         `);
         const cols = db.prepare("PRAGMA table_info(scrap_transactions)").all()
-          .map((c: any) => c.name)
+          .map((c: unknown) => (c as { name: string }).name)
           .filter((n: string) => !['scrap_item_id', 'scarp_item_id'].includes(n))
           .join(', ');
         db.exec(`INSERT INTO scrap_transactions_new (${cols}) SELECT ${cols} FROM scrap_transactions;`);
@@ -439,7 +439,7 @@ export function runLegacyRepairs(db: Database.Database) {
 
   // Migration: Add payment_status/scrap_invoice_number column to scrap_transactions
   try {
-    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!scrapTxCols.includes('scrap_invoice_number')) {
       console.log('[DB Migration] Adding scrap_invoice_number to scrap_transactions...');
       db.exec("ALTER TABLE scrap_transactions ADD COLUMN scrap_invoice_number TEXT");
@@ -462,7 +462,7 @@ export function runLegacyRepairs(db: Database.Database) {
 
   // Migration: Add is_deleted column to scrap_transactions
   try {
-    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: unknown) => (c as { name: string }).name);
     if (!scrapTxCols.includes('is_deleted')) {
       console.log('[DB Migration] Adding is_deleted to scrap_transactions...');
       db.exec("ALTER TABLE scrap_transactions ADD COLUMN is_deleted INTEGER DEFAULT 0");

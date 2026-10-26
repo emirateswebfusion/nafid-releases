@@ -34,8 +34,8 @@ export async function syncSettings(token: string, tenantId: string) {
     settingsSyncSql.markDeviceSettingsLocal(db, placeholders).run(tenantId, ...LOCAL_DEVICE_SETTING_KEYS);
   } catch (e) { /* ignore */ }
 
-  const pending = (settingsSyncSql.selectSettings(db).all(tenantId) as any[])
-    .filter((row: any) => !LOCAL_DEVICE_SETTING_KEYS.includes(row.key));
+  const pending = (settingsSyncSql.selectSettings(db).all(tenantId) as Record<string, unknown>[])
+    .filter((row: Record<string, unknown>) => !LOCAL_DEVICE_SETTING_KEYS.includes((row.key as string)));
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} settings to ${getSyncTargetLabel()}...`);
@@ -83,10 +83,10 @@ export async function pullSettings(token: string, tenantId: string): Promise<boo
     label: 'settings',
     onProgress: (fetched) => notifyPullProgress('settings', fetched),
     processPage: (rows) => {
-      const validSettings = rows.filter((s: any) => allowedKeys.includes(s.key));
+      const validSettings = rows.filter((s: Record<string, unknown>) => allowedKeys.includes((s.key as string)));
       if (validSettings.length === 0) return 0;
 
-      const tx = db.transaction((settings: any[]) => {
+      const tx = db.transaction((settings: Record<string, unknown>[]) => {
         for (const s of settings) {
           let valueToSave = s.value;
 
@@ -102,7 +102,7 @@ export async function pullSettings(token: string, tenantId: string): Promise<boo
             tenant_id: s.tenant_id || tenantId,
             key: s.key,
             value: valueToSave,
-            updated_at: toSqliteDate(s.updated_at)
+            updated_at: toSqliteDate((s.updated_at as string | number | Date | null | undefined))
           });
 
         }

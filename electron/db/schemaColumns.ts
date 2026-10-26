@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 
 /** Adds any column of the expected schema that an older database is missing (per-table column list). Part of initDb, run in order. */
 export function ensureSchemaColumns(db: Database.Database) {
-  const schemaMap: any = {
+  const schemaMap: Record<string, string[]> = {
     product_grades: [
         'tenant_id', 'category', 'grade_name', 'rate', 'purchase_price', 'offer_price', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
@@ -142,7 +142,7 @@ export function ensureSchemaColumns(db: Database.Database) {
     let existingCols: string[] = [];
     try {
       const info = db.prepare(`PRAGMA table_info(${table})`).all();
-      existingCols = info.map((c: any) => c.name);
+      existingCols = info.map((c: unknown) => (c as { name: string }).name);
     } catch (e) {
       console.warn(`[DB Migration] Could not retrieve table_info for ${table}:`, (e as Error).message);
       continue;

@@ -6,21 +6,21 @@ import { upsertCustomerRecord } from './customerIdentity.js';
  * party balances) and backfill customers from historical invoices. */
 function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
   try {
-    const rows: any = d.prepare(`
+    const rows: Record<string, unknown> = (d.prepare(`
       SELECT 
         COALESCE(SUM(CASE WHEN balance_type = 'GST' THEN credit_amount - debit_amount ELSE 0 END), 0) AS gst,
         COALESCE(SUM(CASE WHEN balance_type = 'ESTIMATE' THEN credit_amount - debit_amount ELSE 0 END), 0) AS estimate,
         COALESCE(SUM(credit_amount - debit_amount), 0) AS total
       FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-    `).get(partyId);
-    const gst = Math.round((parseFloat(rows?.gst) || 0) * 100) / 100;
-    const estimate = Math.round((parseFloat(rows?.estimate) || 0) * 100) / 100;
+    `).get(partyId) as Record<string, unknown>);
+    const gst = Math.round((parseFloat((rows?.gst as string)) || 0) * 100) / 100;
+    const estimate = Math.round((parseFloat((rows?.estimate as string)) || 0) * 100) / 100;
     const total = Math.round((gst + estimate) * 100) / 100;
-    const latest: any = d.prepare(`
+    const latest: Record<string, unknown> = (d.prepare(`
       SELECT transaction_date FROM party_ledger 
       WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) 
       ORDER BY transaction_date DESC LIMIT 1
-    `).get(partyId);
+    `).get(partyId) as Record<string, unknown>);
     d.prepare(`
       UPDATE parties 
       SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
@@ -42,13 +42,13 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
 
   try {
     // 1. DEDUPLICATE CUSTOMERS
-    const custTenants = d.prepare('SELECT DISTINCT tenant_id FROM customers').all().map((r: any) => r.tenant_id);
+    const custTenants = d.prepare('SELECT DISTINCT tenant_id FROM customers').all().map((r: unknown) => (r as { tenant_id: string }).tenant_id);
     for (const tenantId of custTenants) {
       const custs = d.prepare(`
         SELECT customer_id, tenant_id, name, phone, address, total_points_earned, total_points_redeemed, current_points_balance, created_at
         FROM customers 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      `).all(tenantId) as any[];
+      `).all(tenantId) as Record<string, unknown>[];
 
       const n = custs.length;
       if (n <= 1) continue;
@@ -70,8 +70,8 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
 
       for (let i = 0; i < n; i++) {
         const c = custs[i];
-        const normName = (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-        const cleanPhone = (c.phone || '').replace(/\D/g, '');
+        const normName = (((c as { name: string }).name as string) || ('' as string)).trim().toLowerCase().replace(/\s+/g, ' ');
+        const cleanPhone = ((c.phone as string) || ('' as string)).replace(/\D/g, '');
         const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
 
         // Phone match alone does not merge; different people can share numbers
@@ -91,7 +91,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         }
       }
 
-      const clusters = new Map<number, any[]>();
+      const clusters = new Map<number, Record<string, unknown>[]>();
       for (let i = 0; i < n; i++) {
         const root = find(i);
         if (!clusters.has(root)) clusters.set(root, []);
@@ -102,14 +102,14 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         if (list.length <= 1) continue;
 
         // Sort: prefer record with a valid phone, then older created_at
-        list.sort((a: any, b: any) => {
-          const aClean = (a.phone || '').replace(/\D/g, '');
-          const bClean = (b.phone || '').replace(/\D/g, '');
+        list.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+          const aClean = ((a.phone as string) || ('' as string)).replace(/\D/g, '');
+          const bClean = ((b.phone as string) || ('' as string)).replace(/\D/g, '');
           const aHasValidPhone = aClean.length >= 7 && !aClean.startsWith('0000') ? 1 : 0;
           const bHasValidPhone = bClean.length >= 7 && !bClean.startsWith('0000') ? 1 : 0;
           if (aHasValidPhone !== bHasValidPhone) return bHasValidPhone - aHasValidPhone;
-          const timeA = new Date(a.created_at || 0).getTime();
-          const timeB = new Date(b.created_at || 0).getTime();
+          const timeA = new Date((a.created_at as string | number) || (0 as string | number)).getTime();
+          const timeB = new Date((b.created_at as string | number) || (0 as string | number)).getTime();
           return timeA - timeB;
         });
 
@@ -123,8 +123,8 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         mergedCustomers += duplicates.length;
 
         for (const dup of duplicates) {
-          totEarned += dup.total_points_earned || 0;
-          totRedeemed += dup.total_points_redeemed || 0;
+          (totEarned as number) += (dup.total_points_earned as number) || (0 as number);
+          (totRedeemed as number) += (dup.total_points_redeemed as number) || (0 as number);
           if (!bestAddr && dup.address) bestAddr = dup.address;
           if (!bestPhone && dup.phone) bestPhone = dup.phone;
 
@@ -133,7 +133,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
           d.prepare("UPDATE customers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?").run(dup.customer_id);
         }
 
-        const bal = totEarned - totRedeemed;
+        const bal = (totEarned as number) - (totRedeemed as number);
         d.prepare(`
           UPDATE customers 
           SET address = COALESCE(?, address),
@@ -149,13 +149,13 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
     }
 
     // 2. DEDUPLICATE PARTIES (same party_type and phone/name)
-    const partyTenants = d.prepare('SELECT DISTINCT tenant_id FROM parties').all().map((r: any) => r.tenant_id);
+    const partyTenants = d.prepare('SELECT DISTINCT tenant_id FROM parties').all().map((r: unknown) => (r as { tenant_id: string }).tenant_id);
     for (const tenantId of partyTenants) {
       const parties = d.prepare(`
         SELECT party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, credit_limit, notes, created_at
         FROM parties 
         WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      `).all(tenantId) as any[];
+      `).all(tenantId) as Record<string, unknown>[];
 
       const n = parties.length;
       if (n <= 1) continue;
@@ -177,9 +177,9 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
 
       for (let i = 0; i < n; i++) {
         const p = parties[i];
-        const pType = (p.party_type || 'CUSTOMER').toUpperCase();
-        const normName = (p.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-        const cleanPhone = (p.phone || '').replace(/\D/g, '');
+        const pType = ((p.party_type as string) || ('CUSTOMER' as string)).toUpperCase();
+        const normName = ((p.name as string) || ('' as string)).trim().toLowerCase().replace(/\s+/g, ' ');
+        const cleanPhone = ((p.phone as string) || ('' as string)).replace(/\D/g, '');
         const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
 
         // Phone match alone does not merge; different people can share numbers
@@ -201,7 +201,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         }
       }
 
-      const clusters = new Map<number, any[]>();
+      const clusters = new Map<number, Record<string, unknown>[]>();
       for (let i = 0; i < n; i++) {
         const root = find(i);
         if (!clusters.has(root)) clusters.set(root, []);
@@ -212,12 +212,12 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         if (list.length <= 1) continue;
 
         // Prefer party with non-zero balance / ledger entries, then older created_at
-        list.sort((a: any, b: any) => {
-          const balA = Math.abs(a.balance || 0);
-          const balB = Math.abs(b.balance || 0);
+        list.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+          const balA = Math.abs((a.balance as number) || (0 as number));
+          const balB = Math.abs((b.balance as number) || (0 as number));
           if (balA !== balB) return balB - balA;
-          const timeA = new Date(a.created_at || 0).getTime();
-          const timeB = new Date(b.created_at || 0).getTime();
+          const timeA = new Date((a.created_at as string | number) || (0 as string | number)).getTime();
+          const timeB = new Date((b.created_at as string | number) || (0 as string | number)).getTime();
           return timeA - timeB;
         });
 
@@ -251,7 +251,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
           WHERE party_id = ?
         `).run(bestPhone, bestAddr, bestGstin, primary.party_id);
 
-        recalcPartyBalanceLocal(d, primary.party_id);
+        recalcPartyBalanceLocal(d, (primary.party_id as string));
       }
     }
     console.log('[DB Auto-Deduplication] Completed clean deduplication of customers and parties.');
@@ -295,10 +295,10 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
       WHERE (customer_name IS NOT NULL AND TRIM(customer_name) != '')
          OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
       GROUP BY tenant_id, COALESCE(NULLIF(TRIM(customer_phone), ''), TRIM(customer_name))
-    `).all() as any[];
+    `).all() as Record<string, unknown>[];
 
     for (const c of invoiceCustomers) {
-      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address, { history: true, purchaseAt: c.last_purchase_at });
+      upsertCustomerRecord(db, (c.tenant_id as string) || ('global' as string), (c.customer_name as string | null | undefined), (c.customer_phone as string | null | undefined), (c.customer_address as string | null | undefined), { history: true, purchaseAt: c.last_purchase_at as string | null | undefined });
     }
 
     db.exec(`
@@ -341,10 +341,10 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
       WHERE (party_name IS NOT NULL AND TRIM(party_name) != '')
          OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
       GROUP BY tenant_id, COALESCE(NULLIF(TRIM(customer_phone), ''), TRIM(party_name))
-    `).all() as any[];
+    `).all() as Record<string, unknown>[];
 
     for (const c of scrapCustomers) {
-      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address, { history: true });
+      upsertCustomerRecord(db, (c.tenant_id as string) || ('global' as string), (c.customer_name as string | null | undefined), (c.customer_phone as string | null | undefined), (c.customer_address as string | null | undefined), { history: true });
     }
 
     const returnCustomers = db.prepare(`
@@ -353,10 +353,10 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
       WHERE (customer_name IS NOT NULL AND TRIM(customer_name) != '')
          OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
       GROUP BY tenant_id, COALESCE(NULLIF(TRIM(customer_phone), ''), TRIM(customer_name))
-    `).all() as any[];
+    `).all() as Record<string, unknown>[];
 
     for (const c of returnCustomers) {
-      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, null, { history: true });
+      upsertCustomerRecord(db, (c.tenant_id as string) || ('global' as string), (c.customer_name as string | null | undefined), (c.customer_phone as string | null | undefined), null, { history: true });
     }
 
     console.log('[DB Migration] Customer backfill complete.');

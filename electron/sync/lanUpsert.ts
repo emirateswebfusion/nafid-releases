@@ -3,7 +3,7 @@ import { toIsoTimestamp } from '../utils/timestamps.js';
 import * as lanUpsertSql from '../db/statements/sync/lanUpsert.js';
 
 /** LAN host data merge: table metadata (cached per table) and the row upsert used by the LAN push endpoints. */
-function parseCleanDate(dStr: any): string {
+function parseCleanDate(dStr: unknown): string {
   if (!dStr) {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -37,7 +37,7 @@ function parseCleanDate(dStr: any): string {
   return str.slice(0, 10);
 }
 
-function extractItemId(item: any): string | null {
+function extractItemId(item: Record<string, unknown>): string | null {
   if (!item || typeof item !== 'object') return null;
   if (item.item_id) return String(item.item_id);
   if (item.transaction_id) return String(item.transaction_id);
@@ -73,14 +73,14 @@ function extractItemId(item: any): string | null {
 
 const columnCache = new Map<string, { allCols: string[]; pkCols: string[]; updateCols: string[] }>();
 
-export function getTableMeta(db: any, tableName: string) {
+export function getTableMeta(db: import('better-sqlite3').Database, tableName: string) {
   if (columnCache.has(tableName)) return columnCache.get(tableName)!;
   try {
     const columns = db.pragma(`table_info(${tableName})`) as { name: string; pk: number }[];
     if (!columns || columns.length === 0) return null;
 
-    const allCols = columns.map(c => c.name);
-    let pkCols = columns.filter(c => c.pk > 0).map(c => c.name);
+    const allCols = columns.map(c => (c as { name: string }).name);
+    let pkCols = columns.filter(c => c.pk > 0).map(c => (c as { name: string }).name);
 
     if (pkCols.length === 0) {
       for (const col of allCols) {
@@ -100,7 +100,7 @@ export function getTableMeta(db: any, tableName: string) {
   }
 }
 
-export function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
+export function upsertTableRows(db: import('better-sqlite3').Database, tableName: string, items: Record<string, unknown>[]): string[] {
   if (!Array.isArray(items) || items.length === 0) return [];
   const meta = getTableMeta(db, tableName);
   if (!meta) return [];
@@ -119,7 +119,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
 
   const stmt = db.prepare(sql);
 
-  const tx = db.transaction((rows: any[]) => {
+  const tx = db.transaction((rows: Record<string, unknown>[]) => {
     for (const rawRow of rows) {
       if (!rawRow || typeof rawRow !== 'object') continue;
 
@@ -128,7 +128,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
       const isNewReturn = tableName === 'returns' && itemId ? !lanUpsertSql.selectReturns(db).get(itemId) : false;
       const isNewPurchaseBill = tableName === 'purchase_bills' && itemId ? !lanUpsertSql.selectPurchaseBills(db).get(itemId) : false;
 
-      const paramObj: Record<string, any> = {};
+      const paramObj: Record<string, unknown> = {};
 
       for (const col of allCols) {
         let val = rawRow[col];
@@ -155,7 +155,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         const txDate = rawRow.transaction_date ? parseCleanDate(rawRow.transaction_date) : parseCleanDate(null);
         const parts = txDate.split('-');
         const altTxDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : txDate;
-        const existingDrawer = lanUpsertSql.selectCashDrawer(db).get(rawRow.drawer_id, rawRow.tenant_id || 'global', txDate, altTxDate, txDate, `${txDate}%`) as any;
+        const existingDrawer = lanUpsertSql.selectCashDrawer(db).get(rawRow.drawer_id, rawRow.tenant_id || 'global', txDate, altTxDate, txDate, `${txDate}%`) as Record<string, unknown>;
         if (existingDrawer && existingDrawer.drawer_id) {
           paramObj['drawer_id'] = existingDrawer.drawer_id;
         }
@@ -165,7 +165,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         const cleanDate = parseCleanDate(rawRow.business_date);
         const parts = cleanDate.split('-');
         const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
-        const existingDrawer = lanUpsertSql.selectCashDrawer2(db).get(rawRow.drawer_id, rawRow.tenant_id || 'global', cleanDate, altDate, cleanDate, `${cleanDate}%`) as any;
+        const existingDrawer = lanUpsertSql.selectCashDrawer2(db).get(rawRow.drawer_id, rawRow.tenant_id || 'global', cleanDate, altDate, cleanDate, `${cleanDate}%`) as Record<string, unknown>;
 
         if (existingDrawer) {
           const targetDrawerId = existingDrawer.drawer_id;
@@ -203,7 +203,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
 
       if (tableName === 'pricing_tiers' && rawRow.name) {
         const cleanName = String(rawRow.name).trim();
-        const existingTier = lanUpsertSql.selectPricingTiers(db).get(rawRow.tenant_id || 'global', cleanName) as any;
+        const existingTier = lanUpsertSql.selectPricingTiers(db).get(rawRow.tenant_id || 'global', cleanName) as Record<string, unknown>;
 
         if (existingTier && existingTier.pricing_tier_id !== rawRow.pricing_tier_id) {
           try {
@@ -286,7 +286,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
           }
 
           // Adjust cash drawer for cash payment on Master PC
-          const pm = (rawRow.payment_method || '').toUpperCase();
+          const pm = ((rawRow.payment_method as string) || ('' as string)).toUpperCase();
           const grand = Math.max(0, Number(rawRow.grand_total) || 0);
           const retD = Math.max(0, Number(rawRow.return_deduction) || 0);
           const scrapD = Math.max(0, Number(rawRow.scrap_deduction) || 0);
@@ -304,8 +304,8 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
 
           if (cashAmt > 0) {
             try {
-              const todayDate = parseCleanDate(rawRow.created_at || null);
-              const drawer = lanUpsertSql.selectCashDrawer3(db).get(todayDate, `${todayDate}%`) as any;
+              const todayDate = parseCleanDate((rawRow.created_at as Record<string, unknown>) || null);
+              const drawer = lanUpsertSql.selectCashDrawer3(db).get(todayDate, `${todayDate}%`) as Record<string, unknown>;
               if (drawer) {
                 const newSales = Number(drawer.cash_sales || 0) + cashAmt;
                 const newCurrent = Number(drawer.current_cash || 0) + cashAmt;

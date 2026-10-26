@@ -66,7 +66,7 @@ export async function pullLightweightPendingBills(token: string, tenantId: strin
 
     const upsertLightweightInv = syncCycleSql.insertInvoices(db);
 
-    const tx = db.transaction((bills: any[]) => {
+    const tx = db.transaction((bills: Record<string, unknown>[]) => {
       for (const b of bills) {
         if (!b.invoice_id) continue;
         upsertLightweightInv.run({
@@ -77,13 +77,13 @@ export async function pullLightweightPendingBills(token: string, tenantId: strin
           grand_total: Number(b.grand_total) || 0,
           payment_method: b.payment_method || 'PENDING',
           user_id: b.user_id || null,
-          created_at: toSqliteDate(b.created_at),
-          updated_at: toSqliteDate(b.updated_at || b.created_at),
+          created_at: toSqliteDate((b.created_at as string | number | Date | null | undefined)),
+          updated_at: toSqliteDate((b.updated_at as string | number | Date | null | undefined as string | number | Date | null | undefined) || (b.created_at as string | number | Date | null | undefined as string | number | Date | null | undefined)),
         });
         hasInsertedNew = true;
         if (b.created_at) {
-          lastTs = new Date(b.created_at).toISOString();
-          lastId = b.invoice_id;
+          lastTs = new Date((b.created_at as string | number)).toISOString();
+          lastId = (b.invoice_id as string | null);
         }
       }
     });

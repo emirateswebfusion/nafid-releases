@@ -5,8 +5,8 @@ import * as weighingScaleSql from '../db/statements/weighingScale.js';
 function getScaleConfig() {
   try {
     const db = getDb();
-    const row: any = weighingScaleSql.findSettingsByKey(db).get();
-    return row ? JSON.parse(row.value) : { path: 'COM3', baudRate: 9600 };
+    const row: Record<string, unknown> = (weighingScaleSql.findSettingsByKey(db).get() as Record<string, unknown>);
+    return row ? JSON.parse((row.value as string)) : { path: 'COM3', baudRate: 9600 };
   } catch {
     return { path: 'COM3', baudRate: 9600 };
   }
@@ -15,7 +15,7 @@ function getScaleConfig() {
 export async function initWeighingScale(mainWindow: BrowserWindow) {
   const config = getScaleConfig();
   try {
-    const { SerialPort, ReadlineParser } = (await import('serialport')) as any;
+    const { SerialPort, ReadlineParser } = (await import('serialport')) as typeof import('serialport');
     
     const port = new SerialPort({ path: config.path, baudRate: config.baudRate || 9600 });
     const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
@@ -27,7 +27,7 @@ export async function initWeighingScale(mainWindow: BrowserWindow) {
       }
     });
 
-    port.on('error', (err: any) => {
+    port.on('error', (err: Error) => {
       console.error('[Hardware] Weighing Scale SerialPort Error:', err.message);
     });
 

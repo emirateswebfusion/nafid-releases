@@ -32,7 +32,7 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
     }
 
     const rawUsers = await response.json();
-    const cloudUsers: any[] = Array.isArray(rawUsers) ? rawUsers : (rawUsers.users || rawUsers.data || []);
+    const cloudUsers: Record<string, unknown>[] = Array.isArray(rawUsers) ? rawUsers : (rawUsers.users || rawUsers.data || []);
     if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return false;
 
     const currentHash = JSON.stringify(cloudUsers.map(u => ({
@@ -47,7 +47,7 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
 
     const upsert = partiesSyncSql.insertUsers(db);
 
-    const tx = db.transaction((users: any[]) => {
+    const tx = db.transaction((users: Record<string, unknown>[]) => {
       for (const u of users) {
         upsert.run({
           user_id: u.user_id,
@@ -58,7 +58,7 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
           restricted_page: u.restricted_page || null,
           permissions: JSON.stringify(Array.isArray(u.permissions) ? u.permissions : []),
           login_enabled: u.login_enabled === false ? 0 : 1,
-          created_at: toSqliteDate(u.created_at),
+          created_at: toSqliteDate((u.created_at as string | number | Date | null | undefined)),
         });
       }
     });
@@ -78,7 +78,7 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
 // ── Party Sync (Edge → Cloud) ────────────────────────────────────────────────
 export async function syncParties(token: string, tenantId: string) {
   const db = getDb();
-  const pending = partiesSyncSql.selectParties(db).all(tenantId) as any[];
+  const pending = partiesSyncSql.selectParties(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} parties to cloud in batches of ${BATCH_SIZE}...`);
@@ -87,7 +87,7 @@ export async function syncParties(token: string, tenantId: string) {
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const parties = batch.map((p: any) => ({
+    const parties = batch.map((p: Record<string, unknown>) => ({
       ...p,
       is_deleted: !!p.is_deleted,
     }));
@@ -133,7 +133,7 @@ export async function pushCustomers(token: string, tenantId: string): Promise<bo
     }
     if (Array.isArray(result.failed) && result.failed.length > 0) {
       const markFailed = partiesSyncSql.updateCustomers3(getDb());
-      const tx = getDb().transaction((items: any[]) => { for (const f of items) markFailed.run(f.customer_id); });
+      const tx = getDb().transaction((items: Record<string, unknown>[]) => { for (const f of items) markFailed.run(f.customer_id); });
       tx(result.failed);
     }
     return true;
@@ -163,16 +163,16 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
     label: 'parties',
     onProgress: (fetched) => notifyPullProgress('parties', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((parties: any[]) => {
+      const tx = db.transaction((parties: Record<string, unknown>[]) => {
         for (const p of parties) {
           try {
-            const isCustomer = (p.party_type || 'CUSTOMER').toUpperCase() === 'CUSTOMER';
-            const hasPhone = p.phone && p.phone.trim() !== '';
-            const phoneVal = hasPhone ? p.phone.trim() : null;
+            const isCustomer = ((p.party_type as string) || ('CUSTOMER' as string)).toUpperCase() === 'CUSTOMER';
+            const hasPhone = p.phone && (p.phone as string).trim() !== '';
+            const phoneVal = hasPhone ? (p.phone as string).trim() : null;
             const tId = p.tenant_id || tenantId;
 
             if (isCustomer) {
-              const dupParty: any = findCustomerPartyDuplicate.get(tId, p.party_id, p.name, phoneVal, phoneVal);
+              const dupParty: Record<string, unknown> = (findCustomerPartyDuplicate.get(tId, p.party_id, p.name, phoneVal, phoneVal) as Record<string, unknown>);
               if (dupParty) {
                 // Reassign any local ledger entries to incoming canonical party_id and soft delete duplicate
                 reassignPartyLedger.run(p.party_id, dupParty.party_id, tId);
@@ -194,17 +194,17 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
               party_type: p.party_type || 'CUSTOMER',
               custom_category: p.custom_category || null,
               notes: p.notes || null,
-              last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
+              last_transaction_date: p.last_transaction_date ? toSqliteDate((p.last_transaction_date as string | number | Date | null | undefined)) : null,
               pricing_tier_id: p.pricing_tier_id || null,
               credit_limit: Number(p.credit_limit) || 0,
               credit_period_enabled: p.credit_period_enabled ? 1 : 0,
-              credit_period_days: Math.max(1, parseInt(p.credit_period_days, 10) || 30),
+              credit_period_days: Math.max(1, parseInt((p.credit_period_days as string), 10) || 30),
               credit_period_basis: p.credit_period_basis || 'BILL_BASED',
-              restrict_on_credit_expiry: p.restrict_on_credit_expiry !== false && (p.restrict_on_credit_expiry as any) !== 0 ? 1 : 0,
+              restrict_on_credit_expiry: p.restrict_on_credit_expiry !== false && (p.restrict_on_credit_expiry as unknown) !== 0 ? 1 : 0,
               whatsapp_alerts_enabled: p.whatsapp_alerts_enabled !== 0 && p.whatsapp_alerts_enabled !== false ? 1 : 0,
               is_deleted: parseIsDeleted(p.is_deleted),
-              created_at: toSqliteDate(p.created_at),
-              updated_at: toSqliteDate(p.updated_at),
+              created_at: toSqliteDate((p.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((p.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling party:', (e as Error).message);
@@ -227,7 +227,7 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
 // ── Party Ledger Sync (Edge → Cloud) ──────────────────────────────────────────
 export async function syncPartyLedger(token: string, tenantId: string) {
   const db = getDb();
-  const pendingEntries = partiesSyncSql.selectPartyLedger(db).all(tenantId) as any[];
+  const pendingEntries = partiesSyncSql.selectPartyLedger(db).all(tenantId) as Record<string, unknown>[];
   if (pendingEntries.length === 0) return;
 
   console.log(`[SyncWorker] Pushing ${pendingEntries.length} party ledger entries to cloud...`);
@@ -277,7 +277,7 @@ export async function pushLoyaltyTransactions(token: string, tenantId: string): 
     }
     if (Array.isArray(result.failed) && result.failed.length > 0) {
       const markFailed = partiesSyncSql.updateLoyaltyTransactions2(db);
-      const tx = db.transaction((items: any[]) => { for (const item of items) markFailed.run(item.transaction_id); });
+      const tx = db.transaction((items: Record<string, unknown>[]) => { for (const item of items) markFailed.run(item.transaction_id); });
       tx(result.failed);
     }
     return true;
@@ -301,14 +301,14 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
     label: 'ledger entries',
     onProgress: (fetched) => notifyPullProgress('ledger entries', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((entries: any[]) => {
+      const tx = db.transaction((entries: Record<string, unknown>[]) => {
         for (const e of entries) {
           try {
             upsert.run({
               ledger_id: e.ledger_id,
               party_id: e.party_id,
               tenant_id: tenantId,
-              transaction_date: toSqliteDate(e.transaction_date),
+              transaction_date: toSqliteDate((e.transaction_date as string | number | Date | null | undefined)),
               description: e.description,
               credit_amount: e.credit_amount ?? 0,
               debit_amount: e.debit_amount ?? 0,
@@ -319,8 +319,8 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
               created_by: e.created_by || null,
               created_by_name: e.created_by_name || null,
               is_deleted: e.is_deleted ? 1 : 0,
-              created_at: toSqliteDate(e.created_at),
-              updated_at: toSqliteDate(e.updated_at),
+              created_at: toSqliteDate((e.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((e.updated_at as string | number | Date | null | undefined)),
             });
           } catch (err) {
             console.error('[SyncWorker] Error pulling ledger entry:', (err as Error).message);
@@ -367,19 +367,19 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
     label: 'customers',
     onProgress: (fetched) => notifyPullProgress('customers', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((rows: any[]) => {
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const r of rows) {
           try {
-            const hasPhone = r.phone && r.phone.trim() !== '';
-            const phoneVal = hasPhone ? r.phone.trim() : null;
+            const hasPhone = r.phone && (r.phone as string).trim() !== '';
+            const phoneVal = hasPhone ? (r.phone as string).trim() : null;
             const tId = r.tenant_id || tenantId;
 
             // Check if another local customer already has this phone or name (without phone)
-            let existingLocalCust: any = null;
+            let existingLocalCust: Record<string, unknown> | null | undefined = null;
             if (phoneVal) {
-              existingLocalCust = findCustomerByPhone.get(tId, phoneVal);
+              existingLocalCust = (findCustomerByPhone.get(tId, phoneVal) as Record<string, unknown> | null | undefined);
             } else if (r.name) {
-              existingLocalCust = findCustomerByNameNoPhone.get(tId, r.name);
+              existingLocalCust = (findCustomerByNameNoPhone.get(tId, r.name) as Record<string, unknown> | null | undefined);
             }
 
             const rowParams = {
@@ -392,10 +392,10 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
               total_points_earned: r.total_points_earned ?? 0,
               total_points_redeemed: r.total_points_redeemed ?? 0,
               current_points_balance: r.current_points_balance ?? 0,
-              last_purchase_date: toSqliteDate(r.last_purchase_date),
+              last_purchase_date: toSqliteDate((r.last_purchase_date as string | number | Date | null | undefined)),
               is_deleted: r.is_deleted ? 1 : 0,
-              created_at: toSqliteDate(r.created_at),
-              updated_at: toSqliteDate(r.updated_at),
+              created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((r.updated_at as string | number | Date | null | undefined)),
             };
 
             if (existingLocalCust && existingLocalCust.customer_id !== r.customer_id) {
@@ -439,7 +439,7 @@ export async function pullLoyaltyTransactions(token: string, tenantId: string): 
     tsColumn: 'created_at',
     onProgress: (fetched) => notifyPullProgress('loyalty transactions', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((rows: any[]) => {
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const r of rows) {
           upsert.run({
             transaction_id: r.transaction_id, tenant_id: r.tenant_id || tenantId,
@@ -448,7 +448,7 @@ export async function pullLoyaltyTransactions(token: string, tenantId: string): 
             points_balance_before: r.points_balance_before ?? 0,
             points_balance_after: r.points_balance_after ?? 0,
             reference_number: r.reference_number || null, description: r.description || null,
-            created_by: r.created_by || null, created_at: toSqliteDate(r.created_at),
+            created_by: r.created_by || null, created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)),
           });
         }
       });

@@ -10,7 +10,7 @@ import * as cashSyncSql from '../../db/statements/sync/cashSync.js';
 // ── Cash Drawer Sync (Edge → Cloud) ─────────────────────────────────────────────
 export async function syncCashDrawer(token: string, tenantId: string) {
   const db = getDb();
-  const pending = cashSyncSql.selectCashDrawer(db).all(tenantId) as any[];
+  const pending = cashSyncSql.selectCashDrawer(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cash drawer records to cloud...`);
@@ -33,7 +33,7 @@ export async function syncCashDrawer(token: string, tenantId: string) {
 // ── Cash Transactions Sync (Edge → Cloud) ───────────────────────────────────────
 export async function syncCashTransactions(token: string, tenantId: string) {
   const db = getDb();
-  const pending = cashSyncSql.selectCashTransactions(db).all(tenantId) as any[];
+  const pending = cashSyncSql.selectCashTransactions(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cash transactions to cloud...`);
@@ -56,7 +56,7 @@ export async function syncCashTransactions(token: string, tenantId: string) {
 // ── Cash Categories Sync (Edge → Cloud) ─────────────────────────────────────────
 export async function syncCashCategories(token: string, tenantId: string) {
   const db = getDb();
-  const pending = cashSyncSql.selectCashCategories(db).all(tenantId) as any[];
+  const pending = cashSyncSql.selectCashCategories(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cash categories to cloud...`);
@@ -79,7 +79,7 @@ export async function syncCashCategories(token: string, tenantId: string) {
 // ── Cashier Audit Log Sync (Edge → Cloud) ───────────────────────────────────────
 export async function syncCashierAuditLog(token: string, tenantId: string) {
   const db = getDb();
-  const pending = cashSyncSql.selectCashierAuditLog(db).all(tenantId) as any[];
+  const pending = cashSyncSql.selectCashierAuditLog(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cashier audit log records to cloud...`);
@@ -103,10 +103,10 @@ export let lastCashDrawerHash = '';
 
 /** After a pull: refresh an open drawer's totals with the canonical session maths (computeDrawerTotals). Written only
  * when they changed, and without marking the drawer for upload. */
-export function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) {
+export function reconcileCashDrawerSync(db: import('better-sqlite3').Database, tenantId: string, drawer: Record<string, unknown>) {
   if (!drawer || !tenantId) return;
   try {
-    const t = computeDrawerTotals(db, tenantId, drawer);
+    const t = computeDrawerTotals(db, tenantId, (drawer as unknown as import("../../services/cashDrawerSession.js").DrawerRow));
     const same = (a: unknown, b: number) => Math.abs((Number(a) || 0) - b) <= 0.001;
     if (same(drawer.cash_sales, t.cash_sales) && same(drawer.cash_in, t.cash_in) && same(drawer.cash_out, t.cash_out)
       && same(drawer.current_cash, t.expected) && same(drawer.expected_closing, t.expected)) return;
@@ -148,7 +148,7 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
         lastCashDrawerHash = currentHash;
       }
 
-      const tx = db.transaction((rows: any[]) => {
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const r of rows) {
           try {
             const cleanDate = parseCleanDate(r.business_date);
@@ -173,13 +173,13 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
               status: r.status || 'OPEN',
               opened_by: r.opened_by || null,
               closed_by: r.closed_by || null,
-              opened_at: toSqliteDate(r.opened_at),
-              closed_at: toSqliteDate(r.closed_at),
-              created_at: toSqliteDate(r.created_at),
-              updated_at: toSqliteDate(r.updated_at),
+              opened_at: toSqliteDate((r.opened_at as string | number | Date | null | undefined)),
+              closed_at: toSqliteDate((r.closed_at as string | number | Date | null | undefined)),
+              created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((r.updated_at as string | number | Date | null | undefined)),
             };
 
-            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as any;
+            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as Record<string, unknown>;
             if (existing) {
               const targetId = existing.drawer_id;
               // For open drawers or drawers pending push, preserve local sales & cash balance if cloud is lower
@@ -192,12 +192,12 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
                 const localOpening = Number(existing.opening_balance) || 0;
                 const cloudOpening = Number(drawerData.opening_balance) || 0;
                 drawerData.opening_balance = Math.max(cloudOpening, localOpening);
-                if (drawerData.opening_balance > 0 && (existing.status !== 'CLOSED' || drawerData.status === 'OPEN')) {
+                if ((drawerData.opening_balance as number) > 0 && (existing.status !== 'CLOSED' || drawerData.status === 'OPEN')) {
                   drawerData.status = 'OPEN';
                 }
                 drawerData.cash_sales = Math.max(cloudSales, localSales);
-                drawerData.current_cash = Math.max(cloudCurrent, drawerData.opening_balance + drawerData.cash_sales + drawerData.cash_in - drawerData.cash_out);
-                drawerData.expected_closing = Math.max(Number(drawerData.expected_closing) || 0, drawerData.current_cash);
+                drawerData.current_cash = Math.max(cloudCurrent, (drawerData.opening_balance as number) + (drawerData.cash_sales as number) + (drawerData.cash_in as number) - (drawerData.cash_out as number));
+                drawerData.expected_closing = Math.max(Number(drawerData.expected_closing) || 0, (drawerData.current_cash as number));
               }
 
               updateMatchedDrawer.run({ ...drawerData, target_id: targetId });
@@ -217,7 +217,7 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
 
       // Instantly reconcile all open cash drawers so cash_sales & current_cash stay accurate
       try {
-        const openDrawers = cashSyncSql.selectCashDrawer3(db).all(tenantId) as any[];
+        const openDrawers = cashSyncSql.selectCashDrawer3(db).all(tenantId) as Record<string, unknown>[];
         for (const d of openDrawers) {
           reconcileCashDrawerSync(db, tenantId, d);
         }
@@ -252,11 +252,11 @@ export async function pullCashTransactions(token: string, tenantId: string): Pro
     label: 'cash transactions',
     onProgress: (fetched) => notifyPullProgress('cash transactions', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((transactions: any[]) => {
+      const tx = db.transaction((transactions: Record<string, unknown>[]) => {
         for (const t of transactions) {
           try {
             const txDate = parseCleanDate(t.transaction_date);
-            const localDrawer = cashSyncSql.selectCashDrawer4(db).get(t.drawer_id, tenantId, txDate, txDate, `${txDate}%`) as any;
+            const localDrawer = cashSyncSql.selectCashDrawer4(db).get(t.drawer_id, tenantId, txDate, txDate, `${txDate}%`) as Record<string, unknown>;
             const targetDrawerId = localDrawer?.drawer_id || t.drawer_id;
 
             upsert.run({
@@ -270,9 +270,9 @@ export async function pullCashTransactions(token: string, tenantId: string): Pro
               reference_number: t.reference_number || null,
               entered_by: t.entered_by || null,
               entered_by_name: t.entered_by_name || null,
-              transaction_date: toSqliteDate(t.transaction_date),
-              created_at: toSqliteDate(t.created_at),
-              updated_at: toSqliteDate(t.updated_at),
+              transaction_date: toSqliteDate((t.transaction_date as string | number | Date | null | undefined)),
+              created_at: toSqliteDate((t.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((t.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling cash transaction:', (e as Error).message);
@@ -311,7 +311,7 @@ export async function pullCashierAuditLog(token: string, tenantId: string): Prom
     tsColumn: 'created_at',
     onProgress: (fetched) => notifyPullProgress('cashier audit log', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((logs: any[]) => {
+      const tx = db.transaction((logs: Record<string, unknown>[]) => {
         for (const l of logs) {
           try {
             upsert.run({
@@ -322,8 +322,8 @@ export async function pullCashierAuditLog(token: string, tenantId: string): Prom
               details: l.details ? (typeof l.details === 'object' ? JSON.stringify(l.details) : l.details) : null,
               performed_by: l.performed_by || null,
               performed_by_name: l.performed_by_name || null,
-              performed_at: toSqliteDate(l.performed_at),
-              created_at: toSqliteDate(l.created_at),
+              performed_at: toSqliteDate((l.performed_at as string | number | Date | null | undefined)),
+              created_at: toSqliteDate((l.created_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling cashier audit log:', (e as Error).message);
@@ -357,17 +357,17 @@ export async function pullCashCategories(token: string, tenantId: string): Promi
     label: 'cash categories',
     onProgress: (fetched) => notifyPullProgress('cash categories', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((categories: any[]) => {
+      const tx = db.transaction((categories: Record<string, unknown>[]) => {
         for (const c of categories) {
           try {
             upsert.run({
               category_id: c.category_id,
               tenant_id: tenantId,
-              name: c.name,
+              name: (c as { name: string }).name,
               type: c.type,
               sort_order: c.sort_order ?? 0,
               is_default: c.is_default ? 1 : 0,
-              created_at: toSqliteDate(c.created_at),
+              created_at: toSqliteDate((c.created_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling cash category:', (e as Error).message);
@@ -390,7 +390,7 @@ export async function pullCashCategories(token: string, tenantId: string): Promi
 // ── Payment Sources Sync (Edge → Cloud) ─────────────────────────────────────────
 export async function syncPaymentSources(token: string, tenantId: string) {
   const db = getDb();
-  const pending = cashSyncSql.selectPaymentSources(db).all(tenantId) as any[];
+  const pending = cashSyncSql.selectPaymentSources(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} payment sources to cloud...`);
@@ -413,7 +413,7 @@ export async function syncPaymentSources(token: string, tenantId: string) {
 // ── Payment Source Transactions Sync (Edge → Cloud) ─────────────────────────────
 export async function syncPaymentSourceTransactions(token: string, tenantId: string) {
   const db = getDb();
-  const pending = cashSyncSql.selectPaymentSourceTransactions(db).all(tenantId) as any[];
+  const pending = cashSyncSql.selectPaymentSourceTransactions(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} payment source transactions to cloud...`);
@@ -447,7 +447,7 @@ export async function pullPaymentSources(token: string, tenantId: string): Promi
     label: 'payment sources',
     onProgress: (fetched) => notifyPullProgress('payment sources', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((rows: any[]) => {
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const r of rows) {
           try {
             upsert.run({
@@ -457,7 +457,7 @@ export async function pullPaymentSources(token: string, tenantId: string): Promi
               opening_balance: r.opening_balance ?? 0, current_balance: r.current_balance ?? 0,
               is_default: r.is_default ? 1 : 0, is_enabled: r.is_enabled === false ? 0 : 1,
               sort_order: r.sort_order ?? 0, is_deleted: r.is_deleted ? 1 : 0,
-              created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+              created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)), updated_at: toSqliteDate((r.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling payment source:', (e as Error).message);
@@ -491,17 +491,17 @@ export async function pullPaymentSourceTransactions(token: string, tenantId: str
     label: 'payment source transactions',
     onProgress: (fetched) => notifyPullProgress('payment source transactions', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((rows: any[]) => {
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const r of rows) {
           try {
             upsert.run({
               transaction_id: r.transaction_id, tenant_id: tenantId, source_id: r.source_id,
               type: r.type, amount: r.amount ?? 0, category: r.category || null,
               notes: r.notes || null, reference_number: r.reference_number || null,
-              transaction_date: toSqliteDate(r.transaction_date),
+              transaction_date: toSqliteDate((r.transaction_date as string | number | Date | null | undefined)),
               running_balance: r.running_balance ?? 0,
               entered_by: r.entered_by || null, entered_by_name: r.entered_by_name || null,
-              created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+              created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)), updated_at: toSqliteDate((r.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling payment source transaction:', (e as Error).message);

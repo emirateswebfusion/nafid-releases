@@ -8,7 +8,7 @@ import * as salesDocsSyncSql from '../../db/statements/sync/salesDocsSync.js';
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 export async function syncInvoices(token: string, tenantId: string) {
   const db = getDb();
-  const pending = salesDocsSyncSql.selectInvoices(db).all(tenantId) as any[];
+  const pending = salesDocsSyncSql.selectInvoices(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} invoices to cloud in batches of ${BATCH_SIZE}...`);
@@ -19,7 +19,7 @@ export async function syncInvoices(token: string, tenantId: string) {
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const invoicesWithItems = batch.map((inv: any) => ({
+    const invoicesWithItems = batch.map((inv: Record<string, unknown>) => ({
       ...inv,
       subtotal: Number(inv.subtotal) || 0,
       tax_total: Number(inv.tax_total) || 0,
@@ -41,7 +41,7 @@ export async function syncInvoices(token: string, tenantId: string) {
       igst_total: Number(inv.igst_total) || 0,
       supply_type: inv.supply_type || 'INTRA',
       is_deleted: inv.is_deleted === true || inv.is_deleted === 1 || inv.is_deleted === '1' || inv.is_deleted === 'true',
-      items: (getItems.all(inv.invoice_id, tenantId) as any[]).map((item: any) => ({
+      items: (getItems.all(inv.invoice_id, tenantId) as Record<string, unknown>[]).map((item: Record<string, unknown>) => ({
         ...item,
         quantity: Number(item.quantity) || 0,
         unit_price: Number(item.unit_price) || 0,
@@ -101,33 +101,33 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
       console.log(`[SyncWorker][pull:invoices] processPage: processing ${rows.length} invoices...`);
       // DEBUG: log first few invoice IDs to confirm data is arriving
       if (rows.length > 0) {
-        const sample = rows.slice(0, 3).map((r: any) => r.invoice_number || r.invoice_id).join(', ');
+        const sample = rows.slice(0, 3).map((r: Record<string, unknown>) => r.invoice_number || r.invoice_id).join(', ');
         console.log(`[SyncWorker][pull:invoices] Sample invoices received: ${sample}`);
       }
 
-      const tx = db.transaction((invoices: any[]) => {
+      const tx = db.transaction((invoices: Record<string, unknown>[]) => {
         for (const inv of invoices) {
           const currentInv = { ...inv };
 
           // Never touch a locally-PENDING edit that diverges from the cloud (a change that
           // hasn't synced yet). Replacing header or items here would resurrect the deleted
           // lines of an edited bill and/or revert the edit. The push path will sync it later.
-          const prior = localInvCheck.get(currentInv.invoice_id, currentInv.tenant_id) as any;
+          const prior = localInvCheck.get(currentInv.invoice_id, currentInv.tenant_id) as Record<string, unknown>;
           const isDirtyPending = !!prior
             && prior.sync_status === 'PENDING'
-            && toSqliteDate(currentInv.updated_at) !== prior.updated_at;
+            && toSqliteDate((currentInv.updated_at as string | number | Date | null | undefined)) !== prior.updated_at;
           if (isDirtyPending) continue;
 
           let resolvedCustId = currentInv.customer_id || null;
           if (!resolvedCustId && (currentInv.customer_phone || currentInv.customer_name)) {
-            const custCleanDigits = (currentInv.customer_phone || '').replace(/\D/g, '');
+            const custCleanDigits = ((currentInv.customer_phone as string) || ('' as string)).replace(/\D/g, '');
             if (custCleanDigits.length >= 7) {
-              const matchedCust = salesDocsSyncSql.selectCustomers(db).get(currentInv.tenant_id, currentInv.customer_phone, `%${custCleanDigits.slice(-10)}`) as any;
-              if (matchedCust) resolvedCustId = matchedCust.customer_id;
+              const matchedCust = salesDocsSyncSql.selectCustomers(db).get(currentInv.tenant_id, currentInv.customer_phone, `%${custCleanDigits.slice(-10)}`) as Record<string, unknown>;
+              if (matchedCust) resolvedCustId = (matchedCust.customer_id as {} | null);
             }
             if (!resolvedCustId && currentInv.customer_name) {
-              const matchedCust = salesDocsSyncSql.selectCustomers2(db).get(currentInv.tenant_id, currentInv.customer_name) as any;
-              if (matchedCust) resolvedCustId = matchedCust.customer_id;
+              const matchedCust = salesDocsSyncSql.selectCustomers2(db).get(currentInv.tenant_id, currentInv.customer_name) as Record<string, unknown>;
+              if (matchedCust) resolvedCustId = (matchedCust.customer_id as {} | null);
             }
           }
 
@@ -154,7 +154,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 actual_refund_paid: currentInv.actual_refund_paid ?? 0,
                 balance_amount: currentInv.balance_amount ?? 0,
                 user_id: currentInv.user_id || null,
-                created_at: toSqliteDate(currentInv.created_at),
+                created_at: toSqliteDate((currentInv.created_at as string | number | Date | null | undefined)),
                 customer_gstin: currentInv.customer_gstin || null,
                 customer_state: currentInv.customer_state || null,
                 customer_address: currentInv.customer_address || null,
@@ -217,7 +217,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
               success = true;
             } catch (e) {
               if ((e as Error).message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {
-                const suffix = currentInv.invoice_id.substring(0, 4).toUpperCase();
+                const suffix = (currentInv.invoice_id as string).substring(0, 4).toUpperCase();
                 currentInv.invoice_number = `${currentInv.invoice_number}-C${suffix}`;
                 retryCount++;
               } else {
@@ -232,11 +232,11 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
             const existingPiecesSold: Record<string, number | null> = {};
             const existingBillingType: Record<string, string | null> = {};
             const existingUom: Record<string, string | null> = {};
-            const existingRows = salesDocsSyncSql.selectInvoiceItems2(db).all(currentInv.invoice_id, currentInv.tenant_id) as any[];
+            const existingRows = salesDocsSyncSql.selectInvoiceItems2(db).all(currentInv.invoice_id, currentInv.tenant_id) as Record<string, unknown>[];
             for (const row of existingRows) {
-              existingPiecesSold[row.item_id] = row.pieces_sold != null ? Number(row.pieces_sold) : null;
-              existingBillingType[row.item_id] = row.billing_type != null ? row.billing_type : null;
-              existingUom[row.item_id] = row.uom != null ? row.uom : null;
+              existingPiecesSold[(row.item_id as string)] = row.pieces_sold != null ? Number(row.pieces_sold) : null;
+              existingBillingType[(row.item_id as string)] = row.billing_type != null ? (row.billing_type as string | null) : (null as string | null);
+              existingUom[(row.item_id as string)] = row.uom != null ? (row.uom as string | null) : (null as string | null);
             }
 
             // Replace items per invoice so lines removed from an edited bill are deleted
@@ -301,7 +301,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
 // ── Quotations Sync (Edge → Cloud) ───────────────────────────────────────────────
 export async function syncQuotations(token: string, tenantId: string) {
   const db = getDb();
-  const pending = salesDocsSyncSql.selectQuotations(db).all(tenantId) as any[];
+  const pending = salesDocsSyncSql.selectQuotations(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} quotations to cloud in batches of ${BATCH_SIZE}...`);
@@ -313,14 +313,14 @@ export async function syncQuotations(token: string, tenantId: string) {
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const quotationsWithItems = batch.map((q: any) => ({
+    const quotationsWithItems = batch.map((q: Record<string, unknown>) => ({
       ...q,
       tenant_id: tenantId,
       subtotal: Number(q.subtotal) || 0,
       tax_total: Number(q.tax_total) || 0,
       grand_total: Number(q.grand_total) || 0,
       converted_to_invoice: parseIsDeleted(q.converted_to_invoice),
-      items: (getItems.all(q.quotation_id) as any[]).map((item: any) => ({
+      items: (getItems.all(q.quotation_id) as Record<string, unknown>[]).map((item: Record<string, unknown>) => ({
         ...item,
         tenant_id: tenantId,
         quantity: Number(item.quantity) || 0,
@@ -370,7 +370,7 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
     label: 'quotations',
     onProgress: (fetched) => notifyPullProgress('quotations', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((quotations: any[]) => {
+      const tx = db.transaction((quotations: Record<string, unknown>[]) => {
         for (const q of quotations) {
           try {
             if (q.status === 'DELETED' || q.is_deleted) {
@@ -392,18 +392,18 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
               status: q.status || 'ACTIVE',
               converted_to_invoice: parseIsDeleted(q.converted_to_invoice),
               invoice_id: q.invoice_id || null,
-              created_at: toSqliteDate(q.created_at),
-              updated_at: toSqliteDate(q.updated_at),
+              created_at: toSqliteDate((q.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((q.updated_at as string | number | Date | null | undefined)),
             });
 
             let itemsList = Array.isArray(q.items) ? q.items : (Array.isArray(q.quotation_items) ? q.quotation_items : (Array.isArray(q.quotationItems) ? q.quotationItems : null));
             if (itemsList && itemsList.length > 0) {
               if (itemsList.length > 1) {
-                const timestamps: number[] = itemsList.map((i: any) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
+                const timestamps: number[] = itemsList.map((i: Record<string, unknown>) => i.created_at ? new Date((i.created_at as string | number)).getTime() : 0).filter(Boolean);
                 const uniqueTs = Array.from(new Set<number>(timestamps));
                 if (uniqueTs.length > 1) {
                   const latestTs = Math.max(...uniqueTs);
-                  itemsList = itemsList.filter((i: any) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
+                  itemsList = itemsList.filter((i: Record<string, unknown>) => (i.created_at ? new Date((i.created_at as string | number)).getTime() : 0) === latestTs);
                 }
               }
               deleteItems.run(q.quotation_id);
@@ -445,7 +445,7 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
 // ── Warranties Sync (Edge → Cloud) ──────────────────────────────────────────
 export async function syncWarranties(token: string, tenantId: string) {
   const db = getDb();
-  const pending = salesDocsSyncSql.selectWarranties(db).all(tenantId) as any[];
+  const pending = salesDocsSyncSql.selectWarranties(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} warranties to cloud in batches of ${BATCH_SIZE}...`);
@@ -455,7 +455,7 @@ export async function syncWarranties(token: string, tenantId: string) {
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const warrantiesToPush = batch.map((w: any) => ({
+    const warrantiesToPush = batch.map((w: Record<string, unknown>) => ({
       ...w,
       tenant_id: tenantId,
       bill_number: w.bill_number || null,
@@ -498,7 +498,7 @@ export async function pullWarranties(token: string, tenantId: string): Promise<b
     label: 'warranties',
     onProgress: (fetched) => notifyPullProgress('warranties', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((warranties: any[]) => {
+      const tx = db.transaction((warranties: Record<string, unknown>[]) => {
         for (const w of warranties) {
           try {
             upsertWarranty.run({
@@ -512,12 +512,12 @@ export async function pullWarranties(token: string, tenantId: string): Promise<b
               customer_phone: w.customer_phone || null,
               product_name: w.product_name || '',
               product_details: w.product_details || null,
-              purchase_date: toSqliteDate(w.purchase_date),
+              purchase_date: toSqliteDate((w.purchase_date as string | number | Date | null | undefined)),
               warranty_period_days: Number(w.warranty_period_days) || 365,
-              expiry_date: toSqliteDate(w.expiry_date),
+              expiry_date: toSqliteDate((w.expiry_date as string | number | Date | null | undefined)),
               notes: w.notes || null,
-              created_at: toSqliteDate(w.created_at),
-              updated_at: toSqliteDate(w.updated_at),
+              created_at: toSqliteDate((w.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((w.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling warranty:', (e as Error).message);

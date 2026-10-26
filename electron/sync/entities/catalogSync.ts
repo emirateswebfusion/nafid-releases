@@ -8,7 +8,7 @@ import * as catalogSyncSql from '../../db/statements/sync/catalogSync.js';
 // ── Product Grades Sync (Edge → Cloud) ───────────────────────────────────────────
 export async function syncGrades(token: string, tenantId: string) {
   const db = getDb();
-  const pending = catalogSyncSql.selectProductGrades(db).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectProductGrades(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} product grades to cloud in batches of ${BATCH_SIZE}...`);
@@ -34,14 +34,14 @@ export async function syncGrades(token: string, tenantId: string) {
 // ── Pricing Tiers Sync (Edge → Cloud) ────────────────────────────────────────
 export async function syncPricingTiers(token: string, tenantId: string) {
   const db = getDb();
-  const pending = catalogSyncSql.selectPricingTiers(db).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectPricingTiers(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
 
   // Sanitize any non-UUID or pseudo-tier pricing_tier_id before pushing
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   for (const t of pending) {
-    if (!t.pricing_tier_id || !uuidRegex.test(t.pricing_tier_id) || t.pricing_tier_id === '__mrp__') {
+    if (!t.pricing_tier_id || !uuidRegex.test((t.pricing_tier_id as string)) || t.pricing_tier_id === '__mrp__') {
       const newUuid = crypto.randomUUID();
       const oldId = t.pricing_tier_id;
       try {
@@ -62,7 +62,7 @@ export async function syncPricingTiers(token: string, tenantId: string) {
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const tiers = batch.map((t: any) => ({
+    const tiers = batch.map((t: Record<string, unknown>) => ({
       ...t,
       tenant_id: tenantId,
       is_active: !!t.is_active,
@@ -87,7 +87,7 @@ export async function syncPricingTiers(token: string, tenantId: string) {
 // ── Product Pricing Sync (Edge → Cloud) ──────────────────────────────────────
 export async function syncProductPricing(token: string, tenantId: string) {
   const db = getDb();
-  const pending = catalogSyncSql.selectProductPricing(db).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectProductPricing(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
 
@@ -95,7 +95,7 @@ export async function syncProductPricing(token: string, tenantId: string) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const fixIdStmt = catalogSyncSql.updateProductPricing2(db);
   for (const pp of pending) {
-    if (!pp.product_pricing_id || !uuidRegex.test(pp.product_pricing_id)) {
+    if (!pp.product_pricing_id || !uuidRegex.test((pp.product_pricing_id as string))) {
       const newUuid = crypto.randomUUID();
       fixIdStmt.run(newUuid, tenantId, pp.product_id, pp.pricing_tier_id);
       pp.product_pricing_id = newUuid;
@@ -108,7 +108,7 @@ export async function syncProductPricing(token: string, tenantId: string) {
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const pricing = batch.map((pp: any) => ({
+    const pricing = batch.map((pp: Record<string, unknown>) => ({
       ...pp,
       tenant_id: tenantId,
       is_deleted: !!pp.is_deleted,
@@ -123,9 +123,9 @@ export async function syncProductPricing(token: string, tenantId: string) {
     );
     if (synced.length > 0) {
       const syncedSet = new Set(synced);
-      const tx = db.transaction((rows: any[]) => {
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const pp of rows) {
-          if (syncedSet.has(pp.product_pricing_id) || syncedSet.has(pp.product_id)) {
+          if (syncedSet.has((pp.product_pricing_id as string)) || syncedSet.has((pp.product_id as string))) {
             updateStmt.run(tenantId, pp.product_pricing_id, pp.product_id, pp.pricing_tier_id);
           }
         }
@@ -138,7 +138,7 @@ export async function syncProductPricing(token: string, tenantId: string) {
 // ── Product Sync (Edge → Cloud) ──────────────────────────────────────────────
 export async function syncProducts(token: string, tenantId: string) {
   const db = getDb();
-  const pending = catalogSyncSql.selectProducts(db).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectProducts(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} products to cloud in batches of ${BATCH_SIZE}...`);
@@ -148,7 +148,7 @@ export async function syncProducts(token: string, tenantId: string) {
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const products = batch.map((p: any) => ({
+    const products = batch.map((p: Record<string, unknown>) => ({
       ...p,
       is_deleted: p.is_deleted === true || p.is_deleted === 1 || p.is_deleted === '1' || p.is_deleted === 'true',
       is_gst_applicable: isGstApplicableProduct(p.is_gst_applicable, p.hsn_sac_code),
@@ -156,7 +156,7 @@ export async function syncProducts(token: string, tenantId: string) {
       is_service_item: p.is_service_item === true || p.is_service_item === 1 || p.is_service_item === '1' || p.is_service_item === 'true',
       domain_attributes: (() => { 
           try { 
-            const parsed = JSON.parse(p.domain_attributes || '{}');
+            const parsed = JSON.parse((p.domain_attributes as string) || ('{}' as string));
             return typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
           } catch { return {}; }
         })(),
@@ -192,7 +192,7 @@ export async function pullGrades(token: string, tenantId: string): Promise<boole
     label: 'grades',
     onProgress: (fetched) => notifyPullProgress('grades', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((grades: any[]) => {
+      const tx = db.transaction((grades: Record<string, unknown>[]) => {
         for (const g of grades) {
           try {
             upsert.run({
@@ -204,8 +204,8 @@ export async function pullGrades(token: string, tenantId: string): Promise<boole
               purchase_price: g.purchase_price ?? 0,
               offer_price: g.offer_price ?? null,
               is_deleted: parseIsDeleted(g.is_deleted),
-              created_at: toSqliteDate(g.created_at),
-              updated_at: toSqliteDate(g.updated_at),
+              created_at: toSqliteDate((g.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((g.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling grade:', (e as Error).message);
@@ -245,7 +245,7 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
     label: 'pricing tiers',
     onProgress: (fetched) => notifyPullProgress('pricing tiers', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((tiers: any[]) => {
+      const tx = db.transaction((tiers: Record<string, unknown>[]) => {
         for (const t of tiers) {
           try {
             const cleanName = String(t.name || '').trim();
@@ -277,8 +277,8 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
               sort_order: t.sort_order ?? 0,
               is_default: t.is_default ? 1 : 0,
               is_deleted: parseIsDeleted(t.is_deleted),
-              created_at: toSqliteDate(t.created_at),
-              updated_at: toSqliteDate(t.updated_at),
+              created_at: toSqliteDate((t.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((t.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling pricing tier:', (e as Error).message);
@@ -314,10 +314,10 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
     label: 'product pricing',
     onProgress: (fetched) => notifyPullProgress('product pricing', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((pricing: any[]) => {
+      const tx = db.transaction((pricing: Record<string, unknown>[]) => {
         for (const pp of pricing) {
           try {
-            const conflict = findConflictingId.get(pp.product_pricing_id) as any;
+            const conflict = findConflictingId.get(pp.product_pricing_id) as Record<string, unknown>;
             let targetPricingId = pp.product_pricing_id;
             if (conflict && (conflict.product_id !== pp.product_id || conflict.pricing_tier_id !== pp.pricing_tier_id)) {
               targetPricingId = crypto.randomUUID();
@@ -330,8 +330,8 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
               pricing_tier_id: pp.pricing_tier_id,
               price: pp.price ?? 0,
               is_deleted: parseIsDeleted(pp.is_deleted),
-              created_at: toSqliteDate(pp.created_at),
-              updated_at: toSqliteDate(pp.updated_at),
+              created_at: toSqliteDate((pp.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((pp.updated_at as string | number | Date | null | undefined)),
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling product pricing row:', (e as Error).message);
@@ -343,7 +343,7 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
       let reconciled = 0;
       for (const r of rows) {
         try {
-          const res = reconcileStmt.run(r.product_pricing_id, r.product_id, r.pricing_tier_id, toSqliteDate(r.updated_at));
+          const res = reconcileStmt.run(r.product_pricing_id, r.product_id, r.pricing_tier_id, toSqliteDate((r.updated_at as string | number | Date | null | undefined)));
           if (res.changes > 0) reconciled += res.changes;
         } catch { /* ignore */ }
       }
@@ -373,7 +373,7 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
     label: 'products',
     onProgress: (fetched) => notifyPullProgress('products', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((products: any[]) => {
+      const tx = db.transaction((products: Record<string, unknown>[]) => {
         for (const p of products) {
           const currentP = { ...p };
           let retryCount = 0;
@@ -410,13 +410,13 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
                 weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
                 is_service_item: currentP.is_service_item ? 1 : 0,
                 print_status: currentP.print_status ?? null,
-                created_at: toSqliteDate(currentP.created_at),
-                updated_at: toSqliteDate(currentP.updated_at),
+                created_at: toSqliteDate((currentP.created_at as string | number | Date | null | undefined)),
+                updated_at: toSqliteDate((currentP.updated_at as string | number | Date | null | undefined)),
               });
               success = true;
             } catch (e) {
               if ((e as Error).message?.includes('UNIQUE constraint failed')) {
-                const suffix = currentP.product_id.substring(0, 4).toUpperCase();
+                const suffix = (currentP.product_id as string).substring(0, 4).toUpperCase();
                 if ((e as Error).message.includes('products.name')) currentP.name = `${currentP.name} (Cloud-${suffix})`;
                 if ((e as Error).message.includes('products.sku_barcode')) currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
                 if ((e as Error).message.includes('products.item_code')) currentP.item_code = `${currentP.item_code}-${suffix}`;
@@ -444,7 +444,7 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
 // ── Combo Offers Sync (Edge → Cloud) ──────────────────────────────────────────
 export async function syncComboOffers(token: string, tenantId: string) {
   const db = getDb();
-  const pending = catalogSyncSql.selectComboOffers(db).all(tenantId) as any[];
+  const pending = catalogSyncSql.selectComboOffers(db).all(tenantId) as Record<string, unknown>[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} combo offers to cloud in batches of ${BATCH_SIZE}...`);
@@ -454,8 +454,8 @@ export async function syncComboOffers(token: string, tenantId: string) {
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const combos = batch.map((c: any) => {
-      const items = getItemsStmt.all(c.combo_id) as any[];
+    const combos = batch.map((c: Record<string, unknown>) => {
+      const items = getItemsStmt.all(c.combo_id) as Record<string, unknown>[];
       return {
         ...c,
         is_active: !!c.is_active,
@@ -498,21 +498,21 @@ export async function pullComboOffers(token: string, tenantId: string): Promise<
     label: 'combo offers',
     onProgress: (fetched) => notifyPullProgress('combo offers', fetched),
     processPage: (rows) => {
-      const tx = db.transaction((combos: any[]) => {
+      const tx = db.transaction((combos: Record<string, unknown>[]) => {
         for (const c of combos) {
           try {
             const cid = c.combo_id;
             upsertCombo.run({
               combo_id: cid,
               tenant_id: tenantId,
-              name: c.name || '',
+              name: (c as { name: string }).name || '',
               sku_barcode: c.sku_barcode ? String(c.sku_barcode).trim() : null,
               combo_price: Number(c.combo_price) || 0,
               is_active: parseIsDeleted(c.is_active) ? 1 : (c.is_active === false || c.is_active === 0 ? 0 : 1),
               is_deleted: parseIsDeleted(c.is_deleted),
               description: c.description || null,
-              created_at: toSqliteDate(c.created_at),
-              updated_at: toSqliteDate(c.updated_at),
+              created_at: toSqliteDate((c.created_at as string | number | Date | null | undefined)),
+              updated_at: toSqliteDate((c.updated_at as string | number | Date | null | undefined)),
             });
 
             if (Array.isArray(c.items)) {
