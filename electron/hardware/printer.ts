@@ -12,28 +12,28 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
     const key = type === 'receipt' ? 'receipt_printer_config' : 'barcode_printer_config';
     const tid = tenantId || 'global';
 
-    let row: any = printerSql.findSettingsByKey(db).get(tid, key);
+    let row: Record<string, unknown> = (printerSql.findSettingsByKey(db).get(tid, key) as Record<string, unknown>);
     if (!row && tid !== 'global') {
-      row = printerSql.findSettingsByKeyValue(db).get(key);
+      row = (printerSql.findSettingsByKeyValue(db).get(key) as Record<string, unknown>);
     }
     if (!row) {
-      row = printerSql.findOneSettingByKey(db).get(key);
+      row = (printerSql.findOneSettingByKey(db).get(key) as Record<string, unknown>);
     }
     if (row) {
-      try { return JSON.parse(row.value); } catch { /* ignore */ }
+      try { return JSON.parse((row.value as string)); } catch { /* ignore */ }
     }
     
     // Fallback to legacy printer_config
-    let legacyRow: any = printerSql.findSettingsByKeyPrinterConfig(db).get(tid);
+    let legacyRow: Record<string, unknown> = (printerSql.findSettingsByKeyPrinterConfig(db).get(tid) as Record<string, unknown>);
     if (!legacyRow && tid !== 'global') {
-      legacyRow = printerSql.findSettingsByKeyPrinterConfig2(db).get();
+      legacyRow = (printerSql.findSettingsByKeyPrinterConfig2(db).get() as Record<string, unknown>);
     }
     if (!legacyRow) {
-      legacyRow = printerSql.findOneSettingByKeyPrinterConfig(db).get();
+      legacyRow = (printerSql.findOneSettingByKeyPrinterConfig(db).get() as Record<string, unknown>);
     }
     if (legacyRow) {
       try {
-        const parsed = JSON.parse(legacyRow.value);
+        const parsed = JSON.parse((legacyRow.value as string));
         if (parsed && parsed.ip === '192.168.1.100') return { type: 'none' };
         return parsed;
       } catch { /* ignore */ }
@@ -44,7 +44,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
   }
 }
 
-let currentBulkPrintItems: any[] = [];
+let currentBulkPrintItems: { barcode: string; quantity: number; name?: string; price?: number }[] = [];
 let currentReceiptText: string = '';
 let currentA4Html: string = '';
 let pendingReceiptHeightPx: number = 0; // measured by renderer before printReady; used by printReceiptUSB
@@ -52,10 +52,10 @@ let pendingReceiptHeightPx: number = 0; // measured by renderer before printRead
 function getPrintFormatConfig(tenantId: string) {
   try {
     const db = getDb();
-    const row: any = printerSql.findSettingsByKeyPrintFormat(db).get(tenantId || 'global');
+    const row: Record<string, unknown> = (printerSql.findSettingsByKeyPrintFormat(db).get(tenantId || 'global') as Record<string, unknown>);
     if (row) {
       try {
-        const parsed = JSON.parse(row.value);
+        const parsed = JSON.parse((row.value as string));
         if (typeof parsed === 'string') return { format: parsed };
         return parsed;
       } catch {
@@ -71,11 +71,11 @@ function getPrintFormatConfig(tenantId: string) {
 function getLabelCodeType(tenantId: string): string {
   try {
     const db = getDb();
-    const row: any = printerSql.findSettingsByKeyLabelCodeType(db).get(tenantId || 'global', 'label_code_type');
+    const row: Record<string, unknown> = (printerSql.findSettingsByKeyLabelCodeType(db).get(tenantId || 'global', 'label_code_type') as Record<string, unknown>);
     if (row) {
-      let val: any = row.value;
+      let val: unknown = (row.value as Record<string, unknown>);
       try {
-        const parsed = JSON.parse(row.value);
+        const parsed = JSON.parse((row.value as string));
         if (typeof parsed === 'string') val = parsed;
       } catch {
         // Value is a raw (non-JSON) string, e.g. cloud-synced 'qrcode' — use as-is
@@ -128,19 +128,19 @@ export function initPrinter() {
     try {
       const db = getDb();
       const tid = tenant_id || 'global';
-      let row: any = printerSql.findSettingsByKeyA4PrinterConfig(db).get(tid);
+      let row: Record<string, unknown> = (printerSql.findSettingsByKeyA4PrinterConfig(db).get(tid) as Record<string, unknown>);
       if (!row && tid !== 'global') {
-        row = printerSql.findSettingsByKeyA4PrinterConfig2(db).get();
+        row = (printerSql.findSettingsByKeyA4PrinterConfig2(db).get() as Record<string, unknown>);
       }
       if (!row) {
-        row = printerSql.findOneSettingByKeyA4PrinterConfig(db).get();
+        row = (printerSql.findOneSettingByKeyA4PrinterConfig(db).get() as Record<string, unknown>);
       }
       let config = { deviceName: '' };
       if (row) {
         try {
-          config = JSON.parse(row.value);
+          config = JSON.parse((row.value as string));
         } catch {
-          config = { deviceName: row.value || '' };
+          config = { deviceName: (row.value as string) || ('' as string) };
         }
       }
 
@@ -199,7 +199,7 @@ export function initPrinter() {
 
         ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
           try {
-            const pdfOpts: any = {
+            const pdfOpts: Electron.PrintToPDFOptions & { margins: { marginType: string } } = {
               printBackground: true,
               pageSize: 'A4',
               landscape: false,
@@ -335,7 +335,7 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: any[] }) => {
+  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: { barcode: string; quantity: number; name?: string; price?: number }[] }) => {
     console.log(`[Hardware] Printing Bulk Barcodes (${items.length} items) for tenant: ${tenant_id}`);
     const config = getPrinterConfig(tenant_id, 'barcode');
     const codeType = getLabelCodeType(tenant_id);
@@ -432,7 +432,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
   });
 }
 
-function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
+function printBulkBarcodeUSB(items: { barcode: string; quantity: number; name?: string; price?: number }[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
   return new Promise(async (resolve, reject) => {
     currentBulkPrintItems = items;
     const labelW = Math.max(20, Math.round(widthMm || 50));
@@ -490,11 +490,11 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
   });
 }
 
-let cachedPrinters: any[] = [];
+let cachedPrinters: Electron.PrinterInfo[] = [];
 let lastPrintersFetchTime = 0;
 const PRINTER_CACHE_TTL_MS = 60000;
 
-async function getSystemPrinters(win?: BrowserWindow): Promise<any[]> {
+async function getSystemPrinters(win?: BrowserWindow): Promise<Electron.PrinterInfo[]> {
   const now = Date.now();
   if (cachedPrinters.length > 0 && now - lastPrintersFetchTime < PRINTER_CACHE_TTL_MS) {
     return cachedPrinters;
@@ -531,11 +531,11 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
   }
 
   // 1. Exact match (case-insensitive)
-  const exact = printers.find((p: any) => p.name.toLowerCase() === cleanReq || (p.displayName && String(p.displayName).toLowerCase() === cleanReq));
+  const exact = printers.find((p: Electron.PrinterInfo) => p.name.toLowerCase() === cleanReq || (p.displayName && String(p.displayName).toLowerCase() === cleanReq));
   if (exact) return { deviceName: exact.name, actualNameUsed: exact.name };
 
   // 2. Partial match (e.g. "POS80" matches "POSPrinter POS80")
-  const partial = printers.find((p: any) => p.name.toLowerCase().includes(cleanReq) || cleanReq.includes(p.name.toLowerCase()));
+  const partial = printers.find((p: Electron.PrinterInfo) => p.name.toLowerCase().includes(cleanReq) || cleanReq.includes(p.name.toLowerCase()));
   if (partial) {
     console.log(`[Printer] Resolved requested "${requestedName}" -> "${partial.name}" via partial match`);
     return { deviceName: partial.name, actualNameUsed: partial.name };
@@ -543,7 +543,7 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
 
   // 3. Thermal printer auto-detection if requested name failed
   const thermalKeywords = ['pos', 'rp', 'thermal', 'receipt', '80', '58', 'epson', 'xprinter', 'tspl', 'zjiang', 'sewoo'];
-  const thermalPrinter = printers.find((p: any) => thermalKeywords.some(k => p.name.toLowerCase().includes(k)));
+  const thermalPrinter = printers.find((p: Electron.PrinterInfo) => thermalKeywords.some(k => p.name.toLowerCase().includes(k)));
   if (thermalPrinter) {
     console.warn(`[Printer] Requested "${requestedName}" not found. Auto-detected thermal printer: "${thermalPrinter.name}"`);
     return { deviceName: thermalPrinter.name, actualNameUsed: `${thermalPrinter.name} (Auto-detected)` };
@@ -630,7 +630,7 @@ function executePrintWithFallback(
       primaryOptions.deviceName = deviceName;
     }
     if (pageSizeName) {
-      (primaryOptions as any).pageSize = pageSizeName;
+      (primaryOptions as { pageSize?: string }).pageSize = pageSizeName;
     } else if (widthMm && heightMicrons) {
       primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
     }

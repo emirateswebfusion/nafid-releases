@@ -356,13 +356,13 @@ app.whenReady().then(async () => {
       mainSql.updateInvoices6(_db).run();
       mainSql.updateInvoices7(_db).run();
       
-      const staleBills = mainSql.selectInvoices(_db).all() as any[];
+      const staleBills = mainSql.selectInvoices(_db).all() as Record<string, unknown>[];
       if (staleBills.length > 0) {
         const expireTx = _db.transaction(() => {
           const stockStmt = mainSql.updateProducts(_db);
           const markStmt = mainSql.updateInvoices8(_db);
           for (const bill of staleBills) {
-            const items = mainSql.selectInvoiceItems(_db).all(bill.invoice_id) as any[];
+            const items = mainSql.selectInvoiceItems(_db).all(bill.invoice_id) as Record<string, unknown>[];
             for (const item of items) {
               if (!item.is_service_item) stockStmt.run(item.quantity, item.product_id);
             }

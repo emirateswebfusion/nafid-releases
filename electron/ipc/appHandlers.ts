@@ -18,7 +18,7 @@ ipcMain.handle('app:getLocalIp', () => {
       const isPhysical = physicalPatterns.some(pat => pat.test(name));
 
       for (const iface of interfaces[name] || []) {
-        if ((iface.family === 'IPv4' || (iface as any).family === 4) && !iface.internal) {
+        if ((iface.family === 'IPv4' || (iface as unknown as { family: number }).family === 4) && !iface.internal) {
           const ip = iface.address;
           if (ip.startsWith('127.') || ip.startsWith('169.254.')) continue;
 
@@ -59,7 +59,7 @@ ipcMain.handle('app:getNetworkDetails', () => {
       const isPhysical = physicalPatterns.some(pat => pat.test(name));
 
       for (const iface of interfaces[name] || []) {
-        if ((iface.family === 'IPv4' || (iface as any).family === 4) && !iface.internal) {
+        if ((iface.family === 'IPv4' || (iface as unknown as { family: number }).family === 4) && !iface.internal) {
           const ip = iface.address;
           if (ip.startsWith('127.') || ip.startsWith('169.254.')) continue;
 
@@ -136,7 +136,7 @@ ipcMain.handle('app:getNetworkDetails', () => {
 });
 
 
-ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) => {
+ipcMain.handle('log:error', (event, payload: { message: string, error?: unknown }) => {
   log.error('[Frontend Error]', payload.message, payload.error || '');
 });
 

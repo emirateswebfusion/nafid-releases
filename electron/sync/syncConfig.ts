@@ -17,7 +17,7 @@ export function localDate(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
-export function parseCleanDate(dStr: any): string {
+export function parseCleanDate(dStr: unknown): string {
   if (!dStr) return localDate();
   const str = String(dStr).trim();
 
@@ -56,7 +56,7 @@ export function decrypt(data: Buffer): string | null {
   }
 }
 
-export function readAuthPayload(): any {
+export function readAuthPayload(): { jwt_token?: string; tenant_id?: string } | null {
   const encPath = getEncryptedPath();
   if (fs.existsSync(encPath)) {
     const raw = fs.readFileSync(encPath);
@@ -72,7 +72,7 @@ export function readAuthPayload(): any {
   }
 }
 
-export function readOfflineSessionSafe(): any {
+export function readOfflineSessionSafe(): { tenant_id?: string } | null {
   try {
     const offlinePath = getOfflineSessionPath();
     if (!fs.existsSync(offlinePath)) return null;
@@ -156,7 +156,7 @@ export function getSyncIntervalMs(): number {
   return Math.max(30000, Math.round(envMins * 60 * 1000));
 }
 
-export function parseIsDeleted(val: any): number {
+export function parseIsDeleted(val: unknown): number {
   if (val === true || val === 1 || val === '1' || val === 'true') return 1;
   return 0;
 }

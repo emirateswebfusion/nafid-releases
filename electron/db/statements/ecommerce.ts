@@ -146,7 +146,7 @@ export function getProductsStatement(db: Db, args: { tid: string; search: string
     WHERE (p.tenant_id = ? OR p.tenant_id IS NULL)
       AND p.is_deleted = 0
   `;
-  const params: any[] = [tid];
+  const params: unknown[] = [tid];
   if (search && search.trim()) {
     query += ` AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.category LIKE ?)`;
     const term = `%${search.trim()}%`;
