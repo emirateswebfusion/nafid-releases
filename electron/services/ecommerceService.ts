@@ -16,9 +16,9 @@ export function getSettings({ tenant_id }: { tenant_id: string }) {
       row = ecommerceSql.findEcommerceSettings(db).get(tid);
     }
     return { success: true, settings: row };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:getSettings]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -41,9 +41,9 @@ export function saveSettings({ tenant_id, settings }: { tenant_id: string; setti
 
     const updated = ecommerceSql.findEcommerceSettings(db).get(tid);
     return { success: true, settings: updated };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:saveSettings]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -53,8 +53,8 @@ export async function testConnection({ url }: { url?: string }) {
     if (url) fusionCartBridge.setBaseUrl(url);
     const result = await fusionCartBridge.testConnection();
     return result;
-  } catch (err: any) {
-    return { connected: false, message: err.message };
+  } catch (err) {
+    return { connected: false, message: (err as Error).message };
   }
 }
 
@@ -102,9 +102,9 @@ export async function registerVendor({ tenant_id, data }: { tenant_id: string; d
 
     const updatedSettings = ecommerceSql.findEcommerceSettings(db).get(tid);
     return { success: true, settings: updatedSettings };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:registerVendor]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -150,9 +150,9 @@ export async function refreshStatus({ tenant_id }: { tenant_id: string }) {
 
     const updated = ecommerceSql.findEcommerceSettings(db).get(tid);
     return { success: true, settings: updated, store };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:refreshStatus]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -166,9 +166,9 @@ export function getProducts({ tenant_id, search, filter }: { tenant_id: string; 
 
     const products = statement.all(...params);
     return { success: true, products };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:getProducts]', err);
-    return { success: false, error: err.message, products: [] };
+    return { success: false, error: (err as Error).message, products: [] };
   }
 }
 
@@ -217,9 +217,9 @@ export function updateMapping({
     }
 
     return { success: true, mapping: existing };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:updateMapping]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -284,9 +284,9 @@ export async function syncProduct({ tenant_id, product_id }: { tenant_id: string
     ecommerceSql.upsertEcommerceProductMapping2(db).run(crypto.randomUUID(), tid, product_id, remoteId, isOnline ? 1 : 0);
 
     return { success: true, remoteId };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:syncProduct]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -309,9 +309,9 @@ export async function unpublishProduct({ tenant_id, product_id }: { tenant_id: s
     ecommerceSql.updateEcommerceProductMappingIsOnlineEnabled(db).run(tid, product_id);
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:unpublishProduct]', err);
-    return { success: false, error: err.message };
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -336,8 +336,8 @@ export async function getOrders({ tenant_id }: { tenant_id: string }) {
     }
 
     return { success: true, orders: res.orders || [] };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ecommerce:getOrders]', err);
-    return { success: false, error: err.message, orders: [] };
+    return { success: false, error: (err as Error).message, orders: [] };
   }
 }

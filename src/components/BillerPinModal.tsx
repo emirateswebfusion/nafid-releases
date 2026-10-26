@@ -62,8 +62,8 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
         // Fallback or web API call if electronAPI not present
         setError('Biller PIN verification is only supported on POS desktop app');
       }
-    } catch (err: any) {
-      setError(err.message || 'Verification error');
+    } catch (err) {
+      setError((err as Error).message || 'Verification error');
       setPinDigits(['', '', '', '']);
       setTimeout(() => inputRefs[0].current?.focus(), 100);
     } finally {

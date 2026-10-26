@@ -66,8 +66,8 @@ export function useEmergencyPanicTrigger() {
       // Clear client state
       useCartStore.getState().clearCart?.();
       useAuthStore.getState().logout();
-      try { localStorage.clear(); } catch {}
-      try { sessionStorage.clear(); } catch {}
+      try { localStorage.clear(); } catch { /* ignore */ }
+      try { sessionStorage.clear(); } catch { /* ignore */ }
 
       // Hard reload to clean login screen
       setTimeout(() => {
@@ -85,8 +85,8 @@ export function useEmergencyPanicTrigger() {
     const unsub = bridgeEvents.onEmergencyPurged(() => {
       useCartStore.getState().clearCart?.();
       useAuthStore.getState().logout();
-      try { localStorage.clear(); } catch {}
-      try { sessionStorage.clear(); } catch {}
+      try { localStorage.clear(); } catch { /* ignore */ }
+      try { sessionStorage.clear(); } catch { /* ignore */ }
       setTimeout(() => {
         window.location.href = window.location.origin + window.location.pathname;
       }, 300);

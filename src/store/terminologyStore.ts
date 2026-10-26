@@ -101,7 +101,7 @@ function loadStoredPreset(): TerminologyPreset {
     if (val && ['SIMPLE', 'ACCOUNTING', 'CASHFLOW', 'CUSTOM'].includes(val)) {
       return val;
     }
-  } catch {}
+  } catch { /* ignore */ }
   return 'SIMPLE';
 }
 
@@ -112,7 +112,7 @@ function loadStoredCustomLabels(): TerminologyCustomLabels {
       const parsed = JSON.parse(val);
       return { ...DEFAULT_CUSTOM_LABELS, ...parsed };
     }
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_CUSTOM_LABELS;
 }
 
@@ -153,7 +153,7 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
   setPreset: (preset) => {
     try {
       localStorage.setItem(STORAGE_KEY_PRESET, preset);
-    } catch {}
+    } catch { /* ignore */ }
     if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
       settingsApi.set({ tenant_id: 'global', key: STORAGE_KEY_PRESET, value: preset }).catch(() => {});
     }
@@ -165,7 +165,7 @@ export const useTerminologyStore = create<TerminologyState>((set, get) => ({
     const updated = { ...get().customLabels, ...newLabels };
     try {
       localStorage.setItem(STORAGE_KEY_CUSTOM, JSON.stringify(updated));
-    } catch {}
+    } catch { /* ignore */ }
     if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
       settingsApi.set({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM, value: updated }).catch(() => {});
     }

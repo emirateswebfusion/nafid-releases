@@ -157,8 +157,8 @@ export function useCustomerEditing(ctx: UseCustomerEditingContext) {
       } else {
         showStatus(res.error || 'Failed to adjust points', 'error');
       }
-    } catch (e: any) {
-      showStatus(e?.message || 'Error adjusting points', 'error');
+    } catch (e) {
+      showStatus((e as Error)?.message || 'Error adjusting points', 'error');
     } finally {
       setAdjustPointsLoading(false);
     }

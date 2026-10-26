@@ -70,8 +70,8 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
         const newState = await syncApi.getCloudAccessState();
         if (newState) setEffectiveCloudState(newState);
       }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: `Queue drain error: ${err.message}` });
+    } catch (err) {
+      setMessage({ type: 'error', text: `Queue drain error: ${(err as Error).message}` });
     } finally {
       setDrainingQueue(false);
     }

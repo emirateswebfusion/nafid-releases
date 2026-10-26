@@ -25,7 +25,7 @@ export function setStoreTimezone(tz: string) {
     activeStoreTimezone = tz;
     try {
       localStorage.setItem('app_store_timezone', tz);
-    } catch {}
+    } catch { /* ignore */ }
   }
 }
 
@@ -33,7 +33,7 @@ export function getStoreTimezone(): string {
   try {
     const saved = localStorage.getItem('app_store_timezone');
     if (saved) return saved;
-  } catch {}
+  } catch { /* ignore */ }
   return activeStoreTimezone || DEFAULT_STORE_TIMEZONE;
 }
 

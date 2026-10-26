@@ -10,7 +10,7 @@ export function saveWarranty(w: any) {
     warrantiesSql.insertWarranty(db).run(w.warranty_id, w.tenant_id, w.invoice_id || null, w.invoice_item_id || null, w.bill_number || null, w.brand || null, w.customer_name, w.customer_phone || null, w.product_name, w.product_details || null, w.purchase_date, w.warranty_period_days, w.expiry_date, w.notes || null);
     triggerUrgentWarrantySync().catch(() => {});
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:saveWarranty]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -23,7 +23,7 @@ export function getWarranties({ tenant_id, search }: { tenant_id: string; search
     if (!tenant_id) return [];
     const { statement, params } = warrantiesSql.getWarrantiesStatement(db, { tenant_id, search });
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getWarranties]', error);
     return { error: 'Operation failed' };
   }
@@ -36,7 +36,7 @@ export function deleteWarranty(warrantyId: string) {
     warrantiesSql.deleteWarrantyByWarrantyId(db).run(warrantyId);
     triggerUrgentWarrantySync().catch(() => {});
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteWarranty]', error);
     return { success: false, error: 'Operation failed' };
   }

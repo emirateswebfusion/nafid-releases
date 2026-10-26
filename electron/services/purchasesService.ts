@@ -35,7 +35,7 @@ function getNextOrPeekPurchaseBillNumber(
         const clean = parsed.prefix.trim().replace(/[^A-Z0-9_-]/gi, '').toUpperCase();
         prefix = clean.endsWith('-') ? clean : `${clean}-`;
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   // 2. If no explicit prefix was configured in settings, inspect existing purchase bills for this tenant
@@ -121,7 +121,7 @@ export function getProductSuppliers(tenantId: string) {
       }
     }
     return map;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getProductSuppliers]', error);
     return {};
   }
@@ -132,7 +132,7 @@ export function peekNextPurchaseBillNumber(payload: { tenant_id: string; bill_ty
   try {
     const db = getDb();
     return getNextOrPeekPurchaseBillNumber(db, payload?.tenant_id, payload?.bill_type, false);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:peekNextPurchaseBillNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -146,7 +146,7 @@ export function getNextPurchaseBillNumber(payload: { tenant_id: string; bill_typ
       return getNextOrPeekPurchaseBillNumber(db, payload?.tenant_id, payload?.bill_type, true);
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getNextPurchaseBillNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -215,7 +215,7 @@ export function addPurchaseBill(payload: {
             const prodRow = purchasesSql.findProductsByProductId(db).get(item.product_id) as any;
             if (prodRow) {
               let da: Record<string, any> = {};
-              try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch {}
+              try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch { /* ignore */ }
               da.gst_purchase_price = item.purchase_price;
               da.paper_purchase_price = item.purchase_price;
               if (item.selling_price != null) {
@@ -267,7 +267,7 @@ export function addPurchaseBill(payload: {
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addPurchaseBill]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -282,7 +282,7 @@ export function getPurchaseBills({ tenant_id, search, limit, offset }: { tenant_
     const { statement, params } = purchasesSql.getPurchaseBillsStatement(db, { tenant_id, search, limit, offset });
 
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getPurchaseBills]', error);
     return { error: 'Operation failed' };
   }
@@ -293,7 +293,7 @@ export function getPurchaseBillItems(purchase_bill_id: string) {
   try {
     const db = getDb();
     return purchasesSql.findPurchaseBillItemsByPurchaseBillId(db).all(purchase_bill_id);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getPurchaseBillItems]', error);
     return { error: 'Operation failed' };
   }
@@ -389,7 +389,7 @@ export function updatePurchaseBill(payload: {
           const prodRow = purchasesSql.findProductsByProductId(db).get(item.product_id) as any;
           if (prodRow) {
             let da: Record<string, any> = {};
-            try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch {}
+            try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch { /* ignore */ }
             da.gst_purchase_price = item.purchase_price;
             da.paper_purchase_price = item.purchase_price;
             if (item.selling_price != null) {
@@ -420,7 +420,7 @@ export function updatePurchaseBill(payload: {
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updatePurchaseBill]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -462,7 +462,7 @@ export function deletePurchaseBill(purchase_bill_id: string) {
       runInitialSync().catch(e => console.error('[Main] Sync after delete error:', e));
     }).catch(() => {});
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deletePurchaseBill]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -476,7 +476,7 @@ export function getPurchaseBillProducts({ tenant_id, search, limit, numericPrefi
 
     const { statement, params } = purchasesSql.getPurchaseBillProductsStatement(db, { tenant_id, search, numericPrefixOnly, limit });
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getPurchaseBillProducts]', error);
     return { error: 'Operation failed' };
   }

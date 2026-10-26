@@ -79,7 +79,7 @@ export function useConversionPreview(ctx: UseConversionPreviewContext) {
             if (Array.isArray(prods)) {
               for (const p of prods) productsMap[p.product_id] = p;
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         for (const inv of selectedBosInvoices) {
@@ -93,7 +93,7 @@ export function useConversionPreview(ctx: UseConversionPreviewContext) {
             const prod = productsMap[item.product_id];
             let da: any = {};
             if (prod?.domain_attributes) {
-              try { da = JSON.parse(prod.domain_attributes); } catch {}
+              try { da = JSON.parse(prod.domain_attributes); } catch { /* ignore */ }
             }
             const isReal = prod ? (prod.is_gst_applicable === 1 && da.gst_type !== 'PAPER') : false;
             const isPaper = prod ? (!isReal && (da.gst_type === 'PAPER' || Number(da.paper_mrp || 0) > 0 || Number(da.paper_purchase_price || 0) > 0 || Number(da.gst_purchase_price || 0) > 0 || Number(da.paper_stock || 0) > 0)) : false;

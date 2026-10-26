@@ -176,7 +176,7 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
         } else {
           console.warn('[SalesHistory] Unexpected response from dbGetInvoices:', data);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('[SalesHistory] Exception while calling dbGetInvoices:', err);
       } finally {
         setLoading(false);

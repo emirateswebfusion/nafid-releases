@@ -59,7 +59,7 @@ export function getAll({ tenant_id }: { tenant_id: string }) {
       }
     }
     return resultMap;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[settings:getAll]', error);
     return {};
   }
@@ -106,7 +106,7 @@ export function get({ tenant_id, key }: { tenant_id: string; key: string }) {
       }
     }
     return null;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[settings:get]', error);
     return null;
   }
@@ -142,7 +142,7 @@ export async function set({ tenant_id, key, value }: { tenant_id: string; key: s
       reloadSyncConfig();
     }
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[settings:set]', error);
     return { success: false, error: 'Operation failed' };
   }

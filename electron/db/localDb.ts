@@ -130,13 +130,13 @@ export function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_shop_closing_reports_date ON shop_closing_reports(tenant_id, business_date, trigger_type);
     `);
-  } catch (e: any) {
-    console.error('[DB Migration] shop_closing_reports table ensure error:', e.message);
+  } catch (e) {
+    console.error('[DB Migration] shop_closing_reports table ensure error:', (e as Error).message);
   }
   try {
     ensureInvoiceColumnsExist(db);
-  } catch (e: any) {
-    console.error('[DB Migration] ensureInvoiceColumnsExist error:', e.message);
+  } catch (e) {
+    console.error('[DB Migration] ensureInvoiceColumnsExist error:', (e as Error).message);
   }
 
   // Versioned migrations (electron/db/migrations): run once each, after the baseline above.
@@ -190,8 +190,8 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         console.log(`[DB Migration] Auto-ensuring missing column ${colName} (${colType}) in invoices...`);
         try {
           d.exec(`ALTER TABLE invoices ADD COLUMN ${colName} ${colType}`);
-        } catch (colErr: any) {
-          console.warn(`[DB Migration] Failed to auto-add column ${colName} to invoices:`, colErr.message);
+        } catch (colErr) {
+          console.warn(`[DB Migration] Failed to auto-add column ${colName} to invoices:`, (colErr as Error).message);
         }
       }
     }
@@ -218,8 +218,8 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         console.log(`[DB Migration] Auto-ensuring missing column ${colName} (${colType}) in invoice_items...`);
         try {
           d.exec(`ALTER TABLE invoice_items ADD COLUMN ${colName} ${colType}`);
-        } catch (colErr: any) {
-          console.warn(`[DB Migration] Failed to auto-add column ${colName} to invoice_items:`, colErr.message);
+        } catch (colErr) {
+          console.warn(`[DB Migration] Failed to auto-add column ${colName} to invoice_items:`, (colErr as Error).message);
         }
       }
     }
@@ -232,8 +232,8 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         WHERE (invoice_type IN ('HOLD', 'RECALLED_HOLD', 'EXPIRED_HOLD') OR is_held = 1)
           AND (invoice_number NOT LIKE '%HLD%' OR invoice_number IS NULL)
       `);
-    } catch (e: any) {
-      console.warn('[DB Migration] Fix legacy held invoice numbers error:', e.message);
+    } catch (e) {
+      console.warn('[DB Migration] Fix legacy held invoice numbers error:', (e as Error).message);
     }
 
     // Migration: Sync converted GST invoices' created_at to match their source Bill of Supply's actual created_at
@@ -265,8 +265,8 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         )
           AND created_at IS NOT (SELECT inv.created_at FROM invoices inv WHERE inv.invoice_id = invoice_items.invoice_id);
       `);
-    } catch (migErr: any) {
-      console.warn('[DB Migration] Could not backfill converted invoices created_at:', migErr.message);
+    } catch (migErr) {
+      console.warn('[DB Migration] Could not backfill converted invoices created_at:', (migErr as Error).message);
     }
 
     // Migration: Clean up erroneous paper prices on Real products in domain_attributes
@@ -288,13 +288,13 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
             delete da.gst_purchase_price;
             d.prepare(`UPDATE products SET domain_attributes = ?, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(JSON.stringify(da), prod.product_id);
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
-    } catch (e: any) {
-      console.warn('[DB Migration] Clean real product paper attributes error:', e.message);
+    } catch (e) {
+      console.warn('[DB Migration] Clean real product paper attributes error:', (e as Error).message);
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Auto-ensure columns error:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Auto-ensure columns error:', (e as Error).message);
   }
 }
 

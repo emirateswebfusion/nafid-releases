@@ -167,7 +167,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                       try {
                         const s = typeof selectedReturnInvoice.split_details === 'string' ? JSON.parse(selectedReturnInvoice.split_details) : selectedReturnInvoice.split_details;
                         splitCredit = Number(s?.credit) || 0;
-                      } catch {}
+                      } catch { /* ignore */ }
                     }
                     const isCredit = pm === 'CREDIT' || splitCredit > 0 || (Number(selectedReturnInvoice.balance_amount) > 0 && pm !== 'CASH');
                     if (isCredit) {

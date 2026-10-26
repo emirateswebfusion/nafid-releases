@@ -91,7 +91,7 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
             try {
               const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
               if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
-            } catch {}
+            } catch { /* ignore */ }
           }
           const iName = String(item?.name || '').toLowerCase().trim();
           const matchedCombo = combosList.find((c: any) => {

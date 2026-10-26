@@ -194,7 +194,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             try {
               lanUpsertSql.updateCashTransactions(db).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
               lanUpsertSql.updateCashierAuditLog(db).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
-            } catch {}
+            } catch { /* ignore */ }
           }
           if (itemId) syncedIds.push(itemId);
           continue;
@@ -220,11 +220,11 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
               lanUpsertSql.updateProductPricing(db).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
               lanUpsertSql.updateParties(db).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
               lanUpsertSql.updateCustomers(db).run(existingTier.pricing_tier_id, rawRow.pricing_tier_id);
-            } catch {}
+            } catch { /* ignore */ }
             if (itemId) syncedIds.push(itemId);
             continue;
-          } catch (e: any) {
-            console.warn('[LocalHostServer] Error updating existing pricing tier by name:', e.message);
+          } catch (e) {
+            console.warn('[LocalHostServer] Error updating existing pricing tier by name:', (e as Error).message);
           }
         }
       }
@@ -237,13 +237,13 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             stmt.run(paramObj);
             if (itemId) syncedIds.push(itemId);
             success = true;
-          } catch (runErr: any) {
-            if (runErr.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number') || runErr.message?.includes('UNIQUE constraint failed: invoices.invoice_number')) {
+          } catch (runErr) {
+            if ((runErr as Error).message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number') || (runErr as Error).message?.includes('UNIQUE constraint failed: invoices.invoice_number')) {
               const suffix = String(paramObj.invoice_id || Math.random().toString(36).substring(2, 6)).substring(0, 4).toUpperCase();
               paramObj.invoice_number = `${paramObj.invoice_number}-C${suffix}`;
               retryCount++;
             } else {
-              console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, runErr.message);
+              console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, (runErr as Error).message);
               break;
             }
           }
@@ -252,8 +252,8 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         try {
           stmt.run(paramObj);
           if (itemId) syncedIds.push(itemId);
-        } catch (runErr: any) {
-          console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, runErr.message);
+        } catch (runErr) {
+          console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, (runErr as Error).message);
         }
       }
 
@@ -264,7 +264,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         if (Array.isArray(rawRow.items)) {
           try {
             lanUpsertSql.deleteInvoiceItems(db).run(rawRow.invoice_id);
-          } catch {}
+          } catch { /* ignore */ }
 
           for (const line of rawRow.items) {
             if (!line.invoice_id) line.invoice_id = rawRow.invoice_id;
@@ -280,7 +280,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
               if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
                 try {
                   lanUpsertSql.updateProducts(db).run(Number(line.quantity), line.product_id);
-                } catch {}
+                } catch { /* ignore */ }
               }
             }
           }
@@ -299,7 +299,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             try {
               const sd = typeof rawRow.split_details === 'string' ? JSON.parse(rawRow.split_details) : rawRow.split_details;
               cashAmt = Math.max(0, Number(sd?.cash) || 0);
-            } catch {}
+            } catch { /* ignore */ }
           }
 
           if (cashAmt > 0) {
@@ -312,8 +312,8 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
                 const newExp = Number(drawer.expected_closing || 0) + cashAmt;
                 lanUpsertSql.updateCashDrawer2(db).run(newSales, newCurrent, newExp, drawer.drawer_id);
               }
-            } catch (cdErr: any) {
-              console.warn('[LocalHostServer] Could not update cash drawer for LAN invoice:', cdErr.message);
+            } catch (cdErr) {
+              console.warn('[LocalHostServer] Could not update cash drawer for LAN invoice:', (cdErr as Error).message);
             }
           }
         } else if (!isNewInvoice && isDeleted && Array.isArray(rawRow.items)) {
@@ -322,7 +322,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             if (line.product_id && Number(line.quantity) > 0) {
               try {
                 lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
-              } catch {}
+              } catch { /* ignore */ }
             }
           }
         }
@@ -330,7 +330,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
         if (rawRow.scrap_invoice_number && Number(rawRow.scrap_deduction) > 0 && !isDeleted) {
           try {
             lanUpsertSql.updateScrapTransactions(db).run(rawRow.scrap_invoice_number);
-          } catch {}
+          } catch { /* ignore */ }
         }
       } else if (tableName === 'purchase_bills' && Array.isArray(rawRow.items)) {
         for (const line of rawRow.items) {
@@ -343,7 +343,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             if (line.product_id && Number(line.quantity) > 0) {
               try {
                 lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
-              } catch {}
+              } catch { /* ignore */ }
             }
           }
         }
@@ -358,7 +358,7 @@ export function upsertTableRows(db: any, tableName: string, items: any[]): strin
             if (line.product_id && Number(line.quantity) > 0) {
               try {
                 lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
-              } catch {}
+              } catch { /* ignore */ }
             }
           }
         }

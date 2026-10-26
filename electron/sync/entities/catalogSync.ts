@@ -50,8 +50,8 @@ export async function syncPricingTiers(token: string, tenantId: string) {
         catalogSyncSql.updateCustomers(db).run(newUuid, oldId);
         catalogSyncSql.updatePricingTiers(db).run(newUuid, tenantId, oldId);
         t.pricing_tier_id = newUuid;
-      } catch (err: any) {
-        console.warn('[SyncWorker] Error remapping non-UUID pricing tier:', err.message);
+      } catch (err) {
+        console.warn('[SyncWorker] Error remapping non-UUID pricing tier:', (err as Error).message);
       }
     }
   }
@@ -207,8 +207,8 @@ export async function pullGrades(token: string, tenantId: string): Promise<boole
               created_at: toSqliteDate(g.created_at),
               updated_at: toSqliteDate(g.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling grade:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling grade:', (e as Error).message);
           }
         }
       });
@@ -264,8 +264,8 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
                 } else {
                   updateTierId.run(t.pricing_tier_id, tenantId, existing.pricing_tier_id);
                 }
-              } catch (remapErr: any) {
-                console.warn('[SyncWorker] Error remapping tier ID:', remapErr.message);
+              } catch (remapErr) {
+                console.warn('[SyncWorker] Error remapping tier ID:', (remapErr as Error).message);
               }
             }
 
@@ -280,8 +280,8 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
               created_at: toSqliteDate(t.created_at),
               updated_at: toSqliteDate(t.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling pricing tier:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling pricing tier:', (e as Error).message);
           }
         }
       });
@@ -333,8 +333,8 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
               created_at: toSqliteDate(pp.created_at),
               updated_at: toSqliteDate(pp.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling product pricing row:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling product pricing row:', (e as Error).message);
           }
         }
       });
@@ -345,7 +345,7 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
         try {
           const res = reconcileStmt.run(r.product_pricing_id, r.product_id, r.pricing_tier_id, toSqliteDate(r.updated_at));
           if (res.changes > 0) reconciled += res.changes;
-        } catch {}
+        } catch { /* ignore */ }
       }
       return reconciled;
     },
@@ -414,12 +414,12 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
                 updated_at: toSqliteDate(currentP.updated_at),
               });
               success = true;
-            } catch (e: any) {
-              if (e.message?.includes('UNIQUE constraint failed')) {
+            } catch (e) {
+              if ((e as Error).message?.includes('UNIQUE constraint failed')) {
                 const suffix = currentP.product_id.substring(0, 4).toUpperCase();
-                if (e.message.includes('products.name')) currentP.name = `${currentP.name} (Cloud-${suffix})`;
-                if (e.message.includes('products.sku_barcode')) currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
-                if (e.message.includes('products.item_code')) currentP.item_code = `${currentP.item_code}-${suffix}`;
+                if ((e as Error).message.includes('products.name')) currentP.name = `${currentP.name} (Cloud-${suffix})`;
+                if ((e as Error).message.includes('products.sku_barcode')) currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
+                if ((e as Error).message.includes('products.item_code')) currentP.item_code = `${currentP.item_code}-${suffix}`;
                 retryCount++;
               } else {
                 throw e;
@@ -527,8 +527,8 @@ export async function pullComboOffers(token: string, tenantId: string): Promise<
                 );
               }
             }
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling combo offer row:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling combo offer row:', (e as Error).message);
           }
         }
       });

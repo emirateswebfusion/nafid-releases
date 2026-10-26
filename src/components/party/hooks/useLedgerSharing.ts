@@ -63,8 +63,8 @@ export function useLedgerSharing(ctx: UseLedgerSharingContext) {
       } else {
         showStatus(`WhatsApp Alert Failed: ${res?.error || 'WhatsApp not able to connect'}`, 'error');
       }
-    } catch (err: any) {
-      showStatus('WhatsApp Alert Failed: ' + (err?.message || 'Connection error'), 'error');
+    } catch (err) {
+      showStatus('WhatsApp Alert Failed: ' + ((err as Error)?.message || 'Connection error'), 'error');
     }
   };
 
@@ -124,9 +124,9 @@ export function useLedgerSharing(ctx: UseLedgerSharingContext) {
           setTimeout(() => pw.print(), 500);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Download PDF error:', err);
-      showStatus('Failed to generate PDF: ' + (err?.message || 'Unknown error'), 'error');
+      showStatus('Failed to generate PDF: ' + ((err as Error)?.message || 'Unknown error'), 'error');
     } finally {
       setIsExportingPdf(false);
     }
@@ -200,8 +200,8 @@ export function useLedgerSharing(ctx: UseLedgerSharingContext) {
         window.open(waUrl, '_blank');
         showStatus('Opened WhatsApp chat with statement summary', 'success');
       }
-    } catch (err: any) {
-      showStatus('WhatsApp Alert Failed: ' + (err?.message || 'Connection error'), 'error');
+    } catch (err) {
+      showStatus('WhatsApp Alert Failed: ' + ((err as Error)?.message || 'Connection error'), 'error');
     } finally {
       setIsSendingWhatsAppPdf(false);
     }

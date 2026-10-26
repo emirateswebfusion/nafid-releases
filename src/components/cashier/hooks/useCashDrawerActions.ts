@@ -77,11 +77,11 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
           variant: 'danger'
         });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Reopen drawer error:', err);
       setAlertDialog({
         title: 'System Error',
-        message: 'Failed to reopen cash drawer: ' + (err.message || err),
+        message: 'Failed to reopen cash drawer: ' + ((err as Error).message || err),
         variant: 'danger'
       });
     } finally {
@@ -116,11 +116,11 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
           variant: 'danger'
         });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Delete transaction error:', err);
       setAlertDialog({
         title: 'System Error',
-        message: 'Failed to delete transaction: ' + (err.message || err),
+        message: 'Failed to delete transaction: ' + ((err as Error).message || err),
         variant: 'danger'
       });
     } finally {

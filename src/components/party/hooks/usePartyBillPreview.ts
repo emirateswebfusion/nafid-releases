@@ -81,7 +81,7 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
                 break;
               }
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
         if (!foundInvoice) {
           try {

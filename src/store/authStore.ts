@@ -171,7 +171,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             if (typeof localName === 'string' && localName.trim()) {
               resolvedShopName = localName.trim();
             }
-          } catch {}
+          } catch { /* ignore */ }
 
           set({
             isAuthenticated: true,
@@ -256,7 +256,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       try {
         const local = await settingsApi.get({ tenant_id: user.tenant_id || 'global', key: 'shop_name' });
         if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
-      } catch {}
+      } catch { /* ignore */ }
 
       const offlineSession = {
         tenant_id: user.tenant_id,
@@ -273,8 +273,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           if (!saved?.success) {
             return { success: false, error: saved?.error || 'Could not save the offline session. Please try again.' };
           }
-        } catch (error: any) {
-          return { success: false, error: error?.message || 'Could not save the offline session. Please try again.' };
+        } catch (error) {
+          return { success: false, error: (error as Error)?.message || 'Could not save the offline session. Please try again.' };
         }
       }
 
@@ -333,7 +333,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         try {
           const local = await settingsApi.get({ tenant_id: data.tenant_id || 'global', key: 'shop_name' });
           if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
-        } catch {}
+        } catch { /* ignore */ }
       }
       if (!resolvedShopName) resolvedShopName = email;
 
@@ -401,7 +401,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       }
 
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       // Offline fallback: Attempt local authentication using cached user credentials in SQLite
       if (hasBridge('authLoginOffline')) {
         const offlineAuth = await authApi.loginOffline({ email, password });
@@ -421,7 +421,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       localStorage.removeItem('nafid_pos_ai_conversations_v3');
       localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
       localStorage.removeItem('nafid_pos_ai_conversations');
-    } catch {}
+    } catch { /* ignore */ }
     useCartStore.getState().clearCart();
     set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null });
   },
@@ -454,7 +454,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       }
 
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       console.error('Update domain error:', err);
       return { success: false, error: 'Authentication failed' };
     }
@@ -466,7 +466,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Request failed') };
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       return { success: false, error: 'Cannot reach server.' };
     }
   },
@@ -477,7 +477,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Reset failed') };
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       return { success: false, error: 'Cannot reach server.' };
     }
   },
@@ -491,7 +491,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       return { success: false, error: 'Cannot reach server.' };
     }
   }

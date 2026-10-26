@@ -36,8 +36,8 @@ export function runColumnMigrations(db: Database.Database) {
         console.log(`[DB Migration] Adding missing column ${colName} (${colType}) to invoices...`);
         try {
           db.exec(`ALTER TABLE invoices ADD COLUMN ${colName} ${colType}`);
-        } catch (colErr: any) {
-          console.warn(`[DB Migration] Failed to add column ${colName} to invoices:`, colErr.message);
+        } catch (colErr) {
+          console.warn(`[DB Migration] Failed to add column ${colName} to invoices:`, (colErr as Error).message);
         }
       }
     }
@@ -47,10 +47,10 @@ export function runColumnMigrations(db: Database.Database) {
     for (const tbl of tablesToNormalize) {
       try {
         db.exec(`UPDATE ${tbl} SET is_deleted = 0 WHERE is_deleted IS NULL OR (typeof(is_deleted) <> 'integer' AND (is_deleted = '0.0' OR is_deleted = '0' OR is_deleted = 0.0));`);
-      } catch {}
+      } catch { /* ignore */ }
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add/normalize columns in invoices:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add/normalize columns in invoices:', (e as Error).message);
   }
 
   // Migration: Fix non-UUID product_pricing_id in product_pricing
@@ -66,8 +66,8 @@ export function runColumnMigrations(db: Database.Database) {
         updStmt.run(crypto.randomUUID(), r.product_id, r.pricing_tier_id, r.tenant_id);
       }
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to fix non-UUID product_pricing_id:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to fix non-UUID product_pricing_id:', (e as Error).message);
   }
 
   // Migration: Add bill_type column to purchase_bills
@@ -77,8 +77,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding bill_type to purchase_bills...');
       db.exec("ALTER TABLE purchase_bills ADD COLUMN bill_type TEXT DEFAULT 'GST'");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add bill_type to purchase_bills:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add bill_type to purchase_bills:', (e as Error).message);
   }
 
   // Migration: Normalize business_date in cash_drawer to pure YYYY-MM-DD
@@ -108,8 +108,8 @@ export function runColumnMigrations(db: Database.Database) {
         }
       }
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to normalize business_date in cash_drawer:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to normalize business_date in cash_drawer:', (e as Error).message);
   }
 
   // Migration: Add invoice_number column to purchase_bills
@@ -119,8 +119,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding invoice_number to purchase_bills...');
       db.exec("ALTER TABLE purchase_bills ADD COLUMN invoice_number TEXT");
     }
-    } catch (e: any) {
-      console.warn('[DB Migration] Failed to add invoice_number to purchase_bills:', e.message);
+    } catch (e) {
+      console.warn('[DB Migration] Failed to add invoice_number to purchase_bills:', (e as Error).message);
     }
 
     // Migration: Add payment_type column to purchase_bills
@@ -130,8 +130,8 @@ export function runColumnMigrations(db: Database.Database) {
         console.log('[DB Migration] Adding payment_type to purchase_bills...');
         db.exec("ALTER TABLE purchase_bills ADD COLUMN payment_type TEXT DEFAULT 'CASH'");
       }
-    } catch (e: any) {
-      console.warn('[DB Migration] Failed to add payment_type to purchase_bills:', e.message);
+    } catch (e) {
+      console.warn('[DB Migration] Failed to add payment_type to purchase_bills:', (e as Error).message);
     }
 
   // Migration: Consolidate user roles to SUPER_ADMIN, ADMIN, STAFF
@@ -215,8 +215,8 @@ export function runColumnMigrations(db: Database.Database) {
 
     // Backfill: existing balances are treated as GST balance (legacy behavior)
     db.exec("UPDATE parties SET gst_balance = balance WHERE gst_balance = 0 AND balance != 0");
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add balance/credit_limit/credit_period columns to parties/customers:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add balance/credit_limit/credit_period columns to parties/customers:', (e as Error).message);
   }
 
   // Migration: Add balance_type & payment_method columns to party_ledger
@@ -230,8 +230,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding payment_method to party_ledger...');
       db.exec("ALTER TABLE party_ledger ADD COLUMN payment_method TEXT");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add columns to party_ledger:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add columns to party_ledger:', (e as Error).message);
   }
 
   // Migration: Add restricted_page and password_hash columns to users
@@ -253,8 +253,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding login_enabled to users...');
       db.exec('ALTER TABLE users ADD COLUMN login_enabled INTEGER NOT NULL DEFAULT 1');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add columns to users:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add columns to users:', (e as Error).message);
   }
 
   // Migration: Backfill settled_at for historical non-pending invoices where settled_at IS NULL
@@ -263,8 +263,8 @@ export function runColumnMigrations(db: Database.Database) {
     if (invCols.includes('settled_at')) {
       db.exec("UPDATE invoices SET settled_at = created_at WHERE payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (settled_at IS NULL OR settled_at = '')");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to backfill settled_at:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to backfill settled_at:', (e as Error).message);
   }
 
   // Migration: Add partial-adjustment columns to returns
@@ -282,8 +282,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding customer_address to returns...');
       db.exec("ALTER TABLE returns ADD COLUMN customer_address TEXT");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add adjustment columns to returns:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add adjustment columns to returns:', (e as Error).message);
   }
 
   // Migration: Recalibrate return totals for returns of discounted invoices. Each line is priced like the return screen
@@ -339,8 +339,8 @@ export function runColumnMigrations(db: Database.Database) {
         }
       })();
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Recalibrating return totals failed:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Recalibrating return totals failed:', (e as Error).message);
   }
 
   // Migration: Add skip_stock_update to purchase_bill_items and qty_from_paper_stock to invoice_items
@@ -350,8 +350,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding skip_stock_update to purchase_bill_items...');
       db.exec("ALTER TABLE purchase_bill_items ADD COLUMN skip_stock_update INTEGER DEFAULT 0");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add skip_stock_update to purchase_bill_items:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add skip_stock_update to purchase_bill_items:', (e as Error).message);
   }
 
   try {
@@ -372,8 +372,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding uom to invoice_items...');
       db.exec("ALTER TABLE invoice_items ADD COLUMN uom TEXT");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add columns to invoice_items:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add columns to invoice_items:', (e as Error).message);
   }
 
   try {
@@ -386,8 +386,8 @@ export function runColumnMigrations(db: Database.Database) {
       console.log('[DB Migration] Adding brand to warranties...');
       db.exec("ALTER TABLE warranties ADD COLUMN brand TEXT");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add columns to warranties:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add columns to warranties:', (e as Error).message);
   }
 
   // Migration: allow temp (billing-only) items — invoice_items & return_items must not
@@ -421,8 +421,8 @@ export function runColumnMigrations(db: Database.Database) {
       db.exec('PRAGMA foreign_keys=on;');
       console.log('[DB Migration] invoice_items products FK removed successfully.');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to update invoice_items schema:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to update invoice_items schema:', (e as Error).message);
   }
 
   try {
@@ -454,15 +454,15 @@ export function runColumnMigrations(db: Database.Database) {
       db.exec('PRAGMA foreign_keys=on;');
       console.log('[DB Migration] return_items products FK removed successfully.');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to update return_items schema:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to update return_items schema:', (e as Error).message);
   }
 
   // Clean up legacy dummy default printer_config ('192.168.1.100') if present so it doesn't override real printers
   try {
     db.exec("DELETE FROM settings WHERE key = 'printer_config' AND value LIKE '%192.168.1.100%'");
-  } catch (e: any) {
-    console.warn('[DB Migration] Dummy printer_config cleanup failed:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Dummy printer_config cleanup failed:', (e as Error).message);
   }
 
   // Initialize hardware defaults if empty
@@ -500,8 +500,8 @@ export function runColumnMigrations(db: Database.Database) {
         console.log('[DB Migration] Set network_sync_config terminal role to PRIMARY Master Server.');
       }
     }
-  } catch (e: any) {
-    console.error('[DB Migration] Error setting network_sync_config to PRIMARY:', e.message);
+  } catch (e) {
+    console.error('[DB Migration] Error setting network_sync_config to PRIMARY:', (e as Error).message);
   }
 
   // Clean up legacy records with 0.0 offer_price
@@ -511,7 +511,7 @@ export function runColumnMigrations(db: Database.Database) {
       UPDATE product_grades SET offer_price = NULL WHERE offer_price = 0.0;
     `);
     console.log('[DB Migration] Cleaned up legacy 0.0 offer prices to NULL.');
-  } catch (e: any) {
-    console.error('[DB Migration] Failed to run offer_price cleanup migration:', e.message);
+  } catch (e) {
+    console.error('[DB Migration] Failed to run offer_price cleanup migration:', (e as Error).message);
   }
 }

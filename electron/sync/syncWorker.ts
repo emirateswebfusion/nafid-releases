@@ -164,8 +164,8 @@ function scheduleNextSyncCycle() {
     if (syncState.isSyncActive) {
       try {
         await runSyncCycle();
-      } catch (err: any) {
-        console.error('[SyncWorker] Background sync error:', err.message);
+      } catch (err) {
+        console.error('[SyncWorker] Background sync error:', (err as Error).message);
       }
     }
     scheduleNextSyncCycle();
@@ -205,8 +205,8 @@ export function initSyncWorker() {
         console.log('[SyncWorker] 🚀 Running immediate startup sync to populate data...');
         await runSyncCycle();
         notifyRenderer('startup-immediate-sync');
-      } catch (e: any) {
-        console.error('[SyncWorker] Startup immediate sync error:', e.message);
+      } catch (e) {
+        console.error('[SyncWorker] Startup immediate sync error:', (e as Error).message);
       }
     }, 3000); // Wait 3s for window to fully load before triggering
   } else if (initialAuth) {
@@ -225,8 +225,8 @@ export function initSyncWorker() {
         startLocalHostServer(Number(parsed.lanPort) || 3888);
       }
     }
-  } catch (err: any) {
-    console.error('[SyncWorker] Failed to check local server startup config:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Failed to check local server startup config:', (err as Error).message);
   }
 
   // 1. Dynamic background sync cycle (configured heartbeat rate)
@@ -277,8 +277,8 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
     if (updated) {
       console.log('[SyncWorker] Express priority invoice sync completed: renderer notified.');
     }
-  } catch (err: any) {
-    console.error('[SyncWorker] Express invoice sync error:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Express invoice sync error:', (err as Error).message);
   } finally {
     syncState.urgentInvoiceSyncInProgress = false;
   }
@@ -309,8 +309,8 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
     if (updated) {
       console.log('[SyncWorker] Express priority quotation sync completed: renderer notified.');
     }
-  } catch (err: any) {
-    console.error('[SyncWorker] Express quotation sync error:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Express quotation sync error:', (err as Error).message);
   } finally {
     syncState.urgentQuotationSyncInProgress = false;
   }
@@ -336,8 +336,8 @@ export async function triggerUrgentWarrantySync(): Promise<void> {
     if (updated) {
       console.log('[SyncWorker] Express priority warranty sync completed: renderer notified.');
     }
-  } catch (err: any) {
-    console.error('[SyncWorker] Express warranty sync error:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Express warranty sync error:', (err as Error).message);
   } finally {
     syncState.urgentWarrantySyncInProgress = false;
   }
@@ -380,8 +380,8 @@ export async function triggerUrgentCashSync(): Promise<void> {
 
     notifyRenderer();
     console.log('[SyncWorker] Express priority cash sync completed: renderer notified.');
-  } catch (err: any) {
-    console.error('[SyncWorker] Express cash sync error:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Express cash sync error:', (err as Error).message);
   } finally {
     syncState.urgentCashSyncInProgress = false;
   }
@@ -403,7 +403,7 @@ export async function runInitialSync(sender?: WebContents) {
   if (config?.tenant_id) {
     try {
       syncWorkerSql.deleteSyncMeta2(getDb()).run(cursorKey(config.tenant_id, 'cash_drawer'));
-    } catch {}
+    } catch { /* ignore */ }
   }
   triggerUrgentInvoiceSync().catch(() => {});
   triggerUrgentCashSync().catch(() => {});

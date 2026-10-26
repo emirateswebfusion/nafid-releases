@@ -130,9 +130,9 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
               } else {
                 showStatus('Transaction added. WhatsApp service not available', 'error');
               }
-            } catch (waErr: any) {
+            } catch (waErr) {
               console.error('[PartyManager] WhatsApp send error:', waErr);
-              showStatus(`Transaction added. WhatsApp Alert Failed: ${waErr?.message || 'Connection error'}`, 'error');
+              showStatus(`Transaction added. WhatsApp Alert Failed: ${(waErr as Error)?.message || 'Connection error'}`, 'error');
             }
           }
         } else {

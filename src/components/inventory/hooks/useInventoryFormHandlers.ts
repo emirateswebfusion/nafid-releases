@@ -47,7 +47,7 @@ export function useInventoryFormHandlers(ctx: UseInventoryFormHandlersContext) {
       }
       setStatusMessage({ text: 'Failed to adjust stock: ' + res.error, type: 'error' });
       return false;
-    } catch (err: any) {
+    } catch (err) {
       console.error('Adjust stock error:', err);
       setStatusMessage({ text: 'Failed to adjust stock. Please try again.', type: 'error' });
       return false;

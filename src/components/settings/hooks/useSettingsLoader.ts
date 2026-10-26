@@ -293,7 +293,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
               finalCashReg = finalFlags.cash_register;
             }
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
 
       let finalAutoBarcode = true;
@@ -773,8 +773,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         })
         .catch((err: any) => console.error('[SettingsManager] Failed to load Service Charge settings', err));
 
-    } catch (err: any) {
-      logError('[SettingsManager] ERROR in loadSettings: ' + (err?.message || String(err)));
+    } catch (err) {
+      logError('[SettingsManager] ERROR in loadSettings: ' + ((err as Error)?.message || String(err)));
       setLoading(false);
     }
   };

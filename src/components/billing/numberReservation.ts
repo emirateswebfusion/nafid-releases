@@ -37,28 +37,28 @@ export async function peekNewTabNumbers({ tenantId, enableThreeInvoiceSeries }: 
         const reserved = allTabs.map(t => t.reservedInvoiceNumber);
         billNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
       }
-    } catch { }
+    } catch { /* ignore */ }
     try {
       const r = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
       if (r?.success && r.invoiceNumber) {
         const reserved = allTabs.map(t => t.reservedScrapInvoiceNumber);
         scrapNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
       }
-    } catch { }
+    } catch { /* ignore */ }
     try {
       const r = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
       if (r?.success && r.quotationNumber) {
         const reserved = allTabs.map(t => t.reservedQuotationNumber);
         quotationNumber = getNextOffsetInvoiceNumber(r.quotationNumber, reserved);
       }
-    } catch { }
+    } catch { /* ignore */ }
     try {
       const r = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
       if (r?.success && r.returnNumber) {
         const reserved = allTabs.map(t => t.reservedReturnNumber);
         returnNumber = getNextOffsetInvoiceNumber(r.returnNumber, reserved);
       }
-    } catch { }
+    } catch { /* ignore */ }
   }
   return { billNumber, scrapNumber, quotationNumber, returnNumber };
 }

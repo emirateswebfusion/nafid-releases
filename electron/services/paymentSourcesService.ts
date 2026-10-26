@@ -9,7 +9,7 @@ export function getSources(tenant_id: string) {
     const db = getDb();
     if (!tenant_id) return [];
     return paymentSourcesSql.findPaymentSourceTransactionsBySourceId(db).all(tenant_id);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:payments:getSources]', error);
     return { error: 'Operation failed' };
   }
@@ -51,7 +51,7 @@ export function addSource(s: any) {
 
     const source_id = tx();
     return { success: true, source_id };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:payments:addSource]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -104,9 +104,9 @@ export function updateSource(s: any) {
 
     tx();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:payments:updateSource]', error);
-    if (error.message?.includes('Opening balance')) return { success: false, error: error.message };
+    if ((error as Error).message?.includes('Opening balance')) return { success: false, error: (error as Error).message };
     return { success: false, error: 'Operation failed' };
   }
 }
@@ -119,7 +119,7 @@ export function deleteSource({ source_id, tenant_id }: { source_id: string; tena
       .run(source_id, tenant_id);
     if (result.changes === 0) return { success: false, error: 'Payment source not found' };
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:payments:deleteSource]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -131,7 +131,7 @@ export function getTransactions({ source_id, tenant_id }: { source_id: string; t
     const db = getDb();
     if (!source_id || !tenant_id) return [];
     return paymentSourcesSql.findPaymentSourceTransactionsBySourceId2(db).all(source_id, tenant_id);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:payments:getTransactions]', error);
     return { error: 'Operation failed' };
   }
@@ -167,7 +167,7 @@ export function addTransaction(t: any) {
 
     const balance = tx();
     return { success: true, balance };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:payments:addTransaction]', error);
     return { success: false, error: 'Operation failed' };
   }

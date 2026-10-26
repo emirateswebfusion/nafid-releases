@@ -199,9 +199,9 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           setStatusMessage({ text: 'Return bill printed successfully', type: 'success' });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to print return bill', err);
-      setStatusMessage({ text: 'Failed to print: ' + (err?.message || 'Unknown error'), type: 'error' });
+      setStatusMessage({ text: 'Failed to print: ' + ((err as Error)?.message || 'Unknown error'), type: 'error' });
     }
   };
 

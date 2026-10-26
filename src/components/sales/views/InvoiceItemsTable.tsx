@@ -70,7 +70,7 @@ export function InvoiceItemsTable({
                     try {
                       const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
                       if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
-                    } catch {}
+                    } catch { /* ignore */ }
                   }
                   const isComboItem = Boolean(item.isCombo || item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
 

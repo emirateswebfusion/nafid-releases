@@ -69,8 +69,8 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
       console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);
     }
     return hasChanged;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull users failed:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Pull users failed:', (err as Error).message);
     return false;
   }
 }
@@ -137,8 +137,8 @@ export async function pushCustomers(token: string, tenantId: string): Promise<bo
       tx(result.failed);
     }
     return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Push customers failed:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Push customers failed:', (err as Error).message);
     return false;
   }
 }
@@ -206,8 +206,8 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
               created_at: toSqliteDate(p.created_at),
               updated_at: toSqliteDate(p.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling party:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling party:', (e as Error).message);
           }
         }
       });
@@ -281,8 +281,8 @@ export async function pushLoyaltyTransactions(token: string, tenantId: string): 
       tx(result.failed);
     }
     return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Push loyalty transactions failed:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Push loyalty transactions failed:', (err as Error).message);
     return false;
   }
 }
@@ -322,8 +322,8 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
               created_at: toSqliteDate(e.created_at),
               updated_at: toSqliteDate(e.updated_at),
             });
-          } catch (err: any) {
-            console.error('[SyncWorker] Error pulling ledger entry:', err.message);
+          } catch (err) {
+            console.error('[SyncWorker] Error pulling ledger entry:', (err as Error).message);
           }
         }
       });
@@ -331,8 +331,8 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
       if (rows && rows.length > 0) {
         try {
           partiesSyncSql.updateParties3(db).run(tenantId, tenantId);
-        } catch (recalcErr: any) {
-          console.error('[SyncWorker] Recalc after pullPartyLedger error:', recalcErr.message);
+        } catch (recalcErr) {
+          console.error('[SyncWorker] Recalc after pullPartyLedger error:', (recalcErr as Error).message);
         }
       }
       return reconcilePending(db, 'party_ledger', 'ledger_id', rows);
@@ -407,8 +407,8 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
             } else {
               upsertCustomer.run(rowParams);
             }
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling customer:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling customer:', (e as Error).message);
           }
         }
       });

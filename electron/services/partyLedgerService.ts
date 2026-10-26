@@ -58,7 +58,7 @@ export function reconcileAllPartyBalances(db: any, tenantId?: string) {
     const tenantClause = tenantId ? 'WHERE parties.tenant_id = ? AND' : 'WHERE';
     const params = tenantId ? [tenantId] : [];
     partyLedgerSql.recalcAllPartyBalances(db, tenantClause).run(...params);
-  } catch (err: any) {
+  } catch (err) {
     console.error('[reconcileAllPartyBalances] Error:', err);
   }
 }
@@ -147,7 +147,7 @@ export function syncInvoiceCreditLedger(
         splitObj = typeof (invoice as any).split_details === 'string'
           ? JSON.parse((invoice as any).split_details)
           : (invoice as any).split_details;
-      } catch {}
+      } catch { /* ignore */ }
     }
 
     const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
@@ -174,7 +174,7 @@ export function syncInvoiceCreditLedger(
         const parsed = typeof sfRow.value === 'string' ? JSON.parse(sfRow.value) : sfRow.value;
         isStaffCreditBillingEnabled = Boolean(parsed?.staff_credit_billing);
       }
-    } catch {}
+    } catch { /* ignore */ }
 
     let targetStaff: any = null;
     const isExplicitStaff = Boolean(invoice.is_staff || (invoice as any).isStaffCustomer);
@@ -416,7 +416,7 @@ export function syncInvoiceCreditLedger(
     }
 
     recalcPartyBalances(db, targetPartyId);
-  } catch (err: any) {
+  } catch (err) {
     console.error(`[syncInvoiceCreditLedger] Failed for invoice ${invoice.invoice_number || invoice.invoice_id || '?'} (tenant ${invoice.tenant_id || 'global'}):`, err);
   }
 }
@@ -545,7 +545,7 @@ export function syncReturnLedger(
     }
 
     recalcPartyBalances(db, party.party_id);
-  } catch (err: any) {
+  } catch (err) {
     console.error('[syncReturnLedger] Error:', err);
   }
 }
@@ -623,7 +623,7 @@ export function backfillCreditInvoices(db: any) {
     } catch (e) {
       console.error('[DB] Failed to clean stale deleted invoice ledger entries in backfill:', e);
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error('[DB] Failed to backfill credit invoices:', err);
   }
 }

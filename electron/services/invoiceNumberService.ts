@@ -9,7 +9,7 @@ export function getOrInitTerminalCode(db: any): string {
       if (typeof code === 'string') {
         code = code.trim().replace(/^["']|["']$/g, '');
         if ((code.startsWith('"') && code.endsWith('"')) || (code.startsWith("'") && code.endsWith("'"))) {
-          try { code = JSON.parse(code); } catch {}
+          try { code = JSON.parse(code); } catch { /* ignore */ }
         }
       }
       const clean = String(code).trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -49,7 +49,7 @@ export async function requestServerInvoiceNumber(
           if (parsed?.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
             prefix = String(parsed.prefix).endsWith('-') ? String(parsed.prefix) : `${parsed.prefix}-`;
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
     }
 
@@ -103,7 +103,7 @@ export async function requestServerInvoiceNumber(
     }
 
     return { success: true, invoiceNumber: data.invoiceNumber };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[requestServerInvoiceNumber]', error);
     return { success: false, error: 'Operation failed', offline: true };
   }

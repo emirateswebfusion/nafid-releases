@@ -358,15 +358,15 @@ export function ConversionModal({
                         showToast(result.error || 'Conversion failed', 'error');
                       }
                     }
-                  } catch (err: any) {
+                  } catch (err) {
                     setConversionResults(selectedBosInvoices.map(i => ({
                       invoice_id: i.invoice_id,
                       old_number: i.invoice_number,
                       new_number: '',
                       success: false,
-                      error: err?.message || 'Unknown error',
+                      error: (err as Error)?.message || 'Unknown error',
                     })));
-                    showToast('Conversion failed: ' + (err?.message || 'Unknown error'), 'error');
+                    showToast('Conversion failed: ' + ((err as Error)?.message || 'Unknown error'), 'error');
                   } finally {
                     setConverting(false);
                     loadInvoices(true);

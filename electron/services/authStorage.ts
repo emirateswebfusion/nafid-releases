@@ -30,7 +30,7 @@ export function readAuthPayload(): any {
     const raw = fs.readFileSync(encPath);
     const decrypted = decrypt(raw);
     if (decrypted) {
-      try { return JSON.parse(decrypted); } catch {}
+      try { return JSON.parse(decrypted); } catch { /* ignore */ }
     }
   }
   const p = getConfigPath();

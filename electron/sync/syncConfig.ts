@@ -93,7 +93,7 @@ export function getTenantIdFromDb(): string | null {
     if (invRow?.tenant_id) return invRow.tenant_id;
     const settRow = syncConfigSql.selectSettings(db).get() as { tenant_id: string } | undefined;
     if (settRow?.tenant_id) return settRow.tenant_id;
-  } catch {}
+  } catch { /* ignore */ }
   return null;
 }
 
@@ -130,7 +130,7 @@ export function toSqliteDate(iso: string | number | Date | null | undefined): st
     if (!isNaN(d.getTime())) {
       return d.toISOString();
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   return str;
 }
@@ -151,7 +151,7 @@ export function getSyncIntervalMs(): number {
     if (pendingCount > 0) {
       return 15000;
     }
-  } catch {}
+  } catch { /* ignore */ }
   const envMins = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '2.0');
   return Math.max(30000, Math.round(envMins * 60 * 1000));
 }

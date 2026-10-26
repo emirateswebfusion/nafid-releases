@@ -106,7 +106,7 @@ export function CashierHeader({
                 <button
                   onClick={async () => {
                     if (hasBridge('runInitialSync')) {
-                      try { await syncApi.runInitialSync(); } catch {}
+                      try { await syncApi.runInitialSync(); } catch { /* ignore */ }
                     }
                     await load();
                   }}

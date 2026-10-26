@@ -33,7 +33,7 @@ export function useInventoryListActions(ctx: UseInventoryListActionsContext) {
           setStatusMessage({ text: 'Delete failed: ' + res.error, type: 'error' });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Delete product error:', err);
       setStatusMessage({ text: 'Failed to delete product', type: 'error' });
     } finally {
@@ -62,7 +62,7 @@ export function useInventoryListActions(ctx: UseInventoryListActionsContext) {
           setStatusMessage({ text: 'Bulk delete failed: ' + res.error, type: 'error' });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Bulk delete product error:', err);
       setStatusMessage({ text: 'Failed to delete selected products', type: 'error' });
     } finally {

@@ -8,7 +8,7 @@ export function getGrades(tenantId: string) {
     const db = getDb();
     if (!tenantId) return [];
     return gradesSql.findProductGrades(db).all(tenantId);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getGrades]', error);
     return { error: 'Operation failed' };
   }
@@ -20,7 +20,7 @@ export function addGrade(g: any) {
     const db = getDb();
     gradesSql.insertProductGrade(db).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate, g.purchase_price || 0, g.offer_price ?? null);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addGrade]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -32,7 +32,7 @@ export function updateGrade(g: any) {
     const db = getDb();
     gradesSql.updateProductGradeByGradeId(db).run(g.category, g.grade_name, g.rate, g.purchase_price || 0, g.offer_price ?? null, g.grade_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateGrade]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -44,7 +44,7 @@ export function deleteGrade(gradeId: string) {
     const db = getDb();
     gradesSql.updateProductGradeIsDeleted(db).run(gradeId);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteGrade]', error);
     return { success: false, error: 'Operation failed' };
   }

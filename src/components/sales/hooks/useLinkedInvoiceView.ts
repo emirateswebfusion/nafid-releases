@@ -79,9 +79,9 @@ export function useLinkedInvoiceView(ctx: UseLinkedInvoiceViewContext) {
       } else {
         showToast(`Linked bill "${targetInvoiceNumber || targetInvoiceId}" could not be found`, 'error');
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('[handleViewLinkedInvoice] Failed to load linked invoice:', e);
-      showToast('Could not open linked bill: ' + (e?.message || 'Error'), 'error');
+      showToast('Could not open linked bill: ' + ((e as Error)?.message || 'Error'), 'error');
     }
   };
 

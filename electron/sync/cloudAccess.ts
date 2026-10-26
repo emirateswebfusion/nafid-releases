@@ -44,7 +44,7 @@ export function getCloudAccessConfig(tenantId?: string): CloudAccessConfig {
         cloud_manual_override: parsed.cloud_manual_override || 'AUTO',
       };
     }
-  } catch {}
+  } catch { /* ignore */ }
   return {
     cloud_access_enabled: true,
     cloud_schedule_enabled: false,
@@ -67,8 +67,8 @@ export function updateCloudAccessConfig(configUpdate: Partial<CloudAccessConfig>
   try {
     cloudAccessSql.insertSettings(db).run(tid, JSON.stringify(updated));
     console.log(`[SyncWorker] Updated cloud_access_config for tenant ${tid}:`, updated);
-  } catch (err: any) {
-    console.error('[SyncWorker] Error updating cloud_access_config:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Error updating cloud_access_config:', (err as Error).message);
   }
 
   const effective = calculateEffectiveCloudAccess(tid);

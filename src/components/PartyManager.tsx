@@ -137,8 +137,8 @@ export function PartyManager({
         setSearchResult(res);
         setPartyNameForConnect(res.name || '');
       }
-    } catch (e: any) {
-      showStatus(e?.message || 'No business found matching code', 'error');
+    } catch (e) {
+      showStatus((e as Error)?.message || 'No business found matching code', 'error');
     } finally {
       setSearching(false);
     }
@@ -157,8 +157,8 @@ export function PartyManager({
       setSearchResult(null);
       showStatus(`Connection request sent to ${searchResult.name}!`, 'success');
       loadParties();
-    } catch (e: any) {
-      showStatus(e?.message || 'Failed to send connection request', 'error');
+    } catch (e) {
+      showStatus((e as Error)?.message || 'Failed to send connection request', 'error');
     } finally {
       setIsSavingParty(false);
     }
@@ -170,8 +170,8 @@ export function PartyManager({
       showStatus(action === 'ACCEPT' ? 'Ledger Connection Accepted! 🟢' : 'Connection Request Declined', 'success');
       fetchPendingRequests();
       loadParties();
-    } catch (e: any) {
-      showStatus(e?.message || 'Failed to respond to request', 'error');
+    } catch (e) {
+      showStatus((e as Error)?.message || 'Failed to respond to request', 'error');
     }
   };
 

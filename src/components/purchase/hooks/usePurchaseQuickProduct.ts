@@ -50,7 +50,7 @@ export function usePurchaseQuickProduct(ctx: UsePurchaseQuickProductContext) {
             ? JSON.parse(existingProduct[0].domain_attributes)
             : existingProduct[0].domain_attributes;
         }
-      } catch {}
+      } catch { /* ignore */ }
       if (isWeightBilling && rawPcs > 0) {
         domainAttrsObj.pcs_per_kg = stockToPreserve > 0 ? rawPcs / stockToPreserve : rawPcs;
         domainAttrsObj.pcs_stock = rawPcs;

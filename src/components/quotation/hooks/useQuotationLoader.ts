@@ -33,7 +33,7 @@ export function useQuotationLoader(ctx: UseQuotationLoaderContext) {
       console.error('[QuotationManager] Failed to load quotations:', err);
       const cached = localStorage.getItem('nafid_quotations_cache');
       if (cached) {
-        try { setQuotations(JSON.parse(cached)); } catch (e) {}
+        try { setQuotations(JSON.parse(cached)); } catch (e) { /* ignore */ }
       }
     }
     setLoading(false);

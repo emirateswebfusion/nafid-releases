@@ -215,8 +215,8 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
               }
 
               success = true;
-            } catch (e: any) {
-              if (e.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {
+            } catch (e) {
+              if ((e as Error).message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {
                 const suffix = currentInv.invoice_id.substring(0, 4).toUpperCase();
                 currentInv.invoice_number = `${currentInv.invoice_number}-C${suffix}`;
                 retryCount++;
@@ -425,8 +425,8 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
                 });
               }
             }
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling quotation:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling quotation:', (e as Error).message);
           }
         }
       });
@@ -519,8 +519,8 @@ export async function pullWarranties(token: string, tenantId: string): Promise<b
               created_at: toSqliteDate(w.created_at),
               updated_at: toSqliteDate(w.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling warranty:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling warranty:', (e as Error).message);
           }
         }
       });

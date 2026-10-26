@@ -105,7 +105,7 @@ ipcMain.handle('app:getNetworkDetails', () => {
           gateway = gwOut;
         }
       }
-    } catch (_) {}
+    } catch (_) { /* ignore */ }
 
     let dnsAddress = '8.8.8.8';
     try {
@@ -114,7 +114,7 @@ ipcMain.handle('app:getNetworkDetails', () => {
       if (validDns) {
         dnsAddress = validDns;
       }
-    } catch (_) {}
+    } catch (_) { /* ignore */ }
 
     return {
       ip,

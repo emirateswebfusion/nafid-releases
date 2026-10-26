@@ -40,7 +40,7 @@ export function getNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
     })();
 
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getNextQuotationNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -68,7 +68,7 @@ export function peekNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
       }
     }
     return { success: true, quotationNumber: `${terminalCode}-QTN-001` };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:peekNextQuotationNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -116,7 +116,7 @@ export function saveQuotation(q: any) {
     })();
     triggerUrgentQuotationSync().catch(() => {});
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:saveQuotation]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -129,7 +129,7 @@ export function getQuotations({ tenant_id, search }: { tenant_id: string; search
     const tid = tenant_id || 'global';
     const { statement, params } = quotationsSql.getQuotationsStatement(db, { tid, search });
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getQuotations]', error);
     return { error: 'Operation failed' };
   }
@@ -166,7 +166,7 @@ export async function getQuotationItems(quotationId: string) {
       }
     }
     return items;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getQuotationItems]', error);
     return { error: 'Operation failed' };
   }
@@ -182,7 +182,7 @@ export function deleteQuotation(quotationId: string) {
     })();
     triggerUrgentQuotationSync().catch(() => {});
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteQuotation]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -231,7 +231,7 @@ export function updateQuotation(q: any) {
     })();
     triggerUrgentQuotationSync().catch(() => {});
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateQuotation]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -245,7 +245,7 @@ export function updateQuotationStatus({ quotation_id, status, converted_to_invoi
     statement.run(...params);
     triggerUrgentQuotationSync().catch(() => {});
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateQuotationStatus]', error);
     return { success: false, error: 'Operation failed' };
   }

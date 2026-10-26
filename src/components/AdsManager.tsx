@@ -52,10 +52,10 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
       if (Array.isArray(data)) {
         setAds(data);
       }
-    } catch (err: any) {
-      const isAuthErr = err.message?.toLowerCase().includes('token') || err.message?.toLowerCase().includes('unauthorized');
+    } catch (err) {
+      const isAuthErr = (err as Error).message?.toLowerCase().includes('token') || (err as Error).message?.toLowerCase().includes('unauthorized');
       showToast(
-        isAuthErr ? 'Session expired or unauthorized. Please re-authenticate to sync ads.' : (err.message || 'Failed to load advertisements'),
+        isAuthErr ? 'Session expired or unauthorized. Please re-authenticate to sync ads.' : ((err as Error).message || 'Failed to load advertisements'),
         'error',
         isAuthErr ? 'SESSION EXPIRED' : 'ADVERTISEMENTS'
       );
@@ -120,8 +120,8 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
       } else {
         showToast(res?.error || 'Failed to publish advertisement', 'error', 'PUBLISH ERROR');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Network error while publishing advertisement', 'error', 'PUBLISH ERROR');
+    } catch (err) {
+      showToast((err as Error).message || 'Network error while publishing advertisement', 'error', 'PUBLISH ERROR');
     } finally {
       setSubmitting(false);
     }
@@ -133,8 +133,8 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
       await adsCloud.setStatus(ad.ad_id, newStatus);
       setAds(prev => prev.map(item => item.ad_id === ad.ad_id ? { ...item, status: newStatus } : item));
       showToast(newStatus === 'ACTIVE' ? 'Advertisement resumed & visible' : 'Advertisement paused', 'info', 'STATUS UPDATED');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update ad status', 'error', 'STATUS ERROR');
+    } catch (err) {
+      showToast((err as Error).message || 'Failed to update ad status', 'error', 'STATUS ERROR');
     }
   };
 
@@ -144,8 +144,8 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
       await adsCloud.remove(adId);
       setAds(prev => prev.filter(item => item.ad_id !== adId));
       showToast('Advertisement deleted successfully', 'success', 'DELETED');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to delete advertisement', 'error', 'DELETE ERROR');
+    } catch (err) {
+      showToast((err as Error).message || 'Failed to delete advertisement', 'error', 'DELETE ERROR');
     }
   };
 

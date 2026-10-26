@@ -78,8 +78,8 @@ function getShopClosingConfig(db: any, tenantId: string = 'global'): ShopClosing
         },
       };
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] getShopClosingConfig error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] getShopClosingConfig error:', (err as Error).message);
   }
   return { ...DEFAULT_CONFIG };
 }
@@ -117,9 +117,9 @@ function saveShopClosingConfig(
     shopClosingReportSql.upsertSetting(db).run(tid, valString);
 
     return { success: true, config: updated };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[ShopClosing] saveShopClosingConfig error:', err);
-    return { success: false, error: err.message || 'Failed to save configuration' };
+    return { success: false, error: (err as Error).message || 'Failed to save configuration' };
   }
 }
 
@@ -187,8 +187,8 @@ export async function sendShopClosingReport({
         console.log(`[ShopClosing] Duplicate prevented: ${triggerType} report already sent for date ${bDate} at ${recent.created_at}`);
         return { success: true, error: 'Report was already sent for this business date.' };
       }
-    } catch (e: any) {
-      console.warn('[ShopClosing] Deduplication check warning:', e.message);
+    } catch (e) {
+      console.warn('[ShopClosing] Deduplication check warning:', (e as Error).message);
     }
   }
 
@@ -208,8 +208,8 @@ export async function sendShopClosingReport({
       JSON.stringify(checklist),
       messageText
     );
-  } catch (err: any) {
-    console.error('[ShopClosing] Failed to insert report log:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Failed to insert report log:', (err as Error).message);
   }
 
   // Attempt send via WhatsApp service
@@ -222,7 +222,7 @@ export async function sendShopClosingReport({
     if (res.success) {
       try {
         shopClosingReportSql.updateShopClosingReportById(db).run(res.messageId || null, reportId);
-      } catch {}
+      } catch { /* ignore */ }
 
       notifyRendererReportsUpdated();
       return { success: true, messageId: res.messageId, reportId };
@@ -230,16 +230,16 @@ export async function sendShopClosingReport({
       const errorMsg = res.error || 'WhatsApp message dispatch failed.';
       try {
         shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage(db).run(errorMsg, reportId);
-      } catch {}
+      } catch { /* ignore */ }
 
       notifyRendererReportsUpdated();
       return { success: false, error: errorMsg, reportId };
     }
-  } catch (err: any) {
-    const errorMsg = err?.message || 'Unexpected error sending WhatsApp report.';
+  } catch (err) {
+    const errorMsg = (err as Error)?.message || 'Unexpected error sending WhatsApp report.';
     try {
       shopClosingReportSql.updateShopClosingReportStatusAndErrorMessage(db).run(errorMsg, reportId);
-    } catch {}
+    } catch { /* ignore */ }
 
     notifyRendererReportsUpdated();
     return { success: false, error: errorMsg, reportId };
@@ -270,8 +270,8 @@ async function retryShopClosingReport(db: any, reportId: string): Promise<{ succ
       notifyRendererReportsUpdated();
       return { success: false, error: res.error };
     }
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -283,8 +283,8 @@ function getShopClosingHistory(db: any, tenantId: string = 'global', limit: numb
     const tid = tenantId || 'global';
     return shopClosingReportSql.findShopClosingReports(db)
       .all(tid, limit) as any[];
-  } catch (err: any) {
-    console.error('[ShopClosing] getShopClosingHistory error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] getShopClosingHistory error:', (err as Error).message);
     return [];
   }
 }
@@ -296,7 +296,7 @@ function notifyRendererReportsUpdated() {
         win.webContents.send('shopClosing:updated');
       }
     });
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 /**
@@ -356,8 +356,8 @@ function startShopClosingScheduler(
           });
         }
       }
-    } catch (err: any) {
-      console.error('[ShopClosing Scheduler] Error in check cycle:', err.message);
+    } catch (err) {
+      console.error('[ShopClosing Scheduler] Error in check cycle:', (err as Error).message);
     }
   }, 45000); // Check every 45 seconds
 }
@@ -479,8 +479,8 @@ export function initShopClosingIpc(helpers: {
 
       const message = formatClosingWhatsAppMessage(summary, effectiveChecklist);
       return { success: true, summary, message };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
   });
 

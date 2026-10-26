@@ -153,7 +153,7 @@ export function getProducts(arg: any) {
     }
 
     return db.prepare(query).all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getProducts]', error);
     return { error: 'Operation failed' };
   }
@@ -166,7 +166,7 @@ export function getProductsByIds({ tenant_id, product_ids }: { tenant_id: string
     if (!product_ids?.length) return [];
     const placeholders = product_ids.map(() => '?').join(',');
     return productsSql.findProductsWithGradeByIds(db, placeholders).all(tenant_id || 'global', ...product_ids);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getProductsByIds]', error);
     return { error: 'Operation failed' };
   }
@@ -216,7 +216,7 @@ export function getProductsCount(arg: any) {
 
     const result = db.prepare(query).get(...params) as { count: number };
     return result ? result.count : 0;
-  } catch (error: any) {
+  } catch (error) {
     return 0;
   }
 }
@@ -257,8 +257,8 @@ export function addProduct(p: any) {
        p.is_service_item ?? 0
     );
     return { success: true };
-  } catch (error: any) {
-    const msg = error?.message || 'Operation failed';
+  } catch (error) {
+    const msg = (error as Error)?.message || 'Operation failed';
     console.error('[db:addProduct]', msg);
     return { success: false, error: msg };
   }
@@ -315,9 +315,9 @@ export function ensureServiceItem({ tenant_id }: { tenant_id: string }) {
     }
 
     return { success: true, product_id: canonical.product_id, sku_barcode: canonical.sku_barcode };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:ensureServiceItem]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -357,8 +357,8 @@ export function updateProduct(p: any) {
        p.product_id
     );
     return { success: true };
-  } catch (error: any) {
-    const msg = error?.message || 'Operation failed';
+  } catch (error) {
+    const msg = (error as Error)?.message || 'Operation failed';
     console.error('[db:updateProduct]', msg);
     return { success: false, error: msg };
   }
@@ -387,7 +387,7 @@ export function deleteProduct(productId: any) {
     // Soft delete
     productsSql.updateProductIsDeletedAlt(db).run(productId);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteProduct]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -404,9 +404,9 @@ export function bulkDeleteProducts(productIds: string[]) {
     const stmt = productsSql.softDeleteProductsByIds(db, placeholders);
     const res = stmt.run(...productIds);
     return { success: true, count: res.changes };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:bulkDeleteProducts]', error);
-    return { success: false, error: 'Bulk delete failed: ' + (error?.message || 'Unknown error') };
+    return { success: false, error: 'Bulk delete failed: ' + ((error as Error)?.message || 'Unknown error') };
   }
 }
 
@@ -582,9 +582,9 @@ export function bulkImportProducts(products: any[]) {
     });
     transaction(products);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:bulkImportProducts]', error);
-    return { success: false, error: error?.message || 'Operation failed' };
+    return { success: false, error: (error as Error)?.message || 'Operation failed' };
   }
 }
 
@@ -600,7 +600,7 @@ export function updatePrintStatus(productIds: string[]) {
     });
     transaction(productIds);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updatePrintStatus]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -613,7 +613,7 @@ export function resetPrintStatus(tenant_id: string) {
     if (!tenant_id) return { success: false, error: 'Tenant ID required' };
     productsSql.updateProductPrintStatusAlt(db).run(tenant_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:resetPrintStatus]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -628,7 +628,7 @@ export function getPendingPrintProducts({ tenant_id, limit, date, dateEnd, only_
     const { statement, params } = productsSql.getPendingPrintProductsStatement(db, { tenant_id, only_pending, date, dateEnd, limit });
     
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getPendingPrintProducts]', error);
     return { error: 'Operation failed' };
   }
@@ -652,7 +652,7 @@ export function adjustStock({ product_id, delta, pcsDelta }: any) {
       productsSql.updateProductCurrentStock(db).run(delta, product_id);
     }
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:adjustStock]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -664,7 +664,7 @@ export function getStockReport(tenantId: string) {
     const db = getDb();
     if (!tenantId) return [];
     return productsSql.findProducts2(db).all(tenantId);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getStockReport]', error);
     return { error: 'Operation failed' };
   }
@@ -676,7 +676,7 @@ export function getProductBillQuantities(tenantId: string) {
     const db = getDb();
     if (!tenantId) return [];
     return productsSql.findProductsByConvertedTo_AndBillType(db).all(tenantId, tenantId, tenantId);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getProductBillQuantities]', error);
     return [];
   }
@@ -700,7 +700,7 @@ export function getProductSalesSummary({ tenant_id, fromDate, toDate }: { tenant
     }
 
     return productsSql.listProductSalesQuantities(db, dateClause).all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getProductSalesSummary]', error);
     return [];
   }
@@ -712,7 +712,7 @@ export function productHasEstimateBills({ product_id, tenant_id }: { product_id:
     const db = getDb();
     const row = productsSql.findOnePurchaseBillItemByProductIdAndBillType(db).get(product_id, tenant_id);
     return { success: true, hasEstimate: !!row };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:productHasEstimateBills]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -765,7 +765,7 @@ export function generateBarcode({ tenant_id, item_code, strip_suffix }: { tenant
     const digits = Math.max(3, nextNum.toString().length);
     const barcode = prefix + String(nextNum).padStart(digits, '0');
     return { success: true, barcode };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:generateBarcode]', error);
     return { success: false, error: 'Operation failed' };
   }

@@ -148,7 +148,7 @@ function setupCSP() {
         if (!allowedConnect.includes(devOrigin)) allowedConnect.push(devOrigin);
         const wsOrigin = devOrigin.replace(/^http/, 'ws');
         if (!allowedConnect.includes(wsOrigin)) allowedConnect.push(wsOrigin);
-      } catch {}
+      } catch { /* ignore */ }
     }
     if (!allowedConnect.includes('ws:')) allowedConnect.push('ws:');
     if (!allowedConnect.includes('wss:')) allowedConnect.push('wss:');
@@ -280,7 +280,7 @@ function createWindow(): BrowserWindow {
     try {
       const { resetFastPollBackoff } = await import('./sync/syncWorker.js');
       resetFastPollBackoff();
-    } catch {}
+    } catch { /* ignore */ }
   });
 
   win.on('closed', () => {
@@ -305,8 +305,8 @@ app.whenReady().then(async () => {
   try {
     const dedupResult = autoDeduplicateCustomersAndParties();
     log.info(`[Main] Auto-deduplication completed: ${dedupResult.merged_customers} customers, ${dedupResult.merged_parties} parties merged`);
-  } catch (e: any) {
-    log.warn('[Main] Auto-deduplication failed (non-fatal):', e.message);
+  } catch (e) {
+    log.warn('[Main] Auto-deduplication failed (non-fatal):', (e as Error).message);
   }
 
   setupCSP();
@@ -372,8 +372,8 @@ app.whenReady().then(async () => {
         expireTx();
         log.info(`[Main] Auto-expired ${staleBills.length} stale held bill(s) on startup`);
       }
-    } catch (e: any) {
-      log.warn('[Main] Failed to expire stale holds on startup:', e.message);
+    } catch (e) {
+      log.warn('[Main] Failed to expire stale holds on startup:', (e as Error).message);
     }
   });
 
@@ -384,12 +384,12 @@ app.whenReady().then(async () => {
       if (parties.length > 0) {
         log.info(`[Main] Post-startup party balance recalculation: ${parties.length} parties...`);
         for (const p of parties) {
-          try { recalcPartyBalances(_db, p.party_id); } catch {}
+          try { recalcPartyBalances(_db, p.party_id); } catch { /* ignore */ }
         }
         log.info('[Main] Party balance recalculation complete.');
       }
-    } catch (e: any) {
-      log.warn('[Main] Party balance recalc error:', e.message);
+    } catch (e) {
+      log.warn('[Main] Party balance recalc error:', (e as Error).message);
     }
   }, 30000);
 

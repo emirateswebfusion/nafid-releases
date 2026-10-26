@@ -190,7 +190,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       try {
         useAuthStore.setState({ shopName: shopNameLocal });
         window.dispatchEvent(new CustomEvent('settings:updated', { detail: { terminalCode: cleanCode, shopName: shopNameLocal } }));
-      } catch {}
+      } catch { /* ignore */ }
       try {
         const { tabs } = useTabStore.getState();
         useTabStore.setState({
@@ -202,7 +202,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
             reservedReturnNumber: '',
           }))
         });
-      } catch {}
+      } catch { /* ignore */ }
 
       if (serviceChargeProduct && serviceChargeBarcode && serviceChargeBarcode !== serviceChargeProduct.sku_barcode) {
         const updatedProduct = {
@@ -335,7 +335,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save settings:', err);
       setMessage({ type: 'error', text: 'Failed to save settings. Please try again' });
       setTimeout(() => setMessage(null), 3000);

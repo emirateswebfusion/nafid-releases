@@ -316,7 +316,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
                       const totalPcs = Number(attrs?.pcs) || 0;
                       const stockKg = Number(p.current_stock) || 0;
                       piecesPerKg = storedPcsPerKg > 0 ? storedPcsPerKg : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0);
-                    } catch {}
+                    } catch { /* ignore */ }
                   }
                   const unitPriceRows = isWeightProduct
                     ? [

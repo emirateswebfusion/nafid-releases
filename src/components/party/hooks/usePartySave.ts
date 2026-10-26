@@ -172,8 +172,8 @@ export function usePartySave(ctx: UsePartySaveContext) {
       setEditReturnView('list');
       resetPartyForm();
       setIsCustomCategoryNew(false);
-    } catch (err: any) {
-      showStatus(err?.message || 'Operation failed', 'error');
+    } catch (err) {
+      showStatus((err as Error)?.message || 'Operation failed', 'error');
     } finally {
       setIsSavingParty(false);
     }

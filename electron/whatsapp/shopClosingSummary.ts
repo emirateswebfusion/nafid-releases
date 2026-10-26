@@ -42,7 +42,7 @@ export function buildShopClosingSummaryData(
         shopName = shopRow.value;
       }
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   // Get Terminal Code
   let counterCode = 'POS 1';
@@ -57,7 +57,7 @@ export function buildShopClosingSummaryData(
         counterCode = termRow.value;
       }
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   // 1. Drawer Reconciliation
   let drawer = providedDrawer;
@@ -65,14 +65,14 @@ export function buildShopClosingSummaryData(
     try {
       drawer = shopClosingReportSql.findOneCashDrawerByBusinessDate(db)
         .get(tid, bDate, altDate, bDate, dateLike, bDate) as any;
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   if (drawer && reconcileCashDrawerFn) {
     try {
       drawer = reconcileCashDrawerFn(db, tid, drawer);
-    } catch (e: any) {
-      console.warn('[ShopClosing] drawer reconcile warning:', e.message);
+    } catch (e) {
+      console.warn('[ShopClosing] drawer reconcile warning:', (e as Error).message);
     }
   }
 
@@ -97,13 +97,13 @@ export function buildShopClosingSummaryData(
     try {
       const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.closed_by) as any;
       if (userRow) staffName = userRow.name || '';
-    } catch {}
+    } catch { /* ignore */ }
   }
   if (!staffName && drawer?.opened_by) {
     try {
       const userRow = shopClosingReportSql.findUsersByUserId(db).get(drawer.opened_by) as any;
       if (userRow) staffName = userRow.name || '';
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   // Closing timestamp
@@ -118,7 +118,7 @@ export function buildShopClosingSummaryData(
   } else {
     try {
       closingTimestamp = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   // 2. Query Invoices for the business date
@@ -242,8 +242,8 @@ export function buildShopClosingSummaryData(
         counterGroupMap[invCounter].cashSales += invCashPortion;
       }
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] Invoices calculation error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Invoices calculation error:', (err as Error).message);
   }
 
   // 3. Cash Transactions (Cash In, Cash Out, Expenses & Itemized lists)
@@ -285,8 +285,8 @@ export function buildShopClosingSummaryData(
       totalCashOut = Math.round(totalCashOut * 100) / 100;
       totalExpenses = totalCashOut;
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] Cash transactions error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Cash transactions error:', (err as Error).message);
   }
 
   // 4. Customer Payments collected & Party transactions (from party_ledger)
@@ -331,8 +331,8 @@ export function buildShopClosingSummaryData(
       }
       customerPaymentsCollected = Math.round(customerPaymentsCollected * 100) / 100;
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] Party ledger query error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Party ledger query error:', (err as Error).message);
   }
 
   // 5. Staff transactions
@@ -352,8 +352,8 @@ export function buildShopClosingSummaryData(
         });
       }
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] Staff transactions query error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Staff transactions query error:', (err as Error).message);
   }
 
   // 6. Scrap transactions & bill scrap deductions
@@ -405,8 +405,8 @@ export function buildShopClosingSummaryData(
     }
 
     scrapSummary.totalAmount = Math.round(scrapSummary.totalAmount * 100) / 100;
-  } catch (err: any) {
-    console.error('[ShopClosing] Scrap query error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Scrap query error:', (err as Error).message);
   }
 
   // 7. Returns count & amount
@@ -420,8 +420,8 @@ export function buildShopClosingSummaryData(
       returnsCount = Number(retRow.ret_count || 0);
       returnsAmount = Math.round(Number(retRow.ret_total || 0) * 100) / 100;
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] Returns query error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Returns query error:', (err as Error).message);
   }
 
   // 8. Purchases bills
@@ -437,7 +437,7 @@ export function buildShopClosingSummaryData(
       } else if (colNames.includes('grand_total')) {
         amountCol = 'grand_total';
       }
-    } catch {}
+    } catch { /* ignore */ }
 
     const pbRow = shopClosingReportSql.sumPurchaseBillsForDate(db, amountCol)
       .get(tid, bDate, altDate, bDate, altDate, dateLike, bDate, bDate) as any;
@@ -446,8 +446,8 @@ export function buildShopClosingSummaryData(
       purchasesCount = Number(pbRow.pb_count || 0);
       purchasesAmount = Math.round(Number(pbRow.pb_total || 0) * 100) / 100;
     }
-  } catch (err: any) {
-    console.error('[ShopClosing] Purchases query error:', err.message);
+  } catch (err) {
+    console.error('[ShopClosing] Purchases query error:', (err as Error).message);
   }
 
   // Multi-counter summary list

@@ -194,8 +194,8 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
       } else {
         setRegError(res.error || 'Registration failed. Verify API connection and try again.');
       }
-    } catch (err: any) {
-      setRegError(err.message || 'An unexpected error occurred during vendor registration.');
+    } catch (err) {
+      setRegError((err as Error).message || 'An unexpected error occurred during vendor registration.');
     } finally {
       setRegLoading(false);
     }
@@ -302,8 +302,8 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
       } else {
         setSettingsMsg({ type: 'error', text: 'Failed to update store settings.' });
       }
-    } catch (err: any) {
-      setSettingsMsg({ type: 'error', text: err.message || 'Network error occurred.' });
+    } catch (err) {
+      setSettingsMsg({ type: 'error', text: (err as Error).message || 'Network error occurred.' });
     } finally {
       setSavingSettings(false);
     }

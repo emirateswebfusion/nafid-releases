@@ -149,7 +149,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
             if (Array.isArray(fetched)) {
               fetched.forEach((p: any) => { if (p?.product_id) fallbackProductMap[p.product_id] = p; });
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         const productRows = buildInvoiceProductRows(inv, items);

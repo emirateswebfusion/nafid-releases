@@ -80,7 +80,7 @@ export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'L
       notifyOnlineStatus(true, endpoints.primaryRoute);
       return { ok: true, route: endpoints.primaryRoute };
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   if (endpoints.fallbackUrl && effective.isCloudAllowed) {
     try {
@@ -89,7 +89,7 @@ export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'L
         notifyOnlineStatus(true, endpoints.fallbackRoute);
         return { ok: true, route: endpoints.fallbackRoute };
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   // Fallback check for local LAN Master running locally on PC 1 (LAN sync ALWAYS available regardless of cloud status)
@@ -109,7 +109,7 @@ export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'L
         }
       }
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   notifyOnlineStatus(false, 'NONE');
   return { ok: false };
@@ -140,17 +140,17 @@ export async function fetchWithFallback(
     const res = await fetch(primaryFullUrl, primaryOptions);
     syncState.currentActiveRoute = endpoints.primaryRoute;
     return { response: res, activeUrl: endpoints.primaryUrl, activeRoute: endpoints.primaryRoute };
-  } catch (primaryErr: any) {
-    const isNetworkError = primaryErr.name === 'TimeoutError' || 
-                           primaryErr.message?.includes('timeout') || 
-                           primaryErr.message?.includes('aborted') || 
-                           primaryErr.message?.includes('fetch failed') || 
-                           primaryErr.message?.includes('ENOTFOUND') || 
-                           primaryErr.message?.includes('ECONNREFUSED') ||
-                           primaryErr.message?.includes('EHOSTUNREACH');
+  } catch (primaryErr) {
+    const isNetworkError = (primaryErr as Error).name === 'TimeoutError' || 
+                           (primaryErr as Error).message?.includes('timeout') || 
+                           (primaryErr as Error).message?.includes('aborted') || 
+                           (primaryErr as Error).message?.includes('fetch failed') || 
+                           (primaryErr as Error).message?.includes('ENOTFOUND') || 
+                           (primaryErr as Error).message?.includes('ECONNREFUSED') ||
+                           (primaryErr as Error).message?.includes('EHOSTUNREACH');
 
     if (endpoints.fallbackUrl && isNetworkError) {
-      console.warn(`[SyncWorker] Primary endpoint (${endpoints.primaryUrl}) unreachable (${primaryErr.message}). Retrying on Cloud API Fallback (${endpoints.fallbackUrl})...`);
+      console.warn(`[SyncWorker] Primary endpoint (${endpoints.primaryUrl}) unreachable (${(primaryErr as Error).message}). Retrying on Cloud API Fallback (${endpoints.fallbackUrl})...`);
       try {
         let fallbackFullUrl = urlPath;
         if (!urlPath.startsWith('http')) {
@@ -232,7 +232,7 @@ export async function pushBatch<T>(
         let errDetail = '';
         try {
           errDetail = await response.text();
-        } catch {}
+        } catch { /* ignore */ }
         console.error(`${getSyncPrefix()} ${label} batch failed: HTTP ${response.status}${errDetail ? ` — ${errDetail.slice(0, 300)}` : ''}`);
         return [];
       }
@@ -244,18 +244,18 @@ export async function pushBatch<T>(
         console.log(`${getSyncPrefix()} ${label}: 0 synced, ${result.failed_count ?? result.failed.length} failed. First error: ${result.failed[0].error}`);
       }
       return result.synced || [];
-    } catch (err: any) {
-      const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout') || err.message?.includes('aborted');
-      const isNetworkError = err.message?.includes('fetch failed') || err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED');
+    } catch (err) {
+      const isTimeout = (err as Error).name === 'TimeoutError' || (err as Error).message?.includes('timeout') || (err as Error).message?.includes('aborted');
+      const isNetworkError = (err as Error).message?.includes('fetch failed') || (err as Error).message?.includes('ENOTFOUND') || (err as Error).message?.includes('ECONNREFUSED');
 
       if (attempt < MAX_RETRIES && (isTimeout || isNetworkError)) {
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-        console.log(`[SyncWorker] ${label} attempt ${attempt}/${MAX_RETRIES} failed (${err.message}). Retrying in ${delay}ms...`);
+        console.log(`[SyncWorker] ${label} attempt ${attempt}/${MAX_RETRIES} failed (${(err as Error).message}). Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
 
-      console.error(`[SyncWorker] ${label} batch error after ${attempt} attempt(s): ${err.message}`);
+      console.error(`[SyncWorker] ${label} batch error after ${attempt} attempt(s): ${(err as Error).message}`);
       return [];
     }
   }
@@ -291,7 +291,7 @@ export function reconcilePending(
         const fallbackStmt = syncTransportSql.markSynced(db, table, idColumn);
         const result = fallbackStmt.run(row[idColumn]);
         if (result.changes > 0) count++;
-      } catch {}
+      } catch { /* ignore */ }
     }
   }
   return count;
@@ -312,8 +312,8 @@ export function getMeta(key: string): string | null {
 export function setMeta(key: string, value: string) {
   try {
     syncTransportSql.insertSyncMeta(getDb()).run(key, value);
-  } catch (err: any) {
-    console.error('[SyncWorker] Failed to persist sync meta:', err.message);
+  } catch (err) {
+    console.error('[SyncWorker] Failed to persist sync meta:', (err as Error).message);
   }
 }
 
@@ -328,7 +328,7 @@ export function replaySince(cursor: string | null): string | null {
       const rewound = new Date(d.getTime() - CURSOR_REPLAY_SECONDS * 1000);
       return rewound.toISOString();
     }
-  } catch {}
+  } catch { /* ignore */ }
   return str;
 }
 
@@ -393,16 +393,16 @@ export async function pullPaginated(opts: {
           ? data
           : (data[opts.table] || data.data || data.items || data.rows || []);
         return Array.isArray(rows) ? rows : [];
-      } catch (err: any) {
-        const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout') || err.message?.includes('aborted');
-        const isNetwork = err.message?.includes('fetch failed') || err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED');
+      } catch (err) {
+        const isTimeout = (err as Error).name === 'TimeoutError' || (err as Error).message?.includes('timeout') || (err as Error).message?.includes('aborted');
+        const isNetwork = (err as Error).message?.includes('fetch failed') || (err as Error).message?.includes('ENOTFOUND') || (err as Error).message?.includes('ECONNREFUSED');
         if (attempt < PULL_MAX_RETRIES && (isTimeout || isNetwork)) {
           const delay = 1000 * Math.pow(2, attempt - 1);
-          console.log(`[SyncWorker] Pull ${opts.label} page ${attempt}/${PULL_MAX_RETRIES} failed (${err.message}). Retrying in ${delay}ms...`);
+          console.log(`[SyncWorker] Pull ${opts.label} page ${attempt}/${PULL_MAX_RETRIES} failed (${(err as Error).message}). Retrying in ${delay}ms...`);
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        console.error(`[SyncWorker] Pull ${opts.label} failed: ${err.message}`);
+        console.error(`[SyncWorker] Pull ${opts.label} failed: ${(err as Error).message}`);
         return null;
       }
     }

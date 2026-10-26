@@ -40,7 +40,7 @@ export async function emergencyPurge(payload: { wipe_mode?: 'ALL_DATA' | 'SALES_
 
     try {
       setSyncActive(false);
-    } catch {}
+    } catch { /* ignore */ }
 
     try {
       await session.defaultSession.clearStorageData();
@@ -52,14 +52,14 @@ export async function emergencyPurge(payload: { wipe_mode?: 'ALL_DATA' | 'SALES_
       if (!win.isDestroyed()) {
         try {
           win.webContents.send('emergency:purged', { wipeMode, reason: payload?.reason });
-        } catch {}
+        } catch { /* ignore */ }
       }
     }
 
     return { success: true, clearedTables: purgeResult.clearedTables };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[EmergencyWipe] Purge failed:', error);
-    return { success: false, error: error?.message || 'Emergency purge failed' };
+    return { success: false, error: (error as Error)?.message || 'Emergency purge failed' };
   }
 }
 
@@ -73,7 +73,7 @@ export function getDeletedInvoices(tenantId: string) {
     const orderClause = hasDeletedAt ? 'ORDER BY COALESCE(deleted_at, updated_at) DESC' : 'ORDER BY updated_at DESC';
     const deletedAtCol = hasDeletedAt ? ', deleted_at' : ', updated_at AS deleted_at';
     return recycleBinSql.listDeletedInvoices(db, deletedAtCol, orderClause).all(tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getDeletedInvoices]', error);
     return [];
   }
@@ -103,7 +103,7 @@ export function restoreInvoice(invoice_id: string) {
         }
       }
 
-      try { recycleBinSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) {}
+      try { recycleBinSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) { /* ignore */ }
       
       const invCols = recycleBinSql.pragmaTableInfo(db).all() as any[];
       const hasDeletedAt = invCols.some(c => c.name === 'deleted_at');
@@ -134,9 +134,9 @@ export function restoreInvoice(invoice_id: string) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:restoreInvoice]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -146,7 +146,7 @@ export function getDeletedProducts(tenantId: string) {
     const db = getDb();
     const tid = tenantId || 'global';
     return recycleBinSql.findProducts(db).all(tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getDeletedProducts]', error);
     return [];
   }
@@ -158,7 +158,7 @@ export function restoreProduct(product_id: string) {
     const db = getDb();
     recycleBinSql.updateProductIsDeleted(db).run(product_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:restoreProduct]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -170,7 +170,7 @@ export function getDeletedCustomers(tenantId: string) {
     const db = getDb();
     const tid = tenantId || 'global';
     return recycleBinSql.findCustomers(db).all(tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getDeletedCustomers]', error);
     return [];
   }
@@ -185,7 +185,7 @@ export function restoreCustomer({ customer_id, tenant_id }: { customer_id: strin
       recycleBinSql.updatePartyIsDeleted(db).run(customer_id, tenant_id);
     })();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:restoreCustomer]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -197,7 +197,7 @@ export function getDeletedParties(tenantId: string) {
     const db = getDb();
     const tid = tenantId || 'global';
     return recycleBinSql.findParties(db).all(tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getDeletedParties]', error);
     return [];
   }
@@ -208,11 +208,11 @@ export function hardDeleteInvoice(invoice_id: string) {
   try {
     const db = getDb();
     db.transaction(() => {
-      try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(invoice_id); } catch (e) {}
+      try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(invoice_id); } catch (e) { /* ignore */ }
       recycleBinSql.deleteInvoiceByInvoiceId(db).run(invoice_id);
     })();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:hardDeleteInvoice]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -224,7 +224,7 @@ export function hardDeleteProduct(product_id: string) {
     const db = getDb();
     recycleBinSql.deleteProductByProductId(db).run(product_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:hardDeleteProduct]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -239,7 +239,7 @@ export function hardDeleteCustomer({ customer_id, tenant_id }: { customer_id: st
       recycleBinSql.deletePartyByPartyId(db).run(customer_id, tenant_id);
     })();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:hardDeleteCustomer]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -254,7 +254,7 @@ export function hardDeleteParty(party_id: string) {
       recycleBinSql.deletePartyByPartyId2(db).run(party_id);
     })();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:hardDeleteParty]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -281,7 +281,7 @@ export function getRecycleBinSummary(tenantId: string) {
       customers: custRow?.count || 0,
       parties: partyRow?.count || 0,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getRecycleBinSummary]', error);
     return { invoices: 0, invoicesValue: 0, products: 0, customers: 0, parties: 0 };
   }
@@ -298,7 +298,7 @@ export function emptyRecycleBin(payload: { category: string; tenant_id: string }
       if (cat === 'SALES_BILLS' || cat === 'ALL') {
         const delInvs = recycleBinSql.findInvoices(db).all(tid) as any[];
         for (const row of delInvs) {
-          try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(row.invoice_id); } catch (e) {}
+          try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(row.invoice_id); } catch (e) { /* ignore */ }
           recycleBinSql.deleteInvoiceByInvoiceId2(db).run(row.invoice_id);
         }
       }
@@ -318,7 +318,7 @@ export function emptyRecycleBin(payload: { category: string; tenant_id: string }
     })();
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:emptyRecycleBin]', error);
     return { success: false, error: 'Operation failed' };
   }

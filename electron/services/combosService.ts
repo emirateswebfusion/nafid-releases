@@ -14,10 +14,10 @@ export function getComboOffers({ tenant_id, search, only_active }: { tenant_id: 
 
     return rows.map(r => {
       let items = [];
-      try { items = JSON.parse(r.items_json || '[]'); } catch {}
+      try { items = JSON.parse(r.items_json || '[]'); } catch { /* ignore */ }
       return { ...r, items };
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getComboOffers]', error);
     return [];
   }
@@ -34,7 +34,7 @@ export function getComboOfferDetails({ combo_id }: { combo_id: string }) {
     const items = combosSql.findComboItemsByComboId(db).all(combo_id) as any[];
 
     return { ...combo, items };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getComboOfferDetails]', error);
     return null;
   }
@@ -87,9 +87,9 @@ export function saveComboOffer(payload: {
 
     tx();
     return { success: true, combo_id };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:saveComboOffer]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -100,7 +100,7 @@ export function deleteComboOffer({ combo_id }: { combo_id: string }) {
     if (!combo_id) return { success: false, error: 'Missing combo ID' };
     combosSql.updateComboOfferIsDeleted(db).run(combo_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteComboOffer]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -113,7 +113,7 @@ export function toggleComboOfferActive({ combo_id, is_active }: { combo_id: stri
     if (!combo_id) return { success: false, error: 'Missing combo ID' };
     combosSql.updateComboOfferIsActive(db).run(is_active ? 1 : 0, combo_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:toggleComboOfferActive]', error);
     return { success: false, error: 'Operation failed' };
   }

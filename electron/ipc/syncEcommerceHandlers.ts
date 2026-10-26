@@ -22,9 +22,9 @@ ipcMain.handle('sync:drainPendingCloudQueue', async (event) => {
   try {
     const { drainPendingCloudQueue } = await import('../sync/syncWorker.js');
     return drainPendingCloudQueue(event.sender);
-  } catch (err: any) {
-    console.error('[Main] sync:drainPendingCloudQueue error:', err.message);
-    return { success: false, drainedCount: 0, message: err.message };
+  } catch (err) {
+    console.error('[Main] sync:drainPendingCloudQueue error:', (err as Error).message);
+    return { success: false, drainedCount: 0, message: (err as Error).message };
   }
 });
 

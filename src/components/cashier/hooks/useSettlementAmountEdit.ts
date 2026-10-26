@@ -39,7 +39,7 @@ export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
     if (inv.split_details) {
       try {
         existingSplit = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
-      } catch {}
+      } catch { /* ignore */ }
     }
 
     setSplitModalInvoice(inv);

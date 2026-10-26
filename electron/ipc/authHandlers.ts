@@ -81,8 +81,8 @@ export function registerAuthHandlers(): void {
         setSyncActive(false);
       }
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message || 'Failed to save offline session' };
+    } catch (error) {
+      return { success: false, error: (error as Error).message || 'Failed to save offline session' };
     }
   });
 
@@ -100,8 +100,8 @@ export function registerAuthHandlers(): void {
     try {
       localSaveUser(payload);
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
@@ -113,8 +113,8 @@ export function registerAuthHandlers(): void {
         return { success: false, error: 'Email and password required' };
       }
       return localAuthenticateUser(email, password);
-    } catch (error: any) {
-      return { success: false, error: error.message || 'Offline authentication failed' };
+    } catch (error) {
+      return { success: false, error: (error as Error).message || 'Offline authentication failed' };
     }
   });
 

@@ -84,7 +84,7 @@ export function holdBill(payload: any) {
   try {
     transaction();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:holdBill]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -95,7 +95,7 @@ export function getHeldBills({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     return invoicesSql.findInvoicesByInvoiceTypeAndIsHeld(db).all(tenant_id);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getHeldBills]', error);
     return { error: 'Operation failed' };
   }
@@ -135,7 +135,7 @@ export function recallHeldBill({ invoice_id }: { invoice_id: string }) {
                 }
                 continue;
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
           if (item.product_id) {
             stockStmt.run(item.quantity, item.product_id);
@@ -149,9 +149,9 @@ export function recallHeldBill({ invoice_id }: { invoice_id: string }) {
 
     transaction();
     return { success: true, invoice: resultInvoice, items: resultItems };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:recallHeldBill]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -183,7 +183,7 @@ export function releaseHeldBill({ invoice_id }: { invoice_id: string }) {
                 }
                 continue;
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
           if (item.product_id) {
             stockStmt.run(item.quantity, item.product_id);
@@ -197,9 +197,9 @@ export function releaseHeldBill({ invoice_id }: { invoice_id: string }) {
 
     transaction();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:releaseHeldBill]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -231,7 +231,7 @@ export function expireStaleHeldBills({ tenant_id }: { tenant_id: string }) {
                   }
                   continue;
                 }
-              } catch {}
+              } catch { /* ignore */ }
             }
             if (item.product_id) {
               stockStmt.run(item.quantity, item.product_id);
@@ -254,7 +254,7 @@ export function expireStaleHeldBills({ tenant_id }: { tenant_id: string }) {
       console.log(`[Hold] Expired ${expiredCount} stale held bill(s) and reverted stock`);
     }
     return { success: true, expiredCount };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:expireStaleHeldBills]', error);
     return { success: false, error: 'Operation failed' };
   }

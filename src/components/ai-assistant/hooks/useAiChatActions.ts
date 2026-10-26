@@ -140,13 +140,13 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
           return c;
         })
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error('Chat error:', err);
       const isMal = /[\u0D00-\u0D7F]/.test(q);
       const errMsg: ChatMessage = {
         id: 'msg-' + Date.now() + '-error',
         role: 'assistant',
-        content: isMal ? `ഡാറ്റ പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${err.message || 'Error'}.` : `Failed to retrieve data: ${err.message || 'Error'}.`,
+        content: isMal ? `ഡാറ്റ പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${(err as Error).message || 'Error'}.` : `Failed to retrieve data: ${(err as Error).message || 'Error'}.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 

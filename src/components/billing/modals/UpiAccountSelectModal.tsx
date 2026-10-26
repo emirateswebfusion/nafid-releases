@@ -88,7 +88,7 @@ export const UpiAccountSelectModal: React.FC<UpiAccountSelectModalProps> = ({
                 });
                 try {
                   localStorage.setItem('last_selected_upi_source_id', s.source_id || s.upi_id || '');
-                } catch {}
+                } catch { /* ignore */ }
                 onClose();
                 setUpiAccountToast(`${s.name}${s.upi_id ? ` (${s.upi_id})` : ''}`);
                 setTimeout(() => setUpiAccountToast(null), 3500);

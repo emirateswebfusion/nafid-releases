@@ -11,7 +11,7 @@ export function getStoreTimezoneSetting(db: any, tenantId?: string): string {
       if (typeof parsed === 'string' && parsed) return parsed;
       if (parsed?.timezone) return parsed.timezone;
     }
-  } catch {}
+  } catch { /* ignore */ }
   return 'Asia/Kolkata';
 }
 

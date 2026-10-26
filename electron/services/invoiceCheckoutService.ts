@@ -44,7 +44,7 @@ export function checkout(payload: any) {
   const tripleSeriesRow: any = invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series');
   let isTripleSeries = false;
   if (tripleSeriesRow && tripleSeriesRow.value) {
-    try { isTripleSeries = Boolean(JSON.parse(tripleSeriesRow.value).enabled); } catch {}
+    try { isTripleSeries = Boolean(JSON.parse(tripleSeriesRow.value).enabled); } catch { /* ignore */ }
   }
   let resolvedSeries: string | undefined;
   if (invoice.invoice_type === 'GST') {
@@ -72,7 +72,7 @@ export function checkout(payload: any) {
     const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
     let splitObj: any = null;
     if (invoice.split_details && typeof invoice.split_details === 'string') {
-      try { splitObj = JSON.parse(invoice.split_details); } catch {}
+      try { splitObj = JSON.parse(invoice.split_details); } catch { /* ignore */ }
     } else if (invoice.split_details && typeof invoice.split_details === 'object') {
       splitObj = invoice.split_details;
     }
@@ -332,7 +332,7 @@ export function checkout(payload: any) {
                 da.pcs = nextPcs;
                 updDaStmt.run(JSON.stringify(da), item.product_id);
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
         }
       }
@@ -443,7 +443,7 @@ export function checkout(payload: any) {
     }
 
     return res;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:checkout]', error);
     return { success: false, error: 'Operation failed' };
   }

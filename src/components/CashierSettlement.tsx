@@ -184,7 +184,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
-    } catch {}
+    } catch { /* ignore */ }
   }, []);
 
   const processInvoicesUpdate = useCallback((invs: any[]) => {

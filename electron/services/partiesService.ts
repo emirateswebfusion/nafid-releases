@@ -25,7 +25,7 @@ export function getParties(tenantId: string, includeDeleted: any = false) {
       }
     }
     return parties;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getParties]', error);
     return { error: 'Operation failed' };
   }
@@ -75,7 +75,7 @@ export function addParty(p: any) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addParty]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -173,9 +173,9 @@ export function bulkImportParties(parties: any[]) {
     });
     transaction(parties);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:bulkImportParties]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -283,9 +283,9 @@ export function updateParty(p: any) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateParty]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -295,7 +295,7 @@ export function deleteParty(partyId: string) {
     const db = getDb();
     partiesSql.updatePartyIsDeleted(db).run(partyId);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteParty]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -308,7 +308,7 @@ export function restoreParty(partyId: string) {
     partiesSql.updatePartyIsDeletedAlt(db).run(partyId);
     recalcPartyBalances(db, partyId);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:restoreParty]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -320,7 +320,7 @@ export function adjustPartyBalance({ party_id, amount }: { party_id: string; amo
     const db = getDb();
     partiesSql.updatePartyBalanceAndGstBalance(db).run(amount, amount, party_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:adjustPartyBalance]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -367,7 +367,7 @@ export function mergeParties(payload: { tenant_id: string; primary_party_id: str
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:mergeParties]', error);
     return { success: false, error: 'Failed to merge parties' };
   }
@@ -398,7 +398,7 @@ export function getPartyLedger(partyId: string, includeDeleted: any = false) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
-    try { db.exec(`ALTER TABLE party_ledger ADD COLUMN is_deleted INTEGER DEFAULT 0`); } catch {}
+    try { db.exec(`ALTER TABLE party_ledger ADD COLUMN is_deleted INTEGER DEFAULT 0`); } catch { /* ignore */ }
     // Clean up any legacy orphan purchase bill ledger entries where the purchase bill was deleted
     try {
       const orphans = partiesSql.findPartyLedgerByPartyIdAndBillNumber(db).all(partyId) as any[];
@@ -408,7 +408,7 @@ export function getPartyLedger(partyId: string, includeDeleted: any = false) {
         }
         recalcPartyBalances(db, partyId);
       }
-    } catch {}
+    } catch { /* ignore */ }
 
     // Clean up any ledger entries where the invoice was deleted (is_deleted = 1)
     try {
@@ -424,9 +424,9 @@ export function getPartyLedger(partyId: string, includeDeleted: any = false) {
     } catch (e) {
       console.error('[db:getPartyLedger] Error cleaning deleted invoice ledger entries:', e);
     }
-    try { recalcPartyBalances(db, partyId); } catch (e) {}
+    try { recalcPartyBalances(db, partyId); } catch (e) { /* ignore */ }
     return partiesSql.listPartyLedger(db, Boolean(includeDeleted)).all(partyId);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getPartyLedger]', error);
     return { error: 'Operation failed' };
   }
@@ -446,7 +446,7 @@ export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: st
     }
     recalcPartyBalances(db, party_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:restorePartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -488,7 +488,7 @@ export function addPartyLedgerEntry(entry: any) {
     recalcPartyBalances(db, entry.party_id);
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addPartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -531,7 +531,7 @@ export function updatePartyLedgerEntry(entry: any) {
     recalcPartyBalances(db, entry.party_id);
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updatePartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -560,7 +560,7 @@ export function deletePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: str
     }).catch(() => {});
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deletePartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };
   }

@@ -652,10 +652,10 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           if (!isPaymentPending || openCashDrawerOnPending) {
             printingApi.openCashDrawer(tenantId || 'global').catch(() => {});
           }
-        } catch (printErr: any) {
+        } catch (printErr) {
           printSuccess = false;
           console.warn('[Checkout] Print error (invoice already saved):', printErr);
-          setHardwareError(formatPrinterError(printErr.message));
+          setHardwareError(formatPrinterError((printErr as Error).message));
           setTimeout(() => setHardwareError(null), 5000);
         }
       }
@@ -736,9 +736,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         }
         setCheckoutSuccess(false); // normal mode reset
       }, 1800);
-    } catch (err: any) {
+    } catch (err) {
       console.error('[Checkout Error]', err);
-      setHardwareError(`Checkout failed: ${err?.message || 'Unexpected error'}`);
+      setHardwareError(`Checkout failed: ${(err as Error)?.message || 'Unexpected error'}`);
     } finally {
       isCheckingOutRef.current = false;
       setIsCheckingOut(false);

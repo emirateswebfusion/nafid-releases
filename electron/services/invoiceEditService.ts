@@ -36,7 +36,7 @@ export function applyInvoiceDiscount({ invoice_id, discount_type, discount_value
     invoicesSql.updateInvoiceByInvoiceId2(db).run(discount_total, discount_type, discount_value, grand_total, invoice_id);
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:applyInvoiceDiscount]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -96,7 +96,7 @@ export async function updateInvoice(payload: {
         const uPerms = JSON.parse(u.permissions || '[]');
         if (Array.isArray(uPerms) && (uPerms.includes('*') || uPerms.includes('sales.edit'))) hasDbPerm = true;
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   if (!isAdmin && !hasEditPerm && !hasDbPerm) {
@@ -341,7 +341,7 @@ export async function updateInvoice(payload: {
       }
     }
     return res;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateInvoice]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -477,7 +477,7 @@ export function updateInvoicePayment(payload: {
       }
     }
     return res;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateInvoicePayment]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -504,7 +504,7 @@ export function deleteInvoice(invoice_id: string) {
           restoreStockStmt.run(item.quantity, item.product_id, inv.tenant_id);
         }
       }
-      try { invoicesSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) {}
+      try { invoicesSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) { /* ignore */ }
 
       // If a copy was deleted, un-supersede its BoS so it can be converted again
       if (isConversionCopy && inv) {
@@ -538,7 +538,7 @@ export function deleteInvoice(invoice_id: string) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteInvoice]', error);
     return { success: false, error: 'Operation failed' };
   }

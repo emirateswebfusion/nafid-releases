@@ -146,7 +146,7 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
           set({ cardOrder: normalized });
           try {
             localStorage.setItem(storageKey, JSON.stringify(normalized));
-          } catch {}
+          } catch { /* ignore */ }
           return normalized;
         }
       } catch (err) {
@@ -234,7 +234,7 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
     const storageKey = getDashboardCardsStorageKey(tenantId, userId, role);
     try {
       localStorage.setItem(storageKey, JSON.stringify(defaults));
-    } catch {}
+    } catch { /* ignore */ }
 
     if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
       try {
@@ -244,7 +244,7 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
           key: electronKey,
           value: defaults,
         });
-      } catch {}
+      } catch { /* ignore */ }
     }
   },
 }));

@@ -46,7 +46,7 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
       try {
         const s = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
         splitCredit = Number(s?.credit) || 0;
-      } catch {}
+      } catch { /* ignore */ }
     }
     return pm === 'CREDIT' || splitCredit > 0 || (Number(inv.balance_amount) > 0 && pm !== 'CASH');
   }).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -61,7 +61,7 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
       try {
         const s = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
         splitCredit = Number(s?.credit) || 0;
-      } catch {}
+      } catch { /* ignore */ }
     }
 
     const billCreditTotal = pm === 'SPLIT' && splitCredit > 0

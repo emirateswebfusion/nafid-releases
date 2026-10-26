@@ -52,7 +52,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
         });
         setConfig(parseStaffDataMaskingConfig(raw));
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[StaffDataMaskingSettings] Load error:', err);
     } finally {
       setLoading(false);
@@ -72,9 +72,9 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
       }
       setStatusMessage({ text: 'Staff Data Masking settings updated successfully!', type: 'success' });
       setTimeout(() => setStatusMessage(null), 3500);
-    } catch (err: any) {
+    } catch (err) {
       console.error('[StaffDataMaskingSettings] Save error:', err);
-      setStatusMessage({ text: 'Failed to save settings: ' + (err.message || 'Unknown error'), type: 'error' });
+      setStatusMessage({ text: 'Failed to save settings: ' + ((err as Error).message || 'Unknown error'), type: 'error' });
     } finally {
       setSaving(false);
     }

@@ -56,8 +56,8 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
           const worksheet = workbook.Sheets[firstSheetName];
           const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
           processRawData(rawData);
-        } catch (err: any) {
-          setMessage({ type: 'error', text: `Failed to parse Excel file: ${err.message}` });
+        } catch (err) {
+          setMessage({ type: 'error', text: `Failed to parse Excel file: ${(err as Error).message}` });
         } finally {
           setLoading(false);
         }

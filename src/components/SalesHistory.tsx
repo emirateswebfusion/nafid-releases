@@ -483,7 +483,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
           if (exact) freshInvoice = exact;
         }
-      } catch {}
+      } catch { /* ignore */ }
     }
     localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     invoiceDetailsCache.current.delete(selectedInvoice.invoice_id);
@@ -512,8 +512,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       } else {
         showToast('Delete failed: ' + (result.error || 'Unknown error'), 'error');
       }
-    } catch (err: any) {
-      showToast('Delete failed: ' + (err?.message || 'Unknown error'), 'error');
+    } catch (err) {
+      showToast('Delete failed: ' + ((err as Error)?.message || 'Unknown error'), 'error');
     } finally {
       setDeleteSaving(false);
     }

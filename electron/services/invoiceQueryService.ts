@@ -132,7 +132,7 @@ export function getInvoices(filters?: { user_id?: string; tenant_id?: string; ro
     const results = db.prepare(query).all(...params);
     console.log(`[db:getInvoices] Returned ${results.length} invoices for tenant_id=${tenant_id} filterDate=${filterDate||'any'} offset=${offset||0}`);
     return results;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getInvoices] Error fetching invoices:', error);
     return { error: 'Operation failed' };
   }
@@ -281,7 +281,7 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
 
     return { totalSales, totalSalesBeforeDeductions, totalInvoices, totalTax, totalDiscount, avgOrder };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getInvoicesSummary] Error:', error);
     return { totalSales: 0, totalSalesBeforeDeductions: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
   }
@@ -295,7 +295,7 @@ export function getDashboardStats(tenantId: string) {
     const { startUtc, endUtc } = getUtcRangeForStoreDateRange(dateStr, dateStr, tenantId);
     const row = invoicesSql.findInvoicesByConvertedFrom_(db).get(tenantId, startUtc, endUtc) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getDashboardStats]', error);
     return { success: false, totalSales: 0, invoiceCount: 0, error: 'Operation failed' };
   }
@@ -306,7 +306,7 @@ export function getInvoiceItems(invoice_id: string) {
   try {
     const db = getDb();
     return invoicesSql.findInvoiceItemsByInvoiceId2(db).all(invoice_id);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getInvoiceItems]', error);
     return { error: 'Operation failed' };
   }
@@ -318,7 +318,7 @@ export function getBosConvertibleInvoices(tenantId: string) {
     const db = getDb();
     if (!tenantId) return [];
     return invoicesSql.findInvoiceItemsByInvoiceIdAndIsGstApplicable(db).all(tenantId, tenantId);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getBosConvertibleInvoices]', error);
     return [];
   }
@@ -330,7 +330,7 @@ export async function getNextServerInvoiceNumber({ tenant_id, series, start }: {
     const db = getDb();
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
     return await requestServerInvoiceNumber(db, tenant_id || 'global', series, configKey, start);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getNextServerInvoiceNumber]', error);
     return { success: false, error: 'Operation failed', offline: true };
   }
@@ -343,7 +343,7 @@ export function getNextInvoiceNumber({ tenant_id, series }: { tenant_id: string;
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
     const result = getGuaranteedNextInvoiceNumber(db, tenant_id || 'global', configKey);
     return { success: true, invoiceNumber: result.invoiceNumber, counter: result.counter };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getNextInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -356,7 +356,7 @@ export function peekNextInvoiceNumber({ tenant_id, series }: { tenant_id: string
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
     const result = peekGuaranteedNextInvoiceNumber(db, tenant_id || 'global', configKey);
     return { success: true, invoiceNumber: result.invoiceNumber, counter: result.counter, prefix: result.prefix };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:peekNextInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
   }

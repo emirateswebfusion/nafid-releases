@@ -61,7 +61,7 @@ export function usePurchaseProductActions(ctx: UsePurchaseProductActionsContext)
             try {
               const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
               setNewProductPcs(da.pcs ? String(da.pcs) : '');
-            } catch {}
+            } catch { /* ignore */ }
           }
           if (!item.purchase_price || Number(item.purchase_price) <= 0) setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : '');
           if (!item.selling_price || Number(item.selling_price) <= 0) setNewProductBasePrice(p.base_price != null ? String(p.base_price) : '');

@@ -76,7 +76,7 @@ export function dbEmergencyPurgeLocalData(wipeMode: 'ALL_DATA' | 'SALES_AND_CASH
     }
     try {
       d.exec("DELETE FROM sqlite_sequence WHERE name IN ('" + targetTables.join("','") + "');");
-    } catch {}
+    } catch { /* ignore */ }
     d.pragma('foreign_keys = ON');
   });
 
@@ -103,9 +103,9 @@ export function dbEmergencyPurgeLocalData(wipeMode: 'ALL_DATA' | 'SALES_AND_CASH
       ];
       for (const cand of candidates) {
         if (fs.existsSync(cand)) {
-          try { fs.unlinkSync(cand); } catch {}
-          if (fs.existsSync(`${cand}-wal`)) try { fs.unlinkSync(`${cand}-wal`); } catch {}
-          if (fs.existsSync(`${cand}-shm`)) try { fs.unlinkSync(`${cand}-shm`); } catch {}
+          try { fs.unlinkSync(cand); } catch { /* ignore */ }
+          if (fs.existsSync(`${cand}-wal`)) try { fs.unlinkSync(`${cand}-wal`); } catch { /* ignore */ }
+          if (fs.existsSync(`${cand}-shm`)) try { fs.unlinkSync(`${cand}-shm`); } catch { /* ignore */ }
         }
       }
     } catch (candErr) {
@@ -113,8 +113,8 @@ export function dbEmergencyPurgeLocalData(wipeMode: 'ALL_DATA' | 'SALES_AND_CASH
     }
 
     return { success: true, clearedTables: cleared };
-  } catch (err: any) {
+  } catch (err) {
     console.error('[EmergencyPurge] Fatal error purging local DB:', err);
-    return { success: false, clearedTables: cleared, error: err?.message || 'Purge failed' };
+    return { success: false, clearedTables: cleared, error: (err as Error)?.message || 'Purge failed' };
   }
 }

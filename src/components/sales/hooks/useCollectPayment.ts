@@ -73,9 +73,9 @@ export function useCollectPayment(ctx: UseCollectPaymentContext) {
       } else {
         showToast('Failed to update payment: ' + (result.error || 'Unknown error'), 'error');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to collect payment', err);
-      showToast('Failed to update payment: ' + (err?.message || 'Unknown error'), 'error');
+      showToast('Failed to update payment: ' + ((err as Error)?.message || 'Unknown error'), 'error');
     } finally {
       setCollectPaymentSaving(false);
     }

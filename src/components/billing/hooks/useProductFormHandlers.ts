@@ -113,8 +113,8 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
       if (result.success && result.barcode) {
         setNewProductBarcode(`${result.barcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`);
       }
-    } catch (error: any) {
-      setHardwareError('Failed to generate barcode: ' + (error?.message || ''));
+    } catch (error) {
+      setHardwareError('Failed to generate barcode: ' + ((error as Error)?.message || ''));
     }
   };
 
@@ -272,8 +272,8 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
           const generated = await productsApi.generateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
           if (!generated.success || !generated.barcode) throw new Error(generated.error || 'Barcode could not be generated');
           finalBarcode = `${generated.barcode}${encodeProductPurchasePrice(newProductPurchasePrice)}`;
-        } catch (error: any) {
-          setHardwareError('Failed to generate barcode: ' + (error?.message || ''));
+        } catch (error) {
+          setHardwareError('Failed to generate barcode: ' + ((error as Error)?.message || ''));
           return;
         }
       }

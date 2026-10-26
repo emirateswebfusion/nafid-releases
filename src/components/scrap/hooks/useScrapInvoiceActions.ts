@@ -125,9 +125,9 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
           setReprintSuccess(true);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to reprint scrap invoice', err);
-      showStatus('Failed to reprint: ' + (err?.message || 'Unknown error'), 'error');
+      showStatus('Failed to reprint: ' + ((err as Error)?.message || 'Unknown error'), 'error');
     }
   };
 

@@ -143,8 +143,8 @@ export function ensureSchemaColumns(db: Database.Database) {
     try {
       const info = db.prepare(`PRAGMA table_info(${table})`).all();
       existingCols = info.map((c: any) => c.name);
-    } catch (e: any) {
-      console.warn(`[DB Migration] Could not retrieve table_info for ${table}:`, e.message);
+    } catch (e) {
+      console.warn(`[DB Migration] Could not retrieve table_info for ${table}:`, (e as Error).message);
       continue;
     }
 
@@ -166,8 +166,8 @@ export function ensureSchemaColumns(db: Database.Database) {
         }
         try {
           db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
-        } catch (e: any) {
-          console.warn(`[DB Migration] Failed to add column ${col} to ${table}:`, e.message);
+        } catch (e) {
+          console.warn(`[DB Migration] Failed to add column ${col} to ${table}:`, (e as Error).message);
         }
       }
     }

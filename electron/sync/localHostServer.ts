@@ -16,7 +16,7 @@ function toNormalizedUtc(str: string | null | undefined): string | null {
       const pad = (n: number) => String(n).padStart(2, '0');
       return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
     }
-  } catch {}
+  } catch { /* ignore */ }
   return clean.slice(0, 19).replace('T', ' ');
 }
 
@@ -137,7 +137,7 @@ export function startLocalHostServer(port: number = 3888) {
               if (!gParsed.prefix || gParsed.prefix === prefix) {
                 counter = typeof gParsed.counter === 'number' && gParsed.counter > 0 ? gParsed.counter : 1;
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
         }
 
@@ -167,7 +167,7 @@ export function startLocalHostServer(port: number = 3888) {
             const cfg = JSON.parse(confRow.value);
             prefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : 'RTN-';
             counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
-          } catch {}
+          } catch { /* ignore */ }
         }
         const checkReturnStmt = localHostServerSql.selectReturns(db);
         let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
@@ -206,7 +206,7 @@ export function startLocalHostServer(port: number = 3888) {
                 maxUpdatedAt = rowTs;
               }
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         let hasChanges = true;
@@ -278,8 +278,8 @@ export function startLocalHostServer(port: number = 3888) {
               }
             }
             return rows;
-          } catch (err: any) {
-            console.error(`[LocalHostServer] Delta-pull error for ${tName}:`, err.message);
+          } catch (err) {
+            console.error(`[LocalHostServer] Delta-pull error for ${tName}:`, (err as Error).message);
             return [];
           }
         };
@@ -367,7 +367,7 @@ export function startLocalHostServer(port: number = 3888) {
               if (win && !win.isDestroyed()) {
                 win.webContents.send('sync:data-updated');
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
           return sendJson(res, 200, { synced, synced_count: synced.length, failed_count: 0 });
         }
@@ -448,17 +448,17 @@ export function startLocalHostServer(port: number = 3888) {
             }
 
             return sendJson(res, 200, { [endpointName]: rows, [tableName]: rows, data: rows });
-          } catch (err: any) {
-            console.error(`[LocalHostServer] Error querying ${tableName} (${endpointName}):`, err.message);
+          } catch (err) {
+            console.error(`[LocalHostServer] Error querying ${tableName} (${endpointName}):`, (err as Error).message);
             return sendJson(res, 200, { [endpointName]: [], [tableName]: [], data: [] });
           }
         }
       }
 
       return sendJson(res, 200, { status: 'ok', synced: [], synced_count: 0, failed_count: 0 });
-    } catch (err: any) {
-      console.error('[LocalHostServer] Request error:', err.message);
-      return sendJson(res, 500, { error: err.message });
+    } catch (err) {
+      console.error('[LocalHostServer] Request error:', (err as Error).message);
+      return sendJson(res, 500, { error: (err as Error).message });
     }
   });
 
@@ -469,7 +469,7 @@ export function startLocalHostServer(port: number = 3888) {
   server.on('error', (err: any) => {
     console.error(`[LocalHostServer] [${toIsoTimestamp()}] [Local LAN Host] Server error:`, err.message);
     if (server) {
-      try { server.close(); } catch {}
+      try { server.close(); } catch { /* ignore */ }
       server = null;
     }
   });

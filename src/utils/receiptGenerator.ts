@@ -420,7 +420,7 @@ function formatBalanceLines(
 
   let rawSd: any = data.splitDetails || (data as any).split_details;
   if (typeof rawSd === 'string') {
-    try { rawSd = JSON.parse(rawSd); } catch {}
+    try { rawSd = JSON.parse(rawSd); } catch { /* ignore */ }
   }
 
   if (pm === 'SPLIT' && rawSd && typeof rawSd === 'object') {
@@ -779,7 +779,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += LIGHT + '\n';
     }
@@ -1106,7 +1106,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += THIN + '\n';
     }
@@ -1310,7 +1310,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
     }
 
@@ -1495,7 +1495,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += LIGHT + '\n';
     }
@@ -1957,7 +1957,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += THIN + '\n';
     }
@@ -2417,7 +2417,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       try {
         const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
         text += '[[QR:' + upiUrl + ']]\n';
-      } catch {}
+      } catch { /* ignore */ }
     }
 
     // ── Loyalty Points ────────────────────────────────────────────────────────

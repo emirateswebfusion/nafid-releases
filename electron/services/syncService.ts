@@ -13,16 +13,16 @@ export function debugSyncState(tenant_id: string) {
       try {
         const row = syncSql.countSyncStatusForTable(db, t).get(tenant_id) as any;
         counts[t] = row;
-      } catch (e: any) { counts[t] = { error: e.message }; }
+      } catch (e) { counts[t] = { error: (e as Error).message }; }
     }
     const cursors = syncSql.findSyncMeta(db).all(`pull_cursor:${tenant_id}:%`) as any[];
     const isSyncActive = syncSql.findSyncMetaByKey(db).get(`cash_drawer_conflict_fix_v2:${tenant_id}`) as any;
     console.log('[db:debugSyncState] Table counts:', JSON.stringify(counts, null, 2));
     console.log('[db:debugSyncState] Pull cursors:', JSON.stringify(cursors, null, 2));
     return { counts, cursors, healingFlagSet: !!isSyncActive };
-  } catch (e: any) {
-    console.error('[db:debugSyncState] Error:', e.message);
-    return { error: e.message };
+  } catch (e) {
+    console.error('[db:debugSyncState] Error:', (e as Error).message);
+    return { error: (e as Error).message };
   }
 }
 
@@ -48,9 +48,9 @@ export async function syncClearPending({ tenant_id, type, records }: { tenant_id
     }
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[sync:clearPending]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -61,9 +61,9 @@ export async function syncGetPending({ tenant_id }: { tenant_id: string }) {
     const invoices = syncSql.findInvoices(db).all(tenant_id);
     const products = syncSql.findProducts(db).all(tenant_id);
     return { success: true, pending: { invoices, products } };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[sync:getPending]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -72,8 +72,8 @@ export async function getCloudAccessState(tenantId?: string) {
   try {
     const { calculateEffectiveCloudAccess } = await import('../sync/syncWorker.js');
     return calculateEffectiveCloudAccess(tenantId);
-  } catch (err: any) {
-    console.error('[Main] sync:getCloudAccessState error:', err.message);
+  } catch (err) {
+    console.error('[Main] sync:getCloudAccessState error:', (err as Error).message);
     return null;
   }
 }
@@ -83,8 +83,8 @@ export async function updateCloudAccessConfig(payload: { config: any; tenant_id?
   try {
     const { updateCloudAccessConfig } = await import('../sync/syncWorker.js');
     return updateCloudAccessConfig(payload.config, payload.tenant_id);
-  } catch (err: any) {
-    console.error('[Main] sync:updateCloudAccessConfig error:', err.message);
+  } catch (err) {
+    console.error('[Main] sync:updateCloudAccessConfig error:', (err as Error).message);
     return null;
   }
 }
@@ -95,9 +95,9 @@ export async function setPageContext(payload: { page: string; active: boolean })
     const { setPageContext } = await import('../sync/syncWorker.js');
     setPageContext(payload?.page || null, !!payload?.active);
     return { success: true };
-  } catch (err: any) {
-    console.error('[Main] sync:setPageContext error:', err.message);
-    return { success: false, error: err.message };
+  } catch (err) {
+    console.error('[Main] sync:setPageContext error:', (err as Error).message);
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -107,8 +107,8 @@ export async function resetFastPollBackoff() {
     const { resetFastPollBackoff } = await import('../sync/syncWorker.js');
     resetFastPollBackoff();
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
   }
 }
 
@@ -168,7 +168,7 @@ export async function testNetworkConnection(payload: { syncMode?: string; lanRol
               message: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
             };
           }
-        } catch {}
+        } catch { /* ignore */ }
         return {
           ok: false,
           error: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
@@ -194,7 +194,7 @@ export async function testNetworkConnection(payload: { syncMode?: string; lanRol
               message: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
             };
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
       return {
         ok: false,
@@ -214,7 +214,7 @@ export async function testNetworkConnection(payload: { syncMode?: string; lanRol
           message: `Cloud Sync Active — Connected to Cloud API server`
         };
       }
-    } catch {}
+    } catch { /* ignore */ }
     return {
       ok: false,
       error: `Sync Inactive — Cloud API server (${defaultCloud}) is unreachable.`

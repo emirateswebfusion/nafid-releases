@@ -82,7 +82,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
             try {
               const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
               if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
-            } catch {}
+            } catch { /* ignore */ }
           }
 
           const itemNameClean = String(item?.name || '').toLowerCase().trim();
@@ -136,7 +136,7 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
             try {
               const attrs = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
               if (attrs?.pcs_per_kg) pcsPerKg = Number(attrs.pcs_per_kg);
-            } catch {}
+            } catch { /* ignore */ }
           }
           return {
             ...item,

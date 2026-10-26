@@ -442,7 +442,7 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
   resetConfig: () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_BILLING_UI_CONFIG));
-    } catch (e) {}
+    } catch (e) { /* ignore */ }
     if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
       settingsApi.set({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
     }

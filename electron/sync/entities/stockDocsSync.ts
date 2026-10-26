@@ -91,8 +91,8 @@ export async function pullScrapCategories(token: string, tenantId: string): Prom
               created_at: toSqliteDate(c.created_at),
               updated_at: toSqliteDate(c.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling scrap category:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling scrap category:', (e as Error).message);
           }
         }
       });
@@ -145,8 +145,8 @@ export async function pullScrapTransactions(token: string, tenantId: string): Pr
               created_at: toSqliteDate(t.created_at),
               updated_at: toSqliteDate(t.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling scrap transaction:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling scrap transaction:', (e as Error).message);
           }
         }
       });
@@ -269,8 +269,8 @@ export async function pullPurchaseBills(token: string, tenantId: string): Promis
                 });
               }
             }
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling purchase bill:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling purchase bill:', (e as Error).message);
           }
         }
       });
@@ -362,8 +362,8 @@ export async function pullReturns(token: string, tenantId: string): Promise<bool
                 });
               }
             }
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling return:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling return:', (e as Error).message);
           }
         }
       });

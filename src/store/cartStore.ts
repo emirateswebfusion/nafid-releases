@@ -306,7 +306,7 @@ export const useCartStore = create<CartState>()(
         set({ isQuotationMode });
         try {
           (window as any).useTabStore?.getState?.()?.syncActiveSnapshot?.();
-        } catch {}
+        } catch { /* ignore */ }
       },
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),

@@ -34,7 +34,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
           }
         }
       }
-    } catch {}
+    } catch { /* ignore */ }
     const initialId = 'conv-' + Date.now();
     return [
       {
@@ -52,7 +52,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     try {
       const savedId = localStorage.getItem(activeIdStorageKey);
       if (savedId) return savedId;
-    } catch {}
+    } catch { /* ignore */ }
     return conversations[0]?.id || 'conv-1';
   });
 
@@ -63,7 +63,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
       localStorage.removeItem('nafid_pos_ai_conversations_v3');
       localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
       localStorage.removeItem('nafid_pos_ai_conversations');
-    } catch {}
+    } catch { /* ignore */ }
 
     const loaded = loadConversationsFromStorage();
     setConversations(loaded);
@@ -94,7 +94,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
     try {
       localStorage.setItem(convStorageKey, JSON.stringify(conversations));
       localStorage.setItem(activeIdStorageKey, activeConvId);
-    } catch {}
+    } catch { /* ignore */ }
   }, [conversations, activeConvId, convStorageKey, activeIdStorageKey]);
 
   const activeConversation = useMemo(() => {

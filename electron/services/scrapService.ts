@@ -14,7 +14,7 @@ export function getScrapCategories(tenantId: string) {
     const db = getDb();
     if (!tenantId) return [];
     return scrapSql.findScrapCategories(db).all(tenantId);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getScrapCategories]', error);
     return { error: 'Operation failed' };
   }
@@ -26,7 +26,7 @@ export function addScrapCategory(cat: any) {
     const db = getDb();
     scrapSql.insertScrapCategory(db).run(cat.scrap_category_id, cat.tenant_id, cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs');
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addScrapCategory]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -38,7 +38,7 @@ export function updateScrapCategory(cat: any) {
     const db = getDb();
     scrapSql.updateScrapCategoryByScrapCategoryId(db).run(cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs', cat.scrap_category_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateScrapCategory]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -50,7 +50,7 @@ export function deleteScrapCategory(scrapCategoryId: string) {
     const db = getDb();
     scrapSql.updateScrapCategoryIsDeleted(db).run(scrapCategoryId);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteScrapCategory]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -67,7 +67,7 @@ export function deduplicateScrapCategories() {
       removed += result.changes;
     }
     return { removed };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deduplicateScrapCategories]', error);
     return { error: 'Operation failed' };
   }
@@ -125,7 +125,7 @@ export function addScrapTransaction(t: any) {
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addScrapTransaction]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -138,7 +138,7 @@ export function getScrapTransactions({ tenant_id, scrap_category_id }: { tenant_
     if (!tenant_id) return [];
     const { statement, params } = scrapSql.getScrapTransactionsStatement(db, { tenant_id, scrap_category_id });
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getScrapTransactions]', error);
     return { error: 'Operation failed' };
   }
@@ -152,7 +152,7 @@ export function getScrapCategoriesBySearch({ tenant_id, search }: { tenant_id: s
     const cleanSearch = String(search).trim();
     const cleanSearchNoSpace = cleanSearch.replace(/\s+/g, '');
     return scrapSql.findScrapCategories3(db).all(tenant_id, `%${cleanSearch}%`, `%${cleanSearchNoSpace}%`, `%${cleanSearch.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')}%`);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getScrapCategoriesBySearch]', error);
     return { error: 'Operation failed' };
   }
@@ -204,7 +204,7 @@ export function getNextScrapInvoiceNumber({ tenant_id }: { tenant_id: string }) 
     })();
 
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getNextScrapInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -243,7 +243,7 @@ export function peekNextScrapInvoiceNumber({ tenant_id }: { tenant_id: string })
     }
 
     return { success: true, invoiceNumber: candidate };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:peekNextScrapInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -259,7 +259,7 @@ export function getScrapInvoiceByNumber({ tenant_id, scrap_invoice_number }: { t
     const totalAmount = rows.reduce((sum, r) => sum + r.total_amount, 0);
     const paymentStatus = rows[0]?.payment_status || 'PENDING';
     return { transactions: rows, totalAmount, invoiceNumber: scrap_invoice_number, paymentStatus };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getScrapInvoiceByNumber]', error);
     return { error: 'Operation failed' };
   }
@@ -272,7 +272,7 @@ export function getScrapInvoiceList({ tenant_id }: { tenant_id: string }) {
     if (!tenant_id) return [];
     const rows: any[] = scrapSql.findScrapTransactionsByScrap_AndType(db).all(tenant_id);
     return rows;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getScrapInvoiceList]', error);
     return { error: 'Operation failed' };
   }
@@ -284,7 +284,7 @@ export function updateScrapInvoicePaymentStatus({ tenant_id, scrap_invoice_numbe
     const db = getDb();
     scrapSql.updateScrapTransactionPaymentStatus(db).run(payment_status, tenant_id, scrap_invoice_number);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateScrapInvoicePaymentStatus]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -296,7 +296,7 @@ export function updateScrapInvoiceHeader({ tenant_id, scrap_invoice_number, part
     const db = getDb();
     scrapSql.updateScrapTransactionByScrapInvoiceNumber(db).run(party_name ?? null, customer_phone ?? null, customer_address ?? null, payment_status ?? null, tenant_id, scrap_invoice_number);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateScrapInvoiceHeader]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -350,7 +350,7 @@ export function updateScrapInvoiceFull({ tenant_id, scrap_invoice_number, party_
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateScrapInvoiceFull]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -399,7 +399,7 @@ export function updateScrapTransaction(args: any) {
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateScrapTransaction]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -418,7 +418,7 @@ export function deleteScrapTransaction({ tenant_id, transaction_id }: { tenant_i
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteScrapTransaction]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -445,7 +445,7 @@ export function deleteScrapInvoice({ tenant_id, scrap_invoice_number }: { tenant
       return { success: true };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteScrapInvoice]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -540,7 +540,7 @@ export function upsertScrapCreditLedger({ tenant_id, scrap_invoice_number, payme
       return { success: true, party_id: party.party_id };
     })();
     return result;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:upsertScrapCreditLedger]', error);
     return { success: false, error: 'Operation failed' };
   }

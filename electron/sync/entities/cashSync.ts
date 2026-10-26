@@ -111,8 +111,8 @@ export function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) 
     if (same(drawer.cash_sales, t.cash_sales) && same(drawer.cash_in, t.cash_in) && same(drawer.cash_out, t.cash_out)
       && same(drawer.current_cash, t.expected) && same(drawer.expected_closing, t.expected)) return;
     cashSyncSql.updateCashDrawer2(db).run(t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, drawer.drawer_id);
-  } catch (e: any) {
-    console.error('[SyncWorker] reconcileCashDrawerSync error:', e.message);
+  } catch (e) {
+    console.error('[SyncWorker] reconcileCashDrawerSync error:', (e as Error).message);
   }
 }
 
@@ -208,8 +208,8 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
             } else {
               insertDrawer.run(drawerData);
             }
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling cash drawer:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling cash drawer:', (e as Error).message);
           }
         }
       });
@@ -221,8 +221,8 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
         for (const d of openDrawers) {
           reconcileCashDrawerSync(db, tenantId, d);
         }
-      } catch (e: any) {
-        console.error('[SyncWorker] Drawer reconcile error after pull:', e.message);
+      } catch (e) {
+        console.error('[SyncWorker] Drawer reconcile error after pull:', (e as Error).message);
       }
 
       return reconcilePending(db, 'cash_drawer', 'drawer_id', rows);
@@ -274,8 +274,8 @@ export async function pullCashTransactions(token: string, tenantId: string): Pro
               created_at: toSqliteDate(t.created_at),
               updated_at: toSqliteDate(t.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling cash transaction:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling cash transaction:', (e as Error).message);
           }
         }
       });
@@ -289,7 +289,7 @@ export async function pullCashTransactions(token: string, tenantId: string): Pro
     try {
       const win = BrowserWindow.getAllWindows()[0];
       if (win && !win.isDestroyed()) win.webContents.send('sync:data-updated');
-    } catch {}
+    } catch { /* ignore */ }
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash transactions failed.');
   }
@@ -325,8 +325,8 @@ export async function pullCashierAuditLog(token: string, tenantId: string): Prom
               performed_at: toSqliteDate(l.performed_at),
               created_at: toSqliteDate(l.created_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling cashier audit log:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling cashier audit log:', (e as Error).message);
           }
         }
       });
@@ -369,8 +369,8 @@ export async function pullCashCategories(token: string, tenantId: string): Promi
               is_default: c.is_default ? 1 : 0,
               created_at: toSqliteDate(c.created_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling cash category:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling cash category:', (e as Error).message);
           }
         }
       });
@@ -459,8 +459,8 @@ export async function pullPaymentSources(token: string, tenantId: string): Promi
               sort_order: r.sort_order ?? 0, is_deleted: r.is_deleted ? 1 : 0,
               created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling payment source:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling payment source:', (e as Error).message);
           }
         }
       });
@@ -503,8 +503,8 @@ export async function pullPaymentSourceTransactions(token: string, tenantId: str
               entered_by: r.entered_by || null, entered_by_name: r.entered_by_name || null,
               created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
             });
-          } catch (e: any) {
-            console.error('[SyncWorker] Error pulling payment source transaction:', e.message);
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling payment source transaction:', (e as Error).message);
           }
         }
       });

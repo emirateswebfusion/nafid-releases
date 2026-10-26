@@ -76,7 +76,7 @@ export function createReturn(payload: {
       try {
         const s = typeof origInv.split_details === 'string' ? JSON.parse(origInv.split_details) : origInv.split_details;
         origSplitCredit = Number(s?.credit) || 0;
-      } catch {}
+      } catch { /* ignore */ }
     }
     const isOrigCredit = Boolean(
       origInv && (
@@ -156,9 +156,9 @@ export function createReturn(payload: {
       runInitialSync().catch(e => console.error('[Main] Return sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:createReturn]', error);
-    return { success: false, error: error?.message || 'Operation failed' };
+    return { success: false, error: (error as Error)?.message || 'Operation failed' };
   }
 }
 
@@ -262,7 +262,7 @@ export function getReturns(filters?: {
     const { statement, params } = returnsSql.getReturnsStatement(db, { tenant_id, invoice_id, search, limit, offset });
 
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getReturns]', error);
     return { error: 'Operation failed' };
   }
@@ -273,7 +273,7 @@ export function getReturnItems(return_id: string) {
   try {
     const db = getDb();
     return returnsSql.findReturnItemsByReturnId(db).all(return_id);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getReturnItems]', error);
     return { error: 'Operation failed' };
   }
@@ -302,7 +302,7 @@ export function deleteReturn(return_id: string) {
             try {
               const s = typeof origInv.split_details === 'string' ? JSON.parse(origInv.split_details) : origInv.split_details;
               origSplitCredit = Number(s?.credit) || 0;
-            } catch {}
+            } catch { /* ignore */ }
           }
           const isOrigCredit = origPm === 'CREDIT' || origSplitCredit > 0 || (Number(origInv.balance_amount) > 0 && origPm !== 'CASH');
           if (isOrigCredit) {
@@ -330,7 +330,7 @@ export function deleteReturn(return_id: string) {
     });
     transaction();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteReturn]', error);
     return { success: false, error: 'Operation failed' };
   }

@@ -20,7 +20,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
       row = printerSql.findOneSettingByKey(db).get(key);
     }
     if (row) {
-      try { return JSON.parse(row.value); } catch {}
+      try { return JSON.parse(row.value); } catch { /* ignore */ }
     }
     
     // Fallback to legacy printer_config
@@ -36,7 +36,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
         const parsed = JSON.parse(legacyRow.value);
         if (parsed && parsed.ip === '192.168.1.100') return { type: 'none' };
         return parsed;
-      } catch {}
+      } catch { /* ignore */ }
     }
     return { type: 'none' };
   } catch {
@@ -156,9 +156,9 @@ export function initPrinter() {
       await printA4USB(config.deviceName || '', targetPageSize, targetLandscape);
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] A4 Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
@@ -245,9 +245,9 @@ export function initPrinter() {
       }
 
       return { success: true, canceled: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] A4 PDF Export Error:', error);
-      return { success: false, error: error.message || 'PDF export failed' };
+      return { success: false, error: (error as Error).message || 'PDF export failed' };
     }
   });
 
@@ -278,9 +278,9 @@ export function initPrinter() {
       await printReceiptUSB(reqName, widthMm, tenant_id);
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
@@ -296,8 +296,8 @@ export function initPrinter() {
         return { success: true, skipped: true };
       }
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message || 'Drawer open failed' };
+    } catch (error) {
+      return { success: false, error: (error as Error).message || 'Drawer open failed' };
     }
   });
 
@@ -329,9 +329,9 @@ export function initPrinter() {
         throw new Error(`Unknown printer type: ${config.type}`);
       }
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] Barcode Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
@@ -357,8 +357,8 @@ export function initPrinter() {
           try {
             await sendToNetworkPrinter(config.ip, config.port || 9100, itemBuffer);
             printed.push(item.barcode);
-          } catch (error: any) {
-            return { success: false, printed, error: `Print stopped at ${item.barcode}: ${error?.message || 'Printer connection timed out'}` };
+          } catch (error) {
+            return { success: false, printed, error: `Print stopped at ${item.barcode}: ${(error as Error)?.message || 'Printer connection timed out'}` };
           }
         }
         return { success: true, printed };
@@ -371,9 +371,9 @@ export function initPrinter() {
         throw new Error(`Unknown printer type: ${config.type}`);
       }
       return { success: true, printed: allBarcodes };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] Bulk Barcode Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
@@ -423,7 +423,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
         reject(err);
@@ -480,7 +480,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         clearTimeout(watchdog);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         clearTimeout(watchdog);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
@@ -506,8 +506,8 @@ async function getSystemPrinters(win?: BrowserWindow): Promise<any[]> {
       lastPrintersFetchTime = now;
       return cachedPrinters;
     }
-  } catch (err: any) {
-    console.warn('[Printer] Could not fetch system printers:', err.message);
+  } catch (err) {
+    console.warn('[Printer] Could not fetch system printers:', (err as Error).message);
   }
   return cachedPrinters;
 }
@@ -589,7 +589,7 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         reject(err);
@@ -746,7 +746,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         reject(err);
@@ -762,7 +762,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     try {
       const receiptHtml = await buildReceiptHtml(currentReceiptText, widthMm, chosenFont, leftMarginOffsetMm);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
-    } catch (err: any) {
+    } catch (err) {
       clearTimeout(timer);
       if (!printWindow.isDestroyed()) printWindow.close();
       reject(err);

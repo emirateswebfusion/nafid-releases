@@ -133,9 +133,9 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
         getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
       ]).then(([rawCfg, rawFlags]: [any, any]) => {
         let cfg = rawCfg;
-        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
+        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { /* ignore */ } }
         let flags = rawFlags;
-        if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch {} }
+        if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch { /* ignore */ } }
 
         let isEnabled = false;
         let eRate = 100;
@@ -307,9 +307,9 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
           getSetting({ tenant_id: tenantId || 'global', key: 'feature_flags' }),
         ]).then(([rawCfg, rawFlags]: [any, any]) => {
           let cfg = rawCfg;
-          if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch {} }
+          if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { /* ignore */ } }
           let flags = rawFlags;
-          if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch {} }
+          if (typeof flags === 'string') { try { flags = JSON.parse(flags); } catch { /* ignore */ } }
 
           let isEnabled = false;
           let eRate = 100;

@@ -45,7 +45,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
           setLoading(false);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to get Super Admin WhatsApp status:', err);
     }
   };
@@ -81,8 +81,8 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
         if (res.qrCode) setQrCode(res.qrCode);
         setSuccessMsg('QR code generated. Scan with WhatsApp on your phone.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to start WhatsApp connection');
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Failed to start WhatsApp connection');
     } finally {
       setLoading(false);
     }
@@ -103,8 +103,8 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
       } else {
         setErrorMsg(res.error || 'Failed to disconnect');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Disconnect failed');
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Disconnect failed');
     } finally {
       setLoading(false);
     }

@@ -2444,7 +2444,7 @@ export async function processOfflineAiQuery(
               fromDate: range.fromDate,
               toDate: range.toDate,
             });
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         const limit = parsed.params.limit || 5;
@@ -2976,7 +2976,7 @@ export async function processOfflineAiQuery(
                 md += `| ${d} | ${entry.description || 'Entry'} | ${dr} | ${cr} | **${rb}** |\n`;
               });
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         return { content: md, intent: parsed.intent };
@@ -3081,7 +3081,7 @@ export async function processOfflineAiQuery(
         if (hasBridge('dbCashierGetPendingInvoices')) {
           try {
             pendingInvs = await cashierApi.getPendingInvoices({ tenant_id: tenantId });
-          } catch {}
+          } catch { /* ignore */ }
         }
         let md = isMal
           ? `### ⏳ ക്യാഷ് സെറ്റിൽമെന്റിൽ ഉൾപ്പെടാത്ത പെൻഡിംഗ് ഇടപാടുകൾ\n\n* **പെൻഡിംഗ് ബില്ലുകൾ:** **${pendingInvs.length} എണ്ണം**\n`
@@ -3103,7 +3103,7 @@ export async function processOfflineAiQuery(
         if (hasBridge('dbCashierGetDaySettlements')) {
           try {
             settlements = await cashierApi.getDaySettlements({ tenant_id: tenantId, business_date: todayStr });
-          } catch {}
+          } catch { /* ignore */ }
         }
         const isSettled = settlements.length > 0;
         const md = isMal
@@ -3218,7 +3218,7 @@ export async function processOfflineAiQuery(
                   itemMap[name].total += Number(it.total || it.amount || 0);
                 });
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
         }
 
@@ -3756,7 +3756,7 @@ export async function processOfflineAiQuery(
             const p = await syncApi.syncGetPending({ tenant_id: tenantId });
             pendingCount = Array.isArray(p) ? p.length : ((p as { count?: number } | null)?.count || 0);
           }
-        } catch {}
+        } catch { /* ignore */ }
 
         const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
@@ -4059,12 +4059,12 @@ export async function processOfflineAiQuery(
         };
       }
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error('[OfflineAiService] Error processing offline query:', err);
     return {
       content: isMal
-        ? `ക്ഷമിക്കണം, ഓഫ്‌ലൈൻ ചോദ്യം പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${err.message || 'Error executing query'}`
-        : `An error occurred while evaluating the offline query: ${err.message || 'Error executing query'}`,
+        ? `ക്ഷമിക്കണം, ഓഫ്‌ലൈൻ ചോദ്യം പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${(err as Error).message || 'Error executing query'}`
+        : `An error occurred while evaluating the offline query: ${(err as Error).message || 'Error executing query'}`,
     };
   }
 }

@@ -173,9 +173,9 @@ async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
     connectedPhone = null;
     broadcastWhatsAppState();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[WhatsApp] Logout error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -283,9 +283,9 @@ export async function sendWhatsAppBill({
     }
 
     return { success: true, messageId: sentMsg?.key?.id };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[WhatsApp] Send Message Error:', error);
-    return { success: false, error: error.message || 'Failed to send WhatsApp message.' };
+    return { success: false, error: (error as Error).message || 'Failed to send WhatsApp message.' };
   }
 }
 
@@ -335,7 +335,7 @@ export function initWhatsAppIpc(): void {
         if (payload.htmlContent) {
           try {
             pdfBuf = await generatePdfBufferFromHtml(payload.htmlContent);
-          } catch (err: any) {
+          } catch (err) {
             console.warn('[WhatsApp] Could not render PDF buffer:', err);
           }
         }
@@ -345,8 +345,8 @@ export function initWhatsAppIpc(): void {
           pdfBuffer: pdfBuf,
           fileName: payload.fileName,
         });
-      } catch (err: any) {
-        return { success: false, error: err.message };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
       }
     }
   );

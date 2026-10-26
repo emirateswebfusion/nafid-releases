@@ -14,14 +14,14 @@ export function runLegacyRepairs(db: Database.Database) {
      if (invInfo.some((c: any) => c.name === 'total_amount') && invInfo.some((c: any) => c.name === 'grand_total')) {
         db.exec("UPDATE invoices SET grand_total = total_amount WHERE grand_total = 0 AND total_amount > 0");
      }
-  } catch (e) {}
+  } catch (e) { /* ignore */ }
 
   // Sanitize empty string sku_barcodes to NULL before applying unique constraints
   // SQLite treats multiple NULLs as distinct, but multiple empty strings as duplicates
   try {
     db.exec("UPDATE products SET sku_barcode = NULL WHERE trim(sku_barcode) = ''");
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to sanitize empty sku_barcodes:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to sanitize empty sku_barcodes:', (e as Error).message);
   }
 
   // Self-healing migration for paper purchase price and paper MRP
@@ -36,7 +36,7 @@ export function runLegacyRepairs(db: Database.Database) {
     `).all() as any[];
     for (const row of stalePaperProducts) {
       let da: Record<string, any> = {};
-      try { da = JSON.parse(row.domain_attributes || '{}'); } catch {}
+      try { da = JSON.parse(row.domain_attributes || '{}'); } catch { /* ignore */ }
       // REAL products without paper stock carry no paper prices (initDb's real-product cleanup removes them); adding
       // them back here made the two repairs rewrite those products on every start.
       if (da.gst_type === 'REAL' && (!da.paper_stock || Number(da.paper_stock) <= 0)) continue;
@@ -55,8 +55,8 @@ export function runLegacyRepairs(db: Database.Database) {
         db.prepare(`UPDATE products SET domain_attributes = ? WHERE product_id = ?`).run(JSON.stringify(da), row.product_id);
       }
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to sync paper domain attributes:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to sync paper domain attributes:', (e as Error).message);
   }
 
   // Repair historical incomplete quotations that have non-zero total but 0 items due to legacy sync
@@ -71,8 +71,8 @@ export function runLegacyRepairs(db: Database.Database) {
     if (repairedCount > 0) {
       console.log(`[DB Migration] Flagged ${repairedCount} incomplete historical quotations for item re-sync.`);
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to flag incomplete quotations for re-sync:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to flag incomplete quotations for re-sync:', (e as Error).message);
   }
 
   // Deduplicate historical quotation_items, keeping only the latest revision batch per quotation
@@ -88,8 +88,8 @@ export function runLegacyRepairs(db: Database.Database) {
     if (dedupedCount > 0) {
       console.log(`[DB Migration] Cleaned up ${dedupedCount} stale/duplicate quotation items.`);
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to deduplicate quotation items:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to deduplicate quotation items:', (e as Error).message);
   }
 
   // Deduplicate actual sku_barcode conflicts before applying unique constraints
@@ -106,28 +106,28 @@ export function runLegacyRepairs(db: Database.Database) {
           GROUP BY tenant_id, sku_barcode
       ) AND sku_barcode IS NOT NULL
     `);
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to deduplicate sku_barcodes:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to deduplicate sku_barcodes:', (e as Error).message);
   }
 
   // Ensure unique indexes for existing installations
   try {
     db.exec("DROP INDEX IF EXISTS idx_uq_product_name_tenant");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_name_brand_tenant ON products(tenant_id, name, brand_manufacturer)");
-  } catch (e: any) {
-    console.warn('[DB Migration] Could not create unique index for name/brand. Duplicate data might exist.', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Could not create unique index for name/brand. Duplicate data might exist.', (e as Error).message);
   }
 
   try {
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_barcode_tenant ON products(tenant_id, sku_barcode)");
-  } catch (e: any) {
-    console.warn('[DB Migration] Could not create unique index for barcode. Duplicate data might exist.', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Could not create unique index for barcode. Duplicate data might exist.', (e as Error).message);
   }
 
   try {
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_invoice_number_tenant ON invoices(tenant_id, invoice_number)");
-  } catch (e: any) {
-    console.warn('[DB Migration] Could not create unique index for invoice number. Duplicate data might exist.', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Could not create unique index for invoice number. Duplicate data might exist.', (e as Error).message);
   }
 
   try {
@@ -136,8 +136,8 @@ export function runLegacyRepairs(db: Database.Database) {
       ON parties(tenant_id, name, phone) 
       WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0);
     `);
-  } catch (e: any) {
-    console.warn('[DB Migration] Could not create unique index for parties:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Could not create unique index for parties:', (e as Error).message);
   }
 
   // Fix inline constraint for products table by recreating it if needed
@@ -195,8 +195,8 @@ export function runLegacyRepairs(db: Database.Database) {
       db.exec('PRAGMA foreign_keys=on;');
       console.log('[DB Migration] Products table recreated successfully.');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to recreate products table for constraint update:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to recreate products table for constraint update:', (e as Error).message);
   }
 
   // Fix NOT NULL constraint for product_grades.offer_price by recreating it if needed
@@ -236,8 +236,8 @@ export function runLegacyRepairs(db: Database.Database) {
       db.exec('PRAGMA foreign_keys=on;');
       console.log('[DB Migration] Product_grades table recreated successfully.');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to recreate product_grades table:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to recreate product_grades table:', (e as Error).message);
   }
 
   // Repair corrupted invoice_items foreign key pointing to products_old
@@ -271,8 +271,8 @@ export function runLegacyRepairs(db: Database.Database) {
       db.exec('PRAGMA foreign_keys=on;');
       console.log('[DB Migration] invoice_items repaired successfully.');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to repair invoice_items table:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to repair invoice_items table:', (e as Error).message);
   }
 
   // Migrate settings table to include tenant_id if it's missing
@@ -294,8 +294,8 @@ export function runLegacyRepairs(db: Database.Database) {
         ALTER TABLE settings_new RENAME TO settings;
       `);
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to migrate settings table', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to migrate settings table', (e as Error).message);
   }
 
   // Ensure defaults for is_deleted are set for legacy data
@@ -313,8 +313,8 @@ export function runLegacyRepairs(db: Database.Database) {
     if (promoted > 0) {
       console.log(`[DB Migration] Marked ${promoted} HSN/SAC-coded products as GST-applicable.`);
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to classify HSN/SAC-coded products:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to classify HSN/SAC-coded products:', (e as Error).message);
   }
 
   // Backfill created_at and updated_at for existing rows
@@ -340,14 +340,14 @@ export function runLegacyRepairs(db: Database.Database) {
     "UPDATE party_ledger SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
   ];
   for (const q of dateFixQueries) {
-    try { db.exec(q); } catch (e: any) { console.warn('[DB] Date fix query failed:', e.message); }
+    try { db.exec(q); } catch (e) { console.warn('[DB] Date fix query failed:', (e as Error).message); }
   }
 
   // Clean up any corrupted settings that contain operation failure error objects
   try {
     db.exec("DELETE FROM settings WHERE value = '{\"error\":\"Operation failed\"}'");
-  } catch (e: any) {
-    console.warn('[DB Migration] Settings cleanup failed:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Settings cleanup failed:', (e as Error).message);
   }
 
   // Migrate legacy scrap_items data into scrap_categories (categories ARE items now)
@@ -388,8 +388,8 @@ export function runLegacyRepairs(db: Database.Database) {
       db.exec("DROP TABLE IF EXISTS scrap_items");
       console.log('[DB Migration] Legacy scrap_items data migrated to scrap_categories');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Scrap items migration skipped:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Scrap items migration skipped:', (e as Error).message);
   }
 
   // Drop legacy scrap_item_id / scarp_item_id columns from scrap_transactions
@@ -433,8 +433,8 @@ export function runLegacyRepairs(db: Database.Database) {
       db.exec('PRAGMA foreign_keys=on;');
       console.log('[DB Migration] scrap_transactions recreated successfully.');
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to recreate scrap_transactions table:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to recreate scrap_transactions table:', (e as Error).message);
   }
 
   // Migration: Add payment_status/scrap_invoice_number column to scrap_transactions
@@ -456,8 +456,8 @@ export function runLegacyRepairs(db: Database.Database) {
       console.log('[DB Migration] Adding customer_address to scrap_transactions...');
       db.exec("ALTER TABLE scrap_transactions ADD COLUMN customer_address TEXT");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add scrap_transactions columns:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add scrap_transactions columns:', (e as Error).message);
   }
 
   // Migration: Add is_deleted column to scrap_transactions
@@ -467,7 +467,7 @@ export function runLegacyRepairs(db: Database.Database) {
       console.log('[DB Migration] Adding is_deleted to scrap_transactions...');
       db.exec("ALTER TABLE scrap_transactions ADD COLUMN is_deleted INTEGER DEFAULT 0");
     }
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to add is_deleted to scrap_transactions:', e.message);
+  } catch (e) {
+    console.warn('[DB Migration] Failed to add is_deleted to scrap_transactions:', (e as Error).message);
   }
 }

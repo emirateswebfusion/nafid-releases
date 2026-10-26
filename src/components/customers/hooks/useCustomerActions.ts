@@ -108,8 +108,8 @@ export function useCustomerActions(ctx: UseCustomerActionsContext) {
       } else {
         showStatus(res.error || 'Failed to recalculate points', 'error');
       }
-    } catch (e: any) {
-      showStatus(e?.message || 'Error recalculating points', 'error');
+    } catch (e) {
+      showStatus((e as Error)?.message || 'Error recalculating points', 'error');
     } finally {
       setRecalculatingPoints(false);
     }

@@ -83,7 +83,7 @@ export function CashierInvoiceModal({
                           const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
                           if (exact) freshInvoice = exact;
                         }
-                      } catch {}
+                      } catch { /* ignore */ }
                     }
                     localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
                     setShowInvoiceModal(false);
@@ -241,7 +241,7 @@ export function CashierInvoiceModal({
                 if (selectedInvoice.payment_method !== 'SPLIT') return null;
                 let sd: any = null;
                 if (selectedInvoice.split_details) {
-                  try { sd = typeof selectedInvoice.split_details === 'string' ? JSON.parse(selectedInvoice.split_details) : selectedInvoice.split_details; } catch {}
+                  try { sd = typeof selectedInvoice.split_details === 'string' ? JSON.parse(selectedInvoice.split_details) : selectedInvoice.split_details; } catch { /* ignore */ }
                 }
                 if (!sd) return null;
                 const splitItems = [
@@ -343,7 +343,7 @@ export function CashierInvoiceModal({
                           try {
                             const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
                             if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
-                          } catch {}
+                          } catch { /* ignore */ }
                         }
                         const isComboItem = Boolean(item.isCombo || item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
 

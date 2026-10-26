@@ -40,7 +40,7 @@ export function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?:
           if (dup.status === 'OPEN') {
             cashDrawerSql.updateCashDrawerStatusAndClosingRemarks(db).run(dup.drawer_id);
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
     }
   }
@@ -79,7 +79,7 @@ export function getCashAmountFromInvoice(inv: any): number {
           const cashSplit = Math.max(0, Number(sd.cash) || 0);
           if (cashSplit > 0) return Math.min(cashSplit, netPayable);
         }
-      } catch {}
+      } catch { /* ignore */ }
     }
     if (pm === 'CREDIT' && Number(inv.received_amount) > 0) {
       return Math.min(Number(inv.received_amount), netPayable);
@@ -126,8 +126,8 @@ export function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any
     } else if (changed) {
       cashDrawerSql.updateCashDrawerByDrawerId2(db).run(t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, drawer.drawer_id);
     }
-  } catch (err: any) {
-    console.error('[Cashier] reconcileCashDrawer error:', err.message);
+  } catch (err) {
+    console.error('[Cashier] reconcileCashDrawer error:', (err as Error).message);
   }
   return drawer;
 }
@@ -158,8 +158,8 @@ export function autoCloseOverdueDrawers(db: any, tenantId: string) {
         closeDrawerAutomatically(db, tenantId, d, new Date(now).toISOString(), 'Auto-closed at the auto close time', null);
       }
     }
-  } catch (err: any) {
-    console.error('[Cashier] autoCloseOverdueDrawers error:', err.message);
+  } catch (err) {
+    console.error('[Cashier] autoCloseOverdueDrawers error:', (err as Error).message);
   }
 }
 
@@ -180,7 +180,7 @@ export function adjustCashDrawerForInvoice(
       if (!isNaN(d.getTime())) {
         businessDate = localDate(d, tenantId);
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   let drawer = deduplicateAndGetOpenDrawer(db, tenantId, businessDate);
@@ -204,8 +204,8 @@ export function adjustCashDrawerForInvoice(
       const drawerId = crypto.randomUUID();
       cashDrawerSql.insertCashDrawer(db).run(drawerId, tenantId, businessDate, defaultBal, defaultBal, defaultBal);
       drawer = cashDrawerSql.findCashDrawerByDrawerId(db).get(drawerId) as any;
-    } catch (e: any) {
-      console.error('[Cashier] Auto-create drawer error:', e.message);
+    } catch (e) {
+      console.error('[Cashier] Auto-create drawer error:', (e as Error).message);
     }
   }
 
@@ -230,7 +230,7 @@ export function adjustPaymentSourcesForInvoice(
     let splitObj: any = null;
     if (invoice.split_details && invoice.split_details !== 'null') {
       if (typeof invoice.split_details === 'string') {
-        try { splitObj = JSON.parse(invoice.split_details); } catch {}
+        try { splitObj = JSON.parse(invoice.split_details); } catch { /* ignore */ }
       } else if (typeof invoice.split_details === 'object') {
         splitObj = invoice.split_details;
       }
@@ -282,8 +282,8 @@ export function adjustPaymentSourcesForInvoice(
         processSourceTransaction(splitObj.bank_source_id || invoice.payment_source_id, 'BANK_TRANSFER', Number(splitObj.bank_transfer));
       }
     }
-  } catch (err: any) {
-    console.error('[PaymentSources] adjustPaymentSourcesForInvoice error:', err.message);
+  } catch (err) {
+    console.error('[PaymentSources] adjustPaymentSourcesForInvoice error:', (err as Error).message);
   }
 }
 

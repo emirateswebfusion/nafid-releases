@@ -47,8 +47,8 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
     }
 
     return drawer;
-  } catch (error: any) {
-    console.error(`[Cashier] getDrawer error:`, error.message);
+  } catch (error) {
+    console.error(`[Cashier] getDrawer error:`, (error as Error).message);
     return { error: 'Operation failed' };
   }
 }
@@ -104,7 +104,7 @@ export function setOpeningBalance({ tenant_id, opening_balance, user_id, user_na
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:setOpeningBalance]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -119,7 +119,7 @@ export function getPendingInvoices({ tenant_id, search }: { tenant_id: string; s
     const { statement, params } = cashierSql.getPendingInvoicesStatement(db, { tenant_id, search });
     const results = statement.all(...params);
     return results;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getPendingInvoices]', error);
     return { error: 'Operation failed' };
   }
@@ -212,7 +212,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
       if (split_details && split_details !== 'null') {
         try {
           parsedSplitObj = typeof split_details === 'string' ? JSON.parse(split_details) : split_details;
-        } catch {}
+        } catch { /* ignore */ }
       }
       const splitCashAmt = Number(parsedSplitObj?.cash) || 0;
 
@@ -278,7 +278,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:settlePayment]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -319,9 +319,9 @@ export function addTransaction({ tenant_id, type, amount, category, notes, user_
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:addTransaction]', error);
-    return { success: false, error: error?.message || 'Operation failed' };
+    return { success: false, error: (error as Error)?.message || 'Operation failed' };
   }
 }
 
@@ -389,9 +389,9 @@ export function dayClosing({ tenant_id, actual_cash, closing_remarks, user_id, u
     });
 
     return { success: true, expected_closing: expected, actual_cash: actual, cash_short, cash_excess };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:dayClosing]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -421,9 +421,9 @@ export function reopenDrawer({ tenant_id, drawer_id, user_id, user_name }: { ten
       triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on reopen:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:reopenDrawer]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -461,9 +461,9 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
       triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on delete transaction:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:deleteTransaction]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -483,7 +483,7 @@ export function getTransactions({ tenant_id }: { tenant_id: string }) {
     }
     const placeholders = drawerIds.map(() => '?').join(',');
     return cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, date, dateLike, date);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };
   }
@@ -500,7 +500,7 @@ export function getHistory({ tenant_id, limit = 30, offset = 0 }: { tenant_id: s
       rows.forEach(r => reconcileCashDrawer(db, tenant_id, r));
     }
     return rows;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getHistory]', error);
     return { error: 'Operation failed' };
   }
@@ -513,7 +513,7 @@ export function getDaySettlements({ tenant_id, business_date }: { tenant_id: str
     const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
     return cashierSql.findInvoices2(db).all(tenant_id, cleanDate, dateLike, cleanDate);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getDaySettlements]', error);
     return { error: 'Operation failed' };
   }
@@ -537,7 +537,7 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
     }
     const placeholders = drawerIds.map(() => '?').join(',');
     return cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, cleanDate, dateLike, cleanDate);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getDayTransactions]', error);
     return { error: 'Operation failed' };
   }
@@ -548,7 +548,7 @@ export function getAuditLog({ tenant_id, limit = 50, offset = 0 }: { tenant_id: 
   try {
     const db = getDb();
     return cashierSql.findCashierAuditLog(db).all(tenant_id, limit, offset);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getAuditLog]', error);
     return { error: 'Operation failed' };
   }
@@ -561,7 +561,7 @@ export function getCategories({ tenant_id, type }: { tenant_id: string; type?: '
     if (!tenant_id) return [];
     const { statement, params } = cashierSql.getCategoriesStatement(db, { tenant_id, type });
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:getCategories]', error);
     return { error: 'Operation failed' };
   }
@@ -576,7 +576,7 @@ export function addCategory({ tenant_id, name, type }: { tenant_id: string; name
     const category_id = crypto.randomUUID();
     cashierSql.insertCashCategory(db).run(category_id, tenant_id, name.trim(), type, tenant_id, type);
     return { success: true, category: { category_id, tenant_id, name: name.trim(), type } };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:addCategory]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -591,7 +591,7 @@ export function deleteCategory({ category_id, tenant_id }: { category_id: string
     if (cat.is_default === 1) return { success: false, error: 'Cannot delete default category' };
     cashierSql.deleteCashCategoryByCategoryId(db).run(category_id, tenant_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:cashier:deleteCategory]', error);
     return { success: false, error: 'Operation failed' };
   }

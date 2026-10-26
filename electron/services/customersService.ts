@@ -42,7 +42,7 @@ export function getCustomers({ tenant_id, active, credit, pricing_tier_id, searc
     }
 
     return rows;
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getCustomers]', error);
     return [];
   }
@@ -57,9 +57,9 @@ export function checkCustomerCreditStatus({ tenant_id, customer_id, customer_nam
       allowed: !(status.creditPeriodEnabled && status.restrictOnExpiry && status.isOverdue),
       ...status
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:checkCustomerCreditStatus]', error);
-    return { allowed: true, isOverdue: false, error: error.message };
+    return { allowed: true, isOverdue: false, error: (error as Error).message };
   }
 }
 
@@ -135,7 +135,7 @@ export function createCustomer(c: any) {
     }
 
     return { success: true, customer_id: customerId };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:createCustomer]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -147,9 +147,9 @@ export function deduplicateCustomers(tenant_id?: string) {
     const db = getDb();
     const result = autoDeduplicateCustomersAndParties(db);
     return { success: true, ...result };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deduplicateCustomers]', error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -160,7 +160,7 @@ export function findCustomers({ tenant_id, name, phone }: { tenant_id: string; n
     if (!tenant_id) return [];
     const { statement, params } = customersSql.findCustomersStatement(db, { tenant_id, name, phone });
     return statement.all(...params);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:findCustomers]', error);
     return { error: 'Operation failed' };
   }
@@ -200,7 +200,7 @@ export function deleteCustomer({ customer_id, tenant_id }: { customer_id: string
 
       return { success: true, deleted_party_count: matchedParties.length };
     })();
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deleteCustomer]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -305,9 +305,9 @@ export function updateCustomer(c: any) {
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updateCustomer]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -383,7 +383,7 @@ export function getCustomerInvoices({ customer_id, tenant_id, phone, name }: { c
     ) as any[];
 
     return computeCustomerCreditStatusSync(db, effectiveTenantId, targetCustomerId, rawInvoices);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getCustomerInvoices]', error);
     return { error: 'Operation failed' };
   }
@@ -396,7 +396,7 @@ export function getCustomerLoyaltyTransactions({ customer_id, tenant_id }: { cus
     if (!customer_id) return [];
     const tid = tenant_id || 'global';
     return customersSql.findLoyaltyTransactionsByCustomerId(db).all(customer_id, tid, tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getCustomerLoyaltyTransactions]', error);
     return { error: 'Operation failed' };
   }
@@ -455,7 +455,7 @@ export function recalculateCustomerLoyaltyPoints(payload: { tenant_id: string })
   if (lCfgRow?.value) {
     try {
       lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-    } catch {}
+    } catch { /* ignore */ }
   }
   const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
   const awardOnPending = Boolean(lCfg?.awardPointsOnPending);

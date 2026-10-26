@@ -1,10 +1,9 @@
 {
-  "errors": 2812,
+  "errors": 2196,
   "warnings": 59,
   "byRule": {
-    "@typescript-eslint/no-explicit-any": 2380,
-    "@typescript-eslint/no-unused-vars": 103,
-    "no-empty": 202,
+    "@typescript-eslint/no-explicit-any": 1965,
+    "@typescript-eslint/no-unused-vars": 104,
     "no-useless-assignment": 26,
     "@typescript-eslint/no-require-imports": 2,
     "no-async-promise-executor": 4,
@@ -24,5 +23,5 @@
     "prefer-const": 2,
     "@typescript-eslint/no-empty-object-type": 1
   },
-  "updatedAt": "2026-10-25T20:22:45.703Z"
+  "updatedAt": "2026-10-26T04:04:44.062Z"
 }

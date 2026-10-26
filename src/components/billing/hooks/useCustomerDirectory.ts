@@ -76,7 +76,7 @@ export function useCustomerDirectory({ tenantId, staffCreditBilling, parties, cu
         if (Array.isArray(results)) {
           setCustomerSearchResults(results);
         }
-      } catch {}
+      } catch { /* ignore */ }
     }, 150);
     return () => clearTimeout(t);
   }, [customerName, customerPhone, tenantId]);

@@ -155,9 +155,9 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
       } else {
         showToast("WhatsApp Send Failed: " + (res?.error || 'Unknown error'), 'error');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('WhatsApp send invoice error:', err);
-      showToast("WhatsApp error: " + (err?.message || 'Failed to send'), 'error');
+      showToast("WhatsApp error: " + ((err as Error)?.message || 'Failed to send'), 'error');
     } finally {
       setIsSendingWhatsApp(false);
     }

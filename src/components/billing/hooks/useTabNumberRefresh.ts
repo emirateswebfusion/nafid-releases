@@ -75,22 +75,22 @@ export function useTabNumberRefresh(ctx: UseTabNumberRefreshContext) {
           const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
           const r = await invoicesApi.peekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
           if (r?.success && r.invoiceNumber) baseNormal = r.invoiceNumber;
-        } catch {}
+        } catch { /* ignore */ }
 
         try {
           const r = await scrapApi.peekNextScrapInvoiceNumber({ tenant_id: 'global' });
           if (r?.success && r.invoiceNumber) baseScrap = r.invoiceNumber;
-        } catch {}
+        } catch { /* ignore */ }
 
         try {
           const r = await quotationsApi.peekNextQuotationNumber({ tenant_id: 'global' });
           if (r?.success && r.quotationNumber) baseQuotation = r.quotationNumber;
-        } catch {}
+        } catch { /* ignore */ }
 
         try {
           const r = await returnsApi.peekNextReturnNumber({ tenant_id: tenantId || 'global' });
           if (r?.success && r.returnNumber) baseReturn = r.returnNumber;
-        } catch {}
+        } catch { /* ignore */ }
       }
 
       const reservedNormalList: string[] = [];

@@ -142,9 +142,9 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
         setHardwareError("WhatsApp Send Failed: " + (sendRes?.error || 'Unknown error'));
         setTimeout(() => setHardwareError(null), 5000);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[WhatsApp Manual Send Error]:', err);
-      setHardwareError("WhatsApp Error: " + (err?.message || 'Could not send'));
+      setHardwareError("WhatsApp Error: " + ((err as Error)?.message || 'Could not send'));
       setTimeout(() => setHardwareError(null), 5000);
     } finally {
       setIsSendingWhatsApp(false);

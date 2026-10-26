@@ -34,7 +34,7 @@ export function useComboLoadEffects(ctx: UseComboLoadEffectsContext) {
       if (Array.isArray(res)) {
         setCombos(res);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[ComboManager] Error loading combos:', err);
     } finally {
       setLoading(false);

@@ -9,7 +9,7 @@ export function getPricingTiers(tenantId: string) {
     const db = getDb();
     const tid = tenantId || 'global';
     return pricingTiersSql.findPricingTiers(db).all(tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getPricingTiers]', error);
     return [];
   }
@@ -38,9 +38,9 @@ export function addPricingTier(t: any) {
 
     pricingTiersSql.insertPricingTier(db).run(tierId, tid, cleanName, isActive, t.sort_order ?? (nextSort?.next_sort || 0));
     return { success: true, pricing_tier_id: tierId };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:addPricingTier]', error);
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -52,7 +52,7 @@ export function updatePricingTier(t: any) {
     const cleanName = String(t.name || '').trim();
     pricingTiersSql.updatePricingTierByPricingTierId(db).run(cleanName, isActive, t.sort_order ?? 0, t.pricing_tier_id);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:updatePricingTier]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -64,7 +64,7 @@ export function deletePricingTier(tierId: string) {
     const db = getDb();
     pricingTiersSql.updatePricingTierIsDeleted(db).run(tierId);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:deletePricingTier]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -80,7 +80,7 @@ export function reorderPricingTiers(tiers: Array<{ pricing_tier_id: string; sort
     });
     tx(tiers);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:reorderPricingTiers]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -109,7 +109,7 @@ export function setDefaultPricingTier(payload: { tenant_id: string; pricing_tier
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:setDefaultPricingTier]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -121,7 +121,7 @@ export function getProductPricing(tenantId: string) {
     const db = getDb();
     const tid = tenantId || 'global';
     return pricingTiersSql.findProductPricing(db).all(tid);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:getProductPricing]', error);
     return [];
   }
@@ -153,7 +153,7 @@ export function setProductPricing(payload: { tenant_id: string; product_id: stri
     });
     tx(pricing);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:setProductPricing]', error);
     return { success: false, error: 'Operation failed' };
   }
@@ -184,7 +184,7 @@ export function setTierPricing(payload: { tenant_id: string; pricing_tier_id: st
     });
     tx(pricing);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:setTierPricing]', error);
     return { success: false, error: 'Operation failed' };
   }

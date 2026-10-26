@@ -55,7 +55,7 @@ export function TenantTable({
                   if (admin.db_connection_string.includes('@')) {
                     dbHost = admin.db_connection_string.split('@')[1].split('/')[0].split(':')[0];
                   }
-                } catch {}
+                } catch { /* ignore */ }
 
                 const health = connectionHealth[admin.tenant_id] || 'checking';
                 const isPwdRevealed = !!revealedPasswords[admin.tenant_id];

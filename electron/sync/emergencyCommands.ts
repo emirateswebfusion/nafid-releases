@@ -65,14 +65,14 @@ function executeRemoteEmergencyWipe(cmd: RemoteWipeCommand, terminalCode: string
     if (fs.existsSync(lastExecutedPath) && fs.readFileSync(lastExecutedPath, 'utf-8').trim() === cmd.command_id) return;
 
     console.warn(`[EmergencyCommands] Remote wipe command ${cmd.command_id} for ${cmd.target_terminal}`);
-    try { fs.writeFileSync(lastExecutedPath, String(cmd.command_id), 'utf-8'); } catch {}
+    try { fs.writeFileSync(lastExecutedPath, String(cmd.command_id), 'utf-8'); } catch { /* ignore */ }
 
     const wipeMode = cmd.wipe_mode === 'SALES_AND_CASH_ONLY' ? 'SALES_AND_CASH_ONLY' : 'ALL_DATA';
     appendEmergencyAudit({ source: 'REMOTE', wipe_mode: wipeMode, reason: 'REMOTE_OWNER_COMMAND', command_id: cmd.command_id, issued_by: cmd.issued_by_name || undefined, terminal_code: terminalCode });
 
     dbEmergencyPurgeLocalData(wipeMode);
     for (const file of [getEncryptedPath(), getConfigPath(), getOfflineSessionPath()]) {
-      try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
+      try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch { /* ignore */ }
     }
 
     for (const win of BrowserWindow.getAllWindows()) {
@@ -80,7 +80,7 @@ function executeRemoteEmergencyWipe(cmd: RemoteWipeCommand, terminalCode: string
       try {
         win.webContents.send('emergency:purged', { wipeMode, reason: 'REMOTE_CLOUD_COMMAND' });
         setTimeout(() => { if (!win.isDestroyed()) win.webContents.reloadIgnoringCache(); }, 800);
-      } catch {}
+      } catch { /* ignore */ }
     }
   } catch (err) {
     console.error('[EmergencyCommands] Remote wipe failed:', err);

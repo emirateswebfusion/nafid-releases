@@ -253,7 +253,7 @@ export class CustomerIdentityService {
                 SET last_purchase_date = ?, is_deleted = 0, updated_at = CURRENT_TIMESTAMP
                 WHERE customer_id = ?
               `).run(now, existingCustomer.customer_id);
-            } catch {}
+            } catch { /* ignore */ }
           }
         }
       } else {
@@ -275,7 +275,7 @@ export class CustomerIdentityService {
             creditLimit ?? 0, creditPeriodEnabled ?? 0, creditPeriodDays ?? 30, creditPeriodBasis ?? 'BILL_BASED', restrictOnCreditExpiry ?? 0,
             history ? purchaseIso : now, now, now
           );
-        } catch (insertCustErr: any) {
+        } catch (insertCustErr) {
           const fallbackCust: any = db.prepare(`
             SELECT customer_id FROM customers 
             WHERE tenant_id = ? AND (
@@ -289,7 +289,7 @@ export class CustomerIdentityService {
             finalCustomerId = fallbackCust.customer_id;
             try {
               db.prepare('UPDATE customers SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?').run(finalCustomerId);
-            } catch {}
+            } catch { /* ignore */ }
           }
         }
       }
@@ -326,7 +326,7 @@ export class CustomerIdentityService {
         } catch (_) {
           try {
             db.prepare('UPDATE parties SET is_deleted = 0 WHERE party_id = ?').run(existingParty.party_id);
-          } catch {}
+          } catch { /* ignore */ }
         }
       } else {
         const partySeedKey = phoneClean.length >= 7
@@ -348,7 +348,7 @@ export class CustomerIdentityService {
             pricingTierId, creditLimit ?? 0, creditPeriodEnabled ?? 0, creditPeriodDays ?? 30, creditPeriodBasis ?? 'BILL_BASED', restrictOnCreditExpiry ?? 0,
             now, now
           );
-        } catch (insertPartyErr: any) {
+        } catch (insertPartyErr) {
           const fallbackParty: any = db.prepare(`
             SELECT party_id FROM parties 
             WHERE tenant_id = ? AND (
@@ -367,9 +367,9 @@ export class CustomerIdentityService {
             finalPartyId = fallbackParty.party_id;
             try {
               db.prepare('UPDATE parties SET is_deleted = 0, updated_at = CURRENT_TIMESTAMP WHERE party_id = ?').run(finalPartyId);
-            } catch {}
+            } catch { /* ignore */ }
           } else {
-            console.warn('[CustomerIdentityService] Could not insert party and fallback lookup failed:', insertPartyErr.message);
+            console.warn('[CustomerIdentityService] Could not insert party and fallback lookup failed:', (insertPartyErr as Error).message);
             throw insertPartyErr;
           }
         }
@@ -380,8 +380,8 @@ export class CustomerIdentityService {
         party_id: finalPartyId!,
         isNew
       };
-    } catch (err: any) {
-      console.error('[CustomerIdentityService] Error:', err.message);
+    } catch (err) {
+      console.error('[CustomerIdentityService] Error:', (err as Error).message);
       return null;
     }
   }

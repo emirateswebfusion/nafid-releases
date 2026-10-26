@@ -75,10 +75,10 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           throw new Error(errData?.error || errData?.message || `HTTP ${res.status}`);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[StaffManager] Failed to load staff members:', err);
       setStatusMessage({
-        text: err?.message ? `Failed to load staff members (${err.message})` : 'Failed to load staff members',
+        text: (err as Error)?.message ? `Failed to load staff members (${(err as Error).message})` : 'Failed to load staff members',
         type: 'error'
       });
     } finally {
@@ -355,8 +355,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       setShowAddModal(false);
       await fetchStaff();
       if (savedStaff?.staff_id || formData.staff_id) setSelectedStaffId(savedStaff?.staff_id || formData.staff_id);
-    } catch (err: any) {
-      const message = err.message || 'Error saving staff record';
+    } catch (err) {
+      const message = (err as Error).message || 'Error saving staff record';
       setStatusMessage({
         text: profileSaved ? `Staff profile saved, but login setup failed: ${message}` : message,
         type: 'error',
@@ -430,8 +430,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         setStatusMessage({ text: `${staffMember.name} marked as ${newStatus}`, type: 'success' });
         await fetchStaff();
       }
-    } catch (err: any) {
-      setStatusMessage({ text: err.message || 'Failed to update status', type: 'error' });
+    } catch (err) {
+      setStatusMessage({ text: (err as Error).message || 'Failed to update status', type: 'error' });
     }
   };
 
@@ -460,8 +460,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       }
       setStatusMessage({ text: `Monthly salary updated for ${selectedStaff.name}`, type: 'success' });
       await fetchStaff();
-    } catch (err: any) {
-      setStatusMessage({ text: err.message || 'Failed to update monthly salary', type: 'error' });
+    } catch (err) {
+      setStatusMessage({ text: (err as Error).message || 'Failed to update monthly salary', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -495,8 +495,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           setStatusMessage({ text: res.error || 'Transaction failed', type: 'error' });
         }
       }
-    } catch (err: any) {
-      setStatusMessage({ text: err.message || 'Failed to add transaction', type: 'error' });
+    } catch (err) {
+      setStatusMessage({ text: (err as Error).message || 'Failed to add transaction', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -516,7 +516,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         });
         await loadStaffDetails();
       }
-    } catch (err: any) {
+    } catch (err) {
       setStatusMessage({ text: 'Failed to save attendance', type: 'error' });
     }
   };

@@ -90,11 +90,11 @@ export class FusionCartBridge {
         success: true,
         data: resData,
       };
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
         return { success: false, error: 'FusionCart connection timed out after 10 seconds' };
       }
-      return { success: false, error: err.message || 'Unable to connect to FusionCart server' };
+      return { success: false, error: (err as Error).message || 'Unable to connect to FusionCart server' };
     }
   }
 

@@ -94,7 +94,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             if (Array.isArray(products)) {
               products.forEach((p: any) => { productMap[p.product_id] = p; });
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         const enrichedItems: CartItem[] = invoiceItems.map((item: any) => {
@@ -160,7 +160,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
                 const totalPcs = Number(da.pcs) || 0;
                 const stockKg = Number(p.current_stock) || 0;
                 pieces_per_kg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
-              } catch {}
+              } catch { /* ignore */ }
             }
 
             // Catalog pricing metadata
@@ -176,7 +176,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
                 if (isPaperItem && da.paper_mrp != null && da.paper_mrp !== '' && Number(da.paper_mrp) > 0) {
                   mrp = Number(da.paper_mrp);
                 }
-              } catch {}
+              } catch { /* ignore */ }
             }
             const soldPrice = Number(item.unit_price) || 0;
             base_price = Math.max(mrp, soldPrice);
@@ -456,7 +456,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           try {
             const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
             if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
-          } catch (e) {}
+          } catch (e) { /* ignore */ }
         }
 
         // Load returnable items into cart

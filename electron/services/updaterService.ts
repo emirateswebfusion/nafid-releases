@@ -80,8 +80,8 @@ export function setupAutoUpdater(): void {
         log.info('[Updater] No updates available');
         setUpdaterState('idle');
       }
-    } catch (err: any) {
-      const msg = err.message || '';
+    } catch (err) {
+      const msg = (err as Error).message || '';
       log.error('[Updater] Check error:', msg);
       
       // Network errors are not critical - keep app usable
@@ -189,7 +189,7 @@ ipcMain.handle('app:installUpdate', () => {
     }
     setTimeout(() => {
       BrowserWindow.getAllWindows().forEach(w => {
-        try { w.destroy(); } catch (err) {}
+        try { w.destroy(); } catch (err) { /* ignore */ }
       });
       app.exit(0);
     }, 800);
@@ -207,10 +207,10 @@ ipcMain.handle('app:downloadUpdate', async () => {
     await autoUpdater.downloadUpdate();
     // Note: setUpdaterState('downloaded') is handled by the 'update-downloaded' event
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     log.error('[Updater] Download error:', error);
     setUpdaterState('error');
-    return { success: false, error: error.message || 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 });
 
@@ -251,9 +251,9 @@ ipcMain.handle('app:checkForUpdates', async () => {
     log.info('[Updater] Manual check: no updates available');
     setUpdaterState('idle');
     return { success: true, updateInfo: null };
-  } catch (error: any) {
+  } catch (error) {
     log.error('[Updater] Manual check error:', error);
-    const msg = error.message || '';
+    const msg = (error as Error).message || '';
     // 404 means no release found on the current channel — likely already up-to-date
     if (msg.includes('404') || msg.includes('Cannot find') || msg.includes('no published version')) {
       setUpdaterState('idle');

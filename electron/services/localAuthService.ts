@@ -117,7 +117,7 @@ export function localAuthenticateUser(email: string, password: string): {
     if (tenantStatusRow?.value === 'TERMINATED' || tenantStatusRow?.value === 'SUSPENDED') {
       return { success: false, error: 'This store subscription has been terminated or suspended by administration.' };
     }
-  } catch {}
+  } catch { /* ignore */ }
 
   const isValid = bcrypt.compareSync(password, user.password_hash);
   if (!isValid) {

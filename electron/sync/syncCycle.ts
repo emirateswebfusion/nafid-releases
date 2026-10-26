@@ -168,8 +168,8 @@ export async function unifiedDeltaPull(token: string, tenantId: string): Promise
     if (data.users?.length) if (await pullUsers(token, tenantId)) dataUpdated = true;
 
     return { success: true, dataUpdated };
-  } catch (err: any) {
-    console.warn('[SyncWorker] Unified delta pull error, falling back to standard pull:', err.message);
+  } catch (err) {
+    console.warn('[SyncWorker] Unified delta pull error, falling back to standard pull:', (err as Error).message);
     return { success: false, dataUpdated: false };
   }
 }
@@ -262,8 +262,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
           syncCycleSql.deleteSyncMeta(db).run(`pull_cursor:${tenant_id}:%`);
           setMeta(healingKey, 'true');
           console.log('[SyncWorker] One-time reset of all pull cursors applied to migrate to ISO UTC cursors.');
-        } catch (e: any) {
-          console.error('[SyncWorker] Error performing one-time cursor reset:', e.message);
+        } catch (e) {
+          console.error('[SyncWorker] Error performing one-time cursor reset:', (e as Error).message);
         }
       }
 
@@ -275,8 +275,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
           syncCycleSql.updateParties(db).run(tenant_id);
           setMeta(partyHealingKey, 'true');
           console.log('[SyncWorker] One-time reset of parties cursor applied to re-sync all latest party types.');
-        } catch (e: any) {
-          console.error('[SyncWorker] Error performing party cursor reset:', e.message);
+        } catch (e) {
+          console.error('[SyncWorker] Error performing party cursor reset:', (e as Error).message);
         }
       }
 
@@ -413,8 +413,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
             if (results.some(Boolean)) dataUpdated = true;
           }
         }
-      } catch (err: any) {
-        console.error('[SyncWorker] Sync cycle error:', err.message);
+      } catch (err) {
+        console.error('[SyncWorker] Sync cycle error:', (err as Error).message);
       } finally {
         syncState.pullProgressCtx = null;
       }

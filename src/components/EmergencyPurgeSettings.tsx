@@ -96,7 +96,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
       setTimeout(() => setSaveSuccess(false), 3000);
       try {
         window.dispatchEvent(new CustomEvent('settings:updated'));
-      } catch {}
+      } catch { /* ignore */ }
     } catch (err) {
       console.error('[EmergencyPurgeSettings] Failed to save config:', err);
     } finally {

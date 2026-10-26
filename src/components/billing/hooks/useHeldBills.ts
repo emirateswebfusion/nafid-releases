@@ -231,7 +231,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
           if (item.combo_details) {
             try {
               comboItems = JSON.parse(item.combo_details);
-            } catch {}
+            } catch { /* ignore */ }
           }
 
           addItem({

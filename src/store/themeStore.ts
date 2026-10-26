@@ -454,7 +454,7 @@ function loadFontScale(): number {
         return val;
       }
     }
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_FONT_SCALE;
 }
 
@@ -464,7 +464,7 @@ function loadPrimaryColor(): string {
     if (stored && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(stored.trim())) {
       return stored.trim();
     }
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_PRIMARY_COLOR;
 }
 
@@ -474,7 +474,7 @@ function loadFontFamily(): string {
     if (stored && stored.trim()) {
       return stored.trim();
     }
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_FONT_FAMILY;
 }
 
@@ -484,7 +484,7 @@ function loadLightThemeBase(): string {
     if (stored && stored.trim()) {
       return stored.trim();
     }
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_LIGHT_THEME_BASE;
 }
 
@@ -494,7 +494,7 @@ function loadDarkThemeBase(): string {
     if (stored && stored.trim()) {
       return stored.trim();
     }
-  } catch {}
+  } catch { /* ignore */ }
   return DEFAULT_DARK_THEME_BASE;
 }
 

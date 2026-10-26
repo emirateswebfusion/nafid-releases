@@ -75,7 +75,7 @@ export function previewConvertBosToGst(payload: {
         const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as any[];
 
         let da: Record<string, any> = {};
-        try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch {}
+        try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch { /* ignore */ }
 
         const isRealGstProduct = gstProduct.is_gst_applicable === 1 && da.gst_type !== 'PAPER';
         const isPaperProduct = !isRealGstProduct && (
@@ -283,9 +283,9 @@ export function previewConvertBosToGst(payload: {
       has_paper: hasPaperAny,
       has_skipped: hasSkippedAny,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[db:previewConvertBosToGst]', error);
-    return { success: false, error: error.message || 'Failed to preview conversion' };
+    return { success: false, error: (error as Error).message || 'Failed to preview conversion' };
   }
 }
 
@@ -407,7 +407,7 @@ export async function convertBosToGst(payload: {
             const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as any[];
 
             let da: Record<string, any> = {};
-            try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch {}
+            try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch { /* ignore */ }
 
             // A product is Real GST if is_gst_applicable is 1 and its gst_type is not explicitly PAPER
             const isRealGstProduct = gstProduct.is_gst_applicable === 1 && da.gst_type !== 'PAPER';
@@ -735,16 +735,16 @@ export async function convertBosToGst(payload: {
           ...(invoice.skipped ? { skipped_items: invoice.skipped } : {})
         });
         console.log('[convertBosToGst] Converted', invoice_id, '→', invoice.new_number);
-      } catch (err: any) {
-        console.error('[convertBosToGst] Failed', invoice_id, err.message);
-        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: err?.message || 'Conversion failed' });
+      } catch (err) {
+        console.error('[convertBosToGst] Failed', invoice_id, (err as Error).message);
+        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: (err as Error)?.message || 'Conversion failed' });
       }
     }
 
     console.log('[convertBosToGst] Completed', results.filter(r => r.success).length, '/', results.length);
     return { success: true, results };
-  } catch (error: any) {
-    console.error('[convertBosToGst] Fatal error', error.message);
+  } catch (error) {
+    console.error('[convertBosToGst] Fatal error', (error as Error).message);
     return { success: false, error: 'Operation failed' };
   }
 }

@@ -27,8 +27,8 @@ function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
       WHERE party_id = ?
     `).run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
     return total;
-  } catch (err: any) {
-    console.error('[recalcPartyBalanceLocal error]:', err.message);
+  } catch (err) {
+    console.error('[recalcPartyBalanceLocal error]:', (err as Error).message);
     return 0;
   }
 }
@@ -237,7 +237,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
           d.prepare("UPDATE party_ledger SET party_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(primary.party_id, dup.party_id);
           try {
             d.prepare('UPDATE purchase_bills SET supplier_id = ? WHERE supplier_id = ?').run(primary.party_id, dup.party_id);
-          } catch {}
+          } catch { /* ignore */ }
           d.prepare("UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(dup.party_id);
         }
 
@@ -270,13 +270,13 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0);
       `);
       console.log('[DB Auto-Deduplication] Partial unique indexes created/verified.');
-    } catch (idxErr: any) {
-      console.warn('[DB Auto-Deduplication] Could not create partial unique indexes:', idxErr.message);
+    } catch (idxErr) {
+      console.warn('[DB Auto-Deduplication] Could not create partial unique indexes:', (idxErr as Error).message);
     }
 
     return { merged_customers: mergedCustomers, merged_parties: mergedParties };
-  } catch (err: any) {
-    console.error('[DB Auto-Deduplication Error]:', err.message);
+  } catch (err) {
+    console.error('[DB Auto-Deduplication Error]:', (err as Error).message);
     return { merged_customers: 0, merged_parties: 0 };
   }
 }
@@ -360,7 +360,7 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
     }
 
     console.log('[DB Migration] Customer backfill complete.');
-  } catch (err: any) {
-    console.error('[DB Migration] Failed customer backfill:', err.message);
+  } catch (err) {
+    console.error('[DB Migration] Failed customer backfill:', (err as Error).message);
   }
 }

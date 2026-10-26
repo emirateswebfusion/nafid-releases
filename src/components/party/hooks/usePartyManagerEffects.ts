@@ -121,7 +121,7 @@ export function usePartyManagerEffects(ctx: UsePartyManagerEffectsContext) {
           try {
             const parsed = typeof val === 'string' ? JSON.parse(val) : val;
             if (Array.isArray(parsed)) setSavedCustomCategories(parsed);
-          } catch {}
+          } catch { /* ignore */ }
         }
       })
       .catch(console.error);

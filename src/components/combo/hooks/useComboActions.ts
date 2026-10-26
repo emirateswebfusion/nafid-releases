@@ -139,9 +139,9 @@ export function useComboActions(ctx: UseComboActionsContext) {
       } else {
         setStatusMessage({ text: res.error || 'Failed to save combo offer', type: 'error' });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[ComboManager] Error saving combo:', err);
-      setStatusMessage({ text: err.message || 'Operation failed', type: 'error' });
+      setStatusMessage({ text: (err as Error).message || 'Operation failed', type: 'error' });
     } finally {
       setSaving(false);
     }

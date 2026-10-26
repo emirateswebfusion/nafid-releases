@@ -9,8 +9,8 @@ export function safeHandler<T, A extends unknown[]>(handler: IpcHandler<T, A>): 
   return (event, ...args) => {
     try {
       return handler(event, ...args);
-    } catch (err: any) {
-      log.error(`[IPC] Validation error: ${err.message}`);
+    } catch (err) {
+      log.error(`[IPC] Validation error: ${(err as Error).message}`);
       throw err;
     }
   };

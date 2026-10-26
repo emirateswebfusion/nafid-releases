@@ -152,9 +152,9 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
           setMessage({ type: 'error', text: 'Desktop database API is unavailable.' });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Import error:', err);
-      setMessage({ type: 'error', text: err.message || 'An error occurred during import.' });
+      setMessage({ type: 'error', text: (err as Error).message || 'An error occurred during import.' });
     } finally {
       setImporting(false);
     }

@@ -237,7 +237,7 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
         try {
           const s = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
           invSplitCredit = Number(s?.credit) || 0;
-        } catch {}
+        } catch { /* ignore */ }
       }
       const isCreditInv = invPm === 'CREDIT' || invSplitCredit > 0 || (Number(inv.balance_amount) > 0 && invPm !== 'CASH');
       setReturnRefundMethod(isCreditInv ? 'CREDIT' : 'ADJUST_BILL');
@@ -249,7 +249,7 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
         try {
           const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
           if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
-        } catch (e) {}
+        } catch (e) { /* ignore */ }
       }
 
       enriched.forEach((item: any) => {
