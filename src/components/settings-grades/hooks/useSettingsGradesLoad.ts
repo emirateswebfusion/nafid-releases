@@ -26,8 +26,7 @@ export function useSettingsGradesLoad(ctx: UseSettingsGradesLoadContext) {
 
   useEffect(() => {
     loadGrades();
-    // Load once on mount, as before the split (loadGrades is a new function every render).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadGrades excluded: a new function every render; grades load once on mount
   }, []);
 
   return { loadGrades };

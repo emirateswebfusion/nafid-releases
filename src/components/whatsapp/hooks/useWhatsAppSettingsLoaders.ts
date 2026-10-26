@@ -97,9 +97,7 @@ export function useWhatsAppSettingsLoaders(ctx: UseWhatsAppSettingsLoadersContex
     } finally {
       setLoadingClosing(false);
     }
-  // setClosingConfig is a fresh wrapper every render (controlled / uncontrolled config); keep it out so the load runs
-  // once per tenant.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setClosingConfig excluded: a fresh wrapper every render (controlled / uncontrolled config); the load runs once per tenant
   }, [effectiveTenantId, setLoadingClosing]);
 
   // Load Shop Closing Delivery History

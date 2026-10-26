@@ -17,6 +17,7 @@
 | R10 | The startup baseline (`localDb.ts`, `schema*.ts`, `migrations{Repairs,Columns}.ts`) may shrink, never grow; schema / data changes are numbered migrations in `electron/db/migrations/`, each listed in `migrations/index.ts` |
 | R11 | Only `src/data/cloud/client.ts` calls `fetch`; cloud requests go through `src/data/cloud/*` repositories |
 | R12 | `electron/sync/**` and `electron/main.ts` contain no `.prepare(`; SQL goes to `electron/db/statements/sync/<module>.ts` / `statements/main.ts` |
+| R13 | Every `eslint-disable` states its reason (`// eslint-disable-next-line rule -- why`) and the total may only shrink (`lintSuppressions` in `arch-baseline.json`, 94 on 27 Oct, all React-hook effect exceptions). Remove them one screen at a time when that screen is changed and tested anyway | `check-architecture.mjs` |
 
 `arch-baseline.json` and `lint-baseline.json` may shrink, never grow. Re-record them (`--update`, `npm run lint:baseline`)
 only in a deliberate maintenance change after debt went **down**.
