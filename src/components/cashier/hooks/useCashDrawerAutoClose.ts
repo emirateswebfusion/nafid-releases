@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cashierApi } from '../../../data/cashier';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
+import { formatBusinessDate } from '../cashierFormat';
 
 const COUNTDOWN_SECONDS = 300;
 const IDLE_MS = 10 * 60 * 1000;
@@ -59,7 +60,7 @@ export function useCashDrawerAutoClose() {
 
     const current: CashDrawerAutoCloseDialog = {
       drawerId: status.drawer_id,
-      businessDate: status.business_date || '',
+      businessDate: formatBusinessDate(status.business_date),
       dueAt: status.due_at,
     };
     const key = `${current.drawerId}:${current.dueAt}`;

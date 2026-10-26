@@ -8,6 +8,15 @@ export interface CashDrawerAutoCloseSettingsProps {
   setAutoCloseTime: (v: string) => void;
 }
 
+/** "11:30 PM on the same day" / "01:30 AM the next morning" for an HH:MM value (before 12:00 = after midnight). */
+function describeCloseTime(value: string): string {
+  const m = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return '';
+  const h = Number(m[1]);
+  const label = `${String(h % 12 === 0 ? 12 : h % 12).padStart(2, '0')}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+  return h < 12 ? `Closes at ${label} the next morning` : `Closes at ${label} on the same day`;
+}
+
 export const CashDrawerAutoCloseSettings: React.FC<CashDrawerAutoCloseSettingsProps> = ({
   autoCloseEnabled,
   setAutoCloseEnabled,
@@ -43,7 +52,8 @@ export const CashDrawerAutoCloseSettings: React.FC<CashDrawerAutoCloseSettingsPr
             onChange={(e) => setAutoCloseTime(e.target.value)}
             className="w-full max-w-xs h-9 px-3 text-xs font-semibold bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <p className="text-[10px] text-muted-foreground/75 mt-1.5 leading-relaxed">
+          <p className="text-[11px] font-bold text-primary mt-1.5">{describeCloseTime(autoCloseTime)}</p>
+          <p className="text-[10px] text-muted-foreground/75 mt-1 leading-relaxed">
             Off: the drawer stays open until you close it. On: at this time you are asked to close it (you can ask for more time). A time before 12:00 means after midnight.
           </p>
         </div>
