@@ -6,19 +6,19 @@ import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 
 export interface PartyFormViewProps {
   handleSaveParty: () => void;
-  handleFormKeyDown: any;
-  partyForm: any;
-  setPartyForm: React.Dispatch<React.SetStateAction<any>>;
+  handleFormKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
+  partyForm: import('../hooks/usePartyManagerState').PartyManagerState['partyForm'];
+  setPartyForm: import('../hooks/usePartyManagerState').PartyManagerState['setPartyForm'];
   allCustomCategories: string[];
   isCustomCategoryNew: boolean;
   setIsCustomCategoryNew: (v: boolean) => void;
-  pricingTiers: any[];
-  editingParty: any;
+  pricingTiers: import('../hooks/usePartyManagerState').PartyManagerState['pricingTiers'];
+  editingParty: import('../hooks/usePartyManagerState').PartyManagerState['editingParty'];
   isSavingParty: boolean;
   editReturnView: 'list' | 'ledger';
   setEditReturnView: (v: 'list' | 'ledger') => void;
-  selectedParty: any;
-  setView: (v: any) => void;
+  selectedParty: import('../hooks/usePartyManagerState').PartyManagerState['selectedParty'];
+  setView: import('../hooks/usePartyManagerState').PartyManagerState['setView'];
   resetPartyForm: () => void;
   fieldCls: string;
 }
@@ -71,7 +71,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                         <button
                           key={t.key}
                           type="button"
-                          onClick={() => setPartyForm(f => ({ ...f, party_type: t.key as any }))}
+                          onClick={() => setPartyForm(f => ({ ...f, party_type: t.key as typeof f.party_type }))}
                           className={clsx(
                             "p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-95",
                             partyForm.party_type === t.key

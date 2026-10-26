@@ -116,7 +116,7 @@ export function usePartyManagerEffects(ctx: UsePartyManagerEffectsContext) {
       .catch(console.error);
 
     settingsApi.get({ tenant_id: tenantId || 'global', key: 'custom_party_categories' })
-      .then((val: any) => {
+      .then((val: unknown) => {
         if (val) {
           try {
             const parsed = typeof val === 'string' ? JSON.parse(val) : val;

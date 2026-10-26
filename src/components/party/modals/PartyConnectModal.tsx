@@ -14,8 +14,8 @@ export interface PartyConnectModalProps {
   connectCodeInput: string;
   setConnectCodeInput: (v: string) => void;
   searching: boolean;
-  searchResult: any;
-  setSearchResult: (v: any) => void;
+  searchResult: import('../hooks/usePartyManagerState').PartyManagerState['searchResult'];
+  setSearchResult: import('../hooks/usePartyManagerState').PartyManagerState['setSearchResult'];
   partyNameForConnect: string;
   setPartyNameForConnect: (v: string) => void;
   isSavingParty: boolean;

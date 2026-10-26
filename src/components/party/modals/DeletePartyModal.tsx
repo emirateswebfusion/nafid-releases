@@ -6,7 +6,7 @@ export interface DeletePartyModalProps {
   isOpen: boolean;
   onClose: () => void;
   deletePartySaving: boolean;
-  partyToDelete: any;
+  partyToDelete: import('../hooks/usePartyManagerState').PartyManagerState['partyToDelete'];
   onConfirm: () => void;
 }
 

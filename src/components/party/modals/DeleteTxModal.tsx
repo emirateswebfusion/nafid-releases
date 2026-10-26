@@ -6,7 +6,7 @@ export interface DeleteTxModalProps {
   isOpen: boolean;
   onClose: () => void;
   deleteTxSaving: boolean;
-  txToDelete: any;
+  txToDelete: import('../hooks/usePartyManagerState').PartyManagerState['txToDelete'];
   selectedPartyName?: string;
   onConfirm: () => void;
 }

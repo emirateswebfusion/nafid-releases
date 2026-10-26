@@ -203,7 +203,7 @@ export function LedgerEntries({
                   {/* Running Balance */}
                   <td className="py-3 px-4 text-right">
                     {(() => {
-                      const runBal = (entry as any).contextRunningBalance !== undefined ? (entry as any).contextRunningBalance : entry.running_balance;
+                      const runBal = (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance !== undefined ? (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance : entry.running_balance;
                       return (
                         <>
                           <span className={clsx(
@@ -254,7 +254,7 @@ export function LedgerEntries({
                               transaction_date: toLocalInputValue(entry.transaction_date),
                               reference_number: entry.reference_number || '',
                               balance_type: (entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST'),
-                              payment_method: (entry.payment_method as any) || 'CASH',
+                              payment_method: (entry.payment_method as import('../../hooks/usePartyManagerState').PartyManagerState['txForm']['payment_method']) || 'CASH',
                               send_whatsapp: false,
                             });
                             setView('tx_form');
@@ -378,7 +378,7 @@ export function LedgerEntries({
                   {isCreditSale ? '+' : '−'}₹{amount.toFixed(2)}
                 </p>
                 <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                  Bal: ₹{Math.abs((entry as any).contextRunningBalance !== undefined ? (entry as any).contextRunningBalance : entry.running_balance).toFixed(2)}
+                  Bal: ₹{Math.abs((entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance !== undefined ? (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance : entry.running_balance).toFixed(2)}
                 </p>
               </div>
             </div>
