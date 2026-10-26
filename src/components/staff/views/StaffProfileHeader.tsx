@@ -129,7 +129,7 @@ export function StaffProfileHeader({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={clsx(
                 'flex items-center gap-1.5 px-4 py-2.5 text-xs font-extrabold border-b-2 transition-all cursor-pointer',
                 isActive

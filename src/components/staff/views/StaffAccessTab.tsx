@@ -64,7 +64,7 @@ export function StaffAccessTab({
                       key={r.role}
                       onClick={() => setFormData(current => ({
                         ...current,
-                        user_role: r.role as any,
+                        user_role: r.role as typeof formData.user_role,
                         roleTouched: true,
                         permissions: r.role === 'ADMIN' ? ['*'] : current.permissions.filter(permission => permission !== '*'),
                         permissionsTouched: true,
