@@ -174,14 +174,6 @@ export const CHECKLIST_DEFINITIONS: ChecklistItemDefinition[] = [
 export { formatCurrency };
 
 /**
- * Clean phone number helper
- */
-export function cleanPhoneNumber(phone: string): string {
-  if (!phone) return '';
-  return phone.replace(/[^0-9+]/g, '').trim();
-}
-
-/**
  * Validate phone number
  */
 export function isValidPhoneNumber(phone: string): boolean {

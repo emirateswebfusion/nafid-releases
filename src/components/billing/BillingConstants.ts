@@ -73,33 +73,3 @@ export function detectScannerBurst(
   return false;
 }
 
-export function toLocalDatetimeInputString(dateInput: string | Date | null | undefined): string {
-  if (!dateInput) return '';
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const YYYY = d.getFullYear();
-  const MM = pad(d.getMonth() + 1);
-  const DD = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mm = pad(d.getMinutes());
-  return `${YYYY}-${MM}-${DD}T${hh}:${mm}`;
-}
-
-export function formatDisplayBillDate(dateInput: string | null | undefined): { text: string; isToday: boolean; isCustom: boolean } {
-  const now = new Date();
-  if (!dateInput) {
-    const formatted = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    return { text: formatted, isToday: true, isCustom: false };
-  }
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) {
-    const formatted = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    return { text: formatted, isToday: true, isCustom: false };
-  }
-  const isToday = d.toDateString() === now.toDateString();
-  const datePart = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  const timePart = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-  return { text: `${datePart}, ${timePart}`, isToday, isCustom: true };
-}
-

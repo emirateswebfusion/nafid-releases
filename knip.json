@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "electron/main.ts",
+    "electron/preload.ts",
+    "electron-builder.config.js",
+    "scripts/*.{js,cjs,mjs}",
+    "tests/**/*.{ts,mts,cjs,mjs}"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "electron/**/*.ts",
+    "scripts/**/*.{js,cjs,mjs}",
+    "tests/**/*.{ts,mts,cjs,mjs}"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "ignore": [
+    "src/global.d.ts"
+  ],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "tw-animate-css",
+    "@electron/rebuild"
+  ]
+}
