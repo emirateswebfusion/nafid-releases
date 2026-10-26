@@ -5,6 +5,7 @@ import {
   buildQuotationLines,
   buildReceiptLines,
   resolveSupplyType,
+  splitTaxAmount,
 } from '../../src/utils/checkoutLines';
 
 const item = (over: Partial<CartItem>): CartItem => ({
@@ -99,16 +100,27 @@ describe('buildCheckoutLines', () => {
     expect(line.tax_amount).toBe(0);
   });
 
-  // SUSPECT: checkoutLines.ts rounds CGST and SGST independently with round2(itemTax / 2).
-  // When itemTax has an odd cent (e.g. 1.05 / 2 = 0.525), both cgst_amount and sgst_amount round to 0.53,
-  // causing their sum (1.06) to exceed the itemTax (1.05) by 1 paisa instead of reconciling remainder.
-  it('rounds CGST and SGST independently on fractional cents (current behavior)', () => {
+  it('reconciles the SGST remainder when tax splits to an odd paisa', () => {
     // base_price 10.5, quantity 1, tax_rate 10% -> total 10.5, tax_amount = 1.05
     const [line] = buildCheckoutLines([item({ base_price: 10.5, quantity: 1, tax_rate_percent: 10 })], ctx);
     expect(line.tax_amount).toBe(1.05);
     expect(line.cgst_amount).toBe(0.53);
-    expect(line.sgst_amount).toBe(0.53);
-    expect(line.cgst_amount + line.sgst_amount).toBe(1.06);
+    expect(line.sgst_amount).toBe(0.52);
+    expect(line.cgst_amount + line.sgst_amount).toBe(line.tax_amount);
+  });
+
+  it('uses the same reconciled split for quotation lines', () => {
+    const [line] = buildQuotationLines([item({ quantity: 1, base_price: 10.5, tax_rate_percent: 10 })], { isGstQuotation: true, isInterState: false });
+    expect(line.cgst_amount).toBe(0.53);
+    expect(line.sgst_amount).toBe(0.52);
+    expect(line.cgst_amount + line.sgst_amount).toBe(1.05);
+  });
+});
+
+describe('splitTaxAmount', () => {
+  it('assigns the rounded remainder to SGST', () => {
+    expect(splitTaxAmount(1.05)).toEqual({ cgst: 0.53, sgst: 0.52 });
+    expect(splitTaxAmount(18)).toEqual({ cgst: 9, sgst: 9 });
   });
 });
 

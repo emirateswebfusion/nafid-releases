@@ -3,6 +3,7 @@ import { getDb } from '../db/localDb.js';
 import { getGuaranteedNextInvoiceNumber, peekGuaranteedNextInvoiceNumber, requestServerInvoiceNumber } from './invoiceNumberService.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
+import { splitTaxAmount } from '../utils/taxSplit.js';
 /** Bill-of-supply to GST invoice conversion (preview and apply). Called by electron/ipc handlers via invoicesService. */
 
 /** IPC `db:previewConvertBosToGst` */
@@ -620,8 +621,9 @@ export async function convertBosToGst(payload: {
 
           const isInterStateConv = shopState.trim().toUpperCase() !== '' && (inv.customer_state || '').trim().toUpperCase() !== '' && shopState.trim().toUpperCase() !== (inv.customer_state || '').trim().toUpperCase();
           const convSupplyType: 'INTRA' | 'INTER' = isInterStateConv ? 'INTER' : 'INTRA';
-          const convCgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
-          const convSgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
+          const invoiceTaxSplit = splitTaxAmount(adjustedTax);
+          const convCgstTotal = isInterStateConv ? 0 : invoiceTaxSplit.cgst;
+          const convSgstTotal = isInterStateConv ? 0 : invoiceTaxSplit.sgst;
           const convIgstTotal = isInterStateConv ? adjustedTax : 0;
 
           const originalReceived = Number(inv.received_amount) || 0;
@@ -681,8 +683,9 @@ export async function convertBosToGst(payload: {
           const insertItemStmt = invoicesSql.insertInvoiceItem4(db);
 
           for (const ci of copyItems) {
-            const itemCgst = isInterStateConv ? 0 : Math.round((ci.newTaxAmount / 2) * 100) / 100;
-            const itemSgst = isInterStateConv ? 0 : Math.round((ci.newTaxAmount / 2) * 100) / 100;
+            const itemTaxSplit = splitTaxAmount(ci.newTaxAmount);
+            const itemCgst = isInterStateConv ? 0 : itemTaxSplit.cgst;
+            const itemSgst = isInterStateConv ? 0 : itemTaxSplit.sgst;
             const itemIgst = isInterStateConv ? ci.newTaxAmount : 0;
             const itemCgstRate = isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
             const itemSgstRate = isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;

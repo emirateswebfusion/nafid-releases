@@ -2,6 +2,7 @@ import type { DisplayComboItem, DisplayInvoiceItem } from '../invoiceDisplayType
 import { RefreshCw, Boxes, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/money';
+import { splitTaxAmount } from '../../../utils/checkoutLines';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
 
 export interface InvoiceItemsTableProps {
@@ -106,8 +107,9 @@ export function InvoiceItemsTable({
                   const effCgstR = itemCgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
                   const effSgstR = itemSgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
                   const effIgstR = itemIgstRate || (isInterItem && itemTaxRate > 0 ? itemTaxRate : 0);
-                  const effCgstAmt = Number(item.cgst_amount) || (!isInterItem && itemTax > 0 ? Math.round((itemTax / 2) * 100) / 100 : 0);
-                  const effSgstAmt = Number(item.sgst_amount) || (!isInterItem && itemTax > 0 ? Math.round((itemTax / 2) * 100) / 100 : 0);
+                  const itemTaxSplit = splitTaxAmount(itemTax);
+                  const effCgstAmt = Number(item.cgst_amount) || (!isInterItem && itemTax > 0 ? itemTaxSplit.cgst : 0);
+                  const effSgstAmt = Number(item.sgst_amount) || (!isInterItem && itemTax > 0 ? itemTaxSplit.sgst : 0);
                   const effIgstAmt = Number(item.igst_amount) || (isInterItem && itemTax > 0 ? itemTax : 0);
 
                   const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];

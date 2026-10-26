@@ -137,6 +137,22 @@ describe('buildInvoiceProductRows', () => {
     expect(row.cgstAmount + row.sgstAmount).toBe(18);
   });
 
+  it('reconciles a historical fallback split without changing the invoice tax value', () => {
+    const invoice = {
+      invoice_id: 'inv-odd-cent',
+      subtotal: 10.5,
+      tax_total: 1.05,
+      grand_total: 11.55,
+      supply_type: 'INTRA',
+    };
+    const [row] = buildInvoiceProductRows(invoice, []);
+
+    expect(row.cgstAmount).toBe(0.53);
+    expect(row.sgstAmount).toBe(0.52);
+    expect(row.cgstAmount + row.sgstAmount).toBe(row.tax);
+    expect(invoice.tax_total).toBe(1.05);
+  });
+
   it('derives rate from tax and taxable when explicit rate properties are missing', () => {
     const [row] = buildInvoiceProductRows(
       {

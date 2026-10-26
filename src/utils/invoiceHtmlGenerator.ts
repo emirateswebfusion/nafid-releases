@@ -1,5 +1,6 @@
 import { DEFAULT_BILL_SETTINGS, getEffectiveBillSettings, type BillSettings, formatPrintItem, numberToIndianWords, parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from './timezoneHelper';
+import { splitTaxAmount } from './checkoutLines';
 
 export interface InvoiceItemDisplay {
   name: string;
@@ -628,8 +629,9 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       const totalTax = itemTotal - taxableVal;
       cgstPct = gstRate / 2;
       sgstPct = gstRate / 2;
-      cgstAmt = Math.round((totalTax / 2) * 100) / 100;
-      sgstAmt = Math.round((itemTotal - taxableVal - cgstAmt) * 100) / 100;
+      const taxSplit = splitTaxAmount(totalTax);
+      cgstAmt = taxSplit.cgst;
+      sgstAmt = taxSplit.sgst;
     } else {
       taxableVal = itemTotal;
       unitPriceVal = qtyNum > 0 ? taxableVal / qtyNum : taxableVal;
@@ -1603,7 +1605,7 @@ export function generatePurchaseBillHtml(
   const roundOff = Math.round(grandTotal) - grandTotal;
   const finalTotal = Math.round(grandTotal);
 
-  const halfTax = totalTax / 2;
+  const taxSplit = splitTaxAmount(totalTax);
   const formattedDate = bill.bill_date ? parseUTCDate(bill.bill_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return `<!DOCTYPE html>
@@ -1835,11 +1837,11 @@ export function generatePurchaseBillHtml(
       ${isGst && totalTax > 0 ? `
         <div class="totals-row">
           <span>CGST:</span>
-          <span>₹${halfTax.toFixed(2)}</span>
+          <span>₹${taxSplit.cgst.toFixed(2)}</span>
         </div>
         <div class="totals-row">
           <span>SGST:</span>
-          <span>₹${halfTax.toFixed(2)}</span>
+          <span>₹${taxSplit.sgst.toFixed(2)}</span>
         </div>
         <div class="totals-row" style="font-weight: 700;">
           <span>Total Tax:</span>

@@ -17,6 +17,7 @@ import { printingApi } from '../../../data/printing';
 import { formatDate } from '../cashierFormat';
 import { PaymentBadge } from './PaymentBadge';
 import { formatCurrency } from '../../../utils/money';
+import { splitTaxAmount } from '../../../utils/checkoutLines';
 import type { CashierInvoiceItemRow, CashierInvoiceRow } from '../cashierTypes';
 
 export interface CashierInvoiceModalProps {
@@ -379,8 +380,9 @@ export function CashierInvoiceModal({
                         const effCgstR = itemCgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
                         const effSgstR = itemSgstRate || (!isInterItem && itemTaxRate > 0 ? Math.round((itemTaxRate / 2) * 10) / 10 : 0);
                         const effIgstR = itemIgstRate || (isInterItem && itemTaxRate > 0 ? itemTaxRate : 0);
-                        const effCgstAmt = Number(item.cgst_amount) || (!isInterItem && itemTax > 0 ? Math.round((itemTax / 2) * 100) / 100 : 0);
-                        const effSgstAmt = Number(item.sgst_amount) || (!isInterItem && itemTax > 0 ? Math.round((itemTax / 2) * 100) / 100 : 0);
+                        const itemTaxSplit = splitTaxAmount(itemTax);
+                        const effCgstAmt = Number(item.cgst_amount) || (!isInterItem && itemTax > 0 ? itemTaxSplit.cgst : 0);
+                        const effSgstAmt = Number(item.sgst_amount) || (!isInterItem && itemTax > 0 ? itemTaxSplit.sgst : 0);
                         const effIgstAmt = Number(item.igst_amount) || (isInterItem && itemTax > 0 ? itemTax : 0);
 
                         const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
@@ -551,8 +553,9 @@ export function CashierInvoiceModal({
                     let sgst = Number(selectedInvoice.sgst_total) || 0;
                     let igst = Number(selectedInvoice.igst_total) || 0;
                     if (!isInter && cgst === 0 && sgst === 0 && igst === 0) {
-                      cgst = Math.round((tax / 2) * 100) / 100;
-                      sgst = Math.round((tax / 2) * 100) / 100;
+                      const taxSplit = splitTaxAmount(tax);
+                      cgst = taxSplit.cgst;
+                      sgst = taxSplit.sgst;
                     } else if (isInter && igst === 0) {
                       igst = tax;
                     }

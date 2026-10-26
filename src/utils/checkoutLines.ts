@@ -9,6 +9,16 @@ import { listRate, resolveLinePrice } from './linePricing';
 export type SupplyType = 'INTRA' | 'INTER';
 export type InvoiceKind = 'GST' | 'BILL_OF_SUPPLY' | string;
 
+function round2(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/** Splits intra-state GST amounts while preserving the rounded total tax. */
+export function splitTaxAmount(tax: number): { cgst: number; sgst: number } {
+  const cgst = round2(tax / 2);
+  return { cgst, sgst: round2(tax - cgst) };
+}
+
 /** Inter-state only for GST invoices when both states are known and differ. */
 export function resolveSupplyType(invoiceType: InvoiceKind, shopState: string, customerState: string): SupplyType {
   const shop = shopState.trim().toUpperCase();
@@ -54,7 +64,6 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
     // INTRA-state → CGST = rate/2, SGST = rate/2; INTER-state → IGST = rate
     const taxRatePercent = invoiceType === 'GST' ? (item.tax_rate_percent || 0) : (bosTaxRatePercent || 0);
     const halfRate = taxRatePercent / 2;
-    const round2 = (n: number) => Math.round(n * 100) / 100;
     let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
     let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
     if (itemTax > 0) {
@@ -64,8 +73,9 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
       } else {
         cgst_rate = halfRate;
         sgst_rate = halfRate;
-        cgst_amount = round2(itemTax / 2);
-        sgst_amount = round2(itemTax / 2);
+        const split = splitTaxAmount(itemTax);
+        cgst_amount = split.cgst;
+        sgst_amount = split.sgst;
       }
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -169,8 +179,9 @@ export function buildQuotationLines(items: CartItem[], opts: { isGstQuotation: b
     const cgst_rate = isInterState ? 0 : halfRate;
     const sgst_rate = isInterState ? 0 : halfRate;
     const igst_rate = isInterState ? itemTaxRate : 0;
-    const cgst_amount = isInterState ? 0 : Math.round((itemTax / 2) * 100) / 100;
-    const sgst_amount = isInterState ? 0 : Math.round((itemTax / 2) * 100) / 100;
+    const taxSplit = splitTaxAmount(itemTax);
+    const cgst_amount = isInterState ? 0 : taxSplit.cgst;
+    const sgst_amount = isInterState ? 0 : taxSplit.sgst;
     const igst_amount = isInterState ? itemTax : 0;
 
     return {

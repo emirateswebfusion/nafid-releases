@@ -1,3 +1,5 @@
+import { splitTaxAmount } from './checkoutLines';
+
 type TaxInvoice = { customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
 type TaxItem = { product_id: string; item_id?: string | null; cgst_rate?: number | string | null; sgst_rate?: number | string | null; igst_rate?: number | string | null; tax_rate?: number | string | null; quantity?: number | string | null; unit_price?: number | string | null; total?: number | string | null; tax_amount?: number | string | null; name?: string | null; hsn_sac_code?: string | null; hsn_code?: string | null; hsn?: string | null; uom?: string | null; unit?: string | null };
 export interface InvoiceProductRow {
@@ -112,8 +114,9 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     const grossTotal = round2(taxableBase + invoiceTax);
     const storedGrand = Number(inv?.grand_total);
     const netRatio = grossTotal > 0 && Number.isFinite(storedGrand) ? Math.max(0, storedGrand / grossTotal) : 1;
-    const cgstAmount = interState ? 0 : round2(invoiceTax / 2);
-    const sgstAmount = interState ? 0 : round2(invoiceTax - cgstAmount);
+    const taxSplit = splitTaxAmount(invoiceTax);
+    const cgstAmount = interState ? 0 : taxSplit.cgst;
+    const sgstAmount = interState ? 0 : taxSplit.sgst;
 
     return [{
       invoice: inv,
@@ -155,8 +158,9 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
       : round2(taxable * taxScale);
     const discount = round2(entry.taxable - taxable);
     const total = round2(taxable + tax);
-    const cgstAmount = interState ? 0 : round2(tax / 2);
-    const sgstAmount = interState ? 0 : round2(tax - cgstAmount);
+    const taxSplit = splitTaxAmount(tax);
+    const cgstAmount = interState ? 0 : taxSplit.cgst;
+    const sgstAmount = interState ? 0 : taxSplit.sgst;
 
     return {
       invoice: inv,
@@ -198,8 +202,9 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
       last.igstAmount = last.tax;
       last.igstRate = last.taxable > 0 ? round1((last.tax / last.taxable) * 100) : last.igstRate;
     } else {
-      last.cgstAmount = round2(last.tax / 2);
-      last.sgstAmount = round2(last.tax - last.cgstAmount);
+      const taxSplit = splitTaxAmount(last.tax);
+      last.cgstAmount = taxSplit.cgst;
+      last.sgstAmount = taxSplit.sgst;
     }
   }
 

@@ -1,5 +1,6 @@
 import { numberToIndianWords } from './receiptGenerator';
 import { formatCurrency } from './money';
+import { splitTaxAmount } from './checkoutLines';
 
 export interface QuotationPrintItem {
   name: string;
@@ -123,10 +124,11 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     const halfRate = taxRate / 2;
 
     const cgstRate = item.cgst_rate != null ? Number(item.cgst_rate) : (isInterState ? 0 : halfRate);
-    const cgstAmt = item.cgst_amount != null ? Number(item.cgst_amount) : (isInterState ? 0 : Math.round(taxableVal * (halfRate / 100) * 100) / 100);
+    const taxSplit = splitTaxAmount(Math.round(taxableVal * (taxRate / 100) * 100) / 100);
+    const cgstAmt = item.cgst_amount != null ? Number(item.cgst_amount) : (isInterState ? 0 : taxSplit.cgst);
 
     const sgstRate = item.sgst_rate != null ? Number(item.sgst_rate) : (isInterState ? 0 : halfRate);
-    const sgstAmt = item.sgst_amount != null ? Number(item.sgst_amount) : (isInterState ? 0 : Math.round(taxableVal * (halfRate / 100) * 100) / 100);
+    const sgstAmt = item.sgst_amount != null ? Number(item.sgst_amount) : (isInterState ? 0 : taxSplit.sgst);
 
     const igstRate = item.igst_rate != null ? Number(item.igst_rate) : (isInterState ? taxRate : 0);
     const igstAmt = item.igst_amount != null ? Number(item.igst_amount) : (isInterState ? Math.round(taxableVal * (taxRate / 100) * 100) / 100 : 0);

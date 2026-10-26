@@ -10,6 +10,7 @@ import { useCartStore } from '../../../store/cartStore';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { formatDate, getUpiDetailsFromInvoice, parseSplitDetails } from '../salesHistoryFormat';
 import { formatCurrency } from '../../../utils/money';
+import { splitTaxAmount } from '../../../utils/checkoutLines';
 import type { SalesInvoiceItemRow, SalesInvoiceRow, UpiSourceOption } from '../salesTypes';
 import { InvoiceItemsTable } from './InvoiceItemsTable';
 
@@ -452,8 +453,9 @@ export function InvoiceDetailModal({
                     let sgst = Number(selectedInvoice.sgst_total) || 0;
                     let igst = Number(selectedInvoice.igst_total) || 0;
                     if (!isInter && cgst === 0 && sgst === 0 && igst === 0) {
-                      cgst = Math.round((tax / 2) * 100) / 100;
-                      sgst = Math.round((tax / 2) * 100) / 100;
+                      const taxSplit = splitTaxAmount(tax);
+                      cgst = taxSplit.cgst;
+                      sgst = taxSplit.sgst;
                     } else if (isInter && igst === 0) {
                       igst = tax;
                     }

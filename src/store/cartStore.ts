@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { listRate, resolveLinePrice } from '../utils/linePricing';
+import { splitTaxAmount } from '../utils/checkoutLines';
 
 export interface CartItem {
   item_id?: string;
@@ -401,8 +402,9 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   
   const hasTax = invoiceType === 'GST' || (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0);
 
-  const cgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
-  const sgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
+  const taxSplit = hasTax && !isInterState ? splitTaxAmount(adjustedTax) : null;
+  const cgst = taxSplit?.cgst || 0;
+  const sgst = taxSplit?.sgst || 0;
   const igst = hasTax && isInterState ? adjustedTax : 0;
 
   const grandTotal = taxableAmount + adjustedTax + serviceTotal;

@@ -47,8 +47,10 @@ and `electron/utils/` (ids, cashier settlement math).
 
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
-- Tax split for **display** is still recomputed inline in `CashierSettlement`, `CustomersPage`, `PurchaseBillManager`
-  and some `BillingPage` summaries. When you touch one, move it onto `checkoutLines`/a `utils/gst.ts` helper with a test.
+- Intra-state tax amounts use `splitTaxAmount` from `src/utils/checkoutLines.ts`: CGST is rounded first and SGST is
+  the rounded remainder, so both add up to the tax. Existing invoice rows are not rewritten. Renderer summaries and
+  historical fallbacks reuse this helper; the main-process Bill-of-Supply conversion uses the same rule in
+  `electron/utils/taxSplit.ts` to keep the process boundary intact.
 - `nafid-server/src/utils/cashierSettlement.ts` and `electron/utils/cashierSettlement.ts`, and the permission conversion in
   `src/utils/permissions.ts` vs `nafid-server/src/services/permissions.ts`, are **cross-app copies of one rule**.
   They must stay behaviourally identical until a shared package exists; change both with tests.
