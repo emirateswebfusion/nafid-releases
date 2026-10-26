@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { displayInvoiceNumber, getNextOffsetInvoiceNumber } from '../../src/utils/invoiceNumberHelper';
+import {
+  displayInvoiceNumber,
+  getNextOffsetInvoiceNumber,
+  getNumericPart,
+  matchesDocumentNumber,
+} from '../../src/utils/invoiceNumberHelper';
 
 describe('getNextOffsetInvoiceNumber', () => {
   it('returns the base number when it is unused', () => {
@@ -19,8 +24,26 @@ describe('getNextOffsetInvoiceNumber', () => {
     expect(getNextOffsetInvoiceNumber('KL/2026/0009', ['KL/2026/0009'])).toBe('KL/2026/0010');
   });
 
-  it('ignores numbers with a different prefix', () => {
-    expect(getNextOffsetInvoiceNumber('INV-001', ['ABC-001', 'INV-002'])).toBe('INV-001');
+  it('expands beyond padding length when count exceeds digit capacity', () => {
+    expect(getNextOffsetInvoiceNumber('INV-99', ['INV-99'])).toBe('INV-100');
+  });
+
+  it('handles complex multi-slash or multi-hyphen prefixes', () => {
+    const existing = ['POS/MAIN/REG-1/004', 'POS/MAIN/REG-1/005'];
+    expect(getNextOffsetInvoiceNumber('POS/MAIN/REG-1/004', existing)).toBe('POS/MAIN/REG-1/006');
+  });
+
+  it('ignores numbers with a different prefix or non-numeric existing elements', () => {
+    expect(
+      getNextOffsetInvoiceNumber('INV-001', [
+        'ABC-001',
+        'INV-002',
+        null as unknown as string,
+        undefined as unknown as string,
+        '',
+        'INVALID',
+      ]),
+    ).toBe('INV-001');
   });
 
   it('returns the input unchanged when it has no numeric suffix', () => {
@@ -30,16 +53,50 @@ describe('getNextOffsetInvoiceNumber', () => {
   it('returns an empty string for an empty base', () => {
     expect(getNextOffsetInvoiceNumber('', ['INV-001'])).toBe('');
   });
+
+  // SUSPECT: regex /^(.*?[^\d])(\d+)$/ requires at least one non-digit prefix before the numeric digits.
+  // When baseNum is purely digits (e.g. "100"), regex fails and returns "100" without incrementing,
+  // even if "100" is in existingNums.
+  it('does not increment purely numeric invoice numbers lacking a prefix (current behavior)', () => {
+    expect(getNextOffsetInvoiceNumber('100', ['100', '101'])).toBe('100');
+  });
+});
+
+describe('getNumericPart', () => {
+  it('extracts and joins all digit groups', () => {
+    expect(getNumericPart('SCR-0012/B7')).toBe('00127');
+    expect(getNumericPart('INV/2026/042')).toBe('2026042');
+  });
+
+  it('returns empty string for inputs without digits', () => {
+    expect(getNumericPart('ABC-DEF')).toBe('');
+    expect(getNumericPart('')).toBe('');
+  });
+});
+
+describe('matchesDocumentNumber', () => {
+  it('returns true when query digits are contained in candidate digits', () => {
+    expect(matchesDocumentNumber('SCR-0012', '12')).toBe(true);
+    expect(matchesDocumentNumber('RET-2026-05', '260')).toBe(true);
+  });
+
+  it('returns false when query has no digits or candidate does not contain query digits', () => {
+    expect(matchesDocumentNumber('SCR-0012', 'SCR')).toBe(false);
+    expect(matchesDocumentNumber('SCR-0012', '')).toBe(false);
+    expect(matchesDocumentNumber('SCR-0012', '99')).toBe(false);
+  });
 });
 
 describe('displayInvoiceNumber', () => {
   it('prefixes GST- for GST invoices in single-series mode', () => {
     expect(displayInvoiceNumber('INV-004', 'GST', false)).toBe('GST-INV-004');
   });
+
   it('does not double an existing GST- prefix (was GST-GST-001)', () => {
     expect(displayInvoiceNumber('GST-001', 'GST', false)).toBe('GST-001');
     expect(displayInvoiceNumber('gst-001', 'GST', false)).toBe('gst-001');
   });
+
   it('leaves other types, three-series mode and empty numbers alone', () => {
     expect(displayInvoiceNumber('POS1-009', 'BILL_OF_SUPPLY', false)).toBe('POS1-009');
     expect(displayInvoiceNumber('B2B-001', 'GST', true)).toBe('B2B-001');

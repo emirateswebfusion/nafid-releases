@@ -23,8 +23,23 @@ describe('getInvoiceNetTotal', () => {
     ).toBe(98);
   });
 
+  it('parses string amounts properly', () => {
+    expect(
+      getInvoiceNetTotal({
+        subtotal: '200',
+        tax_total: '36',
+        discount_total: '10',
+      }),
+    ).toBe(226);
+  });
+
   it('never returns a negative total', () => {
     expect(getInvoiceNetTotal({ subtotal: 10, tax_total: 0, discount_total: 50 })).toBe(0);
+  });
+
+  it('handles null and undefined input safely', () => {
+    expect(getInvoiceNetTotal(null as never)).toBe(0);
+    expect(getInvoiceNetTotal(undefined as never)).toBe(0);
   });
 });
 
@@ -39,6 +54,11 @@ describe('getInvoicePreDeductionTotal', () => {
         return_deduction: 5,
       }),
     ).toBe(108);
+  });
+
+  it('handles null and undefined input safely', () => {
+    expect(getInvoicePreDeductionTotal(null as never)).toBe(0);
+    expect(getInvoicePreDeductionTotal(undefined as never)).toBe(0);
   });
 });
 
@@ -68,7 +88,7 @@ describe('getSalesHistoryAmount', () => {
     });
   });
 
-  it('prefers the recorded refund amount when present', () => {
+  it('prefers the recorded refund amount when present and calculates refundDifference', () => {
     expect(
       getSalesHistoryAmount({
         subtotal: 100,
@@ -100,5 +120,14 @@ describe('getSalesHistoryAmount', () => {
     expect(result.amount).toBe(90);
     expect(result.discount).toBe(10);
     expect(result.refund).toBe(false);
+  });
+
+  it('handles null or undefined input safely', () => {
+    expect(getSalesHistoryAmount(null as never)).toEqual({
+      amount: 0,
+      refund: false,
+      discount: 0,
+      refundDifference: 0,
+    });
   });
 });

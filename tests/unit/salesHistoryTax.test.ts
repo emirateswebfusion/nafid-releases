@@ -35,6 +35,33 @@ describe('buildInvoiceProductRows', () => {
     expect(sum(rows.map((row) => row.cgstAmount + row.sgstAmount))).toBe(36);
   });
 
+  it('adjusts last row rounding differences to match exact invoice taxable and tax base', () => {
+    // 3 items with subtotal 100 discounted by 10 -> taxableBase 90
+    // Each item 33.33 taxable * (90/100) = 29.997 -> 30.00
+    // 33.33 * 3 = 99.99 != 100
+    const rows = buildInvoiceProductRows(
+      {
+        invoice_id: 'inv-diff',
+        invoice_number: 'INV-009',
+        subtotal: 100,
+        tax_total: 18,
+        discount_total: 10,
+        points_redeemed_discount: 0,
+        grand_total: 108,
+        supply_type: 'INTRA',
+      },
+      [
+        { name: 'A', quantity: 1, unit_price: 33.33, total: 33.33, tax_amount: 6, tax_rate: 18 },
+        { name: 'B', quantity: 1, unit_price: 33.33, total: 33.33, tax_amount: 6, tax_rate: 18 },
+        { name: 'C', quantity: 1, unit_price: 33.34, total: 33.34, tax_amount: 6, tax_rate: 18 },
+      ],
+    );
+
+    expect(rows).toHaveLength(3);
+    expect(sum(rows.map((r) => r.taxable))).toBe(90);
+    expect(sum(rows.map((r) => r.tax))).toBe(18);
+  });
+
   it('uses IGST for inter-state supply', () => {
     const [row] = buildInvoiceProductRows(
       {
@@ -53,6 +80,21 @@ describe('buildInvoiceProductRows', () => {
     expect(row.igstAmount).toBe(18);
     expect(row.cgstAmount).toBe(0);
     expect(row.sgstAmount).toBe(0);
+  });
+
+  it('detects inter-state supply from item igst_rate even if invoice supply_type is omitted', () => {
+    const [row] = buildInvoiceProductRows(
+      {
+        invoice_id: 'inv-igst',
+        subtotal: 100,
+        tax_total: 18,
+        grand_total: 118,
+      },
+      [{ name: 'A', quantity: 1, unit_price: 100, total: 100, tax_amount: 18, igst_rate: 18 }],
+    );
+
+    expect(row.igstAmount).toBe(18);
+    expect(row.cgstAmount).toBe(0);
   });
 
   it('normalizes tax-inclusive line totals to an ex-tax unit price', () => {
@@ -93,6 +135,20 @@ describe('buildInvoiceProductRows', () => {
     expect(row.taxable).toBe(100);
     expect(row.tax).toBe(18);
     expect(row.cgstAmount + row.sgstAmount).toBe(18);
+  });
+
+  it('derives rate from tax and taxable when explicit rate properties are missing', () => {
+    const [row] = buildInvoiceProductRows(
+      {
+        invoice_id: 'inv-fallback',
+        subtotal: 100,
+        tax_total: 12,
+        grand_total: 112,
+      },
+      [{ name: 'Item', quantity: 1, unit_price: 100, total: 100, tax_amount: 12 }],
+    );
+
+    expect(row.gstRate).toBe(12);
   });
 });
 
@@ -141,5 +197,10 @@ describe('sortInvoicesByInvoiceNumber', () => {
       'INV-2',
       'INV-10',
     ]);
+  });
+
+  it('handles non-array inputs safely', () => {
+    expect(sortInvoicesByInvoiceNumber(null as never)).toEqual([]);
+    expect(sortInvoicesByInvoiceNumber(undefined as never)).toEqual([]);
   });
 });
