@@ -15,20 +15,14 @@ export type ScrapTransaction = ScrapTransactionWithCategory;
  */
 export type ScrapInvoiceRow = ScrapInvoiceListItem & {
   scrap_invoice_number?: string;
-  biller_name?: string;
   party_phone?: string;
   party_address?: string;
-  party_state?: string;
-  customer_state?: string;
 };
 
-/** Invoice transaction row from the joined data query plus legacy display fields not selected by that query. */
+/** Invoice transaction row from the joined scrap transaction and category query. */
 export type ScrapInvoiceTxRow = ScrapTransactionWithCategory & {
-  biller_name?: string | null;
   party_phone?: string | null;
   party_address?: string | null;
-  party_state?: string | null;
-  customer_state?: string | null;
 };
 
 export type ScrapUpiSourceRow = Pick<PaymentSource, 'source_id' | 'name' | 'upi_id'>;

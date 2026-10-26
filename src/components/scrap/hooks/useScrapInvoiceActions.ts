@@ -10,6 +10,7 @@ import { scrapApi } from '../../../data/scrap';
 import { v4 as uuidv4 } from 'uuid';
 import type { View, ScrapCategory } from '../scrapTypes';
 import type { ScrapInvoiceRow, ScrapInvoiceTxRow } from '../scrapTypes';
+import { buildScrapPrintDetails } from '../scrapPrintDetails';
 
 export interface UseScrapInvoiceActionsContext {
   addItemForm: { categoryId: string; quantity: string; rate: string; notes: string; };
@@ -77,6 +78,7 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
       const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: ScrapInvoiceTxRow) => sum + Number(tx.total_amount), 0);
 
       const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
+      const printDetails = buildScrapPrintDetails(invoiceDetailTxs[0], scrapBillSettings, useAuthStore.getState().userName);
       const receiptData: ReceiptData = {
         shopName: scrapBillSettings.showShopName !== false ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: scrapBillSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
@@ -88,17 +90,16 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
         invoiceNumber: selectedInvoiceNumber,
         invoiceType: 'SCRAP',
         date: formatBillDateTime(invoiceDetailTxs[0]?.created_at || Date.now()),
-        billerName: scrapBillSettings.showBillerName !== false ? (invoiceDetailTxs[0]?.biller_name || useAuthStore.getState().userName || undefined) : undefined,
+        billerName: printDetails.billerName,
         items: scrapItems,
         subtotal: totalAmount,
         tax: 0,
         discount: 0,
         grandTotal: totalAmount,
         isReprint: true,
-        customerName: scrapBillSettings.showCustomerName !== false ? (invoiceDetailTxs[0]?.party_name || undefined) : undefined,
-        customerPhone: scrapBillSettings.showCustomerPhone !== false ? (invoiceDetailTxs[0]?.party_phone || invoiceDetailTxs[0]?.customer_phone || undefined) : undefined,
-        customerAddress: scrapBillSettings.showCustomerAddress !== false ? (invoiceDetailTxs[0]?.party_address || invoiceDetailTxs[0]?.customer_address || undefined) : undefined,
-        customerState: scrapBillSettings.showCustomerState !== false ? (invoiceDetailTxs[0]?.party_state || invoiceDetailTxs[0]?.customer_state || undefined) : undefined,
+        customerName: printDetails.customerName,
+        customerPhone: printDetails.customerPhone,
+        customerAddress: printDetails.customerAddress,
         billSettings: scrapBillSettings,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
       };
