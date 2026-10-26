@@ -181,9 +181,9 @@ export function ScrapCategoryList({
                               setEditingCategory(cat);
                               setFormData({
                                 name: cat.name,
-                                purchase_price: cat.purchase_price.toString(),
-                                selling_price: cat.selling_price.toString(),
-                                current_stock: cat.current_stock.toString(),
+                                purchase_price: (cat.purchase_price ?? 0).toString(),
+                                selling_price: (cat.selling_price ?? 0).toString(),
+                                current_stock: (cat.current_stock ?? 0).toString(),
                                 unit: cat.unit || 'Kgs',
                               });
                               setView('category_form');

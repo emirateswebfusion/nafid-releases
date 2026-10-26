@@ -3,12 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { isDesktopRuntime } from '../../../data/client';
 import { purchasesApi } from '../../../data/purchases';
 import type { PurchaseFormItem } from '../purchaseTypes';
+import type { PurchaseBillEditingData } from '../purchaseTypes';
 
 export interface UsePurchaseBillSaveContext {
   billDate: string;
   billItems: PurchaseFormItem[];
   billNumber: string;
-  editingData: { purchase_bill_id: string; bill_number: string; invoice_number?: string; payment_type: string; total_amount?: number; } | undefined;
+  editingData: PurchaseBillEditingData | undefined;
   getBillTotal: () => number;
   getOtherSectionItems: (() => PurchaseFormItem[]) | undefined;
   invoiceNumber: string;

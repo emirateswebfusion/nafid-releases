@@ -1535,31 +1535,31 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
 }
 
 export function generatePurchaseBillHtml(
-  shopInfo: { shopName?: string; shopAddress?: string; shopPhone?: string; shopGstin?: string },
+  shopInfo: { shopName?: string | null; shopAddress?: string | null; shopPhone?: string | null; shopGstin?: string },
   bill: {
     bill_number: string;
     supplier_name: string;
-    supplier_phone?: string;
-    supplier_address?: string;
-    supplier_gstin?: string;
-    bill_date: string;
-    invoice_number?: string;
-    bill_type: string;
-    payment_type?: string;
-    notes?: string;
-    total_amount: number;
-    created_at?: string;
+    supplier_phone?: string | null;
+    supplier_address?: string | null;
+    supplier_gstin?: string | null;
+    bill_date: string | null;
+    invoice_number?: string | null;
+    bill_type: string | null;
+    payment_type?: string | null;
+    notes?: string | null;
+    total_amount: number | null;
+    created_at?: string | null;
   },
   items: Array<{
     name: string;
     quantity: number;
     purchase_price: number;
     total_amount: number;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-    item_code?: string;
-    sku_barcode?: string;
+    is_gst_applicable?: number | null;
+    tax_rate_percent?: number | null;
+    hsn_sac_code?: string | null;
+    item_code?: string | null;
+    sku_barcode?: string | null;
   }>
 ): string {
   const isGst = bill.bill_type === 'GST';
@@ -1599,7 +1599,7 @@ export function generatePurchaseBillHtml(
     `;
   }).join('');
 
-  const grandTotal = isGst ? (totalTaxable + totalTax) : bill.total_amount;
+  const grandTotal = isGst ? (totalTaxable + totalTax) : (bill.total_amount ?? 0);
   const roundOff = Math.round(grandTotal) - grandTotal;
   const finalTotal = Math.round(grandTotal);
 

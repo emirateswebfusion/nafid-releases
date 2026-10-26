@@ -473,14 +473,14 @@ export function CustomerDetailView({
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
-                      {loyaltyEnabled && inv.points_earned > 0 && (
+                      {loyaltyEnabled && (inv.points_earned ?? 0) > 0 && (
                         <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-mono">
-                          +{inv.points_earned.toFixed(0)} pts earned
+                          +{(inv.points_earned ?? 0).toFixed(0)} pts earned
                         </span>
                       )}
-                      {loyaltyEnabled && inv.points_redeemed > 0 && (
+                      {loyaltyEnabled && (inv.points_redeemed ?? 0) > 0 && (
                         <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/10 text-amber-600 border border-amber-500/20 font-mono">
-                          -{inv.points_redeemed.toFixed(0)} pts ({formatCurrency(inv.points_redeemed_discount)} off)
+                          -{(inv.points_redeemed ?? 0).toFixed(0)} pts ({formatCurrency(inv.points_redeemed_discount)} off)
                         </span>
                       )}
                       <div className="flex items-center gap-1.5 shrink-0">

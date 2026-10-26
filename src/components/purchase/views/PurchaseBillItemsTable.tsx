@@ -2,6 +2,7 @@ import React from 'react';
 import clsx from 'clsx';
 import { Pencil, Trash, Send } from 'lucide-react';
 import type { PurchaseFormItem } from '../purchaseTypes';
+import type { PurchaseAddItem } from '../purchaseTypes';
 
 export interface PurchaseBillItemsTableProps {
   billItems: PurchaseFormItem[];
@@ -10,7 +11,7 @@ export interface PurchaseBillItemsTableProps {
   hsnInputRefs: React.RefObject<(HTMLInputElement | null)[]>;
   isEstimate: boolean;
   openProductEditor: (item: PurchaseFormItem) => Promise<void>;
-  otherSectionAddItem: ((item: { product_id: string; name: string; quantity: string; purchase_price: string; selling_price: string; offer_price?: string; is_gst_applicable?: number; tax_rate_percent?: number; hsn_sac_code?: string; sku_barcode?: string; item_code?: string; }) => void) | undefined;
+  otherSectionAddItem: ((item: PurchaseAddItem) => void) | undefined;
   removeBillItem: (productId: string) => void;
   setBillItems: React.Dispatch<React.SetStateAction<PurchaseFormItem[]>>;
   toggleBillItemDummy: (item: PurchaseFormItem) => void;

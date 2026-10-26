@@ -1,3 +1,4 @@
+import type * as Rows from '../../data/dbRows';
 /** Row and view types of the customers screen (customer, party, loyalty transaction, invoice and item, combo offer). */
 export interface PricingTier {
   pricing_tier_id: string;
@@ -46,51 +47,11 @@ export interface Party {
   overdue_amount?: number;
 }
 
-export interface LoyaltyTx {
-  transaction_id: string;
-  customer_id: string;
-  invoice_id: string;
-  transaction_type: 'EARNED' | 'REDEEMED' | 'ADJUSTED';
-  points: number;
-  points_balance_before: number;
-  points_balance_after: number;
-  reference_number: string;
-  description: string;
-  created_by: string;
-  created_at: string;
+export interface LoyaltyTx extends Rows.LoyaltyTransactionsRow {
 }
 
-export interface InvoiceRecord {
-  invoice_id: string;
-  invoice_number: string;
-  grand_total: number;
-  created_at: string;
-  points_earned: number;
-  points_redeemed: number;
-  points_redeemed_discount: number;
-  payment_method?: string;
-  invoice_type?: string;
-  customer_gstin?: string;
-  subtotal?: number;
-  tax_total?: number;
-  discount_total?: number;
-  received_amount?: number;
-  balance_amount?: number;
-  discount_value?: number;
-  scrap_deduction?: number;
-  scrap_invoice_number?: string;
-  return_deduction?: number;
-  return_invoice_number?: string;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_address?: string;
-  customer_state?: string;
+export interface InvoiceRecord extends Rows.InvoicesRow {
   biller_name?: string;
-  description?: string;
-  notes?: string;
-  discount_type?: string;
-  split_details?: string;
-  due_date?: string | null;
   is_credit_bill?: boolean;
   outstanding_amount?: number;
   is_overdue?: boolean;

@@ -1,5 +1,5 @@
 import { forwardRef, useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react';
-import { type PurchaseBillFormHandle, type Product, type PurchaseFormItem } from './purchaseTypes';
+import { type PurchaseBillFormHandle, type Product, type PurchaseFormItem, type PurchaseAddItem } from './purchaseTypes';
 import { usePurchaseProductFormState } from './hooks/usePurchaseProductFormState';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { settingsApi } from '../../data/settings';
@@ -18,6 +18,7 @@ import { PurchaseProductSearch } from './views/PurchaseProductSearch';
 import { PurchaseBillItemsTable } from './views/PurchaseBillItemsTable';
 import { PurchaseAddGradeDialog } from './views/PurchaseAddGradeDialog';
 import { PurchaseCleanupDialog } from './views/PurchaseCleanupDialog';
+import type { PurchaseBillEditingData } from './purchaseTypes';
 
 /**
  * One bill (GST or estimate) in the purchase bill form: bill number / invoice / payment, product search, items,
@@ -35,26 +36,8 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   onItemsLoaded?: () => void;
   onItemsChange?: (hasItems: boolean) => void;
   onShareAll?: () => void;
-  otherSectionAddItem?: (item: {
-    product_id: string;
-    name: string;
-    quantity: string;
-    purchase_price: string;
-    selling_price: string;
-    offer_price?: string;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-    sku_barcode?: string;
-    item_code?: string;
-  }) => void;
-  editingData?: {
-    purchase_bill_id: string;
-    bill_number: string;
-    invoice_number?: string;
-    payment_type: string;
-    total_amount?: number;
-  };
+  otherSectionAddItem?: (item: PurchaseAddItem) => void;
+  editingData?: PurchaseBillEditingData;
   getOtherSectionItems?: () => PurchaseFormItem[];
 }>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems }, ref) => {
   const [billNumber, setBillNumber] = useState('');
@@ -380,18 +363,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setCreatedProductIds, setIsSaving, supplierId, supplierName, tenantId, type,
   });
 
-  const addItemToSection = async (item: {
-    product_id: string;
-    name: string;
-    quantity: string;
-    purchase_price: string;
-    selling_price: string;
-    offer_price?: string;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-    skip_stock_update?: number;
-  }) => {
+  const addItemToSection = async (item: PurchaseAddItem) => {
     const isGstBill = type === 'GST';
     setBillItems(prev => {
       if (prev.some(i => i.product_id === item.product_id)) return prev;

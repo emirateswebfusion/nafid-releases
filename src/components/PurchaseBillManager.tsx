@@ -73,12 +73,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     if (dateFrom) {
       const from = new Date(dateFrom);
       from.setHours(0, 0, 0, 0);
-      res = res.filter(b => new Date(b.bill_date) >= from);
+      res = res.filter(b => new Date(b.bill_date as string) >= from);
     }
     if (dateTo) {
       const to = new Date(dateTo);
       to.setHours(23, 59, 59, 999);
-      res = res.filter(b => new Date(b.bill_date) <= to);
+      res = res.filter(b => new Date(b.bill_date as string) <= to);
     }
     return res;
   }, [bills, filterType, filterInvoice, dateFrom, dateTo, billSummaries]);
@@ -230,7 +230,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     setEstHasItems(false);
     setSupplierName(bill.supplier_name);
     setSupplierSearch('');
-    setSupplierId(bill.supplier_id);
+    setSupplierId(bill.supplier_id as string);
     setBillDate(bill.bill_date || new Date().toLocaleDateString('en-CA'));
     setBillNotes(bill.notes || '');
     setBillType(bill.bill_type as 'GST' | 'ESTIMATE');

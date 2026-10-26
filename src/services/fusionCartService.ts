@@ -1,5 +1,6 @@
 import { hasBridge } from '../data/client';
 import { ecommerceApi } from '../data/ecommerce';
+import type * as Rows from '../data/dbRows';
 /**
  * POS-side FusionCart Service
  * 
@@ -7,22 +8,7 @@ import { ecommerceApi } from '../data/ecommerce';
  * E-Commerce / FusionCart integration via Electron IPC APIs.
  */
 
-export interface EcommerceSettings {
-  tenant_id: string;
-  fusioncart_url: string;
-  store_id: number | null;
-  vendor_id: number | null;
-  store_name: string | null;
-  store_slug: string | null;
-  store_description: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  registration_status: 'NOT_REQUESTED' | 'PENDING' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'CONNECTION_ERROR';
-  rejection_reason: string | null;
-  last_sync_at: string | null;
-  last_sync_status: 'SUCCESS' | 'FAILED' | null;
-  created_at: string;
-  updated_at: string;
+export interface EcommerceSettings extends Rows.EcommerceSettingsRow {
 }
 
 export interface EcommerceProductItem {
@@ -76,16 +62,16 @@ export const fusionCartService = {
   async getSettings(tenantId: string): Promise<EcommerceSettings | null> {
     if (!hasBridge('ecommerceGetSettings')) return null;
     const res = await ecommerceApi.getSettings({ tenant_id: tenantId });
-    return res.success ? res.settings : null;
+    return res.success ? (res.settings as EcommerceSettings) : null;
   },
 
   async saveSettings(tenantId: string, settings: Partial<EcommerceSettings>): Promise<EcommerceSettings | null> {
     if (!hasBridge('ecommerceSaveSettings')) return null;
     const res = await ecommerceApi.saveSettings({ tenant_id: tenantId, settings });
-    return res.success ? res.settings : null;
+    return res.success ? (res.settings as EcommerceSettings) : null;
   },
 
-  async testConnection(url?: string): Promise<{ connected: boolean; message?: string }> {
+  async testConnection(url?: string | null): Promise<{ connected: boolean; message?: string }> {
     if (!hasBridge('ecommerceTestConnection')) return { connected: false, message: 'Electron API unavailable' };
     return ecommerceApi.testConnection({ url });
   },
@@ -97,7 +83,7 @@ export const fusionCartService = {
 
   async refreshStatus(tenantId: string): Promise<{ success: boolean; settings?: EcommerceSettings; store?: Record<string, unknown>; error?: string }> {
     if (!hasBridge('ecommerceRefreshStatus')) return { success: false, error: 'Electron API unavailable' };
-    return ecommerceApi.refreshStatus({ tenant_id: tenantId });
+    return ecommerceApi.refreshStatus({ tenant_id: tenantId }) as Promise<{ success: boolean; settings?: EcommerceSettings; store?: Record<string, unknown>; error?: string }>;
   },
 
   async getProducts(tenantId: string, search?: string, filter?: string): Promise<EcommerceProductItem[]> {
@@ -117,7 +103,7 @@ export const fusionCartService = {
       tenant_id: tenantId,
       product_id: productId,
       ...data,
-    });
+    }) as Promise<{ success: boolean; mapping?: Record<string, unknown>; error?: string }>;
   },
 
   async syncProduct(tenantId: string, productId: string): Promise<{ success: boolean; remoteId?: number; error?: string }> {

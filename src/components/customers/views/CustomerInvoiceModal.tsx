@@ -132,13 +132,13 @@ export function CustomerInvoiceModal({
           )}
 
           {/* Loyalty Points Earned / Redeemed */}
-          {loyaltyEnabled && viewingInvoice.points_earned > 0 && (
+          {loyaltyEnabled && (viewingInvoice.points_earned ?? 0) > 0 && (
             <div className="flex justify-between text-emerald-600 font-bold">
               <span>Loyalty Points Earned:</span>
               <span>+{(Number(viewingInvoice.points_earned) || 0).toFixed(0)} pts</span>
             </div>
           )}
-          {loyaltyEnabled && viewingInvoice.points_redeemed > 0 && (
+          {loyaltyEnabled && (viewingInvoice.points_redeemed ?? 0) > 0 && (
             <div className="flex justify-between text-amber-600 font-bold">
               <span>Loyalty Points Discount:</span>
               <span className="font-mono">-{formatCurrency(viewingInvoice.points_redeemed_discount)}</span>

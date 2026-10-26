@@ -5,6 +5,8 @@ import type { Grade } from './data/grades';
 import type { StaffListItem } from './data/staff';
 import type { ComboOfferWithItems } from './data/combos';
 import type { PaymentSource } from './data/paymentSources';
+import type { PurchaseBillItemWithProduct } from './data/purchases';
+import type { ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
 import type * as Rows from './data/dbRows';
 export interface SyncProgress {
@@ -70,11 +72,11 @@ export interface IElectronAPI {
   dbCheckCustomerCreditStatus: (params: { tenant_id: string; customer_id?: string; customer_name?: string; customer_phone?: string }) => Promise<{ allowed: boolean; isOverdue: boolean; overdueCount: number; overdueAmount: number; oldestOverdueDays: number; restrictOnExpiry: boolean; creditPeriodEnabled: boolean; creditPeriodDays: number; customerName: string; error?: string }>;
   dbDeleteCustomer: (params: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string; deleted_party_count?: number }>;
   dbDeduplicateCustomers: (tenant_id?: string) => Promise<{ success: boolean; error?: string; merged_customers?: number; merged_parties?: number }>;
-  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => Promise<any[]>;
-  dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
+  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => Promise<Rows.InvoicesRow[]>;
+  dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<Rows.LoyaltyTransactionsRow[]>;
   dbAdjustCustomerLoyaltyPoints: (params: { customer_id: string; tenant_id: string; points: number; reason?: string; user_name?: string }) => Promise<{ success: boolean; new_balance?: number; transaction_id?: string; error?: string }>;
   dbRecalculateCustomerLoyaltyPoints: (params: { tenant_id: string }) => Promise<{ success: boolean; updatedCount?: number; error?: string }>;
-  dbGetGrades: (tenantId: string) => Promise<any[]>;
+  dbGetGrades: (tenantId: string) => Promise<Grade[]>;
   dbAddGrade: (grade: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateGrade: (grade: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeleteGrade: (grade_id: string) => Promise<{ success: boolean; error?: string }>;
@@ -206,13 +208,13 @@ export interface IElectronAPI {
 
   // Scrap (categories ARE items with price/stock/unit)
   dbDeduplicateScrapCategories: () => Promise<{ removed: number }>;
-  dbGetScrapCategories: (tenant_id: string) => Promise<any[]>;
+  dbGetScrapCategories: (tenant_id: string) => Promise<Rows.ScrapCategoriesRow[]>;
   dbAddScrapCategory: (cat: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateScrapCategory: (cat: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeleteScrapCategory: (scrap_category_id: string) => Promise<{ success: boolean; error?: string }>;
   dbAddScrapTransaction: (t: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbGetScrapTransactions: (args: { tenant_id: string; scrap_category_id?: string }) => Promise<any[]>;
-  dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => Promise<any[]>;
+  dbGetScrapTransactions: (args: { tenant_id: string; scrap_category_id?: string }) => Promise<ScrapTransactionWithCategory[]>;
+  dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => Promise<Rows.ScrapCategoriesRow[]>;
   dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbPeekNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<any>;
@@ -280,8 +282,8 @@ export interface IElectronAPI {
   dbPeekNextPurchaseBillNumber: (payload: { tenant_id: string; bill_type?: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
   dbGetNextPurchaseBillNumber: (payload: { tenant_id: string; bill_type?: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
   dbAddPurchaseBill: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => Promise<any[]>;
-  dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<any[]>;
+  dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => Promise<Rows.PurchaseBillsRow[]>;
+  dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<PurchaseBillItemWithProduct[]>;
   dbDeletePurchaseBill: (purchase_bill_id: string) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePurchaseBill: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string; limit?: number; numericPrefixOnly?: boolean }) => Promise<any[]>;
@@ -323,13 +325,13 @@ export interface IElectronAPI {
   resetFastPollBackoff: () => Promise<{ success: boolean; error?: string }>;
 
   // E-Commerce / FusionCart Integration
-  ecommerceGetSettings: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: any; error?: string }>;
-  ecommerceSaveSettings: (payload: { tenant_id: string; settings: unknown }) => Promise<{ success: boolean; settings?: any; error?: string }>;
-  ecommerceTestConnection: (payload: { url?: string }) => Promise<{ connected: boolean; message?: string }>;
-  ecommerceRegisterVendor: (payload: { tenant_id: string; data: unknown }) => Promise<{ success: boolean; settings?: any; error?: string }>;
-  ecommerceRefreshStatus: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: any; store?: any; error?: string }>;
+  ecommerceGetSettings: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: Rows.EcommerceSettingsRow; error?: string }>;
+  ecommerceSaveSettings: (payload: { tenant_id: string; settings: unknown }) => Promise<{ success: boolean; settings?: Rows.EcommerceSettingsRow; error?: string }>;
+  ecommerceTestConnection: (payload: { url?: string | null }) => Promise<{ connected: boolean; message?: string }>;
+  ecommerceRegisterVendor: (payload: { tenant_id: string; data: unknown }) => Promise<{ success: boolean; settings?: Rows.EcommerceSettingsRow; error?: string }>;
+  ecommerceRefreshStatus: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: Rows.EcommerceSettingsRow; store?: unknown; error?: string }>;
   ecommerceGetProducts: (payload: { tenant_id: string; search?: string; filter?: string }) => Promise<{ success: boolean; products: any[]; error?: string }>;
-  ecommerceUpdateMapping: (payload: unknown) => Promise<{ success: boolean; mapping?: any; error?: string }>;
+  ecommerceUpdateMapping: (payload: unknown) => Promise<{ success: boolean; mapping?: Rows.EcommerceProductMappingsRow; error?: string }>;
   ecommerceSyncProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; remoteId?: number; error?: string }>;
   ecommerceUnpublishProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; error?: string }>;
   ecommerceGetOrders: (payload: { tenant_id: string }) => Promise<{ success: boolean; orders: any[]; error?: string }>;

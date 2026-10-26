@@ -83,7 +83,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
   }, [currentTenantId, shopName, setSettings, setSettingsForm]);
 
   // Check Connection
-  const checkConnection = useCallback(async (url?: string) => {
+  const checkConnection = useCallback(async (url?: string | null) => {
     setTestingConnection(true);
     const start = performance.now();
     try {
@@ -334,7 +334,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
     };
   }, [products, orders]);
 
-  const regStatus = settings?.registration_status || 'NOT_REQUESTED';
+  const regStatus = (settings?.registration_status || 'NOT_REQUESTED') as 'PENDING' | 'ACTIVE' | 'NOT_REQUESTED' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'CONNECTION_ERROR';
   const isVendorApproved = regStatus === 'ACTIVE' || regStatus === 'APPROVED';
 
   // Filtered Products

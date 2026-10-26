@@ -1,35 +1,11 @@
+import type * as Rows from '../../data/dbRows';
+import type { PurchaseBillItemWithProduct } from '../../data/purchases';
 /** Purchase bill, bill item and product row shapes used by the purchase bill screen, and the form section handle. */
-export interface PurchaseBill {
-  purchase_bill_id: string;
-  tenant_id: string;
-  bill_number: string;
-  supplier_id: string;
-  supplier_name: string;
-  bill_date: string;
-  invoice_number?: string;
-  notes: string;
-  total_amount: number;
-  bill_type: string;
-  created_at: string;
-  supplier_phone?: string; payment_type?: string;
+export interface PurchaseBill extends Rows.PurchaseBillsRow {
+  supplier_phone?: string;
 }
 
-export interface PurchaseBillItem {
-  item_id: string;
-  purchase_bill_id: string;
-  product_id: string;
-  name: string;
-  product_name?: string;
-  quantity: number;
-  purchase_price: number;
-  total_amount: number;
-  is_gst_applicable: number;
-  tax_rate_percent: number;
-  hsn_sac_code: string;
-  sku_barcode?: string;
-  item_code?: string;
-  skip_stock_update?: number;
-}
+export interface PurchaseBillItem extends PurchaseBillItemWithProduct {}
 
 export interface Product {
   product_id: string;
@@ -45,7 +21,7 @@ export interface Product {
   pricing_mode?: string;
   grade_rate?: number;
   grade_purchase_price?: number;
-  is_gst_applicable?: number;
+  is_gst_applicable?: number | null;
   tax_rate_percent?: number;
   hsn_sac_code?: string;
   offer_price?: number | null;
@@ -61,43 +37,9 @@ export interface PurchaseBillFormHandle {
   save: () => Promise<boolean>;
   hasItems: boolean;
   focusSearch: () => void;
-  addItem: (item: {
-    product_id: string;
-    name: string;
-    quantity: string;
-    purchase_price: string;
-    selling_price: string;
-    offer_price?: string;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-    sku_barcode?: string;
-    item_code?: string;
-  }) => void;
-  getItems: () => Array<{
-    product_id: string;
-    name: string;
-    quantity: string;
-    purchase_price: string;
-    selling_price: string;
-    offer_price?: string;
-    stock?: string;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-  }>;
-  replaceItems: (items: Array<{
-    product_id: string;
-    name: string;
-    quantity: string;
-    purchase_price: string;
-    selling_price: string;
-    offer_price?: string;
-    stock?: string;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-  }>) => void;
+  addItem: (item: PurchaseAddItem) => void;
+  getItems: () => PurchaseFormItem[];
+  replaceItems: (items: PurchaseFormItem[]) => void;
 }
 
 /** A line of the purchase bill being entered (form state; quantities and prices are kept as typed strings). */
@@ -109,10 +51,10 @@ export interface PurchaseFormItem {
   selling_price: string;
   offer_price?: string;
   stock?: string;
-  is_gst_applicable?: number;
-  tax_rate_percent?: number;
-  hsn_sac_code?: string;
-  skip_stock_update?: number;
+  is_gst_applicable?: number | null;
+  tax_rate_percent?: number | null;
+  hsn_sac_code?: string | null;
+  skip_stock_update?: number | null;
   is_new_product_clone?: boolean;
   clone_metadata?: {
     barcode: string;
@@ -125,4 +67,29 @@ export interface PurchaseFormItem {
     original_product_name?: string;
     original_product_is_gst?: boolean;
   };
+}
+
+/** The bill being edited, as the purchase form, its loader and its save hook receive it. */
+export interface PurchaseBillEditingData {
+  purchase_bill_id: string;
+  bill_number: string;
+  invoice_number?: string | null;
+  payment_type: string;
+  total_amount?: number;
+}
+
+/** A product added to a purchase bill section (from search, a clone, or the other section). */
+export interface PurchaseAddItem {
+  product_id: string;
+  name: string;
+  quantity: string;
+  purchase_price: string;
+  selling_price: string;
+  offer_price?: string;
+  is_gst_applicable?: number | null;
+  tax_rate_percent?: number | null;
+  hsn_sac_code?: string | null;
+  sku_barcode?: string | null;
+  item_code?: string | null;
+  skip_stock_update?: number | null;
 }

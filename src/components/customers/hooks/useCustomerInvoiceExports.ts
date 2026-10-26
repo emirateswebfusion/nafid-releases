@@ -99,9 +99,9 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
       showUpiQr: cfg.showQr !== null && cfg.showQr !== undefined ? Boolean(cfg.showQr) : true,
       showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
       showPriceOverrideMrp: printFmt.showPriceOverrideMrp !== undefined ? Boolean(printFmt.showPriceOverrideMrp) : true,
-      invoiceNumber: inv.invoice_number,
-      invoiceType: inv.invoice_type,
-      date: formatBillDateTime(inv.created_at),
+      invoiceNumber: inv.invoice_number as string,
+      invoiceType: inv.invoice_type as string | undefined,
+      date: formatBillDateTime(inv.created_at as string),
       billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (inv.biller_name || useAuthStore.getState().userName || undefined) : undefined,
       items: items.map(item => {
         let comboItemsParsed: ComboItemLine[] | undefined;
@@ -149,7 +149,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
         if (pmUpper !== 'CREDIT' && pmUpper !== 'SPLIT' && rawBal < 0) return 0;
         return rawBal;
       })(),
-      paymentMethod: inv.payment_method,
+      paymentMethod: inv.payment_method as string | undefined,
       isReprint: true,
       customerName: (isGstOrB2B || billSettings.showCustomerName !== false) ? (inv.customer_name || undefined) : undefined,
       customerPhone: (isGstOrB2B || billSettings.showCustomerPhone !== false) ? (inv.customer_phone || undefined) : undefined,

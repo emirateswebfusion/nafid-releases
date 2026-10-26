@@ -2,7 +2,7 @@
 import { getStoreTimezone } from '../../utils/timezoneHelper';
 import { parseUTCDate } from '../../utils/receiptGenerator';
 
-export const formatDate = (d: string) => {
+export const formatDate = (d: string | null) => {
   if (!d) return '—';
   const tz = getStoreTimezone();
   const date = parseUTCDate(d);

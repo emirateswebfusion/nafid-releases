@@ -1,15 +1,8 @@
 import { api, type WriteResult, bindBridge } from './client';
+import type { ProductGradesRow } from './dbRows';
 
-export interface Grade {
-  grade_id: string;
-  tenant_id: string;
-  category?: string | null;
-  grade_name?: string | null;
-  rate?: number | null;
-  purchase_price?: number | null;
-  offer_price?: number | null;
-  is_deleted?: number | null;
-}
+/** A product grade as stored (`product_grades`). */
+export type Grade = ProductGradesRow;
 
 export interface GradeInput {
   grade_id: string;

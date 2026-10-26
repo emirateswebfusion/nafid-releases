@@ -3,9 +3,10 @@ import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { purchasesApi } from '../../../data/purchases';
 import { settingsApi } from '../../../data/settings';
 import type { PurchaseFormItem } from '../purchaseTypes';
+import type { PurchaseBillEditingData } from '../purchaseTypes';
 
 export interface UsePurchaseBillEditLoadContext {
-  editingData: { purchase_bill_id: string; bill_number: string; invoice_number?: string; payment_type: string; total_amount?: number; } | undefined;
+  editingData: PurchaseBillEditingData | undefined;
   onItemsLoaded: (() => void) | undefined;
   setBillItems: React.Dispatch<React.SetStateAction<PurchaseFormItem[]>>;
   setBillNumber: React.Dispatch<React.SetStateAction<string>>;
@@ -33,7 +34,7 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
         purchasesApi.getPurchaseBillItems(editingData.purchase_bill_id)
           .then(items => {
             if (Array.isArray(items)) {
-              const mapped = items.map((item: { product_id: string; product_name: string; name: string; quantity: number | string; purchase_price: number | string; product_base_price?: number | string | null; selling_price?: number | string | null; product_offer_price?: number | string | null; offer_price?: number | string | null; product_stock?: number | string | null; is_gst_applicable?: number; tax_rate_percent?: number; hsn_sac_code?: string; skip_stock_update?: number | null }) => ({
+              const mapped = items.map((item) => ({
                 product_id: item.product_id,
                 name: item.product_name || item.name,
                 quantity: String(item.quantity),

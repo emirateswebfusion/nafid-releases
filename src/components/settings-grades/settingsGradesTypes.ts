@@ -1,11 +1,7 @@
 import type { Grade as GradeRow } from '../../data/grades';
 
 /** Settings grades screen: a grade row, the add / edit form shape, and the category colour palette. */
-export type Grade = GradeRow & {
-  category: string;
-  grade_name: string;
-  rate: number;
-};
+export type Grade = GradeRow;
 
 export interface GradeForm {
   category: string;

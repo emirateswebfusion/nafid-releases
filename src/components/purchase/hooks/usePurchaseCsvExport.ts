@@ -51,13 +51,13 @@ export function usePurchaseCsvExport(ctx: UsePurchaseCsvExportContext) {
       const rows = filteredBills.map(b => {
         const { sgst = 0, cgst = 0 } = billGstMap[b.purchase_bill_id] || {};
         const totalGst = cgst + sgst;
-        const taxableAmount = b.total_amount - totalGst;
+        const taxableAmount = (b.total_amount ?? 0) - totalGst;
         return [
           escape(b.bill_number),
-          escape(new Date(b.bill_date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
+          escape(new Date(b.bill_date as string).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
           escape(b.supplier_name),
           escape((b as typeof b & { supplier_gstin?: string }).supplier_gstin || ''),
-          escape(b.total_amount.toFixed(2)),
+          escape((b.total_amount ?? 0).toFixed(2)),
           escape(taxableAmount.toFixed(2)),
           escape(cgst.toFixed(2)),
           escape(sgst.toFixed(2)),

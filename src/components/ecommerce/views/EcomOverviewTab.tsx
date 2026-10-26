@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import type { EcommerceState } from '../hooks/useEcommerceState';
 
 export interface EcomOverviewTabProps {
-  checkConnection: (url?: string) => Promise<void>;
+  checkConnection: (url?: string | null) => Promise<void>;
   currentTenantId: string;
   handleCopyId: (text: string) => void;
   isVendorApproved: boolean;

@@ -122,7 +122,7 @@ export interface ScrapTransaction {
 }
 export interface ScrapViewData { transactions: ScrapTransaction[]; totalAmount: number; invoiceNumber: string }
 export interface GradeForm { grade_name: string; purchase_price: string; rate: string; offer_price: string }
-export interface Grade { grade_id: string; grade_name: string; rate?: number; purchase_price?: number; offer_price?: number; category?: string }
+export type { Grade } from '../../data/grades';
 export type InputRef = MutableRefObject<HTMLInputElement | null>;
 export type ButtonRef = MutableRefObject<HTMLButtonElement | null>;
 export type DescriptionRef = MutableRefObject<HTMLInputElement | null>;
