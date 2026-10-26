@@ -8,6 +8,15 @@ function deterministicUUID(seed: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
+/** Epoch ms of a stored timestamp: ISO (`...Z`) or SQLite UTC text (`YYYY-MM-DD HH:MM:SS[.mmm]`); null if unparseable. */
+function toEpochMs(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const str = String(v).trim();
+  const iso = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(str) ? str.replace(' ', 'T') : str.replace(' ', 'T') + 'Z';
+  const ms = new Date(iso).getTime();
+  return isNaN(ms) ? null : ms;
+}
+
 /**
  * CustomerIdentityService - Single authoritative source for customer/party identity resolution
  * Replaces all scattered matching logic across the codebase
@@ -33,7 +42,13 @@ export class CustomerIdentityService {
       credit_period_days?: number | string;
       credit_period_basis?: string;
       restrict_on_credit_expiry?: boolean | number | string;
-    }
+    },
+    /**
+     * `history`: called by the startup backfill from past documents, not for a purchase happening now. An existing
+     * customer row is written only when a field changes and its `last_purchase_date` is left alone; a new customer gets
+     * `purchaseAt` (its latest invoice time) instead of now.
+     */
+    opts?: { history?: boolean; purchaseAt?: string | null }
   ): { customer_id: string; party_id: string; isNew: boolean } | null {
     if (!db || !tenantId) return null;
 
@@ -62,6 +77,9 @@ export class CustomerIdentityService {
     const phoneClean = (phone || '').replace(/\D/g, '');
     const displayName = name || phone || 'Customer';
     const now = new Date().toISOString();
+    const history = !!opts?.history;
+    const purchaseMs = toEpochMs(opts?.purchaseAt);
+    const purchaseIso = purchaseMs === null ? null : new Date(purchaseMs).toISOString();
 
     try {
       // ========== LOOKUP PHASE ==========
@@ -211,26 +229,40 @@ export class CustomerIdentityService {
           const finalCustGstin = (existingCustomer.gstin && existingCustomer.gstin.trim() !== '') ? existingCustomer.gstin : (gstin || null);
           const finalCustNotes = (existingCustomer.notes && existingCustomer.notes.trim() !== '') ? existingCustomer.notes : (notes || null);
 
-          db.prepare(`
-            UPDATE customers
-            SET name = ?, phone = ?, address = ?,
-                gstin = ?, notes = ?,
-                is_deleted = 0,
-                last_purchase_date = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE customer_id = ?
-          `).run(
-            finalCustName, finalCustPhone, finalCustAddress, finalCustGstin, finalCustNotes,
-            now, existingCustomer.customer_id
-          );
-        } catch (_) {
-          try {
+          let lastPurchase: string | null = now;
+          let unchanged = false;
+          if (history) {
+            // History never moves last_purchase_date here: backfillCustomersFromInvoices sets it once from the latest
+            // linked invoice, after all customers are resolved.
+            lastPurchase = existingCustomer.last_purchase_date ?? null;
+            unchanged = finalCustName === existingCustomer.name && finalCustPhone === existingCustomer.phone
+              && finalCustAddress === existingCustomer.address && finalCustGstin === existingCustomer.gstin
+              && finalCustNotes === existingCustomer.notes;
+          }
+          if (!unchanged) {
             db.prepare(`
               UPDATE customers
-              SET last_purchase_date = ?, is_deleted = 0, updated_at = CURRENT_TIMESTAMP
+              SET name = ?, phone = ?, address = ?,
+                  gstin = ?, notes = ?,
+                  is_deleted = 0,
+                  last_purchase_date = ?,
+                  updated_at = CURRENT_TIMESTAMP
               WHERE customer_id = ?
-            `).run(now, existingCustomer.customer_id);
-          } catch {}
+            `).run(
+              finalCustName, finalCustPhone, finalCustAddress, finalCustGstin, finalCustNotes,
+              lastPurchase, existingCustomer.customer_id
+            );
+          }
+        } catch (_) {
+          if (!history) {
+            try {
+              db.prepare(`
+                UPDATE customers
+                SET last_purchase_date = ?, is_deleted = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE customer_id = ?
+              `).run(now, existingCustomer.customer_id);
+            } catch {}
+          }
         }
       } else {
         const customerSeedKey = phoneClean.length >= 7
@@ -249,7 +281,7 @@ export class CustomerIdentityService {
           `).run(
             finalCustomerId, tenantId, displayName, phone, address, gstin, notes, pricingTierId,
             creditLimit ?? 0, creditPeriodEnabled ?? 0, creditPeriodDays ?? 30, creditPeriodBasis ?? 'BILL_BASED', restrictOnCreditExpiry ?? 0,
-            now, now, now
+            history ? purchaseIso : now, now, now
           );
         } catch (insertCustErr: any) {
           const fallbackCust: any = db.prepare(`
@@ -480,13 +512,14 @@ export function upsertCustomerRecord(
   tenantId: string,
   rawName?: string | null,
   rawPhone?: string | null,
-  rawAddress?: string | null
+  rawAddress?: string | null,
+  opts?: { history?: boolean; purchaseAt?: string | null }
 ): string | null {
   // Delegate to the new unified CustomerIdentityService for consistency
   const result = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
     name: rawName,
     phone: rawPhone,
     address: rawAddress
-  });
+  }, opts);
   return result?.customer_id || null;
 }

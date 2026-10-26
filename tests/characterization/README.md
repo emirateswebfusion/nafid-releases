@@ -95,4 +95,17 @@ for an administrator and writes `emergency-purge-audit.jsonl`; that a legacy `em
 ignored; and that a server-issued command is acknowledged, audited and executed.
 
 
+## Startup idempotency (`startup-idempotency.mts`)
+
+`initDb()` runs inline repair migrations on every start. Once they have run, another start must change no rows,
+otherwise records look edited (and are re-synced) or drift a little more on each launch. The script seeds the shapes
+that used to be rewritten (customer backfill, discounted-invoice returns, paper prices on REAL products), starts three
+times and fails when the third start writes anything. Run it for every change to `electron/db/localDb.ts`,
+`migrations*.ts`, `customerDedupe.ts` or `customerIdentity.ts`, and also do two consecutive starts on a copy of a
+real shop database.
+
+```bash
+EQ_USERDATA=/tmp/eq/idem npx tsx $H/startup-idempotency.mts cand     # "startup idempotency: ok"
+```
+
 Extend `scenario.mts` when you add a channel with a non-trivial payload.

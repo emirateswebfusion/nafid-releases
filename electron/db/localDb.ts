@@ -253,7 +253,8 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         )
         WHERE invoice_id IN (
           SELECT invoice_id FROM invoices WHERE converted_from_invoice_id IS NOT NULL
-        );
+        )
+          AND created_at IS NOT (SELECT inv.created_at FROM invoices inv WHERE inv.invoice_id = invoice_items.invoice_id);
       `);
     } catch (migErr: any) {
       console.warn('[DB Migration] Could not backfill converted invoices created_at:', migErr.message);

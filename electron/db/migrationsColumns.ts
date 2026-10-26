@@ -46,7 +46,7 @@ export function runColumnMigrations(db: Database.Database) {
     const tablesToNormalize = ['invoices', 'products', 'parties', 'scrap_categories', 'product_grades', 'pricing_tiers', 'product_pricing'];
     for (const tbl of tablesToNormalize) {
       try {
-        db.exec(`UPDATE ${tbl} SET is_deleted = 0 WHERE is_deleted = '0.0' OR is_deleted = '0' OR is_deleted = 0.0 OR is_deleted IS NULL;`);
+        db.exec(`UPDATE ${tbl} SET is_deleted = 0 WHERE is_deleted IS NULL OR (typeof(is_deleted) <> 'integer' AND (is_deleted = '0.0' OR is_deleted = '0' OR is_deleted = 0.0));`);
       } catch {}
     }
   } catch (e: any) {
@@ -286,10 +286,13 @@ export function runColumnMigrations(db: Database.Database) {
     console.warn('[DB Migration] Failed to add adjustment columns to returns:', e.message);
   }
 
-  // Migration: Recalibrate return totals for historical returns where original invoice had a discount
+  // Migration: Recalibrate return totals for returns of discounted invoices. Each line is priced like the return screen
+  // does (useSearchSelection): round2(invoice line unit_price * (1 - invoice discount ratio)). The target comes from the
+  // invoice line, never from the stored return price, so repeated starts change nothing and returns that an earlier
+  // version discounted again on every start are repaired. Lines without their invoice line keep their stored price.
   try {
     const historicalReturns = db.prepare(`
-      SELECT r.return_id, r.invoice_id, r.subtotal as ret_subtotal, r.grand_total as ret_grand_total,
+      SELECT r.return_id, r.grand_total as ret_grand_total,
              i.subtotal as inv_subtotal, i.discount_total as inv_discount, COALESCE(i.points_redeemed_discount, 0) as inv_points_disc
       FROM returns r
       JOIN invoices i ON r.invoice_id = i.invoice_id
@@ -299,7 +302,13 @@ export function runColumnMigrations(db: Database.Database) {
     if (historicalReturns.length > 0) {
       const updateReturnStmt = db.prepare(`UPDATE returns SET subtotal = ?, grand_total = ? WHERE return_id = ?`);
       const updateReturnItemStmt = db.prepare(`UPDATE return_items SET unit_price = ?, total = ? WHERE return_item_id = ?`);
-      const getReturnItemsStmt = db.prepare(`SELECT return_item_id, quantity, unit_price, total FROM return_items WHERE return_id = ?`);
+      const getReturnItemsStmt = db.prepare(`
+        SELECT ri.return_item_id, ri.quantity, ri.unit_price, ri.total, ii.unit_price AS invoice_unit_price
+        FROM return_items ri
+        LEFT JOIN invoice_items ii ON ii.item_id = ri.invoice_item_id
+        WHERE ri.return_id = ?
+      `);
+      const round2 = (n: number) => Number(n.toFixed(2));
 
       db.transaction(() => {
         for (const ret of historicalReturns) {
@@ -311,18 +320,20 @@ export function runColumnMigrations(db: Database.Database) {
           const rItems = getReturnItemsStmt.all(ret.return_id) as any[];
           let newRetSubtotal = 0;
           for (const item of rItems) {
-            const currentPrice = Number(item.unit_price) || 0;
             const currentTotal = Number(item.total) || 0;
-            const effPrice = Number((currentPrice * (1 - discountRatio)).toFixed(2));
-            const effTotal = Number((effPrice * Number(item.quantity)).toFixed(2));
-            if (Math.abs(currentTotal - effTotal) > 0.01) {
-              updateReturnItemStmt.run(effPrice, effTotal, item.return_item_id);
-              newRetSubtotal += effTotal;
-            } else {
+            if (item.invoice_unit_price === null || item.invoice_unit_price === undefined) {
               newRetSubtotal += currentTotal;
+              continue;
             }
+            const effPrice = round2((Number(item.invoice_unit_price) || 0) * (1 - discountRatio));
+            const effTotal = round2(effPrice * Number(item.quantity));
+            if (Math.abs((Number(item.unit_price) || 0) - effPrice) > 0.001 || Math.abs(currentTotal - effTotal) > 0.001) {
+              updateReturnItemStmt.run(effPrice, effTotal, item.return_item_id);
+            }
+            newRetSubtotal += effTotal;
           }
-          if (newRetSubtotal > 0 && Math.abs(Number(ret.ret_grand_total) - newRetSubtotal) > 0.01) {
+          newRetSubtotal = round2(newRetSubtotal);
+          if (newRetSubtotal > 0 && Math.abs(Number(ret.ret_grand_total) - newRetSubtotal) > 0.001) {
             updateReturnStmt.run(newRetSubtotal, newRetSubtotal, ret.return_id);
           }
         }

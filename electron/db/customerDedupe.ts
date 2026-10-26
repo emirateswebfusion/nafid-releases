@@ -290,7 +290,7 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
     db.exec(`UPDATE customers SET address = NULL WHERE address IS NOT NULL AND TRIM(address) = ''`);
 
     const invoiceCustomers = db.prepare(`
-      SELECT tenant_id, customer_name, customer_phone, customer_address
+      SELECT tenant_id, customer_name, customer_phone, customer_address, MAX(created_at) AS last_purchase_at
       FROM invoices
       WHERE (customer_name IS NOT NULL AND TRIM(customer_name) != '')
          OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
@@ -298,7 +298,7 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
     `).all() as any[];
 
     for (const c of invoiceCustomers) {
-      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address);
+      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address, { history: true, purchaseAt: c.last_purchase_at });
     }
 
     db.exec(`
@@ -321,6 +321,20 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
         );
     `);
 
+    // last_purchase_date = the customer's latest linked invoice (written only where it differs, so a restart changes
+    // nothing). Customers without linked invoices keep their value.
+    db.exec(`
+      UPDATE customers
+      SET last_purchase_date = (
+            SELECT strftime('%Y-%m-%dT%H:%M:%fZ', MAX(datetime(i.created_at))) FROM invoices i
+            WHERE i.customer_id = customers.customer_id AND (i.is_deleted IS NULL OR i.is_deleted = 0)),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE EXISTS (SELECT 1 FROM invoices i WHERE i.customer_id = customers.customer_id AND (i.is_deleted IS NULL OR i.is_deleted = 0))
+        AND datetime(last_purchase_date) IS NOT (
+            SELECT MAX(datetime(i.created_at)) FROM invoices i
+            WHERE i.customer_id = customers.customer_id AND (i.is_deleted IS NULL OR i.is_deleted = 0))
+    `);
+
     const scrapCustomers = db.prepare(`
       SELECT tenant_id, party_name as customer_name, customer_phone, customer_address
       FROM scrap_transactions
@@ -330,7 +344,7 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
     `).all() as any[];
 
     for (const c of scrapCustomers) {
-      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address);
+      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address, { history: true });
     }
 
     const returnCustomers = db.prepare(`
@@ -342,7 +356,7 @@ export function backfillCustomersFromInvoices(db: Database.Database) {
     `).all() as any[];
 
     for (const c of returnCustomers) {
-      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, null);
+      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, null, { history: true });
     }
 
     console.log('[DB Migration] Customer backfill complete.');

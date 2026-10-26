@@ -37,6 +37,9 @@ export function runLegacyRepairs(db: Database.Database) {
     for (const row of stalePaperProducts) {
       let da: Record<string, any> = {};
       try { da = JSON.parse(row.domain_attributes || '{}'); } catch {}
+      // REAL products without paper stock carry no paper prices (initDb's real-product cleanup removes them); adding
+      // them back here made the two repairs rewrite those products on every start.
+      if (da.gst_type === 'REAL' && (!da.paper_stock || Number(da.paper_stock) <= 0)) continue;
       let changed = false;
       if (row.purchase_price > 0 && !da.gst_purchase_price) {
         da.gst_purchase_price = row.purchase_price;
