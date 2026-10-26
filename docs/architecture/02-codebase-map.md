@@ -21,12 +21,14 @@
 src/
   main.tsx, App.tsx      composition root: providers, routing between screens, global listeners
   PrintRouter.tsx        print-only windows (receipt / A4 / barcode views)
-  components/
-    <Screen>.tsx          top-level screens (BillingPage, InventoryManager, SalesHistory, …)
-    billing/              feature folder: views/, modals/, ui/, hooks/, checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, deductionLookup.ts, BillingConstants.ts
-    inventory/ party/     feature folders: views/, modals/, <feature>Helpers.tsx
-    settings/             settings tabs/ + settingsConstants.tsx
-    ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, …)
+  components/             one folder per feature; no loose files here (guard R14)
+    <feature>/<Screen>.tsx   the screen (orchestration) next to its views/, modals/, hooks/ (e.g. billing/BillingPage.tsx,
+                             sales/SalesHistory.tsx, cashier/CashierSettlement.tsx, inventory/InventoryManager.tsx)
+    billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
+    settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
+    app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, session / emergency prompts
+    auth/ print/          login screen; receipt / A4 / barcode print views
+    ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
   data/                   THE data-access layer (one module per domain; see 03-data-access.md)
   store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, …)
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
@@ -66,7 +68,7 @@ Billing checkout lives in `components/billing/checkout/`: `createCheckoutHandler
 payload, persistence, printing, WhatsApp, tab reset) and `runScrapCheckout(ctx, run)` (scrap purchase flow). The screen
 passes its state and setters as a typed `CheckoutContext` each render.
 
-The screen file (`components/<Feature>.tsx`) keeps orchestration only. Shared pure rules go to `src/utils/`.
+The screen file (`components/<feature>/<Screen>.tsx`) keeps orchestration only. Shared pure rules go to `src/utils/`.
 
 ## Main process (`electron/`)
 

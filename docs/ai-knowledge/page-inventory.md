@@ -34,7 +34,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 1. Splash Screen
 - **Route / Trigger:** Default startup view when `isLoading === true` in `useAuthStore`.
-- **Source Component:** [`src/components/SplashScreen.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/SplashScreen.tsx)
+- **Source Component:** [`src/components/app/SplashScreen.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/app/SplashScreen.tsx)
 - **Parent Module:** Application Root / Bootstrapper
 - **Navigation Location:** Auto-rendered on startup while checking local token / offline session.
 - **Roles & Permissions:** Public / Unauthenticated.
@@ -46,7 +46,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 2. Login Screen
 - **Route / Trigger:** Rendered when `!isAuthenticated && !isLoading`.
-- **Source Component:** [`src/components/LoginScreen.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/LoginScreen.tsx)
+- **Source Component:** [`src/components/auth/LoginScreen.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/auth/LoginScreen.tsx)
 - **Parent Module:** Authentication
 - **Navigation Location:** Root entrypoint.
 - **Roles & Permissions:** Unauthenticated users.
@@ -62,7 +62,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 3. Super Dashboard (Super Admin Portal)
 - **Route / Trigger:** Rendered when `isAuthenticated && role === 'SUPER_ADMIN'`.
-- **Source Component:** [`src/components/SuperDashboard.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/SuperDashboard.tsx)
+- **Source Component:** [`src/components/super-dashboard/SuperDashboard.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/super-dashboard/SuperDashboard.tsx)
 - **Parent Module:** Super Admin Cloud Administration
 - **Navigation Location:** Exclusive root screen for Super Admins.
 - **Roles & Permissions:** `SUPER_ADMIN` only.
@@ -84,7 +84,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 4. Owner Dashboard
 - **Route / Trigger:** Default landing view for authenticated users when `restrictedActivePage !== 'BILLING'` and no manager overlay is active.
-- **Source Component:** [`src/components/OwnerDashboard.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/OwnerDashboard.tsx)
+- **Source Component:** [`src/components/owner-dashboard/OwnerDashboard.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/owner-dashboard/OwnerDashboard.tsx)
 - **Parent Module:** System Shell / Navigation Hub
 - **Navigation Location:** Home screen.
 - **Roles & Permissions:** Accessible to all store roles (`OWNER`, `ADMIN`, `BILLER`, `CASHIER`, `STAFF`); tiles dynamically filtered by `hasPermission`.
@@ -96,20 +96,20 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
   - 2-Column vs. 3-Column layout toggle
   - Light/Dark theme toggle
   - Store profile & Logout menu
-  - Digital store clock ([`DigitalClock.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/DigitalClock.tsx))
+  - Digital store clock ([`DigitalClock.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/owner-dashboard/DigitalClock.tsx))
 - **Related Components:** `Card`, `DigitalClock`, `UpdateBanner`, `SessionExpiredModal`.
 - **States:** Loading stats, Real-time sync progress banner, Empty state ("No Modules Assigned" if permissions empty).
 - **Status:** **Active** (VERIFIED).
 
 #### 5. POS Billing Page
 - **Route / Trigger:** Event `open-billing-page` or keyboard shortcut `F1` (`restrictedActivePage === 'BILLING'`).
-- **Source Component:** [`src/components/BillingPage.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/BillingPage.tsx)
+- **Source Component:** [`src/components/billing/BillingPage.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/billing/BillingPage.tsx)
 - **Parent Module:** Sales & Checkout
 - **Navigation Location:** Main billing engine.
 - **Roles & Permissions:** `sales.create` (or `sales.create_gst`, `sales.create_estimate`). Admin/Owner bypasses checks.
 - **Enablement Requirements:** Feature Flag `billing: true`.
 - **Main UI Actions:**
-  - Multi-tab checkout bar ([`BillingTabBar.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/BillingTabBar.tsx)) supporting up to 10 independent active carts
+  - Multi-tab checkout bar ([`BillingTabBar.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/billing/BillingTabBar.tsx)) supporting up to 10 independent active carts
   - Live product search by Barcode / Item Code / Name / Category with scanner burst suppression
   - Live electronic weighing scale USB/Serial sync ([`scaleStore.ts`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/store/scaleStore.ts))
   - Quantity, rate override (`sales.edit_price`), discount (`sales.discount`)
@@ -125,14 +125,14 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
   - Hold current bill / Recall held bill drawer
   - Express Cash Register till drawer flyout (`showCashRegister`)
   - Checkout & Instant Thermal Print / A4 Invoice / WhatsApp send
-  - Biller 4-digit PIN verification modal on print ([`BillerPinModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/BillerPinModal.tsx))
+  - Biller 4-digit PIN verification modal on print ([`BillerPinModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/billing/BillerPinModal.tsx))
 - **Related Components:** `BillingTabBar`, `BillerPinModal`, `Modal`, `Select`, `Skeleton`, `Barcode`.
 - **States:** Empty cart, Active cart, Holding bill, Checkout processing, Printer error fallback dialog, Quotation conversion mode, Return refund mode, Scrap purchase mode, Edit invoice mode.
 - **Status:** **Active** (VERIFIED).
 
 #### 6. Sales History & Invoicing Archive
 - **Route / Trigger:** Event `open-sales-history` (`showSalesHistory === true`).
-- **Source Component:** [`src/components/SalesHistory.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/SalesHistory.tsx)
+- **Source Component:** [`src/components/sales/SalesHistory.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/sales/SalesHistory.tsx)
 - **Parent Module:** Sales Management & Reporting
 - **Navigation Location:** Dashboard tile or Billing Header quick action.
 - **Roles & Permissions:** `sales.view` (or `sales.view_gst`, `sales.view_estimate`).
@@ -157,7 +157,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 7. Inventory Manager
 - **Route / Trigger:** Event `open-inventory-manager` (`showInventoryManager === true`).
-- **Source Component:** [`src/components/InventoryManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/InventoryManager.tsx)
+- **Source Component:** [`src/components/inventory/InventoryManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/inventory/InventoryManager.tsx)
 - **Parent Module:** Products & Catalog
 - **Navigation Location:** Dashboard tile or Billing Header quick action.
 - **Roles & Permissions:** `products.view` (create: `products.create`, edit: `products.edit`, delete: `products.delete`, stock: `products.stock_adjust`).
@@ -168,7 +168,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
   - Edit product details, update prices, override GST flag
   - Adjust physical stock quantity / piece count
   - Print single barcode label / print bulk barcode queue
-  - CSV & Excel bulk inventory data upload modal ([`DataUploadModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/DataUploadModal.tsx))
+  - CSV & Excel bulk inventory data upload modal ([`DataUploadModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/data-upload/DataUploadModal.tsx))
   - Quick supplier create modal
   - Bulk product deletion modal
   - Service item creation
@@ -178,7 +178,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 8. Cashier Settlement & Register Drawer
 - **Route / Trigger:** Event `open-cashier-settlement` (`showCashierSettlement === true`).
-- **Source Component:** [`src/components/CashierSettlement.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/CashierSettlement.tsx)
+- **Source Component:** [`src/components/cashier/CashierSettlement.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/cashier/CashierSettlement.tsx)
 - **Parent Module:** Cash Register & Settlement
 - **Navigation Location:** Dashboard tile or Billing Header quick action.
 - **Roles & Permissions:** `cash_register.view` (settle: `cash_register.settlement`, cash in/out: `cash_register.cash_in`, `cash_register.cash_out`, close: `cash_register.close`).
@@ -200,7 +200,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 9. Customers Directory & Loyalty
 - **Route / Trigger:** Event `open-customers-page` (`showCustomersPage === true`).
-- **Source Component:** [`src/components/CustomersPage.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/CustomersPage.tsx)
+- **Source Component:** [`src/components/customers/CustomersPage.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/customers/CustomersPage.tsx)
 - **Parent Module:** CRM & Loyalty
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `customers.view` (create: `customers.create`, edit: `customers.edit`, delete: `customers.delete`).
@@ -221,7 +221,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 10. Party / Customer / Supplier Ledger
 - **Route / Trigger:** Event `open-parties-manager` (`showPartyManager === true`).
-- **Source Component:** [`src/components/PartyManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PartyManager.tsx)
+- **Source Component:** [`src/components/party/PartyManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/party/PartyManager.tsx)
 - **Parent Module:** Financial Accounting & Credit Ledger
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `customers.view` (ledger: `customers.ledger`, edit: `customers.edit`).
@@ -243,7 +243,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 11. Purchase Bills & Supplier Invoices
 - **Route / Trigger:** Event `open-purchase-bills` (`showPurchaseBillManager === true`).
-- **Source Component:** [`src/components/PurchaseBillManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PurchaseBillManager.tsx)
+- **Source Component:** [`src/components/purchase/PurchaseBillManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/purchase/PurchaseBillManager.tsx)
 - **Parent Module:** Purchases & Inventory Inward
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `purchases.view` (create: `purchases.create`, edit: `purchases.edit`, delete: `purchases.delete`).
@@ -264,7 +264,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 12. Quotations & Proforma Invoices
 - **Route / Trigger:** Event `open-quotation-manager` (`showQuotationManager === true`).
-- **Source Component:** [`src/components/QuotationManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/QuotationManager.tsx)
+- **Source Component:** [`src/components/quotation/QuotationManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/quotation/QuotationManager.tsx)
 - **Parent Module:** Sales & Pre-Invoicing
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `quotations.view` (create: `quotations.create`, edit: `quotations.edit`, delete: `quotations.delete`).
@@ -283,7 +283,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 13. Returns & Refunds Manager
 - **Route / Trigger:** Event `open-returns-manager` (`showReturnManager === true`).
-- **Source Component:** [`src/components/ReturnManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/ReturnManager.tsx)
+- **Source Component:** [`src/components/returns/ReturnManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/returns/ReturnManager.tsx)
 - **Parent Module:** Sales & Customer Returns
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `sales.refund`.
@@ -300,7 +300,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 14. Scrap Management & Trading
 - **Route / Trigger:** Event `open-scrap-manager` (`showScrapManager === true`).
-- **Source Component:** [`src/components/ScrapManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/ScrapManager.tsx)
+- **Source Component:** [`src/components/scrap/ScrapManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/scrap/ScrapManager.tsx)
 - **Parent Module:** Scrap & Salvage Operations
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `scrap.view` (create: `scrap.create`, edit: `scrap.edit`, delete: `scrap.delete`).
@@ -319,7 +319,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 15. Warranty Certificates & Claims
 - **Route / Trigger:** Event `open-warranty-manager` (`showWarrantyManager === true`).
-- **Source Component:** [`src/components/WarrantyManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/WarrantyManager.tsx)
+- **Source Component:** [`src/components/warranty/WarrantyManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/warranty/WarrantyManager.tsx)
 - **Parent Module:** Customer Service & Warranties
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `warranties.view` (create: `warranties.create`, edit: `warranties.edit`, delete: `warranties.delete`).
@@ -336,7 +336,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 16. Financial Analytics & P&L Report
 - **Route / Trigger:** Event `open-financial-report` (`showFinancialReport === true`).
-- **Source Component:** [`src/components/FinancialReport.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/FinancialReport.tsx)
+- **Source Component:** [`src/components/reports/FinancialReport.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/reports/FinancialReport.tsx)
 - **Parent Module:** Reporting & Financial Intelligence
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `reports.financial`.
@@ -355,7 +355,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 17. Stock Valuation & Inventory Audit Report
 - **Route / Trigger:** Event `open-stock-report` (`showStockReport === true`).
-- **Source Component:** [`src/components/StockReport.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/StockReport.tsx)
+- **Source Component:** [`src/components/stock-report/StockReport.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/stock-report/StockReport.tsx)
 - **Parent Module:** Reporting & Stock Valuation
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `reports.view`.
@@ -374,7 +374,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 18. Combo Offers & Product Bundles
 - **Route / Trigger:** Event `open-combo-manager` (`showComboManager === true`).
-- **Source Component:** [`src/components/ComboManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/ComboManager.tsx)
+- **Source Component:** [`src/components/combo/ComboManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/combo/ComboManager.tsx)
 - **Parent Module:** Pricing & Marketing
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `combos.view` (manage: `combos.manage`).
@@ -392,7 +392,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 19. Dynamic Pricing Tiers
 - **Route / Trigger:** Event `open-settings-pricing-tiers` (`showSettingsPricingTiers === true`).
-- **Source Component:** [`src/components/PricingTiers.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PricingTiers.tsx)
+- **Source Component:** [`src/components/pricing-tiers/PricingTiers.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/pricing-tiers/PricingTiers.tsx)
 - **Parent Module:** Pricing & Tiers
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `combos.view` (manage: `combos.manage`).
@@ -410,7 +410,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 20. Categories & Product Grades
 - **Route / Trigger:** Event `open-settings-grades` (`showSettingsGrades === true`).
-- **Source Component:** [`src/components/SettingsGrades.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/SettingsGrades.tsx)
+- **Source Component:** [`src/components/settings-grades/SettingsGrades.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings-grades/SettingsGrades.tsx)
 - **Parent Module:** Products & Catalog Settings
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `products.view` (edit: `products.edit`).
@@ -427,7 +427,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 21. Payment Methods & Financial Accounts
 - **Route / Trigger:** Event `open-payments-page` (`showPaymentsPage === true`).
-- **Source Component:** [`src/components/PaymentMethods.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PaymentMethods.tsx)
+- **Source Component:** [`src/components/payment-methods/PaymentMethods.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/payment-methods/PaymentMethods.tsx)
 - **Parent Module:** Financial Settings & Banking
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `settings.view` (edit: `settings.edit`).
@@ -446,7 +446,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 22. Staff Administration & Access Control
 - **Route / Trigger:** Event `open-staff-manager` (`showStaffManager === true`).
-- **Source Component:** [`src/components/StaffManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/StaffManager.tsx)
+- **Source Component:** [`src/components/staff/StaffManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/staff/StaffManager.tsx)
 - **Parent Module:** User & Access Management
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `users.view` (create: `users.create`, edit: `users.edit`, delete: `users.delete`, permissions: `users.permissions`).
@@ -460,7 +460,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
     5. `attendance`: Daily staff attendance tracker (Present, Absent, Half Day, Leave) — gated by `staff_attendance` flag
   - Staff login credential creation (link staff to email/password login account)
   - Set 4-digit biller security PIN (`has_pin`, used in billing verification)
-  - Comprehensive Granular Permission Matrix ([`PermissionSelector.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PermissionSelector.tsx)) across 12 permission groups
+  - Comprehensive Granular Permission Matrix ([`PermissionSelector.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/staff/PermissionSelector.tsx)) across 12 permission groups
   - Enable / disable staff login access
 - **Related Components:** `PermissionSelector`, `Modal`, `DataUploadModal`, `FloatToast`, `Skeleton`.
 - **States:** Loading staff, Staff edit modal, Permission editor active, Salary payment modal.
@@ -468,7 +468,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 23. System Settings Suite
 - **Route / Trigger:** Event `open-settings-manager` (`showSettingsManager === true`).
-- **Source Component:** [`src/components/SettingsManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/SettingsManager.tsx)
+- **Source Component:** [`src/components/settings/SettingsManager.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/SettingsManager.tsx)
 - **Parent Module:** System Configuration
 - **Navigation Location:** Dashboard header settings gear icon or UpdateBanner.
 - **Roles & Permissions:** `settings.view` (general: `settings.edit`, business: `settings.business`, ownerOnly tabs require `OWNER` or `ADMIN`).
@@ -477,12 +477,12 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
   - 10 distinct configuration sections:
     1. `store`: Store Profile (Shop name, address, phone, email, GSTIN, State, invoice sequence counters)
     2. `hardware`: Devices & Hardware (Thermal printer selection, paper width [58mm/80mm], ESC/POS commands, USB Weighing scale COM port and baud rate)
-    3. `whatsapp`: WhatsApp Integration via Baileys ([`WhatsAppSettings.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/WhatsAppSettings.tsx), QR code pairing, connection status)
-    4. `products`: Products & Coding (Barcode prefix, label type [barcode/QR], bulk product onboarding sheet via [`BulkOnboardingSheet.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/BulkOnboardingSheet.tsx))
-    5. `printing`: Print Templates (Thermal receipt template editor, A4 invoice template editor, live preview modal via [`PaperPreviewModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PaperPreviewModal.tsx))
+    3. `whatsapp`: WhatsApp Integration via Baileys ([`WhatsAppSettings.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/whatsapp/WhatsAppSettings.tsx), QR code pairing, connection status)
+    4. `products`: Products & Coding (Barcode prefix, label type [barcode/QR], bulk product onboarding sheet via [`BulkOnboardingSheet.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/BulkOnboardingSheet.tsx))
+    5. `printing`: Print Templates (Thermal receipt template editor, A4 invoice template editor, live preview modal via [`PaperPreviewModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/PaperPreviewModal.tsx))
     6. `print_options`: Bill & Print Options (Auto-print on checkout, number of copies, 12h/24h time format, receipt footer terms)
-    7. `terminology`: Ledger Terminology Customizer ([`LedgerTerminologySettings.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/LedgerTerminologySettings.tsx))
-    8. `billing_ui`: Billing Page Customizer ([`BillingUICustomizer.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/BillingUICustomizer.tsx), visible header action buttons, entry flow presets)
+    7. `terminology`: Ledger Terminology Customizer ([`LedgerTerminologySettings.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/LedgerTerminologySettings.tsx))
+    8. `billing_ui`: Billing Page Customizer ([`BillingUICustomizer.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/billing-ui-customizer/BillingUICustomizer.tsx), visible header action buttons, entry flow presets)
     9. `system`: App Preferences (Store timezone, light/dark theme, manual cloud sync trigger, check for app updates)
     10. `network`: Network & Sync Mode (Cloud-only, LAN-only, Hybrid mode, local host server configuration)
     11. `features`: Features & Modules management (enable/disable any of the 23 system feature flags)
@@ -492,7 +492,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 24. E-Commerce & FusionCart Vendor Portal
 - **Route / Trigger:** Event `open-ecommerce-portal` (`showEcommercePortal === true`).
-- **Source Component:** [`src/components/EcommercePortal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/EcommercePortal.tsx)
+- **Source Component:** [`src/components/ecommerce/EcommercePortal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/ecommerce/EcommercePortal.tsx)
 - **Parent Module:** Omnichannel & E-Commerce Integration
 - **Navigation Location:** Dashboard tile.
 - **Roles & Permissions:** `products.view`.
@@ -510,7 +510,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 25. AI Business Assistant Chat
 - **Route / Trigger:** Event `open-ai-assistant` (`showAiAssistant === true`).
-- **Source Component:** [`src/components/AiAssistant.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/AiAssistant.tsx)
+- **Source Component:** [`src/components/ai-assistant/AiAssistant.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/ai-assistant/AiAssistant.tsx)
 - **Parent Module:** Intelligence & Business Assistant
 - **Navigation Location:** Dashboard tile or Billing Header quick action.
 - **Roles & Permissions:** All authenticated store users (gated by internal permission checks inside engine).
@@ -532,7 +532,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 26. Thermal Receipt Print View
 - **Route / Trigger:** URL hash `#/print-receipt?text=...` (routed in `PrintRouter.tsx` and `App.tsx`).
-- **Source Component:** [`src/components/PrintReceiptView.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PrintReceiptView.tsx)
+- **Source Component:** [`src/components/print/PrintReceiptView.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/print/PrintReceiptView.tsx)
 - **Parent Module:** Hardware Print Spooler
 - **Navigation Location:** Isolated Electron print window.
 - **Roles & Permissions:** Hardware printer worker (called via IPC `printReceipt`).
@@ -546,7 +546,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 27. Barcode Label Print View
 - **Route / Trigger:** URL hash `#/print-barcode?barcode=...&price=...&sp=...&spType=...&name=...&quantity=...&columns=...&codeType=...`
-- **Source Component:** [`src/components/PrintBarcodeView.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PrintBarcodeView.tsx)
+- **Source Component:** [`src/components/print/PrintBarcodeView.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/print/PrintBarcodeView.tsx)
 - **Parent Module:** Hardware Print Spooler
 - **Navigation Location:** Isolated Electron print window.
 - **Roles & Permissions:** Hardware printer worker (called via IPC `printBarcode`).
@@ -561,7 +561,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 28. Bulk Barcode Label Print View
 - **Route / Trigger:** URL hash `#/print-bulk-barcode?codeType=...`
-- **Source Component:** [`src/components/PrintBulkBarcodeView.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PrintBulkBarcodeView.tsx)
+- **Source Component:** [`src/components/print/PrintBulkBarcodeView.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/print/PrintBulkBarcodeView.tsx)
 - **Parent Module:** Hardware Print Spooler
 - **Navigation Location:** Isolated Electron print window.
 - **Roles & Permissions:** Hardware printer worker (called via IPC `printBulkBarcodes`).
@@ -576,7 +576,7 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 #### 29. A4 Invoice Print View
 - **Route / Trigger:** URL hash `#/print-a4`
-- **Source Component:** [`src/components/PrintA4View.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/PrintA4View.tsx)
+- **Source Component:** [`src/components/print/PrintA4View.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/print/PrintA4View.tsx)
 - **Parent Module:** Hardware Print Spooler
 - **Navigation Location:** Isolated Electron print window.
 - **Roles & Permissions:** Hardware printer worker (called via IPC `printA4Html`).
@@ -595,17 +595,17 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 
 | Component Name | File Path | Usage Location | Description & Role |
 | :--- | :--- | :--- | :--- |
-| **BillerPinModal** | `src/components/BillerPinModal.tsx` | `BillingPage.tsx` | 4-digit security PIN modal required before printing bills when `biller_pin` flag is enabled. |
-| **SessionExpiredModal** | `src/components/SessionExpiredModal.tsx` | `App.tsx`, `OwnerDashboard.tsx` | Alerts user when cloud auth token has expired; allows offline work or re-login. |
-| **UpdateBanner** | `src/components/UpdateBanner.tsx` | `App.tsx` | Top banner notifying when a new version of Nafid POS is available or downloaded. |
-| **DataUploadModal** | `src/components/DataUploadModal.tsx` | `InventoryManager`, `PartyManager`, `StaffManager` | CSV / Excel parser (`xlsx`, `papaparse`) for bulk importing data. |
-| **PaperPreviewModal** | `src/components/PaperPreviewModal.tsx` | `SettingsManager.tsx`, `BillingPage.tsx` | Interactive visual preview of 58mm / 80mm thermal receipts and A4 invoices. |
-| **BillingUICustomizer** | `src/components/BillingUICustomizer.tsx` | `SettingsManager.tsx` (tab `billing_ui`) | Drag-and-drop / toggle visual configuration of POS billing action buttons and field flows. |
-| **LedgerTerminologySettings** | `src/components/LedgerTerminologySettings.tsx` | `SettingsManager.tsx` (tab `terminology`) | Customizes party ledger labels (Credit/Debit, Receivable/Payable, Party/Account). |
-| **WhatsAppSettings** | `src/components/WhatsAppSettings.tsx` | `SettingsManager.tsx` (tab `whatsapp`) | QR code pairing interface for Baileys WhatsApp Web automation. |
-| **BulkOnboardingSheet** | `src/components/BulkOnboardingSheet.tsx` | `SettingsManager.tsx` (tab `products`) | Spreadsheet-like rapid product entry grid for onboarding store inventory. |
-| **PermissionSelector** | `src/components/PermissionSelector.tsx` | `StaffManager.tsx` | 12-group granular checkbox matrix for configuring staff access rights. |
-| **BillingTabBar** | `src/components/BillingTabBar.tsx` | `BillingPage.tsx` | Tab header for managing up to 10 concurrent customer carts and held bills. |
+| **BillerPinModal** | `src/components/billing/BillerPinModal.tsx` | `BillingPage.tsx` | 4-digit security PIN modal required before printing bills when `biller_pin` flag is enabled. |
+| **SessionExpiredModal** | `src/components/app/SessionExpiredModal.tsx` | `App.tsx`, `OwnerDashboard.tsx` | Alerts user when cloud auth token has expired; allows offline work or re-login. |
+| **UpdateBanner** | `src/components/app/UpdateBanner.tsx` | `App.tsx` | Top banner notifying when a new version of Nafid POS is available or downloaded. |
+| **DataUploadModal** | `src/components/data-upload/DataUploadModal.tsx` | `InventoryManager`, `PartyManager`, `StaffManager` | CSV / Excel parser (`xlsx`, `papaparse`) for bulk importing data. |
+| **PaperPreviewModal** | `src/components/settings/PaperPreviewModal.tsx` | `SettingsManager.tsx`, `BillingPage.tsx` | Interactive visual preview of 58mm / 80mm thermal receipts and A4 invoices. |
+| **BillingUICustomizer** | `src/components/billing-ui-customizer/BillingUICustomizer.tsx` | `SettingsManager.tsx` (tab `billing_ui`) | Drag-and-drop / toggle visual configuration of POS billing action buttons and field flows. |
+| **LedgerTerminologySettings** | `src/components/settings/LedgerTerminologySettings.tsx` | `SettingsManager.tsx` (tab `terminology`) | Customizes party ledger labels (Credit/Debit, Receivable/Payable, Party/Account). |
+| **WhatsAppSettings** | `src/components/whatsapp/WhatsAppSettings.tsx` | `SettingsManager.tsx` (tab `whatsapp`) | QR code pairing interface for Baileys WhatsApp Web automation. |
+| **BulkOnboardingSheet** | `src/components/settings/BulkOnboardingSheet.tsx` | `SettingsManager.tsx` (tab `products`) | Spreadsheet-like rapid product entry grid for onboarding store inventory. |
+| **PermissionSelector** | `src/components/staff/PermissionSelector.tsx` | `StaffManager.tsx` | 12-group granular checkbox matrix for configuring staff access rights. |
+| **BillingTabBar** | `src/components/billing/BillingTabBar.tsx` | `BillingPage.tsx` | Tab header for managing up to 10 concurrent customer carts and held bills. |
 | **CustomDialog** | `src/components/ui/CustomDialog.tsx` | Multiple pages | Standard confirmation and alert dialog with variants (danger, warning, success, info). |
 | **DateRangeFilter** | `src/components/ui/DateRangeFilter.tsx` | `SalesHistory`, `PartyManager`, `CashierSettlement`, `PurchaseBillManager` | Multi-preset and custom calendar date filter. |
 | **FloatToast** | `src/components/ui/FloatToast.tsx` | Multiple pages | Floating auto-dismissing toast notification for operational feedback. |

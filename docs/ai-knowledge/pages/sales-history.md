@@ -1,7 +1,7 @@
 # Nafid POS — Sales History Capability Deep Dive & AI Knowledge Map
 
 **Module / Page:** Sales History (`SalesHistory.tsx`)  
-**Source Path:** [`src/components/SalesHistory.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/SalesHistory.tsx)  
+**Source Path:** [`src/components/sales/SalesHistory.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/sales/SalesHistory.tsx)  
 **Parent Navigation:** Owner Dashboard Tile (`id: 'history'`) or Billing Page Header Quick Action  
 **Permission Gate:** `<PermissionGuard permission="sales.view">`  
 **Feature Flag:** `sales_history: true` in `useFeatureFlagsStore`  

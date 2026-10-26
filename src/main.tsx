@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { PrintRouter } from './PrintRouter.tsx'
 
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorBoundary } from './components/app/ErrorBoundary';
 
 const isPrintRoute = typeof window !== 'undefined' && window.location.hash.startsWith('#/print');
 

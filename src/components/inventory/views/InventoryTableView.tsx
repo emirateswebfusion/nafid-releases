@@ -2,7 +2,7 @@ import React, { Fragment } from 'react';
 import { RefreshCw, AlertTriangle, Plus, Minus, Pencil, Trash, Printer, X, Package, PackagePlus, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
-import { ScrollText } from '../../ScrollText';
+import { ScrollText } from '../../ui/ScrollText';
 import { type Product } from '../inventoryUtils';
 
 export interface InventoryTableViewProps {

@@ -1,11 +1,11 @@
 import React from 'react';
-import { EmergencyPurgeSettings } from '../../EmergencyPurgeSettings';
-import { StaffDataMaskingSettings } from '../../StaffDataMaskingSettings';
-import { DesignSettings } from '../../DesignSettings';
-import { LedgerTerminologySettings } from '../../LedgerTerminologySettings';
-import { BillingUICustomizer } from '../../BillingUICustomizer';
+import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
+import { StaffDataMaskingSettings } from '../StaffDataMaskingSettings';
+import { DesignSettings } from '../../design-settings/DesignSettings';
+import { LedgerTerminologySettings } from '../LedgerTerminologySettings';
+import { BillingUICustomizer } from '../../billing-ui-customizer/BillingUICustomizer';
 import { useBillingUIStore } from '../../../store/billingUIStore';
-import { DashboardCardCustomizer } from '../../DashboardCardCustomizer';
+import { DashboardCardCustomizer } from '../../owner-dashboard/DashboardCardCustomizer';
 import { StoreSettingsTab } from '../tabs/StoreSettingsTab';
 import { WhatsAppSettingsTab } from '../tabs/WhatsAppSettingsTab';
 import { HardwareSettingsTab } from '../tabs/HardwareSettingsTab';

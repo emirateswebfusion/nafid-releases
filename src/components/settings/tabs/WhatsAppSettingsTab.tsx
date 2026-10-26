@@ -1,7 +1,7 @@
 import React from 'react';
 import { QrCode, Settings, Store } from 'lucide-react';
 import clsx from 'clsx';
-import { WhatsAppSettings } from '../../WhatsAppSettings';
+import { WhatsAppSettings } from '../../whatsapp/WhatsAppSettings';
 import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
 
 export interface WhatsAppSettingsTabProps {
