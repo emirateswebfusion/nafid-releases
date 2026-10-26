@@ -26,11 +26,11 @@ export function useDataUploadEffects(ctx: UseDataUploadEffectsContext) {
 
       if (hasBridge('dbGetPricingTiers')) {
         const tid = tenantId || 'global';
-        pricingTiersApi.getPricingTiers(tid).then((res: any) => {
+        pricingTiersApi.getPricingTiers(tid).then((res: unknown) => {
           if (Array.isArray(res)) {
-            setAvailableTiers(res.filter((t: any) => !t.is_deleted));
+            setAvailableTiers((res as Array<{ pricing_tier_id?: string; name: string; is_deleted?: number | null }>).filter((t: { is_deleted?: number | null }) => !t.is_deleted));
           }
-        }).catch((err: any) => console.warn('Failed to load pricing tiers for upload modal:', err));
+        }).catch((err: unknown) => console.warn('Failed to load pricing tiers for upload modal:', err));
       }
     }
   }, [isOpen, defaultEntity, tenantId, setAvailableTiers, setEntityType, setFileName, setMessage, setParsedRows]);

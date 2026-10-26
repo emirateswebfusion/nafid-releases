@@ -17,14 +17,14 @@ export function useDataUploadDemoActions(ctx: UseDataUploadDemoActionsContext) {
   // ─── Download Demo Sample Templates ────────────────────────────────────────
 
   const downloadDemoFile = (format: 'csv' | 'xlsx') => {
-    let sampleData: any[] = [];
+    let sampleData: Record<string, unknown>[] = [];
     let filePrefix = 'product';
 
     if (entityType === 'products') {
       if (availableTiers && availableTiers.length > 0) {
         sampleData = SAMPLE_PRODUCTS.map((prod, idx) => {
-          const augmented: Record<string, any> = { ...prod };
-          availableTiers.forEach((t: any) => {
+          const augmented: Record<string, unknown> = { ...prod };
+          availableTiers.forEach((t: { name: string }) => {
             augmented[t.name] = idx === 0 ? Math.round(Number(prod.MRP) * 0.9) : Math.round(Number(prod.MRP) * 0.95);
           });
           return augmented;
