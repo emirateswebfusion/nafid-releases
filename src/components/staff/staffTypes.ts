@@ -27,7 +27,5 @@ export interface SavedSystemAccount {
 }
 
 /** Staff ledger and attendance rows have no data types yet; named here, in one place, until they are typed. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy staff ledger row, typed later in one place
 export type StaffLedgerRow = { ledger_id: string; transaction_date: string; reference_type?: string; description: string; debit_amount: number; credit_amount: number; running_balance: number };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy attendance row, typed later in one place
 export type StaffAttendanceRow = { attendance_id: string; date: string; status: string };

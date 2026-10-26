@@ -53,15 +53,12 @@ export interface ProductBillQty {
 }
 
 /** A grade row as the grades IPC returns it. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StockGradeRow = import('../../data/grades').Grade;
 
 /** A party row as the parties IPC returns it. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StockPartyRow = import('../../data/parties').Party;
 
 /** A sales summary row as the product sales summary IPC returns it. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StockSalesSummaryRow = Awaited<ReturnType<typeof import('../../data/products').productsApi.getProductSalesSummary>>[number] & { is_service_item?: number };
 
 /** One category row of the stock report breakdown. */
