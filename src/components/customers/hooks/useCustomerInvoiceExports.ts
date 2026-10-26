@@ -376,7 +376,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
 
       if (hasBridge('printA4Html')) {
         const res = await printingApi.printA4Html(tenantId || 'global', combinedHtml);
-        if (!res?.success && (res as any)?.useDefaultDialog) {
+        if (!res?.success && (res as { useDefaultDialog?: boolean })?.useDefaultDialog) {
           const pw = window.open('', '_blank', 'width=900,height=700');
           if (pw) {
             pw.document.write(combinedHtml);
