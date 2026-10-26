@@ -1,3 +1,4 @@
+import type * as B from '../../billingTypes';
 import React from 'react';
 import clsx from 'clsx';
 import { Pencil, Trash } from 'lucide-react';
@@ -78,7 +79,7 @@ export const CartScrapRow: React.FC<CartScrapRowProps> = ({
           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
         </div>
         <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-          <span className="text-orange-600 font-semibold">{formatCurrency(rate)}/{(item as any).unit || 'Kg'}</span>
+          <span className="text-orange-600 font-semibold">{formatCurrency(rate)}/{(item as B.CartItem).unit || 'Kg'}</span>
         </div>
       </div>
       <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg py-0.5 shrink-0">

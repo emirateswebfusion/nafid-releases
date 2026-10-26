@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React from 'react';
 import { Tag, X, Check, Loader2 } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
@@ -12,7 +13,7 @@ interface CreateNewGradeModalProps {
     rate: string;
     offer_price: string;
   };
-  setForm: (val: any) => void;
+  setForm: B.SetValue<B.GradeForm>;
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   onSubmit: () => void;
   saving: boolean;

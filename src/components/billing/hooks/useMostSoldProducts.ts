@@ -1,10 +1,11 @@
+import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { productsApi, listProducts } from '../../../data/products';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 
 export interface UseMostSoldProductsContext {
-  setMostSoldProducts: React.Dispatch<React.SetStateAction<unknown[]>>;
+  setMostSoldProducts: React.Dispatch<React.SetStateAction<B.MostSoldRow[]>>;
   tenantId: string | null;
   uiConfig: BillingUIConfig;
 }
@@ -23,8 +24,8 @@ export function useMostSoldProducts(ctx: UseMostSoldProductsContext) {
           const summary = await productsApi.getProductSalesSummary({ tenant_id: tenantId || 'global' });
           if (!cancelled && Array.isArray(summary) && summary.length > 0) {
             const sorted = summary
-              .filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge')
-              .sort((a: any, b: any) => ((Number(b.gst_qty || 0) + Number(b.bos_qty || 0)) - (Number(a.gst_qty || 0) + Number(a.bos_qty || 0))));
+              .filter((p: B.MostSoldRow) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge')
+              .sort((a, b) => ((Number(b.gst_qty || 0) + Number(b.bos_qty || 0)) - (Number(a.gst_qty || 0) + Number(a.bos_qty || 0))));
             if (sorted.length > 0) {
               setMostSoldProducts(sorted.slice(0, 30));
               return;
@@ -33,7 +34,7 @@ export function useMostSoldProducts(ctx: UseMostSoldProductsContext) {
         }
         const prods = await listProducts({ tenant_id: tenantId, limit: 30 });
         if (!cancelled && Array.isArray(prods)) {
-          setMostSoldProducts(prods.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
+          setMostSoldProducts(prods.filter((p: B.MostSoldRow) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
         }
       } catch (err) {
         console.error('[BillingPage] Failed to fetch most sold products:', err);

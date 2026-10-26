@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React, { useEffect, useRef } from 'react';
 import { Smartphone, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -5,9 +6,9 @@ import clsx from 'clsx';
 export interface UpiAccountSelectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  upiSources: any[];
-  currentSelectedUpi: any;
-  updateActiveTab: (updates: any) => void;
+  upiSources: B.UpiSource[];
+  currentSelectedUpi: B.SelectedUpi;
+  updateActiveTab: B.UpdateTab;
   setUpiAccountToast: (toast: string | null) => void;
   focusDescriptionOrDiscount: () => void;
   paymentOptionRefs: React.MutableRefObject<Record<string, HTMLElement | null>>;
@@ -28,8 +29,8 @@ export const UpiAccountSelectModal: React.FC<UpiAccountSelectModalProps> = ({
   useEffect(() => {
     if (isOpen && upiSources.length > 0) {
       const active = currentSelectedUpi
-        ? upiSources.find((s: any) => s.source_id === currentSelectedUpi.source_id || (s.upi_id && s.upi_id === currentSelectedUpi.upi_id))
-        : (upiSources.find((s: any) => s.is_default === 1) || upiSources[0]);
+        ? upiSources.find((s) => s.source_id === currentSelectedUpi.source_id || (s.upi_id && s.upi_id === currentSelectedUpi.upi_id))
+        : (upiSources.find((s) => s.is_default === 1) || upiSources[0]);
 
       const keyId = active?.source_id || active?.upi_id || upiSources[0]?.source_id || upiSources[0]?.upi_id || '0';
 
@@ -73,7 +74,7 @@ export const UpiAccountSelectModal: React.FC<UpiAccountSelectModalProps> = ({
 
           {/* Modal Content - UPI Account Options */}
           <div className="p-5 overflow-y-auto space-y-2.5 flex-1">
-            {upiSources.map((s: any, idx: number) => {
+            {upiSources.map((s, idx: number) => {
               const isSelected = currentSelectedUpi
                 ? (s.source_id === currentSelectedUpi.source_id || (s.upi_id && s.upi_id === currentSelectedUpi.upi_id))
                 : (s.is_default === 1 || upiSources[0]?.source_id === s.source_id);

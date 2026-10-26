@@ -38,7 +38,7 @@ export function useHardwareBarcodeScanner(ctx: UseHardwareBarcodeScannerContext)
 
     const playBeep = () => {
       try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioCtx = new (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.connect(gain);
@@ -64,13 +64,13 @@ export function useHardwareBarcodeScanner(ctx: UseHardwareBarcodeScannerContext)
           const invoices = await listInvoices({ tenant_id: tenantId as string, search: code });
           if (Array.isArray(invoices) && invoices.length > 0) {
             // Find an exact match by invoice number
-            const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
+            const exactMatch = invoices.find((inv) => inv.invoice_number === code);
             if (exactMatch) {
               handleSelectReturnInvoice(exactMatch);
               playBeep();
             } else {
               setSearchQuery(code);
-              setReturnSearchResults(invoices.filter((inv: any) => inv.invoice_type !== 'SCRAP' && inv.invoice_type !== 'RETURN'));
+              setReturnSearchResults(invoices.filter((inv) => inv.invoice_type !== 'SCRAP' && inv.invoice_type !== 'RETURN'));
             }
           }
         } catch (e) {
@@ -81,7 +81,7 @@ export function useHardwareBarcodeScanner(ctx: UseHardwareBarcodeScannerContext)
         try {
           const invoices = await listInvoices({ tenant_id: tenantId as string, search: code });
           if (Array.isArray(invoices) && invoices.length > 0) {
-            const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
+            const exactMatch = invoices.find((inv) => inv.invoice_number === code);
             if (exactMatch) {
               handleSelectPastBill(exactMatch);
               playBeep();

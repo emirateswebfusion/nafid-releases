@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React from 'react';
 import type { ProductFormState } from '../hooks/useProductFormState';
 import {
@@ -18,8 +19,8 @@ export interface CreateProductModalProps {
   handleProductPurchasePriceChange: (v: string) => void;
   handleProductBasePriceChange: (v: string) => void;
   enableRealPaperStock: boolean;
-  pricingTiers: any[];
-  handleCreateAndAddProduct: (action?: number, isExistingEdit?: boolean, isTempItem?: boolean) => any;
+  pricingTiers: B.Tier[];
+  handleCreateAndAddProduct: (action?: number, isExistingEdit?: boolean, isTempItem?: boolean) => Promise<void>;
   productForm: ProductFormState;
 }
 
@@ -314,7 +315,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
                       </div>
                       <div className="flex gap-4 flex-wrap">
-                        {pricingTiers.map((tier: any) => (
+                        {pricingTiers.map((tier) => (
                           <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
                             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
                               {tier.name}

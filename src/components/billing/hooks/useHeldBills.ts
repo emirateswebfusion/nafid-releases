@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React, { useCallback } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
@@ -32,7 +33,7 @@ export interface UseHeldBillsContext {
   setCustomerState: (state: string) => void;
   setDiscount: (value: number, type: "FIXED" | "PERCENTAGE") => void;
   setHardwareError: React.Dispatch<React.SetStateAction<string | null>>;
-  setHeldBills: React.Dispatch<React.SetStateAction<unknown[]>>;
+  setHeldBills: React.Dispatch<React.SetStateAction<B.HeldBill[]>>;
   setHeldBillsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setInfoToast: React.Dispatch<React.SetStateAction<string | null>>;
   setInvoiceType: (type: InvoiceType) => void;
@@ -59,7 +60,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
     if (!isDesktopRuntime()) {
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const now = Date.now();
-      const valid = stored.filter((b: any) => {
+      const valid = stored.filter((b) => {
         const time = new Date(b.heldAt).getTime();
         return !isNaN(time) && (now - time < 24 * 60 * 60 * 1000);
       });
@@ -164,10 +165,10 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
   };
 
   // Recall a held bill — load its items back into cart
-  const handleRecallHeldBill = async (heldInvoice: any) => {
+  const handleRecallHeldBill = async (heldInvoice: B.HeldBill) => {
     if (!isDesktopRuntime()) {
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
-      const target = stored.find((b: any) => b.id === (heldInvoice.id || heldInvoice.invoice_id));
+      const target = stored.find((b) => b.id === (heldInvoice.id || heldInvoice.invoice_id));
       if (target) {
         clearCart();
         if (Array.isArray(target.items)) {
@@ -182,7 +183,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
           customerPhone: target.customerPhone || '',
           customerGstin: target.customerGstin || '',
         });
-        const remaining = stored.filter((b: any) => b.id !== (heldInvoice.id || heldInvoice.invoice_id));
+        const remaining = stored.filter((b) => b.id !== (heldInvoice.id || heldInvoice.invoice_id));
         localStorage.setItem('vendora-held-bills', JSON.stringify(remaining));
         setHeldBills(remaining);
       }
@@ -193,7 +194,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
     setHeldBillsLoading(true);
     try {
       const targetId = heldInvoice.invoice_id || heldInvoice.id;
-      const result = await invoicesApi.recallHeldBill({ invoice_id: targetId });
+      const result = await invoicesApi.recallHeldBill({ invoice_id: targetId as string });
       if (!result.success) {
         setHardwareError(result.error || 'Failed to recall held bill');
         return;
@@ -227,7 +228,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
             ? heldUnitPrice
             : (item.offer_price ?? (heldUnitPrice > 0 ? heldUnitPrice : null));
 
-          let comboItems: any[] | undefined = undefined;
+          let comboItems: NonNullable<B.CartItem['combo_items']> | undefined = undefined;
           if (item.combo_details) {
             try {
               comboItems = JSON.parse(item.combo_details);
@@ -270,7 +271,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
       }
 
       // Parse split_details safely
-      let recalledSplitDetails: any = null;
+      let recalledSplitDetails: B.BillingSplitDetails | null = null;
       if (result.invoice?.split_details && result.invoice.split_details !== 'null') {
         let curr = result.invoice.split_details;
         while (typeof curr === 'string') {
@@ -315,7 +316,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
   const handleReleaseHeldBill = async (invoiceId: string) => {
     if (!isDesktopRuntime()) {
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
-      const remaining = stored.filter((b: any) => b.id !== invoiceId);
+      const remaining = stored.filter((b) => b.id !== invoiceId);
       localStorage.setItem('vendora-held-bills', JSON.stringify(remaining));
       setHeldBills(remaining);
       return;

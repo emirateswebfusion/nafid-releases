@@ -1,10 +1,11 @@
+import type * as B from '../billingTypes';
 import { Truck, X } from 'lucide-react';
 
 interface TransportDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  activeTab: any;
-  updateActiveTab: (updates: any) => void;
+  activeTab: B.Tab | undefined;
+  updateActiveTab: B.UpdateTab;
 }
 
 export function TransportDetailsModal({

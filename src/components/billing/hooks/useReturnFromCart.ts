@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
@@ -33,7 +34,7 @@ export interface UseReturnFromCartContext {
   returnRefundMethod: "ADJUST_BILL" | "CASH" | "UPI" | "CARD" | "BANK_TRANSFER" | "STORE_CREDIT" | "CREDIT";
   selectedReturnInvoice: Partial<Invoice> | null;
   setHardwareError: React.Dispatch<React.SetStateAction<string | null>>;
-  setPartiesForTier: React.Dispatch<React.SetStateAction<unknown[]>>;
+  setPartiesForTier: React.Dispatch<React.SetStateAction<B.Party[]>>;
   setReturnDeduction: (amount: number, returnInvoiceNumber: string) => void;
   setReturnMode: (isReturnMode: boolean) => void;
   setReturnProcessed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -105,7 +106,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
         return_number: returnNumber,
         customer_name: selectedReturnInvoice.customer_name || customerName || undefined,
         customer_phone: selectedReturnInvoice.customer_phone || customerPhone || undefined,
-        customer_address: (selectedReturnInvoice as any)?.customer_address || customerAddress || undefined,
+        customer_address: (selectedReturnInvoice as B.BillingInvoice)?.customer_address || customerAddress || undefined,
         subtotal: returnSubtotal,
         tax_total: returnTaxTotal,
         grand_total: returnSubtotal + returnTaxTotal,
@@ -161,8 +162,8 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
           invoiceType: 'RETURN',
           customerName: selectedReturnInvoice.customer_name || customerName || undefined,
           customerPhone: selectedReturnInvoice.customer_phone || customerPhone || undefined,
-          customerAddress: (selectedReturnInvoice as any)?.customer_address || customerAddress || undefined,
-          customerState: (selectedReturnInvoice as any)?.customer_state || undefined,
+          customerAddress: (selectedReturnInvoice as B.BillingInvoice)?.customer_address || customerAddress || undefined,
+          customerState: (selectedReturnInvoice as B.BillingInvoice)?.customer_state || undefined,
           billSettings,
         };
         const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
@@ -178,7 +179,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
 
       // Refresh parties list so party balances update immediately
       listParties(tid)
-        .then((res: any) => {
+        .then((res) => {
           if (Array.isArray(res)) setPartiesForTier(res);
         })
         .catch(console.error);

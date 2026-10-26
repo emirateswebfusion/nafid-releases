@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import type React from 'react';
 import { hasBridge } from '../../../data/client';
 import { getSetting, type PrintFormatSettings } from '../../../data/settings';
@@ -109,7 +110,7 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
         isB2B,
       };
 
-      const fullHtml = generateInvoiceHtml(activeReceiptData, invStyle as any);
+      const fullHtml = generateInvoiceHtml(activeReceiptData, invStyle as B.InvoiceStyle);
       const waMessage = formatWhatsAppBillMessage({
         shopName: shopNameState || shopName || 'Store',
         invoiceNumber: billNo,

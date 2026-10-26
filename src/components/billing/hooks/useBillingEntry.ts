@@ -136,10 +136,10 @@ export function useBillingEntry(ctx: UseBillingEntryContext) {
       if (activeTab.snapshot) {
         const isRet = Boolean(activeTab.snapshot.isReturnMode);
         const rawItems = activeTab.snapshot.items || [];
-        const hasReturnItems = rawItems.some((i: any) => i.isReturnItem);
+        const hasReturnItems = rawItems.some((i) => i.isReturnItem);
         const sanitizedItems = isRet
-          ? rawItems.filter((i: any) => i.isReturnItem)
-          : rawItems.filter((i: any) => !i.isReturnItem);
+          ? rawItems.filter((i) => i.isReturnItem)
+          : rawItems.filter((i) => !i.isReturnItem);
 
         if (!isRet && (hasReturnItems || activeTab.reservedReturnNumber)) {
           updateActiveTab({

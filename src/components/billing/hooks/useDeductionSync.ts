@@ -1,9 +1,9 @@
+import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { scrapApi } from '../../../data/scrap';
 import { getNumericPart } from '../../../utils/invoiceNumberHelper';
 import { returnsApi } from '../../../data/returns';
-import type { DeductionSearchRow } from '../deductionLookup';
 
 export interface UseDeductionSyncContext {
   returnDeductionInputRef: React.RefObject<HTMLInputElement | null>;
@@ -11,9 +11,9 @@ export interface UseDeductionSyncContext {
   scrapDeductionInputRef: React.RefObject<HTMLInputElement | null>;
   scrapDeductionSearchQuery: string;
   setReturnDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
-  setReturnDeductionResults: React.Dispatch<React.SetStateAction<DeductionSearchRow[]>>;
+  setReturnDeductionResults: React.Dispatch<React.SetStateAction<B.ReturnDeductionRow[]>>;
   setScrapDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
-  setScrapDeductionResults: React.Dispatch<React.SetStateAction<DeductionSearchRow[]>>;
+  setScrapDeductionResults: React.Dispatch<React.SetStateAction<B.ScrapDeductionRow[]>>;
   storeReturnDeduction: number;
   storeScrapDeduction: number;
   tenantId: string | null;
@@ -67,7 +67,7 @@ export function useDeductionSync(ctx: UseDeductionSyncContext) {
         const q = returnDeductionSearchQuery.toUpperCase();
         const getNumPart = getNumericPart;
         const qNum = getNumPart(q);
-        const filtered = list.filter((r: any) => {
+        const filtered = list.filter((r) => {
           const retNum = String(r.return_number).toUpperCase();
           const custName = String(r.customer_name || '').toUpperCase();
           const custPhone = String(r.customer_phone || '').toUpperCase();

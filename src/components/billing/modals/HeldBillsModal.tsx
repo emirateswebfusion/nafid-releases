@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import { PauseCircle, Play, Trash } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { formatCurrency } from '../BillingConstants';
@@ -7,9 +8,9 @@ import { getStoreTimezone } from '../../../utils/timezoneHelper';
 interface HeldBillsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  heldBills: any[];
+  heldBills: B.HeldBill[];
   heldBillsLoading: boolean;
-  handleRecallHeldBill: (bill: any) => void;
+  handleRecallHeldBill: (bill: B.HeldBill) => void;
   handleReleaseHeldBill: (billId: string) => void;
 }
 
@@ -47,7 +48,7 @@ export function HeldBillsModal({
           </div>
         ) : (
           <div className="max-h-[60vh] overflow-y-auto space-y-2.5 pr-1">
-            {heldBills.map((bill: any) => {
+            {heldBills.map((bill) => {
               const billId = bill.invoice_id || bill.id;
               const invNum = bill.invoice_number || bill.id?.substring(0, 8) || 'HLD';
               const createdTime = bill.created_at
@@ -85,7 +86,7 @@ export function HeldBillsModal({
                         <span>Take / Resume</span>
                       </button>
                       <button
-                        onClick={() => handleReleaseHeldBill(billId)}
+                        onClick={() => handleReleaseHeldBill(billId as string)}
                         className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95 cursor-pointer"
                         title="Discard / Delete Held Bill"
                       >

@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { listInvoices, getInvoiceItems, type Invoice } from '../../../data/invoices';
 import { useCartStore, type CartItem } from '../../../store/cartStore';
@@ -68,7 +69,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           try {
             const fetched = await listInvoices({ search: localInvoice.invoice_number || localInvoice.invoice_id, tenant_id: localInvoice.tenant_id });
             if (Array.isArray(fetched) && fetched.length > 0) {
-              const exact = fetched.find((i: any) => i.invoice_id === localInvoice.invoice_id);
+              const exact = fetched.find((i) => i.invoice_id === localInvoice.invoice_id);
               if (exact) {
                 invoice = exact;
               }
@@ -86,18 +87,18 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         }
 
         // Enrich items with product data (barcode, brand, tax rate, uom, hsn, pricing, etc.)
-        const productIds = [...new Set(invoiceItems.map((i: any) => i.product_id).filter(Boolean))] as string[];
-        const productMap: Record<string, any> = {};
+        const productIds = [...new Set(invoiceItems.map((i) => i.product_id).filter(Boolean))] as string[];
+        const productMap: Record<string, B.BillingProduct> = {};
         if (productIds.length > 0) {
           try {
             const products = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
             if (Array.isArray(products)) {
-              products.forEach((p: any) => { productMap[p.product_id] = p; });
+              products.forEach((p) => { productMap[p.product_id] = p; });
             }
           } catch { /* ignore */ }
         }
 
-        const enrichedItems: CartItem[] = invoiceItems.map((item: any) => {
+        const enrichedItems: CartItem[] = invoiceItems.map((item) => {
           const productId = item.product_id || item.item_id || `edit-${Date.now()}-${Math.random()}`;
           const p = productMap[item.product_id];
           const isPcsWeight = item.billing_type === 'WEIGHT' ||
@@ -113,7 +114,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           const itemSgstR = Number(item.sgst_rate) || 0;
           const itemIgstR = Number(item.igst_rate) || 0;
           const combinedRate = itemCgstR + itemSgstR + itemIgstR;
-          const pTaxRate = Number(p?.tax_rate_percent ?? (p as any)?.gst_percent ?? 0);
+          const pTaxRate = Number(p?.tax_rate_percent ?? (p as B.BillingProduct)?.gst_percent ?? 0);
 
           let tax_rate_percent = combinedRate || Number(item.tax_rate_percent) || Number(item.item_tax_rate) || pTaxRate || 0;
           if (tax_rate_percent <= 0 && Number(item.tax_amount) > 0) {
@@ -241,8 +242,8 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             sku_barcode,
             brand_manufacturer,
             uom,
-            hsn_sac_code: item.hsn_sac_code || (item as any).hsn_code || p?.hsn_sac_code || (p as any)?.hsn_code || null,
-            is_gst_applicable: item.is_gst_applicable !== undefined ? Boolean(item.is_gst_applicable) : ((p as any)?.is_gst_applicable !== 0),
+            hsn_sac_code: item.hsn_sac_code || (item as B.BillingInvoiceItem).hsn_code || p?.hsn_sac_code || (p as B.BillingProduct)?.hsn_code || null,
+            is_gst_applicable: item.is_gst_applicable !== undefined ? Boolean(item.is_gst_applicable) : ((p as B.BillingProduct)?.is_gst_applicable !== 0),
           };
         });
 
@@ -285,7 +286,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         });
 
         // Parse split_details safely (handles double/multi-encoded JSON string or object)
-        let parsedSplitDetails: any = null;
+        let parsedSplitDetails: B.BillingSplitDetails | null = null;
         if (invoice.split_details) {
           let curr = invoice.split_details;
           while (typeof curr === 'string') {
@@ -315,9 +316,9 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             credit: Number(parsedSplitDetails.credit) || 0,
             bank_transfer: Number(parsedSplitDetails.bank_transfer || parsedSplitDetails.bank) || 0,
           };
-          if (parsedSplitDetails.upi_id) (finalSplitDetails as any).upi_id = parsedSplitDetails.upi_id;
-          if (parsedSplitDetails.upi_name) (finalSplitDetails as any).upi_name = parsedSplitDetails.upi_name;
-          if (parsedSplitDetails.upi_source_id) (finalSplitDetails as any).upi_source_id = parsedSplitDetails.upi_source_id;
+          if (parsedSplitDetails.upi_id) (finalSplitDetails as B.BillingSplitDetails).upi_id = parsedSplitDetails.upi_id;
+          if (parsedSplitDetails.upi_name) (finalSplitDetails as B.BillingSplitDetails).upi_name = parsedSplitDetails.upi_name;
+          if (parsedSplitDetails.upi_source_id) (finalSplitDetails as B.BillingSplitDetails).upi_source_id = parsedSplitDetails.upi_source_id;
         } else {
           // Pre-fill split details according to single payment method and received amount / grand total
           const amt = Number(invoice.received_amount) > 0 ? Number(invoice.received_amount) : grandTotalVal;
@@ -414,16 +415,16 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         }
 
         const returnedMap: Record<string, number> = {};
-        (returnedQtys || []).forEach((r: any) => {
+        (returnedQtys || []).forEach((r) => {
           returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
         });
 
-        const invSubtotal = Number(invoice.subtotal) || rawItems.reduce((s: number, i: any) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
+        const invSubtotal = Number(invoice.subtotal) || rawItems.reduce((s: number, i) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
         const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
         const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
 
         const enriched = rawItems
-          .map((item: any) => {
+          .map((item) => {
             const origPrice = Number(item.unit_price) || 0;
             const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
             const origTax = Number(item.tax_amount) || 0;
@@ -437,7 +438,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
               available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
             };
           })
-          .filter((item: any) => item.available_to_return > 0);
+          .filter((item) => item.available_to_return > 0);
 
         if (enriched.length === 0) {
           setHardwareError('All items have already been returned');
@@ -450,17 +451,17 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         setReturnMode(true);
 
         // Enrich with catalog product details if available
-        const productIds: string[] = [...new Set((enriched || []).map((i: any) => i.product_id).filter(Boolean))];
-        const productMap: Record<string, any> = {};
+        const productIds: string[] = [...new Set((enriched || []).map((i) => i.product_id).filter(Boolean))];
+        const productMap: Record<string, B.BillingProduct> = {};
         if (productIds.length > 0) {
           try {
             const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
-            if (Array.isArray(prods)) { prods.forEach((p: any) => { productMap[p.product_id] = p; }); }
+            if (Array.isArray(prods)) { prods.forEach((p) => { productMap[p.product_id] = p; }); }
           } catch (e) { /* ignore */ }
         }
 
         // Load returnable items into cart
-        enriched.forEach((item: any) => {
+        enriched.forEach((item: B.BillingInvoiceItem) => {
           const catProd = productMap[item.product_id];
           const productId = item.product_id || `return-${uuidv4()}`;
 
@@ -487,7 +488,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             name: item.name || catProd?.name || 'Product',
             base_price: Number(item.unit_price) || 0,
             purchase_price: Number(catProd?.purchase_price ?? item.unit_price) || 0,
-            tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.tax_rate_percent || (catProd as any)?.gst_percent || 0),
+            tax_rate_percent: Number(item.tax_rate_percent || item.item_tax_rate || catProd?.tax_rate_percent || (catProd as B.BillingProduct)?.gst_percent || 0),
             billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
             uom: effectiveUom,
             pieces_per_kg: piecesPerKg || 1,
@@ -564,20 +565,20 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         if (quotation.terms_conditions) setQuotationTerms(quotation.terms_conditions);
         
         if (Array.isArray(qItems)) {
-          const productIds = qItems.map((i: any) => i.product_id).filter(Boolean);
-          const productsMap: Record<string, any> = {};
+          const productIds = qItems.map((i) => i.product_id).filter(Boolean);
+          const productsMap: Record<string, B.BillingProduct> = {};
           if (productIds.length > 0) {
             try {
               const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
               if (Array.isArray(prods)) {
-                prods.forEach((p: any) => { productsMap[p.product_id] = p; });
+                prods.forEach((p) => { productsMap[p.product_id] = p; });
               }
             } catch (e) {
               console.error('Failed to fetch product details for quotation items:', e);
             }
           }
 
-          qItems.forEach((item: any) => {
+          qItems.forEach((item) => {
             const productId = item.product_id || item.item_id || `qtn-${Date.now()}-${Math.random()}`;
             const qty = item.weight && Number(item.weight) > 0 ? Number(item.weight) : (Number(item.quantity) || 1);
             const dbProduct = productsMap[productId] || {};
@@ -622,9 +623,9 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
               name: item.name || dbProduct.name || 'Product',
               base_price: basePrice,
               purchase_price: Number(dbProduct.purchase_price || item.purchase_price) || 0,
-              tax_rate_percent: Number(item.tax_rate_percent || dbProduct.tax_rate_percent || (dbProduct as any).gst_percent || 0),
-              hsn_sac_code: item.hsn_code || (item as any).hsn_sac_code || dbProduct.hsn_sac_code || dbProduct.hsn_code || null,
-              is_gst_applicable: (dbProduct as any).is_gst_applicable !== 0,
+              tax_rate_percent: Number(item.tax_rate_percent || dbProduct.tax_rate_percent || (dbProduct as B.BillingProduct).gst_percent || 0),
+              hsn_sac_code: item.hsn_code || (item as B.BillingInvoiceItem).hsn_sac_code || dbProduct.hsn_sac_code || dbProduct.hsn_code || null,
+              is_gst_applicable: (dbProduct as B.BillingProduct).is_gst_applicable !== 0,
               billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : (dbProduct.billing_type || undefined),
               quantity: qty,
               offer_price,

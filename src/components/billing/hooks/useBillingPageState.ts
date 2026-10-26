@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import { useState } from 'react';
 import { type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../../../utils/upiConfig';
 import { type MostSoldProductRow } from '../productSearch';
@@ -23,14 +24,14 @@ export function useBillingPageState() {
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
   const [isUpiSelectModalOpen, setIsUpiSelectModalOpen] = useState(false);
   const [isBillerPinModalOpen, setIsBillerPinModalOpen] = useState(false);
-  const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
+  const [partiesForTier, setPartiesForTier] = useState<B.Party[]>([]);
   const [showTransportModal, setShowTransportModal] = useState(false);
   const [mostSoldProducts, setMostSoldProducts] = useState<MostSoldProductRow[]>([]);
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
-  const [scrapDeductionResults, setScrapDeductionResults] = useState<DeductionSearchRow[]>([]);
+  const [scrapDeductionResults, setScrapDeductionResults] = useState<DeductionSearchRow<'scrap'>[]>([]);
   // Return deduction search (similar to scrap deduction search)
   const [returnDeductionSearchQuery, setReturnDeductionSearchQuery] = useState('');
-  const [returnDeductionResults, setReturnDeductionResults] = useState<DeductionSearchRow[]>([]);
+  const [returnDeductionResults, setReturnDeductionResults] = useState<DeductionSearchRow<'return'>[]>([]);
   const [, setReturnDeductionSearchMode] = useState(false);
   const [deductionTabMode, setDeductionTabMode] = useState<'scrap' | 'return' | 'points'>('scrap');
   // Loyalty points state
@@ -56,12 +57,12 @@ export function useBillingPageState() {
   const [overrideTotalInput, setOverrideTotalInput] = useState('');
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   // Local return mode transient state
-  const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<any | null>(null);
+  const [selectedReturnInvoice, setSelectedReturnInvoice] = useState<B.BillingInvoice | null>(null);
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnProcessed, setReturnProcessed] = useState(false);
   // Scrap invoice view state
   const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
-  const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: any[]; totalAmount: number; invoiceNumber: string } | null>(null);
+  const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: B.ScrapTransaction[]; totalAmount: number; invoiceNumber: string } | null>(null);
   const [scrapInvoiceViewLoading, _setScrapInvoiceViewLoading] = useState(false);
   // Quotation state
   const [quotationTerms, setQuotationTerms] = useState('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
@@ -71,7 +72,7 @@ export function useBillingPageState() {
   const [returnDeductionDropdownStyle, setReturnDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
   const [isLoadingEditBill, setIsLoadingEditBill] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
-  const [heldBills, setHeldBills] = useState<any[]>([]);
+  const [heldBills, setHeldBills] = useState<B.HeldBill[]>([]);
   const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
   const [heldBillsLoading, setHeldBillsLoading] = useState(false);
 

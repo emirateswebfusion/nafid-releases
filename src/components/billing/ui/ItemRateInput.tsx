@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
 import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
@@ -16,7 +17,7 @@ interface ItemRateInputProps {
   purchasePrice?: number;
   showPurchasePrice?: boolean;
   tierPricesMap?: Record<string, number>;
-  pricingTiers?: any[];
+  pricingTiers?: B.Tier[];
   basePrice?: number;
   selectedTierId?: string | null;
   onSelectTier?: (productId: string, tierId: string | null, tierName: string | null, newPrice: number) => void;
@@ -85,7 +86,7 @@ export function ItemRateInput({
     const bp = basePrice ?? rate;
     const list: Array<{ tierId: string; name: string; unitPrice: number }> = [];
 
-    pricingTiers.forEach((t: any) => {
+    pricingTiers.forEach((t) => {
       const isMrp = t.is_mrp || t.pricing_tier_id === '' || t.pricing_tier_id === MRP_TIER_ID;
       if (isMrp) {
         list.push({ tierId: '', name: t.name || 'Base (MRP)', unitPrice: bp });

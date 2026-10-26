@@ -160,7 +160,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
               <span className="text-[11px] text-muted-foreground font-medium">Select bill to load details</span>
             </div>
             <div ref={searchResultListRef} className="max-h-[400px] overflow-y-auto custom-scrollbar divide-y divide-border">
-              {pastBillResults.map((inv: any, i: number) => (
+              {pastBillResults.map((inv, i: number) => (
                 <button
                   key={inv.invoice_id || inv.invoice_number}
                   data-search-index={i}
@@ -235,7 +235,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
             {/* Results List */}
             <div ref={searchResultListRef} className="max-h-[420px] overflow-y-auto custom-scrollbar divide-y divide-border">
               {isScrapMode ? (
-                scrapSearchResults.map((cat: any, i: number) => {
+                scrapSearchResults.map((cat, i: number) => {
                   const rate = Number(cat.purchase_price ?? cat.rate ?? cat.selling_price) || 0;
                   return (
                     <button
@@ -264,7 +264,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
                   );
                 })
               ) : isReturnMode ? (
-                returnSearchResults.map((inv: any, i: number) => (
+                returnSearchResults.map((inv, i: number) => (
                   <button
                     key={inv.invoice_id}
                     data-search-index={i}

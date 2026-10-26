@@ -1,3 +1,4 @@
+import type * as B from './billingTypes';
 import { scrapApi } from '../../data/scrap';
 import { returnsApi } from '../../data/returns';
 import { matchesDocumentNumber } from '../../utils/invoiceNumberHelper';
@@ -13,8 +14,7 @@ export type CreditLookup =
   | { status: 'none' };
 
 /** A scrap / return document row as the deduction search dropdown lists it (untyped IPC rows). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type DeductionSearchRow = any;
+export type DeductionSearchRow<Kind extends 'scrap' | 'return' = 'scrap' | 'return'> = Kind extends 'scrap' ? B.ScrapDeductionRow : B.ReturnDeductionRow;
 
 const NONE: CreditLookup = { status: 'none' };
 

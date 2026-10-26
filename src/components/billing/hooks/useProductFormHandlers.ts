@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { productsApi, getProductsByIds } from '../../../data/products';
@@ -153,8 +154,8 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
 
   const handleEditProduct = async (item: CartItem) => {
     setEditingProductId(item.product_id);
-    let prodDetails: any = null;
-    let productPricingRows: any[] = [];
+    let prodDetails: B.BillingProduct | null = null;
+    let productPricingRows: B.ProductPricingRow[] = [];
     if (isDesktopRuntime()) {
       const tid = tenantId || 'global';
       const [productResult, pricingResult] = await Promise.allSettled([
@@ -174,7 +175,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
     }
 
     const hasProductRecord = Boolean(prodDetails);
-    const p = prodDetails || item;
+    const p: B.BillingProduct = prodDetails || item;
     setEditingProductSnapshot(p);
     setNewProductName(p.name || item.name || '');
     setNewProductItemCode(p.item_code ?? (hasProductRecord ? '' : item.item_code || ''));
@@ -210,7 +211,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
     setNewProductDiscountPercent(p.discount_percent != null ? String(p.discount_percent) : (!hasProductRecord && item.discount_percent != null ? String(item.discount_percent) : ''));
     setNewProductDiscountFlat(p.discount_flat != null ? String(p.discount_flat) : (!hasProductRecord && item.discount_flat != null ? String(item.discount_flat) : ''));
     setNewProductOfferPrice(p.offer_price != null ? String(p.offer_price) : (!hasProductRecord && item.offer_price != null ? String(item.offer_price) : ''));
-    setNewProductIsGstApplicable(Boolean(p.is_gst_applicable ?? (!hasProductRecord ? (item as any).is_gst_applicable : false)));
+    setNewProductIsGstApplicable(Boolean(p.is_gst_applicable ?? (!hasProductRecord ? (item as B.CartItem).is_gst_applicable : false)));
     setNewProductGradeId(p.grade_id ?? (!hasProductRecord ? item.grade_id : '') ?? '');
     setNewProductIsCustomCategory(!configuredCategories.includes(p.category || '') && Boolean(p.category));
     const tierPrices: Record<string, string> = {};
@@ -244,7 +245,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
         editingProductSnapshot?.uom === newProductUom && editingProductSnapshot?.billing_type === 'WEIGHT'
       ) ? 'WEIGHT' : 'PIECE';
       const rawPcs = Number(newProductPcs) || 0;
-      let domainAttrsObj: Record<string, any> = {};
+      let domainAttrsObj: Record<string, unknown> = {};
       try {
         const existingDomainAttributes = editingProductSnapshot?.domain_attributes;
         const parsedAttributes = typeof existingDomainAttributes === 'string'
@@ -420,7 +421,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
     const initialStock = (isGstProduct && qty > 0) ? 0 : qty;
 
     const rawPcs = Number(newProductPcs) || 0;
-    const domainAttrsObj: Record<string, any> = {};
+    const domainAttrsObj: Record<string, unknown> = {};
     if (isWeightBilling && rawPcs > 0) {
       domainAttrsObj.pcs_per_kg = initialStock > 0 ? rawPcs / initialStock : rawPcs;
       domainAttrsObj.pcs_stock = rawPcs;
@@ -510,15 +511,15 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
       }
 
       if (autoPrintBarcode && isDesktopRuntime() && finalBarcode) {
-        printingApi.printBarcode(tenantId, finalBarcode, basePrice > 0 ? basePrice : undefined, newProductName.trim(), 1).then((r: any) => {
+        printingApi.printBarcode(tenantId, finalBarcode, basePrice > 0 ? basePrice : undefined, newProductName.trim(), 1).then((r) => {
           if (!r?.success) console.warn('[BillingPage] Auto barcode print failed:', r?.error || 'No barcode printer configured');
-        }).catch((e: any) => console.warn('[BillingPage] Auto barcode print error:', e?.message || e));
+        }).catch((e) => console.warn('[BillingPage] Auto barcode print error:', e?.message || e));
       }
       handleSelectProduct({
         product_id: productId,
         name: newProductName.trim(),
         base_price: basePrice,
-        tier_prices: Object.fromEntries(tierRows.filter(row => row.price != null).map(row => [row.pricing_tier_id, row.price])),
+        tier_prices: Object.fromEntries(tierRows.filter(row => row.price != null).map(row => [row.pricing_tier_id, row.price])) as Record<string, number>,
         purchase_price: purchasePrice,
         tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
         uom: newProductUom,

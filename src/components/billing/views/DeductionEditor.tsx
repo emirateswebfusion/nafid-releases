@@ -1,3 +1,4 @@
+import type * as B from '../billingTypes';
 import React from 'react';
 import clsx from 'clsx';
 import { ArrowLeftRight, Coins, Recycle, X } from 'lucide-react';
@@ -26,11 +27,11 @@ export interface DeductionState {
   setPointsToRedeem: React.Dispatch<React.SetStateAction<number>>;
   setReturnDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
   // Result rows are untyped in BillingPage state (any[]); typed when that state is.
-  setReturnDeductionResults: React.Dispatch<React.SetStateAction<any[]>>;
+  setReturnDeductionResults: React.Dispatch<React.SetStateAction<B.ReturnDeductionRow[]>>;
   setReturnDeductionSearchMode: React.Dispatch<React.SetStateAction<boolean>>;
   setReturnDeductionSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   setScrapDeductionDropdownStyle: React.Dispatch<React.SetStateAction<React.CSSProperties | null>>;
-  setScrapDeductionResults: React.Dispatch<React.SetStateAction<any[]>>;
+  setScrapDeductionResults: React.Dispatch<React.SetStateAction<B.ScrapDeductionRow[]>>;
   setScrapDeductionSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   tenantId: string | null;
 }

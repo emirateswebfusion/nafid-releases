@@ -384,7 +384,7 @@ export function BillingHeader({
         {uiConfig.showQuickActions !== false && (uiConfig.quickPageShortcuts || ['ledger']).map((pageKey) => {
           const pageDef = QUICK_PAGES_LIST.find(p => p.key === pageKey);
           if (!pageDef) return null;
-          if (pageDef.featureKey && featureFlags && (featureFlags as any)[pageDef.featureKey] === false) return null;
+          if (pageDef.featureKey && featureFlags && (featureFlags as Record<string, unknown>)[pageDef.featureKey] === false) return null;
 
           return (
             <button
