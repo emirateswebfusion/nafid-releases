@@ -11,7 +11,7 @@ export interface InventoryTableViewProps {
   isSomeSelected: boolean;
   handleToggleSelectAll: () => void;
   showPriceTiersInInventory: boolean;
-  activePricingTiers: any[];
+  activePricingTiers: import('../hooks/useInventoryState').InventoryState['pricingTiers'];
   listScrollRef: React.RefObject<HTMLDivElement | null>;
   handleListScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   products: Product[];
@@ -20,12 +20,12 @@ export interface InventoryTableViewProps {
   offset: number;
   highlightedProductId: string | null;
   selectedProductIds: Set<string>;
-  toggleSelectProduct: (productId: string, e?: any) => void;
+  toggleSelectProduct: (productId: string, e?: React.MouseEvent) => void;
   enableRealPaperStock: boolean;
-  grades: any[];
+  grades: import('../hooks/useInventoryState').InventoryState['grades'];
   allProductPricingMap: Record<string, Record<string, number>>;
   adjustingStockId: string | null;
-  applyStockAdjust: (product: Product, delta: number, pcsDelta?: number) => any;
+  applyStockAdjust: (product: Product, delta: number, pcsDelta?: number) => Promise<boolean>;
   openAdjustDialog: (product: Product, mode: 'add' | 'reduce') => void;
   openEdit: (product: Product) => void;
   handleDelete: (product: Product) => void;
@@ -39,7 +39,7 @@ export interface InventoryTableViewProps {
   showLowStockAlert: boolean;
   setShowLowStockAlert: (v: boolean) => void;
   stockFilter: string;
-  setStockFilter: (filter: any) => void;
+  setStockFilter: (filter: import('../hooks/useInventoryState').InventoryState['stockFilter']) => void;
 }
 
 export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
@@ -188,10 +188,10 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                   const isPaperProduct = Boolean(enableRealPaperStock) && (da.gst_type === 'PAPER' || hasPaperStock);
 
                   const paperPurPrice = isPaperProduct
-                    ? Number(da.paper_purchase_price || (da.gst_type === 'PAPER' ? ((p as any).gst_purchase_price || da.gst_purchase_price) : 0) || (p as any).paper_purchase_price || 0)
+                    ? Number(da.paper_purchase_price || (da.gst_type === 'PAPER' ? ((p as Product & { paper_purchase_price?: number }).gst_purchase_price || da.gst_purchase_price) : 0) || (p as Product & { paper_purchase_price?: number }).paper_purchase_price || 0)
                     : 0;
                   const paperMrpPrice = isPaperProduct
-                    ? Number((p as any).paper_mrp || da.paper_mrp || da.paper_base_price || 0)
+                    ? Number((p as Product & { paper_purchase_price?: number }).paper_mrp || da.paper_mrp || da.paper_base_price || 0)
                     : 0;
 
                   return (

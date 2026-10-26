@@ -239,7 +239,7 @@ export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
 
       listParties(tenantId || 'global')
         .then(res => {
-          if (Array.isArray(res)) setSuppliers(res);
+          if (Array.isArray(res)) setSuppliers(res as InventoryState['suppliers']);
         })
         .catch(console.error);
     }
@@ -305,7 +305,7 @@ export function useInventoryEffects(ctx: UseInventoryEffectsContext) {
         sortBy: 'name'
       }));
       if (Array.isArray(products)) {
-        setNameSuggestions(products.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
+        setNameSuggestions(products.filter((p: import('../inventoryHelpers').Product) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
         setSelectedNameIndex(0);
       }
     }, 300);

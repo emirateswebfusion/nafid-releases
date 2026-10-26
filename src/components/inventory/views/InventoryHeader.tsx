@@ -116,7 +116,7 @@ export function InventoryHeader({
                 <Select
                   value={viewMode}
                   onChange={v => {
-                    setViewMode(v as any);
+                    setViewMode(v as typeof viewMode);
                     settingsApi.set({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: v }).catch(console.error);
                   }}
                   options={[
@@ -157,7 +157,7 @@ export function InventoryHeader({
                 <label className="sr-only">Stock Status</label>
                 <Select
                   value={stockFilter}
-                  onChange={v => setStockFilter(v as any)}
+                  onChange={v => setStockFilter(v as typeof stockFilter)}
                   options={[
                     { value: 'all', label: 'All Stock', icon: Layers, color: 'text-primary' },
                     { value: 'in_stock', label: 'In Stock', icon: CheckCircle2, color: 'text-emerald-500' },
@@ -184,7 +184,7 @@ export function InventoryHeader({
                 <label className="sr-only">Sort By</label>
                 <Select
                   value={sortBy}
-                  onChange={v => setSortBy(v as any)}
+                  onChange={v => setSortBy(v as typeof sortBy)}
                   options={[
                     { value: 'name', label: 'Sort by Name' },
                     { value: 'created_at', label: 'Sort by Date Added' },

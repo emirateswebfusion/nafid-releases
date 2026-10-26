@@ -21,7 +21,7 @@ export interface CreateGradeModalProps {
   }>>;
   handleCreateGrade: () => void;
   savingGrade: boolean;
-  handleFormKeyDown?: any;
+  handleFormKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
 }
 
 export const CreateGradeModal: React.FC<CreateGradeModalProps> = ({

@@ -77,8 +77,8 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
           const da = JSON.parse(product.domain_attributes || '{}');
           const isPaper = da.gst_type === 'PAPER' || Number(product.paper_stock || da.paper_stock || 0) > 0;
           if (!isPaper) return '';
-          if ((product as any).gst_purchase_price !== undefined && (product as any).gst_purchase_price !== null && (product as any).gst_purchase_price !== '') {
-            return String((product as any).gst_purchase_price);
+          if ((product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).gst_purchase_price !== undefined && (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).gst_purchase_price !== null && (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).gst_purchase_price !== '') {
+            return String((product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).gst_purchase_price);
           }
           return da.paper_purchase_price !== undefined && da.paper_purchase_price !== null ? String(da.paper_purchase_price) : (da.gst_purchase_price !== undefined && da.gst_purchase_price !== null ? String(da.gst_purchase_price) : '');
         } catch { return ''; }
@@ -109,8 +109,8 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
             delete da.paper_purchase_price;
             delete da.gst_purchase_price;
           } else {
-            const paperMrpVal = (product as any).paper_mrp !== undefined && (product as any).paper_mrp !== null && (product as any).paper_mrp !== ''
-              ? (product as any).paper_mrp
+            const paperMrpVal = (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).paper_mrp !== undefined && (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).paper_mrp !== null && (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).paper_mrp !== ''
+              ? (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).paper_mrp
               : (da.paper_mrp !== undefined && da.paper_mrp !== null ? da.paper_mrp : (da.paper_base_price !== undefined ? da.paper_base_price : ''));
             da.paper_mrp = paperMrpVal !== '' ? String(paperMrpVal) : '';
           }
@@ -150,15 +150,15 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
       // load it directly from purchase bill records
       const daParsed = (() => { try { return JSON.parse(product.domain_attributes || '{}'); } catch { return {}; } })();
       const isProductPaper = daParsed.gst_type === 'PAPER' || Number(product.paper_stock || daParsed.paper_stock || 0) > 0;
-      const curPur = (product as any).gst_purchase_price ?? daParsed.gst_purchase_price ?? daParsed.paper_purchase_price ?? '';
-      const curMrp = (product as any).paper_mrp ?? daParsed.paper_mrp ?? daParsed.paper_base_price ?? '';
+      const curPur = (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).gst_purchase_price ?? daParsed.gst_purchase_price ?? daParsed.paper_purchase_price ?? '';
+      const curMrp = (product as Omit<Product, 'gst_purchase_price' | 'paper_mrp'> & { gst_purchase_price?: string | number; paper_mrp?: string | number }).paper_mrp ?? daParsed.paper_mrp ?? daParsed.paper_base_price ?? '';
 
       if (isProductPaper && (!curPur || !curMrp) && hasBridge('dbGetPurchaseBillProducts')) {
         purchasesApi.getPurchaseBillProducts({
           tenant_id: tenantId || 'global',
           search: product.name,
           limit: 10
-        }).then((billProds: any[]) => {
+        }).then((billProds: (Product & { gst_purchase_price: number; paper_mrp: number })[]) => {
           if (Array.isArray(billProds)) {
             const match = billProds.find(bp => bp.product_id === product.product_id);
             if (match) {

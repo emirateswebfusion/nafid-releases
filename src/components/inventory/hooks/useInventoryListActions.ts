@@ -7,8 +7,8 @@ import type { InventoryState } from './useInventoryState';
 export interface UseInventoryListActionsContext {
   adjustCurrentPcs: number;
   applyStockAdjust: (product: Product, delta: number, pcsDelta?: number) => Promise<boolean>;
-  encodePurchasePriceCode: (price: any) => string;
-  handleInputChange: (field: string, value: any) => void;
+  encodePurchasePriceCode: (price: unknown) => string;
+  handleInputChange: (field: string, value: unknown) => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   inv: InventoryState;
 }
