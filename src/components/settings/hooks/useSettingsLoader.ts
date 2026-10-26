@@ -219,7 +219,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       let finalReceipt: { type: string; ip: string; port: number; deviceName: string; receiptWidthCm?: number | string | null } = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
       if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
         const cleanReceipt = { ...pReceipt };
-        for (let i = 0; i <= 20; i++) delete cleanReceipt[String(i)];
+        for (let i = 0; i <= 20; i++) delete (cleanReceipt as Record<string, unknown>)[String(i)];
         finalReceipt = { ...finalReceipt, ...cleanReceipt };
       } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
         const cleanLegacy = { ...pLegacy };

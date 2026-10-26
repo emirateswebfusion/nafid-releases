@@ -1,6 +1,10 @@
 import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { listInvoices, getInvoiceItems, type Invoice } from '../../../data/invoices';
+import type { DisplayInvoiceItem } from '../../sales/invoiceDisplayTypes';
+
+/** A line handed over by Sales History for editing (display fields plus the cart flags it carried). */
+type IncomingEditItem = DisplayInvoiceItem & { item_tax_rate?: number | null; isDummyStock?: boolean; calculated_weight?: number | null; is_gst_applicable?: number | boolean | null };
 import { useCartStore, type CartItem } from '../../../store/cartStore';
 import { useTabStore, type SplitDetails, type TabSnapshot, saveStoredTabs } from '../../../store/tabStore';
 import { getProductsByIds } from '../../../data/products';
@@ -9,7 +13,7 @@ import { isDesktopRuntime } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
 import { v4 as uuidv4 } from 'uuid';
 import type { Tab } from '../../../store/tabStore';
-import type { InvoiceType } from '../../../store/cartStore';
+import type { InvoiceType, UserRole } from '../../../store/cartStore';
 import type { ProductSearchState } from './useProductSearchState';
 
 export interface UseIncomingDocumentsContext {
@@ -59,7 +63,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
       localStorage.removeItem('editBillData');
 
       try {
-        const { invoice: localInvoice, items: invoiceItems, originalRole } = JSON.parse(raw);
+        const { invoice: localInvoice, items: invoiceItems, originalRole } = JSON.parse(raw) as { invoice: Invoice; items?: IncomingEditItem[]; originalRole?: UserRole };
         if (!invoiceItems?.length) return;
 
         setIsLoadingEditBill(true);
@@ -67,7 +71,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         let invoice = localInvoice;
         if (localInvoice?.invoice_id) {
           try {
-            const fetched = await listInvoices({ search: localInvoice.invoice_number || localInvoice.invoice_id, tenant_id: localInvoice.tenant_id });
+            const fetched = await listInvoices({ search: localInvoice.invoice_number || localInvoice.invoice_id, tenant_id: localInvoice.tenant_id as string });
             if (Array.isArray(fetched) && fetched.length > 0) {
               const exact = fetched.find((i) => i.invoice_id === localInvoice.invoice_id);
               if (exact) {
@@ -269,7 +273,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           lastAddedProductId: enrichedItems.length > 0 ? enrichedItems[enrichedItems.length - 1].product_id : null,
           invoiceType: (invoice.invoice_type === 'GST' || invoice.invoice_type === 'BILL_OF_SUPPLY') ? invoice.invoice_type : useCartStore.getState().invoiceType,
           discountValue: effDiscValue,
-          discountType: effDiscType,
+          discountType: effDiscType as 'FIXED' | 'PERCENTAGE',
           scrapDeduction: Number(invoice.scrap_deduction) > 0 && invoice.scrap_invoice_number ? Number(invoice.scrap_deduction) : 0,
           scrapInvoiceNumber: Number(invoice.scrap_deduction) > 0 && invoice.scrap_invoice_number ? invoice.scrap_invoice_number : '',
           returnDeduction: Number(invoice.return_deduction) > 0 && invoice.return_invoice_number ? Number(invoice.return_deduction) : 0,
@@ -288,7 +292,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         // Parse split_details safely (handles double/multi-encoded JSON string or object)
         let parsedSplitDetails: B.BillingSplitDetails | null = null;
         if (invoice.split_details) {
-          let curr = invoice.split_details;
+          let curr: unknown = invoice.split_details;
           while (typeof curr === 'string') {
             try {
               const p = JSON.parse(curr);
@@ -298,7 +302,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             }
           }
           if (typeof curr === 'object' && curr !== null) {
-            parsedSplitDetails = curr;
+            parsedSplitDetails = curr as B.BillingSplitDetails;
           }
         }
 
@@ -362,7 +366,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           selectedUpiSourceId: parsedSplitDetails?.upi_source_id,
           selectedUpiName: parsedSplitDetails?.upi_name,
           description: invoice.description || invoice.notes || '',
-          title: invoice.invoice_number,
+          title: invoice.invoice_number as string,
         });
 
         if (invoice.customer_name || invoice.customer_phone) {

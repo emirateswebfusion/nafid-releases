@@ -247,7 +247,7 @@ export function DashboardCardCustomizer({
     return cardOrder
       .filter((id) => !allowedCardIds || allowedCardIds.includes(id))
       .map((id) => {
-        const def = cardDefinitions[id] || {
+        const def = (cardDefinitions as Record<string, (typeof cardDefinitions)[keyof typeof cardDefinitions] | undefined>)[id] || {
           title: id.replace(/-/g, ' ').toUpperCase(),
           desc: 'Dashboard module',
           icon: SlidersHorizontal,
