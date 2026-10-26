@@ -11,6 +11,7 @@ import { useCartStore } from '../../../store/cartStore';
 import type { LedgerEntry } from '../partyTypes';
 import { formatDateTime } from '../partyFormat';
 import type { PartyManagerState } from './usePartyManagerState';
+import { mapScrapInvoiceToPartyPreview } from '../partyPreviewMapping';
 
 export interface UsePartyBillPreviewContext {
   onClose: () => void;
@@ -132,29 +133,20 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
         }
         setViewingInvoiceItems(invoiceItems);
       } else {
-        type FoundScrapInvoice = import('../partyTypes').PartyPreviewScrapInvoice & { scrap_invoice_number: string };
-        let foundScrap: FoundScrapInvoice | null = null;
+        let foundScrap: import('../../../data/scrap').ScrapInvoiceDetails | null = null;
         for (const term of candidateTerms) {
           if (hasBridge('dbGetScrapInvoiceByNumber')) {
-            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId as string, scrap_invoice_number: term }) as unknown as import('../partyTypes').PartyPreviewScrapInvoice | null;
-            if (scrap && scrap.scrap_invoice_number) {
-              foundScrap = scrap as unknown as FoundScrapInvoice;
+            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId as string, scrap_invoice_number: term });
+            if (scrap && !('error' in scrap)) {
+              foundScrap = scrap;
               break;
             }
           }
         }
-        if (foundScrap as FoundScrapInvoice | null) {
-          setViewingInvoice({
-            invoice_number: (foundScrap as FoundScrapInvoice).scrap_invoice_number,
-            invoice_type: 'SCRAP',
-            created_at: (foundScrap as FoundScrapInvoice).created_at || entry.transaction_date,
-            payment_method: (foundScrap as FoundScrapInvoice).payment_status || 'COMPLETED',
-            customer_name: (foundScrap as FoundScrapInvoice).party_name || selectedParty?.name,
-            customer_phone: (foundScrap as FoundScrapInvoice).customer_phone || selectedParty?.phone,
-            grand_total: (foundScrap as FoundScrapInvoice).total_amount || (entry.credit_amount || entry.debit_amount),
-            subtotal: (foundScrap as FoundScrapInvoice).total_amount || (entry.credit_amount || entry.debit_amount),
-          });
-          setViewingInvoiceItems((foundScrap as FoundScrapInvoice).items || []);
+        if (foundScrap) {
+          const preview = mapScrapInvoiceToPartyPreview(foundScrap, entry.transaction_date, selectedParty);
+          setViewingInvoice(preview.invoice);
+          setViewingInvoiceItems(preview.items);
         } else {
           setViewingLedgerVoucher(entry);
         }
