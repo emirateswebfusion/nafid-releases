@@ -34,12 +34,12 @@ export interface LedgerEntryData {
 export interface PartyData {
   party_id: string;
   name: string;
-  phone?: string;
-  address?: string;
-  gstin?: string;
-  balance?: number;
+  phone?: string | null;
+  address?: string | null;
+  gstin?: string | null;
+  balance?: number | null;
   current_balance?: number;
-  party_type?: string;
+  party_type?: string | null;
   custom_category?: string | null;
 }
 

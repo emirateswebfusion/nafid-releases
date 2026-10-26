@@ -1,47 +1,16 @@
 import type * as Rows from '../../data/dbRows';
+import type { Party as DataParty } from '../../data/parties';
+import type { CustomerListItem } from '../../data/customers';
 /** Row and view types of the customers screen (customer, party, loyalty transaction, invoice and item, combo offer). */
 export interface PricingTier {
   pricing_tier_id: string;
   name: string;
 }
 
-export interface Customer {
-  customer_id: string;
-  name: string;
-  phone: string;
-  address: string;
-  total_points_earned: number;
-  total_points_redeemed: number;
-  current_points_balance: number;
-  last_purchase_date: string;
-  created_at: string;
-  party_balance?: number;
-  credit_limit?: number;
-  credit_period_enabled?: boolean | number;
-  credit_period_days?: number;
-  credit_period_basis?: 'BILL_BASED' | 'OLDEST_UNPAID' | string;
-  restrict_on_credit_expiry?: boolean | number;
-  has_overdue?: boolean;
-  overdue_bills_count?: number;
-  overdue_amount?: number;
-  oldest_overdue_days?: number;
-  pricing_tier_id?: string;
-  pricing_tier_name?: string;
+export interface Customer extends CustomerListItem {
 }
 
-export interface Party {
-  party_id: string;
-  name: string;
-  phone: string;
-  balance: number;
-  gst_balance?: number;
-  estimate_balance?: number;
-  balance_type: 'RECEIVABLE' | 'PAYABLE';
-  credit_limit?: number;
-  credit_period_enabled?: boolean | number;
-  credit_period_days?: number;
-  credit_period_basis?: 'BILL_BASED' | 'OLDEST_UNPAID' | string;
-  restrict_on_credit_expiry?: boolean | number;
+export interface Party extends DataParty {
   has_overdue?: boolean;
   overdue_bills_count?: number;
   overdue_amount?: number;

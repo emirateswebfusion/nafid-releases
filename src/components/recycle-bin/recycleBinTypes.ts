@@ -1,5 +1,6 @@
 import type React from 'react';
 import { Receipt, Package, Users, Handshake } from 'lucide-react';
+import type { CustomersRow, PartiesRow } from '../../data/dbRows';
 
 /** Recycle bin screen: categories, deleted row shapes, toast / confirmation state, category config and date helpers. */
 
@@ -34,25 +35,12 @@ export interface DeletedProduct {
   updated_at: string;
 }
 
-export interface DeletedCustomer {
-  customer_id: string;
-  name: string;
-  phone: string;
-  email: string;
-  current_points_balance: number;
-  updated_at: string;
-}
+export type DeletedCustomer = Pick<CustomersRow, 'customer_id' | 'name' | 'phone' | 'current_points_balance' | 'updated_at'> & {
+  /** Not a customers column; kept for older rows/screens that set it. */
+  email?: string | null;
+};
 
-export interface DeletedParty {
-  party_id: string;
-  name: string;
-  phone: string;
-  address: string;
-  balance: number;
-  balance_type: string;
-  party_type: string;
-  updated_at: string;
-}
+export type DeletedParty = Pick<PartiesRow, 'party_id' | 'name' | 'phone' | 'address' | 'balance' | 'balance_type' | 'party_type' | 'updated_at'>;
 
 export interface Toast {
   id: string;
@@ -73,7 +61,7 @@ export interface ConfirmState {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type InvoiceItemRow = any;
 
-export function timeAgo(dateStr: string): string {
+export function timeAgo(dateStr: string | null): string {
   if (!dateStr) return 'unknown';
   try {
     const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');

@@ -51,7 +51,7 @@ export function useInventoryState() {
   const [savingGrade, setSavingGrade] = useState(false);
   const [newGradeForm, setNewGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<(Omit<import('../../../data/parties').Party, 'tenant_id' | 'balance'> & { tenant_id: string | null; balance: number })[]>([]);
+  const [suppliers, setSuppliers] = useState<(Pick<import('../../../data/parties').Party, 'party_id' | 'name'> & Partial<Omit<import('../../../data/parties').Party, 'tenant_id'>> & { tenant_id?: string | null })[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
   const [showSupplierCreate, setShowSupplierCreate] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');

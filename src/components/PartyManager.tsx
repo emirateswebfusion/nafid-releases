@@ -326,7 +326,7 @@ export function PartyManager({
       address: party.address || '',
       gstin: party.gstin || '',
       opening_balance: '',
-      balance_type: party.balance_type,
+      balance_type: party.balance_type as 'PAYABLE' | 'RECEIVABLE',
       party_type: (party.party_type as any) || 'CUSTOMER',
       custom_category: party.custom_category || '',
       notes: party.notes || '',

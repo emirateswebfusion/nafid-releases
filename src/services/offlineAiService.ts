@@ -2938,7 +2938,7 @@ export async function processOfflineAiQuery(
         const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
         const qLower = queryTerm.toLowerCase();
-        const matched = [...(partiesList || []), ...(custList || [])].filter((p: AiRow) =>
+        const matched: AiRow[] = [...(partiesList || []), ...(custList || [])].filter((p: AiRow) =>
           p.name?.toLowerCase().includes(qLower) || (p.phone && String(p.phone).includes(queryTerm))
         );
 

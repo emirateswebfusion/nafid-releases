@@ -1,6 +1,7 @@
 import type { Invoice, InvoiceItem, InvoiceItemWithProduct } from './data/invoices';
 import type { Product } from './data/products';
 import type { Party } from './data/parties';
+import type { CustomerListItem } from './data/customers';
 import type { Grade } from './data/grades';
 import type { StaffListItem } from './data/staff';
 import type { ComboOfferWithItems } from './data/combos';
@@ -66,13 +67,13 @@ export interface IElectronAPI {
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: unknown }) => Promise<{ success: boolean; error?: string }>;
-  dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => Promise<any[]>;
+  dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => Promise<CustomerListItem[]>;
   dbCreateCustomer: (customer: unknown) => Promise<{ success: boolean; customer_id?: string; error?: string }>;
   dbUpdateCustomer: (customer: unknown) => Promise<{ success: boolean; error?: string }>;
   dbCheckCustomerCreditStatus: (params: { tenant_id: string; customer_id?: string; customer_name?: string; customer_phone?: string }) => Promise<{ allowed: boolean; isOverdue: boolean; overdueCount: number; overdueAmount: number; oldestOverdueDays: number; restrictOnExpiry: boolean; creditPeriodEnabled: boolean; creditPeriodDays: number; customerName: string; error?: string }>;
   dbDeleteCustomer: (params: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string; deleted_party_count?: number }>;
   dbDeduplicateCustomers: (tenant_id?: string) => Promise<{ success: boolean; error?: string; merged_customers?: number; merged_parties?: number }>;
-  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string; phone?: string; name?: string }) => Promise<Rows.InvoicesRow[]>;
+  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string; phone?: string | null; name?: string }) => Promise<Rows.InvoicesRow[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<Rows.LoyaltyTransactionsRow[]>;
   dbAdjustCustomerLoyaltyPoints: (params: { customer_id: string; tenant_id: string; points: number; reason?: string; user_name?: string }) => Promise<{ success: boolean; new_balance?: number; transaction_id?: string; error?: string }>;
   dbRecalculateCustomerLoyaltyPoints: (params: { tenant_id: string }) => Promise<{ success: boolean; updatedCount?: number; error?: string }>;
@@ -126,9 +127,9 @@ export interface IElectronAPI {
   dbGetDeletedProducts: (tenantId: string) => Promise<any[]>;
   dbRestoreProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
   dbHardDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetDeletedCustomers: (tenantId: string) => Promise<any[]>;
+  dbGetDeletedCustomers: (tenantId: string) => Promise<Rows.CustomersRow[]>;
   dbRestoreCustomer: (args: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
-  dbGetDeletedParties: (tenantId: string) => Promise<any[]>;
+  dbGetDeletedParties: (tenantId: string) => Promise<Rows.PartiesRow[]>;
   dbHardDeleteCustomer: (args: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbHardDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetRecycleBinSummary: (tenantId: string) => Promise<{ invoices: number; invoicesValue: number; products: number; customers: number; parties: number }>;
@@ -191,8 +192,8 @@ export interface IElectronAPI {
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string; start?: number }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; prefix?: string; error?: string }>;
-  dbFindCustomers: (params: { tenant_id: string; name?: string; phone?: string }) => Promise<any[]>;
-  dbGetParties: (tenant_id: string, includeDeleted?: boolean) => Promise<any[]>;
+  dbFindCustomers: (params: { tenant_id: string; name?: string; phone?: string }) => Promise<Rows.CustomersRow[]>;
+  dbGetParties: (tenant_id: string, includeDeleted?: boolean) => Promise<Party[]>;
   dbAddParty: (party: unknown) => Promise<{ success: boolean; error?: string }>;
   dbBulkImportParties: (parties: unknown[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdateParty: (party: unknown) => Promise<{ success: boolean; error?: string }>;

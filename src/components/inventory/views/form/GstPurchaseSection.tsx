@@ -232,7 +232,7 @@ export function GstPurchaseSection({
                           >
                             <span className="font-bold">{s.name}</span>
                             {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
-                            {s.balance_type === 'PAYABLE' && s.balance > 0 && (
+                            {s.balance_type === 'PAYABLE' && (s.balance ?? 0) > 0 && (
                               <span className="text-xs text-red-500 ml-auto font-bold">₹{Number(s.balance).toFixed(2)}</span>
                             )}
                           </button>
