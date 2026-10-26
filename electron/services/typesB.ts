@@ -180,7 +180,7 @@ export interface CheckoutResult {
     success: boolean;
     invoice_id?: string;
     invoice_number?: string;
-    created_at?: string;
+    created_at?: string | null;
     error?: string;
 }
 export interface ComboRow extends Record<string, unknown> {
