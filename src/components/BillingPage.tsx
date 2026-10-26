@@ -162,7 +162,7 @@ export function BillingPage() {
     if (!lastWeightItem) return;
     const kg = scaleLiveWeight / 1000;
     if (kg > 0) updateQuantity(lastWeightItem.product_id, +kg.toFixed(3));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- items/updateQuantity excluded: re-running on every cart change would re-apply the scale weight after the user edits a quantity
   }, [scaleLiveWeight, scaleReading]);
 
   const bp = useBillingPageState();

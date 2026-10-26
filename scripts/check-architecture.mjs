@@ -23,6 +23,8 @@
  *       shrink, never grow (`startupBaselineLines`). Schema / data changes go into a numbered migration in
  *       electron/db/migrations/, listed in migrations/index.ts.
  *
+ *  R13. Every eslint-disable states its reason (`-- why`), and the total number of suppressions may only shrink
+ *       (arch-baseline.json `lintSuppressions`): fix the code instead of adding one.
  *  R12. electron/sync/** and electron/main.ts may only call `.prepare(` for the dynamic query builders grandfathered
  *       in arch-baseline.json (`syncPrepareCounts`, shrink-only); their SQL lives in electron/db/statements/sync/*
  *       and electron/db/statements/main.ts.
@@ -105,11 +107,21 @@ for (const full of walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))) 
   if ((file.startsWith('electron/sync/') || file === 'electron/main.ts') && prepares > 0) syncPrepares[file] = prepares;
 }
 
+// R13: lint suppressions need a reason and may not grow.
+let lintSuppressions = 0;
+for (const full of [...walk(path.join(root, 'src'), (n) => /\.(ts|tsx)$/.test(n)), ...walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))]) {
+  read(full).split(/\r?\n/).forEach((line, i) => {
+    if (!/eslint-disable/.test(line)) return;
+    lintSuppressions++;
+    if (!/eslint-disable\S*\s+\S+.*\s--\s+\S/.test(line)) violations.push(`${rel(full)}:${i + 1}: eslint-disable without a reason. Write \`-- why\` after the rule, or fix the code.`);
+  });
+}
+
 const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 
 if (update || !existsSync(baselinePath)) {
   const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(baselinePath, `${JSON.stringify({ ipcCounts: sorted(ipcCounts), servicePrepareCounts: sorted(servicePrepares), syncPrepareCounts: sorted(syncPrepares), sizeCaps: sorted(sizes), startupBaselineLines: sorted(startupLines), updatedAt: new Date().toISOString() }, null, 2)}\n`);
+  writeFileSync(baselinePath, `${JSON.stringify({ ipcCounts: sorted(ipcCounts), servicePrepareCounts: sorted(servicePrepares), syncPrepareCounts: sorted(syncPrepares), sizeCaps: sorted(sizes), startupBaselineLines: sorted(startupLines), lintSuppressions, updatedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log(`Baseline saved: ${Object.keys(ipcCounts).length} file(s) / ${sum(ipcCounts)} bridge references; ${Object.keys(sizes).length} oversized file(s).`);
   process.exit(0);
 }
@@ -119,6 +131,7 @@ const ipcCaps = baseline.ipcCounts || {};
 const sizeCaps = baseline.sizeCaps || {};
 const prepareCaps = baseline.servicePrepareCounts || {};
 const startupCaps = baseline.startupBaselineLines || {};
+if (baseline.lintSuppressions !== undefined && lintSuppressions > baseline.lintSuppressions) violations.push(`eslint-disable suppressions grew from ${baseline.lintSuppressions} to ${lintSuppressions}. Fix the code instead (R13).`);
 for (const [file, lines] of Object.entries(startupLines)) {
   const cap = startupCaps[file];
   if (cap !== undefined && lines > cap) violations.push(`${file}: startup baseline grew from ${cap} to ${lines} lines. Add a numbered migration in electron/db/migrations/ instead.`);
