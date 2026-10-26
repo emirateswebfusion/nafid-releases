@@ -1,3 +1,4 @@
+import type { CashDrawerRow, LedgerRow, ServiceDb, StaffRow, UserRow } from './typesB.js';
 import crypto from 'node:crypto';
 import { getDb } from '../db/localDb.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
@@ -21,12 +22,12 @@ export function getStaff(params: { tenant_id: string; search?: string; status?: 
     staffSql.updateStaffUserId(db).run(tenantId, tenantId);
 
     // Auto-backfill: any user in users table that doesn't have a corresponding staff record
-    const unlinkedUsers = staffSql.findUsers(db).all(tenantId, tenantId) as any[];
+    const unlinkedUsers = staffSql.findUsers(db).all(tenantId, tenantId) as UserRow[];
 
     if (unlinkedUsers.length > 0) {
       const insertStaffStmt = staffSql.insertStaff(db);
       for (const u of unlinkedUsers) {
-        const countRow = staffSql.countStaff(db).get(u.tenant_id) as any;
+        const countRow = staffSql.countStaff(db).get(u.tenant_id) as { cnt: number };
         const nextSeq = (countRow?.cnt || 0) + 1;
         const staffCode = `STF-${String(nextSeq).padStart(4, '0')}`;
         const roleDesig = ['ADMIN', 'OWNER', 'ADMINISTRATOR'].includes((u.role || '').toUpperCase()) ? 'ADMIN' : 'STAFF';
@@ -38,8 +39,8 @@ export function getStaff(params: { tenant_id: string; search?: string; status?: 
   }
 
   const { statement, sqlParams } = staffSql.getStaffStatement(db, { tenantId, params });
-  const rows = statement.all(...sqlParams);
-  return rows.map((r: any) => ({
+  const rows = statement.all(...sqlParams) as StaffRow[];
+  return rows.map((r: StaffRow) => ({
     ...r,
     permissions: parsePermissionList(r.user_permissions, r.user_restricted_page),
     has_pin: Boolean(r.biller_pin_hash),
@@ -49,11 +50,11 @@ export function getStaff(params: { tenant_id: string; search?: string; status?: 
 
 function getStaffById(params: { tenant_id: string; staff_id: string }) {
   const db = getDb();
-  const row: any = staffSql.findStaffByStaffId(db).get(params.staff_id, params.tenant_id);
+  const row: StaffRow = staffSql.findStaffByStaffId(db).get(params.staff_id, params.tenant_id) as StaffRow;
 
   if (!row) return null;
 
-  const current_balance = staffSql.findOneStaffLedgerByStaffId(db).get(params.staff_id, params.tenant_id) as any;
+  const current_balance = staffSql.findOneStaffLedgerByStaffId(db).get(params.staff_id, params.tenant_id) as { balance: number };
 
   return {
     ...row,
@@ -84,11 +85,11 @@ export function saveStaff(params: {
   const name = params.name.trim();
   if (!name) throw new Error('Staff name is required');
 
-  const existing = staffSql.findStaffByStaffIdStaffIdAndStaffCode(db).get(staffId, tenantId) as any;
+  const existing = staffSql.findStaffByStaffIdStaffIdAndStaffCode(db).get(staffId, tenantId) as StaffRow;
 
   let staffCode = existing?.staff_code;
   if (!staffCode) {
-    const countRow = staffSql.countStaff(db).get(tenantId) as any;
+    const countRow = staffSql.countStaff(db).get(tenantId) as { cnt: number };
     const nextSeq = (countRow?.cnt || 0) + 1;
     staffCode = `STF-${String(nextSeq).padStart(4, '0')}`;
   }
@@ -123,7 +124,7 @@ export function saveStaff(params: {
   }
 
   if (params.monthly_salary !== undefined && params.monthly_salary !== null) {
-    const latestSalary: any = staffSql.findOneStaffSalaryByStaffId(db).get(staffId, tenantId);
+    const latestSalary: { monthly_salary: number } = staffSql.findOneStaffSalaryByStaffId(db).get(staffId, tenantId) as { monthly_salary: number };
     if (!latestSalary || Number(latestSalary.monthly_salary) !== Number(params.monthly_salary)) {
       staffSql.insertStaffSalary(db).run(crypto.randomUUID(), tenantId, staffId, params.monthly_salary, now.split(' ')[0], now);
     }
@@ -140,7 +141,7 @@ export function verifyBillerPin(params: { tenant_id: string; pin: string }) {
     return { success: false, error: 'PIN must be exactly 4 digits' };
   }
   const hash = hashStaffPin(pin.trim(), tenant_id);
-  const staffMember: any = staffSql.findStaffByBillerPinHash(db).get(tenant_id, hash);
+  const staffMember: StaffRow = staffSql.findStaffByBillerPinHash(db).get(tenant_id, hash) as StaffRow;
 
   if (!staffMember) {
     return { success: false, error: 'Invalid Biller PIN' };
@@ -185,7 +186,7 @@ export function addStaffTransaction(params: {
   const { tenant_id, staff_id, type, amount, payment_method = 'CASH', payment_source_id, reference_number, notes, user_id, user_name } = params;
   if (amount <= 0) throw new Error('Transaction amount must be greater than zero');
 
-  const staff = staffSql.findStaffByStaffIdStaffIdAndName(db).get(staff_id, tenant_id) as any;
+  const staff = staffSql.findStaffByStaffIdStaffIdAndName(db).get(staff_id, tenant_id) as StaffRow;
   if (!staff) throw new Error('Staff member not found');
 
   const now = toIsoTimestamp(new Date());
@@ -193,7 +194,7 @@ export function addStaffTransaction(params: {
   let cashTxId: string | null = null;
 
   if (params.create_cash_transaction !== false && (type === 'ADVANCE' || type === 'SALARY_PAYMENT') && payment_method === 'CASH') {
-    const activeDrawer: any = staffSql.findOneCashDrawerByStatus(db).get(tenant_id);
+    const activeDrawer: CashDrawerRow = staffSql.findOneCashDrawerByStatus(db).get(tenant_id) as CashDrawerRow;
     if (activeDrawer) {
       cashTxId = crypto.randomUUID();
       const catName = type === 'ADVANCE' ? 'Staff Advance' : 'Staff Salary Payment';
@@ -248,7 +249,7 @@ export function addStaffTransaction(params: {
       break;
   }
 
-  const prevBalanceRow: any = staffSql.findOneStaffLedgerByStaffId2(db).get(tenant_id, staff_id);
+  const prevBalanceRow: { running_balance: number } = staffSql.findOneStaffLedgerByStaffId2(db).get(tenant_id, staff_id) as { running_balance: number };
 
   const prevBal = Number(prevBalanceRow?.running_balance || 0);
   const newBal = prevBal + debitAmt - creditAmt;
@@ -267,10 +268,10 @@ export function addStaffTransaction(params: {
   };
 }
 
-export function recalcStaffLedgerBalances(dbInstance: any, tenantId: string, staffId: string) {
+export function recalcStaffLedgerBalances(dbInstance: ServiceDb | null | undefined, tenantId: string, staffId: string) {
   const db = getDb();
   const targetDb = dbInstance || db;
-  const rows = staffSql.findStaffLedgerByStaffId2(targetDb).all(staffId, tenantId) as any[];
+  const rows = staffSql.findStaffLedgerByStaffId2(targetDb).all(staffId, tenantId) as LedgerRow[];
 
   let running = 0;
   for (const r of rows) {
@@ -303,7 +304,7 @@ export function saveStaffAttendance(params: {
   const db = getDb();
   const { tenant_id, staff_id, date, status, check_in_time, check_out_time, notes, user_id } = params;
   const now = toIsoTimestamp(new Date());
-  const existing: any = staffSql.findStaffAttendanceByStaffIdAndDate(db).get(tenant_id, staff_id, date);
+  const existing: { attendance_id: string } = staffSql.findStaffAttendanceByStaffIdAndDate(db).get(tenant_id, staff_id, date) as { attendance_id: string };
 
   if (existing) {
     staffSql.updateStaffAttendanceByAttendanceId(db).run(status, check_in_time || null, check_out_time || null, notes || null, user_id || null, now, existing.attendance_id);

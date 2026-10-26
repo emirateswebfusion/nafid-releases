@@ -1,3 +1,4 @@
+import type { CheckoutPayload, CheckoutResult, CustomerCreditRow, InvoiceItem, InvoiceRow, LoyaltyConfig, ProductRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice, getOpenCashDrawer } from './cashDrawerService.js';
@@ -10,16 +11,16 @@ import * as invoicesSql from '../db/statements/invoices.js';
 /** Checkout use-case: creates an invoice with items, stock, payments, cash drawer and credit ledger in one transaction. Called by electron/ipc handlers via invoicesService. */
 
 /** Short-lived dedupe cache shared by checkout and updateInvoice (4 s window). */
-export const recentCheckoutsCache = new Map<string, { timestamp: number; result: any }>();
+export const recentCheckoutsCache = new Map<string, { timestamp: number; result: CheckoutResult }>();
 
 /** IPC `db:checkout` */
-export function checkout(payload: any) {
+export function checkout(payload: CheckoutPayload) {
   const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
   const tenantId = invoice.tenant_id || 'global';
 
   // Deduplication guard: block duplicate checkout calls within a 4-second window
-  const itemsSig = (items || []).map((i: any) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
+  const itemsSig = (items || []).map((i: InvoiceItem) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
   const cacheKey = `${tenantId}:${invoice.grand_total}:${itemsSig}`;
   const now = Date.now();
   const cached = recentCheckoutsCache.get(cacheKey);
@@ -30,7 +31,7 @@ export function checkout(payload: any) {
 
   // Idempotency guard: if invoice_id already exists in database, return existing result
   if (invoice.invoice_id) {
-    const existingById: any = invoicesSql.findInvoicesByInvoiceId(db).get(invoice.invoice_id);
+    const existingById: InvoiceRow = invoicesSql.findInvoicesByInvoiceId(db).get(invoice.invoice_id) as InvoiceRow;
     if (existingById) {
       console.warn(`[db:checkout] Invoice ID ${invoice.invoice_id} already exists in database. Returning existing invoice ${existingById.invoice_number}`);
       const res = { success: true, invoice_id: existingById.invoice_id, invoice_number: existingById.invoice_number };
@@ -41,7 +42,7 @@ export function checkout(payload: any) {
 
   // Collision guard: if invoice_number is missing or already taken by another invoice, generate a guaranteed unique number
   let finalInvoiceNumber = invoice.invoice_number;
-  const tripleSeriesRow: any = invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series');
+  const tripleSeriesRow: SettingRow = invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow;
   let isTripleSeries = false;
   if (tripleSeriesRow && tripleSeriesRow.value) {
     try { isTripleSeries = Boolean(JSON.parse(tripleSeriesRow.value).enabled); } catch { /* ignore */ }
@@ -59,7 +60,7 @@ export function checkout(payload: any) {
   if (!finalInvoiceNumber) {
     finalInvoiceNumber = getGuaranteedNextInvoiceNumber(db, tenantId, configKey).invoiceNumber;
   } else {
-    const existingByNum: any = invoicesSql.findOneInvoiceByInvoiceNumber(db).get(tenantId, finalInvoiceNumber);
+    const existingByNum: InvoiceRow = invoicesSql.findOneInvoiceByInvoiceNumber(db).get(tenantId, finalInvoiceNumber) as InvoiceRow;
     if (existingByNum) {
       console.warn(`[db:checkout] Invoice number collision detected for "${finalInvoiceNumber}". Resolving with new guaranteed unique number.`);
       finalInvoiceNumber = getGuaranteedNextInvoiceNumber(db, tenantId, configKey).invoiceNumber;
@@ -70,7 +71,7 @@ export function checkout(payload: any) {
   const transaction = db.transaction(() => {
     // Credit Limit & Credit Period enforcement guard
     const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
-    let splitObj: any = null;
+    let splitObj: Record<string, unknown> | null = null;
     if (invoice.split_details && typeof invoice.split_details === 'string') {
       try { splitObj = JSON.parse(invoice.split_details); } catch { /* ignore */ }
     } else if (invoice.split_details && typeof invoice.split_details === 'object') {
@@ -81,18 +82,18 @@ export function checkout(payload: any) {
     if (isCreditBilling) {
       const custPhone = (invoice.customer_phone || '').trim();
       const custName = (invoice.customer_name || '').trim();
-      let matchedParty: any = null;
+      let matchedParty: CustomerCreditRow | null | undefined = null;
       if (custPhone) {
         const cleanDigits = custPhone.replace(/\D/g, '');
         if (cleanDigits.length >= 7) {
           const last10 = cleanDigits.slice(-10);
-          matchedParty = invoicesSql.findOnePartyByPhone(db).get(tenantId, custPhone, `%${last10}`);
+          matchedParty = invoicesSql.findOnePartyByPhone(db).get(tenantId, custPhone, `%${last10}`) as CustomerCreditRow | null | undefined;
         } else {
-          matchedParty = invoicesSql.findPartiesByPhone(db).get(tenantId, custPhone);
+          matchedParty = invoicesSql.findPartiesByPhone(db).get(tenantId, custPhone) as CustomerCreditRow | null | undefined;
         }
       }
       if (!matchedParty && custName) {
-        matchedParty = invoicesSql.findPartiesByName(db).get(tenantId, custName);
+        matchedParty = invoicesSql.findPartiesByName(db).get(tenantId, custName) as CustomerCreditRow | null | undefined;
       }
 
       if (matchedParty && Number(matchedParty.credit_limit) > 0) {
@@ -144,9 +145,9 @@ export function checkout(payload: any) {
     checkoutCreatedAt = nowTimestamp;
 
     // Loyalty Points Processing
-    let custRow: any = null;
+    let custRow: CustomerCreditRow | null | undefined = null;
     if (customerId) {
-      custRow = invoicesSql.findCustomersByCustomerId(db).get(customerId);
+      custRow = invoicesSql.findCustomersByCustomerId(db).get(customerId) as CustomerCreditRow | null | undefined;
     }
 
     const previousPointsBal = custRow ? (Number(custRow.current_points_balance) || 0) : (Number(invoice.previous_points_balance) || 0);
@@ -159,15 +160,15 @@ export function checkout(payload: any) {
     let ptsEarned = Math.max(0, Number(invoice.points_earned) || 0);
     if (customerId && invoice.payment_method !== 'HOLD') {
       try {
-        const lCfgRow: any = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(tenantId)
-          || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get();
-        let lCfg: any = null;
+        const lCfgRow: SettingRow = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(tenantId) as SettingRow
+          || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get() as SettingRow;
+        let lCfg: LoyaltyConfig | null = null;
         if (lCfgRow?.value) {
           lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
         }
-        const flagsRow: any = invoicesSql.findSettingsByKeyFeatureFlags(db).get(tenantId)
-          || invoicesSql.findSettingsByKeyFeatureFlags2(db).get();
-        let flags: any = null;
+        const flagsRow: SettingRow = invoicesSql.findSettingsByKeyFeatureFlags(db).get(tenantId) as SettingRow
+          || invoicesSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow;
+        let flags: { loyalty?: boolean } | null = null;
         if (flagsRow?.value) {
           flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
         }
@@ -322,7 +323,7 @@ export function checkout(payload: any) {
         }
 
         if (item.pieces_sold) {
-          const row = getDaStmt.get(item.product_id) as any;
+          const row = getDaStmt.get(item.product_id) as ProductRow;
           if (row?.domain_attributes) {
             try {
               const da = JSON.parse(row.domain_attributes);
@@ -340,7 +341,7 @@ export function checkout(payload: any) {
 
     // 3. Handle scrap credit deduction settlement & single-use validation
     if (invoice.scrap_invoice_number && Number(invoice.scrap_deduction) > 0) {
-      const existingScrapTx = invoicesSql.findOneScrapTransactionByScrapInvoiceNumber(db).get(invoice.tenant_id, invoice.scrap_invoice_number) as any;
+      const existingScrapTx = invoicesSql.findOneScrapTransactionByScrapInvoiceNumber(db).get(invoice.tenant_id, invoice.scrap_invoice_number) as { payment_status: string };
 
       if (existingScrapTx && existingScrapTx.payment_status === 'SETTLED') {
         throw new Error(`Scrap credit ${invoice.scrap_invoice_number} has already been redeemed.`);
@@ -402,7 +403,7 @@ export function checkout(payload: any) {
       const sub = Number(invoice.subtotal) || 0;
       const tax = Number(invoice.tax_total) || 0;
       const disc = Number(invoice.discount_total) || 0;
-      const ptsDisc = Number((invoice as any).points_redeemed_discount) || 0;
+      const ptsDisc = Number((invoice as InvoiceRow).points_redeemed_discount) || 0;
       const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
       const netRefund = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
 

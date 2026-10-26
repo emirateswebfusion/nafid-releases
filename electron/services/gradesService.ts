@@ -1,3 +1,4 @@
+import type { GradeInput } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as gradesSql from '../db/statements/grades.js';
 /** grades use-cases for the main process (called by electron/ipc handlers). */
@@ -15,7 +16,7 @@ export function getGrades(tenantId: string) {
 }
 
 /** IPC `db:addGrade` */
-export function addGrade(g: any) {
+export function addGrade(g: GradeInput) {
   try {
     const db = getDb();
     gradesSql.insertProductGrade(db).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate, g.purchase_price || 0, g.offer_price ?? null);
@@ -27,7 +28,7 @@ export function addGrade(g: any) {
 }
 
 /** IPC `db:updateGrade` */
-export function updateGrade(g: any) {
+export function updateGrade(g: GradeInput) {
   try {
     const db = getDb();
     gradesSql.updateProductGradeByGradeId(db).run(g.category, g.grade_name, g.rate, g.purchase_price || 0, g.offer_price ?? null, g.grade_id);

@@ -1,8 +1,9 @@
+import type { ServiceDb, SettingRow } from './typesB.js';
 import { readAuthPayload } from './authStorage.js';
 import * as invoiceNumberSql from '../db/statements/invoiceNumber.js';
 
-export function getOrInitTerminalCode(db: any): string {
-  const row: any = invoiceNumberSql.findOneSettingByKey(db).get('terminal_code');
+export function getOrInitTerminalCode(db: ServiceDb): string {
+  const row: SettingRow = invoiceNumberSql.findOneSettingByKey(db).get('terminal_code') as SettingRow;
   if (row && row.value) {
     try {
       let code = row.value;
@@ -30,7 +31,7 @@ export function getOrInitTerminalCode(db: any): string {
 }
 
 export async function requestServerInvoiceNumber(
-  db: any,
+  db: ServiceDb,
   tenantId: string,
   series: string | undefined,
   configKey: string,
@@ -42,7 +43,7 @@ export async function requestServerInvoiceNumber(
 
     let prefix = `${terminalCode}-`;
     if (configKey !== 'invoice_counter_config') {
-      const prefixRow: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
+      const prefixRow: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
       if (prefixRow) {
         try {
           const parsed = JSON.parse(prefixRow.value);
@@ -54,7 +55,7 @@ export async function requestServerInvoiceNumber(
     }
 
     if (series === 'gst_b2b' || series === 'gst_b2c') {
-      const tripleSeriesRow: any = invoiceNumberSql.findSettingsByKey(db).get('global', 'three_invoice_series');
+      const tripleSeriesRow: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow;
       const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
       if (tripleSeries && tripleSeries.enabled) {
         const code = series === 'gst_b2b' ? tripleSeries.b2bPrefix : tripleSeries.b2cPrefix;
@@ -90,7 +91,7 @@ export async function requestServerInvoiceNumber(
     if (countMatch) {
       const serverCounter = parseInt(countMatch[1], 10);
       if (!isNaN(serverCounter)) {
-        const row: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
+        const row: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
         let localCounter = 1;
         if (row) {
           try { localCounter = JSON.parse(row.value).counter || 1; } catch { localCounter = 1; }
@@ -111,7 +112,7 @@ export async function requestServerInvoiceNumber(
 
 
 export function getGuaranteedNextInvoiceNumber(
-  db: any,
+  db: ServiceDb,
   tenantId: string,
   configKey: string = 'invoice_counter_config',
   overrideDefaultPrefix?: string
@@ -125,7 +126,7 @@ export function getGuaranteedNextInvoiceNumber(
   );
   const defaultPrefix = overrideDefaultPrefix || fallbackPrefix;
 
-  const row: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
+  const row: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
   let counter = 1;
   let prefix = defaultPrefix;
 
@@ -158,7 +159,7 @@ export function getGuaranteedNextInvoiceNumber(
 }
 
 export function peekGuaranteedNextInvoiceNumber(
-  db: any,
+  db: ServiceDb,
   tenantId: string,
   configKey: string = 'invoice_counter_config',
   overrideDefaultPrefix?: string
@@ -172,7 +173,7 @@ export function peekGuaranteedNextInvoiceNumber(
   );
   const defaultPrefix = overrideDefaultPrefix || fallbackPrefix;
 
-  const row: any = invoiceNumberSql.findSettingsByKey(db).get('global', configKey);
+  const row: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
   let counter = 1;
   let prefix = defaultPrefix;
 

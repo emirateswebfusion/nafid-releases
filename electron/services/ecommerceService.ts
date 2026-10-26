@@ -1,3 +1,4 @@
+import type { EcommerceMapping, EcommerceSettings, ProductRow, VendorRegistration } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { FusionCartBridge } from './fusionCartBridge.js';
 import * as ecommerceSql from '../db/statements/ecommerce.js';
@@ -10,10 +11,10 @@ export function getSettings({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     const tid = tenant_id || 'global';
-    let row = ecommerceSql.findEcommerceSettings(db).get(tid) as any;
+    let row = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings | undefined;
     if (!row) {
       ecommerceSql.insertEcommerceSetting(db).run(tid);
-      row = ecommerceSql.findEcommerceSettings(db).get(tid);
+      row = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings | undefined;
     }
     return { success: true, settings: row };
   } catch (err) {
@@ -23,7 +24,7 @@ export function getSettings({ tenant_id }: { tenant_id: string }) {
 }
 
 /** IPC `ecommerce:saveSettings` */
-export function saveSettings({ tenant_id, settings }: { tenant_id: string; settings: any }) {
+export function saveSettings({ tenant_id, settings }: { tenant_id: string; settings: EcommerceSettings }) {
   try {
     const db = getDb();
     const tid = tenant_id || 'global';
@@ -59,13 +60,13 @@ export async function testConnection({ url }: { url?: string }) {
 }
 
 /** IPC `ecommerce:registerVendor` */
-export async function registerVendor({ tenant_id, data }: { tenant_id: string; data: any }) {
+export async function registerVendor({ tenant_id, data }: { tenant_id: string; data: VendorRegistration }) {
   try {
     const db = getDb();
     const tid = tenant_id || 'global';
 
     // Verify shop ownership / tenant
-    const currentSettings = ecommerceSql.findEcommerceSettings(db).get(tid) as any;
+    const currentSettings = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings;
     if (currentSettings?.fusioncart_url) {
       fusionCartBridge.setBaseUrl(currentSettings.fusioncart_url);
     }
@@ -91,7 +92,7 @@ export async function registerVendor({ tenant_id, data }: { tenant_id: string; d
       return { success: false, error: regResult.error };
     }
 
-    const store = regResult.store;
+    const store = regResult.store as import('./typesB.js').FusionStore;
     const storeId = store.id || null;
     const vendorId = store.vendor_id || store.vendor?.id || null;
     const regStatus = store.is_approved === 1 ? 'APPROVED' : 'PENDING';
@@ -113,7 +114,7 @@ export async function refreshStatus({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     const tid = tenant_id || 'global';
-    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as any;
+    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings;
     if (!settings || (!settings.store_id && !settings.store_slug)) {
       return { success: true, settings };
     }
@@ -129,7 +130,7 @@ export async function refreshStatus({ tenant_id }: { tenant_id: string }) {
       return { success: false, error: res.error, settings: ecommerceSql.findEcommerceSettings(db).get(tid) };
     }
 
-    const store = res.store;
+    const store = res.store as import('./typesB.js').FusionStore;
     let newStatus = 'PENDING';
     if (store.status === 0) {
       newStatus = 'SUSPENDED';
@@ -192,7 +193,7 @@ export function updateMapping({
     const db = getDb();
     const tid = tenant_id || 'global';
 
-    let existing = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as any;
+    let existing = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as EcommerceMapping | undefined;
     if (!existing) {
       const mappingId = crypto.randomUUID();
       ecommerceSql.insertEcommerceProductMapping(db).run(
@@ -204,7 +205,7 @@ export function updateMapping({
         online_description_override ?? null,
         online_price_override ?? null
       );
-      existing = ecommerceSql.findEcommerceProductMappingsById(db).get(mappingId);
+      existing = ecommerceSql.findEcommerceProductMappingsById(db).get(mappingId) as EcommerceMapping | undefined;
     } else {
       const newEnabled = is_online_enabled !== undefined ? (is_online_enabled ? 1 : 0) : existing.is_online_enabled;
       const newTitle = online_title_override !== undefined ? online_title_override : existing.online_title_override;
@@ -213,7 +214,7 @@ export function updateMapping({
 
       ecommerceSql.updateEcommerceProductMappingByProductId(db).run(newEnabled, newTitle, newDesc, newPrice, tid, product_id);
 
-      existing = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id);
+      existing = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as EcommerceMapping | undefined;
     }
 
     return { success: true, mapping: existing };
@@ -229,7 +230,7 @@ export async function syncProduct({ tenant_id, product_id }: { tenant_id: string
     const db = getDb();
     const tid = tenant_id || 'global';
 
-    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as any;
+    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings;
     if (!settings || !settings.store_id) {
       return { success: false, error: 'Shop is not registered or approved on FusionCart yet.' };
     }
@@ -238,12 +239,12 @@ export async function syncProduct({ tenant_id, product_id }: { tenant_id: string
       fusionCartBridge.setBaseUrl(settings.fusioncart_url);
     }
 
-    const prod = ecommerceSql.findProductsByProductId(db).get(product_id, tid) as any;
+    const prod = ecommerceSql.findProductsByProductId(db).get(product_id, tid) as ProductRow;
     if (!prod) {
       return { success: false, error: 'Product not found in POS database.' };
     }
 
-    const mapping = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as any;
+    const mapping = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as EcommerceMapping;
     const isOnline = mapping ? Boolean(mapping.is_online_enabled) : true;
     const price = mapping?.online_price_override ? Number(mapping.online_price_override) : Number(prod.base_price);
     const title = mapping?.online_title_override?.trim() || prod.name;
@@ -296,12 +297,12 @@ export async function unpublishProduct({ tenant_id, product_id }: { tenant_id: s
     const db = getDb();
     const tid = tenant_id || 'global';
 
-    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as any;
+    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings;
     if (settings?.fusioncart_url) {
       fusionCartBridge.setBaseUrl(settings.fusioncart_url);
     }
 
-    const mapping = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as any;
+    const mapping = ecommerceSql.findEcommerceProductMappingsByProductId(db).get(tid, product_id) as EcommerceMapping;
     if (mapping?.fusioncart_product_id) {
       await fusionCartBridge.unpublishProduct(mapping.fusioncart_product_id);
     }
@@ -321,7 +322,7 @@ export async function getOrders({ tenant_id }: { tenant_id: string }) {
     const db = getDb();
     const tid = tenant_id || 'global';
 
-    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as any;
+    const settings = ecommerceSql.findEcommerceSettings(db).get(tid) as EcommerceSettings;
     if (!settings || !settings.store_id) {
       return { success: true, orders: [] };
     }

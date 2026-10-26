@@ -1,3 +1,4 @@
+import type { CreditInvoice, CustomerCreditRow, CustomerInput, LoyaltyConfig, LoyaltyTotals, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { autoDeduplicateCustomersAndParties } from '../db/customerDedupe.js';
 import { checkCustomerOverdueSync, computeCustomerCreditStatusSync } from './customerCreditService.js';
@@ -18,7 +19,7 @@ export function getCustomers({ tenant_id, active, credit, pricing_tier_id, searc
     // resolves all 6 party fields in one pass instead of 6 correlated subqueries
     const { statement, params } = customersSql.getCustomersStatement(db, { tenant_id, search, active, credit, pricing_tier_id });
 
-    const rows = statement.all(...params) as any[];
+    const rows = statement.all(...params) as CustomerCreditRow[];
 
     for (const row of rows) {
       const bal = Number(row.party_balance || 0);
@@ -38,7 +39,7 @@ export function getCustomers({ tenant_id, active, credit, pricing_tier_id, searc
     }
 
     if (overdue === true || String(overdue) === 'true') {
-      return rows.filter((r: any) => r.has_overdue);
+      return rows.filter((r: CustomerCreditRow) => r.has_overdue);
     }
 
     return rows;
@@ -64,7 +65,7 @@ export function checkCustomerCreditStatus({ tenant_id, customer_id, customer_nam
 }
 
 /** IPC `db:createCustomer` */
-export function createCustomer(c: any) {
+export function createCustomer(c: CustomerInput) {
   try {
     const db = getDb();
     if (!c.name || !c.tenant_id) return { success: false, error: 'Customer name and Tenant ID are required' };
@@ -87,7 +88,7 @@ export function createCustomer(c: any) {
     const customerId = c.customer_id || crypto.randomUUID();
     const creditLimit = Math.max(0, Number(c.credit_limit) || 0);
     const creditPeriodEnabled = c.credit_period_enabled ? 1 : 0;
-    const creditPeriodDays = Math.max(1, parseInt(c.credit_period_days, 10) || 30);
+    const creditPeriodDays = Math.max(1, parseInt(c.credit_period_days as string, 10) || 30);
     const creditPeriodBasis = c.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = c.restrict_on_credit_expiry !== undefined ? (c.restrict_on_credit_expiry ? 1 : 0) : 1;
 
@@ -100,14 +101,14 @@ export function createCustomer(c: any) {
     );
 
     // Also sync to parties table as CUSTOMER party
-    let matchedParty: any = null;
+    let matchedParty: CustomerCreditRow | null | undefined = null;
     const cleanPhone = (c.phone || '').trim();
     const cleanName = (c.name || '').trim();
     if (cleanPhone) {
-      matchedParty = customersSql.findPartiesByPhone(db).get(c.tenant_id, cleanPhone);
+      matchedParty = customersSql.findPartiesByPhone(db).get(c.tenant_id, cleanPhone) as CustomerCreditRow | null | undefined;
     }
     if (!matchedParty && cleanName) {
-      matchedParty = customersSql.findParties(db).get(c.tenant_id, cleanName.toLowerCase());
+      matchedParty = customersSql.findParties(db).get(c.tenant_id, cleanName.toLowerCase()) as CustomerCreditRow | null | undefined;
     }
 
     if (matchedParty) {
@@ -174,22 +175,22 @@ export function deleteCustomer({ customer_id, tenant_id }: { customer_id: string
 
     return db.transaction(() => {
       // 1. Fetch customer details
-      const customer = customersSql.findCustomersByCustomerId(db).get(customer_id, tenant_id) as any;
+      const customer = customersSql.findCustomersByCustomerId(db).get(customer_id, tenant_id) as CustomerCreditRow;
       if (!customer) return { success: false, error: 'Customer not found' };
 
       // 2. Mark customer as deleted
       customersSql.updateCustomerIsDeleted(db).run(customer_id, tenant_id);
 
       // 3. Find matching party by phone or name
-      let matchedParties: any[] = [];
+      let matchedParties: CustomerCreditRow[] = [];
       const cleanPhone = (customer.phone || '').trim();
       const cleanName = (customer.name || '').trim();
 
       if (cleanPhone) {
-        matchedParties = customersSql.findPartiesByPhonePartyIdAndName(db).all(tenant_id, cleanPhone);
+        matchedParties = customersSql.findPartiesByPhonePartyIdAndName(db).all(tenant_id, cleanPhone) as CustomerCreditRow[];
       }
       if (matchedParties.length === 0 && cleanName) {
-        matchedParties = customersSql.findPartiesByName(db).all(tenant_id, cleanName);
+        matchedParties = customersSql.findPartiesByName(db).all(tenant_id, cleanName) as CustomerCreditRow[];
       }
 
       // 4. Soft-delete matched parties and their party_ledger entries
@@ -207,7 +208,7 @@ export function deleteCustomer({ customer_id, tenant_id }: { customer_id: string
 }
 
 /** IPC `db:updateCustomer` */
-export function updateCustomer(c: any) {
+export function updateCustomer(c: CustomerInput) {
   try {
     const db = getDb();
     if (!c.customer_id || !c.tenant_id) return { success: false, error: 'Customer ID and Tenant ID are required' };
@@ -220,7 +221,7 @@ export function updateCustomer(c: any) {
 
     const creditLimit = hasCreditLimit ? Math.max(0, Number(c.credit_limit) || 0) : 0;
     const creditPeriodEnabled = hasCreditPeriodEnabled ? (c.credit_period_enabled ? 1 : 0) : 0;
-    const creditPeriodDays = hasCreditPeriodDays ? Math.max(1, parseInt(c.credit_period_days, 10) || 30) : 30;
+    const creditPeriodDays = hasCreditPeriodDays ? Math.max(1, parseInt(c.credit_period_days as string, 10) || 30) : 30;
     const creditPeriodBasis = c.credit_period_basis || 'BILL_BASED';
     const restrictOnCreditExpiry = hasRestrictOnCreditExpiry ? (c.restrict_on_credit_expiry ? 1 : 0) : 1;
 
@@ -229,7 +230,7 @@ export function updateCustomer(c: any) {
       SET name = ?, phone = ?, address = ?,
           pricing_tier_id = ?
     `;
-    const params: any[] = [c.name, c.phone || null, c.address || null, c.pricing_tier_id || null];
+    const params: unknown[] = [c.name, c.phone || null, c.address || null, c.pricing_tier_id || null];
 
     if (c.gstin !== undefined) {
       updateSql += `, gstin = ?`;
@@ -261,7 +262,7 @@ export function updateCustomer(c: any) {
     }
 
     // Fetch existing customer details before update to ensure robust matching even if name or phone changed
-    const oldCustomerRow: any = customersSql.findCustomersByCustomerIdTenantIdAndPhone(db).get(c.customer_id, c.tenant_id);
+    const oldCustomerRow: CustomerCreditRow = customersSql.findCustomersByCustomerIdTenantIdAndPhone(db).get(c.customer_id, c.tenant_id) as CustomerCreditRow;
     const oldPhone = (oldCustomerRow?.phone || '').trim();
     const oldName = (oldCustomerRow?.name || '').trim();
     const newPhone = (c.phone || '').trim();
@@ -273,18 +274,18 @@ export function updateCustomer(c: any) {
     db.prepare(updateSql).run(...params);
 
     // Sync to matching party in parties
-    let matchedParty: any = null;
+    let matchedParty: CustomerCreditRow | null | undefined = null;
     if (newPhone) {
-      matchedParty = customersSql.findPartiesByPhone(db).get(c.tenant_id, newPhone);
+      matchedParty = customersSql.findPartiesByPhone(db).get(c.tenant_id, newPhone) as CustomerCreditRow | null | undefined;
     }
     if (!matchedParty && oldPhone) {
-      matchedParty = customersSql.findPartiesByPhone(db).get(c.tenant_id, oldPhone);
+      matchedParty = customersSql.findPartiesByPhone(db).get(c.tenant_id, oldPhone) as CustomerCreditRow | null | undefined;
     }
     if (!matchedParty && newName) {
-      matchedParty = customersSql.findParties(db).get(c.tenant_id, newName.toLowerCase());
+      matchedParty = customersSql.findParties(db).get(c.tenant_id, newName.toLowerCase()) as CustomerCreditRow | null | undefined;
     }
     if (!matchedParty && oldName) {
-      matchedParty = customersSql.findParties(db).get(c.tenant_id, oldName.toLowerCase());
+      matchedParty = customersSql.findParties(db).get(c.tenant_id, oldName.toLowerCase()) as CustomerCreditRow | null | undefined;
     }
 
     if (matchedParty) {
@@ -319,16 +320,16 @@ export function getCustomerInvoices({ customer_id, tenant_id, phone, name }: { c
     const effectiveTenantId = tenant_id || 'global';
 
     // 1. Resolve customer record
-    let cust: any = null;
+    let cust: CustomerCreditRow | null | undefined = null;
     if (customer_id) {
-      cust = customersSql.findCustomersByCustomerId2(db).get(customer_id, effectiveTenantId);
+      cust = customersSql.findCustomersByCustomerId2(db).get(customer_id, effectiveTenantId) as CustomerCreditRow | null | undefined;
     }
     const cleanArgPhone = (phone || '').replace(/\D/g, '');
     if (!cust && cleanArgPhone.length >= 7) {
-      cust = customersSql.findCustomersByPhone(db).get(effectiveTenantId, phone, `%${cleanArgPhone.slice(-10)}`);
+      cust = customersSql.findCustomersByPhone(db).get(effectiveTenantId, phone, `%${cleanArgPhone.slice(-10)}`) as CustomerCreditRow | null | undefined;
     }
     if (!cust && name) {
-      cust = customersSql.findCustomerByName(db).get(effectiveTenantId, name.trim(), name.trim());
+      cust = customersSql.findCustomerByName(db).get(effectiveTenantId, name.trim(), name.trim()) as CustomerCreditRow | null | undefined;
     }
 
     // 2. Resolve associated party
@@ -337,25 +338,25 @@ export function getCustomerInvoices({ customer_id, tenant_id, phone, name }: { c
     const phoneClean = searchPhone.replace(/\D/g, '');
     const phoneLast10 = phoneClean.length >= 7 ? phoneClean.slice(-10) : '';
 
-    let party: any = null;
+    let party: CustomerCreditRow | null | undefined = null;
     if (customer_id) {
-      party = customersSql.findPartiesByPartyId(db).get(customer_id, effectiveTenantId);
+      party = customersSql.findPartiesByPartyId(db).get(customer_id, effectiveTenantId) as CustomerCreditRow | null | undefined;
     }
     if (!party && phoneLast10) {
-      party = customersSql.findOnePartyByPhone(db).get(effectiveTenantId, searchPhone, `%${phoneLast10}`);
+      party = customersSql.findOnePartyByPhone(db).get(effectiveTenantId, searchPhone, `%${phoneLast10}`) as CustomerCreditRow | null | undefined;
     }
     if (!party && searchName) {
-      party = customersSql.findPartyByName(db).get(effectiveTenantId, searchName, searchName);
+      party = customersSql.findPartyByName(db).get(effectiveTenantId, searchName, searchName) as CustomerCreditRow | null | undefined;
     }
 
     // If customer wasn't found in customers table, but party was, try finding customer via party
     if (!cust && party) {
       const pClean = (party.phone || '').replace(/\D/g, '');
       if (pClean.length >= 7) {
-        cust = customersSql.findCustomersByPhone(db).get(effectiveTenantId, party.phone, `%${pClean.slice(-10)}`);
+        cust = customersSql.findCustomersByPhone(db).get(effectiveTenantId, party.phone, `%${pClean.slice(-10)}`) as CustomerCreditRow | null | undefined;
       }
       if (!cust && party.name) {
-        cust = customersSql.findCustomerByName(db).get(effectiveTenantId, party.name.trim(), party.name.trim());
+        cust = customersSql.findCustomerByName(db).get(effectiveTenantId, party.name.trim(), party.name.trim()) as CustomerCreditRow | null | undefined;
       }
     }
 
@@ -380,7 +381,7 @@ export function getCustomerInvoices({ customer_id, tenant_id, phone, name }: { c
       targetPartyId || '', targetPartyId || '',
       phoneLast10 ? `%${phoneLast10}` : '', phoneLast10 ? `%${phoneLast10}` : '',
       nameNorm || '', nameNorm || '', phoneLast10 || ''
-    ) as any[];
+    ) as CreditInvoice[];
 
     return computeCustomerCreditStatusSync(db, effectiveTenantId, targetCustomerId, rawInvoices);
   } catch (error) {
@@ -412,7 +413,7 @@ export function adjustCustomerLoyaltyPoints(payload: {
 }) {
   const db = getDb();
   const tid = payload.tenant_id || 'global';
-  const cust: any = customersSql.findCustomersByCustomerId3(db).get(payload.customer_id);
+  const cust: CustomerCreditRow = customersSql.findCustomersByCustomerId3(db).get(payload.customer_id) as CustomerCreditRow;
   if (!cust) return { success: false, error: 'Customer not found' };
 
   const currentBal = Number(cust.current_points_balance) || 0;
@@ -449,9 +450,9 @@ export function adjustCustomerLoyaltyPoints(payload: {
 export function recalculateCustomerLoyaltyPoints(payload: { tenant_id: string }) {
   const db = getDb();
   const tid = payload.tenant_id || 'global';
-  const lCfgRow: any = customersSql.findSettingsByKey(db).get(tid)
-    || customersSql.findSettingsByKeyLoyaltyConfig(db).get();
-  let lCfg: any = null;
+  const lCfgRow: SettingRow = customersSql.findSettingsByKey(db).get(tid) as SettingRow
+    || customersSql.findSettingsByKeyLoyaltyConfig(db).get() as SettingRow;
+  let lCfg: LoyaltyConfig | null = null;
   if (lCfgRow?.value) {
     try {
       lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
@@ -461,19 +462,19 @@ export function recalculateCustomerLoyaltyPoints(payload: { tenant_id: string })
   const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
   const paymentFilter = awardOnPending ? "AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('HOLD'))" : "AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))";
 
-  const custs: any[] = customersSql.findCustomersCustomerIdAndPhone(db).all(tid, tid);
+  const custs: CustomerCreditRow[] = customersSql.findCustomersCustomerIdAndPhone(db).all(tid, tid) as CustomerCreditRow[];
   let updatedCount = 0;
 
   const transaction = db.transaction(() => {
     for (const c of custs) {
-      const invRow: any = customersSql.sumLoyaltyPointsForCustomer(db, paymentFilter).get(c.customer_id, c.phone || '');
+      const invRow: LoyaltyTotals = customersSql.sumLoyaltyPointsForCustomer(db, paymentFilter).get(c.customer_id, c.phone || '') as LoyaltyTotals;
 
       let earned = Number(invRow?.totEarned) || 0;
       const redeemed = Number(invRow?.totRedeemed) || 0;
 
       // If invoices did not have points_earned stored previously, compute from sales total
       if (earned === 0 && redeemed === 0) {
-        const salesRow: any = customersSql.sumSalesForCustomer(db, paymentFilter).get(c.customer_id, c.phone || '');
+        const salesRow: LoyaltyTotals = customersSql.sumSalesForCustomer(db, paymentFilter).get(c.customer_id, c.phone || '') as LoyaltyTotals;
         const totSales = Number(salesRow?.totSales) || 0;
         if (totSales > 0) {
           earned = Math.floor(totSales / earningRate);

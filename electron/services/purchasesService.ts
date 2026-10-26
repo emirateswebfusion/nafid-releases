@@ -1,3 +1,4 @@
+import type { CashDrawerRow, CashTransactionRow, CustomerCreditRow, InvoiceItem, LedgerRow, ProductRow, PurchaseBillRow, ServiceDb, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
 import crypto from 'node:crypto';
@@ -8,7 +9,7 @@ import * as purchasesSql from '../db/statements/purchases.js';
 /** purchases use-cases for the main process (called by electron/ipc handlers). */
 
 function getNextOrPeekPurchaseBillNumber(
-  db: any,
+  db: ServiceDb,
   tenantId: string,
   billType?: string,
   advance: boolean = false
@@ -19,8 +20,8 @@ function getNextOrPeekPurchaseBillNumber(
   const effectiveTenant = tenantId || 'global';
 
   // 1. Fetch configured prefix/counter from tenant or global settings
-  const row: any = purchasesSql.findSettingsByKey(db).get(effectiveTenant, configKey)
-    || purchasesSql.findSettingsByKey(db).get('global', configKey);
+  const row: SettingRow = purchasesSql.findSettingsByKey(db).get(effectiveTenant, configKey) as SettingRow
+    || purchasesSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
 
   let prefix = defaultPrefix;
   let configuredCounter: number | null = null;
@@ -39,7 +40,7 @@ function getNextOrPeekPurchaseBillNumber(
   }
 
   // 2. If no explicit prefix was configured in settings, inspect existing purchase bills for this tenant
-  const existingBills: any[] = purchasesSql.findPurchaseBills(db).all(effectiveTenant);
+  const existingBills: PurchaseBillRow[] = purchasesSql.findPurchaseBills(db).all(effectiveTenant) as PurchaseBillRow[];
 
   if ((!row || prefix === defaultPrefix) && existingBills.length > 0) {
     for (const b of existingBills) {
@@ -114,7 +115,7 @@ export function getProductSuppliers(tenantId: string) {
     if (!tenantId) return {};
     const rows = purchasesSql.findPurchaseBillItems(db).all(tenantId);
     const map: Record<string, string[]> = {};
-    for (const row of rows as any[]) {
+    for (const row of rows as { product_id: string; supplier_name: string }[]) {
       if (!map[row.product_id]) map[row.product_id] = [];
       if (!map[row.product_id].includes(row.supplier_name)) {
         map[row.product_id].push(row.supplier_name);
@@ -212,9 +213,9 @@ export function addPurchaseBill(payload: {
             }
           } else {
             // Paper GST bill: update domain_attributes with paper_purchase_price and paper_mrp
-            const prodRow = purchasesSql.findProductsByProductId(db).get(item.product_id) as any;
+            const prodRow = purchasesSql.findProductsByProductId(db).get(item.product_id) as ProductRow;
             if (prodRow) {
-              let da: Record<string, any> = {};
+              let da: Record<string, unknown> = {};
               try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch { /* ignore */ }
               da.gst_purchase_price = item.purchase_price;
               da.paper_purchase_price = item.purchase_price;
@@ -229,15 +230,15 @@ export function addPurchaseBill(payload: {
 
       // If CREDIT payment and supplier is a known party, create ledger entry
       if (paymentType === 'CREDIT' && bill.supplier_id) {
-        const party = purchasesSql.findPartiesByPartyId(db).get(bill.supplier_id) as any;
+        const party = purchasesSql.findPartiesByPartyId(db).get(bill.supplier_id) as CustomerCreditRow;
         if (party) {
           const balanceType = billType === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
           const ledgerId = crypto.randomUUID();
           const debitAmount = bill.total_amount;
           const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
-          const currentTypeBalance = parseFloat(party[balanceCol]) || 0;
+          const currentTypeBalance = parseFloat(party[balanceCol] as string) || 0;
           const newTypeBalance = currentTypeBalance - debitAmount;
-          const newBalance = (parseFloat(party.balance) || 0) - debitAmount;
+          const newBalance = (parseFloat(party.balance as string) || 0) - debitAmount;
           purchasesSql.insertPartyLedger(db).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, balanceType, bill.bill_number, 'system', 'System');
           purchasesSql.updatePartyBalanceColumn(db, balanceCol)
             .run(newBalance, newTypeBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
@@ -335,9 +336,9 @@ export function updatePurchaseBill(payload: {
       const { items, ...bill } = payload;
       // Revert stock of previous items before deleting them.
       // Must query oldBill and oldItems BEFORE updating purchase_bills
-      const oldBill = purchasesSql.findPurchaseBillsByPurchaseBillId(db).get(bill.purchase_bill_id) as any;
+      const oldBill = purchasesSql.findPurchaseBillsByPurchaseBillId(db).get(bill.purchase_bill_id) as PurchaseBillRow;
       const oldBillType = oldBill?.bill_type || 'GST';
-      const oldItems = purchasesSql.findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity(db).all(bill.purchase_bill_id) as any[];
+      const oldItems = purchasesSql.findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity(db).all(bill.purchase_bill_id) as InvoiceItem[];
 
       purchasesSql.updatePurchaseBillByPurchaseBillId(db).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
 
@@ -386,9 +387,9 @@ export function updatePurchaseBill(payload: {
           }
         } else {
           // Paper GST bill: update domain_attributes with paper_purchase_price and paper_mrp
-          const prodRow = purchasesSql.findProductsByProductId(db).get(item.product_id) as any;
+          const prodRow = purchasesSql.findProductsByProductId(db).get(item.product_id) as ProductRow;
           if (prodRow) {
-            let da: Record<string, any> = {};
+            let da: Record<string, unknown> = {};
             try { da = JSON.parse(prodRow.domain_attributes || '{}'); } catch { /* ignore */ }
             da.gst_purchase_price = item.purchase_price;
             da.paper_purchase_price = item.purchase_price;
@@ -402,15 +403,15 @@ export function updatePurchaseBill(payload: {
       }
 
       if (paymentType === 'CREDIT' && bill.supplier_id) {
-        const party = purchasesSql.findPartiesByPartyId(db).get(bill.supplier_id) as any;
+        const party = purchasesSql.findPartiesByPartyId(db).get(bill.supplier_id) as CustomerCreditRow;
         if (party) {
           const balanceType = billType === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
           const ledgerId = crypto.randomUUID();
           const debitAmount = bill.total_amount;
           const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
-          const currentTypeBalance = parseFloat(party[balanceCol]) || 0;
+          const currentTypeBalance = parseFloat(party[balanceCol] as string) || 0;
           const newTypeBalance = currentTypeBalance - debitAmount;
-          const newBalance = (parseFloat(party.balance) || 0) - debitAmount;
+          const newBalance = (parseFloat(party.balance as string) || 0) - debitAmount;
           purchasesSql.insertPartyLedger(db).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, balanceType, bill.bill_number, 'system', 'System');
           purchasesSql.updatePartyBalanceColumn(db, balanceCol)
             .run(newBalance, newTypeBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
@@ -431,10 +432,10 @@ export function deletePurchaseBill(purchase_bill_id: string) {
   try {
     const db = getDb();
     db.transaction(() => {
-      const bill = purchasesSql.findPurchaseBillsByPurchaseBillId2(db).get(purchase_bill_id) as any;
+      const bill = purchasesSql.findPurchaseBillsByPurchaseBillId2(db).get(purchase_bill_id) as PurchaseBillRow;
       if (bill) {
         if (bill.supplier_id && bill.bill_number) {
-          const ledgerEntries = purchasesSql.findPartyLedgerByPartyIdAndReferenceNumber(db).all(bill.tenant_id, bill.supplier_id, bill.bill_number) as any[];
+          const ledgerEntries = purchasesSql.findPartyLedgerByPartyIdAndReferenceNumber(db).all(bill.tenant_id, bill.supplier_id, bill.bill_number) as LedgerRow[];
           for (const entry of ledgerEntries) {
             purchasesSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
           }
@@ -442,10 +443,10 @@ export function deletePurchaseBill(purchase_bill_id: string) {
         }
 
         if (bill.payment_type === 'CASH' && Number(bill.total_amount) > 0) {
-          const tx = purchasesSql.findCashTransactionsByCategory(db).get(bill.tenant_id, `%${bill.bill_number}%`) as any;
+          const tx = purchasesSql.findCashTransactionsByCategory(db).get(bill.tenant_id, `%${bill.bill_number}%`) as CashTransactionRow;
           if (tx) {
             purchasesSql.deleteCashTransactionByTransactionId(db).run(tx.transaction_id);
-            const drawer = purchasesSql.findCashDrawerByDrawerId(db).get(tx.drawer_id) as any;
+            const drawer = purchasesSql.findCashDrawerByDrawerId(db).get(tx.drawer_id) as CashDrawerRow;
             if (drawer) {
               const newCashOut = Math.max(0, Number(drawer.cash_out) - Number(tx.amount));
               const newCurrentCash = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;

@@ -1,10 +1,11 @@
+import type { CreditInvoice, CustomerCreditRow, EnrichedCreditInvoice, LedgerRow, ServiceDb } from './typesB.js';
 import * as partyLedgerSql from '../db/statements/partyLedger.js';
 
 /** Customer credit status: limits, overdue invoices and restriction decisions used by checkout and the customer screens. */
 
-export function computeCustomerCreditStatusSync(db: any, tenantId: string, customerId: string, invoices: any[]) {
+export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string, customerId: string, invoices: CreditInvoice[]) {
   // 1. Fetch customer credit configuration
-  const customer: any = partyLedgerSql.findOneCustomerByPhoneAndCustomerId(db).get(customerId, tenantId) || {};
+  const customer: Partial<CustomerCreditRow> = partyLedgerSql.findOneCustomerByPhoneAndCustomerId(db).get(customerId, tenantId) as CustomerCreditRow || {};
 
   const partyBalance = Number(customer.party_balance ?? 0);
   const creditPeriodEnabled = Boolean(customer.credit_period_enabled ?? customer.party_credit_period_enabled ?? false);
@@ -15,9 +16,9 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
   const isSettled = partyBalance <= 0;
 
   // 2. Fetch all debits (payments) from party_ledger if a party exists
-  let ledgerDebits: any[] = [];
+  let ledgerDebits: LedgerRow[] = [];
   if (customer.party_id) {
-    ledgerDebits = partyLedgerSql.findPartyLedgerByPartyId5(db).all(customer.party_id, tenantId) as any[];
+    ledgerDebits = partyLedgerSql.findPartyLedgerByPartyId5(db).all(customer.party_id, tenantId) as LedgerRow[];
   }
 
   // Map explicit payments by invoice reference
@@ -39,7 +40,7 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
   let unallocatedPool = Math.max(0, totalDebits - totalExplicitDebits);
 
   // 3. Sort credit bills oldest to newest for FIFO allocation
-  const creditInvoices = invoices.filter((inv: any) => {
+  const creditInvoices = invoices.filter((inv: CreditInvoice) => {
     const pm = (inv.payment_method || '').toUpperCase();
     let splitCredit = 0;
     if (inv.split_details) {
@@ -49,7 +50,7 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
       } catch { /* ignore */ }
     }
     return pm === 'CREDIT' || splitCredit > 0 || (Number(inv.balance_amount) > 0 && pm !== 'CASH');
-  }).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }).sort((a: CreditInvoice, b: CreditInvoice) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   const billAllocations = new Map<string, { outstanding: number; dueDate: Date | null; isOverdue: boolean; overdueDays: number; remainingDays: number; status: string }>();
 
@@ -132,7 +133,7 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
     });
   }
 
-  return invoices.map((inv: any) => {
+  return invoices.map((inv: CreditInvoice) => {
     const alloc = billAllocations.get(inv.invoice_id);
     if (alloc) {
       return {
@@ -158,34 +159,34 @@ export function computeCustomerCreditStatusSync(db: any, tenantId: string, custo
   });
 }
 
-export function checkCustomerOverdueSync(db: any, tenantId: string, customerId?: string, custPhone?: string, custName?: string) {
-  let cust: any = null;
+export function checkCustomerOverdueSync(db: ServiceDb, tenantId: string, customerId?: string, custPhone?: string, custName?: string) {
+  let cust: CustomerCreditRow | null | undefined = null;
   if (customerId) {
-    cust = partyLedgerSql.findCustomersByCustomerId(db).get(customerId, tenantId);
+    cust = partyLedgerSql.findCustomersByCustomerId(db).get(customerId, tenantId) as CustomerCreditRow | null | undefined;
   }
   if (!cust && custPhone) {
     const cleanDigits = custPhone.replace(/\D/g, '');
     if (cleanDigits.length >= 7) {
-      cust = partyLedgerSql.findCustomersByPhone(db).get(tenantId, custPhone, `%${cleanDigits.slice(-10)}`);
+      cust = partyLedgerSql.findCustomersByPhone(db).get(tenantId, custPhone, `%${cleanDigits.slice(-10)}`) as CustomerCreditRow | null | undefined;
     } else {
-      cust = partyLedgerSql.findCustomersByPhone2(db).get(tenantId, custPhone);
+      cust = partyLedgerSql.findCustomersByPhone2(db).get(tenantId, custPhone) as CustomerCreditRow | null | undefined;
     }
   }
   if (!cust && custName) {
-    cust = partyLedgerSql.findCustomers(db).get(tenantId, custName.trim().toLowerCase());
+    cust = partyLedgerSql.findCustomers(db).get(tenantId, custName.trim().toLowerCase()) as CustomerCreditRow | null | undefined;
   }
 
-  let party: any = null;
+  let party: CustomerCreditRow | null | undefined = null;
   if (custPhone) {
     const cleanDigits = custPhone.replace(/\D/g, '');
     if (cleanDigits.length >= 7) {
-      party = partyLedgerSql.findOnePartyByPhone(db).get(tenantId, custPhone, `%${cleanDigits.slice(-10)}`);
+      party = partyLedgerSql.findOnePartyByPhone(db).get(tenantId, custPhone, `%${cleanDigits.slice(-10)}`) as CustomerCreditRow | null | undefined;
     } else {
-      party = partyLedgerSql.findOnePartyByPhone2(db).get(tenantId, custPhone);
+      party = partyLedgerSql.findOnePartyByPhone2(db).get(tenantId, custPhone) as CustomerCreditRow | null | undefined;
     }
   }
   if (!party && custName) {
-    party = partyLedgerSql.findOneParty(db).get(tenantId, custName.trim().toLowerCase());
+    party = partyLedgerSql.findOneParty(db).get(tenantId, custName.trim().toLowerCase()) as CustomerCreditRow | null | undefined;
   }
 
   const periodEnabled = Boolean(cust?.credit_period_enabled ?? party?.credit_period_enabled ?? false);
@@ -231,16 +232,16 @@ export function checkCustomerOverdueSync(db: any, tenantId: string, customerId?:
     pId, pId,
     last10Ph ? `%${last10Ph}` : '', last10Ph ? `%${last10Ph}` : '',
     cleanNm, cleanNm, last10Ph
-  ) as any[];
+  ) as CreditInvoice[];
 
   const enriched = computeCustomerCreditStatusSync(db, tenantId, cId || pId, invs);
-  const overdues = enriched.filter((i: any) => i.is_overdue);
+  const overdues = enriched.filter((i: EnrichedCreditInvoice) => i.is_overdue);
 
   return {
     isOverdue: overdues.length > 0,
     overdueCount: overdues.length,
-    overdueAmount: overdues.reduce((acc: number, curr: any) => acc + (Number(curr.outstanding_amount) || 0), 0),
-    oldestOverdueDays: overdues.length > 0 ? Math.max(...overdues.map((o: any) => o.overdue_days || 0)) : 0,
+    overdueAmount: overdues.reduce((acc: number, curr: EnrichedCreditInvoice) => acc + (Number(curr.outstanding_amount) || 0), 0),
+    oldestOverdueDays: overdues.length > 0 ? Math.max(...overdues.map((o: EnrichedCreditInvoice) => o.overdue_days || 0)) : 0,
     restrictOnExpiry,
     creditPeriodEnabled: periodEnabled,
     creditPeriodDays,

@@ -1,3 +1,4 @@
+import type { PricingTierInput } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import crypto from 'node:crypto';
 import * as pricingTiersSql from '../db/statements/pricingTiers.js';
@@ -16,7 +17,7 @@ export function getPricingTiers(tenantId: string) {
 }
 
 /** IPC `db:addPricingTier` */
-export function addPricingTier(t: any) {
+export function addPricingTier(t: PricingTierInput) {
   try {
     const db = getDb();
     const tid = t.tenant_id || 'global';
@@ -24,7 +25,7 @@ export function addPricingTier(t: any) {
     if (!cleanName) return { success: false, error: 'Name is required' };
 
     // Check if an existing tier with the same name exists
-    const existing = pricingTiersSql.findPricingTiers2(db).get(tid, cleanName) as any;
+    const existing = pricingTiersSql.findPricingTiers2(db).get(tid, cleanName) as PricingTierInput;
 
     const isActive = (t.is_active === false || t.is_active === 0 || t.is_active === '0') ? 0 : 1;
 
@@ -33,7 +34,7 @@ export function addPricingTier(t: any) {
       return { success: true, pricing_tier_id: existing.pricing_tier_id };
     }
 
-    const nextSort = pricingTiersSql.findPricingTiersCOALESCEMAXsortOrderAndNextSort(db).get(tid) as any;
+    const nextSort = pricingTiersSql.findPricingTiersCOALESCEMAXsortOrderAndNextSort(db).get(tid) as { next_sort: number };
     const tierId = t.pricing_tier_id || crypto.randomUUID();
 
     pricingTiersSql.insertPricingTier(db).run(tierId, tid, cleanName, isActive, t.sort_order ?? (nextSort?.next_sort || 0));
@@ -45,7 +46,7 @@ export function addPricingTier(t: any) {
 }
 
 /** IPC `db:updatePricingTier` */
-export function updatePricingTier(t: any) {
+export function updatePricingTier(t: PricingTierInput) {
   try {
     const db = getDb();
     const isActive = (t.is_active === false || t.is_active === 0 || t.is_active === '0') ? 0 : 1;
@@ -94,13 +95,13 @@ export function setDefaultPricingTier(payload: { tenant_id: string; pricing_tier
     pricing_tier_id = pricing_tier_id || '';
 
     if (!tenant_id && pricing_tier_id) {
-      const targetTier = pricingTiersSql.findPricingTiersByPricingTierId(db).get(pricing_tier_id) as any;
+      const targetTier = pricingTiersSql.findPricingTiersByPricingTierId(db).get(pricing_tier_id) as PricingTierInput;
       if (targetTier?.tenant_id) tenant_id = targetTier.tenant_id;
     }
     const tid = tenant_id || 'global';
 
     if (pricing_tier_id) {
-      const targetTier = pricingTiersSql.findPricingTiersByPricingTierId(db).get(pricing_tier_id) as any;
+      const targetTier = pricingTiersSql.findPricingTiersByPricingTierId(db).get(pricing_tier_id) as PricingTierInput;
       const actualTenantId = targetTier?.tenant_id || tid;
 
       pricingTiersSql.updatePricingTierIsDefaultAndPricingTierId(db).run(pricing_tier_id, actualTenantId, tid);
@@ -145,7 +146,7 @@ export function setProductPricing(payload: { tenant_id: string; product_id: stri
           clear.run(product_id, item.pricing_tier_id, tid);
           continue;
         }
-        const existing = findExisting.get(product_id, item.pricing_tier_id, tid) as any;
+        const existing = findExisting.get(product_id, item.pricing_tier_id, tid) as { product_pricing_id: string };
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const pricingId = (existing?.product_pricing_id && uuidRegex.test(existing.product_pricing_id)) ? existing.product_pricing_id : crypto.randomUUID();
         upsert.run(pricingId, tid, product_id, item.pricing_tier_id, Number(item.price) || 0);
@@ -176,7 +177,7 @@ export function setTierPricing(payload: { tenant_id: string; pricing_tier_id: st
           clear.run(item.product_id, pricing_tier_id, tenant_id);
           continue;
         }
-        const existing = findExisting.get(item.product_id, pricing_tier_id, tenant_id) as any;
+        const existing = findExisting.get(item.product_id, pricing_tier_id, tenant_id) as { product_pricing_id: string };
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const pricingId = (existing?.product_pricing_id && uuidRegex.test(existing.product_pricing_id)) ? existing.product_pricing_id : crypto.randomUUID();
         upsert.run(pricingId, tenant_id, item.product_id, pricing_tier_id, Number(item.price) || 0);

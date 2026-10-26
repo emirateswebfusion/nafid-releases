@@ -1,3 +1,4 @@
+import type { AuthPayload } from './typesB.js';
 import { app, safeStorage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -24,7 +25,7 @@ const decrypt = (data: Buffer): string | null => {
   }
 };
 
-export function readAuthPayload(): any {
+export function readAuthPayload(): AuthPayload | null {
   const encPath = getEncryptedPath();
   if (fs.existsSync(encPath)) {
     const raw = fs.readFileSync(encPath);
@@ -47,7 +48,7 @@ export function clearOfflineSession() {
   if (fs.existsSync(offlinePath)) fs.unlinkSync(offlinePath);
 }
 
-export function readOfflineSession(): any {
+export function readOfflineSession(): unknown {
   const offlinePath = getOfflineSessionPath();
   if (!fs.existsSync(offlinePath)) return null;
   const decrypted = decrypt(fs.readFileSync(offlinePath));
