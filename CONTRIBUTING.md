@@ -43,6 +43,14 @@ One logical change per commit. Never mix formatting or mass renames with behavio
 
 Bump the version (semantic versioning), update the release notes, merge to `main`, then tag: `git tag vX.Y.Z && git push --tags`.
 
+**Auto-update feed (no secrets in the app).** Installers and `latest.yml` are published to the public, binaries-only
+repo `UPDATES_REPO_URL` (e.g. `emirateswebfusion/nafid-releases`); installed apps read it without credentials.
+`GH_TOKEN` stays on the build machine (`.env.production` or CI secret) and is used only to upload the release.
+The installer ships `resources/app.env`, written by `scripts/runtime-env.cjs` from `.env.production` with an
+allow-list of public keys (`tests/unit/runtimeEnv.test.ts` rejects secret-looking keys). Never add a token to that list.
+During the transition set `LEGACY_PRIVATE_REPO_URL` so releases also reach installs made before this change; remove it
+once every terminal runs a newer version, then revoke the old token.
+
 ## Never commit
 
 `.env*` files (except `.env.example`), keystores and signing keys, tokens or passwords, database files, logs, build

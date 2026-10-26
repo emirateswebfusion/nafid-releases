@@ -30,8 +30,9 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Load environment variables
+// Packaged: resources/app.env holds only public settings (scripts/runtime-env.cjs). Dev: the repo's .env.
 const envPath = app.isPackaged
-  ? path.join(process.resourcesPath, '.env.production')
+  ? path.join(process.resourcesPath, 'app.env')
   : path.join(__dirname, '..', '.env');
 
 if (fs.existsSync(envPath)) {
@@ -40,14 +41,6 @@ if (fs.existsSync(envPath)) {
   dotenv.config(); // Fallback to root .env
 }
 
-// GH_TOKEN for electron-updater; prefer GITHUB_TOKEN (CI-safe) over bundled file
-if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)) {
-  const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
-  if (parsed.GH_TOKEN) {
-    process.env.GH_TOKEN = parsed.GH_TOKEN;
-    console.log('[Main] GH_TOKEN loaded manually from env file');
-  }
-}
 
 let mainWindow: BrowserWindow | null = null;
 const PROTOCOL = 'nafid';

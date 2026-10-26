@@ -35,14 +35,7 @@ function canCheckForUpdates(): boolean {
 
 
 export function setupAutoUpdater(): void {
-  const updaterToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
-  if (updaterToken) {
-    autoUpdater.requestHeaders = {
-      Authorization: `token ${updaterToken}`
-    };
-    log.info('[Updater] Configured GitHub authorization headers for private repo updates.');
-  }
-
+  // Updates come from the public releases repo baked into app-update.yml at build time: no credentials.
   // Disable auto-download initially - we'll control it via state machine
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
