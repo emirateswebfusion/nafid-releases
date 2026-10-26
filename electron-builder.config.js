@@ -18,7 +18,20 @@ if (fs.existsSync(rceditCache)) {
 }
 
 
-const repoUrl = process.env.GITHUB_REPO_URL || '';
+const { writeRuntimeEnv } = require('./scripts/runtime-env.cjs');
+
+// Installers and update metadata are published to a PUBLIC releases-only repo (UPDATES_REPO_URL), so installed
+// apps update without any token. GH_TOKEN stays on the build machine and is used only to upload the release.
+// Release settings come from .env.production (never the dev .env, which points at localhost); a build machine
+// without that file (CI) provides them as environment variables.
+const productionEnvFile = path.join(__dirname, '.env.production');
+const releaseEnv = fs.existsSync(productionEnvFile) ? require('dotenv').parse(fs.readFileSync(productionEnvFile)) : process.env;
+const repoUrl = releaseEnv.UPDATES_REPO_URL || process.env.UPDATES_REPO_URL || '';
+const runtimeEnvFile = path.join(__dirname, 'release', 'runtime', 'app.env');
+writeRuntimeEnv(releaseEnv, runtimeEnvFile);
+
+const legacyParts = (releaseEnv.LEGACY_PRIVATE_REPO_URL || process.env.LEGACY_PRIVATE_REPO_URL || '').replace(/^https?:\/\/[^\/]+\//, '').split('/');
+const legacyPublish = legacyParts.length >= 2 && legacyParts[0] ? [{ provider: 'github', owner: legacyParts[0], repo: legacyParts[1], private: true, releaseType: 'release' }] : [];
 let repository = {};
 
 if (repoUrl) {
@@ -50,7 +63,7 @@ module.exports = {
     'package.json'
   ],
   extraResources: [
-    '.env.production'
+    { from: runtimeEnvFile, to: 'app.env' }
   ],
   mac: {
     icon: 'build/icon.png',
@@ -93,13 +106,17 @@ module.exports = {
     installerLanguages: ['en'],
     license: 'build/license.txt',
   },
+  // First entry = the feed installed apps read (public, no token). LEGACY_PRIVATE_REPO_URL (optional, transition only)
+  // also uploads the release to the old private repo so installs from before this change can still find it; remove
+  // it once every terminal runs a version from the public feed.
   publish: repoUrl ? [
     {
       provider: 'github',
       owner: repository.owner,
       repo: repository.repo,
-      private: true,
+      private: false,
       releaseType: 'release'
-    }
+    },
+    ...legacyPublish
   ] : null
 };
