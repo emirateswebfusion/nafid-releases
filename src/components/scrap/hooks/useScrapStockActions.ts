@@ -123,7 +123,7 @@ export function useScrapStockActions(ctx: UseScrapStockActionsContext) {
       if (entry.qty <= 0 || entry.rate <= 0) continue;
       if (isDesktopRuntime()) {
         const cats = await scrapApi.getScrapCategories(tenantId || '');
-        const cat = cats.find((c: any) => c.scrap_category_id === entry.category.scrap_category_id);
+        const cat = cats.find((c: ScrapCategory) => c.scrap_category_id === entry.category.scrap_category_id);
         const currentStock = cat ? Number(cat.current_stock) : 0;
         if (entry.qty > currentStock) {
           showStatus(`Insufficient stock for ${entry.category.name}`, 'error');

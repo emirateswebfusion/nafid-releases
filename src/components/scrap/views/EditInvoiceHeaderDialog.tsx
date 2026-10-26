@@ -34,7 +34,7 @@ export function EditInvoiceHeaderDialog({
             </div>
             <div>
               <h3 className="text-sm font-bold text-foreground">Edit Scrap Invoice Header</h3>
-              <p className="text-xs text-muted-foreground">{editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number}</p>
+              <p className="text-xs text-muted-foreground">{(editHeaderInvoice as ScrapInvoiceRow).invoice_number || (editHeaderInvoice as ScrapInvoiceRow).scrap_invoice_number}</p>
             </div>
           </div>
           <button
@@ -105,7 +105,7 @@ export function EditInvoiceHeaderDialog({
               <Select
                 value={scrapUpiSourceId || upiSources[0]?.source_id || ''}
                 onChange={(val) => setScrapUpiSourceId(val)}
-                options={upiSources.map((s: any) => ({
+                options={upiSources.map((s: ScrapUpiSourceRow) => ({
                   value: s.source_id,
                   label: `${s.name} (${s.upi_id || 'No UPI ID'})`
                 }))}

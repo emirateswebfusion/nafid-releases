@@ -66,7 +66,7 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
       const isA4 = printFmt.format === 'a4';
       const useA4 = isA4 || isHalfA4;
 
-      const scrapItems = invoiceDetailTxs.map((tx: any) => ({
+      const scrapItems = invoiceDetailTxs.map((tx: ScrapInvoiceTxRow) => ({
         name: tx.scrap_category_name || 'Unknown',
         quantity: Number(tx.quantity).toFixed(3),
         unit_price: Number(tx.rate),
@@ -74,7 +74,7 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
         billing_type: 'WEIGHT',
       }));
 
-      const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount), 0);
+      const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: ScrapInvoiceTxRow) => sum + Number(tx.total_amount), 0);
 
       const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
       const receiptData: ReceiptData = {
@@ -105,7 +105,7 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
 
       if (useA4) {
         const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as Parameters<typeof generateInvoiceHtml>[1]);
         const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
         if (printResult && !printResult.success) {
           showStatus(formatPrinterError(printResult.error), 'error');

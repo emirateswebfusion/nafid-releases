@@ -29,9 +29,49 @@ export interface ScrapTransaction {
  * Loose rows of the scrap screen that have no data types yet (scrap invoices, invoice transaction lines, UPI sources).
  * Kept untyped here, in one place, until the screen is typed; use these aliases instead of writing `any`.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy scrap invoice row, typed later in one place
-export type ScrapInvoiceRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy scrap invoice transaction line, typed later in one place
-export type ScrapInvoiceTxRow = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy UPI source row, typed later in one place
-export type ScrapUpiSourceRow = any;
+export type ScrapInvoiceRow = {
+  invoice_number: string;
+  scrap_invoice_number: string;
+  party_name?: string;
+  customer_phone?: string;
+  customer_address?: string;
+  created_at: string;
+  payment_status?: string;
+  item_count?: number;
+  total_qty?: number;
+  units?: string;
+  total_amount: number;
+  biller_name?: string;
+  party_phone?: string;
+  party_address?: string;
+  party_state?: string;
+  customer_state?: string;
+};
+
+export type ScrapInvoiceTxRow = {
+  transaction_id: string;
+  type?: 'PURCHASE' | 'SALE' | string;
+  scrap_category_id?: string;
+  scrap_category_name?: string;
+  quantity: number;
+  rate: number;
+  total_amount: number;
+  unit?: string;
+  notes?: string;
+  created_at: string;
+  payment_status?: string;
+  biller_name?: string;
+  party_name?: string;
+  party_phone?: string;
+  party_address?: string;
+  party_state?: string;
+  customer_phone?: string;
+  customer_address?: string;
+  customer_state?: string;
+};
+
+export type ScrapUpiSourceRow = {
+  source_id: string;
+  name: string;
+  upi_id?: string;
+};
