@@ -5,9 +5,12 @@ import clsx from 'clsx';
 import { FONT_OPTIONS } from '../settingsConstants';
 import { useBillingUIStore } from '../../../store/billingUIStore';
 import { CODE_TYPES } from '../../../labelCodeTypes';
+import { CashDrawerAutoCloseSettings } from './CashDrawerAutoCloseSettings';
 
 export interface PrintOptionsSettingsTabProps {
   autoOpenCashDrawer: boolean; setAutoOpenCashDrawer: (v: boolean) => void;
+  autoCloseCashDrawer: boolean; setAutoCloseCashDrawer: (v: boolean) => void;
+  autoCloseCashDrawerTime: string; setAutoCloseCashDrawerTime: (v: string) => void;
   autoPrintBarcode: boolean; setAutoPrintBarcode: (v: boolean) => void;
   billSettings: any; setBillSettings: (v: any) => void;
   billingUIConfig: any; setBillingUIConfig: (v: any) => void;
@@ -32,6 +35,8 @@ export interface PrintOptionsSettingsTabProps {
 
 export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = ({
   autoOpenCashDrawer, setAutoOpenCashDrawer,
+  autoCloseCashDrawer, setAutoCloseCashDrawer,
+  autoCloseCashDrawerTime, setAutoCloseCashDrawerTime,
   autoPrintBarcode, setAutoPrintBarcode,
   billSettings, setBillSettings,
   billingUIConfig, setBillingUIConfig,
@@ -135,6 +140,13 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoOpenCashDrawer ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
+
+                <CashDrawerAutoCloseSettings
+                  autoCloseEnabled={autoCloseCashDrawer}
+                  setAutoCloseEnabled={setAutoCloseCashDrawer}
+                  autoCloseTime={autoCloseCashDrawerTime}
+                  setAutoCloseTime={setAutoCloseCashDrawerTime}
+                />
 
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">

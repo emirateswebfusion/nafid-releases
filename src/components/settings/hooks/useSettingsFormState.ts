@@ -62,6 +62,8 @@ export function useSettingsFormState() {
   const [showPriceOverrideMrp, setShowPriceOverrideMrp] = useState(true);
   const [openCashDrawerOnPending, setOpenCashDrawerOnPending] = useState(false);
   const [autoOpenCashDrawer, setAutoOpenCashDrawer] = useState(false);
+  const [autoCloseCashDrawer, setAutoCloseCashDrawer] = useState(false);
+  const [autoCloseCashDrawerTime, setAutoCloseCashDrawerTime] = useState('23:30');
   const [defaultOpeningBalance, setDefaultOpeningBalance] = useState<number | string>(0);
   const [receiptFont, setReceiptFont] = useState('courier');
   const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
@@ -156,7 +158,8 @@ export function useSettingsFormState() {
     shopEmail, setShopEmail, shopWebsite, setShopWebsite, connectCode, setConnectCode, copiedCode, setCopiedCode,
     storeTimezone, setStoreTimezoneState, upiId, setUpiId, showUpiQr, setShowUpiQr, showProductOffers,
     setShowProductOffers, showPriceOverrideMrp, setShowPriceOverrideMrp, openCashDrawerOnPending,
-    setOpenCashDrawerOnPending, autoOpenCashDrawer, setAutoOpenCashDrawer, defaultOpeningBalance,
+    setOpenCashDrawerOnPending, autoOpenCashDrawer, setAutoOpenCashDrawer, autoCloseCashDrawer,
+    setAutoCloseCashDrawer, autoCloseCashDrawerTime, setAutoCloseCashDrawerTime, defaultOpeningBalance,
     setDefaultOpeningBalance, receiptFont, setReceiptFont, billSettings, setBillSettings, scrapBillSettings,
     setScrapBillSettings, showFullyPaidCashInLedger, setShowFullyPaidCashInLedger, printFormat, setPrintFormat,
     a5Orientation, setA5Orientation, labelCodeType, setLabelCodeType, labelShowShopName, setLabelShowShopName,

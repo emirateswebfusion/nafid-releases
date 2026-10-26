@@ -3,6 +3,7 @@ import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, parseCleanDate, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress, notifyRenderer } from '../syncProgress.js';
 import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import { computeDrawerTotals } from '../../services/cashDrawerService.js';
 
 /** Cash sync: cash drawer (with reconciliation), cash transactions, categories, cashier audit log and payment sources (push and pull). */
 // ── Cash Drawer Sync (Edge → Cloud) ─────────────────────────────────────────────
@@ -99,81 +100,20 @@ export async function syncCashierAuditLog(token: string, tenantId: string) {
 
 export let lastCashDrawerHash = '';
 
+/** After a pull: refresh an open drawer's totals with the canonical session maths (computeDrawerTotals). Written only
+ * when they changed, and without marking the drawer for upload. */
 export function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) {
   if (!drawer || !tenantId) return;
   try {
-    const cleanDate = parseCleanDate(drawer.business_date);
-    const parts = cleanDate.split('-');
-    const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
-    const dateLike1 = `${cleanDate}%`;
-    const dateLike2 = `${altDate}%`;
-
-    const salesRow = db.prepare(`
-      SELECT 
-        COALESCE(SUM(
-          CASE 
-            WHEN UPPER(payment_method) = 'CASH' THEN (
-              CASE 
-                WHEN COALESCE(grand_total, 0) <= 0 THEN 0
-                WHEN received_amount > 0 AND received_amount < COALESCE(grand_total, 0)
-                  THEN received_amount 
-                ELSE MAX(0, COALESCE(grand_total, 0))
-              END
-            )
-            WHEN UPPER(payment_method) = 'SPLIT' AND split_details IS NOT NULL THEN (
-              CASE 
-                WHEN json_extract(split_details, '$.cash') IS NOT NULL 
-                THEN MIN(
-                  CAST(json_extract(split_details, '$.cash') AS REAL),
-                  MAX(0, COALESCE(grand_total, 0))
-                )
-                ELSE 0 
-              END
-            )
-            ELSE 0 
-          END
-        ), 0) AS total_cash_sales
-      FROM invoices
-      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-        AND UPPER(payment_method) IN ('CASH', 'SPLIT')
-        AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
-        AND (is_held IS NULL OR is_held = 0)
-        AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
-        AND (
-          substr(COALESCE(settled_at, created_at), 1, 10) = ?
-          OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
-          OR date(COALESCE(settled_at, created_at)) = ?
-          OR date(COALESCE(settled_at, created_at)) = ?
-          OR COALESCE(settled_at, created_at) LIKE ?
-          OR COALESCE(settled_at, created_at) LIKE ?
-        )
-    `).get(tenantId, cleanDate, altDate, cleanDate, altDate, dateLike1, dateLike2) as any;
-
-    const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
-
-    const txSums = db.prepare(`
-      SELECT 
-        COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
-        COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
-      FROM cash_transactions 
-      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (
-        drawer_id = ? 
-        OR drawer_id IN (SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?))
-        OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ? OR substr(transaction_date, 1, 10) = ?
-      )
-    `).get(tenantId, drawer.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as any;
-
-    const calcIn = Math.round(Number(txSums?.total_in || 0) * 100) / 100;
-    const calcOut = Math.round(Number(txSums?.total_out || 0) * 100) / 100;
-
-    const openingBal = Math.round(Number(drawer.opening_balance || 0) * 100) / 100;
-    const expectedCash = Math.round((openingBal + calcSales + calcIn - calcOut) * 100) / 100;
-
+    const t = computeDrawerTotals(db, tenantId, drawer);
+    const same = (a: unknown, b: number) => Math.abs((Number(a) || 0) - b) <= 0.001;
+    if (same(drawer.cash_sales, t.cash_sales) && same(drawer.cash_in, t.cash_in) && same(drawer.cash_out, t.cash_out)
+      && same(drawer.current_cash, t.expected) && same(drawer.expected_closing, t.expected)) return;
     db.prepare(`
       UPDATE cash_drawer 
       SET cash_sales = ?, cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE drawer_id = ?
-    `).run(calcSales, calcIn, calcOut, expectedCash, expectedCash, drawer.drawer_id);
+    `).run(t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, drawer.drawer_id);
   } catch (e: any) {
     console.error('[SyncWorker] reconcileCashDrawerSync error:', e.message);
   }

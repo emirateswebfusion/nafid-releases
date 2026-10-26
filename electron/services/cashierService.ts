@@ -1,5 +1,6 @@
 import { getDb } from '../db/localDb.js';
-import { autoClosePastOpenDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
+import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
+import { findOpenDrawersBeforeDate } from './cashDrawerSession.js';
 import { getStoreTimezoneSetting, parseCleanDate, localDate, localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
@@ -13,7 +14,7 @@ import * as cashierSql from '../db/statements/cashier.js';
 export function getDrawer({ tenant_id, business_date }: { tenant_id: string; business_date?: string }) {
   try {
     const db = getDb();
-    autoClosePastOpenDrawers(db, tenant_id);
+    autoCloseOverdueDrawers(db, tenant_id);
     let drawer = deduplicateAndGetOpenDrawer(db, tenant_id, business_date);
 
     if (!drawer || drawer.status !== 'OPEN') {
@@ -56,10 +57,23 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
 export function setOpeningBalance({ tenant_id, opening_balance, user_id, user_name }: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) {
   try {
     const db = getDb();
-    autoClosePastOpenDrawers(db, tenant_id);
+    autoCloseOverdueDrawers(db, tenant_id);
     const date = localDate();
 
     const existing = cashierSql.findOneCashDrawerByBusinessDateOpen(db).get(tenant_id, date, date) as any;
+
+    // One session at a time: a drawer left open on an earlier day must be closed before today's is opened.
+    const older = existing ? [] : findOpenDrawersBeforeDate(db, tenant_id, date);
+    if (older.length > 0) {
+      const olderDate = parseCleanDate(older[0].business_date);
+      return {
+        success: false,
+        error: 'PREVIOUS_DRAWER_OPEN',
+        business_date: olderDate,
+        drawer_id: older[0].drawer_id,
+        message: `The cash drawer of ${olderDate} is still open. Close it before opening today's drawer.`,
+      };
+    }
     
     if (existing) {
       const newOpening = Number(opening_balance);
@@ -479,7 +493,7 @@ export function getTransactions({ tenant_id }: { tenant_id: string }) {
 export function getHistory({ tenant_id, limit = 30, offset = 0 }: { tenant_id: string; limit?: number; offset?: number }) {
   try {
     const db = getDb();
-    autoClosePastOpenDrawers(db, tenant_id);
+    autoCloseOverdueDrawers(db, tenant_id);
     const rows = cashierSql.findInvoices(db).all(tenant_id, limit, offset) as any[];
 
     if (Array.isArray(rows)) {

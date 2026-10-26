@@ -1,5 +1,6 @@
 import { handle } from './common.js';
 import * as cashierService from '../services/cashierService.js';
+import * as autoCloseService from '../services/cashDrawerAutoCloseService.js';
 
 export function registerCashierHandlers(): void {
   handle('db:cashier:getDrawer', cashierService.getDrawer);
@@ -15,6 +16,12 @@ export function registerCashierHandlers(): void {
   handle('db:cashier:dayClosing', cashierService.dayClosing, { safe: true });
 
   handle('db:cashier:reopenDrawer', cashierService.reopenDrawer, { safe: true });
+
+  handle('db:cashier:getAutoCloseStatus', autoCloseService.getAutoCloseStatus);
+
+  handle('db:cashier:snoozeAutoClose', autoCloseService.snoozeAutoClose, { safe: true });
+
+  handle('db:cashier:autoCloseNow', autoCloseService.autoCloseNow, { safe: true });
 
   handle('db:cashier:deleteTransaction', cashierService.deleteTransaction, { safe: true });
 

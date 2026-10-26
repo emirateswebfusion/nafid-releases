@@ -25,6 +25,26 @@ and update every caller in the same change.
 Main-process rules live in `electron/services/` (document numbering, party ledger, cash drawer reconciliation, store time)
 and `electron/utils/` (ids, cashier settlement math).
 
+### Cash drawer sessions (`electron/services/cashDrawerSession.ts`)
+
+- Timestamps are stored in UTC; the store timezone setting decides business dates and wall-clock times
+  (`storeTime.ts`: `localDate`, `storeWallClockToUtc`).
+- A drawer's **session** runs from the close of the previous drawer (else the start of its business date in the store
+  timezone) to its own close; an open drawer's session has no end. Cash sales and cash in / out are summed over the
+  session (`computeDrawerTotals`, the only implementation; `reconcileCashDrawer` and the sync pull both use it), so bills
+  made after midnight stay with the drawer that is still open, and every bill belongs to exactly one drawer.
+- Drawers closed before sessions were installed on a terminal (`cash_drawer_session_since`, a `LOCAL` setting written
+  on first use) are history: never recomputed. On installation, drawers still open from an earlier day are closed at
+  the end of their own business day (what the previous version did on its next start).
+- A drawer from an earlier day that is still open must be closed before today's is opened
+  (`setOpeningBalance` → `PREVIOUS_DRAWER_OPEN`).
+- Auto close (`cash_drawer_auto_close`, default off; `cash_drawer_auto_close_time`, default 23:30, a time before 12:00
+  means after midnight): the renderer watcher asks "the auto close time is now — do you need more time?" (snooze
+  +30 min / +1 h, `cash_drawer_auto_close_snooze`), closes after 5 minutes without an answer or when the app has been
+  idle for 10 minutes; the main process closes drawers still open 15 minutes past the due time
+  (`autoCloseOverdueDrawers`). An auto close counts the expected cash (no short / excess).
+- Tests: `tests/characterization/drawer-session.mts`.
+
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
 - Tax split for **display** is still recomputed inline in `CashierSettlement`, `CustomersPage`, `PurchaseBillManager`

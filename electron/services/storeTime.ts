@@ -31,6 +31,35 @@ export function localDate(d: Date = new Date(), tenantId?: string): string {
   }
 }
 
+/** The UTC instant of a store wall-clock time (`dateStr` YYYY-MM-DD, h:m:s in `tz`). */
+export function storeWallClockToUtc(dateStr: string, h: number, m: number, sec: number, tz: string): Date {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const baseUtc = new Date(Date.UTC(y, mo - 1, d, h, m, sec));
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    });
+
+    const getParts = (dt: Date) => {
+      const parts = formatter.formatToParts(dt);
+      const map: Record<string, number> = {};
+      for (const p of parts) {
+        if (p.type !== 'literal') map[p.type] = Number(p.value);
+      }
+      return Date.UTC(map.year, map.month - 1, map.day, map.hour === 24 ? 0 : map.hour, map.minute, map.second);
+    };
+
+    const currentLocalAsUtc = getParts(baseUtc);
+    const diffMs = baseUtc.getTime() - currentLocalAsUtc;
+    return new Date(baseUtc.getTime() + diffMs);
+  } catch {
+    return baseUtc;
+  }
+}
+
 /** Helper to compute start and end UTC bounds for business date range in store timezone */
 export function getUtcRangeForStoreDateRange(fromDate?: string, toDate?: string, tenantId: string = 'global'): { startUtc: string; endUtc: string } {
   try {
@@ -41,37 +70,8 @@ export function getUtcRangeForStoreDateRange(fromDate?: string, toDate?: string,
     const startDay = fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : today;
     const endDay = toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate) ? toDate : startDay;
 
-    const parseWallClock = (dateStr: string, isEnd: boolean): Date => {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const targetH = isEnd ? 23 : 0;
-      const targetMin = isEnd ? 59 : 0;
-      const targetSec = isEnd ? 59 : 0;
-
-      const baseUtc = new Date(Date.UTC(y, m - 1, d, targetH, targetMin, targetSec));
-      try {
-        const formatter = new Intl.DateTimeFormat('en-US', {
-          timeZone: tz,
-          year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit', second: '2-digit',
-          hour12: false
-        });
-
-        const getParts = (d: Date) => {
-          const parts = formatter.formatToParts(d);
-          const map: Record<string, number> = {};
-          for (const p of parts) {
-            if (p.type !== 'literal') map[p.type] = Number(p.value);
-          }
-          return Date.UTC(map.year, map.month - 1, map.day, map.hour === 24 ? 0 : map.hour, map.minute, map.second);
-        };
-
-        const currentLocalAsUtc = getParts(baseUtc);
-        const diffMs = baseUtc.getTime() - currentLocalAsUtc;
-        return new Date(baseUtc.getTime() + diffMs);
-      } catch {
-        return baseUtc;
-      }
-    };
+    const parseWallClock = (dateStr: string, isEnd: boolean): Date =>
+      storeWallClockToUtc(dateStr, isEnd ? 23 : 0, isEnd ? 59 : 0, isEnd ? 59 : 0, tz);
 
     const startUtcDate = parseWallClock(startDay, false);
     const endUtcDate = parseWallClock(endDay, true);

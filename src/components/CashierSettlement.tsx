@@ -32,6 +32,7 @@ import { useCashDrawerActions } from './cashier/hooks/useCashDrawerActions';
 import { useSettlementAmountEdit } from './cashier/hooks/useSettlementAmountEdit';
 import { useCashierInvoiceView } from './cashier/hooks/useCashierInvoiceView';
 import { CashierLoadingSkeleton } from './cashier/views/CashierLoadingSkeleton';
+import { PreviousDrawerOpenBanner } from './cashier/views/PreviousDrawerOpenBanner';
 
 interface CashierSettlementProps {
   onClose: () => void;
@@ -339,7 +340,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       user_id: userId, user_name: userName || undefined,
     });
     if (r.success) { setShowOpeningBal(false); await load(); }
-    else if (r.error) { setOpeningBalError(r.error); }
+    else if (r.error === 'PREVIOUS_DRAWER_OPEN') {
+      const date = r.business_date ? String(r.business_date) : '';
+      setOpeningBalError(r.message || (date
+        ? `The cash drawer of ${date} is still open. Close it before opening today's drawer.`
+        : 'The previous cash drawer is still open. Close it before opening today\'s drawer.'));
+    } else if (r.error) { setOpeningBalError(r.error); }
   };
 
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -408,6 +414,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const drawerOpen   = drawer?.status === 'OPEN';
   const drawerClosed = drawer?.status === 'CLOSED';
+  const drawerBusinessDate = drawer?.business_date ? String(drawer.business_date).slice(0, 10) : '';
+  const isPreviousDrawerOpen = drawerOpen && drawerBusinessDate !== '' && drawerBusinessDate < todayStr();
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -498,6 +506,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             <DollarSign className="w-3.5 h-3.5" /> Set Today's Opening Balance
           </button>
         </div>
+      )}
+
+      {isPreviousDrawerOpen && !showHist && (
+        <PreviousDrawerOpenBanner businessDate={drawerBusinessDate} />
       )}
 
       {!drawer && !yesterdayNotClosed && !showHist && (

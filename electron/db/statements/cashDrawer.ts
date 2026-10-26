@@ -22,7 +22,8 @@ export const updateCashierAuditLogDrawerId = (db: Db) => db.prepare(`UPDATE cash
 
 export const updateCashDrawerStatusAndClosingRemarks = (db: Db) => db.prepare(`UPDATE cash_drawer SET status = 'CLOSED', closing_remarks = 'Merged duplicate drawer' WHERE drawer_id = ?`);
 
-export const findInvoices = (db: Db) => db.prepare(`
+/** Cash taken by an invoice (cash bills, the cash part of split / credit bills), summed as `total_cash_sales`. */
+const CASH_SALES_SELECT = `
       SELECT 
         COALESCE(SUM(
           CASE 
@@ -55,6 +56,10 @@ export const findInvoices = (db: Db) => db.prepare(`
             ELSE 0 
           END
         ), 0) AS total_cash_sales
+`;
+
+/** Invoices that can carry drawer cash (no holds, not deleted); the tenant is the first parameter. */
+const CASH_SALES_FROM = `
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
         AND (
@@ -64,26 +69,66 @@ export const findInvoices = (db: Db) => db.prepare(`
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
-        AND (
-          substr(COALESCE(settled_at, created_at), 1, 10) = ?
-          OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
-          OR date(COALESCE(settled_at, created_at)) = ?
-          OR date(COALESCE(settled_at, created_at)) = ?
-          OR COALESCE(settled_at, created_at) LIKE ?
-          OR COALESCE(settled_at, created_at) LIKE ?
-        )
+`;
+
+/** Cash sales of a drawer session: settled (else created) after `from` and, when `to` is not NULL, up to `to` (UTC).
+ * Params: tenant, from, to, to. */
+export const sumCashSalesInWindow = (db: Db) => db.prepare(`${CASH_SALES_SELECT}${CASH_SALES_FROM}
+        AND datetime(COALESCE(settled_at, created_at)) > datetime(?)
+        AND (? IS NULL OR datetime(COALESCE(settled_at, created_at)) <= datetime(?))
     `);
 
-export const findCashTransactionsByDrawerIdAndBusinessDate = (db: Db) => db.prepare(`
-      SELECT 
+/** Cash in / out of a drawer session: its own transactions plus orphans (no or unknown drawer) inside the window.
+ * Params: tenant, drawer_id, from, to, to. */
+export const sumCashTransactionsInWindow = (db: Db) => db.prepare(`
+      SELECT
         COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
         COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
-      FROM cash_transactions 
+      FROM cash_transactions
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (
-        drawer_id = ? 
-        OR drawer_id IN (SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?))
-        OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ? OR substr(transaction_date, 1, 10) = ?
+        drawer_id = ?
+        OR ((drawer_id IS NULL OR drawer_id NOT IN (SELECT drawer_id FROM cash_drawer))
+          AND datetime(transaction_date) > datetime(?)
+          AND (? IS NULL OR datetime(transaction_date) <= datetime(?)))
       )
+    `);
+
+/** Latest close of another drawer with an earlier business date. Params: tenant, drawer_id, business date. */
+export const findPreviousDrawerClosedAt = (db: Db) => db.prepare(`
+      SELECT MAX(closed_at) AS closed_at FROM cash_drawer
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND drawer_id != ? AND status = 'CLOSED' AND closed_at IS NOT NULL AND substr(business_date, 1, 10) < ?
+    `);
+
+/** Open drawers with a business date before the given one. Params: tenant, business date. */
+export const findOpenDrawersBefore = (db: Db) => db.prepare(`
+      SELECT * FROM cash_drawer
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND status = 'OPEN' AND substr(business_date, 1, 10) < ?
+      ORDER BY business_date ASC
+    `);
+
+/** A drawer setting (tenant row first, then global). Params: tenant, key, tenant. */
+export const findDrawerSetting = (db: Db) => db.prepare("SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = ? ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 0 END) DESC LIMIT 1");
+
+/** Terminal-local drawer state (session cut-over, auto-close snooze): `LOCAL` settings are never pushed. */
+export const upsertLocalDrawerSetting = (db: Db) => db.prepare(`
+      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+      VALUES (?, ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP
+    `);
+
+/** Auto close: counted cash = expected, no variance.
+ * Params: cash_sales, cash_in, cash_out, current_cash, expected_closing, actual_cash, closed_at, remarks, closed_by, drawer_id. */
+export const closeDrawerAutomatically = (db: Db) => db.prepare(`
+      UPDATE cash_drawer SET
+        status = 'CLOSED',
+        cash_sales = ?, cash_in = ?, cash_out = ?,
+        current_cash = ?, expected_closing = ?,
+        actual_cash = ?, cash_short = 0, cash_excess = 0,
+        closed_at = ?, closing_remarks = ?, closed_by = ?,
+        sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE drawer_id = ? AND status = 'OPEN'
     `);
 
 export const updateCashDrawerByDrawerId = (db: Db) => db.prepare(`
@@ -97,24 +142,6 @@ export const updateCashDrawerByDrawerId2 = (db: Db) => db.prepare(`
         SET cash_sales = ?, cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
         WHERE drawer_id = ?
       `);
-
-export const findCashDrawerByStatusOpen = (db: Db) => db.prepare(`
-      SELECT * FROM cash_drawer
-      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN'
-    `);
-
-export const updateCashDrawerByDrawerIdClosed = (db: Db) => db.prepare(`
-            UPDATE cash_drawer SET
-              status = 'CLOSED',
-              actual_cash = COALESCE(actual_cash, ?),
-              cash_short = 0,
-              cash_excess = 0,
-              closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
-              closing_remarks = COALESCE(closing_remarks, 'Auto-closed past shift on date transition'),
-              sync_status = 'PENDING',
-              updated_at = CURRENT_TIMESTAMP
-            WHERE drawer_id = ?
-          `);
 
 export const findOneSettingByKey = (db: Db) => db.prepare("SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'auto_open_cash_drawer' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 0 END) DESC LIMIT 1");
 

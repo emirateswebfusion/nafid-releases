@@ -23,6 +23,7 @@ import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
+import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { PaymentMethods } from './components/PaymentMethods';
 import { PrintBarcodeView } from './components/PrintBarcodeView';
 import { PrintReceiptView } from './components/PrintReceiptView';
@@ -739,6 +740,7 @@ function App() {
       <div className="absolute top-0 left-0 right-0 z-50">
         <UpdateBanner onOpenSettings={() => setShowSettingsManager(true)} />
       </div>
+      <CashDrawerAutoCloseWatcher />
 
       {showComboManager ? (
         <PermissionGuard permission="combos.view" onBack={() => setShowComboManager(false)}>

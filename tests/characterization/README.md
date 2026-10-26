@@ -95,6 +95,17 @@ for an administrator and writes `emergency-purge-audit.jsonl`; that a legacy `em
 ignored; and that a server-issued command is acknowledged, audited and executed.
 
 
+## Drawer sessions (`drawer-session.mts`)
+
+Pins the cash drawer rules (04-business-rules, §Cash drawer sessions): a bill after midnight counts in the drawer that
+is still open; today's drawer cannot open while an earlier one is open; a bill after a close goes to the next session;
+history drawers keep their totals; a drawer left open when sessions are installed closes at the end of its own day; auto
+close status, snooze, close now and the 15-minute backstop. Dates are relative to today, so it runs at any time of day.
+
+```bash
+EQ_USERDATA=/tmp/eq/ds npx tsx $H/drawer-session.mts cand     # "drawer sessions: ok"
+```
+
 ## Startup idempotency (`startup-idempotency.mts`)
 
 `initDb()` runs inline repair migrations on every start. Once they have run, another start must change no rows,

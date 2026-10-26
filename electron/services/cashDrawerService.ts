@@ -1,6 +1,10 @@
 import crypto from 'node:crypto';
 import { localDate, parseCleanDate, getStoreTimezoneSetting } from './storeTime.js';
 import * as cashDrawerSql from '../db/statements/cashDrawer.js';
+import { AUTO_CLOSE_BACKSTOP_MINUTES, computeDrawerTotals, findOpenDrawers, getAutoCloseConfig, getAutoCloseDueMs, getSessionSinceMs, isFrozenDrawer } from './cashDrawerSession.js';
+
+export { computeDrawerTotals } from './cashDrawerSession.js';
+export type { DrawerTotals } from './cashDrawerSession.js';
 
 
 export function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?: string): any {
@@ -84,44 +88,43 @@ export function getCashAmountFromInvoice(inv: any): number {
   return 0;
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const differs = (a: unknown, b: number) => Math.abs((Number(a) || 0) - b) > 0.001;
+
+/** Recompute a drawer's totals from its session and store them when they changed. Frozen drawers are returned as stored. */
 export function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
   if (!drawer || !tenantId) return drawer;
   try {
-    const storeTz = getStoreTimezoneSetting(db, tenantId);
-    const cleanDate = parseCleanDate(drawer.business_date, storeTz);
-    const parts = cleanDate.split('-');
-    const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
-    const dateLike1 = `${cleanDate}%`;
-    const dateLike2 = `${altDate}%`;
+    getSessionSinceMs(db, tenantId);
+    if (drawer.status === 'OPEN' && drawer.drawer_id) {
+      // Installing sessions may just have closed this drawer (left open on an earlier day).
+      const fresh = cashDrawerSql.findCashDrawerByDrawerId(db).get(drawer.drawer_id) as any;
+      if (fresh && fresh.status !== 'OPEN') Object.assign(drawer, fresh);
+    }
+    if (isFrozenDrawer(db, tenantId, drawer)) return drawer;
+    const t = computeDrawerTotals(db, tenantId, drawer);
+    const changed = differs(drawer.cash_sales, t.cash_sales) || differs(drawer.cash_in, t.cash_in) || differs(drawer.cash_out, t.cash_out)
+      || differs(drawer.current_cash, t.expected) || differs(drawer.expected_closing, t.expected);
 
-    // Calculate total cash sales from settled cash invoices & cash portion of split invoices for this business date
-    const salesRow = cashDrawerSql.findInvoices(db).get(tenantId, cleanDate, altDate, cleanDate, altDate, dateLike1, dateLike2) as any;
-
-    const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
-
-    // Calculate Cash In and Cash Out sums across all drawers / transactions for this business date
-    const txSums = cashDrawerSql.findCashTransactionsByDrawerIdAndBusinessDate(db).get(tenantId, drawer.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as any;
-
-    const calcIn = Math.round(Number(txSums?.total_in || 0) * 100) / 100;
-    const calcOut = Math.round(Number(txSums?.total_out || 0) * 100) / 100;
-
-    const openingBal = Math.round(Number(drawer.opening_balance || 0) * 100) / 100;
-    const expectedCash = Math.round((openingBal + calcSales + calcIn - calcOut) * 100) / 100;
-
-    drawer.cash_sales = calcSales;
-    drawer.cash_in = calcIn;
-    drawer.cash_out = calcOut;
-    drawer.current_cash = expectedCash;
-    drawer.expected_closing = expectedCash;
+    drawer.cash_sales = t.cash_sales;
+    drawer.cash_in = t.cash_in;
+    drawer.cash_out = t.cash_out;
+    drawer.current_cash = t.expected;
+    drawer.expected_closing = t.expected;
 
     if (drawer.status === 'CLOSED' && drawer.actual_cash !== null && drawer.actual_cash !== undefined) {
-      const actual = Math.round(Number(drawer.actual_cash) * 100) / 100;
-      const variance = Math.round((actual - expectedCash) * 100) / 100;
-      drawer.cash_short = variance < 0 ? Math.abs(variance) : 0;
-      drawer.cash_excess = variance > 0 ? variance : 0;
-      cashDrawerSql.updateCashDrawerByDrawerId(db).run(calcSales, calcIn, calcOut, expectedCash, expectedCash, drawer.cash_short, drawer.cash_excess, drawer.drawer_id);
-    } else {
-      cashDrawerSql.updateCashDrawerByDrawerId2(db).run(calcSales, calcIn, calcOut, expectedCash, expectedCash, drawer.drawer_id);
+      const variance = round2(round2(Number(drawer.actual_cash)) - t.expected);
+      const short = variance < 0 ? Math.abs(variance) : 0;
+      const excess = variance > 0 ? variance : 0;
+      const varianceChanged = differs(drawer.cash_short, short) || differs(drawer.cash_excess, excess);
+      drawer.cash_short = short;
+      drawer.cash_excess = excess;
+      if (changed || varianceChanged) {
+        cashDrawerSql.updateCashDrawerByDrawerId(db).run(t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, short, excess, drawer.drawer_id);
+      }
+    } else if (changed) {
+      cashDrawerSql.updateCashDrawerByDrawerId2(db).run(t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, drawer.drawer_id);
     }
   } catch (err: any) {
     console.error('[Cashier] reconcileCashDrawer error:', err.message);
@@ -129,25 +132,34 @@ export function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any
   return drawer;
 }
 
-export function autoClosePastOpenDrawers(db: any, tenantId: string) {
+/** Close an open drawer without a count: counted cash = expected, so no short / excess. Returns false if it was not open. */
+export function closeDrawerAutomatically(db: any, tenantId: string, drawer: any, closedAtIso: string, remarks: string, closedBy: string | null): boolean {
+  const t = computeDrawerTotals(db, tenantId, { ...drawer, status: 'OPEN' });
+  const r = cashDrawerSql.closeDrawerAutomatically(db).run(
+    t.cash_sales, t.cash_in, t.cash_out, t.expected, t.expected, t.expected, closedAtIso, remarks, closedBy, drawer.drawer_id,
+  );
+  return r.changes > 0;
+}
+
+/**
+ * With auto close on, close open drawers that are more than AUTO_CLOSE_BACKSTOP_MINUTES past their due time (the
+ * renderer asks the cashier at the due time; this catches a closed app or an unanswered prompt). With auto close off,
+ * drawers stay open until the cashier closes them.
+ */
+export function autoCloseOverdueDrawers(db: any, tenantId: string) {
   if (!tenantId) return;
   try {
-    const today = localDate(new Date(), tenantId);
-    const storeTz = getStoreTimezoneSetting(db, tenantId);
-    const openDrawers = cashDrawerSql.findCashDrawerByStatusOpen(db).all(tenantId) as any[];
-
-    if (Array.isArray(openDrawers) && openDrawers.length > 0) {
-      for (const d of openDrawers) {
-        const cleanDate = parseCleanDate(d.business_date, storeTz);
-        if (cleanDate < today) {
-          reconcileCashDrawer(db, tenantId, d);
-          const exp = Number(d.expected_closing || 0);
-          cashDrawerSql.updateCashDrawerByDrawerIdClosed(db).run(exp, d.drawer_id);
-        }
+    getSessionSinceMs(db, tenantId);
+    const config = getAutoCloseConfig(db, tenantId);
+    if (!config.enabled) return;
+    const now = Date.now();
+    for (const d of findOpenDrawers(db, tenantId)) {
+      if (now >= getAutoCloseDueMs(db, tenantId, d, config) + AUTO_CLOSE_BACKSTOP_MINUTES * 60_000) {
+        closeDrawerAutomatically(db, tenantId, d, new Date(now).toISOString(), 'Auto-closed at the auto close time', null);
       }
     }
   } catch (err: any) {
-    console.error('[Cashier] autoClosePastOpenDrawers error:', err.message);
+    console.error('[Cashier] autoCloseOverdueDrawers error:', err.message);
   }
 }
 
@@ -199,6 +211,10 @@ export function adjustCashDrawerForInvoice(
 
   if (drawer) {
     reconcileCashDrawer(db, tenantId, drawer);
+  }
+  // A drawer left open past midnight holds today's bills too.
+  for (const open of findOpenDrawers(db, tenantId)) {
+    if (!drawer || open.drawer_id !== drawer.drawer_id) reconcileCashDrawer(db, tenantId, open);
   }
 }
 

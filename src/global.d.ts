@@ -5,6 +5,17 @@ export interface SyncProgress {
   totalRecords: number;
 }
 
+/** Drawer auto close state (`db:cashier:getAutoCloseStatus`). `time` is HH:MM in the store timezone (before 12:00 =
+ * after midnight); `due_at` is UTC ISO including a snooze; `is_due` = ask the cashier now. */
+export interface CashDrawerAutoCloseStatus {
+  enabled: boolean;
+  time: string;
+  drawer_id: string | null;
+  business_date: string | null;
+  due_at: string | null;
+  is_due: boolean;
+}
+
 export interface IElectronAPI {
   logError: (message: string, error?: any) => Promise<void>;
   ping: () => Promise<string>;
@@ -220,11 +231,15 @@ export interface IElectronAPI {
 
   // Cashier & Settlement
   dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => Promise<any>;
-  dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  /** `error: 'PREVIOUS_DRAWER_OPEN'` when a drawer from an earlier day is still open (`business_date`, `drawer_id`, `message`). */
+  dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string; business_date?: string; drawer_id?: string; message?: string }>;
   dbCashierGetPendingInvoices: (params: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbCashierSettlePayment: (params: { tenant_id: string; invoice_id: string; received_amount: number; discount_amount?: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierAddTransaction: (params: { tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string; business_date?: string }) => Promise<{ success: boolean; error?: string; expected_closing?: number; actual_cash?: number; cash_short?: number; cash_excess?: number }>;
+  dbCashierGetAutoCloseStatus: (params: { tenant_id: string }) => Promise<CashDrawerAutoCloseStatus | { error: string }>;
+  dbCashierSnoozeAutoClose: (params: { tenant_id: string; drawer_id: string; minutes: number }) => Promise<{ success: boolean; error?: string; status?: CashDrawerAutoCloseStatus }>;
+  dbCashierAutoCloseNow: (params: { tenant_id: string; drawer_id: string; user_id?: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierReopenDrawer: (params: { tenant_id: string; drawer_id: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierDeleteTransaction: (params: { tenant_id: string; transaction_id: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<any[]>;

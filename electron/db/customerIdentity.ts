@@ -1,20 +1,12 @@
 import Database from 'better-sqlite3';
 import crypto from 'node:crypto';
+import { toEpochMs } from '../utils/timestamps.js';
 
 /** Customer/party identity: resolution and upsert. De-duplication and the startup backfill live in customerDedupe.ts. */
 
 function deterministicUUID(seed: string): string {
   const hash = crypto.createHash('sha1').update(seed).digest('hex');
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-}
-
-/** Epoch ms of a stored timestamp: ISO (`...Z`) or SQLite UTC text (`YYYY-MM-DD HH:MM:SS[.mmm]`); null if unparseable. */
-function toEpochMs(v: unknown): number | null {
-  if (v === null || v === undefined || v === '') return null;
-  const str = String(v).trim();
-  const iso = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(str) ? str.replace(' ', 'T') : str.replace(' ', 'T') + 'Z';
-  const ms = new Date(iso).getTime();
-  return isNaN(ms) ? null : ms;
 }
 
 /**
