@@ -67,7 +67,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in duration-200 select-none">
-      <FloatToast message={error ? { text: typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error)), type: 'error' } : null} onClose={() => setError(null)} />
+      <FloatToast message={error ? { text: typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error)), type: 'error' } : null} onClose={() => setError(null)} />
 
       {/* Sticky Page Header */}
       <SettingsGradesHeader categories={categories} onClose={onClose} totalGrades={totalGrades} />

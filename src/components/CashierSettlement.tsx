@@ -425,8 +425,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   }
 
   // ── Derived summary values ────────────────────────────────────────────────
-  const totalIn  = drawerClosed ? 0 : (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0));
-  const totalOut = drawerClosed ? 0 : (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0));
+  const totalIn  = drawerClosed ? 0 : (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t) => t.type === 'CASH_IN' ).reduce((s: number, t) => s + Number(t.amount), 0));
+  const totalOut = drawerClosed ? 0 : (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t) => s + Number(t.amount), 0));
 
   // ── Feature-based sections ────────────────────────────────────────────────
   const showSettlement = !featureFlags || featureFlags.cash_settlement;

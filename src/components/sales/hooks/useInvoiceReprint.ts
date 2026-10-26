@@ -184,10 +184,10 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
       };
       if (useA4) {
         const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as Parameters<typeof generateInvoiceHtml>[1]);
         const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
         if (!printResult.success) {
-          if ((printResult as any).useDefaultDialog) {
+          if ((printResult as { useDefaultDialog?: boolean }).useDefaultDialog) {
             const pw = window.open('', '_blank');
             if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
           } else {
@@ -200,7 +200,7 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
         const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
         const printResult = await printingApi.printReceipt(tenantId || 'global', receiptText);
-        if ((printResult as any)?.skipped) {
+        if ((printResult as { skipped?: boolean })?.skipped) {
           showToast(formatPrinterError('No printer configured'), 'error');
           return;
         } else if (printResult && !printResult.success) {

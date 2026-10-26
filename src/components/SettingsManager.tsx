@@ -609,7 +609,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         thermalStyle={(previewStyle as any) || thermalStyle}
         a4Style={(previewStyle as any) || a4Style}
         paperWidth={printWidth}
-        onSelectStyle={(s) => { if (previewFormat === 'thermal') setThermalStyle(s as any); else setA4Style(s as any); }}
+        onSelectStyle={(s) => { if (previewFormat === 'thermal') setThermalStyle(s as Parameters<typeof setThermalStyle>[0]); else setA4Style(s as Parameters<typeof setA4Style>[0]); }}
         showProductOffers={showProductOffers}
         receiptFont={receiptFont}
         billSettings={billSettings}

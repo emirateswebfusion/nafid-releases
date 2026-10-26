@@ -179,7 +179,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
 
       if (useA4) {
         const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as Parameters<typeof generateInvoiceHtml>[1]);
         const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
         if (printResult && !printResult.success) {
           setStatusMessage({ text: formatPrinterError(printResult.error), type: 'error' });

@@ -518,7 +518,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       });
 
       const printRes = await printingApi.printBulkBarcodes(tenantId || 'global', printItems);
-      const printedBarcodes = (printRes as any).printed as string[] | undefined;
+      const printedBarcodes = (printRes as { printed?: string[] }).printed as string[] | undefined;
 
       if (printRes.success) {
         const ids = printedBarcodes

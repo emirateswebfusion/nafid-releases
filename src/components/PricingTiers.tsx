@@ -124,7 +124,7 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
             </div>
             <div className="flex-1 min-w-0 leading-snug">
               <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">PRICING ERROR</span>
-              <span className="text-white font-bold text-xs block leading-tight">{typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}</span>
+              <span className="text-white font-bold text-xs block leading-tight">{typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}</span>
             </div>
             <button type="button" onClick={() => setError(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
               <X className="w-4 h-4" />

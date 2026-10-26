@@ -34,9 +34,16 @@ export interface Invoice {
   converted_to_invoice_number?: string | null;
   actual_refund_paid?: number | null;
   supply_type?: string | null;
+  cgst_total?: number | null;
+  sgst_total?: number | null;
+  igst_total?: number | null;
   is_deleted?: number | null;
   sync_status?: string | null;
+  /** Joined by the list query (`db:getInvoices`). */
   biller_name?: string | null;
+  biller_staff_name?: string | null;
+  sales_staff_name?: string | null;
+  item_count?: number | null;
   description?: string | null;
   notes?: string | null;
   created_at?: string | null;
@@ -66,6 +73,8 @@ export interface InvoiceItem {
   igst_amount?: number | null;
   supply_type?: string | null;
   combo_id?: string | null;
+  combo_details?: string | null;
+  qty_from_paper_stock?: number | null;
   created_at?: string | null;
 }
 

@@ -67,7 +67,7 @@ export const ProductsSettingsTab: React.FC<ProductsSettingsTabProps> = ({
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setActiveProductsTab(tab.id as any)}
+                      onClick={() => setActiveProductsTab(tab.id as Parameters<typeof setActiveProductsTab>[0])}
                       className={clsx(
                         "flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                         isTabActive

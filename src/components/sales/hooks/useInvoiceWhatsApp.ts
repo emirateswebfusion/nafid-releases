@@ -123,7 +123,7 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
       };
 
       const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-      const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+      const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as Parameters<typeof generateInvoiceHtml>[1]);
 
       const waMessage = formatWhatsAppBillMessage({
         shopName: shopNameVal || useAuthStore.getState().shopName || 'Store',

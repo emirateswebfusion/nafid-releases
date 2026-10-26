@@ -215,7 +215,7 @@ export function LoginScreen() {
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}
+                  {typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}
                 </div>
               )}
 
@@ -269,7 +269,7 @@ export function LoginScreen() {
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}
+                  {typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}
                 </div>
               )}
 
@@ -336,7 +336,7 @@ export function LoginScreen() {
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}
+                  {typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}
                 </div>
               )}
 

@@ -370,7 +370,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
                       <Select
                         value={lanRole}
                         onChange={(val) => {
-                          setLanRole(val as any);
+                          setLanRole(val as Parameters<typeof setLanRole>[0]);
                           if (val === 'PRIMARY' && detectedLocalIp) setLanHostIp(detectedLocalIp);
                         }}
                         options={[
@@ -442,7 +442,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
                     <button
                       key={rate.id}
                       type="button"
-                      onClick={() => setSyncFrequency(rate.id as any)}
+                      onClick={() => setSyncFrequency(rate.id as Parameters<typeof setSyncFrequency>[0])}
                       className={clsx(
                         'p-3.5 rounded-xl border text-left transition-all cursor-pointer',
                         syncFrequency === rate.id

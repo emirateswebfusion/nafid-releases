@@ -200,7 +200,7 @@ export const PrintingSettingsTab: React.FC<PrintingSettingsTabProps> = ({
                       return (
                         <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                           {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
-                          <button type="button" onClick={() => { setA4Style(style.id as any); }} className="w-full cursor-pointer text-left">
+                          <button type="button" onClick={() => { setA4Style(style.id as Parameters<typeof setA4Style>[0]); }} className="w-full cursor-pointer text-left">
                             <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                               <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                             </div>
@@ -249,7 +249,7 @@ export const PrintingSettingsTab: React.FC<PrintingSettingsTabProps> = ({
                         return (
                           <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                             {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                            <button type="button" onClick={() => { setThermalStyle(style.id as any); }} className="w-full cursor-pointer text-left">
+                            <button type="button" onClick={() => { setThermalStyle(style.id as Parameters<typeof setThermalStyle>[0]); }} className="w-full cursor-pointer text-left">
                               <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                 <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                               </div>

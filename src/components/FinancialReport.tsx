@@ -183,7 +183,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       try {
         const pBills = await purchasesApi.getPurchaseBills({ tenant_id: tenantId });
         if (Array.isArray(pBills)) {
-          purchaseExpenses = pBills.reduce((acc: number, pb: any) => acc + (Number(pb.total_amount) || 0), 0);
+          purchaseExpenses = pBills.reduce((acc: number, pb) => acc + (Number(pb.total_amount) || 0), 0);
         }
       } catch {
         console.warn('[FinancialReport] Purchase bills fetch skipped');
@@ -194,7 +194,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       try {
         const scrapList = await scrapApi.getScrapInvoiceList({ tenant_id: tenantId });
         if (Array.isArray(scrapList)) {
-          scrapRevenue = scrapList.reduce((acc: number, sc: any) => acc + (Number(sc.total_amount) || 0), 0);
+          scrapRevenue = scrapList.reduce((acc: number, sc) => acc + (Number(sc.total_amount) || 0), 0);
         }
       } catch {
         console.warn('[FinancialReport] Scrap fetch skipped');

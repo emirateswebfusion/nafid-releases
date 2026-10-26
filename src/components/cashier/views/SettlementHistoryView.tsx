@@ -132,8 +132,8 @@ export function SettlementHistoryView({
           return true;
         });
 
-        const totalSales = filteredHist.reduce((s: number, d: any) => s + Number(d.cash_sales || 0), 0);
-        const totalCollected = filteredHist.reduce((s: number, d: any) => s + Number(d.total_collected || 0), 0);
+        const totalSales = filteredHist.reduce((s: number, d) => s + Number(d.cash_sales || 0), 0);
+        const totalCollected = filteredHist.reduce((s: number, d) => s + Number(d.total_collected || 0), 0);
         let totalShort = 0, totalExcess = 0;
         filteredHist.filter((d) => d.status === 'CLOSED').forEach((d) => {
           const v = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
@@ -494,9 +494,9 @@ export function SettlementHistoryView({
 
                                       {/* Bills Summary Footer */}
                                       {(() => {
-                                        const totalAmt = daySettlements.reduce((s: number, i: any) => s + Number(i.grand_total || 0), 0);
-                                        const totalDisc = daySettlements.reduce((s: number, i: any) => s + Number(i.discount_total || 0), 0);
-                                        const totalRecv = daySettlements.reduce((s: number, i: any) => s + Number(i.received_amount || 0), 0);
+                                        const totalAmt = daySettlements.reduce((s: number, i) => s + Number(i.grand_total || 0), 0);
+                                        const totalDisc = daySettlements.reduce((s: number, i) => s + Number(i.discount_total || 0), 0);
+                                        const totalRecv = daySettlements.reduce((s: number, i) => s + Number(i.received_amount || 0), 0);
                                         return (
                                           <div className="grid grid-cols-[1.2fr_1.3fr_0.9fr_0.9fr_1fr_0.9fr] gap-x-3 px-4 py-3 border-t border-border/80 bg-muted/40 font-bold">
                                             <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Total Billed</span>
@@ -601,8 +601,8 @@ export function SettlementHistoryView({
 
                                       {/* Cash Movement Totals Footer */}
                                       {(() => {
-                                        const cashInSum = dayCashTransactions.filter((t) => t.type === 'CASH_IN').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
-                                        const cashOutSum = dayCashTransactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+                                        const cashInSum = dayCashTransactions.filter((t) => t.type === 'CASH_IN').reduce((s: number, t) => s + Number(t.amount || 0), 0);
+                                        const cashOutSum = dayCashTransactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t) => s + Number(t.amount || 0), 0);
                                         const netCash = cashInSum - cashOutSum;
                                         return (
                                           <div className="grid grid-cols-[0.8fr_0.6fr_2fr_1fr_0.8fr] gap-x-3 px-4 py-3 border-t border-border/80 bg-muted/40 font-bold">
