@@ -1,21 +1,13 @@
-import type * as Rows from '../../data/dbRows';
 import type { Product as DataProduct } from '../../data/products';
+import type { ComboOfferListItem, ComboOfferWithItems } from '../../data/combos';
 /** Combo offers screen: combo and product rows plus the effective offer price helper. */
-export interface ComboItem {
-  combo_item_id?: string;
+export type ComboItem = Partial<ComboOfferListItem> & {
   product_id: string;
   quantity: number;
-  product_name?: string;
-  product_price?: number;
   offer_price?: number;
-  product_stock?: number | null;
-  sku_barcode?: string | null;
-  uom?: string | null;
-}
+};
 
-export interface ComboOffer extends Rows.ComboOffersRow {
-  items: ComboItem[];
-}
+export type ComboOffer = Omit<ComboOfferWithItems, 'items'> & { items: ComboItem[] };
 
 export type Product = DataProduct;
 

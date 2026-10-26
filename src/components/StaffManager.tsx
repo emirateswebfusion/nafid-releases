@@ -11,7 +11,7 @@ import { useFeatureFlagsStore } from '../featureFlags';
 import { authApi } from '../data/auth';
 import { hasBridge } from '../data/client';
 import { settingsApi } from '../data/settings';
-import { staffApi } from '../data/staff';
+import { staffApi, type SaveStaffResult } from '../data/staff';
 import { whatsappApi } from '../data/whatsapp';
 import { staffCloud } from '../data/cloud/staffCloud';
 import { type StaffMember, type SavedSystemAccount } from './staff/staffTypes';
@@ -268,7 +268,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
     setSaving(true);
     let profileSaved = false;
-    let savedStaff: Partial<StaffMember> | undefined;
+    let savedStaff: SaveStaffResult | undefined;
     try {
       if (hasBridge('dbSaveStaff')) {
         savedStaff = await staffApi.saveStaff({

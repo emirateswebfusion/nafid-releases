@@ -132,28 +132,29 @@ export function usePartyBillPreview(ctx: UsePartyBillPreviewContext) {
         }
         setViewingInvoiceItems(invoiceItems);
       } else {
-        let foundScrap: { scrap_invoice_number: string; created_at?: string; payment_status?: string; party_name?: string; customer_phone?: string; total_amount?: number; items?: import('../partyTypes').PartyPreviewItem[] } | null = null;
+        type FoundScrapInvoice = import('../partyTypes').PartyPreviewScrapInvoice & { scrap_invoice_number: string };
+        let foundScrap: FoundScrapInvoice | null = null;
         for (const term of candidateTerms) {
           if (hasBridge('dbGetScrapInvoiceByNumber')) {
-            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId as string, scrap_invoice_number: term });
+            const scrap = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tId as string, scrap_invoice_number: term }) as unknown as import('../partyTypes').PartyPreviewScrapInvoice | null;
             if (scrap && scrap.scrap_invoice_number) {
-              foundScrap = scrap;
+              foundScrap = scrap as unknown as FoundScrapInvoice;
               break;
             }
           }
         }
-        if (foundScrap) {
+        if (foundScrap as FoundScrapInvoice | null) {
           setViewingInvoice({
-            invoice_number: foundScrap.scrap_invoice_number,
+            invoice_number: (foundScrap as FoundScrapInvoice).scrap_invoice_number,
             invoice_type: 'SCRAP',
-            created_at: foundScrap.created_at || entry.transaction_date,
-            payment_method: foundScrap.payment_status || 'COMPLETED',
-            customer_name: foundScrap.party_name || selectedParty?.name,
-            customer_phone: foundScrap.customer_phone || selectedParty?.phone,
-            grand_total: foundScrap.total_amount || (entry.credit_amount || entry.debit_amount),
-            subtotal: foundScrap.total_amount || (entry.credit_amount || entry.debit_amount),
+            created_at: (foundScrap as FoundScrapInvoice).created_at || entry.transaction_date,
+            payment_method: (foundScrap as FoundScrapInvoice).payment_status || 'COMPLETED',
+            customer_name: (foundScrap as FoundScrapInvoice).party_name || selectedParty?.name,
+            customer_phone: (foundScrap as FoundScrapInvoice).customer_phone || selectedParty?.phone,
+            grand_total: (foundScrap as FoundScrapInvoice).total_amount || (entry.credit_amount || entry.debit_amount),
+            subtotal: (foundScrap as FoundScrapInvoice).total_amount || (entry.credit_amount || entry.debit_amount),
           });
-          setViewingInvoiceItems(foundScrap.items || []);
+          setViewingInvoiceItems((foundScrap as FoundScrapInvoice).items || []);
         } else {
           setViewingLedgerVoucher(entry);
         }

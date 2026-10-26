@@ -10,6 +10,7 @@ import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '.
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { isAdminRole } from '../utils/permissions';
 import { cashierApi } from '../data/cashier';
+import type { Invoice } from '../data/invoices';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { bridgeEvents } from '../data/events';
 import { paymentSourcesApi } from '../data/paymentSources';
@@ -33,6 +34,7 @@ import { useSettlementAmountEdit } from './cashier/hooks/useSettlementAmountEdit
 import { useCashierInvoiceView } from './cashier/hooks/useCashierInvoiceView';
 import { CashierLoadingSkeleton } from './cashier/views/CashierLoadingSkeleton';
 import { PreviousDrawerOpenBanner } from './cashier/views/PreviousDrawerOpenBanner';
+import type { CashDrawerRow as CashDrawerContractRow } from '../data/dbRows';
 
 interface CashierSettlementProps {
   onClose: () => void;
@@ -43,7 +45,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName, role } = useAuthStore();
   const isOwner = role?.toUpperCase() === 'OWNER' || role?.toUpperCase() === 'SUPER_ADMIN' || isAdminRole(role);
-  const [drawer, setDrawer] = useState<CashDrawerRow | null>(null);
+  const [drawer, setDrawer] = useState<CashDrawerContractRow | null>(null);
   const [pendingInvoices, setPendingInvoices] = useState<CashierInvoiceRow[]>([]);
   const [transactions, setTransactions] = useState<CashTransactionRow[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,7 +110,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [splitBank, setSplitBank] = useState<number | ''>('');
   const [splitSubmitting, setSplitSubmitting] = useState(false);
 
-  const getRawNet = (inv: import('../data/invoices').Invoice): number => {
+  const getRawNet = (inv: Invoice): number => {
     const scrapD = Number(inv.scrap_deduction) || 0;
     const returnD = Number(inv.return_deduction) || 0;
     const totalDeductions = scrapD + returnD;
@@ -187,7 +189,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     } catch { /* ignore */ }
   }, []);
 
-  const processInvoicesUpdate = useCallback((invs: import('../data/invoices').Invoice[]) => {
+  const processInvoicesUpdate = useCallback((invs: Invoice[]) => {
     if (!Array.isArray(invs)) return;
     if (!initialLoadedRef.current) {
       knownInvoiceIdsRef.current = new Set(invs.map((i) => i.invoice_id));
@@ -224,8 +226,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       cashierApi.getPendingInvoices({ tenant_id: tenantId, search: searchQuery || undefined }),
       cashierApi.getTransactions({ tenant_id: tenantId }),
     ]);
-    if (d && !d.error) {
-      setDrawer(d);
+    if (d && !(d as { error?: string }).error) {
+      setDrawer(d as CashDrawerContractRow);
     } else {
       setDrawer(null);
     }

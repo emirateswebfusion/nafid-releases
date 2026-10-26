@@ -416,7 +416,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                           const q = scrapDeductionSearchQuery.trim();
                           if (!q) return;
                           try {
-                            const res = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                            const res = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q }) as import('../../../data/scrap').ScrapInvoiceDetails | null;
                             if (res && res.totalAmount) {
                               if (res.paymentStatus === 'SETTLED') {
                                 setHardwareError(`Scrap credit ${q} already redeemed.`);

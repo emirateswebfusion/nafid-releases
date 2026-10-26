@@ -7,6 +7,35 @@ export interface ScrapTransactionWithCategory extends ScrapTransactionsRow {
   unit: string | null;
 }
 
+/** Aggregate row returned by `scrapService.getScrapInvoiceList` / `findScrapTransactionsByScrap_AndType`. */
+export interface ScrapInvoiceListItem {
+  invoice_number: string;
+  item_count: number;
+  total_qty: number;
+  units: string | null;
+  total_amount: number;
+  payment_status: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  party_name: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
+}
+
+/** Invoice detail returned by `scrapService.getScrapInvoiceByNumber` after its joined transaction query. */
+export interface ScrapInvoiceDetails {
+  transactions: ScrapTransactionWithCategory[];
+  totalAmount: number;
+  invoiceNumber: string;
+  paymentStatus: string;
+}
+
+/** All return shapes from `scrapService.getScrapInvoiceByNumber`, including no-match and query-error results. */
+export type ScrapInvoiceByNumberResult = ScrapInvoiceDetails | null | { error: string };
+
+/** All return shapes from `scrapService.getScrapInvoiceList`, including its query-error result. */
+export type ScrapInvoiceListResult = ScrapInvoiceListItem[] | { error: string };
+
 /** Scrap categories, scrap transactions and scrap invoices. Channel catalog — the only way UI code reaches these IPC channels. */
 export const scrapApi = bindBridge({
   deduplicateScrapCategories: 'dbDeduplicateScrapCategories',

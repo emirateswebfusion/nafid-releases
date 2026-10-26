@@ -1,15 +1,24 @@
 import type { Invoice, InvoiceItem, InvoiceItemWithProduct } from './data/invoices';
+import type { AppCheckForUpdatesResult, UpdateInfoPayload } from './data/app';
 import type { Product } from './data/products';
+import type { StockReportResult } from './data/products';
 import type { Party } from './data/parties';
 import type { CustomerListItem } from './data/customers';
 import type { Grade } from './data/grades';
-import type { StaffListItem } from './data/staff';
-import type { ComboOfferWithItems } from './data/combos';
+import type { SaveStaffResult, StaffListItem } from './data/staff';
+import type { ComboOfferDetails, ComboOfferWithItems } from './data/combos';
 import type { PaymentSource } from './data/paymentSources';
 import type { PurchaseBillItemWithProduct, PurchaseSearchProduct } from './data/purchases';
-import type { ScrapTransactionWithCategory } from './data/scrap';
+import type { ScrapInvoiceByNumberResult, ScrapInvoiceListResult, ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
 import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
+import type { OfflineLoginResult } from './data/auth';
+import type { EffectiveCloudState } from './data/sync';
+import type { BulkPrintItem } from './data/printing';
+import type { CashDrawerResult } from './data/cashier';
+import type { ReturnInvoiceByNumberResult } from './data/returns';
+import type { EcommerceOrdersResult, EcommerceProductsResult } from './data/ecommerce';
+import type { ShopClosingConfigResult, ShopClosingHistoryRow, ShopClosingPreviewResult, ShopClosingSaveConfigResult } from './data/whatsapp';
 import type * as Rows from './data/dbRows';
 export interface SyncProgress {
   percent: number;
@@ -29,19 +38,11 @@ export interface CashDrawerAutoCloseStatus {
   is_due: boolean;
 }
 
-/** electron-updater's update info as sent on `update-info`. */
-export interface UpdateInfoPayload {
-  version: string;
-  releaseDate?: string;
-  /** HTML string with the default GitHub provider (no `fullChangelog`). */
-  releaseNotes?: string;
-}
-
 export interface IElectronAPI {
   logError: (message: string, error?: unknown) => Promise<void>;
   ping: () => Promise<string>;
   dbDebugSyncState: (tenant_id: string) => Promise<unknown>;
-  appCheckForUpdates: () => Promise<any>;
+  appCheckForUpdates: () => Promise<AppCheckForUpdatesResult>;
   appGetVersion: () => Promise<string>;
   appInstallUpdate: () => Promise<void>;
   appDownloadUpdate: () => Promise<{ success: boolean; error?: string }>;
@@ -92,7 +93,7 @@ export interface IElectronAPI {
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   dbGetStaff: (params: { tenant_id: string; search?: string; status?: string }) => Promise<StaffListItem[]>;
-  dbSaveStaff: (params: unknown) => Promise<any>;
+  dbSaveStaff: (params: unknown) => Promise<SaveStaffResult>;
   dbVerifyBillerPin: (params: { tenant_id: string; pin: string }) => Promise<{ success: boolean; staff?: Rows.StaffRow; error?: string }>;
   dbGetStaffLedger: (params: { tenant_id: string; staff_id: string }) => Promise<Rows.StaffLedgerRow[]>;
   dbAddStaffTransaction: (params: unknown) => Promise<{ success: boolean; transaction_id?: string; ledger_id?: string; new_balance?: number; error?: string }>;
@@ -109,11 +110,11 @@ export interface IElectronAPI {
   authGetOfflineSession: () => Promise<{ tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   authSaveLocalUser: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
-  authLoginOffline: (payload: { email: string; password: string }) => Promise<{ success: boolean; error?: string; user?: any }>;
+  authLoginOffline: (payload: { email: string; password: string }) => Promise<OfflineLoginResult>;
   appGetLocalIp?: () => Promise<string>;
   appGetNetworkDetails?: () => Promise<{ ip: string; subnetPrefix: string; netmask: string; gateway: string; dns: string }>;
-  getCloudAccessState?: () => Promise<any>;
-  onCloudStateChanged?: (callback: (state: unknown) => void) => () => void;
+  getCloudAccessState?: () => Promise<EffectiveCloudState | null>;
+  onCloudStateChanged?: (callback: (state: EffectiveCloudState) => void) => () => void;
   drainPendingCloudQueue?: () => Promise<{ success: boolean; error?: string }>;
   updateCloudAccessConfig?: (config: unknown) => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
@@ -139,7 +140,7 @@ export interface IElectronAPI {
   openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
   printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number, sp?: number, spType?: 'SP' | 'OFF') => Promise<{ success: boolean; error?: string }>;
   printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => Promise<{ success: boolean; error?: string; printed?: string[] }>;
-  getBulkPrintItems: () => Promise<any[]>;
+  getBulkPrintItems: () => Promise<BulkPrintItem[]>;
   getPrinters: () => Promise<{ name: string; displayName?: string; isDefault?: boolean; status?: number }[]>;
   getReceiptText: () => Promise<string>;
   getA4Html: () => Promise<string>;
@@ -154,11 +155,11 @@ export interface IElectronAPI {
   whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
   onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
   // Shop Closing Overview WhatsApp APIs
-  shopClosingGetConfig: (params: { tenant_id?: string }) => Promise<any>;
-  shopClosingSaveConfig: (params: { tenant_id?: string; config: unknown; user_role?: string }) => Promise<{ success: boolean; error?: string; config?: any }>;
-  shopClosingGetPreview: (params: { tenant_id?: string; business_date?: string; checklist?: unknown }) => Promise<{ success: boolean; summary?: any; message?: string; error?: string }>;
+  shopClosingGetConfig: (params: { tenant_id?: string }) => Promise<ShopClosingConfigResult>;
+  shopClosingSaveConfig: (params: { tenant_id?: string; config: unknown; user_role?: string }) => Promise<ShopClosingSaveConfigResult>;
+  shopClosingGetPreview: (params: { tenant_id?: string; business_date?: string; checklist?: unknown }) => Promise<ShopClosingPreviewResult>;
   shopClosingSendReport: (params: { tenant_id?: string; business_date?: string; trigger_type?: string; force?: boolean; custom_phone?: string; custom_checklist?: unknown }) => Promise<{ success: boolean; messageId?: string; error?: string; reportId?: string }>;
-  shopClosingGetHistory: (params: { tenant_id?: string; limit?: number }) => Promise<any[]>;
+  shopClosingGetHistory: (params: { tenant_id?: string; limit?: number }) => Promise<ShopClosingHistoryRow[]>;
   shopClosingRetry: (params: { report_id: string }) => Promise<{ success: boolean; error?: string }>;
   onShopClosingUpdated: (callback: () => void) => () => void;
   onUpdateStatus: (callback: (status: string) => void) => void;
@@ -219,8 +220,8 @@ export interface IElectronAPI {
   dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => Promise<Rows.ScrapCategoriesRow[]>;
   dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbPeekNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
-  dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<any>;
-  dbGetScrapInvoiceList: (args: { tenant_id: string }) => Promise<any[]>;
+  dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<ScrapInvoiceByNumberResult>;
+  dbGetScrapInvoiceList: (args: { tenant_id: string }) => Promise<ScrapInvoiceListResult>;
   dbUpdateScrapInvoicePaymentStatus: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string }) => Promise<{ success: boolean; error?: string }>;
   dbUpdateScrapTransaction: (args: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeleteScrapTransaction: (args: { tenant_id: string; transaction_id: string }) => Promise<{ success: boolean; error?: string }>;
@@ -229,7 +230,7 @@ export interface IElectronAPI {
   dbUpsertScrapCreditLedger: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string; party_name?: string | null; customer_phone?: string | null; customer_address?: string | null; user_id?: string; user_name?: string }) => Promise<{ success: boolean; error?: string; party_id?: string }>;
 
   // Stock Report
-  dbGetStockReport: (tenant_id: string) => Promise<any[]>;
+  dbGetStockReport: (tenant_id: string) => Promise<StockReportResult>;
   dbGetProductBillQuantities: (tenant_id: string) => Promise<{ product_id: string; gst_qty: number; estimate_qty: number }[]>;
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => Promise<{ success: boolean; error?: string }>;
   dbGetProductSalesSummary: (payload: { tenant_id: string; fromDate?: string; toDate?: string }) => Promise<{ product_id: string; name: string; gst_qty: number; bos_qty: number; total_qty: number; total_revenue?: number }[]>;
@@ -251,7 +252,7 @@ export interface IElectronAPI {
   dbDeleteWarranty: (warranty_id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Cashier & Settlement
-  dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => Promise<any>;
+  dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => Promise<CashDrawerResult>;
   /** `error: 'PREVIOUS_DRAWER_OPEN'` when a drawer from an earlier day is still open (`business_date`, `drawer_id`, `message`). */
   dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string; business_date?: string; drawer_id?: string; message?: string }>;
   dbCashierGetPendingInvoices: (params: { tenant_id: string; search?: string }) => Promise<Invoice[]>;
@@ -301,7 +302,7 @@ export interface IElectronAPI {
   dbPeekNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; returnNumber?: string; error?: string }>;
   dbGetAlreadyReturnedQuantities: (invoiceId: string) => Promise<{ invoice_item_id: string; returned_qty: number }[]>;
   dbGetReturnableInvoices: (payload: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => Promise<Invoice[]>;
-  dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<any>;
+  dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<ReturnInvoiceByNumberResult>;
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<Rows.ReturnsRow[]>;
   dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
 
@@ -318,7 +319,7 @@ export interface IElectronAPI {
 
   // Combo Offers
   dbGetComboOffers: (params: { tenant_id: string; search?: string; only_active?: boolean }) => Promise<ComboOfferWithItems[]>;
-  dbGetComboOfferDetails: (params: { combo_id: string; tenant_id: string }) => Promise<any>;
+  dbGetComboOfferDetails: (params: { combo_id: string; tenant_id: string }) => Promise<ComboOfferDetails | null>;
   dbSaveComboOffer: (combo: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeleteComboOffer: (params: { combo_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbToggleComboOfferActive: (params: { combo_id: string; tenant_id: string; is_active: boolean }) => Promise<{ success: boolean; error?: string }>;
@@ -332,11 +333,11 @@ export interface IElectronAPI {
   ecommerceTestConnection: (payload: { url?: string | null }) => Promise<{ connected: boolean; message?: string }>;
   ecommerceRegisterVendor: (payload: { tenant_id: string; data: unknown }) => Promise<{ success: boolean; settings?: Rows.EcommerceSettingsRow; error?: string }>;
   ecommerceRefreshStatus: (payload: { tenant_id: string }) => Promise<{ success: boolean; settings?: Rows.EcommerceSettingsRow; store?: unknown; error?: string }>;
-  ecommerceGetProducts: (payload: { tenant_id: string; search?: string; filter?: string }) => Promise<{ success: boolean; products: any[]; error?: string }>;
+  ecommerceGetProducts: (payload: { tenant_id: string; search?: string; filter?: string }) => Promise<EcommerceProductsResult>;
   ecommerceUpdateMapping: (payload: unknown) => Promise<{ success: boolean; mapping?: Rows.EcommerceProductMappingsRow; error?: string }>;
   ecommerceSyncProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; remoteId?: number; error?: string }>;
   ecommerceUnpublishProduct: (payload: { tenant_id: string; product_id: string }) => Promise<{ success: boolean; error?: string }>;
-  ecommerceGetOrders: (payload: { tenant_id: string }) => Promise<{ success: boolean; orders: any[]; error?: string }>;
+  ecommerceGetOrders: (payload: { tenant_id: string }) => Promise<EcommerceOrdersResult>;
 
   // Emergency Purge & Kill Switch
   dbEmergencyPurge?: (payload: { wipe_mode?: 'ALL_DATA' | 'SALES_AND_CASH_ONLY'; reason?: string; email?: string; password?: string }) => Promise<{ success: boolean; clearedTables?: string[]; error?: string }>;

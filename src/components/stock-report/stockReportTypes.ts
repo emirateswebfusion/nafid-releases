@@ -4,6 +4,7 @@ import type { Product as DataProduct } from '../../data/products';
 
 export type Product = DataProduct;
 
+/** Product row as returned by the stock-report query, including its nullable grade join. */
 export interface EnrichedProduct extends Product {
   rate: number;
   finalSellingPrice: number;

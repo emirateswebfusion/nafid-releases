@@ -1,5 +1,18 @@
 import { bindBridge, isDesktopRuntime } from './client';
 
+/** electron-updater update metadata sent by `updaterService` on `app:checkForUpdates` and `update-info`. */
+export interface UpdateInfoPayload {
+  version: string;
+  releaseDate?: string;
+  /** HTML string with the default GitHub provider (no `fullChangelog`). */
+  releaseNotes?: string;
+}
+
+/** All success and failure shapes returned by `updaterService` on `app:checkForUpdates`. */
+export type AppCheckForUpdatesResult =
+  | { success: true; updateInfo: UpdateInfoPayload | null }
+  | { success: false; error: string };
+
 /** App shell: version, updater, network info, error logging. Channel catalog — the only way UI code reaches these IPC channels. */
 export const appApi = bindBridge({
   logError: 'logError',

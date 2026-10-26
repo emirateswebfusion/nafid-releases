@@ -243,7 +243,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
   // ── Login: call Cloud API then persist token via IPC ─────────────────────
   login: async (email, password, apiBase = CLOUD_API) => {
-    const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string; tenant_id: string; user_id: string; name?: string }, reason: string) => {
+    const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string | null; tenant_id: string; user_id: string; name?: string }, reason: string) => {
       const roleVal = normalizeRole(user.role);
       if (roleVal === 'SUPER_ADMIN') {
         return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
@@ -314,8 +314,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           const offlineAuth = await authApi.loginOffline({ email, password });
           if (offlineAuth.success && offlineAuth.user) {
             return await applyOfflineLogin(offlineAuth.user, 'Operating in Local Mode (Central DB unavailable). POS active.');
-          } else if (offlineAuth.error && !offlineAuth.error.includes('User not found')) {
-            return { success: false, error: offlineAuth.error };
+          } else if ((offlineAuth as { error?: string }).error && !(offlineAuth as { error?: string }).error!.includes('User not found')) {
+            return { success: false, error: (offlineAuth as { error: string }).error };
           }
         }
         return { success: false, error: formatError(data?.error || data, 'Login failed') };

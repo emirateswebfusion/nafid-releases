@@ -20,7 +20,7 @@ const NONE: CreditLookup = { status: 'none' };
 
 /** Exact scrap-invoice lookup. A settled scrap credit cannot be redeemed twice. */
 export async function lookupScrapCredit(tenantId: string, number: string): Promise<CreditLookup> {
-  const res = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId, scrap_invoice_number: number });
+  const res = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId, scrap_invoice_number: number }) as import('../../data/scrap').ScrapInvoiceDetails | null;
   if (!res?.totalAmount) return NONE;
   if (res.paymentStatus === 'SETTLED') return { status: 'error', message: `Scrap credit ${number} has already been redeemed.` };
   return { status: 'found', amount: res.totalAmount, number };

@@ -4,6 +4,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import { formatCurrency } from '../BillingConstants';
 import { parseUTCDate } from '../../../utils/receiptGenerator';
 import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import type { ScrapDeductionRow } from '../billingTypes';
 
 /** A pending return invoice offered as a deduction (fields the dropdown reads). */
 export interface ReturnDeductionResult {
@@ -14,12 +15,7 @@ export interface ReturnDeductionResult {
 }
 
 /** A pending scrap invoice offered as a deduction (fields the dropdown reads). */
-export interface ScrapDeductionResult {
-  invoice_number: string;
-  created_at: string;
-  total_amount: number;
-  total_qty?: number | string | null;
-}
+export type ScrapDeductionResult = ScrapDeductionRow;
 
 export interface DeductionDropdownsProps {
   returnDeductionDropdownStyle: React.CSSProperties | null;

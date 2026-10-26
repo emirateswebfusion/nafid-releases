@@ -1697,7 +1697,7 @@ export async function processOfflineAiQuery(
     try {
       if (hasBridge('dbCashierGetDrawer')) {
         const res = await cashierApi.getDrawer({ tenant_id: tenantId, business_date: bDate });
-        return res;
+        return res as unknown as Partial<AiRow> | null;
       }
       return null;
     } catch (err) {

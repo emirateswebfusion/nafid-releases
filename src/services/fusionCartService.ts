@@ -1,6 +1,7 @@
 import { hasBridge } from '../data/client';
 import { ecommerceApi } from '../data/ecommerce';
 import type * as Rows from '../data/dbRows';
+import type { EcommerceOrder as EcommerceOrderRecord, EcommerceProduct as EcommerceProductRecord } from '../data/ecommerce';
 /**
  * POS-side FusionCart Service
  * 
@@ -10,51 +11,22 @@ import type * as Rows from '../data/dbRows';
 
 export type EcommerceSettings = Rows.EcommerceSettingsRow;
 
-export interface EcommerceProductItem {
-  product_id: string;
-  tenant_id: string;
-  name: string;
-  sku_barcode: string | null;
-  category: string | null;
-  base_price: number;
-  current_stock: number;
-  uom: string;
-  mapping_id: string | null;
-  fusioncart_product_id: number | null;
-  is_online_enabled: number;
-  online_title_override: string | null;
-  online_description_override: string | null;
-  online_price_override: number | null;
-  sync_status: 'SYNCED' | 'PENDING' | 'FAILED' | 'UNSYNCED';
-  last_error: string | null;
-  last_synced_at: string | null;
-}
+/** Product row as selected by the e-commerce IPC query. */
+export type EcommerceProductItem = EcommerceProductRecord;
 
-export interface EcommerceOrder {
+/** View fields the e-commerce screen already reads from FusionCart's unvalidated order JSON. */
+export interface EcommerceOrder extends EcommerceOrderRecord {
   id: number;
   order_number: number | string;
   amount: number;
   total: number;
   payment_status: string;
   payment_method: string;
-  store_id: number;
-  order_status?: {
-    id: number;
-    name: string;
-    slug: string;
-  };
+  order_status?: { id: number; name: string; slug: string };
   created_at?: string;
   billing_address?: { title?: string; city?: string; address?: string; phone?: string; [key: string]: unknown };
   shipping_address?: { title?: string; city?: string; address?: string; phone?: string; [key: string]: unknown };
-  products?: Array<{
-    id: number;
-    name: string;
-    pivot?: {
-      quantity: number;
-      single_price: number;
-      subtotal: number;
-    };
-  }>;
+  products?: Array<{ id: number; name: string; pivot?: { quantity: number; single_price: number; subtotal: number } }>;
 }
 
 export const fusionCartService = {
@@ -118,6 +90,6 @@ export const fusionCartService = {
   async getOrders(tenantId: string): Promise<EcommerceOrder[]> {
     if (!hasBridge('ecommerceGetOrders')) return [];
     const res = await ecommerceApi.getOrders({ tenant_id: tenantId });
-    return res.success ? res.orders : [];
+    return res.success ? res.orders as EcommerceOrder[] : [];
   },
 };

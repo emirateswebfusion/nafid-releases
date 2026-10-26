@@ -17,6 +17,21 @@ export interface StaffListItem extends Omit<StaffRow, 'biller_pin_hash' | 'statu
   has_pin: boolean;
 }
 
+/** Row returned by `staffService.saveStaff` via `findStaffByStaffId`: the row plus linked-user and balance fields. */
+export interface SavedStaffRecord extends Omit<StaffRow, 'biller_pin_hash'> {
+  biller_pin_hash: undefined;
+  user_email: string | null;
+  user_role: string | null;
+  user_permissions: string | null;
+  user_login_enabled: number | null;
+  current_balance: number;
+  permissions: string[];
+  has_pin: boolean;
+}
+
+/** `staffService.saveStaff` can return null if its post-save lookup does not find the row. */
+export type SaveStaffResult = SavedStaffRecord | null;
+
 /** Staff, PIN verification, staff ledger and attendance. Channel catalog — the only way UI code reaches these IPC channels. */
 export const staffApi = bindBridge({
   getStaff: 'dbGetStaff',

@@ -1,4 +1,8 @@
 import { bindBridge } from './client';
+import type { CashDrawerRow } from './dbRows';
+
+/** Drawer row returned by `cashierService.getDrawer` (`SELECT * FROM cash_drawer`). */
+export type CashDrawerResult = CashDrawerRow | null | { error: string };
 
 /** Cash drawer, settlements and cash transactions. Channel catalog — the only way UI code reaches these IPC channels. */
 export const cashierApi = bindBridge({

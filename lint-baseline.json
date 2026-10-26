@@ -1,5 +1,5 @@
 {
-  "errors": 97,
+  "errors": 80,
   "warnings": 57,
   "byRule": {
     "react-hooks/rules-of-hooks": 1,
@@ -9,8 +9,7 @@
     "react-hooks/immutability": 11,
     "react-hooks/preserve-manual-memoization": 5,
     "react-hooks/purity": 2,
-    "react-refresh/only-export-components": 12,
-    "@typescript-eslint/no-explicit-any": 17
+    "react-refresh/only-export-components": 12
   },
-  "updatedAt": "2026-10-26T13:23:24.485Z"
+  "updatedAt": "2026-10-26T13:39:57.922Z"
 }

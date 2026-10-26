@@ -323,7 +323,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
     const published = products.filter(p => p.is_online_enabled === 1).length;
     const pending = products.filter(p => p.sync_status === 'PENDING').length;
     const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total || o.amount) || 0), 0);
-    const inStockCount = products.filter(p => p.current_stock > 0).length;
+    const inStockCount = products.filter(p => (p.current_stock as number) > 0).length;
     return {
       published,
       pending,
@@ -357,9 +357,9 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
       if (categoryFilter !== 'all' && (prod.category || '').toLowerCase() !== categoryFilter.toLowerCase()) return false;
 
       // Stock
-      if (stockFilter === 'instock' && prod.current_stock <= 0) return false;
-      if (stockFilter === 'outstock' && prod.current_stock !== 0) return false;
-      if (stockFilter === 'negative' && prod.current_stock >= 0) return false;
+      if (stockFilter === 'instock' && (prod.current_stock as number) <= 0) return false;
+      if (stockFilter === 'outstock' && (prod.current_stock as number) !== 0) return false;
+      if (stockFilter === 'negative' && (prod.current_stock as number) >= 0) return false;
 
       return true;
     });

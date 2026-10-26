@@ -46,7 +46,7 @@ export function useScrapInvoiceEdit(ctx: UseScrapInvoiceEditContext) {
   const loadScrapInvoiceForEdit = useCallback(async (invNum: string) => {
     if (!invNum || !isDesktopRuntime()) return;
     const tid = tenantId || 'global';
-    const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tid, scrap_invoice_number: invNum });
+    const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tid, scrap_invoice_number: invNum }) as import('../../../data/scrap').ScrapInvoiceDetails | null;
     if (!detail || !detail.transactions || detail.transactions.length === 0) return;
 
     // Explicitly disable Return, Quotation & Past Bill modes first
@@ -63,7 +63,7 @@ export function useScrapInvoiceEdit(ctx: UseScrapInvoiceEditContext) {
     setDiscount(0, 'FIXED');
 
     const firstTx = detail.transactions[0];
-    const savedPaymentStatus = ['CASH', 'CREDIT', 'SETTLED'].includes(firstTx.payment_status) ? firstTx.payment_status : 'PENDING';
+    const savedPaymentStatus = ['CASH', 'CREDIT', 'SETTLED'].includes(firstTx.payment_status as string) ? firstTx.payment_status as 'CASH' | 'CREDIT' | 'SETTLED' : 'PENDING';
 
     updateActiveTab({
       customerName: firstTx.party_name || '',

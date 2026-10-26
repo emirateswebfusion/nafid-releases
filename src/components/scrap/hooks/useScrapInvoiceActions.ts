@@ -151,7 +151,7 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
         setEditingTxItem(null);
         setEditTxForm({ scrap_category_id: '', quantity: '', rate: '', party_name: '', notes: '' });
         if (selectedInvoiceNumber) {
-          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber }) as import('../../../data/scrap').ScrapInvoiceDetails | null;
           if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
         } else if (selectedCategory) {
           await loadTransactions(selectedCategory.scrap_category_id);
@@ -183,7 +183,7 @@ export function useScrapInvoiceActions(ctx: UseScrapInvoiceActionsContext) {
       });
       if (res.success) {
         showStatus('Invoice customer info updated successfully', 'success');
-        const invNum = editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number;
+        const invNum = editHeaderInvoice.invoice_number || (editHeaderInvoice.scrap_invoice_number as string);
         await scrapApi.upsertScrapCreditLedger({
           tenant_id: tenantId || '',
           scrap_invoice_number: invNum,

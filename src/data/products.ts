@@ -14,6 +14,17 @@ export interface Product extends ProductsRow {
   pricing?: ProductTierPrice[];
 }
 
+/** Product row returned by `productsService.getStockReport` and `findProducts2`, including nullable grade joins. */
+export interface StockReportProduct extends Product {
+  grade_rate: number | null;
+  grade_purchase_price: number | null;
+  grade_name: string | null;
+  grade_category: string | null;
+}
+
+/** All return shapes from `productsService.getStockReport`: rows, an empty list for a missing tenant, or its error. */
+export type StockReportResult = StockReportProduct[] | { error: string };
+
 export interface ProductTierPrice {
   pricing_tier_id: string;
   price: number | null;

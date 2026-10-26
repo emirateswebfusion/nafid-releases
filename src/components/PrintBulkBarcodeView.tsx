@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { useAuthStore } from '../store/authStore';
@@ -6,6 +6,7 @@ import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { authApi } from '../data/auth';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { printingApi } from '../data/printing';
+import type { BulkPrintItem } from '../data/printing';
 import { settingsApi } from '../data/settings';
 
 const PX_PER_MM = 96 / 25.4;
@@ -21,7 +22,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const [shopNameReady, setShopNameReady] = useState(false);
   const [showShopName, setShowShopName] = useState(true);
   const [showShopNameReady, setShowShopNameReady] = useState(false);
-  const [items, setItems] = useState<Parameters<typeof printingApi.printBulkBarcodes>[1]>([]);
+  const [items, setItems] = useState<BulkPrintItem[]>([]);
   const [columns, setColumns] = useState(1);
   const [labelWidthPx, setLabelWidthPx] = useState(189);
   const [labelHeightPx, setLabelHeightPx] = useState(94);
@@ -137,9 +138,9 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const colCount = Math.max(1, columns || 1);
   const labelContentWidthPx = Math.max(60, Math.floor(labelWidthPx / colCount) - 16);
 
-  const pages: React.ReactNode[] = [];
+  const pages: ReactNode[] = [];
 
-  const flatItems: typeof items = [];
+  const flatItems: BulkPrintItem[] = [];
   items.forEach(item => {
     for (let i = 0; i < (item.quantity || 1); i++) {
       flatItems.push(item);
@@ -151,7 +152,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   while (currentIndex < flatItems.length) {
     const pageLabels = Array.from({ length: colCount }, (_, colIndex) => {
       const hasLabel = currentIndex + colIndex < flatItems.length;
-      const item = hasLabel ? flatItems[currentIndex + colIndex] : null;
+      const item = hasLabel ? flatItems[currentIndex + colIndex] as BulkPrintItem & { sp?: number; spType?: string } : null;
       const barcodeModuleWidth = item
         ? Math.min(1.6, Math.max(0.4, labelContentWidthPx / code128Modules(String(item.barcode || ''))))
         : 1;

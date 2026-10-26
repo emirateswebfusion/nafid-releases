@@ -172,7 +172,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const openInvoiceDetail = async (invoiceNumber: string) => {
     setSelectedInvoiceNumber(invoiceNumber);
     if (isDesktopRuntime()) {
-      const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+      const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber }) as import('../data/scrap').ScrapInvoiceDetails | null;
       if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
     }
     setView('invoice_detail');
@@ -288,7 +288,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         showStatus('Transaction line item deleted', 'success');
         setConfirmDeleteTxId(null);
         if (selectedInvoiceNumber) {
-          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber }) as import('../data/scrap').ScrapInvoiceDetails | null;
           if (detail && detail.transactions) {
             if (detail.transactions.length === 0) {
               setView('invoices');

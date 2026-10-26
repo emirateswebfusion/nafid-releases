@@ -251,9 +251,9 @@ export function EcomProductsTab({
                       <td className="px-3 py-2 text-center">
                         <span className={clsx(
                           "inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-bold",
-                          prod.current_stock > 0
+                          (prod.current_stock as number) > 0
                             ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : prod.current_stock < 0
+                            : (prod.current_stock as number) < 0
                             ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
                             : "bg-muted text-muted-foreground"
                         )}>

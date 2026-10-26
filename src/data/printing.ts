@@ -1,5 +1,13 @@
 import { bindBridge } from './client';
 
+/** Current USB barcode-label batch returned by `hardware:getBulkPrintItems`. */
+export interface BulkPrintItem {
+  barcode: string;
+  quantity: number;
+  name?: string;
+  price?: number;
+}
+
 /** Receipt/A4/barcode printing and the cash drawer kick. Channel catalog — the only way UI code reaches these IPC channels. */
 export const printingApi = bindBridge({
   printReceipt: 'printReceipt',

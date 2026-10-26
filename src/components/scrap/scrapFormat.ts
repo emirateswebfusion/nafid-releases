@@ -15,7 +15,7 @@ export const formatStock = (stock: number | string | undefined | null) => {
 
 export { formatDateTime } from '../../utils/dateDisplay';
 
-export const formatGroupDate = (dateStr?: string) => {
+export const formatGroupDate = (dateStr?: string | null) => {
   if (!dateStr) return '-';
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);

@@ -2,6 +2,7 @@ import type { CartItem } from '../../store/cartStore';
 import type { SplitDetails, Tab, PaymentMethod } from '../../store/tabStore';
 import type { Product, ProductPricingRow } from '../../data/products';
 import type { Invoice, InvoiceItem } from '../../data/invoices';
+import type { ScrapInvoiceListItem } from '../../data/scrap';
 import type { PricingTier } from '../../utils/pricingTierHelper';
 import type { Party } from '../../data/parties';
 import type { UpiPageConfig } from '../../utils/upiConfig';
@@ -144,4 +145,4 @@ export type LoyaltyFlags = { loyalty?: boolean };
 
 export type MostSoldRow = Omit<BillingProduct, 'base_price'> & { base_price?: number; id?: string };
 export interface ReturnDeductionRow { return_number: string; customer_name?: string | null; grand_total: number; adjusted_amount?: number | null }
-export interface ScrapDeductionRow { invoice_number: string; created_at: string; total_amount: number; total_qty?: number | string | null }
+export type ScrapDeductionRow = Pick<ScrapInvoiceListItem, 'invoice_number' | 'created_at' | 'total_amount' | 'total_qty'>;

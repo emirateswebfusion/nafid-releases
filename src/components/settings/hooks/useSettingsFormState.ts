@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type PrinterConfig, type OsPrinterRow, type ServiceChargeProductRow, type CloudStateValue } from '../settingsTypes';
+import { type PrinterConfig, type OsPrinterRow, type ServiceChargeProductRow } from '../settingsTypes';
 import { getStoreTimezone } from '../../../utils/timezoneHelper';
 import { type BillSettings, DEFAULT_BILL_SETTINGS } from '../../../utils/receiptGenerator';
 import { type CodeType, DEFAULT_CODE_TYPE } from '../../../labelCodeTypes';
@@ -7,6 +7,7 @@ import { type BillingUIConfig, useBillingUIStore } from '../../../store/billingU
 import { type StaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/staffDataMasking';
 import { type EmergencyPanicConfig, DEFAULT_EMERGENCY_PANIC_CONFIG } from '../../../utils/emergencyPurge';
 import { type ShopClosingOverviewConfig, DEFAULT_SHOP_CLOSING_CONFIG } from '../../../utils/shopClosingHelper';
+import type { EffectiveCloudState } from '../../../data/sync';
 
 /**
  * State of the settings screen: every setting being edited (shop, billing, numbering, printing, tax, loyalty,
@@ -139,7 +140,7 @@ export function useSettingsFormState() {
   const [lanPort, setLanPort] = useState<number>(3888);
   const [syncFrequency, setSyncFrequency] = useState<'NORMAL' | 'BALANCED' | 'HIGH'>('NORMAL');
   const [testingNetwork, setTestingNetwork] = useState(false);
-  const [effectiveCloudState, setEffectiveCloudState] = useState<CloudStateValue>(null);
+  const [effectiveCloudState, setEffectiveCloudState] = useState<EffectiveCloudState | null>(null);
   const [drainingQueue, setDrainingQueue] = useState(false);
   const [showLanHelpModal, setShowLanHelpModal] = useState(false);
   const [copiedFirewallCmd, setCopiedFirewallCmd] = useState(false);
