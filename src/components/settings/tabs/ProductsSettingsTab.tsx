@@ -45,7 +45,6 @@ export const ProductsSettingsTab: React.FC<ProductsSettingsTabProps> = ({
   setShowPaperStockInEstimate,
   showProductGstBadge,
   setShowProductGstBadge,
-  showBulkSheet,
   setShowBulkSheet,
   showPaperOnlyProducts,
   setShowPaperOnlyProducts,

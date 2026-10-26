@@ -538,7 +538,7 @@ export function deleteInvoice(invoice_id: string) {
           restoreStockStmt.run(item.quantity, item.product_id, inv.tenant_id);
         }
       }
-      try { invoicesSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) { /* ignore */ }
+      try { invoicesSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch { /* ignore */ }
 
       // If a copy was deleted, un-supersede its BoS so it can be converted again
       if (isConversionCopy && inv) {

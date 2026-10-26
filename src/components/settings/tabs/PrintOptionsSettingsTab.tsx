@@ -50,13 +50,6 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
   showFullyPaidCashInLedger, setShowFullyPaidCashInLedger,
   showPriceOverrideMrp, setShowPriceOverrideMrp,
   showProductOffers, setShowProductOffers,
-  loyaltyEnabled, setLoyaltyEnabled,
-  loyaltyEarningRate, setLoyaltyEarningRate,
-  loyaltyRedemptionRate, setLoyaltyRedemptionRate,
-  loyaltyAwardOnPending, setLoyaltyAwardOnPending,
-  enableScrap, setEnableScrap,
-  previewFormat, setPreviewFormat,
-  previewStyle, setPreviewStyle,
 }) => {
   const { flags: featureFlags } = useFeatureFlagsStore();
   return (

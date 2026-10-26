@@ -101,7 +101,7 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
     let isOverdue = false;
     let overdueDays = 0;
     let remainingDays = 0;
-    let status = 'PAID';
+    let status: string;
 
     if (rem > 0.005) {
       if (dueDate) {

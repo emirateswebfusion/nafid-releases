@@ -139,7 +139,7 @@ export function ensureSchemaColumns(db: Database.Database) {
   };
 
   for (const table in schemaMap) {
-    let existingCols: string[] = [];
+    let existingCols: string[];
     try {
       const info = db.prepare(`PRAGMA table_info(${table})`).all();
       existingCols = info.map((c: unknown) => (c as { name: string }).name);

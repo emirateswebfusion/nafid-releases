@@ -71,7 +71,7 @@ export function getProductsCount(arg: string | ProductQueryArgs) {
     const { statement, params } = productsSql.getProductsCountStatement(db, tenantId, countArgs, dateRange);
     const result = statement.get(...params) as { count: number };
     return result ? result.count : 0;
-  } catch (error) {
+  } catch {
     return 0;
   }
 }

@@ -4,6 +4,7 @@ import fs from 'fs';
 import { getDb } from '../db/localDb';
 import * as printerSql from '../db/statements/printer.js';
 import { buildReceiptHtml } from './receiptHtml.js';
+import { getSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
 import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
 
 function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barcode') {
@@ -117,7 +118,6 @@ export function initPrinter() {
   ipcMain.handle('hardware:getA4Html', () => {
     if (currentA4Html) return currentA4Html;
     try {
-      const { getSharedA4Html } = require('../whatsapp/sharedPrintHtml');
       return getSharedA4Html() || '';
     } catch {
       return '';
@@ -162,7 +162,7 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename, displayHeaderFooter, headerTemplate, footerTemplate }: { tenant_id: string; htmlContent: string; defaultFilename?: string; displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => {
+  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id: _tenant_id, htmlContent, defaultFilename, displayHeaderFooter, headerTemplate, footerTemplate }: { tenant_id: string; htmlContent: string; defaultFilename?: string; displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => {
     try {
       const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
       const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));

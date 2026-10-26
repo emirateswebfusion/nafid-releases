@@ -17,8 +17,8 @@ export function useDataUploadDemoActions(ctx: UseDataUploadDemoActionsContext) {
   // ─── Download Demo Sample Templates ────────────────────────────────────────
 
   const downloadDemoFile = (format: 'csv' | 'xlsx') => {
-    let sampleData: Record<string, unknown>[] = [];
-    let filePrefix = 'product';
+    let sampleData: Record<string, unknown>[];
+    let filePrefix: string;
 
     if (entityType === 'products') {
       if (availableTiers && availableTiers.length > 0) {

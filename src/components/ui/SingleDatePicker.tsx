@@ -270,7 +270,7 @@ export function SingleDatePicker({
   const isSelectedToday = parsed.dateStr === todayStr;
   const isSelectedYesterday = parsed.dateStr === yestStr;
 
-  let displayLabel = '';
+  let displayLabel: string;
   if (!isCustomSet) {
     displayLabel = `Today, ${pad(todayDateObj.getDate())}/${pad(todayDateObj.getMonth() + 1)}/${todayDateObj.getFullYear()}`;
   } else if (isSelectedYesterday) {

@@ -131,7 +131,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           let grade_rate = item.grade_rate || null;
           let uom = item.uom || item.unit || (isPcsWeight ? 'Kgs' : 'PCS');
           let pieces_per_kg: number | undefined = undefined;
-          let base_price = Number(item.base_price) || 0;
+          let base_price: number;
           let offer_price = item.offer_price ?? null;
           let discount_flat = item.discount_flat ?? null;
           let discount_percent = item.discount_percent ?? null;
@@ -457,7 +457,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           try {
             const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
             if (Array.isArray(prods)) { prods.forEach((p) => { productMap[p.product_id] = p; }); }
-          } catch (e) { /* ignore */ }
+          } catch { /* ignore */ }
         }
 
         // Load returnable items into cart

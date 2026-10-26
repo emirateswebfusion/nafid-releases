@@ -90,7 +90,7 @@ export function useTenantProvisioning(ctx: UseTenantProvisioningContext) {
     appendLog('🔌 Initializing platform provisioning pipeline...');
     appendLog('🛰️ Pinging remote Neon PostgreSQL server to check connectivity...');
 
-    let apiSuccess = false;
+    let apiSuccess: boolean;
     let apiError = '';
     
     // Prepare API call promise

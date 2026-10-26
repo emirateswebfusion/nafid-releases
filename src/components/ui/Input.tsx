@@ -2,7 +2,7 @@ import * as React from 'react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, onWheel, ...props }, ref) => {

@@ -1,14 +1,9 @@
 {
-  "errors": 694,
+  "errors": 554,
   "warnings": 59,
   "byRule": {
-    "@typescript-eslint/no-unused-vars": 104,
-    "no-useless-assignment": 26,
-    "@typescript-eslint/no-require-imports": 2,
-    "no-async-promise-executor": 4,
-    "no-useless-escape": 5,
     "no-dupe-else-if": 2,
-    "@typescript-eslint/no-empty-object-type": 3,
+    "no-async-promise-executor": 4,
     "react-hooks/rules-of-hooks": 1,
     "react-hooks/set-state-in-effect": 36,
     "react-hooks/refs": 13,
@@ -24,5 +19,5 @@
     "react-refresh/only-export-components": 12,
     "prefer-const": 2
   },
-  "updatedAt": "2026-10-26T07:28:18.923Z"
+  "updatedAt": "2026-10-26T07:46:36.479Z"
 }

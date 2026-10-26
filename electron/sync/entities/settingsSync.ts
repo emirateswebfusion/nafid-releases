@@ -32,7 +32,7 @@ export async function syncSettings(token: string, tenantId: string) {
   try {
     const placeholders = LOCAL_DEVICE_SETTING_KEYS.map(() => '?').join(',');
     settingsSyncSql.markDeviceSettingsLocal(db, placeholders).run(tenantId, ...LOCAL_DEVICE_SETTING_KEYS);
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 
   const pending = (settingsSyncSql.selectSettings(db).all(tenantId) as Record<string, unknown>[])
     .filter((row: Record<string, unknown>) => !LOCAL_DEVICE_SETTING_KEYS.includes((row.key as string)));

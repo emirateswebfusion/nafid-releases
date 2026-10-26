@@ -245,7 +245,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
         editingProductSnapshot?.uom === newProductUom && editingProductSnapshot?.billing_type === 'WEIGHT'
       ) ? 'WEIGHT' : 'PIECE';
       const rawPcs = Number(newProductPcs) || 0;
-      let domainAttrsObj: Record<string, unknown> = {};
+      let domainAttrsObj: Record<string, unknown>;
       try {
         const existingDomainAttributes = editingProductSnapshot?.domain_attributes;
         const parsedAttributes = typeof existingDomainAttributes === 'string'

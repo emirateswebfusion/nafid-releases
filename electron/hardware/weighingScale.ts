@@ -32,7 +32,7 @@ export async function initWeighingScale(mainWindow: BrowserWindow) {
     });
 
     console.log(`[Hardware] Weighing Scale listener initialized on ${config.path}`);
-  } catch (error) {
+  } catch {
     console.warn('[Hardware] Native serialport not available. Starting MOCK weighing scale for development.');
     
     // Fallback: Random weight simulation ONLY in local dev if explicitly requested

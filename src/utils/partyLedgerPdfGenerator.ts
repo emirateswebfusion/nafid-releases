@@ -253,7 +253,7 @@ export function calculateLedgerStatement(
   const startDateFormatted = startDate ? formatDateLabel(startDate) : '';
   const endDateFormatted = endDate ? formatDateLabel(endDate) : '';
 
-  let periodLabel = '';
+  let periodLabel: string;
   if (startDate && endDate) {
     periodLabel = `${startDateFormatted} - ${endDateFormatted}`;
   } else if (startDate) {

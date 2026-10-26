@@ -6,7 +6,7 @@ import * as quotationsSql from '../db/statements/quotations.js';
 /** quotations use-cases for the main process (called by electron/ipc handlers). */
 
 /** IPC `db:getNextQuotationNumber` */
-export function getNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
+export function getNextQuotationNumber({ tenant_id: _tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
@@ -48,7 +48,7 @@ export function getNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
 }
 
 /** IPC `db:peekNextQuotationNumber` */
-export function peekNextQuotationNumber({ tenant_id }: { tenant_id: string }) {
+export function peekNextQuotationNumber({ tenant_id: _tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);

@@ -134,7 +134,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
     isCheckingOutRef.current = true;
 
     const checkoutTabId = activeTabId;
-    let printSuccess = true;
+    let printSuccess: boolean;
 
     const cartStore = useCartStore.getState();
     const editingInvoiceId = cartStore.editingInvoiceId;
@@ -705,7 +705,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       // Notify the cashier settlement page (if open) to refresh instantly
       try {
         window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
       // Refresh parties list so party balances update immediately
       listParties(tenantId || 'global')
         .then((res) => {

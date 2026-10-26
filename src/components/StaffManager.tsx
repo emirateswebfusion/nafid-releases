@@ -516,7 +516,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         });
         await loadStaffDetails();
       }
-    } catch (err) {
+    } catch {
       setStatusMessage({ text: 'Failed to save attendance', type: 'error' });
     }
   };

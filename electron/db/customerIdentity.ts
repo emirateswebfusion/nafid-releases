@@ -276,7 +276,7 @@ export class CustomerIdentityService {
             creditLimit ?? 0, creditPeriodEnabled ?? 0, creditPeriodDays ?? 30, creditPeriodBasis ?? 'BILL_BASED', restrictOnCreditExpiry ?? 0,
             history ? purchaseIso : now, now, now
           );
-        } catch (insertCustErr) {
+        } catch {
           const fallbackCust: IdentityRow = (db.prepare<unknown[], IdentityRow>(`
             SELECT customer_id FROM customers 
             WHERE tenant_id = ? AND (

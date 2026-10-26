@@ -39,7 +39,6 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
   isDownloading,
   downloadProgress,
   lastChecked,
-  loading,
   stockReportDefaultView, setStockReportDefaultView,
   showPriceTiersInInventory, setShowPriceTiersInInventory,
   showProductGstBadge, setShowProductGstBadge,

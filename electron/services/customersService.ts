@@ -143,7 +143,7 @@ export function createCustomer(c: CustomerInput) {
 }
 
 /** IPC `db:deduplicateCustomers` */
-export function deduplicateCustomers(tenant_id?: string) {
+export function deduplicateCustomers(_tenant_id?: string) {
   try {
     const db = getDb();
     const result = autoDeduplicateCustomersAndParties(db);

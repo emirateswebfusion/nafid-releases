@@ -424,7 +424,7 @@ export function getPartyLedger(partyId: string, includeDeleted: unknown = false)
     } catch (e) {
       console.error('[db:getPartyLedger] Error cleaning deleted invoice ledger entries:', e);
     }
-    try { recalcPartyBalances(db, partyId); } catch (e) { /* ignore */ }
+    try { recalcPartyBalances(db, partyId); } catch { /* ignore */ }
     return partiesSql.listPartyLedger(db, Boolean(includeDeleted)).all(partyId);
   } catch (error) {
     console.error('[db:getPartyLedger]', error);

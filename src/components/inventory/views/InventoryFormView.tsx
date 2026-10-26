@@ -123,7 +123,6 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
   setPrintPrice,
   printBarcode,
   handleSave,
-  setView,
 }) => {
   const shopDomain = useCartStore((state) => state.shopDomain);
   return (

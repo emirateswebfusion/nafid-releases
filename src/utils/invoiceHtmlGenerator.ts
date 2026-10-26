@@ -109,7 +109,7 @@ function shouldShowItemMrpHtml(data: InvoiceData, item: InvoiceItemDisplay): boo
 
 function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
-  let baseTitle = '';
+  let baseTitle: string;
   if (isB2B) {
     baseTitle = 'TAX INVOICE';
   } else {
@@ -615,12 +615,12 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     const itemTotal = Number(item.total) || 0;
     const gstRate = item.tax_rate_percent != null ? Number(item.tax_rate_percent) : (item.gst_percent != null ? Number(item.gst_percent) : (data.tax > 0 ? 18 : 0));
 
-    let taxableVal = 0;
+    let taxableVal: number;
     let cgstPct = 0;
     let sgstPct = 0;
     let cgstAmt = 0;
     let sgstAmt = 0;
-    let unitPriceVal = 0;
+    let unitPriceVal: number;
 
     if (gstRate > 0) {
       taxableVal = itemTotal / (1 + gstRate / 100);

@@ -87,7 +87,6 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
   // Sum calculations for footer row
   let totQty = 0;
   let totExcl = 0;
-  let totDisc = 0;
   let totSgst = 0;
   let totCgst = 0;
   let totIgst = 0;
@@ -271,7 +270,6 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
 
                   totQty += qty;
                   totExcl += exclTotal;
-                  totDisc += discVal;
                   totSgst += sgstVal;
                   totCgst += cgstVal;
                   totIgst += igstVal;

@@ -80,7 +80,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
 
     const headerMapping = entityType === 'products' ? PRODUCT_HEADER_MAP : PARTY_HEADER_MAP;
 
-    const processed: ParsedRow[] = rows.map((rawRow, idx) => {
+    const processed: ParsedRow[] = rows.map((rawRow, _idx) => {
       const mappedData: import('../dataUploadTypes').ParsedRowData & Record<string, unknown> = {} as import('../dataUploadTypes').ParsedRowData;
       const errors: string[] = [];
 

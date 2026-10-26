@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { setSharedA4Html } from './sharedPrintHtml.js';
 import path from 'path';
 import fs from 'fs';
 import QRCode from 'qrcode';
@@ -205,7 +206,6 @@ async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
 
   // Set the currentA4Html globally so the print-a4 route renders this bill
   try {
-    const { setSharedA4Html } = require('./sharedPrintHtml');
     if (setSharedA4Html) {
       setSharedA4Html(htmlContent);
     }

@@ -364,7 +364,7 @@ export async function convertBosToGst(payload: {
           const tripleSeries = tripleSeriesRow ? (parseSetting(tripleSeriesRow) as SeriesSetting) : null;
 
           const isB2B = Boolean(inv.customer_gstin && inv.customer_gstin.trim() !== '');
-          let configKey = 'gst_invoice_counter_config';
+          let configKey: string;
 
           if (tripleSeries && tripleSeries.enabled) {
             configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
@@ -491,7 +491,7 @@ export async function convertBosToGst(payload: {
             }
 
             // ─── Determine Unit Price based on user specifications: ───
-            let newUnitPrice = 0;
+            let newUnitPrice: number;
             let batchTaxRate = 0;
 
             if (isRealGstProduct) {
@@ -547,10 +547,10 @@ export async function convertBosToGst(payload: {
             }
 
             const taxRate = Number(gstProduct.tax_rate_percent) || batchTaxRate || Number(item.tax_rate) || 0;
-            let itemTaxable = 0;
-            let itemTax = 0;
-            let itemTotal = 0;
-            let finalUnitPrice = newUnitPrice;
+            let itemTaxable: number;
+            let itemTax: number;
+            let itemTotal: number;
+            let finalUnitPrice: number;
 
             if (isTaxInclusive && taxRate > 0) {
               itemTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
@@ -560,7 +560,6 @@ export async function convertBosToGst(payload: {
             } else {
               itemTaxable = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
               itemTax = Math.round(itemTaxable * (taxRate / 100) * 100) / 100;
-              itemTotal = Math.round((itemTaxable + itemTax) * 100) / 100;
               finalUnitPrice = newUnitPrice;
             }
 

@@ -34,26 +34,16 @@ export interface NetworkSyncTabProps {
 }
 
 export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
-  activeSection,
-  appVersion,
   detectedLocalIp,
   drainingQueue, setDrainingQueue,
   effectiveCloudState, setEffectiveCloudState,
   lanHostIp, setLanHostIp,
   lanRole, setLanRole,
   lanPort,
-  saving,
-  setActiveHardwareTab,
-  setActiveProductsTab,
-  setActiveSection,
-  setShowBulkSheet,
-  showBulkSheet,
-  showLanHelpModal, setShowLanHelpModal,
+  setShowLanHelpModal,
   syncFrequency, setSyncFrequency,
   syncMode, setSyncMode,
   testingNetwork, setTestingNetwork,
-  copiedFirewallCmd, setCopiedFirewallCmd,
-  networkDetails, setNetworkDetails,
   setMessage,
 }) => {
   const handleManualQueueDrain = async () => {

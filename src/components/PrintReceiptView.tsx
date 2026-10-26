@@ -251,7 +251,7 @@ export function PrintReceiptView({ text }: { text: string }) {
                 const s = str.trim();
                 if (s.length < 4) return false;
                 const f = s.charAt(0); const l = s.charAt(s.length - 1);
-                return (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐') && (/^[─┼┬┴]+$/.test(s.substring(1, s.length - 1)) || /^[-\+|]+$/.test(s.substring(1, s.length - 1)));
+                return (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐') && (/^[─┼┬┴]+$/.test(s.substring(1, s.length - 1)) || /^[-+|]+$/.test(s.substring(1, s.length - 1)));
               };
 
               if (isTop(displayValue) && index === 0) {

@@ -47,7 +47,7 @@ export function setupAutoUpdater(): void {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  async function performUpdateCheck(notify: boolean = false): Promise<void> {
+  async function performUpdateCheck(_notify: boolean = false): Promise<void> {
     if (!canCheckForUpdates()) {
       log.debug('[Updater] Skipping check - conditions not met', { state: updaterState, lastCheckTime, inProgress: isUpdateCheckInProgress });
       return;
@@ -189,7 +189,7 @@ ipcMain.handle('app:installUpdate', () => {
     }
     setTimeout(() => {
       BrowserWindow.getAllWindows().forEach(w => {
-        try { w.destroy(); } catch (err) { /* ignore */ }
+        try { w.destroy(); } catch { /* ignore */ }
       });
       app.exit(0);
     }, 800);

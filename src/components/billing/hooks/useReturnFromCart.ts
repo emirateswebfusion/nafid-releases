@@ -187,7 +187,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
       // Notify other views (cashier settlement, history)
       try {
         window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { return_number: returnNumber } }));
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
 
       setReturnProcessed(true);
       setReturnSuccessToast(saveOnly ? `Return ${returnNumber} saved successfully!` : `Return ${returnNumber} processed & receipt printed!`);

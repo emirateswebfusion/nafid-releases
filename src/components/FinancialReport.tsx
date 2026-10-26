@@ -185,7 +185,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
         if (Array.isArray(pBills)) {
           purchaseExpenses = pBills.reduce((acc: number, pb: any) => acc + (Number(pb.total_amount) || 0), 0);
         }
-      } catch (e) {
+      } catch {
         console.warn('[FinancialReport] Purchase bills fetch skipped');
       }
 
@@ -196,7 +196,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
         if (Array.isArray(scrapList)) {
           scrapRevenue = scrapList.reduce((acc: number, sc: any) => acc + (Number(sc.total_amount) || 0), 0);
         }
-      } catch (e) {
+      } catch {
         console.warn('[FinancialReport] Scrap fetch skipped');
       }
 

@@ -93,7 +93,7 @@ function isDividerLine(str: string): boolean {
   const isEdge = (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐');
   if (!isEdge) return false;
   const mid = s.substring(1, s.length - 1);
-  return /^[─┼┬┴]+$/.test(mid) || /^[-\+|]+$/.test(mid) || /^=+$/.test(mid);
+  return /^[─┼┬┴]+$/.test(mid) || /^[-+|]+$/.test(mid) || /^=+$/.test(mid);
 }
 
 function stripOuterPipes(str: string): string {

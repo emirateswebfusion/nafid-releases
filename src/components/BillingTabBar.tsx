@@ -26,7 +26,7 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
     const editingNumber = tab.snapshot?.editingInvoiceNumber || tab.snapshot?.editingQuotationNumber;
     const isGst = tab.snapshot?.invoiceType === 'GST';
 
-    let displayNum = '';
+    let displayNum: string;
     if (isReturn) {
       displayNum = tab.reservedReturnNumber || tab.title;
     } else if (isScrap) {

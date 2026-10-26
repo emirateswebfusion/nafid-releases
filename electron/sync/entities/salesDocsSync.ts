@@ -123,11 +123,11 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
             const custCleanDigits = ((currentInv.customer_phone as string) || ('' as string)).replace(/\D/g, '');
             if (custCleanDigits.length >= 7) {
               const matchedCust = salesDocsSyncSql.selectCustomers(db).get(currentInv.tenant_id, currentInv.customer_phone, `%${custCleanDigits.slice(-10)}`) as Record<string, unknown>;
-              if (matchedCust) resolvedCustId = (matchedCust.customer_id as {} | null);
+              if (matchedCust) resolvedCustId = (matchedCust.customer_id as typeof resolvedCustId);
             }
             if (!resolvedCustId && currentInv.customer_name) {
               const matchedCust = salesDocsSyncSql.selectCustomers2(db).get(currentInv.tenant_id, currentInv.customer_name) as Record<string, unknown>;
-              if (matchedCust) resolvedCustId = (matchedCust.customer_id as {} | null);
+              if (matchedCust) resolvedCustId = (matchedCust.customer_id as typeof resolvedCustId);
             }
           }
 

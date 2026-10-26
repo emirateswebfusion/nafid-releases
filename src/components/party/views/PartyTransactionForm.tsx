@@ -45,7 +45,6 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
   getPartyBalance,
   handleSaveTx,
   handleFormKeyDown,
-  onCancel,
 }) => {
   return (
         <form onSubmit={handleSaveTx} onKeyDown={handleFormKeyDown as unknown as React.KeyboardEventHandler<HTMLFormElement>} className="flex flex-col flex-1 min-h-0 bg-background">

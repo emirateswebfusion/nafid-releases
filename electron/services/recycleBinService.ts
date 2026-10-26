@@ -104,7 +104,7 @@ export function restoreInvoice(invoice_id: string) {
         }
       }
 
-      try { recycleBinSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch (e) { /* ignore */ }
+      try { recycleBinSql.updateInvoiceItemIsDeleted(db).run(invoice_id); } catch { /* ignore */ }
       
       const invCols = recycleBinSql.pragmaTableInfo(db).all() as ColumnRow[];
       const hasDeletedAt = invCols.some(c => c.name === 'deleted_at');
@@ -209,7 +209,7 @@ export function hardDeleteInvoice(invoice_id: string) {
   try {
     const db = getDb();
     db.transaction(() => {
-      try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(invoice_id); } catch (e) { /* ignore */ }
+      try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(invoice_id); } catch { /* ignore */ }
       recycleBinSql.deleteInvoiceByInvoiceId(db).run(invoice_id);
     })();
     return { success: true };
@@ -299,7 +299,7 @@ export function emptyRecycleBin(payload: { category: string; tenant_id: string }
       if (cat === 'SALES_BILLS' || cat === 'ALL') {
         const delInvs = recycleBinSql.findInvoices(db).all(tid) as InvoiceRow[];
         for (const row of delInvs) {
-          try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(row.invoice_id); } catch (e) { /* ignore */ }
+          try { recycleBinSql.deleteInvoiceItemByInvoiceId(db).run(row.invoice_id); } catch { /* ignore */ }
           recycleBinSql.deleteInvoiceByInvoiceId2(db).run(row.invoice_id);
         }
       }

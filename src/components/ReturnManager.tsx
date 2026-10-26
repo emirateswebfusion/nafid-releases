@@ -114,7 +114,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           setStatusMessage({ text: res.error || 'Failed to delete return', type: 'error' });
         }
       }
-    } catch (err) {
+    } catch {
       setStatusMessage({ text: 'Failed to delete return', type: 'error' });
     }
     setDeleteSaving(false);

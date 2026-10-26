@@ -7,7 +7,6 @@ export function StatCard({
   label,
   value,
   colorClass,
-  bgClass,
   sub,
 }: {
   icon: any;

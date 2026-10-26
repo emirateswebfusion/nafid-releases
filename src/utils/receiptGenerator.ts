@@ -217,7 +217,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   }
 
   // If string explicitly contains UTC 'Z' or offset like +04:00, let Date parse absolute instant
-  if (/Z$/i.test(dateStr) || /[\+\-]\d{2}:?\d{2}$/.test(dateStr)) {
+  if (/Z$/i.test(dateStr) || /[+-]\d{2}:?\d{2}$/.test(dateStr)) {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) return d;
   }
@@ -1999,7 +1999,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       cells.forEach((c, i) => {
         const w = widths[i];
         const align = aligns && aligns[i] ? aligns[i] : 'left';
-        let paddedCell = c;
+        let paddedCell: string;
         if (c.length > w) {
           paddedCell = c.substring(0, w);
         } else if (align === 'right') {

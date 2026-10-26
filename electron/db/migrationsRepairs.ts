@@ -14,7 +14,7 @@ export function runLegacyRepairs(db: Database.Database) {
      if (invInfo.some((c: unknown) => (c as { name: string }).name === 'total_amount') && invInfo.some((c: unknown) => (c as { name: string }).name === 'grand_total')) {
         db.exec("UPDATE invoices SET grand_total = total_amount WHERE grand_total = 0 AND total_amount > 0");
      }
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 
   // Sanitize empty string sku_barcodes to NULL before applying unique constraints
   // SQLite treats multiple NULLs as distinct, but multiple empty strings as duplicates

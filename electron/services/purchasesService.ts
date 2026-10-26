@@ -74,7 +74,7 @@ function getNextOrPeekPurchaseBillNumber(
 
   // 4. Determine starting counter:
   // Counter is strictly maxUsed + 1 if bills exist, else fallback to configuredCounter or 1.
-  let counter = 1;
+  let counter: number;
   if (maxUsed > 0) {
     counter = maxUsed + 1;
   } else {

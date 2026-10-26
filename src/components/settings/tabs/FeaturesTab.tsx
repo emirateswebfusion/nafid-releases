@@ -24,9 +24,8 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({
   loyaltyAwardOnPending, setLoyaltyAwardOnPending,
   loyaltyEarningRate, setLoyaltyEarningRate,
   loyaltyRedemptionRate, setLoyaltyRedemptionRate,
-  saving,
-  confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen,
-  showCashRegister, setShowCashRegister,
+  setConfirmTurnOffAllModalOpen,
+  setShowCashRegister,
 }) => {
   return (
           <div className="space-y-6 animate-in fade-in duration-300">

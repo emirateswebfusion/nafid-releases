@@ -128,7 +128,7 @@ export function PartyProfileCard({
                     setParties(prev => prev.map(p => p.party_id === selectedParty.party_id ? { ...p, whatsapp_alerts_enabled: nextVal } : p));
                     showStatus(`WhatsApp alerts ${nextVal ? 'enabled' : 'disabled'} for ${selectedParty.name}`, 'success');
                   }
-                } catch (err) {
+                } catch {
                   showStatus('Failed to update party WhatsApp alert setting', 'error');
                 }
               }}

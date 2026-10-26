@@ -250,7 +250,7 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
         try {
           const prods = await getProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
           if (Array.isArray(prods)) { prods.forEach((p) => { productMap[p.product_id] = p; }); }
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
       }
 
       enriched.forEach((item: B.BillingInvoiceItem) => {

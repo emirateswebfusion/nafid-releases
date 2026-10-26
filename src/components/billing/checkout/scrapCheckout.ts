@@ -19,7 +19,7 @@ import type { CheckoutContext } from './checkoutHandler';
 export async function runScrapCheckout(ctx: CheckoutContext, run: { saveOnly: boolean; checkoutTabId: string; editingInvoiceNumber: string | null }) {
   const { items, setHardwareError, scrapTotal, extraBonus, scrapPaymentStatus, customerName, customerPhone, tenantId, customerAddress, userId, userName, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, uiConfig, setIsScrapMode, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveScrapInvoiceNumberForTab, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot } = ctx;
   const { saveOnly, checkoutTabId, editingInvoiceNumber } = run;
-  let scrapPrintSuccess = true;
+  let scrapPrintSuccess: boolean;
   let scrapInvoiceNum = editingInvoiceNumber;
   const finalScrapGrandTotal = scrapTotal + extraBonus;
 

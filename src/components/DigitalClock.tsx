@@ -49,7 +49,7 @@ export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps)
   const is12h = timeFmt !== '24h';
 
   // Format time
-  let timeMain = '';
+  let timeMain: string;
   let amPmStr = '';
 
   try {
@@ -75,7 +75,7 @@ export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps)
   }
 
   // Format date
-  let dateStr = '';
+  let dateStr: string;
   try {
     dateStr = now.toLocaleDateString('en-US', {
       timeZone: storeTz,

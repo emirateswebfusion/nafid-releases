@@ -397,7 +397,7 @@ export function DashboardCardCustomizer({
             No cards found matching "{searchQuery}"
           </div>
         ) : (
-          displayCards.map((card, idx) => {
+          displayCards.map((card, _idx) => {
             const overallIndex = orderedCards.findIndex((c) => c.id === card.id);
             const isFirst = overallIndex === 0;
             const isLast = overallIndex === orderedCards.length - 1;

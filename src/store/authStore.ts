@@ -97,7 +97,7 @@ function formatError(err: unknown, fallback: string): string {
 
 // Explicit type: the initializer calls useAuthStore.getState() itself, and with noImplicitAny off that circular
 // reference made tsc infer `any` for the whole store (every screen read tenantId etc. untyped).
-export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState>()((set, get) => ({
+export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState>()((set, _get) => ({
   isAuthenticated: false,
   token: null,
   tenantId: null,
@@ -466,7 +466,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Request failed') };
       return { success: true };
-    } catch (err) {
+    } catch {
       return { success: false, error: 'Cannot reach server.' };
     }
   },
@@ -477,7 +477,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Reset failed') };
       return { success: true };
-    } catch (err) {
+    } catch {
       return { success: false, error: 'Cannot reach server.' };
     }
   },
@@ -491,7 +491,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
       return { success: true };
-    } catch (err) {
+    } catch {
       return { success: false, error: 'Cannot reach server.' };
     }
   }
