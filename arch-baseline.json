@@ -7,5 +7,13 @@
     "electron/services/productsService.ts": 2
   },
   "sizeCaps": {},
-  "updatedAt": "2026-10-25T21:10:56.827Z"
+  "startupBaselineLines": {
+    "electron/db/localDb.ts": 313,
+    "electron/db/migrationsColumns.ts": 518,
+    "electron/db/migrationsRepairs.ts": 474,
+    "electron/db/schemaColumns.ts": 176,
+    "electron/db/schemaCoreTables.ts": 407,
+    "electron/db/schemaExtendedTables.ts": 409
+  },
+  "updatedAt": "2026-10-26T03:26:31.761Z"
 }

@@ -105,10 +105,17 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
 
 ## 3.4 Local database and sync (main process)
 
-- **SQLite** (`electron/db/localDb.ts`): one file per terminal, WAL mode. Schema creation and idempotent, inline
-  ("self-healing") migrations run at startup. There is no versioned migration runner yet — when you add a column, add an
-  idempotent `ALTER TABLE … ADD COLUMN` guarded by a column check next to the existing ones, and mirror it in
-  `nafid-server/src/db/migrations/tenant/NNN_*.sql` if the column is synced.
+- **SQLite** (`electron/db/localDb.ts`): one file per terminal, WAL mode. `initDb` runs two layers:
+  1. **Startup baseline** (frozen): `schemaCoreTables` / `schemaExtendedTables` / `schemaColumns` create the schema, and
+     `migrationsRepairs` / `migrationsColumns` plus the repairs in `localDb.ts` normalise legacy data. It runs on every
+     start because older terminals keep syncing old shapes in; it must stay idempotent
+     (`tests/characterization/startup-idempotency.mts`). Guard R10 stops these files from growing.
+  2. **Versioned migrations** (`electron/db/migrations/`): each runs once, in order, in a transaction, recorded in
+     `schema_migrations` and `PRAGMA user_version`; a failing one rolls back and is retried on the next start.
+     **Every new schema or data change goes here**: add `NNN-short-name.ts` exporting a `Migration`
+     (`{ version, name, up(db) }`) with the next number, list it in `migrations/index.ts`, extend
+     `tests/characterization/migrations.mts`, and mirror synced columns in `nafid-server/src/db/migrations/tenant/NNN_*.sql`.
+     Never edit or renumber a released migration; write a new one.
   Synced business tables carry `tenant_id`, `updated_at`, `sync_status` (`PENDING` / `SYNCED`) and soft delete (`is_deleted`).
 - **Writes** run in `db.transaction(...)` and set `sync_status = 'PENDING'`.
 - **Push**: `syncWorker.ts` scans `PENDING` rows per table and posts batches to `POST /api/sync/<entity>`; rows reported in

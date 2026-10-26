@@ -18,6 +18,9 @@
  *       handlers only register channels (`handle(channel, service.fn)`); SQL lives in electron/db.
  *   R9. electron/services/** may only call `.prepare(` for dynamic filter builders grandfathered in
  *       arch-baseline.json (`servicePrepareCounts`, shrink-only); new SQL goes to electron/db/statements.
+ *  R10. The startup baseline (schema + inline repairs that run on every start) is frozen: its files may
+ *       shrink, never grow (`startupBaselineLines`). Schema / data changes go into a numbered migration in
+ *       electron/db/migrations/, listed in migrations/index.ts.
  *
  * Advisories (never fail): SQL still inside electron/sync/** and electron/main.ts (sync is changed only
  * behind characterization tests).
@@ -52,6 +55,10 @@ const ipcCounts = {};
 const sizes = {};
 const servicePrepares = {};
 const PREPARE = /\.prepare\(/g;
+const STARTUP_BASELINE = ['electron/db/localDb.ts', 'electron/db/schemaCoreTables.ts', 'electron/db/schemaExtendedTables.ts',
+  'electron/db/schemaColumns.ts', 'electron/db/migrationsRepairs.ts', 'electron/db/migrationsColumns.ts'];
+const startupLines = {};
+const migrationIndex = path.join(root, 'electron/db/migrations/index.ts');
 
 for (const full of walk(path.join(root, 'src'), (n) => /\.(ts|tsx)$/.test(n))) {
   const file = rel(full);
@@ -86,6 +93,11 @@ for (const full of walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))) 
   }
   if (file.startsWith('electron/services/') && prepares > 0) servicePrepares[file] = prepares;
   const lines = source.split('\n').length;
+  if (STARTUP_BASELINE.includes(file)) startupLines[file] = lines;
+  if (/^electron\/db\/migrations\/\d{3}-[\w-]+\.ts$/.test(file)
+    && !(existsSync(migrationIndex) && read(migrationIndex).includes(`'./${path.basename(file, '.ts')}.js'`))) {
+    violations.push(`${file}: migration is not listed in electron/db/migrations/index.ts.`);
+  }
   if (lines > SIZE_BUDGET) sizes[file] = lines;
   if ((file.startsWith('electron/sync/') || file === 'electron/main.ts') && prepares > 0) sqlAdvisories.push({ file, sql: prepares });
 }
@@ -95,7 +107,7 @@ const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 
 if (update || !existsSync(baselinePath)) {
   const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(baselinePath, `${JSON.stringify({ ipcCounts: sorted(ipcCounts), servicePrepareCounts: sorted(servicePrepares), sizeCaps: sorted(sizes), updatedAt: new Date().toISOString() }, null, 2)}\n`);
+  writeFileSync(baselinePath, `${JSON.stringify({ ipcCounts: sorted(ipcCounts), servicePrepareCounts: sorted(servicePrepares), sizeCaps: sorted(sizes), startupBaselineLines: sorted(startupLines), updatedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log(`Baseline saved: ${Object.keys(ipcCounts).length} file(s) / ${sum(ipcCounts)} bridge references; ${Object.keys(sizes).length} oversized file(s).`);
   process.exit(0);
 }
@@ -104,6 +116,11 @@ const baseline = JSON.parse(read(baselinePath));
 const ipcCaps = baseline.ipcCounts || {};
 const sizeCaps = baseline.sizeCaps || {};
 const prepareCaps = baseline.servicePrepareCounts || {};
+const startupCaps = baseline.startupBaselineLines || {};
+for (const [file, lines] of Object.entries(startupLines)) {
+  const cap = startupCaps[file];
+  if (cap !== undefined && lines > cap) violations.push(`${file}: startup baseline grew from ${cap} to ${lines} lines. Add a numbered migration in electron/db/migrations/ instead.`);
+}
 
 for (const [file, count] of Object.entries(ipcCounts)) {
   const cap = ipcCaps[file];

@@ -106,6 +106,16 @@ close status, snooze, close now and the 15-minute backstop. Dates are relative t
 EQ_USERDATA=/tmp/eq/ds npx tsx $H/drawer-session.mts cand     # "drawer sessions: ok"
 ```
 
+## Versioned migrations (`migrations.mts`)
+
+Every released migration applies on a fresh database (recorded in `schema_migrations`, `user_version` = latest), a
+second run applies nothing, a failing migration rolls back without being recorded and the chain resumes on the next
+run, and duplicate versions are rejected. Also apply new migrations to a copy of a real shop database.
+
+```bash
+EQ_USERDATA=/tmp/eq/mig npx tsx $H/migrations.mts cand     # "migrations: ok (latest N)"
+```
+
 ## Startup idempotency (`startup-idempotency.mts`)
 
 `initDb()` runs inline repair migrations on every start. Once they have run, another start must change no rows,

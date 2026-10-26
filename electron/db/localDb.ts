@@ -8,6 +8,8 @@ import { createExtendedTables } from './schemaExtendedTables.js';
 import { ensureSchemaColumns } from './schemaColumns.js';
 import { runLegacyRepairs } from './migrationsRepairs.js';
 import { runColumnMigrations } from './migrationsColumns.js';
+import { runMigrations } from './migrations/runner.js';
+import { MIGRATIONS } from './migrations/index.js';
 
 /** The open connection. Exported only for the db-layer modules (live binding); everything else calls getDb(). */
 export let db: Database.Database;
@@ -135,6 +137,13 @@ export function initDb() {
     ensureInvoiceColumnsExist(db);
   } catch (e: any) {
     console.error('[DB Migration] ensureInvoiceColumnsExist error:', e.message);
+  }
+
+  // Versioned migrations (electron/db/migrations): run once each, after the baseline above.
+  try {
+    runMigrations(db, MIGRATIONS);
+  } catch (e: unknown) {
+    console.error('[DB Migration] Versioned migration failed (retried on next start):', e instanceof Error ? e.message : e);
   }
 }
 
@@ -284,14 +293,6 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
     } catch (e: any) {
       console.warn('[DB Migration] Clean real product paper attributes error:', e.message);
     }
-    // Migration: Auto-ensure performance indexes on returns tables
-    try {
-      d.exec(`
-        CREATE INDEX IF NOT EXISTS idx_returns_invoice_id ON returns(invoice_id);
-        CREATE INDEX IF NOT EXISTS idx_return_items_return_id ON return_items(return_id);
-        CREATE INDEX IF NOT EXISTS idx_return_items_invoice_item_id ON return_items(invoice_item_id);
-      `);
-    } catch {}
   } catch (e: any) {
     console.warn('[DB Migration] Auto-ensure columns error:', e.message);
   }
