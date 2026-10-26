@@ -58,10 +58,10 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
   // Load active held bills from backend
   const loadHeldBills = useCallback(async () => {
     if (!isDesktopRuntime()) {
-      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const stored: B.HeldBill[] = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const now = Date.now();
       const valid = stored.filter((b) => {
-        const time = new Date(b.heldAt).getTime();
+        const time = new Date(b.heldAt as string).getTime();
         return !isNaN(time) && (now - time < 24 * 60 * 60 * 1000);
       });
       if (valid.length !== stored.length) {
@@ -91,7 +91,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
     if (!isDesktopRuntime()) {
       // Fallback for non-electron: save to localStorage
       const bill = { id: uuidv4(), heldAt: new Date().toISOString(), items: [...items], invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
-      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const stored: B.HeldBill[] = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       stored.push(bill);
       localStorage.setItem('vendora-held-bills', JSON.stringify(stored));
       clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' }); syncActiveSnapshot();
@@ -167,13 +167,13 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
   // Recall a held bill — load its items back into cart
   const handleRecallHeldBill = async (heldInvoice: B.HeldBill) => {
     if (!isDesktopRuntime()) {
-      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const stored: B.HeldBill[] = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const target = stored.find((b) => b.id === (heldInvoice.id || heldInvoice.invoice_id));
       if (target) {
         clearCart();
         if (Array.isArray(target.items)) {
           for (const item of target.items) {
-            addItem(item);
+            addItem(item as Parameters<typeof addItem>[0]);
             if (item.quantity) updateQuantity(item.product_id, item.quantity);
             if (item.pieces_override) updatePiecesOverride(item.product_id, item.pieces_override);
           }
@@ -315,7 +315,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
   // Release (delete) a held bill — revert stock, mark as expired
   const handleReleaseHeldBill = async (invoiceId: string) => {
     if (!isDesktopRuntime()) {
-      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const stored: B.HeldBill[] = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const remaining = stored.filter((b) => b.id !== invoiceId);
       localStorage.setItem('vendora-held-bills', JSON.stringify(remaining));
       setHeldBills(remaining);
