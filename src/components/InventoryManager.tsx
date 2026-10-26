@@ -390,7 +390,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     inv, encodePurchasePriceCode, existingCategories, loadProducts, tenantId,
   });
 
-  const formatDate = (dateStr?: string) => {
+  const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return '-';
     const tz = getStoreTimezone();
     const d = parseUTCDate(dateStr);

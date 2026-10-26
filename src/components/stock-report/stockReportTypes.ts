@@ -1,34 +1,8 @@
 /** Stock report screen: product, grade / party / sales rows, category stats, sales totals and masked valuation. */
 import type { calculateMaskedStockValuation } from '../../utils/staffDataMasking';
+import type { Product as DataProduct } from '../../data/products';
 
-export interface Product {
-  product_id: string;
-  tenant_id: string;
-  name: string;
-  item_code: string;
-  sku_barcode: string;
-  category: string;
-  brand_manufacturer: string;
-  uom: string;
-  purchase_price: number;
-  base_price: number;
-  current_stock: number;
-  reorder_level: number;
-  is_gst_applicable: number;
-  hsn_sac_code: string;
-  tax_rate_percent: number;
-  domain_attributes: string;
-  discount_percent?: number | null;
-  discount_flat?: number | null;
-  offer_price?: number | null;
-  billing_type?: string;
-  grade_id?: string;
-  pricing_mode?: string;
-  sync_status: string;
-  is_service_item?: number;
-  created_at?: string;
-  updated_at?: string;
-  paper_stock?: number;
+export interface Product extends DataProduct {
 }
 
 export interface EnrichedProduct extends Product {

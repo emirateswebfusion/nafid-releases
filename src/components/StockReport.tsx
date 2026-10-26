@@ -58,7 +58,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   }, [gradeMap]);
 
   const categories = useMemo(() =>
-    Array.from(new Set(products.filter(p => p.category).map(p => p.category))).sort(),
+    Array.from(new Set(products.filter(p => p.category).map(p => p.category as string))).sort(),
     [products]
   );
 

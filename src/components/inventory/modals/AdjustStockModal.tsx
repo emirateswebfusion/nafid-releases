@@ -48,7 +48,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
           <div className="shrink-0 text-right bg-muted/40 border border-border rounded-xl px-3 py-1.5">
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Stock</p>
             <p className="text-sm font-black text-foreground">
-              {Number(adjustModal.product.current_stock).toFixed(['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(adjustModal.product.uom) ? 3 : 0)} {adjustModal.product.uom}
+              {Number(adjustModal.product.current_stock).toFixed(['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(adjustModal.product.uom ?? '') ? 3 : 0)} {adjustModal.product.uom}
             </p>
           </div>
         </div>

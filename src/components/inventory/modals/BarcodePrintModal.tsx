@@ -44,9 +44,9 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.02)_10px,rgba(0,0,0,0.02)_20px)]" />
             <div className="relative">
               {labelCodeType === 'qrcode' ? (
-                <QRCodePreview barcode={printModalProduct.sku_barcode} />
+                <QRCodePreview barcode={printModalProduct.sku_barcode as string} />
               ) : (
-                <Barcode value={printModalProduct.sku_barcode} height={50} displayValue={false} margin={0} width={1.8} background="transparent" />
+                <Barcode value={printModalProduct.sku_barcode as string} height={50} displayValue={false} margin={0} width={1.8} background="transparent" />
               )}
               <p className="font-bold text-gray-800 text-lg mt-3 tracking-tight">{printModalProduct.name}</p>
               <p className="font-mono text-sm text-gray-500 tracking-wider mt-0.5">{printModalProduct.sku_barcode}</p>

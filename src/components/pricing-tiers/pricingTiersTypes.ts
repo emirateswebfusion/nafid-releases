@@ -1,4 +1,5 @@
 import { MRP_TIER_ID, type PricingTier } from '../../utils/pricingTierHelper';
+import type { Product as DataProduct } from '../../data/products';
 
 /** Pricing tiers screen: default-tier rule, product row and memoized matrix row props. */
 export const isTierDefault = (t?: PricingTier, allTiers: PricingTier[] = []): boolean => {
@@ -10,13 +11,7 @@ export const isTierDefault = (t?: PricingTier, allTiers: PricingTier[] = []): bo
   return t.is_default === 1 || t.is_default === true || t.is_default === '1' || t.is_default === 'true';
 };
 
-export interface Product {
-  product_id: string;
-  name: string;
-  sku_barcode?: string;
-  category?: string;
-  base_price: number;
-  is_deleted?: number;
+export interface Product extends DataProduct {
 }
 
 export interface MatrixRowProps {

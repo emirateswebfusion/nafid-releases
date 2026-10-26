@@ -508,10 +508,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
 
         return {
-          barcode: p.sku_barcode,
+          barcode: p.sku_barcode as string,
           price: effectiveMrp,
           name: p.name,
-          quantity: Math.max(1, p.current_stock),
+          quantity: Math.max(1, p.current_stock as number),
           sp,
           spType
         };
@@ -522,7 +522,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
       if (printRes.success) {
         const ids = printedBarcodes
-          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
+          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode as string)).map(p => p.product_id)
           : pendingProducts.map(p => p.product_id);
         const updateRes = await productsApi.updatePrintStatus(ids);
         if (updateRes.success) {
@@ -533,7 +533,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       } else {
         const printedIds = printedBarcodes
-          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
+          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode as string)).map(p => p.product_id)
           : [];
         if (printedIds.length > 0) {
           const updateRes = await productsApi.updatePrintStatus(printedIds);

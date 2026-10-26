@@ -158,7 +158,7 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
           tenant_id: tenantId || 'global',
           search: product.name,
           limit: 10
-        }).then((billProds: (Product & { gst_purchase_price: number; paper_mrp: number })[]) => {
+        }).then((billProds) => {
           if (Array.isArray(billProds)) {
             const match = billProds.find(bp => bp.product_id === product.product_id);
             if (match) {

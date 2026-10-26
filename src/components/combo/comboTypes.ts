@@ -1,4 +1,5 @@
 import type * as Rows from '../../data/dbRows';
+import type { Product as DataProduct } from '../../data/products';
 /** Combo offers screen: combo and product rows plus the effective offer price helper. */
 export interface ComboItem {
   combo_item_id?: string;
@@ -7,26 +8,16 @@ export interface ComboItem {
   product_name?: string;
   product_price?: number;
   offer_price?: number;
-  product_stock?: number;
-  sku_barcode?: string;
-  uom?: string;
+  product_stock?: number | null;
+  sku_barcode?: string | null;
+  uom?: string | null;
 }
 
 export interface ComboOffer extends Rows.ComboOffersRow {
   items: ComboItem[];
 }
 
-export interface Product {
-  product_id: string;
-  name: string;
-  sku_barcode: string;
-  item_code: string;
-  base_price: number;
-  offer_price?: number;
-  discount_flat?: number;
-  discount_percent?: number;
-  current_stock: number;
-  uom: string;
+export interface Product extends DataProduct {
 }
 
 export function getEffectiveOfferPrice(prod: Partial<Product> & { product_price?: number }): number {

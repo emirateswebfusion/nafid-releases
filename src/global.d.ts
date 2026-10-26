@@ -6,9 +6,10 @@ import type { Grade } from './data/grades';
 import type { StaffListItem } from './data/staff';
 import type { ComboOfferWithItems } from './data/combos';
 import type { PaymentSource } from './data/paymentSources';
-import type { PurchaseBillItemWithProduct } from './data/purchases';
+import type { PurchaseBillItemWithProduct, PurchaseSearchProduct } from './data/purchases';
 import type { ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
+import type { DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
 import type * as Rows from './data/dbRows';
 export interface SyncProgress {
   percent: number;
@@ -44,9 +45,9 @@ export interface IElectronAPI {
   appGetVersion: () => Promise<string>;
   appInstallUpdate: () => Promise<void>;
   appDownloadUpdate: () => Promise<{ success: boolean; error?: string }>;
-  dbGetProducts: (params: unknown) => Promise<any[]>;
+  dbGetProducts: (params: unknown) => Promise<Product[]>;
   dbGetProductsCount: (params: unknown) => Promise<number>;
-  dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => Promise<any[]>;
+  dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => Promise<Product[]>;
   dbGetProductSuppliers?: (tenant_id: string) => Promise<Record<string, string[]>>;
   dbEnsureServiceItem: (params: { tenant_id: string }) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbAddProduct: (product: unknown) => Promise<{ success: boolean; product_id?: string; error?: string }>;
@@ -58,7 +59,7 @@ export interface IElectronAPI {
   dbBulkImportProducts: (products: unknown[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
   dbResetPrintStatus: (tenantId: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; dateEnd?: string; only_pending?: boolean }) => Promise<any[]>;
+  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; dateEnd?: string; only_pending?: boolean }) => Promise<Product[]>;
   dbCheckout: (payload: Record<string, unknown> & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; invoice_number?: string; error?: string }>;
   dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: unknown) => Promise<any[]>;
@@ -124,12 +125,12 @@ export interface IElectronAPI {
   dbGetDeletedInvoices: (tenantId: string) => Promise<any[]>;
   dbRestoreInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
   dbHardDeleteInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetDeletedProducts: (tenantId: string) => Promise<any[]>;
+  dbGetDeletedProducts: (tenantId: string) => Promise<DeletedProduct[]>;
   dbRestoreProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
   dbHardDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetDeletedCustomers: (tenantId: string) => Promise<Rows.CustomersRow[]>;
+  dbGetDeletedCustomers: (tenantId: string) => Promise<DeletedCustomer[]>;
   dbRestoreCustomer: (args: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
-  dbGetDeletedParties: (tenantId: string) => Promise<Rows.PartiesRow[]>;
+  dbGetDeletedParties: (tenantId: string) => Promise<DeletedParty[]>;
   dbHardDeleteCustomer: (args: { customer_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbHardDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetRecycleBinSummary: (tenantId: string) => Promise<{ invoices: number; invoicesValue: number; products: number; customers: number; parties: number }>;
@@ -287,7 +288,7 @@ export interface IElectronAPI {
   dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<PurchaseBillItemWithProduct[]>;
   dbDeletePurchaseBill: (purchase_bill_id: string) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePurchaseBill: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string; limit?: number; numericPrefixOnly?: boolean }) => Promise<any[]>;
+  dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string; limit?: number; numericPrefixOnly?: boolean }) => Promise<PurchaseSearchProduct[]>;
   dbProductHasEstimateBills: (args: { product_id: string; tenant_id: string }) => Promise<{ success: boolean; hasEstimate?: boolean; error?: string }>;
   dbGenerateBarcode: (args: { tenant_id: string; item_code?: string; strip_suffix?: string }) => Promise<{ success: boolean; barcode?: string; error?: string }>;
 

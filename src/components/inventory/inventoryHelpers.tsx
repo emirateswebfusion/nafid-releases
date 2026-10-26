@@ -1,37 +1,9 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import type { Product as ProductRow } from '../../data/products';
+import type { Product as DataProduct } from '../../data/products';
 
-export interface Product {
-  product_id: string;
-  tenant_id: string;
-  name: string;
-  item_code: string;
-  sku_barcode: string;
-  category: string;
-  brand_manufacturer: string;
-  uom: string;
-  purchase_price: number;
-  base_price: number;
-  current_stock: number;
-  reorder_level: number;
-  is_gst_applicable: number;
-  hsn_sac_code: string;
-  tax_rate_percent: number;
-  domain_attributes: string; // JSON string from SQLite
-  discount_percent?: number | null;
-  discount_flat?: number | null;
-  offer_price?: number | null;
-  billing_type?: string;
-  grade_id?: string;
-  pricing_mode?: string;
-  is_service_item?: number;
-  sync_status: string;
-  created_at?: string;
-  updated_at?: string;
-  paper_stock?: number;
-  gst_purchase_price?: number;
-  paper_mrp?: number;
+export interface Product extends DataProduct {
 }
 
 export const toInventoryProducts = (rows: ProductRow[]): Product[] =>

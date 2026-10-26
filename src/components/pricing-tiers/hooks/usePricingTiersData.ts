@@ -42,7 +42,7 @@ export function usePricingTiersData(ctx: UsePricingTiersDataContext) {
       }
 
       if (Array.isArray(productRes)) {
-        setProducts(productRes.filter((p: { is_deleted?: number }) => !p.is_deleted));
+        setProducts(productRes.filter((p) => !p.is_deleted));
       } else if (productRes && (productRes as { error?: string }).error) {
         setError((productRes as { error?: string }).error || 'Failed to load products');
       }

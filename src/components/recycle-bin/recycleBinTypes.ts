@@ -1,6 +1,6 @@
 import type React from 'react';
 import { Receipt, Package, Users, Handshake } from 'lucide-react';
-import type { CustomersRow, PartiesRow } from '../../data/dbRows';
+export type { DeletedProduct, DeletedCustomer, DeletedParty } from '../../data/recycleBin';
 
 /** Recycle bin screen: categories, deleted row shapes, toast / confirmation state, category config and date helpers. */
 
@@ -25,22 +25,9 @@ export interface DeletedInvoice {
   deleted_at?: string;
 }
 
-export interface DeletedProduct {
-  product_id: string;
-  name: string;
-  barcode: string;
-  category: string;
-  current_stock: number;
-  base_price: number;
-  updated_at: string;
-}
 
-export type DeletedCustomer = Pick<CustomersRow, 'customer_id' | 'name' | 'phone' | 'current_points_balance' | 'updated_at'> & {
-  /** Not a customers column; kept for older rows/screens that set it. */
-  email?: string | null;
-};
 
-export type DeletedParty = Pick<PartiesRow, 'party_id' | 'name' | 'phone' | 'address' | 'balance' | 'balance_type' | 'party_type' | 'updated_at'>;
+
 
 export interface Toast {
   id: string;

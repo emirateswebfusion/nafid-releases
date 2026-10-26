@@ -405,7 +405,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       // Only for NEW products; editing an existing product must keep its own barcode.
       if (!editingProductItemId && isDesktopRuntime() && tenantId && !newProductBarcode) {
         productsApi.getProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' })
-          .then((lastProduct: Array<{ sku_barcode?: string }>) => {
+          .then((lastProduct) => {
             if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
               const lastBarcode = lastProduct[0].sku_barcode;
               const match = lastBarcode.match(/(\d+)[^\d]*$/);

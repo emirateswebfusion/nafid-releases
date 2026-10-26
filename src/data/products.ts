@@ -1,37 +1,16 @@
 import { api, type WriteResult, bindBridge } from './client';
+import type { ProductsRow } from './dbRows';
 
-export interface Product {
-  product_id: string;
-  tenant_id: string;
-  name: string;
-  sku_barcode?: string | null;
-  item_code?: string | null;
-  category?: string | null;
-  hsn_sac_code?: string | null;
-  purchase_price?: number | null;
-  base_price: number;
-  is_gst_applicable?: number | null;
-  tax_rate_percent?: number | null;
-  uom?: string | null;
-  brand_manufacturer?: string | null;
-  current_stock?: number | null;
-  reorder_level?: number | null;
-  domain_attributes?: string | null;
-  discount_percent?: number | null;
-  discount_flat?: number | null;
-  offer_price?: number | null;
-  is_deleted?: number | null;
-  billing_type?: string | null;
-  grade_id?: string | null;
-  pricing_mode?: string | null;
-  average_weight_per_piece?: number | null;
-  weight_override_allowed?: number | null;
-  is_service_item?: number | null;
-  sync_status?: string | null;
-  print_status?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
+/** A product as the product queries return it: the stored row plus what the list queries join (grade rate and
+ * name, paper stock and the latest purchase price/MRP) and, for tier screens, its tier prices. */
+export interface Product extends ProductsRow {
+  grade_rate?: number | null;
+  grade_purchase_price?: number | null;
   grade_name?: string | null;
+  grade_category?: string | null;
+  paper_stock?: number | null;
+  gst_purchase_price?: number | null;
+  paper_mrp?: number | null;
   pricing?: ProductTierPrice[];
 }
 
@@ -107,11 +86,15 @@ export interface CreateProductResult extends WriteResult {
   product_id?: string;
 }
 
-export async function createProduct(product: Partial<Product>): Promise<CreateProductResult> {
+/** What the product form sends to `db:addProduct` / `db:updateProduct`: product columns (form strings included) plus
+ * form-only fields; productsService coerces and validates every value. */
+export type ProductWritePayload = { [K in keyof Product]?: unknown } & Record<string, unknown>;
+
+export async function createProduct(product: ProductWritePayload): Promise<CreateProductResult> {
   return api().dbAddProduct(product);
 }
 
-export async function updateProduct(product: Partial<Product> & { product_id: string }): Promise<WriteResult> {
+export async function updateProduct(product: ProductWritePayload & { product_id: string }): Promise<WriteResult> {
   return api().dbUpdateProduct(product);
 }
 

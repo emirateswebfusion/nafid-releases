@@ -153,7 +153,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                   {date}
                 </div>
                 {(items as Product[]).map(p => {
-                  const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
+                  const isLowStock = (p.current_stock ?? 0) <= (p.reorder_level ?? 0) && (p.reorder_level ?? 0) > 0;
                   
                   let finalPrice: number | null = null;
                   const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
@@ -179,7 +179,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                   const totalPcs = da.pcs_stock !== undefined
                     ? (Number(da.pcs_stock) || 0)
                     : (pcsPerKg > 0 ? Math.round(Number(p.current_stock) * pcsPerKg) : (Number(da.pcs) || 0));
-                  const isWeightUom = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom);
+                  const isWeightUom = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom ?? '');
                   const formattedStock = isWeightUom 
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
@@ -269,21 +269,21 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                       {/* Real Stock with +/- */}
                       <div className="col-span-2 flex items-center justify-center gap-1">
                         <button 
-                          onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom)) openAdjustDialog(p, 'reduce'); else applyStockAdjust(p, -1); }} 
+                          onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom ?? '')) openAdjustDialog(p, 'reduce'); else applyStockAdjust(p, -1); }} 
                           disabled={adjustingStockId === p.product_id}
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-destructive transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
                           title="Reduce Real Stock"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[62px]', isLowStock ? 'text-amber-500' : p.current_stock <= 0 ? 'text-red-500' : 'text-foreground')}>
+                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[62px]', isLowStock ? 'text-amber-500' : (p.current_stock ?? 0) <= 0 ? 'text-red-500' : 'text-foreground')}>
                           {adjustingStockId === p.product_id ? (
                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                           ) : (
                              <>
                                <span>{formattedStock}</span>
                                {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
-                               {p.current_stock <= 0 ? (
+                               {(p.current_stock ?? 0) <= 0 ? (
                                  <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-bold mt-0.5">
                                    <AlertCircle className="w-2.5 h-2.5" /> Out of Stock
                                  </span>
@@ -296,7 +296,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                           )}
                         </span>
                         <button 
-                          onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom)) openAdjustDialog(p, 'add'); else applyStockAdjust(p, 1); }} 
+                          onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom ?? '')) openAdjustDialog(p, 'add'); else applyStockAdjust(p, 1); }} 
                           disabled={adjustingStockId === p.product_id}
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-emerald-500 transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
                           title="Add Real Stock"
@@ -360,10 +360,10 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
           )}
           
           {/* Low Stock summary bar */}
-          {showLowStockAlert && products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
+          {showLowStockAlert && products.some(p => (p.current_stock ?? 0) <= (p.reorder_level ?? 0) && (p.reorder_level ?? 0) > 0) && (
             <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-4 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span className="flex-1">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) at or below Low Stock Alert</span>
+              <span className="flex-1">{products.filter(p => (p.current_stock ?? 0) <= (p.reorder_level ?? 0) && (p.reorder_level ?? 0) > 0).length} item(s) at or below Low Stock Alert</span>
               {stockFilter !== 'low_stock' && (
                 <button
                   onClick={() => setStockFilter('low_stock')}

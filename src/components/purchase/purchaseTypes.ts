@@ -1,5 +1,6 @@
 import type * as Rows from '../../data/dbRows';
 import type { PurchaseBillItemWithProduct } from '../../data/purchases';
+import type { Product as DataProduct } from '../../data/products';
 /** Purchase bill, bill item and product row shapes used by the purchase bill screen, and the form section handle. */
 export interface PurchaseBill extends Rows.PurchaseBillsRow {
   supplier_phone?: string;
@@ -7,30 +8,8 @@ export interface PurchaseBill extends Rows.PurchaseBillsRow {
 
 export interface PurchaseBillItem extends PurchaseBillItemWithProduct {}
 
-export interface Product {
-  product_id: string;
-  name: string;
-  sku_barcode: string;
-  item_code: string;
-  purchase_price: number;
-  base_price: number;
-  current_stock: number;
+export interface Product extends DataProduct {
   gst_purchase_quantity: number;
-  gst_purchase_price: number;
-  grade_id?: string;
-  pricing_mode?: string;
-  grade_rate?: number;
-  grade_purchase_price?: number;
-  is_gst_applicable?: number | null;
-  tax_rate_percent?: number;
-  hsn_sac_code?: string;
-  offer_price?: number | null;
-  brand_manufacturer?: string;
-  category?: string;
-  uom?: string;
-  reorder_level?: number;
-  is_service_item?: number;
-  domain_attributes?: unknown;
 }
 
 export interface PurchaseBillFormHandle {
