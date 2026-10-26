@@ -1,3 +1,4 @@
+import { outboxEnabled, runOutboxSync } from './outboxSync.js';
 import { type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
 import { pollEmergencyCommands } from './emergencyCommands.js';
@@ -251,6 +252,13 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       if (activeRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) {
         console.warn('[SyncWorker] JWT token has expired on Cloud route. Clearing auth...');
         await clearAuthAndNotify();
+        return;
+      }
+      if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {
+        try {
+          if (await runOutboxSync(jwt_token, tenant_id, sender)) notifyRenderer('outbox-sync');
+          await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then(r => r.response), () => { syncState.isSyncActive = false; });
+        } finally { notifyCycleComplete(sender); }
         return;
       }
       let dataUpdated = false;

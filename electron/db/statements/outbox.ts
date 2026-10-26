@@ -12,6 +12,7 @@ interface ParentTenantSource {
 }
 
 export interface SyncOutboxRow {
+  queue_id?: number;
   op_id: string;
   tenant_id: string;
   entity: string;
@@ -203,7 +204,10 @@ export function countPendingOps(db: Db): number {
   return row.count;
 }
 
-export function listPendingOps(db: Db, limit: number): SyncOutboxRow[] {
+export function listPendingOps(db: Db, limit: number, scope?: { tenant: string; after: number; through: number }): SyncOutboxRow[] {
+  if (scope) return db.prepare(`SELECT rowid AS queue_id, * FROM sync_outbox
+    WHERE tenant_id = ? AND sent_at IS NULL AND attempts < 10 AND rowid > ? AND rowid <= ?
+    ORDER BY rowid LIMIT ?`).all(scope.tenant, scope.after, scope.through, Math.min(200, Math.max(0, Math.trunc(limit)))) as SyncOutboxRow[];
   const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 0;
   return db.prepare(`SELECT op_id, tenant_id, entity, entity_id, op, row_version, payload, origin, created_at, attempts, last_error, sent_at
     FROM sync_outbox WHERE sent_at IS NULL ORDER BY created_at, op_id LIMIT ?`).all(safeLimit) as SyncOutboxRow[];

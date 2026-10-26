@@ -20,6 +20,7 @@ export const LOCAL_DEVICE_SETTING_KEYS = [
   'scale_config',
   'printer_config',
   'network_sync_config',
+  'sync_engine',
   'auto_print_barcode',
   'print_format',
   'label_code_type',

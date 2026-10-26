@@ -1,4 +1,5 @@
 import React from 'react';
+import { SyncEngineToggle } from './SyncEngineToggle';
 import { Cloud, Wifi, CheckCircle2, Globe, HelpCircle, RefreshCw, BookOpen, ChevronRight, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
@@ -190,6 +191,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
 
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
+            <SyncEngineToggle />
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-border">
                 <div className="flex items-center gap-3">

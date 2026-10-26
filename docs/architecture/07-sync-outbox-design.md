@@ -1,6 +1,6 @@
 # 7. Sync outbox design (proposal)
 
-Status: **rollout steps 1 and 2 implemented**. Today's sync is pinned by `tests/characterization/sync-run.mts` (cloud
+Status: **rollout steps 1–4 implemented; outbox engine defaults OFF**. Today's sync is pinned by `tests/characterization/sync-run.mts` (cloud
 push / pull, login and no-login) and `lan-run.mts` (LAN primary / secondary); any change below must keep those green or
 update their goldens in a reviewed diff. File references are to `nafid-pos` unless prefixed with `server:` (`nafid-server`).
 
@@ -120,8 +120,21 @@ CREATE INDEX idx_sync_outbox_pending ON sync_outbox(tenant_id, sent_at, created_
    remain characterization gates.
 3. **Server accepts ops** (`POST /api/sync/ops`) with the version rule and idempotency table; old per-entity endpoints
    stay for older terminals.
-4. **Switch the pusher** to the outbox and the puller to `server_seq`; `sync-run.mts` golden updated in a reviewed diff
-   (request shape changes), `lan-run.mts` updated for relayed ops.
+4. **Done (opt-in):** Settings → Network & Connectivity → **Sync engine (beta)** (owner/admin only)
+   sets the device-local `sync_engine` to `outbox`; absent or `legacy` keeps today's behavior. Switch the toggle off
+   to return to legacy. LAN and HYBRID PRIMARY/SECONDARY terminals always use legacy, including cloud fallback.
+   `outboxSync.ts` pushes at most 200 ops per batch; each cycle snapshots the queue boundary and attempts an op once.
+   Applied/duplicate ops get `sent_at`; conflicts retain `last_error = 'conflict'` and `sent_at`, with the full server
+   row applied under the guard. Other result statuses retry next cycle; after 10 attempts they remain for review,
+   stop sending and appear as a count in sync progress. Concurrent edits keep their PENDING badge.
+   Pull uses `/api/sync/changes`, atomically applies each page and advances `sync_meta.server_seq_cursor` (with a
+   tenant marker to reset it on account changes). Rows with unsent local ops are skipped. Boolean tombstones become
+   local soft deletes; outgoing DELETE ops are unchanged. Device settings and the legacy wipe-command key never
+   leave the terminal through this engine. Urgent/fast sync uses the same serialized cycle.
+   `outbox-run.mts` covers the new contract; legacy sync/IPC harnesses remain unchanged.
+   Not covered: LAN op relay, version guards on old endpoints, server hard-delete tombstones, or the domain-specific
+   side effects of old handlers. Old sync UPDATE/upsert paths now advance `server_seq`, but still lack version guards.
+   Generic ops apply rows only: test with a real shop before rollout; keep older terminals in mind.
 5. Remove `PENDING` scanning and the timestamp fallback (#3) once all terminals run step 4.
 
 Tests that must stay green at every step: `tests/characterization/sync-run.mts` (login and `EQ_NO_LOGIN`),

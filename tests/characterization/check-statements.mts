@@ -21,6 +21,9 @@ const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE ten
   tableRowsQuery: ['invoices', ['updated_at', 'created_at'], '2026-01-01 00:00:00', 10, 0],
   upsertRows: ['settings', ['tenant_id', 'key', 'value'], ['tenant_id', 'key'], ['value']], countPendingRows: [['products', 'invoices']],
   updateCustomerProfile: [['gstin', 'notes', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry']],
+  applyRow: ['products', { product_id: 'statement-check', tenant_id: 't1', name: 'Check', base_price: 0, purchase_price: 0, is_gst_applicable: 0, tax_rate_percent: 0, uom: 'Pcs' }, 't1'],
+  pendingIdentity: ['products', { product_id: 'statement-check' }, 't1'],
+  markLegacySynced: [{ entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
   withSyncApplyGuard: [() => undefined], buildOutboxTriggerStatements: [['products']], listPendingOps: [10],
   updatePartyProfile: [['pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'party_type', 'custom_category', 'whatsapp_alerts_enabled']] };
 let ok = 0; const bad: string[] = [];

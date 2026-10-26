@@ -152,3 +152,25 @@ EQ_USERDATA=/tmp/eq/idem npx tsx $H/startup-idempotency.mts cand     # "startup 
 ```
 
 Extend `scenario.mts` when you add a channel with a non-trivial payload.
+
+## Outbox characterization (`outbox-run.mts`)
+
+Uses the same IPC seed as `sync-run.mts`, explicitly selects CLOUD mode and the device-local `sync_engine = outbox`.
+The fake cloud acknowledges applied/duplicate ops, returns one conflict with the server row, and provides two sequence
+pages including a soft delete. Asserts tenant outbox drained, retained conflict, server copy, pulled row/delete,
+cursor 102, and no push on the second cycle. An extra phase checks two bounded batches, outgoing DELETE,
+pending local edits, and three terminal error statuses stopping at ten attempts. Runs under the Electron stub; never launches Electron.
+
+Windows workdir for step 4: `C:/nafid-wt2/outbox4/eq`; use its existing tools (do not install dependencies).
+Copy `electron` and `src` under `eq/cand`; archive HEAD into `eq/base` for comparisons.
+
+```powershell
+$env:NODE_PATH='C:/nafid-wt2/outbox4/eq/node_modules;C:/EMIRATES WEBFUSION WORKS/nafid/nafid-pos/node_modules'
+$env:EQ_USERDATA='C:/nafid-wt2/outbox4/eq/outbox-fresh'
+.\node_modules\.bin\tsx.cmd ..\nafid-pos\tests\characterization\outbox-run.mts cand outbox.json
+```
+
+Legacy goldens currently predate one extra LOCAL settings row in HEAD. Compare baseline and candidate back-to-back
+when checking that drift; do not update legacy goldens for the opt-in engine. IPC results include random `origin`
+values since migration 003: normalize these values in temporary comparison outputs (leave harness/goldens unchanged).
+The statement checker supplies representative inputs for the new column-filtered helpers.

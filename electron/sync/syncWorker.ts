@@ -1,3 +1,4 @@
+import { outboxEnabled } from './outboxSync.js';
 import { BrowserWindow, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
 import { startLocalHostServer } from './localHostServer.js';
@@ -88,6 +89,7 @@ async function triggerFastLightweightBillPull() {
   if (config && (!cloudTokenUnusable(config.jwt_token) || endpoints.primaryRoute === 'LAN')) {
     syncState.fastInvoicePullInProgress = true;
     try {
+      if (outboxEnabled(config.tenant_id)) { await runSyncCycle(); return; }
       const res = await pullLightweightPendingBills(config.jwt_token, config.tenant_id);
       if (res.success) {
         syncState.consecutiveFastPullFailures = 0;
@@ -259,6 +261,7 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
+  if (outboxEnabled(tenant_id)) { await runSyncCycle(); return; }
   const endpoints = getSyncEndpoints();
   if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
@@ -292,6 +295,7 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
+  if (outboxEnabled(tenant_id)) { await runSyncCycle(); return; }
   const endpoints = getSyncEndpoints();
   if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
@@ -321,6 +325,7 @@ export async function triggerUrgentWarrantySync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
+  if (outboxEnabled(tenant_id)) { await runSyncCycle(); return; }
   const endpoints = getSyncEndpoints();
   if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
@@ -353,6 +358,7 @@ export async function triggerUrgentCashSync(): Promise<void> {
   const config = getAuthConfig();
   if (!config) return;
   const { jwt_token, tenant_id } = config;
+  if (outboxEnabled(tenant_id)) { await runSyncCycle(); return; }
   const endpoints = getSyncEndpoints();
   if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
