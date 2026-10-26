@@ -37,10 +37,12 @@ export function pendingIdentity(db: Db, entity: string, row: Row, tenant: string
 }
 /** Postgres timestamps arrive as `…T…+hh:mm`; stored like the legacy pull (`toSqliteDate`): UTC `toISOString()`, so
  * string comparisons and `substr(created_at, 1, 10)` keep working. */
-const PG_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}(:?\d{2})?)$/;
+const PG_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}(:?\d{2})?)?$/;
+/** `timestamp` columns (no zone) hold UTC on the server, as the legacy pull assumes. */
+const asUtc = (v: string) => (/(Z|[+-]\d{2}(:?\d{2})?)$/.test(v) ? v : `${v}Z`);
 const bind = (v: unknown): string | number | null => v == null ? null : typeof v === 'boolean' ? Number(v)
   : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'number' ? v
-  : typeof v === 'string' && PG_TIMESTAMP.test(v) ? new Date(v).toISOString() : String(v);
+  : typeof v === 'string' && PG_TIMESTAMP.test(v) ? new Date(asUtc(v)).toISOString() : String(v);
 /** Column-filtered UPDATE/INSERT preserves omitted local columns and SQLite defaults. */
 export function applyRow(db: Db, entity: string, row: Row, tenant: string): void {
   const { columns, keys } = metadata(db, entity);
