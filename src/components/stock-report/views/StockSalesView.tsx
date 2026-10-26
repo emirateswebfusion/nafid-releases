@@ -83,7 +83,7 @@ export function StockSalesView({ sr, salesTotals, filteredSalesSummary }: StockS
             </div>
             <select
               value={salesFilter}
-              onChange={e => setSalesFilter(e.target.value as any)}
+              onChange={e => setSalesFilter(e.target.value as typeof salesFilter)}
               className="bg-background border border-border rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
             >
               <option value="all">All Products</option>
