@@ -78,6 +78,26 @@ export interface InvoiceItem {
   created_at?: string | null;
 }
 
+/** An invoice line with the product columns joined by `findInvoiceItemsByInvoiceId` (held-bill recall, edit). */
+export interface InvoiceItemWithProduct extends InvoiceItem {
+  sku_barcode?: string | null;
+  brand_manufacturer?: string | null;
+  grade_id?: string | null;
+  pricing_mode?: string | null;
+  grade_rate?: number | null;
+  grade_purchase_price?: number | null;
+  discount_percent?: number | null;
+  discount_flat?: number | null;
+  offer_price?: number | null;
+  purchase_price?: number | null;
+  base_price?: number | null;
+  /** products.tax_rate_percent, selected as gst_percent. */
+  gst_percent?: number | null;
+  /** Not selected by the query; read as a fallback by older code. */
+  tax_rate_percent?: number | null;
+  hsn?: string | null;
+}
+
 export interface InvoiceFilters {
   /** Optional: the main process falls back to the active session tenant. */
   tenant_id?: string;

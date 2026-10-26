@@ -14,9 +14,9 @@ export interface CartItem {
   billing_type?: string;
   uom?: string;
   pieces_per_kg?: number;
-  grade_id?: string;
+  grade_id?: string | null;
   pricing_mode?: string;
-  grade_rate?: number;
+  grade_rate?: number | null;
   discount_percent?: number | null;
   discount_flat?: number | null;
   offer_price?: number | null;

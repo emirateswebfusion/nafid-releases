@@ -1,11 +1,11 @@
 import { api, bindBridge } from './client';
+import type { PricingTiersRow } from './dbRows';
 
-export interface PricingTier {
-  pricing_tier_id: string;
-  tenant_id?: string;
-  name: string;
-  is_active?: number | boolean | string | null;
-  is_deleted?: number | null;
+/** A pricing tier as stored (`pricing_tiers`). Flag columns may hold booleans / strings written by older terminals. */
+export interface PricingTier extends Omit<PricingTiersRow, 'is_active' | 'is_default' | 'is_deleted'> {
+  is_active: number | boolean | string | null;
+  is_default: number | boolean | string | null;
+  is_deleted: number | boolean | null;
 }
 
 export async function listPricingTiers(tenantId: string): Promise<PricingTier[]> {

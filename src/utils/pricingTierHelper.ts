@@ -1,11 +1,12 @@
+/** A pricing tier (or the synthetic MRP entry, `is_mrp`) as the billing screens list them. */
 export interface PricingTier {
   pricing_tier_id: string;
-  tenant_id?: string;
+  tenant_id?: string | null;
   name: string;
-  is_active: number | boolean;
-  sort_order: number;
-  is_deleted?: number | boolean;
-  is_default?: number | boolean | string;
+  is_active: number | boolean | string | null;
+  sort_order: number | null;
+  is_deleted?: number | boolean | null;
+  is_default?: number | boolean | string | null;
   is_mrp?: boolean;
 }
 

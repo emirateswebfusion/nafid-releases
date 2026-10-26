@@ -9,13 +9,14 @@ import type { Dispatch, SetStateAction, MutableRefObject, KeyboardEvent, Compone
 
 export type { CartItem, ProductPricingRow, UpiPageConfig, PaymentMethod, Tab, Party };
 export type Tier = PricingTier;
+/** A configured payment source offered for UPI payments (a `payment_sources` row or a subset of it). */
 export interface UpiSource {
   source_id: string;
   name: string;
-  upi_id?: string;
+  upi_id?: string | null;
   type?: string;
-  is_default?: number | boolean;
-  is_enabled?: number | boolean;
+  is_default?: number | boolean | null;
+  is_enabled?: number | boolean | null;
 }
 export type SelectedUpi = Pick<UpiSource, 'upi_id' | 'name' | 'source_id'> | null | undefined;
 export type BillingSplitDetails = SplitDetails & {

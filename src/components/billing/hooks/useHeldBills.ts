@@ -11,7 +11,7 @@ export interface UseHeldBillsContext {
   addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number; }) => void;
   balanceAmount: number;
   clearCart: () => void;
-  currentSelectedUpi: { upi_id?: string; name?: string; source_id?: string } | null | undefined;
+  currentSelectedUpi: B.SelectedUpi;
   customerAddress: string;
   customerGstin: string;
   customerName: string;
@@ -210,9 +210,9 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
 
       // Restore discount
       const effDiscValue = Number(result.invoice?.discount_value) > 0 
-        ? Number(result.invoice.discount_value) 
-        : (Number(result.invoice?.discount_total) > 0 ? Number(result.invoice.discount_total) : 0);
-      const effDiscType = result.invoice?.discount_type || 'FIXED';
+        ? Number(result.invoice?.discount_value) 
+        : (Number(result.invoice?.discount_total) > 0 ? Number(result.invoice?.discount_total) : 0);
+      const effDiscType = (result.invoice?.discount_type || 'FIXED') as 'FIXED' | 'PERCENTAGE';
       if (effDiscValue > 0) {
         setDiscount(effDiscValue, effDiscType);
       }
@@ -277,7 +277,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
         while (typeof curr === 'string') {
           try { curr = JSON.parse(curr); } catch { break; }
         }
-        if (curr && typeof curr === 'object') recalledSplitDetails = curr;
+        if (curr && typeof curr === 'object') recalledSplitDetails = curr as B.BillingSplitDetails;
       }
 
       // Restore customer info & split payment details
@@ -286,7 +286,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
         customerPhone: result.invoice?.customer_phone || '',
         customerGstin: result.invoice?.customer_gstin || '',
         customerAddress: result.invoice?.customer_address || '',
-        paymentMethod: (!isCashSettlementEnabled && (!result.invoice?.payment_method || result.invoice?.payment_method === 'PENDING')) ? 'CASH' : (result.invoice?.payment_method || (isCashSettlementEnabled ? 'PENDING' : 'CASH')),
+        paymentMethod: ((!isCashSettlementEnabled && (!result.invoice?.payment_method || result.invoice?.payment_method === 'PENDING')) ? 'CASH' : (result.invoice?.payment_method || (isCashSettlementEnabled ? 'PENDING' : 'CASH'))) as B.PaymentMethod,
         receivedAmount: Number(result.invoice?.received_amount) || 0,
         splitDetails: recalledSplitDetails || undefined,
         selectedUpiId: recalledSplitDetails?.upi_id,
