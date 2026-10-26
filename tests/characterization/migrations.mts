@@ -117,6 +117,16 @@ check('second run applies nothing', again.applied.length, 0);
 check('second run stays at the latest version', again.current, latest);
 check('second run leaves migration records unchanged', recorded(), versionsBeforeSecondRun);
 
+// 004: returns of discounted invoices are re-pushed once; other returns and already pending ones are untouched.
+{
+  const { m004ResyncRecalibratedReturns } = await load('electron/db/migrations/004-resync-recalibrated-returns.ts');
+  db.prepare("INSERT INTO invoices (invoice_id, tenant_id, invoice_number, subtotal, tax_total, grand_total, discount_total) VALUES ('m4-disc', 't', 'M4-1', 100, 0, 90, 10), ('m4-plain', 't', 'M4-2', 100, 0, 100, 0)").run();
+  db.prepare("INSERT INTO returns (return_id, invoice_id, tenant_id, return_number, subtotal, grand_total, sync_status) VALUES ('r-disc', 'm4-disc', 't', 'R1', 45, 45, 'SYNCED'), ('r-plain', 'm4-plain', 't', 'R2', 50, 50, 'SYNCED')").run();
+  m004ResyncRecalibratedReturns.up(db);
+  const st = (id: string) => (db.prepare('SELECT sync_status FROM returns WHERE return_id = ?').get(id) as { sync_status: string }).sync_status;
+  check('004 re-pushes returns of discounted invoices', [st('r-disc'), st('r-plain')], ['PENDING', 'SYNCED']);
+}
+
 let ran = 0;
 const extra = [
   ...MIGRATIONS,
