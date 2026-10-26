@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
+import { hasBridge } from '../data/client';
+import { staffApi } from '../data/staff';
 
 interface BillerPinModalProps {
   isOpen: boolean;
   tenantId: string;
   onClose: () => void;
-  onVerified: (staff: { staff_id: string; staff_code: string; name: string; role_designation?: string }) => void;
+  onVerified: (staff: { staff_id: string; staff_code: string; name: string; role_designation?: string | null }) => void;
 }
 
 export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: BillerPinModalProps) {
@@ -19,15 +21,15 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const inputRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
+  const inputRef0 = useRef<HTMLInputElement>(null);
+  const inputRef1 = useRef<HTMLInputElement>(null);
+  const inputRef2 = useRef<HTMLInputElement>(null);
+  const inputRef3 = useRef<HTMLInputElement>(null);
+  const inputRefs = useMemo(() => [inputRef0, inputRef1, inputRef2, inputRef3], [inputRef0, inputRef1, inputRef2, inputRef3]);
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isOpen resets the PIN and modal flags when the dialog opens, preventing stale credentials from reappearing.
       setPinDigits(['', '', '', '']);
       setError('');
       setLoading(false);
@@ -36,7 +38,7 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
         inputRefs[0].current?.focus();
       }, 100);
     }
-  }, [isOpen]);
+  }, [isOpen, inputRefs]);
 
   const verifyPin = async (fullPin: string) => {
     if (fullPin.length !== 4) return;
@@ -44,12 +46,13 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
     setError('');
 
     try {
-      if (window.electronAPI?.dbVerifyBillerPin) {
-        const res = await window.electronAPI.dbVerifyBillerPin({ tenant_id: tenantId, pin: fullPin });
-        if (res.success && res.staff) {
+      if (hasBridge('dbVerifyBillerPin')) {
+        const res = await staffApi.verifyBillerPin({ tenant_id: tenantId, pin: fullPin });
+        const staff = res.staff;
+        if (res.success && staff) {
           setSuccess(true);
           setTimeout(() => {
-            onVerified(res.staff);
+            onVerified(staff);
           }, 300);
         } else {
           setError(res.error || 'Invalid Biller PIN');
@@ -60,8 +63,8 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
         // Fallback or web API call if electronAPI not present
         setError('Biller PIN verification is only supported on POS desktop app');
       }
-    } catch (err: any) {
-      setError(err.message || 'Verification error');
+    } catch (err) {
+      setError((err as Error).message || 'Verification error');
       setPinDigits(['', '', '', '']);
       setTimeout(() => inputRefs[0].current?.focus(), 100);
     } finally {

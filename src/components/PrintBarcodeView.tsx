@@ -3,6 +3,10 @@ import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { useAuthStore } from '../store/authStore';
+import { authApi } from '../data/auth';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { printingApi } from '../data/printing';
+import { settingsApi } from '../data/settings';
 
 const PX_PER_MM = 96 / 25.4;
 
@@ -42,9 +46,9 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     const load = async () => {
       let name = authShopName || null;
       let tid = useAuthStore.getState().tenantId;
-      if (window.electronAPI && window.electronAPI.authGetToken) {
+      if (isDesktopRuntime() && hasBridge('authGetToken')) {
         try {
-          const stored = await window.electronAPI.authGetToken();
+          const stored = await authApi.getToken();
           if (stored) {
             if (stored.shop_name) name = stored.shop_name;
             if (stored.tenant_id) tid = stored.tenant_id;
@@ -58,11 +62,11 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
         setShopNameReady(true);
       }
 
-      if (window.electronAPI && window.electronAPI.settingsGet) {
+      if (isDesktopRuntime() && hasBridge('settingsGet')) {
         try {
-          let v = await window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'label_show_shop_name' });
+          let v = await settingsApi.get({ tenant_id: tid || 'global', key: 'label_show_shop_name' });
           if ((v === null || v === undefined) && tid && tid !== 'global') {
-            v = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'label_show_shop_name' });
+            v = await settingsApi.get({ tenant_id: 'global', key: 'label_show_shop_name' });
           }
           if (v !== null && v !== undefined) {
             setShowShopName(Boolean(v));
@@ -96,8 +100,8 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
   useEffect(() => {
     if (!readyToPrint) return;
     const timer = setTimeout(() => {
-      if (window.electronAPI && window.electronAPI.printReady) {
-        window.electronAPI.printReady();
+      if (isDesktopRuntime() && hasBridge('printReady')) {
+        printingApi.printReady();
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -105,8 +109,8 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (window.electronAPI && window.electronAPI.printReady) {
-        window.electronAPI.printReady();
+      if (isDesktopRuntime() && hasBridge('printReady')) {
+        printingApi.printReady();
       }
     }, 3000);
     return () => clearTimeout(timer);

@@ -22,7 +22,7 @@ function allWordsMatch(text: string, words: string[]): boolean {
   });
 }
 
-export function sortProductsBySearchPriority<T extends { sku_barcode?: string; item_code?: string; name?: string; brand_manufacturer?: string }>(products: T[], searchQuery: string): T[] {
+export function sortProductsBySearchPriority<T extends { sku_barcode?: string | null; item_code?: string | null; name?: string | null; brand_manufacturer?: string | null }>(products: T[], searchQuery: string): T[] {
   if (!searchQuery || !searchQuery.trim()) return products;
   const q = searchQuery.trim().toLowerCase();
   const qNoSpace = q.replace(/\s+/g, '');

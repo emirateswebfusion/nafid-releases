@@ -1,3 +1,5 @@
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 export interface UpiPageConfig {
   billing: boolean;
   settlement: boolean;
@@ -16,8 +18,8 @@ export const DEFAULT_UPI_PAGE_CONFIG: UpiPageConfig = {
 
 export async function getUpiPageConfig(tenantId?: string): Promise<UpiPageConfig> {
   try {
-    if (window.electronAPI?.settingsGet) {
-      const cfg = await window.electronAPI.settingsGet({
+    if (hasBridge('settingsGet')) {
+      const cfg = await settingsApi.get({
         tenant_id: tenantId || 'global',
         key: 'upi_page_config',
       });
@@ -39,8 +41,8 @@ export async function getUpiPageConfig(tenantId?: string): Promise<UpiPageConfig
 
 export async function saveUpiPageConfig(tenantId: string | undefined, config: UpiPageConfig): Promise<boolean> {
   try {
-    if (window.electronAPI?.settingsSet) {
-      const res = await window.electronAPI.settingsSet({
+    if (hasBridge('settingsSet')) {
+      const res = await settingsApi.set({
         tenant_id: tenantId || 'global',
         key: 'upi_page_config',
         value: config,

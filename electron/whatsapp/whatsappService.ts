@@ -1,21 +1,22 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { setSharedA4Html } from './sharedPrintHtml.js';
 import path from 'path';
 import fs from 'fs';
 import QRCode from 'qrcode';
 import pino from 'pino';
 
 // Dynamic import holder for Baileys ESM
-let baileysModule: any = null;
+let baileysModule: typeof import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }) | null = null;
 
 async function getBaileys() {
   if (!baileysModule) {
-    baileysModule = await (eval('import("@whiskeysockets/baileys")') as Promise<any>);
+    baileysModule = await (eval('import("@whiskeysockets/baileys")') as Promise<typeof import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } })>);
   }
   return baileysModule;
 }
 
 // WhatsApp session and state variables
-let sock: any = null;
+let sock: import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).WASocket | null = null;
 let currentQrBase64: string | null = null;
 let connectionStatus: 'disconnected' | 'connecting' | 'syncing' | 'connected' = 'disconnected';
 let connectedPhone: string | null = null;
@@ -23,7 +24,6 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 // Track if we've shown QR code and are waiting for scan
-let qrShown = false;
 
 // Helper to notify all renderer windows about WhatsApp state changes
 function broadcastWhatsAppState() {
@@ -59,13 +59,13 @@ function formatToWhatsAppJid(phone: string): string {
 }
 
 // Initialize Baileys WhatsApp Connection
-export async function startWhatsAppConnection(): Promise<void> {
+async function startWhatsAppConnection(): Promise<void> {
   try {
     const baileys = await getBaileys();
-    const { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
+    const { makeWASocket, DisconnectReason, useMultiFileAuthState: loadMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
 
     const sessionDir = getWhatsAppSessionDir();
-    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    const { state, saveCreds } = await loadMultiFileAuthState(sessionDir);
     const { version } = await fetchLatestBaileysVersion();
 
     connectionStatus = 'connecting';
@@ -84,14 +84,13 @@ export async function startWhatsAppConnection(): Promise<void> {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', async (update: any) => {
+    sock.ev.on('connection.update', async (update: Partial<import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).ConnectionState>) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
         try {
           currentQrBase64 = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
           connectionStatus = 'connecting';
-          qrShown = true;
           broadcastWhatsAppState();
         } catch (err) {
           console.error('[WhatsApp] QR generate error:', err);
@@ -99,14 +98,13 @@ export async function startWhatsAppConnection(): Promise<void> {
       }
 
       if (connection === 'close') {
-        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         console.log(`[WhatsApp] Connection closed. Reason code: ${statusCode}, Reconnecting: ${shouldReconnect}`);
 
         currentQrBase64 = null;
         connectionStatus = 'disconnected';
         connectedPhone = null;
-        qrShown = false;
         sock = null;
         broadcastWhatsAppState();
 
@@ -129,7 +127,6 @@ export async function startWhatsAppConnection(): Promise<void> {
         console.log('[WhatsApp] Connection established successfully! QR scanned, waiting for session sync...');
         reconnectAttempts = 0;
         currentQrBase64 = null;
-        qrShown = false;
 
         // Transition to syncing state - QR scanned, now waiting for session to fully stabilize
         connectionStatus = 'syncing';
@@ -153,13 +150,12 @@ export async function startWhatsAppConnection(): Promise<void> {
     console.error('[WhatsApp] startWhatsAppConnection error:', error);
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
-    qrShown = false;
     broadcastWhatsAppState();
   }
 }
 
 // Disconnect / Log out
-export async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
+async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
   try {
     if (sock) {
       try {
@@ -176,17 +172,16 @@ export async function logoutWhatsApp(): Promise<{ success: boolean; error?: stri
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
     connectedPhone = null;
-    qrShown = false;
     broadcastWhatsAppState();
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[WhatsApp] Logout error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error as Error).message };
   }
 }
 
 // Helper to generate PDF Buffer from HTML content using a headless BrowserWindow
-export async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
+async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
   const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
   const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
   const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;
@@ -211,7 +206,6 @@ export async function generatePdfBufferFromHtml(htmlContent: string): Promise<Bu
 
   // Set the currentA4Html globally so the print-a4 route renders this bill
   try {
-    const { setSharedA4Html } = require('./sharedPrintHtml');
     if (setSharedA4Html) {
       setSharedA4Html(htmlContent);
     }
@@ -272,7 +266,7 @@ export async function sendWhatsAppBill({
   const jid = formatToWhatsAppJid(phone);
 
   try {
-    let sentMsg: any;
+    let sentMsg: import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).WAMessage | undefined;
     if (pdfBuffer && pdfBuffer.length > 0) {
       // Send PDF Document with message as caption
       sentMsg = await sock.sendMessage(jid, {
@@ -288,10 +282,10 @@ export async function sendWhatsAppBill({
       });
     }
 
-    return { success: true, messageId: sentMsg?.key?.id };
-  } catch (error: any) {
+    return { success: true, messageId: sentMsg?.key?.id as string | undefined };
+  } catch (error) {
     console.error('[WhatsApp] Send Message Error:', error);
-    return { success: false, error: error.message || 'Failed to send WhatsApp message.' };
+    return { success: false, error: (error as Error).message || 'Failed to send WhatsApp message.' };
   }
 }
 
@@ -341,7 +335,7 @@ export function initWhatsAppIpc(): void {
         if (payload.htmlContent) {
           try {
             pdfBuf = await generatePdfBufferFromHtml(payload.htmlContent);
-          } catch (err: any) {
+          } catch (err) {
             console.warn('[WhatsApp] Could not render PDF buffer:', err);
           }
         }
@@ -351,8 +345,8 @@ export function initWhatsAppIpc(): void {
           pdfBuffer: pdfBuf,
           fileName: payload.fileName,
         });
-      } catch (err: any) {
-        return { success: false, error: err.message };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
       }
     }
   );

@@ -268,11 +268,12 @@ export function PaperPreviewModal({
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
   const qrPayloads = useMemo(() => {
     if (format !== 'thermal') return [];
-    return Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as any).payload)));
+    return Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as Extract<typeof r, { type: 'qr' }>).payload)));
   }, [rows, format]);
 
   useEffect(() => {
     if (qrPayloads.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- qrPayloads becoming empty clears stale rendered QR images immediately.
       setQrImages({});
       return;
     }
@@ -422,7 +423,7 @@ export function PaperPreviewModal({
                         const s = str.trim();
                         if (s.length < 4) return false;
                         const f = s.charAt(0); const l = s.charAt(s.length - 1);
-                        return (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐') && (/^[─┼┬┴]+$/.test(s.substring(1, s.length - 1)) || /^[-\+|]+$/.test(s.substring(1, s.length - 1)));
+                        return (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐') && (/^[─┼┬┴]+$/.test(s.substring(1, s.length - 1)) || /^[-+|]+$/.test(s.substring(1, s.length - 1)));
                       };
 
                       if (isTop(displayValue) && index === 0) {

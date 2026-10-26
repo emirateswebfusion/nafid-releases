@@ -1,0 +1,26 @@
+# Line endings: files are committed as they are (mostly CRLF, written on Windows). Git must not rewrite them,
+# so there is deliberately no global `* text=auto` rule. Shell scripts must stay LF to run on Linux CI.
+*.sh text eol=lf
+
+# Binary assets: never diff or convert
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+*.gz binary
+*.db binary
+*.sqlite binary
+*.keystore binary
+*.jks binary
+
+# Lockfiles: generated, review them as a whole
+pnpm-lock.yaml -diff linguist-generated
+package-lock.json -diff linguist-generated

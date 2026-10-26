@@ -13,5 +13,4 @@ export const CODE_TYPE_CONFIGS: Record<CodeType, CodeTypeConfig> = {
 
 export const CODE_TYPES: CodeTypeConfig[] = Object.values(CODE_TYPE_CONFIGS);
 
-export const STORAGE_KEY = 'label_code_type';
 export const DEFAULT_CODE_TYPE: CodeType = 'barcode';

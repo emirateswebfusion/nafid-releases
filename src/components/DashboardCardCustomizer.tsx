@@ -43,14 +43,14 @@ export interface CardMetaItem {
   id: string;
   title: string;
   desc: string;
-  icon: any;
+  icon: typeof ShoppingCart;
   color: string;
   bgColor: string;
   badge?: string;
   shortcut?: string;
 }
 
-export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
+const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
   billing: {
     title: 'Billing',
     desc: 'Create new invoices and manage sales',
@@ -222,7 +222,7 @@ export function DashboardCardCustomizer({
 }: DashboardCardCustomizerProps) {
   const { tenantId, userId, role } = useAuthStore();
   const { flags: featureFlags } = useFeatureFlagsStore();
-  const { cardOrder, setCardOrder, moveCard, resetToDefault } = useDashboardCardsStore();
+  const { cardOrder, setCardOrder, moveCard } = useDashboardCardsStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
@@ -397,7 +397,7 @@ export function DashboardCardCustomizer({
             No cards found matching "{searchQuery}"
           </div>
         ) : (
-          displayCards.map((card, idx) => {
+          displayCards.map((card, _idx) => {
             const overallIndex = orderedCards.findIndex((c) => c.id === card.id);
             const isFirst = overallIndex === 0;
             const isLast = overallIndex === orderedCards.length - 1;

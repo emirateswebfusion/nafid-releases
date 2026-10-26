@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  EyeOff, Shield, Eye, Lock, CheckCircle2, AlertCircle, 
-  HelpCircle, Sliders, Calendar, Package, IndianRupee, Layers
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { EyeOff, Shield, Eye, CheckCircle2, AlertCircle, Calendar, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { 
@@ -11,6 +8,9 @@ import {
   DEFAULT_STAFF_DATA_MASKING_CONFIG, 
   parseStaffDataMaskingConfig 
 } from '../utils/staffDataMasking';
+import { isDesktopRuntime } from '../data/client';
+import { settingsApi } from '../data/settings';
+import { formatCurrency } from '../utils/money';
 
 export interface StaffDataMaskingSettingsProps {
   config?: StaffDataMaskingConfig;
@@ -40,31 +40,32 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
     if (!isControlled) {
       loadConfig();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadConfig is render-local; tenantId and isControlled are the intended reload triggers.
   }, [tenantId, isControlled]);
 
-  const loadConfig = async () => {
+  async function loadConfig() {
     setLoading(true);
     try {
-      if (window.electronAPI) {
-        const raw = await window.electronAPI.settingsGet({
+      if (isDesktopRuntime()) {
+        const raw = await settingsApi.get({
           tenant_id: tenantId || 'global',
           key: STAFF_DATA_MASKING_KEY,
         });
         setConfig(parseStaffDataMaskingConfig(raw));
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[StaffDataMaskingSettings] Load error:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const serialized = JSON.stringify(config);
-      if (window.electronAPI) {
-        await window.electronAPI.settingsSet({
+      if (isDesktopRuntime()) {
+        await settingsApi.set({
           tenant_id: tenantId || 'global',
           key: STAFF_DATA_MASKING_KEY,
           value: serialized,
@@ -72,17 +73,15 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
       }
       setStatusMessage({ text: 'Staff Data Masking settings updated successfully!', type: 'success' });
       setTimeout(() => setStatusMessage(null), 3500);
-    } catch (err: any) {
+    } catch (err) {
       console.error('[StaffDataMaskingSettings] Save error:', err);
-      setStatusMessage({ text: 'Failed to save settings: ' + (err.message || 'Unknown error'), type: 'error' });
+      setStatusMessage({ text: 'Failed to save settings: ' + ((err as Error).message || 'Unknown error'), type: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
-  };
+  const formatWholeRupees = (amount: number) => formatCurrency(amount, { decimals: 0 });
 
   if (loading) {
     return (
@@ -210,7 +209,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
               ].map(opt => (
                 <div
                   key={opt.id}
-                  onClick={() => setConfig({ ...config, stock_valuation_mode: opt.id as any })}
+                  onClick={() => setConfig({ ...config, stock_valuation_mode: opt.id as typeof config.stock_valuation_mode })}
                   className={clsx(
                     "p-4 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between",
                     config.stock_valuation_mode === opt.id
@@ -255,11 +254,11 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                     />
                   </div>
                   <span className="text-xs font-bold text-muted-foreground">
-                    Formatted: <span className="font-mono text-primary font-black">{formatCurrency(config.stock_fixed_amount)}</span>
+                    Formatted: <span className="font-mono text-primary font-black">{formatWholeRupees(config.stock_fixed_amount)}</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground font-medium">
-                  Regardless of the actual stock value (e.g. ₹35,00,000), staff members will see {formatCurrency(config.stock_fixed_amount)} as the total stock valuation.
+                  Regardless of the actual stock value (e.g. ₹35,00,000), staff members will see {formatWholeRupees(config.stock_fixed_amount)} as the total stock valuation.
                 </p>
               </div>
             )}
@@ -347,7 +346,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 ].map(scope => (
                   <div
                     key={scope.id}
-                    onClick={() => setConfig({ ...config, sales_history_scope: scope.id as any })}
+                    onClick={() => setConfig({ ...config, sales_history_scope: scope.id as typeof config.sales_history_scope })}
                     className={clsx(
                       "p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 text-left",
                       config.sales_history_scope === scope.id
@@ -397,7 +396,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 ].map(mode => (
                   <div
                     key={mode.id}
-                    onClick={() => setConfig({ ...config, sales_revenue_mode: mode.id as any })}
+                    onClick={() => setConfig({ ...config, sales_revenue_mode: mode.id as typeof config.sales_revenue_mode })}
                     className={clsx(
                       "p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 text-left",
                       config.sales_revenue_mode === mode.id
@@ -434,7 +433,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground font-medium">
-                    Displays {formatCurrency(config.sales_revenue_fixed_amount)} on staff Sales History cards.
+                    Displays {formatWholeRupees(config.sales_revenue_fixed_amount)} on staff Sales History cards.
                   </p>
                 </div>
               )}
@@ -515,9 +514,9 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                       {config.stock_valuation_mode === 'HIDDEN'
                         ? '••••••'
                         : config.stock_valuation_mode === 'FIXED_OVERRIDE'
-                        ? formatCurrency(config.stock_fixed_amount)
+                        ? formatWholeRupees(config.stock_fixed_amount)
                         : config.stock_valuation_mode === 'PERCENTAGE_OFFSET'
-                        ? formatCurrency((3500000 * config.stock_percentage_offset) / 100)
+                        ? formatWholeRupees((3500000 * config.stock_percentage_offset) / 100)
                         : '₹ 35,00,000'}
                     </span>
                   </div>
@@ -527,9 +526,9 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                       {config.sales_revenue_mode === 'HIDDEN'
                         ? '••••••'
                         : config.sales_revenue_mode === 'FIXED_OVERRIDE'
-                        ? formatCurrency(config.sales_revenue_fixed_amount)
+                        ? formatWholeRupees(config.sales_revenue_fixed_amount)
                         : config.sales_revenue_mode === 'PERCENTAGE_OFFSET'
-                        ? formatCurrency((150000 * config.sales_revenue_percentage) / 100)
+                        ? formatWholeRupees((150000 * config.sales_revenue_percentage) / 100)
                         : '₹ 1,50,000'}
                     </span>
                   </div>

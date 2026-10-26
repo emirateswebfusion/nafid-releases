@@ -43,7 +43,7 @@ export const DEFAULT_STAFF_DATA_MASKING_CONFIG: StaffDataMaskingConfig = {
   hide_purchase_cost_for_staff: true,
 };
 
-export function parseStaffDataMaskingConfig(raw: any): StaffDataMaskingConfig {
+export function parseStaffDataMaskingConfig(raw: unknown): StaffDataMaskingConfig {
   if (!raw) return { ...DEFAULT_STAFF_DATA_MASKING_CONFIG };
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;

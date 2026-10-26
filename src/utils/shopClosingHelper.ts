@@ -1,146 +1,17 @@
+import { formatCurrency } from './money';
+import type { ShopClosingChecklist, ShopClosingOverviewConfig } from '../data/whatsapp';
 /**
  * Shop Closing Overview Configuration & Helper Utilities
  * Nafid POS - WhatsApp Integration
  */
 
-export interface ShopClosingChecklist {
-  // General & Core
-  dateTime: boolean;          // Business date & closing timestamp
-  closingStatus: boolean;     // Register status (CLOSED / OPEN) & Remarks
-  counterDetails: boolean;    // Counter / Terminal code & multi-counter breakdown
-  closingStaff: boolean;      // Closing Staff / Cashier name
+export type { ShopClosingChecklist, ShopClosingOverviewConfig, ShopClosingSendTiming } from '../data/whatsapp';
 
-  // Sales Summary
-  sales: boolean;             // Sales section header & Net Sales
-  grossSales: boolean;        // Gross Sales (pre-discount)
-  totalDiscount: boolean;     // Total Discount given
-  taxCollected: boolean;      // Tax collected total
-  invoices: boolean;          // Total Invoices Count
+/** Summary accepted by the formatter; sample previews may add a display-only staff role. */
+export type ShopClosingDataSummary = import('../data/whatsapp').ShopClosingSummary & { closingStaffRole?: string };
 
-  // Payment Methods Breakdown (Master + Sub-items)
-  paymentMethods: boolean;    // Master toggle for Payment Breakdown
-  paymentCash: boolean;       // Cash collection
-  paymentUpi: boolean;        // UPI / QR collection
-  paymentCard: boolean;       // Card / POS collection
-  paymentBank: boolean;       // Bank transfer collection
-  paymentCheque: boolean;     // Cheque collection
-  paymentCredit: boolean;     // Credit (Pay later) sales portion
-
-  // Cash In, Out & Expenses
-  cashBalances: boolean;      // Opening cash, Expected cash, Actual cash
-  cashDifferences: boolean;   // Cash Shortage / Excess / Variance
-  cashInOut: boolean;         // Cash In / Cash Out summary totals & counts
-  cashInList: boolean;        // Itemized cash in list
-  expenses: boolean;          // Business Expenses summary total
-  expensesList: boolean;      // Itemized expenses list (ex: tea-10 etc..)
-
-  // Credit, Customers, Staff & Operations
-  creditSales: boolean;       // Credit Sales issued today
-  customerPayments: boolean;  // Customer ledger collections / Got Cash
-  partyTransactions: boolean; // Parties each transactions (ex: -suhaib :1000)
-  staffTransactions: boolean; // Staff each transactions (advances, salary, payments)
-  scrap: boolean;             // Scrap material purchases, deductions & entries
-  returns: boolean;           // Sales returns count & amount
-  refunds: boolean;           // Actual refunds paid out
-  purchases: boolean;         // Supplier purchase bills total
-}
-
-export type ShopClosingSendTiming = 'IMMEDIATELY' | 'SCHEDULED' | 'BOTH';
-
-export interface ShopClosingOverviewConfig {
-  enabled: boolean;
-  ownerPhone: string;
-  sendTiming: ShopClosingSendTiming;
-  scheduledTime: string; // "HH:mm" in 24hr format (e.g., "22:00")
-  includeMultiCounterBreakdown: boolean;
-  checklist: ShopClosingChecklist;
-}
-
-export interface ShopClosingDataSummary {
-  tenantId: string;
-  shopName: string;
-  businessDate: string;
-  closingTimestamp: string;
-  closingStaffName?: string;
-  closingStaffRole?: string;
-  registerStatus: 'CLOSED' | 'OPEN';
-  closingRemarks?: string;
-  counterCode: string;
-  // Financial metrics
-  totalInvoices: number;
-  grossSales: number;
-  totalDiscount: number;
-  netSales: number;
-  totalTax: number;
-  // Payment methods
-  paymentBreakdown: {
-    cash: number;
-    card: number;
-    upi: number;
-    bankTransfer: number;
-    cheque: number;
-    credit: number;
-  };
-  // Credit & collections
-  creditSalesAmount: number;
-  customerPaymentsCollected: number;
-  // Cash In / Out & Expenses
-  totalCashIn: number;
-  totalCashOut: number;
-  cashInCount: number;
-  cashOutCount: number;
-  totalExpenses: number;
-  // Itemized lists
-  expensesItems?: Array<{ description: string; amount: number; time?: string }>;
-  cashInItems?: Array<{ description: string; amount: number; time?: string }>;
-  partyTransactionItems?: Array<{ partyName: string; type: 'Got Cash' | 'Gave Cash' | string; amount: number; description?: string }>;
-  staffTransactionItems?: Array<{ staffName: string; type: string; amount: number; notes?: string }>;
-  scrapSummary?: {
-    totalAmount: number;
-    count: number;
-    items: Array<{ categoryName: string; quantity: number; unit?: string; rate: number; totalAmount: number; partyName?: string }>;
-  };
-  // Returns & Refunds
-  returnsCount: number;
-  returnsAmount: number;
-  refundsPaidAmount: number;
-  // Supplier Purchases
-  purchasesCount: number;
-  purchasesAmount: number;
-  // Drawer balances
-  openingBalance: number;
-  expectedClosingCash: number;
-  actualCashCounted: number;
-  cashShortage: number;
-  cashExcess: number;
-  // Multi-counter details (if multiple counters exist)
-  countersSummary: Array<{
-    counterCode: string;
-    billerName?: string;
-    invoiceCount: number;
-    netSales: number;
-    cashSales: number;
-  }>;
-}
-
-export interface ShopClosingReportLog {
-  id: string;
-  tenant_id: string;
-  business_date: string;
-  trigger_type: 'SETTLEMENT_CLOSE' | 'SCHEDULED' | 'MANUAL';
-  terminal_code?: string;
-  recipient_phone: string;
-  summary_data?: string;
-  checklist_config?: string;
-  message_text: string;
-  status: 'PENDING' | 'SENT' | 'FAILED';
-  whatsapp_message_id?: string;
-  error_message?: string;
-  retry_count: number;
-  sent_at?: string;
-  created_at: string;
-  updated_at: string;
-}
+/** History row returned by the shop-closing history query. */
+export type ShopClosingReportLog = import('../data/whatsapp').ShopClosingHistoryRow;
 
 export const DEFAULT_CHECKLIST: ShopClosingChecklist = {
   dateTime: true,
@@ -300,18 +171,7 @@ export const CHECKLIST_DEFINITIONS: ChecklistItemDefinition[] = [
   { key: 'purchases', label: 'Supplier Purchases', description: 'Total supplier purchase bills recorded today', category: 'ops' },
 ];
 
-/**
- * Format currency amount helper (INR ₹)
- */
-export function formatCurrency(amount: number | null | undefined): string {
-  const num = Number(amount) || 0;
-  const isNegative = num < 0;
-  const absFormatted = Math.abs(num).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return isNegative ? `-₹${absFormatted}` : `₹${absFormatted}`;
-}
+export { formatCurrency };
 
 /**
  * Clean phone number helper

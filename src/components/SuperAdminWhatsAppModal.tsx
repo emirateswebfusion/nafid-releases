@@ -12,7 +12,7 @@ import {
   Radio,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { fetchApi } from '../lib/api';
+import { superAdminCloud } from '../data/cloud/superAdmin';
 import { WhatsAppIcon } from './ui/WhatsAppIcon';
 
 interface SuperAdminWhatsAppModalProps {
@@ -32,11 +32,11 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
-  const pollIntervalRef = useRef<any>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = async () => {
     try {
-      const res = await fetchApi('/super-admin/whatsapp/status');
+      const res = await superAdminCloud.whatsappStatus();
       if (res) {
         setStatus(res.status);
         setQrCode(res.qrCode || null);
@@ -45,7 +45,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
           setLoading(false);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to get Super Admin WhatsApp status:', err);
     }
   };
@@ -56,6 +56,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- isOpen starts the status request before polling begins for the opened modal.
     fetchStatus();
 
     // Poll status every 3 seconds while modal is open
@@ -73,7 +74,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
-      const res = await fetchApi('/super-admin/whatsapp/connect', { method: 'POST' });
+      const res = await superAdminCloud.whatsappConnect();
       if (res.error) {
         setErrorMsg(res.error);
       } else {
@@ -81,8 +82,8 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
         if (res.qrCode) setQrCode(res.qrCode);
         setSuccessMsg('QR code generated. Scan with WhatsApp on your phone.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to start WhatsApp connection');
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Failed to start WhatsApp connection');
     } finally {
       setLoading(false);
     }
@@ -94,7 +95,7 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
     setSuccessMsg(null);
     setConfirmDisconnect(false);
     try {
-      const res = await fetchApi('/super-admin/whatsapp/disconnect', { method: 'POST' });
+      const res = await superAdminCloud.whatsappDisconnect();
       if (res.success) {
         setStatus('disconnected');
         setQrCode(null);
@@ -103,8 +104,8 @@ export const SuperAdminWhatsAppModal: React.FC<SuperAdminWhatsAppModalProps> = (
       } else {
         setErrorMsg(res.error || 'Failed to disconnect');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Disconnect failed');
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Disconnect failed');
     } finally {
       setLoading(false);
     }

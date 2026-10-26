@@ -1,5 +1,6 @@
 import { DEFAULT_BILL_SETTINGS, getEffectiveBillSettings, type BillSettings, formatPrintItem, numberToIndianWords, parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from './timezoneHelper';
+import { splitTaxAmount } from './checkoutLines';
 
 export interface InvoiceItemDisplay {
   name: string;
@@ -10,11 +11,11 @@ export interface InvoiceItemDisplay {
   discountLabel?: string;
   isPriceOverride?: boolean;
   brand?: string;
-  billing_type?: string;
+  billing_type?: string | null;
   pieces_override?: number;
   pieces_sold?: number;
   pieces_per_kg?: number;
-  unit?: string;
+  unit?: string | null;
   hsn?: string;
   hsn_code?: string;
   tax_rate_percent?: number;
@@ -109,7 +110,7 @@ function shouldShowItemMrpHtml(data: InvoiceData, item: InvoiceItemDisplay): boo
 
 function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
-  let baseTitle = '';
+  let baseTitle: string;
   if (isB2B) {
     baseTitle = 'TAX INVOICE';
   } else {
@@ -212,7 +213,7 @@ export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'boxe
   return generateStandardHtml(data, title);
 }
 
-export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
+function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
   const isB2B = data.isB2B === true;
   const isGstBill = data.invoiceType === 'GST' || isB2B;
   const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
@@ -615,12 +616,12 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     const itemTotal = Number(item.total) || 0;
     const gstRate = item.tax_rate_percent != null ? Number(item.tax_rate_percent) : (item.gst_percent != null ? Number(item.gst_percent) : (data.tax > 0 ? 18 : 0));
 
-    let taxableVal = 0;
+    let taxableVal: number;
     let cgstPct = 0;
     let sgstPct = 0;
     let cgstAmt = 0;
     let sgstAmt = 0;
-    let unitPriceVal = 0;
+    let unitPriceVal: number;
 
     if (gstRate > 0) {
       taxableVal = itemTotal / (1 + gstRate / 100);
@@ -628,8 +629,9 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       const totalTax = itemTotal - taxableVal;
       cgstPct = gstRate / 2;
       sgstPct = gstRate / 2;
-      cgstAmt = Math.round((totalTax / 2) * 100) / 100;
-      sgstAmt = Math.round((itemTotal - taxableVal - cgstAmt) * 100) / 100;
+      const taxSplit = splitTaxAmount(totalTax);
+      cgstAmt = taxSplit.cgst;
+      sgstAmt = taxSplit.sgst;
     } else {
       taxableVal = itemTotal;
       unitPriceVal = qtyNum > 0 ? taxableVal / qtyNum : taxableVal;
@@ -1535,31 +1537,31 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
 }
 
 export function generatePurchaseBillHtml(
-  shopInfo: { shopName?: string; shopAddress?: string; shopPhone?: string; shopGstin?: string },
+  shopInfo: { shopName?: string | null; shopAddress?: string | null; shopPhone?: string | null; shopGstin?: string },
   bill: {
     bill_number: string;
     supplier_name: string;
-    supplier_phone?: string;
-    supplier_address?: string;
-    supplier_gstin?: string;
-    bill_date: string;
-    invoice_number?: string;
-    bill_type: string;
-    payment_type?: string;
-    notes?: string;
-    total_amount: number;
-    created_at?: string;
+    supplier_phone?: string | null;
+    supplier_address?: string | null;
+    supplier_gstin?: string | null;
+    bill_date: string | null;
+    invoice_number?: string | null;
+    bill_type: string | null;
+    payment_type?: string | null;
+    notes?: string | null;
+    total_amount: number | null;
+    created_at?: string | null;
   },
   items: Array<{
     name: string;
     quantity: number;
     purchase_price: number;
     total_amount: number;
-    is_gst_applicable?: number;
-    tax_rate_percent?: number;
-    hsn_sac_code?: string;
-    item_code?: string;
-    sku_barcode?: string;
+    is_gst_applicable?: number | null;
+    tax_rate_percent?: number | null;
+    hsn_sac_code?: string | null;
+    item_code?: string | null;
+    sku_barcode?: string | null;
   }>
 ): string {
   const isGst = bill.bill_type === 'GST';
@@ -1599,11 +1601,11 @@ export function generatePurchaseBillHtml(
     `;
   }).join('');
 
-  const grandTotal = isGst ? (totalTaxable + totalTax) : bill.total_amount;
+  const grandTotal = isGst ? (totalTaxable + totalTax) : (bill.total_amount ?? 0);
   const roundOff = Math.round(grandTotal) - grandTotal;
   const finalTotal = Math.round(grandTotal);
 
-  const halfTax = totalTax / 2;
+  const taxSplit = splitTaxAmount(totalTax);
   const formattedDate = bill.bill_date ? parseUTCDate(bill.bill_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return `<!DOCTYPE html>
@@ -1821,7 +1823,7 @@ export function generatePurchaseBillHtml(
   <div class="totals-container">
     <div class="notes-box">
       <div style="font-weight: 700; color: #111827; margin-bottom: 4px; text-transform: uppercase; font-size: 11px;">Notes / Remarks</div>
-      <div style="color: #1a1a1a; white-space: pre-line;">${(bill as any).description || (bill as any).notes || 'No extra notes recorded.'}</div>
+      <div style="color: #1a1a1a; white-space: pre-line;">${(bill as typeof bill & { description?: string; notes?: string }).description || (bill as typeof bill & { description?: string; notes?: string }).notes || 'No extra notes recorded.'}</div>
     </div>
     <div class="totals-box">
       <div class="totals-row">
@@ -1835,11 +1837,11 @@ export function generatePurchaseBillHtml(
       ${isGst && totalTax > 0 ? `
         <div class="totals-row">
           <span>CGST:</span>
-          <span>₹${halfTax.toFixed(2)}</span>
+          <span>₹${taxSplit.cgst.toFixed(2)}</span>
         </div>
         <div class="totals-row">
           <span>SGST:</span>
-          <span>₹${halfTax.toFixed(2)}</span>
+          <span>₹${taxSplit.sgst.toFixed(2)}</span>
         </div>
         <div class="totals-row" style="font-weight: 700;">
           <span>Total Tax:</span>

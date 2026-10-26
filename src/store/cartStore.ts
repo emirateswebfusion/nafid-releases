@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
+import { listRate, resolveLinePrice } from '../utils/linePricing';
+import { splitTaxAmount } from '../utils/checkoutLines';
 
 export interface CartItem {
   item_id?: string;
@@ -12,9 +15,9 @@ export interface CartItem {
   billing_type?: string;
   uom?: string;
   pieces_per_kg?: number;
-  grade_id?: string;
+  grade_id?: string | null;
   pricing_mode?: string;
-  grade_rate?: number;
+  grade_rate?: number | null;
   discount_percent?: number | null;
   discount_flat?: number | null;
   offer_price?: number | null;
@@ -39,7 +42,7 @@ export interface CartItem {
   rawUnitPrice?: number;
   originalTaxAmount?: number;
   returnSourceInvoiceId?: string;
-  returnSourceInvoiceNumber?: string;
+  returnSourceInvoiceNumber?: string | null;
   isCombo?: boolean;
   combo_id?: string;
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
@@ -303,8 +306,8 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => {
         set({ isQuotationMode });
         try {
-          (window as any).useTabStore?.getState?.()?.syncActiveSnapshot?.();
-        } catch {}
+          (window as Window & { useTabStore?: { getState?: () => { syncActiveSnapshot?: () => void } } }).useTabStore?.getState?.()?.syncActiveSnapshot?.();
+        } catch { /* ignore */ }
       },
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
@@ -330,7 +333,17 @@ export interface LoyaltyInfo {
 
 // Derived Selectors
 export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) => {
-  const { items, invoiceType, discountType, discountValue, shopState, customerState, returnDeduction } = useCartStore();
+  const { items, invoiceType, discountType, discountValue, shopState, customerState, returnDeduction } = useCartStore(
+    useShallow((state) => ({
+      items: state.items,
+      invoiceType: state.invoiceType,
+      discountType: state.discountType,
+      discountValue: state.discountValue,
+      shopState: state.shopState,
+      customerState: state.customerState,
+      returnDeduction: state.returnDeduction,
+    })),
+  );
 
   let subtotal = 0;
   let totalTax = 0;
@@ -344,30 +357,11 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
       return;
     }
 
-    const rawRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
-      ? Number(item.grade_rate)
-      : Number(item.base_price || 0);
+    const rawRate = listRate(item);
 
     const isScrap = !!item.isScrap;
 
-    const catalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-      : item.catalog_discount_flat != null ? (isScrap ? rawRate + Number(item.catalog_discount_flat) : rawRate - Number(item.catalog_discount_flat))
-      : item.catalog_discount_percent != null ? (isScrap ? rawRate * (1 + Number(item.catalog_discount_percent) / 100) : rawRate * (1 - Number(item.catalog_discount_percent) / 100))
-      : rawRate;
-
-    const isAdhocOffer = item.offer_price != null && (item.catalog_offer_price == null || item.offer_price !== item.catalog_offer_price);
-    const isAdhocDiscFlat = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-    const isAdhocDiscPct = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-
-    let effectiveRate = catalogPrice;
-    if (isAdhocOffer) {
-      effectiveRate = Number(item.offer_price);
-    } else if (isAdhocDiscFlat) {
-      effectiveRate = item.isScrap ? catalogPrice + Number(item.discount_flat) : catalogPrice - Number(item.discount_flat);
-    } else if (isAdhocDiscPct) {
-      effectiveRate = item.isScrap ? catalogPrice * (1 + Number(item.discount_percent) / 100) : catalogPrice * (1 - Number(item.discount_percent) / 100);
-    }
-    effectiveRate = Math.max(effectiveRate, 0);
+    const effectiveRate = resolveLinePrice(item, rawRate, isScrap ? 'scrap' : 'sale').unitRate;
 
     const qty = Number(item.quantity) || 0;
     const itemTotal = effectiveRate * qty;
@@ -408,8 +402,9 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   
   const hasTax = invoiceType === 'GST' || (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0);
 
-  const cgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
-  const sgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
+  const taxSplit = hasTax && !isInterState ? splitTaxAmount(adjustedTax) : null;
+  const cgst = taxSplit?.cgst || 0;
+  const sgst = taxSplit?.sgst || 0;
   const igst = hasTax && isInterState ? adjustedTax : 0;
 
   const grandTotal = taxableAmount + adjustedTax + serviceTotal;

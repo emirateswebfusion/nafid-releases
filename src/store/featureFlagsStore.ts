@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, isAiAssistantAvailable, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags } from '../featureFlags';
+import { isDesktopRuntime } from '../data/client';
+import { settingsApi } from '../data/settings';
 
 interface FeatureFlagsState {
   flags: FeatureFlags | null;
@@ -30,12 +32,12 @@ export const useFeatureFlagsStore = create<FeatureFlagsState>()((set, get) => ({
     }
 
     loadPromise = (async () => {
-      if (!window.electronAPI) {
+      if (!isDesktopRuntime()) {
         set({ flags: sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS }), loaded: true, tenantId });
         return;
       }
       try {
-        const stored = await window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'feature_flags' });
+        const stored = await settingsApi.get({ tenant_id: tenantId, key: 'feature_flags' });
         let loadedFlags: FeatureFlags;
         if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
           loadedFlags = { ...DEFAULT_FEATURE_FLAGS };

@@ -1,3 +1,7 @@
+import { hasBridge } from '../data/client';
+import { ecommerceApi } from '../data/ecommerce';
+import type * as Rows from '../data/dbRows';
+import type { EcommerceOrder as EcommerceOrderRecord, EcommerceProduct as EcommerceProductRecord } from '../data/ecommerce';
 /**
  * POS-side FusionCart Service
  * 
@@ -5,102 +9,57 @@
  * E-Commerce / FusionCart integration via Electron IPC APIs.
  */
 
-export interface EcommerceSettings {
-  tenant_id: string;
-  fusioncart_url: string;
-  store_id: number | null;
-  vendor_id: number | null;
-  store_name: string | null;
-  store_slug: string | null;
-  store_description: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  registration_status: 'NOT_REQUESTED' | 'PENDING' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED' | 'CONNECTION_ERROR';
-  rejection_reason: string | null;
-  last_sync_at: string | null;
-  last_sync_status: 'SUCCESS' | 'FAILED' | null;
-  created_at: string;
-  updated_at: string;
-}
+export type EcommerceSettings = Rows.EcommerceSettingsRow;
 
-export interface EcommerceProductItem {
-  product_id: string;
-  tenant_id: string;
-  name: string;
-  sku_barcode: string | null;
-  category: string | null;
-  base_price: number;
-  current_stock: number;
-  uom: string;
-  mapping_id: string | null;
-  fusioncart_product_id: number | null;
-  is_online_enabled: number;
-  online_title_override: string | null;
-  online_description_override: string | null;
-  online_price_override: number | null;
-  sync_status: 'SYNCED' | 'PENDING' | 'FAILED' | 'UNSYNCED';
-  last_error: string | null;
-  last_synced_at: string | null;
-}
+/** Product row as selected by the e-commerce IPC query. */
+export type EcommerceProductItem = EcommerceProductRecord;
 
-export interface EcommerceOrder {
+/** View fields the e-commerce screen already reads from FusionCart's unvalidated order JSON. */
+export interface EcommerceOrder extends EcommerceOrderRecord {
   id: number;
   order_number: number | string;
   amount: number;
   total: number;
   payment_status: string;
   payment_method: string;
-  store_id: number;
-  order_status?: {
-    id: number;
-    name: string;
-    slug: string;
-  };
+  order_status?: { id: number; name: string; slug: string };
   created_at?: string;
-  billing_address?: any;
-  shipping_address?: any;
-  products?: Array<{
-    id: number;
-    name: string;
-    pivot?: {
-      quantity: number;
-      single_price: number;
-      subtotal: number;
-    };
-  }>;
+  billing_address?: { title?: string; city?: string; address?: string; phone?: string; [key: string]: unknown };
+  shipping_address?: { title?: string; city?: string; address?: string; phone?: string; [key: string]: unknown };
+  products?: Array<{ id: number; name: string; pivot?: { quantity: number; single_price: number; subtotal: number } }>;
 }
 
 export const fusionCartService = {
   async getSettings(tenantId: string): Promise<EcommerceSettings | null> {
-    if (!window.electronAPI?.ecommerceGetSettings) return null;
-    const res = await window.electronAPI.ecommerceGetSettings({ tenant_id: tenantId });
-    return res.success ? res.settings : null;
+    if (!hasBridge('ecommerceGetSettings')) return null;
+    const res = await ecommerceApi.getSettings({ tenant_id: tenantId });
+    return res.success ? (res.settings as EcommerceSettings) : null;
   },
 
   async saveSettings(tenantId: string, settings: Partial<EcommerceSettings>): Promise<EcommerceSettings | null> {
-    if (!window.electronAPI?.ecommerceSaveSettings) return null;
-    const res = await window.electronAPI.ecommerceSaveSettings({ tenant_id: tenantId, settings });
-    return res.success ? res.settings : null;
+    if (!hasBridge('ecommerceSaveSettings')) return null;
+    const res = await ecommerceApi.saveSettings({ tenant_id: tenantId, settings });
+    return res.success ? (res.settings as EcommerceSettings) : null;
   },
 
-  async testConnection(url?: string): Promise<{ connected: boolean; message?: string }> {
-    if (!window.electronAPI?.ecommerceTestConnection) return { connected: false, message: 'Electron API unavailable' };
-    return window.electronAPI.ecommerceTestConnection({ url });
+  async testConnection(url?: string | null): Promise<{ connected: boolean; message?: string }> {
+    if (!hasBridge('ecommerceTestConnection')) return { connected: false, message: 'Electron API unavailable' };
+    return ecommerceApi.testConnection({ url });
   },
 
-  async registerVendor(tenantId: string, data: any): Promise<{ success: boolean; settings?: EcommerceSettings; error?: string }> {
-    if (!window.electronAPI?.ecommerceRegisterVendor) return { success: false, error: 'Electron API unavailable' };
-    return window.electronAPI.ecommerceRegisterVendor({ tenant_id: tenantId, data });
+  async registerVendor(tenantId: string, data: Record<string, unknown>): Promise<{ success: boolean; settings?: EcommerceSettings; error?: string }> {
+    if (!hasBridge('ecommerceRegisterVendor')) return { success: false, error: 'Electron API unavailable' };
+    return ecommerceApi.registerVendor({ tenant_id: tenantId, data });
   },
 
-  async refreshStatus(tenantId: string): Promise<{ success: boolean; settings?: EcommerceSettings; store?: any; error?: string }> {
-    if (!window.electronAPI?.ecommerceRefreshStatus) return { success: false, error: 'Electron API unavailable' };
-    return window.electronAPI.ecommerceRefreshStatus({ tenant_id: tenantId });
+  async refreshStatus(tenantId: string): Promise<{ success: boolean; settings?: EcommerceSettings; store?: Record<string, unknown>; error?: string }> {
+    if (!hasBridge('ecommerceRefreshStatus')) return { success: false, error: 'Electron API unavailable' };
+    return ecommerceApi.refreshStatus({ tenant_id: tenantId }) as Promise<{ success: boolean; settings?: EcommerceSettings; store?: Record<string, unknown>; error?: string }>;
   },
 
   async getProducts(tenantId: string, search?: string, filter?: string): Promise<EcommerceProductItem[]> {
-    if (!window.electronAPI?.ecommerceGetProducts) return [];
-    const res = await window.electronAPI.ecommerceGetProducts({ tenant_id: tenantId, search, filter });
+    if (!hasBridge('ecommerceGetProducts')) return [];
+    const res = await ecommerceApi.getProducts({ tenant_id: tenantId, search, filter });
     return res.success ? res.products : [];
   },
 
@@ -109,28 +68,28 @@ export const fusionCartService = {
     online_title_override?: string | null;
     online_description_override?: string | null;
     online_price_override?: number | null;
-  }): Promise<{ success: boolean; mapping?: any; error?: string }> {
-    if (!window.electronAPI?.ecommerceUpdateMapping) return { success: false, error: 'Electron API unavailable' };
-    return window.electronAPI.ecommerceUpdateMapping({
+  }): Promise<{ success: boolean; mapping?: Record<string, unknown>; error?: string }> {
+    if (!hasBridge('ecommerceUpdateMapping')) return { success: false, error: 'Electron API unavailable' };
+    return ecommerceApi.updateMapping({
       tenant_id: tenantId,
       product_id: productId,
       ...data,
-    });
+    }) as Promise<{ success: boolean; mapping?: Record<string, unknown>; error?: string }>;
   },
 
   async syncProduct(tenantId: string, productId: string): Promise<{ success: boolean; remoteId?: number; error?: string }> {
-    if (!window.electronAPI?.ecommerceSyncProduct) return { success: false, error: 'Electron API unavailable' };
-    return window.electronAPI.ecommerceSyncProduct({ tenant_id: tenantId, product_id: productId });
+    if (!hasBridge('ecommerceSyncProduct')) return { success: false, error: 'Electron API unavailable' };
+    return ecommerceApi.syncProduct({ tenant_id: tenantId, product_id: productId });
   },
 
   async unpublishProduct(tenantId: string, productId: string): Promise<{ success: boolean; error?: string }> {
-    if (!window.electronAPI?.ecommerceUnpublishProduct) return { success: false, error: 'Electron API unavailable' };
-    return window.electronAPI.ecommerceUnpublishProduct({ tenant_id: tenantId, product_id: productId });
+    if (!hasBridge('ecommerceUnpublishProduct')) return { success: false, error: 'Electron API unavailable' };
+    return ecommerceApi.unpublishProduct({ tenant_id: tenantId, product_id: productId });
   },
 
   async getOrders(tenantId: string): Promise<EcommerceOrder[]> {
-    if (!window.electronAPI?.ecommerceGetOrders) return [];
-    const res = await window.electronAPI.ecommerceGetOrders({ tenant_id: tenantId });
-    return res.success ? res.orders : [];
+    if (!hasBridge('ecommerceGetOrders')) return [];
+    const res = await ecommerceApi.getOrders({ tenant_id: tenantId });
+    return res.success ? res.orders as EcommerceOrder[] : [];
   },
 };

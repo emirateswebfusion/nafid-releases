@@ -6,9 +6,9 @@ import { ChevronDown, Check } from 'lucide-react';
 export interface SelectOption {
   value: string;
   label: string;
-  icon?: any;
+  icon?: React.ComponentType<{ className?: string }>;
   color?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface SelectProps {
@@ -35,6 +35,9 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
 
     const safeOptions = Array.isArray(options) ? options : [];
     const selectedOption = safeOptions.find(o => o.value === value);
+    const filtered = searchable && search.trim()
+      ? safeOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+      : safeOptions;
 
     React.useEffect(() => {
       const handler = (e: MouseEvent) => {
@@ -57,6 +60,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       } else {
         setFocusedIndex(-1);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- filtered and value excluded: tracking either would reset arrow-key focus outside the original open/searchable triggers.
     }, [open, searchable]);
 
     React.useEffect(() => {
@@ -77,10 +81,6 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
         }
       }
     }, [focusedIndex, open]);
-
-    const filtered = searchable && search.trim()
-      ? safeOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
-      : safeOptions;
 
     const handleSelect = (option: SelectOption) => {
       onChange(option.value);

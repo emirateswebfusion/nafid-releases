@@ -76,7 +76,7 @@ export interface WhatsAppStatementDetails {
   shopName: string;
   partyName: string;
   partyType?: string;
-  phone?: string;
+  phone?: string | null;
   balance: number;
   balanceLabel?: string;
   totalDebit?: number;

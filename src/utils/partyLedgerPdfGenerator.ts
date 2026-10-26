@@ -2,7 +2,7 @@ import { parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from './timezoneHelper';
 import type { TerminologyLabels } from '../store/terminologyStore';
 
-export const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
+const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
   receivable: "You'll Get",
   payable: "You'll Give",
   received: "Got Cash",
@@ -34,12 +34,12 @@ export interface LedgerEntryData {
 export interface PartyData {
   party_id: string;
   name: string;
-  phone?: string;
-  address?: string;
-  gstin?: string;
-  balance?: number;
+  phone?: string | null;
+  address?: string | null;
+  gstin?: string | null;
+  balance?: number | null;
   current_balance?: number;
-  party_type?: string;
+  party_type?: string | null;
   custom_category?: string | null;
 }
 
@@ -94,7 +94,7 @@ export interface PartyLedgerPdfOptions {
 /**
  * Format number in Indian currency style: e.g. 13,95,252.00
  */
-export function formatIndianCurrency(amount: number | string | null | undefined): string {
+function formatIndianCurrency(amount: number | string | null | undefined): string {
   const num = Number(amount) || 0;
   const abs = Math.abs(num);
   const formatted = abs.toLocaleString('en-IN', {
@@ -107,7 +107,7 @@ export function formatIndianCurrency(amount: number | string | null | undefined)
 /**
  * Extract YYYY-MM-DD in the store timezone for accurate boundary comparison
  */
-export function getLocalDateString(dateInput: string | Date, tz: string): string {
+function getLocalDateString(dateInput: string | Date, tz: string): string {
   try {
     const d = typeof dateInput === 'string' ? parseUTCDate(dateInput) : dateInput;
     if (isNaN(d.getTime())) return '';
@@ -253,7 +253,7 @@ export function calculateLedgerStatement(
   const startDateFormatted = startDate ? formatDateLabel(startDate) : '';
   const endDateFormatted = endDate ? formatDateLabel(endDate) : '';
 
-  let periodLabel = '';
+  let periodLabel: string;
   if (startDate && endDate) {
     periodLabel = `${startDateFormatted} - ${endDateFormatted}`;
   } else if (startDate) {
@@ -318,8 +318,6 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
     shopPhone,
     shopEmail,
     shopGstin,
-    shopState,
-    shopLogoUrl,
     party,
     filter,
     terminology,
@@ -327,7 +325,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
   } = options;
 
   const recon = calculateLedgerStatement(
-    (party as any).ledger || [],
+    (party as PartyData & { ledger?: LedgerEntryData[] }).ledger || [],
     filter,
     party,
     terminology,

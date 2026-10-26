@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 
 export type POSLayoutModel = 
   | 'classic-split'       // Classic 2-Column: Cart Left (58%), Payment Right (42%)
@@ -182,7 +184,7 @@ export function getTotalSelectedHeaderButtonsCount(config: BillingUIConfig): num
   return count;
 }
 
-export function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfig {
+function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfig {
   const maxCap = INTERNAL_HEADER_BUTTON_CAPACITY;
 
   const hb: HeaderButtonConfig = {
@@ -430,8 +432,8 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
     } catch (e) {
       console.error('Failed to save Billing UI config to localStorage', e);
     }
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'billing_ui_config', value: updated }).catch(() => {});
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: 'billing_ui_config', value: updated }).catch(() => {});
     }
     window.dispatchEvent(new CustomEvent('billing-ui-config-changed', { detail: updated }));
     set({ config: updated });
@@ -440,9 +442,9 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
   resetConfig: () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_BILLING_UI_CONFIG));
-    } catch (e) {}
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
-      window.electronAPI.settingsSet({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
+    } catch { /* ignore */ }
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
+      settingsApi.set({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
     }
     window.dispatchEvent(new CustomEvent('billing-ui-config-changed', { detail: DEFAULT_BILLING_UI_CONFIG }));
     set({ config: DEFAULT_BILLING_UI_CONFIG });
@@ -456,11 +458,11 @@ export const useBillingUIStore = create<BillingUIState>((set, get) => ({
   }
 }));
 
-export async function hydrateBillingUIFromDB(tenantId?: string) {
-  if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+async function hydrateBillingUIFromDB(tenantId?: string) {
+  if (typeof window !== 'undefined' && hasBridge('settingsGet')) {
     try {
       const tid = tenantId || 'global';
-      const stored = await window.electronAPI.settingsGet({ tenant_id: tid, key: 'billing_ui_config' });
+      const stored = await settingsApi.get({ tenant_id: tid, key: 'billing_ui_config' });
       if (stored && typeof stored === 'object' && Object.keys(stored).length > 0) {
         useBillingUIStore.getState().updateConfig(stored);
       }

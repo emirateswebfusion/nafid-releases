@@ -1,9 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar, 
-  Download, Printer, RefreshCw, X, ArrowUpRight, ArrowDownRight,
-  ShieldCheck, PieChart, Landmark, Wallet, Receipt, ShoppingBag, FileSpreadsheet, BarChart2
-} from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { TrendingUp, DollarSign, Calendar, Printer, RefreshCw, X, ShieldCheck, Landmark, FileSpreadsheet, BarChart2 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, 
   CartesianGrid
@@ -11,6 +7,10 @@ import {
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { isDesktopRuntime } from '../data/client';
+import { invoicesApi } from '../data/invoices';
+import { purchasesApi } from '../data/purchases';
+import { scrapApi } from '../data/scrap';
 
 interface FinancialReportProps {
   onClose: () => void;
@@ -109,14 +109,14 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
 
   // Load Financial Data from local SQLite Database
   const fetchFinancialData = useCallback(async () => {
-    if (!window.electronAPI || !tenantId) {
+    if (!isDesktopRuntime() || !tenantId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
       // 1. Fetch Invoices for selected date range
-      const invoices = await window.electronAPI.dbGetInvoices({
+      const invoices = await invoicesApi.getInvoices({
         tenant_id: tenantId,
         filterDate: startDate,
         filterDateEnd: endDate,
@@ -148,17 +148,18 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
           // Payment method breakdown
           const method = (inv.payment_method || 'CASH').toUpperCase();
           if (method === 'SPLIT' && inv.split_details) {
-            let sd = inv.split_details;
+            let sd: unknown = inv.split_details;
             while (typeof sd === 'string') {
               try { sd = JSON.parse(sd); } catch { break; }
             }
             if (sd && typeof sd === 'object') {
-              pm.cash += Number(sd.cash) || 0;
-              pm.card += Number(sd.card) || 0;
-              pm.upi += Number(sd.upi) || 0;
-              pm.bank += Number(sd.bank_transfer || sd.bank) || 0;
-              pm.cheque += Number(sd.cheque) || 0;
-              pm.credit += Number(sd.credit) || 0;
+              const split = sd as Record<string, unknown>;
+              pm.cash += Number(split.cash) || 0;
+              pm.card += Number(split.card) || 0;
+              pm.upi += Number(split.upi) || 0;
+              pm.bank += Number(split.bank_transfer || split.bank) || 0;
+              pm.cheque += Number(split.cheque) || 0;
+              pm.credit += Number(split.credit) || 0;
             } else {
               pm.cash += grandTotal;
             }
@@ -178,25 +179,25 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       }
 
       // 2. Estimate COGS & Purchase Expenses
-      let cogs = netSales * 0.65; // High-accuracy default 35% margin estimate
+      const cogs = netSales * 0.65; // High-accuracy default 35% margin estimate
       let purchaseExpenses = 0;
       try {
-        const pBills = await window.electronAPI.dbGetPurchaseBills({ tenant_id: tenantId });
+        const pBills = await purchasesApi.getPurchaseBills({ tenant_id: tenantId });
         if (Array.isArray(pBills)) {
-          purchaseExpenses = pBills.reduce((acc: number, pb: any) => acc + (Number(pb.total_amount) || 0), 0);
+          purchaseExpenses = pBills.reduce((acc: number, pb) => acc + (Number(pb.total_amount) || 0), 0);
         }
-      } catch (e) {
+      } catch {
         console.warn('[FinancialReport] Purchase bills fetch skipped');
       }
 
       // 3. Fetch Scrap Earnings
       let scrapRevenue = 0;
       try {
-        const scrapList = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tenantId });
+        const scrapList = await scrapApi.getScrapInvoiceList({ tenant_id: tenantId });
         if (Array.isArray(scrapList)) {
-          scrapRevenue = scrapList.reduce((acc: number, sc: any) => acc + (Number(sc.total_amount) || 0), 0);
+          scrapRevenue = scrapList.reduce((acc: number, sc) => acc + (Number(sc.total_amount) || 0), 0);
         }
-      } catch (e) {
+      } catch {
         console.warn('[FinancialReport] Scrap fetch skipped');
       }
 
@@ -240,6 +241,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   }, [tenantId, startDate, endDate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchFinancialData is the report's range-triggered load; effect timing preserves its current loading sequence.
     fetchFinancialData();
   }, [fetchFinancialData]);
 
@@ -346,7 +348,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => handleRangeChange(tab.id as any)}
+                  onClick={() => handleRangeChange(tab.id as Parameters<typeof handleRangeChange>[0])}
                   className={clsx(
                     "px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer",
                     dateRange === tab.id
@@ -495,7 +497,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
                         <Tooltip 
                           contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', fontSize: '12px' }}
-                          formatter={(val: any) => [`₹${val}`, '']}
+                          formatter={(val) => [`₹${val}`, '']}
                         />
                         <Area type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" name="Sales Revenue" />
                         <Area type="monotone" dataKey="profit" stroke="#06b6d4" strokeWidth={2.5} fillOpacity={1} fill="url(#colorProfit)" name="Gross Profit" />

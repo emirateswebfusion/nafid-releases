@@ -1,27 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Megaphone,
-  Plus,
-  Eye,
-  Trash2,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  X,
-  Image as ImageIcon,
-  Phone,
-  Store,
-  ExternalLink,
-  Flame,
-  ToggleLeft,
-  ToggleRight,
-  RefreshCw,
-  Heart,
-  Share2,
-  Bookmark,
-} from 'lucide-react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { Megaphone, Plus, Eye, Trash2, Loader2, X, Image as ImageIcon, Phone, Flame, ToggleLeft, ToggleRight, RefreshCw, Heart, Share2 } from 'lucide-react';
 import clsx from 'clsx';
-import { fetchApi } from '../lib/api';
+import { adsCloud } from '../data/cloud/ads';
 import { useAuthStore } from '../store/authStore';
 import { FloatToast, type ToastMessage } from './ui/FloatToast';
 
@@ -53,9 +33,9 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const showToast = (text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', title?: string) => {
+  const showToast = useCallback((text: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', title?: string) => {
     setToast({ text, type, title });
-  };
+  }, []);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -65,28 +45,29 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const [contactPhone, setContactPhone] = useState('');
   const [callToAction, setCallToAction] = useState('VISIT_STORE');
 
-  const fetchAds = async () => {
+  const fetchAds = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchApi('/ads/my-ads');
+      const data = await adsCloud.myAds();
       if (Array.isArray(data)) {
         setAds(data);
       }
-    } catch (err: any) {
-      const isAuthErr = err.message?.toLowerCase().includes('token') || err.message?.toLowerCase().includes('unauthorized');
+    } catch (err) {
+      const isAuthErr = (err as Error).message?.toLowerCase().includes('token') || (err as Error).message?.toLowerCase().includes('unauthorized');
       showToast(
-        isAuthErr ? 'Session expired or unauthorized. Please re-authenticate to sync ads.' : (err.message || 'Failed to load advertisements'),
+        isAuthErr ? 'Session expired or unauthorized. Please re-authenticate to sync ads.' : ((err as Error).message || 'Failed to load advertisements'),
         'error',
         isAuthErr ? 'SESSION EXPIRED' : 'ADVERTISEMENTS'
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchAds starts the initial network load on mount; keeping this effect preserves when its loading state appears.
     fetchAds();
-  }, []);
+  }, [fetchAds]);
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,17 +99,14 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
 
     setSubmitting(true);
     try {
-      const res = await fetchApi('/ads', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || null,
-          image_url: imageUrl.trim(),
-          aspect_ratio: aspectRatio,
-          contact_phone: contactPhone.trim() || null,
-          call_to_action: callToAction,
-          shop_name: shopName || 'Our Store',
-        }),
+      const res = await adsCloud.create({
+        title: title.trim(),
+        description: description.trim() || null,
+        image_url: imageUrl.trim(),
+        aspect_ratio: aspectRatio,
+        contact_phone: contactPhone.trim() || null,
+        call_to_action: callToAction,
+        shop_name: shopName || 'Our Store',
       });
 
       if (res && res.ad_id) {
@@ -143,8 +121,8 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
       } else {
         showToast(res?.error || 'Failed to publish advertisement', 'error', 'PUBLISH ERROR');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Network error while publishing advertisement', 'error', 'PUBLISH ERROR');
+    } catch (err) {
+      showToast((err as Error).message || 'Network error while publishing advertisement', 'error', 'PUBLISH ERROR');
     } finally {
       setSubmitting(false);
     }
@@ -153,25 +131,22 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
   const handleToggleStatus = async (ad: Advertisement) => {
     const newStatus = ad.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     try {
-      await fetchApi(`/ads/${ad.ad_id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: newStatus }),
-      });
+      await adsCloud.setStatus(ad.ad_id, newStatus);
       setAds(prev => prev.map(item => item.ad_id === ad.ad_id ? { ...item, status: newStatus } : item));
       showToast(newStatus === 'ACTIVE' ? 'Advertisement resumed & visible' : 'Advertisement paused', 'info', 'STATUS UPDATED');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to update ad status', 'error', 'STATUS ERROR');
+    } catch (err) {
+      showToast((err as Error).message || 'Failed to update ad status', 'error', 'STATUS ERROR');
     }
   };
 
   const handleDeleteAd = async (adId: string) => {
     if (!window.confirm('Are you sure you want to delete this advertisement?')) return;
     try {
-      await fetchApi(`/ads/${adId}`, { method: 'DELETE' });
+      await adsCloud.remove(adId);
       setAds(prev => prev.filter(item => item.ad_id !== adId));
       showToast('Advertisement deleted successfully', 'success', 'DELETED');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to delete advertisement', 'error', 'DELETE ERROR');
+    } catch (err) {
+      showToast((err as Error).message || 'Failed to delete advertisement', 'error', 'DELETE ERROR');
     }
   };
 
@@ -336,7 +311,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
                     alt={ad.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      (e.target as any).src = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&auto=format&fit=crop&q=60';
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&auto=format&fit=crop&q=60';
                     }}
                   />
                   {/* Floating Views Counter Badge */}

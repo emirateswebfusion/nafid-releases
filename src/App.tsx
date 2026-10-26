@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
-import clsx from 'clsx';
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import UpdateBanner from './components/UpdateBanner';
 import { PermissionGuard } from './components/PermissionGuard';
 import { BillingPage } from './components/BillingPage';
@@ -17,12 +16,14 @@ import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
+import { getSetting } from './data/settings';
 import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
 import { isAdminRole } from './utils/permissions';
 import { setStoreTimezone } from './utils/timezoneHelper';
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
+import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { PaymentMethods } from './components/PaymentMethods';
 import { PrintBarcodeView } from './components/PrintBarcodeView';
 import { PrintReceiptView } from './components/PrintReceiptView';
@@ -44,6 +45,10 @@ import { AiAssistant } from './components/AiAssistant';
 import { EcommercePortal } from './components/EcommercePortal';
 import { AdsManager } from './components/AdsManager';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
+import { EmergencyWipePrompt } from './components/EmergencyWipePrompt';
+import { hasBridge, isDesktopRuntime } from './data/client';
+import { bridgeEvents } from './data/events';
+import { syncApi } from './data/sync';
 
 function App() {
   const [showAiAssistant, setShowAiAssistant] = useState(false);
@@ -61,19 +66,12 @@ function App() {
   const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
   const [showPrintA4, setShowPrintA4] = useState(false);
 
-  const {
-    showPinPrompt,
-    setShowPinPrompt,
-    enteredPin,
-    setEnteredPin,
-    pinError,
-    handlePinSubmit,
-    isPurging
-  } = useEmergencyPanicTrigger();
+  const panic = useEmergencyPanicTrigger();
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
       const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- location.hash initializes print-route state after mount to preserve the current route transition.
       setPrintBarcodeData(urlParams.get('barcode'));
       
       const paramPrice = urlParams.get('price');
@@ -110,8 +108,7 @@ function App() {
     }
   }, []);
 
-  const { currentUserRole } = useCartStore();
-  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role, isCloudSyncPaused } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showComboManager, setShowComboManager] = useState(false);
@@ -129,10 +126,14 @@ function App() {
   const [scrapManagerInitialView, setScrapManagerInitialView] = useState<string>('list');
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
-  enableScrapRef.current = enableScrap;
   const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
   const featureFlagsRef = useRef(featureFlags);
-  featureFlagsRef.current = featureFlags;
+  useLayoutEffect(() => {
+    enableScrapRef.current = enableScrap;
+  });
+  useLayoutEffect(() => {
+    featureFlagsRef.current = featureFlags;
+  });
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showReturnManager, setShowReturnManager] = useState(false);
@@ -150,7 +151,7 @@ function App() {
   const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
   const [syncComplete, setSyncComplete] = useState(false);
 
-  const QUOTES = [
+  const QUOTES = useMemo(() => [
     { text: "The best among you are those who bring benefit to others.", author: "Muhammad (SAW)" },
     { text: "Take advantage of five before five: your youth before your old age, your health before your sickness, your wealth before your poverty, your free time before your preoccupation, and your life before your death.", author: "Muhammad (SAW)" },
     { text: "Verily, with hardship comes ease.", author: "Muhammad (SAW)" },
@@ -189,7 +190,7 @@ function App() {
     { text: "The only person you are destined to become is the person you decide to be.", author: "Ralph Waldo Emerson" },
     { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
     { text: "Dream big and dare to fail.", author: "Norman Vaughan" },
-    { text: "Act now. There is never any time but now.", author: "MoliÃ¨re" },
+    { text: "Act now. There is never any time but now.", author: "Molière" },
     { text: "The best revenge is massive success.", author: "Frank Sinatra" },
     { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
     { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
@@ -201,7 +202,7 @@ function App() {
     { text: "Energy and persistence conquer all things.", author: "Benjamin Franklin" },
     { text: "You are never too old to set another goal or to dream a new dream.", author: "C.S. Lewis" },
     { text: "Fall seven times, stand up eight.", author: "Japanese Proverb" },
-  ];
+  ], []);
 
   const [shuffledQuotes, setShuffledQuotes] = useState<number[]>([]);
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -219,10 +220,11 @@ function App() {
   // Pre-shuffle all quotes when syncing starts
   useEffect(() => {
     if (isSyncing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isSyncing starts a fresh quote permutation; keeping the reset in this effect preserves sync-start timing.
       setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
       setQuoteIndex(0);
     }
-  }, [isSyncing]);
+  }, [isSyncing, QUOTES]);
 
   useEffect(() => {
     checkAuth();
@@ -230,7 +232,7 @@ function App() {
 
   useEffect(() => {
     // If running in browser dev mode and a pathname like /login is entered, clean it up
-    if (!window.electronAPI && window.location.pathname !== '/') {
+    if (!isDesktopRuntime() && window.location.pathname !== '/') {
       window.history.replaceState({}, '', '/');
     }
   }, []);
@@ -238,6 +240,7 @@ function App() {
   // Reset syncChecked and sync state when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- isAuthenticated becoming false resets transient sync UI after logout, preserving the existing transition timing.
       setSyncChecked(false);
       setIsSyncing(false);
       setSyncProgress(null);
@@ -258,21 +261,22 @@ function App() {
   // Trigger initial sync once on first login — progress events will activate the bar
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash.startsWith('#/print')) return;
-    if (isAuthenticated && !isCloudSyncPaused && !syncChecked && window.electronAPI) {
+    if (isAuthenticated && !isCloudSyncPaused && !syncChecked && isDesktopRuntime()) {
       console.log('[App] System authenticated. Starting cloud sync in background...');
-      window.electronAPI.runInitialSync().then(() => {
+      syncApi.runInitialSync().then(() => {
         console.log('[App] Initial sync completed.');
       }).catch((error) => {
         console.error('[App] Sync failed:', error);
       });
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncChecked locks the initial request before its promise settles to prevent duplicate syncs.
       setSyncChecked(true);
     }
   }, [isAuthenticated, isCloudSyncPaused, syncChecked]);
 
   // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
   useEffect(() => {
-    if (!window.electronAPI?.onSyncProgress) return;
-    const cleanup = window.electronAPI.onSyncProgress((progress) => {
+    if (!hasBridge('onSyncProgress')) return;
+    const cleanup = bridgeEvents.onSyncProgress((progress) => {
       setSyncProgress({
         percent: progress.percent ?? 0,
         label: progress.label ?? 'Syncing...',
@@ -289,12 +293,11 @@ function App() {
 
   // Listen to sync cycle complete to mark sync as done
   useEffect(() => {
-    if (!window.electronAPI?.onSyncCycleComplete) return;
-    const _cleanup = window.electronAPI.onSyncCycleComplete(() => {
+    if (!hasBridge('onSyncCycleComplete')) return;
+    return bridgeEvents.onSyncCycleComplete(() => {
       setSyncComplete(true);
       setIsSyncing(false);
     });
-    return () => { /* cleanup is handled by IPC subscription */ };
   }, []);
 
   // Rotate through shuffled quotes while syncing
@@ -311,37 +314,37 @@ function App() {
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [isSyncing, shuffledQuotes]);
+  }, [isSyncing, shuffledQuotes, QUOTES]);
 
   useEffect(() => {
-    if (!window.electronAPI || !isAuthenticated) return;
+    if (!isDesktopRuntime() || !isAuthenticated) return;
     const tid = useAuthStore.getState().tenantId;
-    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: unknown) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
     loadFlags(tid || 'global');
-    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
+    getSetting({ tenant_id: tid || 'global', key: 'time_format' }).then((v: unknown) => {
       if (v === '24h' || v === '12h') {
         setAppTimeFormat(v);
       } else {
         setAppTimeFormat('12h');
       }
     });
-    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: any) => {
-      if (v) setStoreTimezone(v);
+    getSetting({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: unknown) => {
+      if (v) setStoreTimezone(v as string);
     });
 
     const handleSettingsUpdated = () => {
       const currentTid = useAuthStore.getState().tenantId;
       loadFlags(currentTid || 'global');
-      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: unknown) => {
         if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
       });
-      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: any) => {
+      getSetting({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: unknown) => {
         if (v === '24h' || v === '12h') setAppTimeFormat(v);
       });
-      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: any) => {
-        if (v) setStoreTimezone(v);
+      getSetting({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: unknown) => {
+        if (v) setStoreTimezone(v as string);
       });
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);
@@ -655,8 +658,8 @@ function App() {
 
     let unsubscribeTokenExpired: (() => void) | undefined;
     let unsubscribeScale: (() => void) | undefined;
-    if (window.electronAPI) {
-      const unsub = window.electronAPI.onTokenExpired?.(() => {
+    if (isDesktopRuntime()) {
+      const unsub = bridgeEvents.onTokenExpired(() => {
         console.warn('[App] Cloud session expired or unauthorized. Showing session expired modal...');
         setShowSessionExpiredModal(true);
       });
@@ -664,7 +667,7 @@ function App() {
         unsubscribeTokenExpired = unsub;
       }
 
-      unsubscribeScale = window.electronAPI.onScaleWeight((weight) => {
+      unsubscribeScale = bridgeEvents.onScaleWeight((weight) => {
         useScaleStore.getState().setLiveWeight(weight);
       });
     }
@@ -740,12 +743,12 @@ function App() {
     return <SuperDashboard />;
   }
 
-
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
       <div className="absolute top-0 left-0 right-0 z-50">
         <UpdateBanner onOpenSettings={() => setShowSettingsManager(true)} />
       </div>
+      <CashDrawerAutoCloseWatcher />
 
       {showComboManager ? (
         <PermissionGuard permission="combos.view" onBack={() => setShowComboManager(false)}>
@@ -784,7 +787,7 @@ function App() {
         </PermissionGuard>
       ) : showScrapManager ? (
         <PermissionGuard permission="scrap.view" onBack={() => setShowScrapManager(false)}>
-          <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
+          <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as import('./components/scrap/scrapTypes').View} />
         </PermissionGuard>
       ) : showQuotationManager ? (
         <PermissionGuard permission="quotations.view" onBack={() => setShowQuotationManager(false)}>
@@ -928,55 +931,7 @@ function App() {
         }}
       />
 
-      {/* Emergency Panic Quick PIN Verification Modal */}
-      {showPinPrompt && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
-          <form onSubmit={handlePinSubmit} className="bg-card p-6 rounded-2xl border border-border shadow-2xl max-w-xs w-full space-y-4">
-            <div className="text-center space-y-1">
-              <h3 className="text-sm font-bold text-foreground">Security Verification</h3>
-              <p className="text-xs text-muted-foreground">Enter security code to continue</p>
-            </div>
-            <input
-              type="password"
-              autoFocus
-              maxLength={4}
-              value={enteredPin}
-              onChange={(e) => setEnteredPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="••••"
-              className={clsx(
-                "w-full h-11 text-center text-lg tracking-[0.5em] font-mono rounded-xl border bg-background outline-hidden transition-all",
-                pinError ? "border-rose-500 ring-2 ring-rose-500/20" : "border-border focus:border-primary"
-              )}
-            />
-            {pinError && <p className="text-[11px] text-rose-500 text-center font-medium">Invalid security code</p>}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowPinPrompt(false)}
-                className="flex-1 h-9 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 h-9 rounded-xl bg-primary text-primary-foreground text-xs font-bold"
-              >
-                Confirm
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Emergency Purging Overlay */}
-      {isPurging && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-3 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
-            <p className="text-xs font-mono text-muted-foreground">Resetting local system...</p>
-          </div>
-        </div>
-      )}
+      <EmergencyWipePrompt panic={panic} />
     </div>
   );
 }

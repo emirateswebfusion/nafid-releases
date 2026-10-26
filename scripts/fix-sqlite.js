@@ -47,7 +47,10 @@ function download(url, dest) {
 
 function extractTarGz(tarGzPath, outDir) {
   fs.mkdirSync(outDir, { recursive: true });
-  execSync(`tar -xzf "${tarGzPath}" -C "${outDir}"`, { stdio: 'pipe' });
+  // Use paths relative to the archive's folder: when Git's GNU tar is first on PATH it reads
+  // "C:\..." as a remote host:path (archive) or mangles it (-C). Windows tar accepts both forms.
+  const cwd = path.dirname(tarGzPath);
+  execSync(`tar -xzf "${path.basename(tarGzPath)}" -C "${path.relative(cwd, outDir)}"`, { stdio: 'pipe', cwd });
 }
 
 async function main() {

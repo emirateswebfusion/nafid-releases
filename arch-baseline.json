@@ -1,0 +1,15 @@
+{
+  "ipcCounts": {},
+  "servicePrepareCounts": {},
+  "syncPrepareCounts": {},
+  "sizeCaps": {},
+  "startupBaselineLines": {
+    "electron/db/localDb.ts": 313,
+    "electron/db/migrationsColumns.ts": 518,
+    "electron/db/migrationsRepairs.ts": 474,
+    "electron/db/schemaColumns.ts": 176,
+    "electron/db/schemaCoreTables.ts": 407,
+    "electron/db/schemaExtendedTables.ts": 409
+  },
+  "updatedAt": "2026-10-26T07:34:50.534Z"
+}

@@ -8,6 +8,11 @@ import { RedCrossButton } from './ui/RedCrossButton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
+import { isDesktopRuntime } from '../data/client';
+import { gradesApi } from '../data/grades';
+import { printingApi } from '../data/printing';
+import { productsApi } from '../data/products';
+import { buildBulkPrintItem } from '../utils/bulkPrintItem';
 
 interface RowData {
   id: string;
@@ -35,7 +40,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const { tenantId } = useAuthStore();
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<RowData[]>([createEmptyRow()]);
-  const [grades, setGrades] = useState<any[]>([]);
+  const [grades, setGrades] = useState<Awaited<ReturnType<typeof gradesApi.getGrades>>>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -48,22 +53,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const [printDateEnd, setPrintDateEnd] = useState('');
   const [printOnlyPending, setPrintOnlyPending] = useState(true);
 
-  useEffect(() => {
-    loadGrades();
-  }, []);
-
-  useEffect(() => {
-    loadPendingPrintCount();
-  }, [printDate, printDateEnd, printOnlyPending]);
-
-  useEffect(() => {
-    setTimeout(() => firstInputRef.current?.focus(), 50);
-  }, []);
-
   const loadGrades = async () => {
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const data = await window.electronAPI.dbGetGrades(tenantId || 'global');
+        const data = await gradesApi.getGrades(tenantId || 'global');
         if (Array.isArray(data)) {
           setGrades(data);
           const uniqueCats = Array.from(new Set(data.map(g => g.category)));
@@ -76,9 +69,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   const loadPendingPrintCount = async () => {
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const pending = await window.electronAPI.dbGetPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, dateEnd: printDateEnd || undefined, only_pending: printOnlyPending });
+        const pending = await productsApi.getPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, dateEnd: printDateEnd || undefined, only_pending: printOnlyPending });
         setPendingPrintCount(pending.length);
         setPrintLimit(pending.length);
       } catch (err) {
@@ -86,6 +79,22 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       }
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadGrades is the initial grade lookup; its result populates the form options after mount.
+    loadGrades();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadGrades excluded: the sheet loads grades once when it opens.
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadPendingPrintCount fetches the count for the current print date filters after mount or filter changes.
+    loadPendingPrintCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tenantId excluded: only the print-date filters triggered this count refresh before the lint fix.
+  }, [printDate, printDateEnd, printOnlyPending]);
+
+  useEffect(() => {
+    setTimeout(() => firstInputRef.current?.focus(), 50);
+  }, []);
 
   function createEmptyRow(): RowData {
     return {
@@ -212,16 +221,16 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     return base;
   };
 
-  const updateRow = (index: number, field: keyof RowData, value: any) => {
+  const updateRow = (index: number, field: keyof RowData, value: string | boolean) => {
     const newRows = [...rows];
     const row = { ...newRows[index] };
     
     if (field === 'discount_percent') {
-      row.discount_percent = value;
+      row.discount_percent = value as string;
       if (value === '') {
         row.discount_flat = '';
       } else {
-        const pct = parseFloat(value);
+        const pct = parseFloat(value as string);
         const base = getEffectiveMrp(row);
         if (!isNaN(pct) && base) {
           row.discount_flat = ((base * pct) / 100).toFixed(2);
@@ -229,11 +238,11 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       }
     } else if (field === 'discount_flat') {
-      row.discount_flat = value;
+      row.discount_flat = value as string;
       if (value === '') {
         row.discount_percent = '';
       } else {
-        const flat = parseFloat(value);
+        const flat = parseFloat(value as string);
         const base = getEffectiveMrp(row);
         if (!isNaN(flat) && base) {
           row.discount_percent = ((flat / base) * 100).toFixed(2);
@@ -241,14 +250,14 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       }
     } else if (field === 'offer_price') {
-      row.offer_price = value;
+      row.offer_price = value as string;
       if (value !== '') {
         row.discount_percent = '';
         row.discount_flat = '';
       }
     } else if (field === 'mrp' || field === 'grade_id') {
-      if (field === 'mrp') row.mrp = value;
-      if (field === 'grade_id') row.grade_id = value;
+      if (field === 'mrp') row.mrp = value as string;
+      if (field === 'grade_id') row.grade_id = value as string;
 
       if (row.discount_percent) {
         const pct = parseFloat(row.discount_percent);
@@ -264,13 +273,13 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       }
     } else if (field === 'billing_type') {
-      row.billing_type = value;
+      row.billing_type = value as RowData['billing_type'];
     } else if (field === 'uom') {
-      row.uom = value;
+      row.uom = value as string;
       const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
-      row.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
+      row.billing_type = weightUoms.includes(value as string) ? 'WEIGHT' : 'PIECE';
     } else {
-      (row as any)[field] = value;
+      (row as unknown as Record<keyof RowData, string | boolean>)[field] = value;
     }
 
     if (field === 'category') {
@@ -311,9 +320,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
   const getNextBarcode = async () => {
     let nextBarcode = '1';
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const lastProduct = await window.electronAPI.dbGetProducts({
+        const lastProduct = await productsApi.getProducts({
           tenant_id: tenantId,
           limit: 1,
           sortBy: 'created_at'
@@ -370,7 +379,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setMessage(null);
 
     let nextBarcode = await getNextBarcode();
-    const productsToInsert: any[] = [];
+    const productsToInsert: Parameters<typeof productsApi.bulkImportProducts>[0] = [];
     for (const r of validData) {
       let barcode = r.sku_barcode.trim();
       if (!barcode) {
@@ -407,9 +416,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       });
     }
 
-    if (window.electronAPI) {
+    if (isDesktopRuntime()) {
       try {
-        const res = await window.electronAPI.dbBulkImportProducts(productsToInsert);
+        const res = await productsApi.bulkImportProducts(productsToInsert);
         if (res.success) {
           setMessage({ type: 'success', text: `Successfully imported ${productsToInsert.length} products.` });
           setRows([createEmptyRow()]);
@@ -417,7 +426,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         } else {
           setMessage({ type: 'error', text: res.error || 'Failed to import products.' });
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Bulk import error:', err);
         setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
       }
@@ -433,10 +442,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   const confirmResetPending = async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     setResetPrintSaving(true);
     try {
-      const res = await window.electronAPI.dbResetPrintStatus(tenantId || 'global');
+      const res = await productsApi.resetPrintStatus(tenantId || 'global');
       if (res.success) {
         setPrintStatusMsg({ type: 'success', text: 'All pending items marked as printed.' });
         loadPendingPrintCount();
@@ -444,7 +453,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       } else {
         setPrintStatusMsg({ type: 'error', text: res.error || 'Failed to reset print status.' });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Reset print status error:', err);
       setPrintStatusMsg({ type: 'error', text: 'An error occurred. Please try again.' });
     } finally {
@@ -453,7 +462,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   const handleBulkPrint = async () => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     if (printLimit <= 0) {
        setPrintStatusMsg({ type: 'error', text: 'Please specify a valid number of products to print.' });
        return;
@@ -463,7 +472,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setPrintStatusMsg({ type: 'info', text: 'Preparing print job...' });
 
     try {
-      const pendingProducts = await window.electronAPI.dbGetPendingPrintProducts({
+      const pendingProducts = await productsApi.getPendingPrintProducts({
         tenant_id: tenantId || 'global',
         limit: printLimit,
         date: printDate || undefined,
@@ -483,44 +492,17 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       const printItems = pendingProducts.map(p => {
         const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
         const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
-        const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-          ? gradeRate 
-          : Number(p.base_price);
-
-        let sp: number | undefined;
-        let spType: 'SP' | 'OFF' = 'SP';
-        if (p.offer_price) {
-          sp = Number(p.offer_price);
-          spType = 'OFF';
-        } else if (p.discount_flat) {
-          sp = effectiveMrp - Number(p.discount_flat);
-          spType = 'SP';
-        } else if (p.discount_percent) {
-          sp = effectiveMrp * (1 - Number(p.discount_percent) / 100);
-          spType = 'SP';
-        }
-        if (sp !== undefined && sp === effectiveMrp) {
-           sp = undefined;
-        }
-
-        return {
-          barcode: p.sku_barcode,
-          price: effectiveMrp,
-          name: p.name,
-          quantity: Math.max(1, p.current_stock),
-          sp,
-          spType
-        };
+        return buildBulkPrintItem(p, gradeRate);
       });
 
-      const printRes = await window.electronAPI.printBulkBarcodes(tenantId || 'global', printItems);
-      const printedBarcodes = (printRes as any).printed as string[] | undefined;
+      const printRes = await printingApi.printBulkBarcodes(tenantId || 'global', printItems);
+      const printedBarcodes = (printRes as { printed?: string[] }).printed as string[] | undefined;
 
       if (printRes.success) {
         const ids = printedBarcodes
-          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
+          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode as string)).map(p => p.product_id)
           : pendingProducts.map(p => p.product_id);
-        const updateRes = await window.electronAPI.dbUpdatePrintStatus(ids);
+        const updateRes = await productsApi.updatePrintStatus(ids);
         if (updateRes.success) {
           setPrintStatusMsg({ type: 'success', text: `Successfully sent labels for ${ids.length} products to printer.` });
           loadPendingPrintCount();
@@ -529,10 +511,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         }
       } else {
         const printedIds = printedBarcodes
-          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
+          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode as string)).map(p => p.product_id)
           : [];
         if (printedIds.length > 0) {
-          const updateRes = await window.electronAPI.dbUpdatePrintStatus(printedIds);
+          const updateRes = await productsApi.updatePrintStatus(printedIds);
           setPrintStatusMsg({ type: 'error', text: updateRes.success
             ? `Print stopped: ${printRes.error}. ${printedIds.length} products marked printed; remaining stay pending — fix printer and print again.`
             : `Print stopped: ${printRes.error}. Also failed to update status: ${updateRes.error}` });
@@ -541,7 +523,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
           setPrintStatusMsg({ type: 'error', text: `Print failed: ${printRes.error}` });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Bulk print error:', err);
       setPrintStatusMsg({ type: 'error', text: 'An error occurred. Please try again.' });
     }

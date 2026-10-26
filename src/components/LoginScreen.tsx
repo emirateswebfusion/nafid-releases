@@ -4,6 +4,8 @@ import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, ChevronLeft
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { hasBridge } from '../data/client';
+import { bridgeEvents } from '../data/events';
 
 type Tab = 'login' | 'forgot-password' | 'reset-password';
 
@@ -44,7 +46,7 @@ export function LoginScreen() {
     if (Object.keys(errors).length) { setFieldErrors(errors); return; }
     setLoading(true);
     const res = await login(email, password);
-    if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Login failed.'));
+    if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Login failed.'));
     setLoading(false);
   };
 
@@ -57,7 +59,7 @@ export function LoginScreen() {
     if (res.success) {
       setSuccessMsg("If that email is registered, you'll receive a reset link shortly.");
     } else {
-      setError(typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Failed to send reset link.'));
+      setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Failed to send reset link.'));
     }
     setLoading(false);
   };
@@ -73,7 +75,7 @@ export function LoginScreen() {
       setSuccessMsg('All set! Your password has been updated. Redirecting you to sign in...');
       setTimeout(() => { setTab('login'); clearMessages(); }, 1500);
     } else {
-      setError(typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Failed to reset password.'));
+      setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Failed to reset password.'));
     }
     setLoading(false);
   };
@@ -82,11 +84,12 @@ export function LoginScreen() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- window.location.search seeds reset-password state from a deep link after mount.
       setResetToken(token);
       setTab('reset-password');
     }
-    if (window.electronAPI?.onDeepLink) {
-      window.electronAPI.onDeepLink((token: string) => {
+    if (hasBridge('onDeepLink')) {
+      bridgeEvents.onDeepLink((token: string) => {
         setResetToken(token);
         setTab('reset-password');
       });
@@ -213,7 +216,7 @@ export function LoginScreen() {
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}
+                  {typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}
                 </div>
               )}
 
@@ -267,7 +270,7 @@ export function LoginScreen() {
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}
+                  {typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}
                 </div>
               )}
 
@@ -334,7 +337,7 @@ export function LoginScreen() {
               {error && (
                 <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}
+                  {typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}
                 </div>
               )}
 

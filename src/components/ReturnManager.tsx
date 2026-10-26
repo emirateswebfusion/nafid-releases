@@ -11,43 +11,26 @@ import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type Re
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { isDesktopRuntime } from '../data/client';
+import { printingApi } from '../data/printing';
+import { returnsApi } from '../data/returns';
+import { settingsApi } from '../data/settings';
+import { formatCurrency } from '../utils/money';
+import type * as Rows from '../data/dbRows';
 
-interface ReturnInvoice {
-  return_id: string;
-  invoice_id: string;
-  return_number: string;
-  customer_name: string | null;
-  customer_phone: string | null;
-  customer_address?: string | null;
+interface ReturnInvoice extends Rows.ReturnsRow {
   customer_state?: string | null;
   biller_name?: string | null;
-  subtotal: number;
-  tax_total: number;
-  grand_total: number;
-  reason: string | null;
-  return_date: string;
-  created_at: string;
 }
 
-interface ReturnItem {
-  return_item_id: string;
-  return_id: string;
-  invoice_item_id: string | null;
-  product_id: string;
-  name: string;
-  quantity: number;
-  unit_price: number;
-  tax_amount: number;
-  total: number;
+interface ReturnItem extends Rows.ReturnItemsRow {
+  billing_type?: string | null; pieces_sold?: number | null; pieces_override?: number | null; unit?: string | null; uom?: string | null;
   sku_barcode?: string;
   item_code?: string;
 }
 
-function formatCurrency(amount: number): string {
-  return `\u20B9${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | null) {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
@@ -69,8 +52,8 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   const loadReturns = useCallback(async () => {
     setLoading(true);
     try {
-      if (window.electronAPI) {
-        const data = await window.electronAPI.dbGetReturns({ tenant_id: tenantId, search: search || undefined });
+      if (isDesktopRuntime()) {
+        const data = await returnsApi.getReturns({ tenant_id: tenantId as string, search: search || undefined });
         if (Array.isArray(data)) setReturns(data);
       }
     } catch (err) {
@@ -80,6 +63,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   }, [tenantId, search]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadReturns starts the current tenant/search request after the screen commits.
     loadReturns();
   }, [loadReturns]);
 
@@ -87,8 +71,8 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
     setSelectedReturn(r);
     setItemsLoading(true);
     try {
-      if (window.electronAPI) {
-        const items = await window.electronAPI.dbGetReturnItems(r.return_id);
+      if (isDesktopRuntime()) {
+        const items = await returnsApi.getReturnItems(r.return_id);
         if (Array.isArray(items)) setReturnItems(items);
       }
     } catch (err) {
@@ -101,8 +85,8 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
     if (!selectedReturn) return;
     setDeleteSaving(true);
     try {
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbDeleteReturn(selectedReturn.return_id);
+      if (isDesktopRuntime()) {
+        const res = await returnsApi.deleteReturn(selectedReturn.return_id);
         if (res.success) {
           setStatusMessage({ text: 'Return deleted & stock restored', type: 'success' });
           setSelectedReturn(null);
@@ -112,26 +96,26 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           setStatusMessage({ text: res.error || 'Failed to delete return', type: 'error' });
         }
       }
-    } catch (err) {
+    } catch {
       setStatusMessage({ text: 'Failed to delete return', type: 'error' });
     }
     setDeleteSaving(false);
   };
 
   const handlePrintReturn = async (r: ReturnInvoice, items: ReturnItem[]) => {
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
     try {
       const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
       ]);
-      const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+      const receiptConfig = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmtRaw = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const isHalfA4 = printFmt.format === 'half-a4';
       const isA4 = printFmt.format === 'a4';
@@ -151,9 +135,9 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         date: formatBillDateTime(r.return_date || r.created_at || Date.now()),
         billerName: billSettings.showBillerName !== false ? (r.biller_name || useAuthStore.getState().userName || undefined) : undefined,
         items: items.map(item => {
-          const itemAny = item as any;
+          const itemAny = item;
           return {
-            name: item.name,
+            name: item.name as string,
             quantity: item.quantity,
             unit_price: item.unit_price,
             total: item.total,
@@ -177,8 +161,8 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
 
       if (useA4) {
         const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as Parameters<typeof generateInvoiceHtml>[1]);
+        const printResult = await printingApi.printA4Html(tenantId || 'global', invoiceHtml);
         if (printResult && !printResult.success) {
           setStatusMessage({ text: formatPrinterError(printResult.error), type: 'error' });
         } else {
@@ -188,7 +172,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
         const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        const printResult = await printingApi.printReceipt(tenantId || 'global', receiptText);
         if (printResult?.skipped) {
           setStatusMessage({ text: formatPrinterError('No printer configured'), type: 'error' });
         } else if (printResult && !printResult.success) {
@@ -197,9 +181,9 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           setStatusMessage({ text: 'Return bill printed successfully', type: 'success' });
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to print return bill', err);
-      setStatusMessage({ text: 'Failed to print: ' + (err?.message || 'Unknown error'), type: 'error' });
+      setStatusMessage({ text: 'Failed to print: ' + ((err as Error)?.message || 'Unknown error'), type: 'error' });
     }
   };
 
@@ -209,7 +193,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
   const todayReturns = returns.filter(r => {
     try {
-      const datePart = r.return_date.split('T')[0];
+      const datePart = (r.return_date as string).split('T')[0];
       return datePart === todayStr;
     } catch {
       return false;

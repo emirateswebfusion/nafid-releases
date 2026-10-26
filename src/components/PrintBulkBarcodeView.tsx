@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { useAuthStore } from '../store/authStore';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
+import { authApi } from '../data/auth';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { printingApi } from '../data/printing';
+import type { BulkPrintItem } from '../data/printing';
+import { settingsApi } from '../data/settings';
 
 const PX_PER_MM = 96 / 25.4;
 
@@ -17,7 +22,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const [shopNameReady, setShopNameReady] = useState(false);
   const [showShopName, setShowShopName] = useState(true);
   const [showShopNameReady, setShowShopNameReady] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<BulkPrintItem[]>([]);
   const [columns, setColumns] = useState(1);
   const [labelWidthPx, setLabelWidthPx] = useState(189);
   const [labelHeightPx, setLabelHeightPx] = useState(94);
@@ -30,9 +35,9 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
     const load = async () => {
       let name = authShopName || null;
       let tid = useAuthStore.getState().tenantId;
-      if (window.electronAPI && window.electronAPI.authGetToken) {
+      if (isDesktopRuntime() && hasBridge('authGetToken')) {
         try {
-          const stored = await window.electronAPI.authGetToken();
+          const stored = await authApi.getToken();
           if (stored) {
             if (stored.shop_name) name = stored.shop_name;
             if (stored.tenant_id) tid = stored.tenant_id;
@@ -46,11 +51,11 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
         setShopNameReady(true);
       }
 
-      if (window.electronAPI && window.electronAPI.settingsGet) {
+      if (isDesktopRuntime() && hasBridge('settingsGet')) {
         try {
-          let v = await window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'label_show_shop_name' });
+          let v = await settingsApi.get({ tenant_id: tid || 'global', key: 'label_show_shop_name' });
           if ((v === null || v === undefined) && tid && tid !== 'global') {
-            v = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'label_show_shop_name' });
+            v = await settingsApi.get({ tenant_id: 'global', key: 'label_show_shop_name' });
           }
           if (v !== null && v !== undefined) {
             setShowShopName(Boolean(v));
@@ -70,14 +75,15 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1]);
     const cols = parseInt(params.get('columns') || '1', 10);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- window.location.hash supplies the one-time print layout after the route mounts.
     setColumns(cols || 1);
     const wMm = parseInt(params.get('labelWidthMm') || '50', 10) || 50;
     const hMm = parseInt(params.get('labelHeightMm') || '25', 10) || 25;
     setLabelWidthPx(Math.round(wMm * PX_PER_MM));
     setLabelHeightPx(Math.round(hMm * PX_PER_MM));
 
-    if (window.electronAPI && window.electronAPI.getBulkPrintItems) {
-      window.electronAPI.getBulkPrintItems().then((data) => {
+    if (isDesktopRuntime() && hasBridge('getBulkPrintItems')) {
+      printingApi.getBulkPrintItems().then((data) => {
         setItems(data || []);
         setLoaded(true);
       });
@@ -108,8 +114,8 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   useEffect(() => {
     if (!readyToPrint) return;
     const timer = setTimeout(() => {
-      if (window.electronAPI && window.electronAPI.printReady) {
-        window.electronAPI.printReady();
+      if (isDesktopRuntime() && hasBridge('printReady')) {
+        printingApi.printReady();
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -117,8 +123,8 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (window.electronAPI && window.electronAPI.printReady) {
-        window.electronAPI.printReady();
+      if (isDesktopRuntime() && hasBridge('printReady')) {
+        printingApi.printReady();
       }
     }, 4000);
     return () => clearTimeout(timer);
@@ -133,9 +139,9 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const colCount = Math.max(1, columns || 1);
   const labelContentWidthPx = Math.max(60, Math.floor(labelWidthPx / colCount) - 16);
 
-  const pages: any[] = [];
+  const pages: ReactNode[] = [];
 
-  const flatItems: any[] = [];
+  const flatItems: BulkPrintItem[] = [];
   items.forEach(item => {
     for (let i = 0; i < (item.quantity || 1); i++) {
       flatItems.push(item);

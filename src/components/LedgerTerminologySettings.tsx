@@ -1,6 +1,6 @@
 import React from 'react';
-import { useTerminologyStore, TERMINOLOGY_PRESETS, type TerminologyPreset, DEFAULT_CUSTOM_LABELS } from '../store/terminologyStore';
-import { BookOpen, Check, Eye, HelpCircle, ArrowUpRight, ArrowDownLeft, Wallet, Info } from 'lucide-react';
+import { useTerminologyStore, TERMINOLOGY_PRESETS } from '../store/terminologyStore';
+import { BookOpen, Check, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from './ui/Input';
 

@@ -1,35 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
-import net from 'net';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
-import QRCode from 'qrcode';
 import { getDb } from '../db/localDb';
-
-// Generic ESC/POS Hex Commands
-const ESC_INIT = Buffer.from([0x1B, 0x40]); // Initialize Printer
-const ESC_FONT_A = Buffer.from([0x1B, 0x4D, 0x00]); // Select Font A (12 CPI, standard)
-const ESC_DEFAULT_LINE_SPACING = Buffer.from([0x1B, 0x32]); // Set default line spacing
-const ESC_BOLD_ON = Buffer.from([0x1B, 0x45, 0x01]); // ESC E 1 — Emphasized (bold) mode ON
-const ESC_BOLD_OFF = Buffer.from([0x1B, 0x45, 0x00]); // ESC E 0 — Emphasized (bold) mode OFF
-const ESC_DENSITY = Buffer.from([0x1D, 0x28, 0x41, 0x02, 0x00, 0x08, 0x00]); // GS ( A — Max print density (+50%)
-const ESC_CUT = Buffer.from([0x1D, 0x56, 0x00]); // Full Cut
-const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // Open RJ11 Drawer
-
-const ESC_POS_HEADER = Buffer.concat([ESC_INIT, ESC_FONT_A, ESC_DEFAULT_LINE_SPACING]);
-
-// For ESC/POS network printers: strip non-ASCII chars that would print as garbage
-function sanitizeForEscPos(text: string): string {
-  const withoutQrMarkers = text.replace(/\[\[QR:[^\]]+\]\]\s*/g, '');
-  const withoutProminent = withoutQrMarkers.replace(/\[\[PROMINENT:([^\]]+)\]\]/g, '$1');
-  return withoutProminent.replace(/[\u{0080}-\u{FFFF}]/gu, (ch) => {
-    if (ch === '₹') return 'Rs ';
-    if (ch === '\u2588') return '#';  // █ full block
-    if (ch === '\u2580') return '^';  // ▀ upper half
-    if (ch === '\u2584') return ',';  // ▄ lower half
-    return '?';
-  });
-}
+import * as printerSql from '../db/statements/printer.js';
+import { buildReceiptHtml } from './receiptHtml.js';
+import { getSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
+import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
+import type { BulkPrintItem } from './printingTypes.js';
 
 function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barcode') {
   try {
@@ -37,31 +14,31 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
     const key = type === 'receipt' ? 'receipt_printer_config' : 'barcode_printer_config';
     const tid = tenantId || 'global';
 
-    let row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tid, key);
+    let row: Record<string, unknown> = (printerSql.findSettingsByKey(db).get(tid, key) as Record<string, unknown>);
     if (!row && tid !== 'global') {
-      row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = ?").get(key);
+      row = (printerSql.findSettingsByKeyValue(db).get(key) as Record<string, unknown>);
     }
     if (!row) {
-      row = db.prepare("SELECT value FROM settings WHERE key = ? ORDER BY updated_at DESC LIMIT 1").get(key);
+      row = (printerSql.findOneSettingByKey(db).get(key) as Record<string, unknown>);
     }
     if (row) {
-      try { return JSON.parse(row.value); } catch {}
+      try { return JSON.parse((row.value as string)); } catch { /* ignore */ }
     }
     
     // Fallback to legacy printer_config
-    let legacyRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tid);
+    let legacyRow: Record<string, unknown> = (printerSql.findSettingsByKeyPrinterConfig(db).get(tid) as Record<string, unknown>);
     if (!legacyRow && tid !== 'global') {
-      legacyRow = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'printer_config'").get();
+      legacyRow = (printerSql.findSettingsByKeyPrinterConfig2(db).get() as Record<string, unknown>);
     }
     if (!legacyRow) {
-      legacyRow = db.prepare("SELECT value FROM settings WHERE key = 'printer_config' ORDER BY updated_at DESC LIMIT 1").get();
+      legacyRow = (printerSql.findOneSettingByKeyPrinterConfig(db).get() as Record<string, unknown>);
     }
     if (legacyRow) {
       try {
-        const parsed = JSON.parse(legacyRow.value);
+        const parsed = JSON.parse((legacyRow.value as string));
         if (parsed && parsed.ip === '192.168.1.100') return { type: 'none' };
         return parsed;
-      } catch {}
+      } catch { /* ignore */ }
     }
     return { type: 'none' };
   } catch {
@@ -69,7 +46,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
   }
 }
 
-let currentBulkPrintItems: any[] = [];
+let currentBulkPrintItems: BulkPrintItem[] = [];
 let currentReceiptText: string = '';
 let currentA4Html: string = '';
 let pendingReceiptHeightPx: number = 0; // measured by renderer before printReady; used by printReceiptUSB
@@ -77,10 +54,10 @@ let pendingReceiptHeightPx: number = 0; // measured by renderer before printRead
 function getPrintFormatConfig(tenantId: string) {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'print_format'").get(tenantId || 'global');
+    const row: Record<string, unknown> = (printerSql.findSettingsByKeyPrintFormat(db).get(tenantId || 'global') as Record<string, unknown>);
     if (row) {
       try {
-        const parsed = JSON.parse(row.value);
+        const parsed = JSON.parse((row.value as string));
         if (typeof parsed === 'string') return { format: parsed };
         return parsed;
       } catch {
@@ -96,11 +73,11 @@ function getPrintFormatConfig(tenantId: string) {
 function getLabelCodeType(tenantId: string): string {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'label_code_type'").get(tenantId || 'global', 'label_code_type');
+    const row: Record<string, unknown> = (printerSql.findSettingsByKeyLabelCodeType(db).get(tenantId || 'global', 'label_code_type') as Record<string, unknown>);
     if (row) {
-      let val: any = row.value;
+      let val: unknown = (row.value as Record<string, unknown>);
       try {
-        const parsed = JSON.parse(row.value);
+        const parsed = JSON.parse((row.value as string));
         if (typeof parsed === 'string') val = parsed;
       } catch {
         // Value is a raw (non-JSON) string, e.g. cloud-synced 'qrcode' — use as-is
@@ -142,7 +119,6 @@ export function initPrinter() {
   ipcMain.handle('hardware:getA4Html', () => {
     if (currentA4Html) return currentA4Html;
     try {
-      const { getSharedA4Html } = require('../whatsapp/sharedPrintHtml');
       return getSharedA4Html() || '';
     } catch {
       return '';
@@ -153,19 +129,19 @@ export function initPrinter() {
     try {
       const db = getDb();
       const tid = tenant_id || 'global';
-      let row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tid);
+      let row: Record<string, unknown> = (printerSql.findSettingsByKeyA4PrinterConfig(db).get(tid) as Record<string, unknown>);
       if (!row && tid !== 'global') {
-        row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'a4_printer_config'").get();
+        row = (printerSql.findSettingsByKeyA4PrinterConfig2(db).get() as Record<string, unknown>);
       }
       if (!row) {
-        row = db.prepare("SELECT value FROM settings WHERE key = 'a4_printer_config' ORDER BY updated_at DESC LIMIT 1").get();
+        row = (printerSql.findOneSettingByKeyA4PrinterConfig(db).get() as Record<string, unknown>);
       }
       let config = { deviceName: '' };
       if (row) {
         try {
-          config = JSON.parse(row.value);
+          config = JSON.parse((row.value as string));
         } catch {
-          config = { deviceName: row.value || '' };
+          config = { deviceName: (row.value as string) || ('' as string) };
         }
       }
 
@@ -181,13 +157,13 @@ export function initPrinter() {
       await printA4USB(config.deviceName || '', targetPageSize, targetLandscape);
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] A4 Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
-  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename, displayHeaderFooter, headerTemplate, footerTemplate }: { tenant_id: string; htmlContent: string; defaultFilename?: string; displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => {
+  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id: _tenant_id, htmlContent, defaultFilename, displayHeaderFooter, headerTemplate, footerTemplate }: { tenant_id: string; htmlContent: string; defaultFilename?: string; displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => {
     try {
       const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
       const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
@@ -224,7 +200,7 @@ export function initPrinter() {
 
         ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
           try {
-            const pdfOpts: any = {
+            const pdfOpts: Electron.PrintToPDFOptions & { margins: { marginType: string } } = {
               printBackground: true,
               pageSize: 'A4',
               landscape: false,
@@ -270,9 +246,9 @@ export function initPrinter() {
       }
 
       return { success: true, canceled: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] A4 PDF Export Error:', error);
-      return { success: false, error: error.message || 'PDF export failed' };
+      return { success: false, error: (error as Error).message || 'PDF export failed' };
     }
   });
 
@@ -303,9 +279,9 @@ export function initPrinter() {
       await printReceiptUSB(reqName, widthMm, tenant_id);
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
@@ -321,8 +297,8 @@ export function initPrinter() {
         return { success: true, skipped: true };
       }
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message || 'Drawer open failed' };
+    } catch (error) {
+      return { success: false, error: (error as Error).message || 'Drawer open failed' };
     }
   });
 
@@ -354,13 +330,13 @@ export function initPrinter() {
         throw new Error(`Unknown printer type: ${config.type}`);
       }
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] Barcode Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
-  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: any[] }) => {
+  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: BulkPrintItem[] }) => {
     console.log(`[Hardware] Printing Bulk Barcodes (${items.length} items) for tenant: ${tenant_id}`);
     const config = getPrinterConfig(tenant_id, 'barcode');
     const codeType = getLabelCodeType(tenant_id);
@@ -382,8 +358,8 @@ export function initPrinter() {
           try {
             await sendToNetworkPrinter(config.ip, config.port || 9100, itemBuffer);
             printed.push(item.barcode);
-          } catch (error: any) {
-            return { success: false, printed, error: `Print stopped at ${item.barcode}: ${error?.message || 'Printer connection timed out'}` };
+          } catch (error) {
+            return { success: false, printed, error: `Print stopped at ${item.barcode}: ${(error as Error)?.message || 'Printer connection timed out'}` };
           }
         }
         return { success: true, printed };
@@ -396,43 +372,22 @@ export function initPrinter() {
         throw new Error(`Unknown printer type: ${config.type}`);
       }
       return { success: true, printed: allBarcodes };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[Hardware] Bulk Barcode Print Error:', error);
-      return { success: false, error: error.message || 'Print failed' };
+      return { success: false, error: (error as Error).message || 'Print failed' };
     }
   });
 
   console.log('[Hardware] Printer service initialized');
 }
 
-function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise<void> {
-  // Network printers are always on local networks (192.168.x.x, 10.x.x.x, etc.)
-  // We skip the isPrivateIp check here because this is a printer connection, not an outbound HTTP request
+function pendingPrint(setup: (resolve: () => void, reject: (reason: unknown) => void) => Promise<void>): Promise<void> {
   return new Promise((resolve, reject) => {
-    const client = new net.Socket();
-    client.setTimeout(3000);
-
-    client.on('error', (err) => {
-      client.destroy();
-      reject(err);
-    });
-
-    client.on('timeout', () => {
-      client.destroy();
-      reject(new Error('Printer connection timed out'));
-    });
-
-    client.connect(port, host, () => {
-      client.write(data, () => {
-        client.destroy();
-        resolve();
-      });
-    });
+    void setup(resolve, reject).catch(() => { /* Preserve pending outer promise on setup failure. */ });
   });
 }
-
 function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number, columns?: number, sp?: number, spType?: string, codeType?: string): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     const labelW = Math.max(20, Math.round(widthMm || 50));
     const labelH = Math.max(12, Math.round(heightMm || 25));
     const windowWidth = Math.max(80, Math.round(labelW * 96 / 25.4));
@@ -449,9 +404,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         sandbox: true,
       }
     });
-
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
-
     const codeTypeParam = `&codeType=${codeType || 'barcode'}`;
     const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
     if (app.isPackaged) {
@@ -460,21 +413,19 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
       // Dev server URL — set ELECTRON_DEV_SERVER_URL in .env
       printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}`);
     }
-
     const timer = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
         printWindow.close();
         reject(new Error('USB print timeout'));
       }
     }, 20000);
-
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
       try {
         await executePrintWithFallback(printWindow, resolved.deviceName, labelW, labelH * 1000);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
         reject(err);
@@ -482,9 +433,8 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     });
   });
 }
-
-function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+function printBulkBarcodeUSB(items: BulkPrintItem[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
+  return pendingPrint(async (resolve, reject) => {
     currentBulkPrintItems = items;
     const labelW = Math.max(20, Math.round(widthMm || 50));
     const labelH = Math.max(12, Math.round(heightMm || 25));
@@ -502,7 +452,6 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         sandbox: true,
       }
     });
-
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
 
     const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
@@ -531,7 +480,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         clearTimeout(watchdog);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         clearTimeout(watchdog);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
@@ -541,11 +490,11 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
   });
 }
 
-let cachedPrinters: any[] = [];
+let cachedPrinters: Electron.PrinterInfo[] = [];
 let lastPrintersFetchTime = 0;
 const PRINTER_CACHE_TTL_MS = 60000;
 
-async function getSystemPrinters(win?: BrowserWindow): Promise<any[]> {
+async function getSystemPrinters(win?: BrowserWindow): Promise<Electron.PrinterInfo[]> {
   const now = Date.now();
   if (cachedPrinters.length > 0 && now - lastPrintersFetchTime < PRINTER_CACHE_TTL_MS) {
     return cachedPrinters;
@@ -557,8 +506,8 @@ async function getSystemPrinters(win?: BrowserWindow): Promise<any[]> {
       lastPrintersFetchTime = now;
       return cachedPrinters;
     }
-  } catch (err: any) {
-    console.warn('[Printer] Could not fetch system printers:', err.message);
+  } catch (err) {
+    console.warn('[Printer] Could not fetch system printers:', (err as Error).message);
   }
   return cachedPrinters;
 }
@@ -582,11 +531,11 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
   }
 
   // 1. Exact match (case-insensitive)
-  const exact = printers.find((p: any) => p.name.toLowerCase() === cleanReq || (p.displayName && String(p.displayName).toLowerCase() === cleanReq));
+  const exact = printers.find((p: Electron.PrinterInfo) => p.name.toLowerCase() === cleanReq || (p.displayName && String(p.displayName).toLowerCase() === cleanReq));
   if (exact) return { deviceName: exact.name, actualNameUsed: exact.name };
 
   // 2. Partial match (e.g. "POS80" matches "POSPrinter POS80")
-  const partial = printers.find((p: any) => p.name.toLowerCase().includes(cleanReq) || cleanReq.includes(p.name.toLowerCase()));
+  const partial = printers.find((p: Electron.PrinterInfo) => p.name.toLowerCase().includes(cleanReq) || cleanReq.includes(p.name.toLowerCase()));
   if (partial) {
     console.log(`[Printer] Resolved requested "${requestedName}" -> "${partial.name}" via partial match`);
     return { deviceName: partial.name, actualNameUsed: partial.name };
@@ -594,7 +543,7 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
 
   // 3. Thermal printer auto-detection if requested name failed
   const thermalKeywords = ['pos', 'rp', 'thermal', 'receipt', '80', '58', 'epson', 'xprinter', 'tspl', 'zjiang', 'sewoo'];
-  const thermalPrinter = printers.find((p: any) => thermalKeywords.some(k => p.name.toLowerCase().includes(k)));
+  const thermalPrinter = printers.find((p: Electron.PrinterInfo) => thermalKeywords.some(k => p.name.toLowerCase().includes(k)));
   if (thermalPrinter) {
     console.warn(`[Printer] Requested "${requestedName}" not found. Auto-detected thermal printer: "${thermalPrinter.name}"`);
     return { deviceName: thermalPrinter.name, actualNameUsed: `${thermalPrinter.name} (Auto-detected)` };
@@ -604,261 +553,8 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
   return { deviceName: requestedName, actualNameUsed: requestedName };
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function generateCode128Svg(text: string): string {
-  const patterns: string[] = [
-    "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
-    "221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
-    "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211",
-    "212123","212321","222121","111323","131123","131321","112313","132113","132311","211313",
-    "231113","231311","112133","112331","132131","113123","113321","133121","313121","211331",
-    "231131","213113","213311","213131","311123","311321","331121","312113","312311","332111",
-    "314111","221411","431111","111224","111422","121124","121421","141122","141221","112214",
-    "112412","122114","122411","142112","142211","241211","221114","413111","241112","134111",
-    "111242","121142","121241","114212","124112","124211","411212","421112","421211","212141",
-    "214121","412121","111143","111341","131141","114113","114311","411113","411311","113141",
-    "114131","311141","411131","211412","211214","211232","2331112"
-  ];
-  
-  const startB = 104;
-  let checksum = startB;
-  const codes: number[] = [startB];
-
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i) - 32;
-    if (code >= 0 && code <= 94) {
-      codes.push(code);
-      checksum += code * (i + 1);
-    }
-  }
-  codes.push(checksum % 103);
-  codes.push(106);
-
-  let width = 0;
-  let barElements = '';
-  const barHeight = 24;
-
-  codes.forEach(codeIdx => {
-    const pat = patterns[codeIdx];
-    if (!pat) return;
-    for (let j = 0; j < pat.length; j++) {
-      const w = parseInt(pat[j], 10) * 1.0;
-      if (j % 2 === 0) {
-        barElements += `<rect x="${width.toFixed(1)}" y="0" width="${w.toFixed(1)}" height="${barHeight}" fill="#000" />`;
-      }
-      width += w;
-    }
-  });
-
-  return `<div style="width:100%;display:flex;justify-content:center;margin:4px 0;">
-    <svg width="${width.toFixed(1)}" height="${barHeight}" viewBox="0 0 ${width.toFixed(1)} ${barHeight}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
-      ${barElements}
-    </svg>
-  </div>`;
-}
-
-function isTopBorderLine(str: string): boolean {
-  const s = str.trim();
-  if (s.length < 4) return false;
-  const f = s.charAt(0);
-  const l = s.charAt(s.length - 1);
-  const isCorner = (f === '┌' || f === '+' || f === '|') && (l === '┐' || l === '+' || l === '|');
-  if (!isCorner) return false;
-  const mid = s.substring(1, s.length - 1);
-  return /^─+$/.test(mid) || /^-+$/.test(mid) || /^=+$/.test(mid);
-}
-
-function isBottomBorderLine(str: string): boolean {
-  const s = str.trim();
-  if (s.length < 4) return false;
-  const f = s.charAt(0);
-  const l = s.charAt(s.length - 1);
-  const isCorner = (f === '└' || f === '+' || f === '|') && (l === '┘' || l === '+' || l === '|');
-  if (!isCorner) return false;
-  const mid = s.substring(1, s.length - 1);
-  return /^─+$/.test(mid) || /^-+$/.test(mid) || /^=+$/.test(mid);
-}
-
-function isDividerLine(str: string): boolean {
-  const s = str.trim();
-  if (s.length < 4) return false;
-  const f = s.charAt(0);
-  const l = s.charAt(s.length - 1);
-  const isEdge = (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐');
-  if (!isEdge) return false;
-  const mid = s.substring(1, s.length - 1);
-  return /^[─┼┬┴]+$/.test(mid) || /^[-\+|]+$/.test(mid) || /^=+$/.test(mid);
-}
-
-function stripOuterPipes(str: string): string {
-  if (str.length < 2) return str;
-  const f = str.charAt(0);
-  const l = str.charAt(str.length - 1);
-  if ((f === '│' || f === '|') && (l === '│' || l === '|')) {
-    return str.substring(1, str.length - 1);
-  }
-  return str;
-}
-
-async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0): Promise<string> {
-  const lines = receiptText.split('\n');
-  let startIdx = 0;
-  while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
-  let endIdx = lines.length - 1;
-  while (endIdx >= startIdx && lines[endIdx].trim() === '') endIdx--;
-  const activeLines = lines.slice(startIdx, endIdx + 1);
-
-  const isBillStyle = receiptText.includes('│') || receiptText.includes('┌') || receiptText.includes('├') ||
-    activeLines.some(l => {
-      const s = l.trim();
-      return (s.startsWith('|') && s.endsWith('|')) || (s.startsWith('+') && s.endsWith('+'));
-    });
-
-  let rowsHtml = '';
-  for (let i = 0; i < activeLines.length; i++) {
-    const line = activeLines[i];
-    if (line.includes('[[QR:')) {
-      const match = line.match(/\[\[QR:([^\]]+)\]\]/);
-      if (match) {
-        try {
-          const dataUrl = await QRCode.toDataURL(match[1], { width: 280, margin: 1, errorCorrectionLevel: 'M' });
-          rowsHtml += `<div style="width:100%;text-align:center;margin:6px 0;"><img src="${dataUrl}" style="max-width:180px;height:auto;display:inline-block;" /></div>`;
-        } catch {
-          rowsHtml += `<pre style="margin:0;text-align:center;">[QR CODE]</pre>`;
-        }
-        continue;
-      }
-    }
-    if (line.includes('[[BARCODE:')) {
-      const match = line.match(/\[\[BARCODE:([^\]]+)\]\]/);
-      if (match) {
-        rowsHtml += generateCode128Svg(match[1]);
-        continue;
-      }
-    }
-    if (line.includes('[[PROMINENT:')) {
-      const match = line.match(/\[\[PROMINENT:([^\]]+)\]\]/);
-      if (match) {
-        rowsHtml += `<div style="width:100%;text-align:center;font-size:14px;font-weight:900;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:4px 0;">${escapeHtml(match[1])}</div>`;
-        continue;
-      }
-    }
-    let lhMultiplier = 1.0;
-    let cleanLine = line;
-    if (line.startsWith('[[LH:')) {
-      const match = line.match(/^\[\[LH:([^\]]+)\]\]/);
-      if (match) {
-        lhMultiplier = Number(match[1]) || 1.0;
-        cleanLine = line.substring(match[0].length);
-      }
-    }
-
-    let displayValue = cleanLine.replace(/\r/g, '');
-
-    if (isBillStyle) {
-      if (isTopBorderLine(displayValue) && i === 0) {
-        continue;
-      }
-      if (isBottomBorderLine(displayValue) && i >= activeLines.length - 2) {
-        continue;
-      }
-      if (isDividerLine(displayValue)) {
-        const hasVisibleAfter = activeLines.slice(i + 1).some(l => {
-          let c = l;
-          if (c.startsWith('[[LH:')) {
-            const m = c.match(/^\[\[LH:([^\]]+)\]\]/);
-            if (m) c = c.substring(m[0].length);
-          }
-          const val = c.replace(/\r/g, '');
-          if (isTopBorderLine(val) || isBottomBorderLine(val) || isDividerLine(val)) {
-            return false;
-          }
-          return val.trim().length > 0;
-        });
-
-        if (!hasVisibleAfter) {
-          continue;
-        }
-
-        rowsHtml += `<hr style="border:none;border-top:2px solid black;margin:0 -3px;padding:0;" />`;
-        continue;
-      }
-
-      displayValue = stripOuterPipes(displayValue);
-    }
-
-    const trimmed = displayValue.trim();
-    let isCentered = false;
-    let finalValue = displayValue;
-    if (trimmed && !displayValue.includes('│') && !displayValue.includes('|')) {
-      const leading = displayValue.length - displayValue.trimStart().length;
-      const trailing = displayValue.length - displayValue.trimEnd().length;
-      if (Math.abs(leading - trailing) <= 2) {
-        isCentered = true;
-        finalValue = trimmed;
-      }
-    }
-
-    const lh = isBillStyle ? 1.08 : 1.25;
-    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
-  }
-
-  const fontSize = widthMm <= 58 ? '10px' : '11.5px';
-  const contentBody = isBillStyle
-    ? `<div style="border:2px solid black;padding:6px 3px;width:100%;box-sizing:border-box;background:#fff;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;">${rowsHtml}</div>`
-    : rowsHtml;
-
-  const leftMarginCss = leftMarginOffsetMm !== 0
-    ? `margin-left: ${leftMarginOffsetMm}mm !important;`
-    : '';
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  @page {
-    margin: 0;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    padding: 2mm 3mm;
-    font-family: ${fontFamily};
-    font-size: ${fontSize};
-    color: #000;
-    background: #fff;
-    width: ${widthMm}mm;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    ${leftMarginCss}
-  }
-</style>
-</head>
-<body>
-  ${contentBody}
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      const height = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
-      if (window.electronAPI?.printReady) {
-        window.electronAPI.printReady(height);
-      }
-    });
-  </script>
-</body>
-</html>`;
-}
-
 function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: boolean = false): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     const isA5 = pageSize === 'A5';
     const winWidth = isA5 ? (landscape ? 794 : 560) : (landscape ? 1123 : 794);
     const winHeight = isA5 ? (landscape ? 560 : 794) : (landscape ? 794 : 1123);
@@ -893,7 +589,7 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         reject(err);
@@ -934,7 +630,7 @@ function executePrintWithFallback(
       primaryOptions.deviceName = deviceName;
     }
     if (pageSizeName) {
-      (primaryOptions as any).pageSize = pageSizeName;
+      (primaryOptions as { pageSize?: string }).pageSize = pageSizeName;
     } else if (widthMm && heightMicrons) {
       primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
     }
@@ -997,7 +693,7 @@ function executePrintWithFallback(
 }
 
 function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: string = 'global'): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  return pendingPrint(async (resolve, reject) => {
     const printFmt = getPrintFormatConfig(tenantId);
     const receiptConfig = getPrinterConfig(tenantId, 'receipt');
     const leftMarginOffsetMm = Number(receiptConfig?.leftMarginOffsetMm ?? printFmt?.leftMarginOffsetMm ?? 0) || 0;
@@ -1050,7 +746,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         reject(err);
@@ -1066,7 +762,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     try {
       const receiptHtml = await buildReceiptHtml(currentReceiptText, widthMm, chosenFont, leftMarginOffsetMm);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
-    } catch (err: any) {
+    } catch (err) {
       clearTimeout(timer);
       if (!printWindow.isDestroyed()) printWindow.close();
       reject(err);

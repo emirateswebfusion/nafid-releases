@@ -1,97 +1,32 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useCartStore } from '../store/cartStore';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
-import { getStoreTimezone } from '../utils/timezoneHelper';
-import {
-  Search, Loader2, Plus,
-  Pencil, Trash, Trash2, RefreshCw, X, Save, TrendingUp, TrendingDown, Recycle,
-  CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
-  IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
-  ChevronRight, Activity, FileText, Layers
-} from 'lucide-react';
+import { parseUTCDate } from '../utils/receiptGenerator';
+import { Loader2, Plus, Trash, Trash2, RefreshCw, AlertCircle, ShoppingCart, Package, CheckCheck } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { RedCrossButton } from './ui/RedCrossButton';
 import { FloatToast } from './ui/FloatToast';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
-import { Select } from './ui/Select';
-import { DateRangeFilter } from './ui/DateRangeFilter';
-import { v4 as uuidv4 } from 'uuid';
-import clsx from 'clsx';
-import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
-import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
-
-type View = 'list' | 'category_form' | 'transaction' | 'tx_form' | 'selling' | 'invoices' | 'invoice_detail';
-
-interface ScrapCategory {
-  scrap_category_id: string;
-  tenant_id: string;
-  name: string;
-  purchase_price: number;
-  selling_price: number;
-  current_stock: number;
-  unit: string;
-  is_deleted?: number;
-}
-
-interface ScrapTransaction {
-  transaction_id: string;
-  type: 'PURCHASE' | 'SALE';
-  scrap_category_id: string;
-  scrap_category_name: string;
-  quantity: number;
-  rate: number;
-  total_amount: number;
-  party_name: string;
-  notes: string;
-  created_at: string;
-}
-
-const formatCurrency = (amount: number | undefined | null) =>
-  amount == null || isNaN(amount) ? '-' : `\u20B9${amount.toFixed(2)}`;
-
-const formatStock = (stock: number | string | undefined | null) => {
-  if (stock == null || stock === '') return '0';
-  const n = Number(stock);
-  if (isNaN(n)) return '0';
-  return parseFloat(n.toFixed(3)).toString();
-};
-
-const _formatDate = (d: string) => {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
-};
-
-const formatDateTime = (d: string) => {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
-};
-
-const formatGroupDate = (dateStr?: string) => {
-  if (!dateStr) return '-';
-  const tz = getStoreTimezone();
-  const d = parseUTCDate(dateStr);
-  if (isNaN(d.getTime())) return '-';
-  const dd = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit' });
-  const mm = d.toLocaleDateString('en-IN', { timeZone: tz, month: '2-digit' });
-  const yyyy = d.toLocaleDateString('en-IN', { timeZone: tz, year: 'numeric' });
-  const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
-  return `${dd}/${mm}/${yyyy} ${dayName}`;
-};
-
-const nameToHue = (name: string) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return Math.abs(hash) % 360;
-};
-
-const getInitials = (name: string) =>
-  name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { paymentSourcesApi } from '../data/paymentSources';
+import { scrapApi } from '../data/scrap';
+import { type View, type ScrapCategory, type ScrapTransaction } from './scrap/scrapTypes';
+import { formatStock } from './scrap/scrapFormat';
+import { AddInvoiceItemDialog } from './scrap/views/AddInvoiceItemDialog';
+import { EditInvoiceHeaderDialog } from './scrap/views/EditInvoiceHeaderDialog';
+import { EditScrapTxDialog } from './scrap/views/EditScrapTxDialog';
+import { ScrapInvoiceDetailView } from './scrap/views/ScrapInvoiceDetailView';
+import { ScrapInvoicesView } from './scrap/views/ScrapInvoicesView';
+import { ScrapSellingView } from './scrap/views/ScrapSellingView';
+import { ScrapTxForm } from './scrap/views/ScrapTxForm';
+import { ScrapTransactionsView } from './scrap/views/ScrapTransactionsView';
+import { ScrapCategoryForm } from './scrap/views/ScrapCategoryForm';
+import { ScrapCategoryList } from './scrap/views/ScrapCategoryList';
+import type { ScrapInvoiceRow, ScrapInvoiceTxRow, ScrapUpiSourceRow } from './scrap/scrapTypes';
+import { useScrapInvoiceActions } from './scrap/hooks/useScrapInvoiceActions';
+import { useScrapStockActions } from './scrap/hooks/useScrapStockActions';
 
 export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
@@ -131,16 +66,16 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const [sellingProcessing, setSellingProcessing] = useState(false);
 
   // Invoices state
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<ScrapInvoiceRow[]>([]);
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [invoiceDateFrom, setInvoiceDateFrom] = useState('');
   const [invoiceDateTo, setInvoiceDateTo] = useState('');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string>('');
-  const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
+  const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<ScrapInvoiceTxRow[]>([]);
   const [reprintSuccess, setReprintSuccess] = useState(false);
 
   // Edit Line Item Modal state
-  const [editingTxItem, setEditingTxItem] = useState<any | null>(null);
+  const [editingTxItem, setEditingTxItem] = useState<ScrapInvoiceTxRow | null>(null);
   const [editTxForm, setEditTxForm] = useState({
     scrap_category_id: '',
     quantity: '',
@@ -157,7 +92,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const [deleteCatSaving, setDeleteCatSaving] = useState(false);
 
   // Edit Invoice Header state
-  const [editHeaderInvoice, setEditHeaderInvoice] = useState<any | null>(null);
+  const [editHeaderInvoice, setEditHeaderInvoice] = useState<ScrapInvoiceRow | null>(null);
   const [editHeaderForm, setEditHeaderForm] = useState({
     party_name: '',
     customer_phone: '',
@@ -167,7 +102,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const [isSavingHeader, setIsSavingHeader] = useState(false);
 
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
-  const [upiSources, setUpiSources] = useState<any[]>([]);
+  const [upiSources, setUpiSources] = useState<ScrapUpiSourceRow[]>([]);
   const [scrapUpiSourceId, setScrapUpiSourceId] = useState<string>('');
 
   // Add Item to existing Invoice state
@@ -188,15 +123,16 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   useEffect(() => {
     loadData();
     if (initialView === 'invoices') loadInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialView selects the mount-time view, while loadData and loadInvoices are the corresponding one-time requests.
   }, []);
 
-  const loadData = async () => {
+  async function loadData() {
     setLoading(true);
     try {
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         const tid = tenantId || '';
-        await window.electronAPI.dbDeduplicateScrapCategories();
-        const cats = await window.electronAPI.dbGetScrapCategories(tid);
+        await scrapApi.deduplicateScrapCategories();
+        const cats = await scrapApi.getScrapCategories(tid);
         if (Array.isArray(cats)) {
           setCategories(cats);
           const currentCatId = selectedCategory?.scrap_category_id;
@@ -206,10 +142,10 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           }
         }
         getUpiPageConfig(tid || 'global').then(setUpiPageConfig);
-        if (window.electronAPI?.dbPaymentGetSources) {
-          window.electronAPI.dbPaymentGetSources(tid || 'global').then((sources: any[]) => {
+        if (hasBridge('dbPaymentGetSources')) {
+          paymentSourcesApi.getSources(tid || 'global').then((sources) => {
             if (Array.isArray(sources)) {
-              setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+              setUpiSources(sources.filter((s) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
             }
           }).catch(() => {});
         }
@@ -218,26 +154,26 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       console.error('[ScrapManager] Failed to load data:', err);
     }
     setLoading(false);
-  };
+  }
 
   const loadTransactions = async (categoryId?: string) => {
-    if (window.electronAPI) {
-      const txs = await window.electronAPI.dbGetScrapTransactions({ tenant_id: tenantId || '', scrap_category_id: categoryId });
+    if (isDesktopRuntime()) {
+      const txs = await scrapApi.getScrapTransactions({ tenant_id: tenantId || '', scrap_category_id: categoryId });
       if (Array.isArray(txs)) setTransactions(txs);
     }
   };
 
-  const loadInvoices = async () => {
-    if (window.electronAPI) {
-      const invs = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+  async function loadInvoices() {
+    if (isDesktopRuntime()) {
+      const invs = await scrapApi.getScrapInvoiceList({ tenant_id: tenantId || '' });
       if (Array.isArray(invs)) setInvoices(invs);
     }
-  };
+  }
 
   const openInvoiceDetail = async (invoiceNumber: string) => {
     setSelectedInvoiceNumber(invoiceNumber);
-    if (window.electronAPI) {
-      const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+    if (isDesktopRuntime()) {
+      const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber }) as import('../data/scrap').ScrapInvoiceDetails | null;
       if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
     }
     setView('invoice_detail');
@@ -248,52 +184,11 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     setEditingCategory(null);
   };
 
-  const handleSaveCategory = async () => {
-    if (!formData.name.trim()) { showStatus('Category name is required', 'error'); return; }
-    if (!isOwner) { showStatus('Only owners/admins can manage categories', 'error'); return; }
-    setIsSavingCategory(true);
-    try {
-      if (editingCategory) {
-        const res = await window.electronAPI.dbUpdateScrapCategory({
-          scrap_category_id: editingCategory.scrap_category_id,
-          name: formData.name.trim(),
-          purchase_price: Number(formData.purchase_price) || 0,
-          selling_price: Number(formData.selling_price) || 0,
-          current_stock: Number(formData.current_stock) || 0,
-          unit: formData.unit || 'Kgs',
-        });
-        if (res.success) {
-          showStatus('Category updated successfully', 'success');
-        } else {
-          showStatus(res.error || 'Update failed', 'error');
-          return;
-        }
-      } else {
-        const res = await window.electronAPI.dbAddScrapCategory({
-          scrap_category_id: uuidv4(),
-          tenant_id: tenantId,
-          name: formData.name.trim(),
-          purchase_price: Number(formData.purchase_price) || 0,
-          selling_price: Number(formData.selling_price) || 0,
-          current_stock: Number(formData.current_stock) || 0,
-          unit: formData.unit || 'Kgs',
-        });
-        if (res.success) {
-          showStatus('Category created successfully', 'success');
-        } else {
-          showStatus(res.error || 'Create failed', 'error');
-          return;
-        }
-      }
-      await loadData();
-      setView('list');
-      resetCategoryForm();
-    } catch {
-      showStatus('Operation failed', 'error');
-    } finally {
-      setIsSavingCategory(false);
-    }
-  };
+  const { handleSaveCategory, handleSaveTransaction, handleRecordSales } = useScrapStockActions({
+    editingCategory, formData, isOwner, loadData, loadTransactions, resetCategoryForm, selectedCategory,
+    sellingSelected, setIsSavingCategory, setIsSavingTx, setSellingProcessing, setSellingSelected, setView,
+    showStatus, tenantId, txForm,
+  });
 
   const handleDeleteCategory = (cat: ScrapCategory) => {
     if (!isOwner) { showStatus('Only owners/admins can delete categories', 'error'); return; }
@@ -305,7 +200,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     if (!categoryToDelete || !isOwner) return;
     setDeleteCatSaving(true);
     try {
-      await window.electronAPI.dbDeleteScrapCategory(categoryToDelete.scrap_category_id);
+      await scrapApi.deleteScrapCategory(categoryToDelete.scrap_category_id);
       showStatus('Category deleted', 'success');
       setCategories(prev => prev.filter(c => c.scrap_category_id !== categoryToDelete.scrap_category_id));
       setDeleteCatModalOpen(false);
@@ -314,53 +209,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       showStatus('Delete failed', 'error');
     } finally {
       setDeleteCatSaving(false);
-    }
-  };
-
-  const openTransaction = (cat: ScrapCategory) => {
-    setSelectedCategory(cat);
-    setTxForm({ type: 'PURCHASE', categoryId: cat.scrap_category_id, quantity: '', rate: String(cat.purchase_price), party_name: '', notes: '' });
-    setView('transaction');
-    loadTransactions(cat.scrap_category_id);
-  };
-
-  const handleSaveTransaction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCategory) return;
-    if (!txForm.quantity || !txForm.rate) { showStatus('Quantity and Rate required', 'error'); return; }
-    if (!isOwner) { showStatus('Only owners/admins can manage transactions', 'error'); return; }
-
-    const qty = Number(txForm.quantity);
-    const rate = Number(txForm.rate);
-    if (txForm.type === 'SALE' && qty > Number(selectedCategory.current_stock)) {
-      showStatus('Insufficient stock', 'error'); return;
-    }
-
-    setIsSavingTx(true);
-    try {
-      const res = await window.electronAPI.dbAddScrapTransaction({
-        transaction_id: uuidv4(),
-        tenant_id: tenantId,
-        type: txForm.type,
-        scrap_category_id: txForm.categoryId,
-        quantity: qty,
-        rate,
-        total_amount: qty * rate,
-        party_name: txForm.party_name || '',
-        notes: txForm.notes || '',
-      });
-      if (res.success) {
-        showStatus(`${txForm.type === 'PURCHASE' ? 'Purchase' : 'Sale'} recorded`, 'success');
-        await loadTransactions(txForm.categoryId);
-        await loadData();
-        setView('transaction');
-      } else {
-        showStatus(res.error || 'Failed', 'error');
-      }
-    } catch {
-      showStatus('Operation failed', 'error');
-    } finally {
-      setIsSavingTx(false);
     }
   };
 
@@ -373,10 +221,14 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
   // Selling search effect
   useEffect(() => {
-    if (sellingSearch.length < 2) { setSellingResults([]); return; }
+    if (sellingSearch.length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sellingSearch dropping below two characters clears stale category suggestions immediately.
+      setSellingResults([]);
+      return;
+    }
     const t = setTimeout(async () => {
-      if (!window.electronAPI) return;
-      const res = await window.electronAPI.dbGetScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });
+      if (!isDesktopRuntime()) return;
+      const res = await scrapApi.getScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });
       if (Array.isArray(res)) setSellingResults(res.filter((c: ScrapCategory, i: number, arr: ScrapCategory[]) => arr.findIndex(x => x.scrap_category_id === c.scrap_category_id) === i));
     }, 150);
     return () => clearTimeout(t);
@@ -392,44 +244,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     });
     setSellingSearch('');
     setSellingResults([]);
-  };
-
-  const handleRecordSales = async () => {
-    if (sellingSelected.length === 0) return;
-    setSellingProcessing(true);
-    let successCount = 0;
-    for (const entry of sellingSelected) {
-      if (entry.qty <= 0 || entry.rate <= 0) continue;
-      if (window.electronAPI) {
-        const cats = await window.electronAPI.dbGetScrapCategories(tenantId || '');
-        const cat = cats.find((c: any) => c.scrap_category_id === entry.category.scrap_category_id);
-        const currentStock = cat ? Number(cat.current_stock) : 0;
-        if (entry.qty > currentStock) {
-          showStatus(`Insufficient stock for ${entry.category.name}`, 'error');
-          continue;
-        }
-        const res = await window.electronAPI.dbAddScrapTransaction({
-          transaction_id: uuidv4(),
-          tenant_id: tenantId,
-          type: 'SALE',
-          scrap_category_id: entry.category.scrap_category_id,
-          quantity: entry.qty,
-          rate: entry.rate,
-          total_amount: entry.qty * entry.rate,
-          party_name: '',
-          notes: 'Direct scrap sale',
-        });
-        if (res.success) {
-          successCount++;
-        }
-      }
-    }
-    if (successCount > 0) {
-      showStatus(`${successCount} item(s) sold successfully!`, 'success');
-      setSellingSelected([]);
-      await loadData();
-    }
-    setSellingProcessing(false);
   };
 
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -453,92 +267,14 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     }
   };
 
-  const handleReprintScrap = async () => {
-    if (!selectedInvoiceNumber || invoiceDetailTxs.length === 0 || !window.electronAPI) return;
-    try {
-      const { tenantId } = useAuthStore.getState();
-      const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
-        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
-      ]);
-      const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const printFmt = parsePrintFormat(printFmtRaw);
-      const isHalfA4 = printFmt.format === 'half-a4';
-      const isA4 = printFmt.format === 'a4';
-      const useA4 = isA4 || isHalfA4;
+  const { handleReprintScrap, handleSaveEditTx, handleSaveInvoiceHeader, handleAddLineItemToInvoice } = useScrapInvoiceActions({
+    addItemForm, categories, editHeaderForm, editHeaderInvoice, editingTxItem, editTxForm, invoiceDetailTxs,
+    loadData, loadInvoices, loadTransactions, openInvoiceDetail, selectedCategory, selectedInvoiceNumber,
+    setAddItemForm, setEditHeaderInvoice, setEditingTxItem, setEditTxForm, setInvoiceDetailTxs, setIsAddingItem,
+    setIsAddingItemSaving, setIsSavingHeader, setIsSavingTx, setReprintSuccess, showStatus, tenantId, view,
+  });
 
-      const scrapItems = invoiceDetailTxs.map((tx: any) => ({
-        name: tx.scrap_category_name || 'Unknown',
-        quantity: Number(tx.quantity).toFixed(3),
-        unit_price: Number(tx.rate),
-        total: Number(tx.total_amount),
-        billing_type: 'WEIGHT',
-      }));
-
-      const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount), 0);
-
-      const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
-      const receiptData: ReceiptData = {
-        shopName: scrapBillSettings.showShopName !== false ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
-        shopGstin: scrapBillSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-        shopAddress: scrapBillSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
-        shopPhone: scrapBillSettings.showPhone !== false ? (shopPh || undefined) : undefined,
-        upiId: upi || undefined,
-        showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
-        showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-        invoiceNumber: selectedInvoiceNumber,
-        invoiceType: 'SCRAP',
-        date: formatBillDateTime(invoiceDetailTxs[0]?.created_at || Date.now()),
-        billerName: scrapBillSettings.showBillerName !== false ? (invoiceDetailTxs[0]?.biller_name || useAuthStore.getState().userName || undefined) : undefined,
-        items: scrapItems,
-        subtotal: totalAmount,
-        tax: 0,
-        discount: 0,
-        grandTotal: totalAmount,
-        isReprint: true,
-        customerName: scrapBillSettings.showCustomerName !== false ? (invoiceDetailTxs[0]?.party_name || undefined) : undefined,
-        customerPhone: scrapBillSettings.showCustomerPhone !== false ? (invoiceDetailTxs[0]?.party_phone || invoiceDetailTxs[0]?.customer_phone || undefined) : undefined,
-        customerAddress: scrapBillSettings.showCustomerAddress !== false ? (invoiceDetailTxs[0]?.party_address || invoiceDetailTxs[0]?.customer_address || undefined) : undefined,
-        customerState: scrapBillSettings.showCustomerState !== false ? (invoiceDetailTxs[0]?.party_state || invoiceDetailTxs[0]?.customer_state || undefined) : undefined,
-        billSettings: scrapBillSettings,
-        a5Orientation: printFmt.a5Orientation || 'horizontal',
-      };
-
-      if (useA4) {
-        const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
-        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-        if (printResult && !printResult.success) {
-          showStatus(formatPrinterError(printResult.error), 'error');
-        } else {
-          setReprintSuccess(true);
-        }
-      } else {
-        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-        const thermalStyle = printFmt?.thermalStyle || (printFmt?.format === 'thermal' ? printFmt.style : undefined) || 'standard';
-        const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-        if (printResult?.skipped) {
-          showStatus(formatPrinterError('No printer configured'), 'error');
-        } else if (printResult && !printResult.success) {
-          showStatus(formatPrinterError(printResult.error), 'error');
-        } else {
-          setReprintSuccess(true);
-        }
-      }
-    } catch (err: any) {
-      console.error('Failed to reprint scrap invoice', err);
-      showStatus('Failed to reprint: ' + (err?.message || 'Unknown error'), 'error');
-    }
-  };
-
-  const handleStartEditTx = (tx: any) => {
+  const handleStartEditTx = (tx: ScrapInvoiceTxRow) => {
     setEditingTxItem(tx);
     setEditTxForm({
       scrap_category_id: tx.scrap_category_id || '',
@@ -549,52 +285,15 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     });
   };
 
-  const handleSaveEditTx = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTxItem) return;
-    if (!editTxForm.quantity || !editTxForm.rate) { showStatus('Quantity and Rate are required', 'error'); return; }
-    setIsSavingTx(true);
-    try {
-      const res = await window.electronAPI.dbUpdateScrapTransaction({
-        transaction_id: editingTxItem.transaction_id,
-        tenant_id: tenantId,
-        scrap_category_id: editTxForm.scrap_category_id,
-        quantity: Number(editTxForm.quantity),
-        rate: Number(editTxForm.rate),
-        party_name: editTxForm.party_name,
-        notes: editTxForm.notes,
-      });
-      if (res.success) {
-        showStatus('Line item updated successfully', 'success');
-        setEditingTxItem(null);
-        setEditTxForm({ scrap_category_id: '', quantity: '', rate: '', party_name: '', notes: '' });
-        if (selectedInvoiceNumber) {
-          const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
-          if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
-        } else if (selectedCategory) {
-          await loadTransactions(selectedCategory.scrap_category_id);
-        }
-        await loadInvoices();
-        await loadData();
-      } else {
-        showStatus(res.error || 'Update failed', 'error');
-      }
-    } catch {
-      showStatus('Operation failed', 'error');
-    } finally {
-      setIsSavingTx(false);
-    }
-  };
-
   const handleDeleteTx = async (transactionId: string) => {
     if (!isOwner) { showStatus('Only owners/admins can delete transactions', 'error'); return; }
     try {
-      const res = await window.electronAPI.dbDeleteScrapTransaction({ tenant_id: tenantId || '', transaction_id: transactionId });
+      const res = await scrapApi.deleteScrapTransaction({ tenant_id: tenantId || '', transaction_id: transactionId });
       if (res.success) {
         showStatus('Transaction line item deleted', 'success');
         setConfirmDeleteTxId(null);
         if (selectedInvoiceNumber) {
-          const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          const detail = await scrapApi.getScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber }) as import('../data/scrap').ScrapInvoiceDetails | null;
           if (detail && detail.transactions) {
             if (detail.transactions.length === 0) {
               setView('invoices');
@@ -619,7 +318,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const handleDeleteInvoice = async (invoiceNumber: string) => {
     if (!isOwner) { showStatus('Only owners/admins can delete invoices', 'error'); return; }
     try {
-      const res = await window.electronAPI.dbDeleteScrapInvoice({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+      const res = await scrapApi.deleteScrapInvoice({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
       if (res.success) {
         showStatus(`Scrap invoice ${invoiceNumber} deleted successfully`, 'success');
         setConfirmDeleteInvoiceNumber(null);
@@ -644,118 +343,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     useCartStore.getState().setIsScrapMode(true);
     window.dispatchEvent(new CustomEvent('edit-scrap-invoice', { detail: { invoiceNumber } }));
     onClose();
-  };
-
-  const _handleOpenEditHeader = (inv: any) => {
-    setEditHeaderInvoice(inv);
-    setEditHeaderForm({
-      party_name: inv.party_name || '',
-      customer_phone: inv.customer_phone || '',
-      customer_address: inv.customer_address || '',
-      payment_status: inv.payment_status || 'CASH',
-    });
-  };
-
-  const handleSaveInvoiceHeader = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editHeaderInvoice || !window.electronAPI) return;
-    setIsSavingHeader(true);
-    try {
-      const res = await window.electronAPI.dbUpdateScrapInvoiceHeader({
-        tenant_id: tenantId || '',
-        scrap_invoice_number: editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number,
-        party_name: editHeaderForm.party_name,
-        customer_phone: editHeaderForm.customer_phone,
-        customer_address: editHeaderForm.customer_address,
-        payment_status: editHeaderForm.payment_status,
-      });
-      if (res.success) {
-        showStatus('Invoice customer info updated successfully', 'success');
-        const invNum = editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number;
-        await window.electronAPI.dbUpsertScrapCreditLedger({
-          tenant_id: tenantId || '',
-          scrap_invoice_number: invNum,
-          payment_status: editHeaderForm.payment_status,
-          party_name: editHeaderForm.party_name || null,
-          customer_phone: editHeaderForm.customer_phone || null,
-          customer_address: editHeaderForm.customer_address || null,
-          user_id: undefined,
-          user_name: undefined,
-        }).catch(() => {});
-        setEditHeaderInvoice(null);
-        await loadInvoices();
-        if (view === 'invoice_detail' && selectedInvoiceNumber === invNum) {
-          await openInvoiceDetail(invNum);
-        }
-      } else {
-        showStatus(res.error || 'Failed to update invoice info', 'error');
-      }
-    } catch {
-      showStatus('Operation failed', 'error');
-    } finally {
-      setIsSavingHeader(false);
-    }
-  };
-
-  const handleAddLineItemToInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInvoiceNumber || !addItemForm.categoryId || !addItemForm.quantity || !addItemForm.rate) {
-      showStatus('Category, Quantity, and Rate are required', 'error');
-      return;
-    }
-    const cat = categories.find(c => c.scrap_category_id === addItemForm.categoryId);
-    if (!cat) {
-      showStatus('Category not found', 'error');
-      return;
-    }
-    const qty = Number(addItemForm.quantity);
-    const rate = Number(addItemForm.rate);
-    const firstTx = invoiceDetailTxs[0];
-
-    setIsAddingItemSaving(true);
-    try {
-      if (window.electronAPI) {
-        const res = await window.electronAPI.dbAddScrapTransaction({
-          transaction_id: uuidv4(),
-          tenant_id: tenantId,
-          type: 'PURCHASE',
-          scrap_category_id: addItemForm.categoryId,
-          quantity: qty,
-          rate: rate,
-          total_amount: qty * rate,
-          party_name: firstTx?.party_name || '',
-          customer_phone: firstTx?.customer_phone || '',
-          customer_address: firstTx?.customer_address || '',
-          notes: addItemForm.notes || 'Added line item',
-          scrap_invoice_number: selectedInvoiceNumber,
-          payment_status: firstTx?.payment_status || 'CASH',
-        });
-        if (res.success) {
-          showStatus(`Added ${qty} ${cat.unit} of ${cat.name} to invoice`, 'success');
-          await window.electronAPI.dbUpsertScrapCreditLedger({
-            tenant_id: tenantId || '',
-            scrap_invoice_number: selectedInvoiceNumber,
-            payment_status: firstTx?.payment_status || 'CASH',
-            party_name: firstTx?.party_name || null,
-            customer_phone: firstTx?.customer_phone || null,
-            customer_address: firstTx?.customer_address || null,
-            user_id: undefined,
-            user_name: undefined,
-          }).catch(() => {});
-          setIsAddingItem(false);
-          setAddItemForm({ categoryId: '', quantity: '', rate: '', notes: '' });
-          await openInvoiceDetail(selectedInvoiceNumber);
-          await loadInvoices();
-          await loadData();
-        } else {
-          showStatus(res.error || 'Failed to add line item', 'error');
-        }
-      }
-    } catch {
-      showStatus('Operation failed', 'error');
-    } finally {
-      setIsAddingItemSaving(false);
-    }
   };
 
   const filteredCategories = categories.filter(c =>
@@ -794,8 +381,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const totalStock = categories.reduce((s, c) => s + Number(c.current_stock), 0);
   const estimatedValue = categories.reduce((s, c) => s + Number(c.purchase_price) * Number(c.current_stock), 0);
 
-  const _totalPurchases = transactions.filter(t => t.type === 'PURCHASE').reduce((s, t) => s + t.total_amount, 0);
-  const _totalSales = transactions.filter(t => t.type === 'SALE').reduce((s, t) => s + t.total_amount, 0);
   const realizedProfit = transactions
     .filter(t => t.type === 'SALE')
     .reduce((sum, t) => sum + (Number(t.rate) - Number(selectedCategory?.purchase_price || 0)) * Number(t.quantity), 0);
@@ -822,7 +407,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       </div>
     );
   }
-
   return (
     <>
       {reprintSuccess && (
@@ -932,1126 +516,82 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         </header>
 
         {view === 'list' && (
-          <div className="flex-1 flex flex-col min-h-0 bg-background select-none w-full px-4 sm:px-6 py-4 space-y-4">
-            {/* Themed stats cards */}
-            <div className="grid grid-cols-3 gap-5 select-none shrink-0">
-              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-                <div className="p-3 bg-gradient-to-br from-orange-500/10 to-orange-500/5 text-orange-600 dark:text-orange-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                  <Recycle className="w-5 h-5" />
-                </div>
-                <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{categories.length}</p>
-                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Categories</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Scrap types tracked</p>
-                </div>
-              </div>
-
-              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-                <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                  <Package className="w-5 h-5" />
-                </div>
-                <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{isNaN(totalStock) ? '-' : formatStock(totalStock)}</p>
-                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Stock</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Units in inventory</p>
-                </div>
-              </div>
-
-              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-                <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(estimatedValue)}</p>
-                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Est. Value</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">At purchase rate</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
-              <div className="relative w-full sm:max-w-xs flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search scrap categories..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Category list */}
-            <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
-              <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm p-6 flex-1 flex flex-col min-h-0">
-                {loading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
-                  </div>
-                ) : filteredCategories.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-                    <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-                      <RecycleIcon className="w-8 h-8 text-muted-foreground/50" />
-                    </div>
-                    <div>
-                      <p className="text-base font-bold text-foreground">
-                        {search ? 'No results found' : 'No scrap categories yet'}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        {search ? `No categories match "${search}"` : 'Add your first category to start tracking scrap'}
-                      </p>
-                    </div>
-                    {!search && isOwner && (
-                      <button
-                        onClick={() => {
-                          setEditingCategory(null);
-                          setFormData({
-                            name: '',
-                            purchase_price: '',
-                            selling_price: '',
-                            current_stock: '0',
-                            unit: 'Kgs',
-                          });
-                          setView('category_form');
-                        }}
-                        className="inline-flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-black text-sm hover:bg-primary/95 transition-all shadow-sm cursor-pointer active:scale-95 mt-2"
-                      >
-                        <Plus className="w-4 h-4" /> Add Category
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredCategories.map(cat => {
-                      const stock = Number(cat.current_stock) || 0;
-                      const outOfStock = stock <= 0;
-                      return (
-                        <div
-                          key={cat.scrap_category_id}
-                          onClick={() => {
-                            setSelectedCategory(cat);
-                            loadTransactions(cat.scrap_category_id);
-                            setView('transaction');
-                          }}
-                          className="flex items-center justify-between p-4.5 rounded-3xl border border-border bg-card hover:border-primary/20 hover:shadow-md transition-all duration-300 shadow-sm cursor-pointer group select-none animate-in fade-in duration-200"
-                        >
-                          <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                            <div
-                              className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-extrabold text-sm shadow-sm shrink-0 select-none group-hover:scale-105 transition-transform"
-                              style={{ background: `linear-gradient(135deg, hsl(${nameToHue(cat.name)},60%,50%), hsl(${nameToHue(cat.name)},60%,40%))` }}
-                            >
-                              {getInitials(cat.name)}
-                            </div>
-                            <div className="min-w-0 flex-1 leading-tight text-left">
-                              <p className="font-extrabold text-foreground truncate text-sm">{cat.name}</p>
-                              <div className="flex items-center gap-3 text-[11px] text-muted-foreground/75 font-semibold mt-1 flex-wrap">
-                                <span className="flex items-center gap-1">
-                                  Buy: {formatCurrency(cat.purchase_price)}/{cat.unit || 'Kg'}
-                                </span>
-                                <span className="w-1.5 h-1.5 rounded-full bg-border" />
-                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
-                                  Sell: {formatCurrency(cat.selling_price)}/{cat.unit || 'Kg'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-4 shrink-0">
-                            <div className="text-right">
-                              <span className={clsx(
-                                'inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-black border tracking-wide',
-                                outOfStock
-                                  ? 'bg-muted border-border text-muted-foreground'
-                                  : 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                              )}>
-                                {outOfStock ? 'Out of Stock' : `${formatStock(stock)} ${cat.unit}`}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
-                              {isOwner && (
-                                <button
-                                  onClick={() => {
-                                    setEditingCategory(cat);
-                                    setFormData({
-                                      name: cat.name,
-                                      purchase_price: cat.purchase_price.toString(),
-                                      selling_price: cat.selling_price.toString(),
-                                      current_stock: cat.current_stock.toString(),
-                                      unit: cat.unit || 'Kgs',
-                                    });
-                                    setView('category_form');
-                                  }}
-                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
-                                  title="Edit"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {isOwner && (
-                                <button
-                                  onClick={() => handleDeleteCategory(cat)}
-                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              <ChevronRight className="w-4 h-4 text-muted-foreground/40 ml-0.5" />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ScrapCategoryList
+            categories={categories} estimatedValue={estimatedValue} filteredCategories={filteredCategories}
+            handleDeleteCategory={handleDeleteCategory} isOwner={isOwner} loading={loading}
+            loadTransactions={loadTransactions} search={search} setEditingCategory={setEditingCategory}
+            setFormData={setFormData} setSearch={setSearch} setSelectedCategory={setSelectedCategory} setView={setView}
+            totalStock={totalStock}
+          />
         )}
 
         {/* ══════════════════════════════════════════
             CATEGORY FORM VIEW
         ══════════════════════════════════════════ */}
         {view === 'category_form' && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto p-5 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-                  <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
-                    <Recycle className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-black uppercase tracking-wider text-orange-500">Category Identity</span>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category Name *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Iron Scrap"
-                      value={formData.name}
-                      onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
-                      className={fieldCls}
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Unit</label>
-                    <Select
-                      value={formData.unit}
-                      onChange={v => setFormData(f => ({ ...f, unit: v }))}
-                      options={[
-                        { value: 'Kgs', label: 'Kgs' },
-                        { value: 'Pcs', label: 'Pcs' },
-                        { value: 'Grams', label: 'Grams' },
-                        { value: 'Ltrs', label: 'Ltrs' },
-                      ]}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
-                    <IndianRupee className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Pricing & Stock</span>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Rate (₹)</label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={formData.purchase_price}
-                        onChange={e => setFormData(f => ({ ...f, purchase_price: e.target.value }))}
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        className={clsx(fieldCls, 'pl-8 no-spinners')}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Selling Rate (₹)</label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={formData.selling_price}
-                        onChange={e => setFormData(f => ({ ...f, selling_price: e.target.value }))}
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        className={clsx(fieldCls, 'pl-8 no-spinners')}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{editingCategory ? 'Current Stock' : 'Opening Stock'}</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="0"
-                      value={formData.current_stock}
-                      onChange={e => setFormData(f => ({ ...f, current_stock: e.target.value }))}
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      className={clsx(fieldCls, 'no-spinners')}
-                    />
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={isSavingCategory}
-                  onClick={handleSaveCategory}
-                  className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
-                >
-                  {isSavingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {isSavingCategory ? 'Saving…' : editingCategory ? 'Update Category' : 'Create Category'}
-                </button>
-              </div>
-            </div>
-          </div>
+          <ScrapCategoryForm
+            editingCategory={editingCategory} fieldCls={fieldCls} formData={formData}
+            handleFormKeyDown={handleFormKeyDown} handleSaveCategory={handleSaveCategory}
+            isSavingCategory={isSavingCategory} setFormData={setFormData}
+          />
         )}
 
         {/* ══════════════════════════════════════════
             TRANSACTION VIEW (Ledger)
         ══════════════════════════════════════════ */}
         {view === 'transaction' && selectedCategory && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div
-              className="shrink-0 px-5 py-4 border-b border-border"
-              style={{
-                background: isDark
-                  ? `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)}, 25%, 13%) 0%, hsl(${nameToHue(selectedCategory.name)}, 15%, 17%) 100%)`
-                  : `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)}, 60%, 96%) 0%, hsl(${nameToHue(selectedCategory.name)}, 40%, 98%) 100%)`
-              }}
-            >
-              <div className="flex items-center gap-4">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-md shrink-0 select-none"
-                  style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)},65%,50%), hsl(${nameToHue(selectedCategory.name)},65%,40%))` }}
-                >
-                  {getInitials(selectedCategory.name)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={clsx(
-                      'inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg',
-                      realizedProfit >= 0
-                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40'
-                        : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40'
-                    )}>
-                      {realizedProfit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                      Profit: {formatCurrency(realizedProfit)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground font-medium mt-1.5">
-                    {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
-                  </p>
-                </div>
-
-                <div className={clsx(
-                  'shrink-0 text-right px-4 py-3 rounded-2xl shadow-sm',
-                  Number(selectedCategory.current_stock) > 0
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-muted text-muted-foreground border border-border'
-                )}>
-                  <p className="text-xl font-black leading-none">
-                    {formatStock(selectedCategory.current_stock)}
-                  </p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
-                    {selectedCategory.unit}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {transactions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-                    <Activity className="w-8 h-8 text-muted-foreground/50" />
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-foreground">No transactions yet</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">Add the first transaction to start tracking</p>
-                  </div>
-                  {isOwner && (
-                    <button
-                      onClick={() => {
-                        setTxForm({ type: 'PURCHASE', categoryId: selectedCategory.scrap_category_id, quantity: '', rate: String(selectedCategory.purchase_price), party_name: '', notes: '' });
-                        setView('tx_form');
-                      }}
-                      className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" /> Add Transaction
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {[...transactions].reverse().map((entry) => {
-                    const isPurchase = entry.type === 'PURCHASE';
-                    return (
-                      <div
-                        key={entry.transaction_id}
-                        className={clsx(
-                          'rounded-xl border bg-card shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md',
-                          isPurchase ? 'border-emerald-200 dark:border-emerald-900/50' : 'border-red-200 dark:border-red-900/50'
-                        )}
-                      >
-                        <div className={clsx('h-1 w-full', isPurchase ? 'bg-emerald-500' : 'bg-red-500')} />
-
-                        <div className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-2">
-                                <span className={clsx(
-                                  'inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
-                                  isPurchase ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-                                )}>
-                                  {isPurchase ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                  {isPurchase ? 'Purchase' : 'Sale'}
-                                </span>
-                                {entry.party_name && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border px-2 py-1 rounded-lg">
-                                    {entry.party_name}
-                                  </span>
-                                )}
-                              </div>
-
-                              <p className="font-bold text-sm text-foreground leading-snug">
-                                {entry.notes || `${entry.quantity.toFixed(3)} ${selectedCategory.unit} of ${entry.scrap_category_name || selectedCategory.name}`}
-                              </p>
-
-                              <div className="flex items-center gap-3 mt-2 flex-wrap">
-                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-                                  {formatDateTime(entry.created_at)}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground font-medium">
-                                  {entry.quantity.toFixed(3)} {selectedCategory.unit} × ₹{entry.rate.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="shrink-0 flex flex-col items-end gap-1.5">
-                              <p className={clsx(
-                                'text-xl font-black leading-none',
-                                isPurchase ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
-                              )}>
-                                {isPurchase ? '+' : '−'}₹{entry.total_amount.toFixed(2)}
-                              </p>
-                              {isOwner && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <button
-                                    onClick={() => handleStartEditTx(entry)}
-                                    className="p-1 rounded text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer"
-                                    title="Edit"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => setConfirmDeleteTxId(entry.transaction_id)}
-                                    className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer"
-                                    title="Delete"
-                                  >
-                                    <Trash className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <ScrapTransactionsView
+            handleStartEditTx={handleStartEditTx} isDark={isDark} isOwner={isOwner} realizedProfit={realizedProfit}
+            selectedCategory={selectedCategory} setConfirmDeleteTxId={setConfirmDeleteTxId} setTxForm={setTxForm}
+            setView={setView} transactions={transactions}
+          />
         )}
 
         {/* ══════════════════════════════════════════
             TX FORM VIEW
         ══════════════════════════════════════════ */}
         {view === 'tx_form' && selectedCategory && (
-          <form onSubmit={handleSaveTransaction} className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto p-5 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                    <Activity className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-black uppercase tracking-wider text-primary">Transaction Details</span>
-                  <span className="ml-auto text-xs text-muted-foreground font-medium">
-                    Category: <span className="font-bold text-foreground">{selectedCategory.name}</span>
-                  </span>
-                </div>
-
-                <div className="mb-5">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Transaction Type</label>
-                  <div className="grid grid-cols-2 gap-3 max-w-sm">
-                    <button
-                      type="button"
-                      onClick={() => setTxForm(f => ({ ...f, type: 'PURCHASE', rate: selectedCategory ? String(selectedCategory.purchase_price) : f.rate }))}
-                      className={clsx(
-                        'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
-                        txForm.type === 'PURCHASE'
-                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
-                          : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                      )}
-                    >
-                      <TrendingUp className="w-4 h-4" /> Purchase
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTxForm(f => ({ ...f, type: 'SALE', rate: selectedCategory ? String(selectedCategory.selling_price) : f.rate }))}
-                      className={clsx(
-                        'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
-                        txForm.type === 'SALE'
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 shadow-sm'
-                          : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                      )}
-                    >
-                      <TrendingDown className="w-4 h-4" /> Sale
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Quantity ({selectedCategory.unit}) *</label>
-                    <input
-                      required
-                      type="number"
-                      step="0.001"
-                      min="0.001"
-                      placeholder="0.000"
-                      value={txForm.quantity}
-                      onChange={e => setTxForm(f => ({ ...f, quantity: e.target.value }))}
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      className={clsx(fieldCls, 'no-spinners text-lg font-black')}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Rate (₹) *</label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
-                      <input
-                        required
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        value={txForm.rate}
-                        onChange={e => setTxForm(f => ({ ...f, rate: e.target.value }))}
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        className={clsx(fieldCls, 'pl-8 no-spinners text-lg font-black')}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party / Customer</label>
-                    <input
-                      type="text"
-                      placeholder="Party name (optional)"
-                      value={txForm.party_name}
-                      onChange={e => setTxForm(f => ({ ...f, party_name: e.target.value }))}
-                      className={fieldCls}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
-                    <input
-                      type="text"
-                      placeholder="Optional notes"
-                      value={txForm.notes}
-                      onChange={e => setTxForm(f => ({ ...f, notes: e.target.value }))}
-                      className={fieldCls}
-                    />
-                  </div>
-                </div>
-
-                {txForm.quantity && txForm.rate && Number(txForm.quantity) > 0 && Number(txForm.rate) > 0 && (
-                  <div className="pt-3 border-t border-border">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground font-semibold">Total Amount</span>
-                      <span className={clsx(
-                        'text-xl font-black',
-                        txForm.type === 'PURCHASE' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
-                      )}>
-                        {(Number(txForm.quantity) * Number(txForm.rate)).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </section>
-            </div>
-
-            <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-muted-foreground font-medium">
-                  Current Stock: <span className="font-bold text-foreground">{formatStock(selectedCategory.current_stock)} {selectedCategory.unit}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="submit"
-                    disabled={isSavingTx}
-                    className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    {isSavingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {isSavingTx ? 'Saving…' : `Record ${txForm.type === 'PURCHASE' ? 'Purchase' : 'Sale'}`}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </form>
+          <ScrapTxForm
+            fieldCls={fieldCls} handleFormKeyDown={handleFormKeyDown} handleSaveTransaction={handleSaveTransaction}
+            isSavingTx={isSavingTx} selectedCategory={selectedCategory} setTxForm={setTxForm} txForm={txForm}
+          />
         )}
 
         {/* ══════════════════════════════════════════
             SELLING VIEW
         ══════════════════════════════════════════ */}
         {view === 'selling' && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                    <Search className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">1. Search & Select Scrap Items</span>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <input
-                    type="text"
-                    value={sellingSearch}
-                    onChange={e => setSellingSearch(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && sellingResults.length > 0) { handleAddToSellingCart(sellingResults[0]); e.preventDefault(); }
-                      if (e.key === 'Escape') { setSellingSearch(''); setSellingResults([]); }
-                    }}
-                    placeholder="Search scrap categories to sell..."
-                    autoFocus
-                    className={clsx(fieldCls, 'pl-10')}
-                  />
-                  {sellingResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
-                      <div className="max-h-[240px] overflow-y-auto">
-                        {sellingResults.map((s) => (
-                          <button
-                            key={s.scrap_category_id}
-                            onClick={() => handleAddToSellingCart(s)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/5 border-b border-border last:border-0 cursor-pointer"
-                          >
-                            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
-                              <Recycle className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                Stock: <span className="font-semibold">{formatStock(s.current_stock)} {s.unit} · ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
-                              </div>
-                            </div>
-                            <div className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
-                              + Add
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-border">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
-                      <ShoppingCart className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-black text-indigo-500 uppercase tracking-wider">2. Sale Items ({sellingSelected.length})</span>
-                  </div>
-                  {sellingSelected.length > 0 && (
-                    <button onClick={() => setSellingSelected([])} className="text-xs font-bold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-lg transition-colors cursor-pointer">
-                      Clear All
-                    </button>
-                  )}
-                </div>
-
-                {sellingSelected.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                    <ShoppingCart className="w-10 h-10 mb-3 text-muted-foreground/30" />
-                    <p className="font-medium text-foreground">No items selected</p>
-                    <p className="text-sm mt-1">Search and add scrap categories above</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {sellingSelected.map((entry, idx) => {
-                      const stockNum = Number(entry.category.current_stock);
-                      return (
-                        <div key={entry.category.scrap_category_id} className="flex items-center gap-3 p-3 bg-muted/20 border border-border rounded-xl group hover:border-indigo-500/30 transition-all duration-150">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-foreground truncate">{entry.category.name}</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              Stock: <span className={clsx('font-semibold', stockNum <= 0 ? 'text-destructive' : 'text-emerald-500')}>{formatStock(stockNum)} {entry.category.unit}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-0.5 bg-background border border-border rounded-lg p-0.5 shadow-sm">
-                              <button
-                                onClick={() => setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: Math.max(0.1, s.qty - 0.1) } : s))}
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <input
-                                type="number"
-                                min="0.1"
-                                step="0.1"
-                                value={entry.qty}
-                                onChange={e => { const val = e.target.value === '' ? 0.1 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: val } : s)); }}
-                                className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                              <button
-                                onClick={() => setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: s.qty + 0.1 } : s))}
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            </div>
-
-                            <div className="relative w-20">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={entry.rate}
-                                onChange={e => { const val = e.target.value === '' ? 0 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, rate: val } : s)); }}
-                                className="w-full bg-background border border-border rounded-lg pl-6 pr-2 py-1.5 text-sm font-bold text-right text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                            </div>
-
-                            <div className="text-right min-w-[70px]">
-                              <div className="font-black text-sm text-indigo-500">₹{(entry.qty * entry.rate).toFixed(2)}</div>
-                            </div>
-
-                            <button
-                              onClick={() => setSellingSelected(prev => prev.filter((_, i) => i !== idx))}
-                              className="p-1.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-
-              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-                    <IndianRupee className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-black text-amber-500 uppercase tracking-wider">3. Sale Summary</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Sale Amount</span>
-                    <div className="text-2xl font-black text-foreground mt-0.5">
-                      {formatCurrency(sellingSelected.reduce((sum, s) => sum + s.qty * s.rate, 0))}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end">
-                    <button
-                      onClick={handleRecordSales}
-                      disabled={sellingSelected.length === 0 || sellingProcessing}
-                      className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-indigo-500/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {sellingProcessing ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-                      ) : (
-                        <><ShoppingCart className="w-4 h-4" /> Complete Sale</>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+          <ScrapSellingView
+            fieldCls={fieldCls} handleAddToSellingCart={handleAddToSellingCart} handleFormKeyDown={handleFormKeyDown}
+            handleRecordSales={handleRecordSales} sellingProcessing={sellingProcessing} sellingResults={sellingResults}
+            sellingSearch={sellingSearch} sellingSelected={sellingSelected} setSellingResults={setSellingResults}
+            setSellingSearch={setSellingSearch} setSellingSelected={setSellingSelected}
+          />
         )}
 
         {/* ══════════════════════════════════════════
             INVOICES VIEW
         ══════════════════════════════════════════ */}
         {view === 'invoices' && (
-          <div className="flex-1 flex flex-col min-h-0 bg-background select-none w-full px-4 sm:px-6 py-4 space-y-4">
-            {/* Themed stats cards */}
-            <div className="grid grid-cols-3 gap-5 select-none shrink-0">
-              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-                <div className="p-3 bg-gradient-to-br from-orange-500/10 to-orange-500/5 text-orange-600 dark:text-orange-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{filteredInvoices.length}</p>
-                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Invoices</p>
-                </div>
-              </div>
-
-              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-                <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                  <IndianRupee className="w-5 h-5" />
-                </div>
-                <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(filteredInvoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0))}</p>
-                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Scrap Value</p>
-                </div>
-              </div>
-
-              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-                <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                  <Package className="w-5 h-5" />
-                </div>
-                <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{filteredInvoices.reduce((s, inv) => s + Number(inv.item_count || 0), 0)}</p>
-                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Items Collected</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Filter / Search Bar */}
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-start bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none relative z-30">
-              <div className="relative w-full sm:w-80 md:w-96 shrink-0">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search invoice number, customer name, phone..."
-                  value={invoiceSearch}
-                  onChange={e => setInvoiceSearch(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
-                />
-                {invoiceSearch && (
-                  <button
-                    onClick={() => setInvoiceSearch('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <DateRangeFilter
-                  startDate={invoiceDateFrom}
-                  endDate={invoiceDateTo}
-                  align="left"
-                  onChange={(start, end) => {
-                    setInvoiceDateFrom(start);
-                    setInvoiceDateTo(end);
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Invoices List */}
-            <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
-              <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm p-6 flex-1 flex flex-col min-h-0">
-                <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
-                  <div className="col-span-3">Invoice & Customer</div>
-                  <div className="col-span-2 text-center">Date & Status</div>
-                  <div className="col-span-2 text-center">Items & Qty</div>
-                  <div className="col-span-2 text-right">Total Amount</div>
-                  <div className="col-span-3 text-center">Actions</div>
-                </div>
-
-                <div className="divide-y divide-border">
-                  {filteredInvoices.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                      <Recycle className="w-12 h-12 mb-3 text-orange-500/30" />
-                      <p className="font-bold text-foreground text-base">
-                        {(invoiceSearch || invoiceDateFrom || invoiceDateTo) ? 'No matching scrap invoices' : 'No scrap invoices found'}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {(invoiceSearch || invoiceDateFrom || invoiceDateTo) ? 'No invoices match the applied search or date filters' : 'Scrap invoices from billing and purchases will appear here'}
-                      </p>
-                    </div>
-                  ) : (
-                    filteredInvoices.map((inv: any, idx: number) => {
-                      const invDate = formatGroupDate(inv.created_at);
-                      const prevDate = idx > 0 ? formatGroupDate(filteredInvoices[idx - 1].created_at) : null;
-                      const showHeader = invDate !== prevDate;
-                      const units = inv.units || 'Kgs';
-                      const hasMixedUnits = units.includes(',');
-                      return (
-                        <Fragment key={inv.invoice_number}>
-                          {showHeader && (
-                            <div className="sticky top-0 z-10 bg-muted px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
-                              {invDate}
-                            </div>
-                          )}
-                        <div className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center hover:bg-muted/20 transition-all duration-150 group">
-                          {/* Invoice & Customer */}
-                          <div className="col-span-3 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
-                                <Recycle className="w-4 h-4" />
-                              </div>
-                              <span className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</span>
-                            </div>
-                            <div className="text-xs font-semibold text-muted-foreground truncate mt-1">
-                              {inv.party_name ? `Customer: ${inv.party_name}` : 'Walk-in Customer'}
-                            </div>
-                            {(inv.customer_phone || inv.customer_address) && (
-                              <div className="text-[10px] text-muted-foreground/60 truncate">
-                                {[inv.customer_phone, inv.customer_address].filter(Boolean).join(' · ')}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Date & Status */}
-                          <div className="col-span-2 text-center">
-                            <div className="text-xs font-semibold text-foreground">
-                              {parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' })}
-                            </div>
-                            <span className={clsx('inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border',
-                              inv.payment_status === 'CREDIT'
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                                : inv.payment_status === 'PENDING'
-                                  ? 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20')}>
-                              {inv.payment_status === 'CREDIT' ? 'Credit' : (inv.payment_status || 'PAID')}
-                            </span>
-                          </div>
-
-                          {/* Items & Qty */}
-                          <div className="col-span-2 text-center">
-                            <span className="font-bold text-sm text-foreground">{inv.item_count} {inv.item_count === 1 ? 'item' : 'items'}</span>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {hasMixedUnits ? (
-                                <span className="italic">Mixed units</span>
-                              ) : (
-                                <>{Number(inv.total_qty || 0).toFixed(3)} {units}</>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Total Amount */}
-                          <div className="col-span-2 text-right">
-                            <span className="text-base font-black text-orange-600 dark:text-orange-400">
-                              {formatCurrency(inv.total_amount)}
-                            </span>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="col-span-3 flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => openInvoiceDetail(inv.invoice_number)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-blue-500/20"
-                              title="View Invoice Details & Line Items"
-                            >
-                              <FileText className="w-3.5 h-3.5" /> View
-                            </button>
-                            {isOwner && (
-                              <button
-                                onClick={() => handleEditInvoiceInBilling(inv.invoice_number)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-amber-500/20"
-                                title="Edit Invoice in Billing Page"
-                              >
-                                <Pencil className="w-3.5 h-3.5" /> Edit
-                              </button>
-                            )}
-                            {isOwner && (
-                              <button
-                                onClick={() => setConfirmDeleteInvoiceNumber(inv.invoice_number)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-destructive/20"
-                                title="Delete Invoice"
-                              >
-                                <Trash className="w-3.5 h-3.5" /> Delete
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        </Fragment>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+          <ScrapInvoicesView
+            filteredInvoices={filteredInvoices} handleEditInvoiceInBilling={handleEditInvoiceInBilling}
+            invoiceDateFrom={invoiceDateFrom} invoiceDateTo={invoiceDateTo} invoiceSearch={invoiceSearch}
+            isOwner={isOwner} openInvoiceDetail={openInvoiceDetail}
+            setConfirmDeleteInvoiceNumber={setConfirmDeleteInvoiceNumber} setInvoiceDateFrom={setInvoiceDateFrom}
+            setInvoiceDateTo={setInvoiceDateTo} setInvoiceSearch={setInvoiceSearch}
+          />
         )}
 
         {/* ══════════════════════════════════════════
             INVOICE DETAIL VIEW
         ══════════════════════════════════════════ */}
         {view === 'invoice_detail' && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {invoiceDetailTxs.length > 0 && (
-                <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
-                  <div className="flex items-start justify-between gap-4 flex-wrap pb-4 border-b border-border">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-500">
-                        <Recycle className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-lg font-black text-foreground">{selectedInvoiceNumber}</h2>
-                          <span className={clsx('text-xs font-bold px-2.5 py-0.5 rounded-lg border',
-                            invoiceDetailTxs[0]?.payment_status === 'CREDIT'
-                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                              : invoiceDetailTxs[0]?.payment_status === 'PENDING'
-                                ? 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20'
-                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20')}>
-                            {invoiceDetailTxs[0]?.payment_status === 'CREDIT' ? 'Credit' : (invoiceDetailTxs[0]?.payment_status || 'PAID')}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Created on {formatDateTime(invoiceDetailTxs[0]?.created_at)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Amount</p>
-                      <p className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-0.5">
-                        {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount || 0), 0))}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Customer Info & Action Toolbar */}
-                  <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-border flex-wrap gap-4">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Customer / Party Details</span>
-                      <p className="text-sm font-bold text-foreground mt-0.5">
-                        {invoiceDetailTxs[0]?.party_name || 'Walk-in Customer'}
-                      </p>
-                      {(invoiceDetailTxs[0]?.customer_phone || invoiceDetailTxs[0]?.customer_address) && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {[invoiceDetailTxs[0].customer_phone, invoiceDetailTxs[0].customer_address].filter(Boolean).join(' · ')}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {isOwner && (
-                        <button
-                          onClick={() => handleEditInvoiceInBilling(selectedInvoiceNumber)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl text-xs font-bold border border-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                          title="Edit Scrap Invoice in Billing Page"
-                        >
-                          <Pencil className="w-3.5 h-3.5" /> Edit Invoice
-                        </button>
-                      )}
-
-                      {isOwner && (
-                        <button
-                          onClick={() => setIsAddingItem(true)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-xs font-bold border border-primary/20 transition-all active:scale-95 cursor-pointer"
-                          title="Add line item to this invoice"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Add Item
-                        </button>
-                      )}
-
-                      <button
-                        onClick={handleReprintScrap}
-                        disabled={invoiceDetailTxs.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 rounded-xl text-xs font-bold border border-blue-500/20 transition-all active:scale-95 cursor-pointer disabled:opacity-40"
-                      >
-                        <Printer className="w-3.5 h-3.5" /> Reprint
-                      </button>
-
-                      {isOwner && (
-                        <button
-                          onClick={() => setConfirmDeleteInvoiceNumber(selectedInvoiceNumber)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-xl text-xs font-bold border border-destructive/20 transition-all active:scale-95 cursor-pointer"
-                          title="Delete entire invoice"
-                        >
-                          <Trash className="w-3.5 h-3.5" /> Delete Invoice
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Items Table */}
-              <div className="border border-border rounded-2xl overflow-hidden shadow-sm bg-card">
-                <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
-                  <div className="col-span-3">Category</div>
-                  <div className="col-span-2 text-right">Quantity</div>
-                  <div className="col-span-2 text-right">Rate per Unit</div>
-                  <div className="col-span-2 text-right">Line Total</div>
-                  <div className="col-span-1 text-center">Date</div>
-                  {isOwner && <div className="col-span-2 text-center">Actions</div>}
-                </div>
-                <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
-                  {invoiceDetailTxs.length === 0 ? (
-                    <div className="py-12 text-center text-muted-foreground text-sm">No transactions found</div>
-                  ) : invoiceDetailTxs.map((tx: any) => (
-                    <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center text-sm bg-card hover:bg-muted/20 transition-colors group">
-                      <div className="col-span-3 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
-                      <div className="col-span-2 text-right font-semibold">
-                        {Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span>
-                      </div>
-                      <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
-                      <div className="col-span-2 text-right font-bold text-orange-600 dark:text-orange-400">{formatCurrency(tx.total_amount)}</div>
-                      <div className="col-span-1 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
-                      {isOwner && (
-                        <div className="col-span-2 text-center flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => handleStartEditTx(tx)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-blue-500/20"
-                            title="Edit item"
-                          >
-                            <Pencil className="w-3.5 h-3.5" /> Edit
-                          </button>
-                          <button
-                            onClick={() => setConfirmDeleteTxId(tx.transaction_id)}
-                            className="p-1.5 rounded-xl text-destructive hover:bg-destructive/10 transition-all active:scale-95 cursor-pointer border border-destructive/20"
-                            title="Delete item"
-                          >
-                            <Trash className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <ScrapInvoiceDetailView
+            handleEditInvoiceInBilling={handleEditInvoiceInBilling} handleReprintScrap={handleReprintScrap}
+            handleStartEditTx={handleStartEditTx} invoiceDetailTxs={invoiceDetailTxs} isOwner={isOwner}
+            selectedInvoiceNumber={selectedInvoiceNumber} setConfirmDeleteInvoiceNumber={setConfirmDeleteInvoiceNumber}
+            setConfirmDeleteTxId={setConfirmDeleteTxId} setIsAddingItem={setIsAddingItem}
+          />
         )}
       </div>
 
@@ -2121,329 +661,32 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
       {/* 3. Edit Line Item Modal */}
       {editingTxItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleSaveEditTx} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
-                  <Pencil className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Edit Scrap Line Item</h3>
-                  <p className="text-xs text-muted-foreground">Modify category, quantity or rate</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingTxItem(null)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Scrap Category *</label>
-                <Select
-                  value={editTxForm.scrap_category_id}
-                  onChange={v => {
-                    const selected = categories.find(c => c.scrap_category_id === v);
-                    setEditTxForm(f => ({
-                      ...f,
-                      scrap_category_id: v,
-                      rate: selected ? String(selected.purchase_price || f.rate) : f.rate,
-                    }));
-                  }}
-                  options={categories.map(c => ({
-                    value: c.scrap_category_id,
-                    label: `${c.name} (${c.unit}) - Default: ₹${c.purchase_price}/${c.unit}`
-                  }))}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Quantity *</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.001"
-                    min="0.001"
-                    value={editTxForm.quantity}
-                    onChange={e => setEditTxForm(f => ({ ...f, quantity: e.target.value }))}
-                    className={fieldCls}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate (₹) *</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={editTxForm.rate}
-                    onChange={e => setEditTxForm(f => ({ ...f, rate: e.target.value }))}
-                    className={fieldCls}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Party / Customer Name</label>
-                <input
-                  type="text"
-                  placeholder="Customer name"
-                  value={editTxForm.party_name}
-                  onChange={e => setEditTxForm(f => ({ ...f, party_name: e.target.value }))}
-                  className={fieldCls}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Notes</label>
-                <input
-                  type="text"
-                  placeholder="Notes"
-                  value={editTxForm.notes}
-                  onChange={e => setEditTxForm(f => ({ ...f, notes: e.target.value }))}
-                  className={fieldCls}
-                />
-              </div>
-
-              {editTxForm.quantity && editTxForm.rate && Number(editTxForm.quantity) > 0 && Number(editTxForm.rate) > 0 && (
-                <div className="pt-3 border-t border-border flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">New Line Total:</span>
-                  <span className="text-lg font-black text-orange-500">
-                    ₹{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-              <button
-                type="submit"
-                disabled={isSavingTx}
-                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
-              >
-                {isSavingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Item
-              </button>
-            </div>
-          </form>
-        </div>
+        <EditScrapTxDialog
+          categories={categories} editTxForm={editTxForm} fieldCls={fieldCls} handleFormKeyDown={handleFormKeyDown}
+          handleSaveEditTx={handleSaveEditTx} isSavingTx={isSavingTx} setEditingTxItem={setEditingTxItem}
+          setEditTxForm={setEditTxForm}
+        />
       )}
 
       {/* 4. Edit Invoice Header Modal */}
       {editHeaderInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleSaveInvoiceHeader} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Pencil className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Edit Scrap Invoice Header</h3>
-                  <p className="text-xs text-muted-foreground">{editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditHeaderInvoice(null)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer / Party Name</label>
-                <input
-                  type="text"
-                  placeholder="Customer Name"
-                  value={editHeaderForm.party_name}
-                  onChange={e => setEditHeaderForm(f => ({ ...f, party_name: e.target.value }))}
-                  className={fieldCls}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer Phone</label>
-                <input
-                  type="text"
-                  placeholder="Phone number"
-                  value={editHeaderForm.customer_phone}
-                  onChange={e => setEditHeaderForm(f => ({ ...f, customer_phone: e.target.value }))}
-                  className={fieldCls}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer Address</label>
-                <input
-                  type="text"
-                  placeholder="Address"
-                  value={editHeaderForm.customer_address}
-                  onChange={e => setEditHeaderForm(f => ({ ...f, customer_address: e.target.value }))}
-                  className={fieldCls}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Payment Status</label>
-                <Select
-                  value={editHeaderForm.payment_status}
-                  onChange={v => setEditHeaderForm(f => ({ ...f, payment_status: v }))}
-                  options={[
-                    { value: 'CASH', label: 'CASH' },
-                    { value: 'UPI', label: 'UPI' },
-                    { value: 'CARD', label: 'CARD' },
-                    { value: 'CREDIT', label: 'CREDIT' },
-                    { value: 'PAID', label: 'PAID' },
-                  ]}
-                />
-              </div>
-
-              {/* UPI Account Selector (Page-wise Config: Scrap Manager) */}
-              {editHeaderForm.payment_status === 'UPI' && upiPageConfig.scrap && upiSources.length > 0 && (
-                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-xl space-y-1">
-                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <RecycleIcon className="w-3.5 h-3.5 text-violet-500" />
-                    Select Scrap UPI Account
-                  </label>
-                  <Select
-                    value={scrapUpiSourceId || upiSources[0]?.source_id || ''}
-                    onChange={(val) => setScrapUpiSourceId(val)}
-                    options={upiSources.map((s: any) => ({
-                      value: s.source_id,
-                      label: `${s.name} (${s.upi_id || 'No UPI ID'})`
-                    }))}
-                    className="w-full text-xs"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-              <button
-                type="submit"
-                disabled={isSavingHeader}
-                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
-              >
-                {isSavingHeader ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </div>
+        <EditInvoiceHeaderDialog
+          editHeaderForm={editHeaderForm} editHeaderInvoice={editHeaderInvoice} fieldCls={fieldCls}
+          handleFormKeyDown={handleFormKeyDown} handleSaveInvoiceHeader={handleSaveInvoiceHeader}
+          isSavingHeader={isSavingHeader} scrapUpiSourceId={scrapUpiSourceId} setEditHeaderForm={setEditHeaderForm}
+          setEditHeaderInvoice={setEditHeaderInvoice} setScrapUpiSourceId={setScrapUpiSourceId}
+          upiPageConfig={upiPageConfig} upiSources={upiSources}
+        />
       )}
 
       {/* 5. Add Line Item to Invoice Modal */}
       {isAddingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleAddLineItemToInvoice} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Add Item to Invoice</h3>
-                  <p className="text-xs text-muted-foreground">Invoice #{selectedInvoiceNumber}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddingItem(false)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Select Scrap Category *</label>
-                <Select
-                  value={addItemForm.categoryId}
-                  onChange={v => {
-                    const selected = categories.find(c => c.scrap_category_id === v);
-                    setAddItemForm(f => ({
-                      ...f,
-                      categoryId: v,
-                      rate: selected ? String(selected.purchase_price || '') : f.rate,
-                    }));
-                  }}
-                  options={[
-                    { value: '', label: '-- Select Category --' },
-                    ...categories.map(c => ({ value: c.scrap_category_id, label: `${c.name} (${c.unit}) - ₹${c.purchase_price}/${c.unit}` })),
-                  ]}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Quantity *</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.001"
-                    min="0.001"
-                    placeholder="0.000"
-                    value={addItemForm.quantity}
-                    onChange={e => setAddItemForm(f => ({ ...f, quantity: e.target.value }))}
-                    className={fieldCls}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate (₹) *</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="0.00"
-                    value={addItemForm.rate}
-                    onChange={e => setAddItemForm(f => ({ ...f, rate: e.target.value }))}
-                    className={fieldCls}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Notes</label>
-                <input
-                  type="text"
-                  placeholder="Item notes (optional)"
-                  value={addItemForm.notes}
-                  onChange={e => setAddItemForm(f => ({ ...f, notes: e.target.value }))}
-                  className={fieldCls}
-                />
-              </div>
-
-              {addItemForm.quantity && addItemForm.rate && Number(addItemForm.quantity) > 0 && Number(addItemForm.rate) > 0 && (
-                <div className="pt-2 flex items-center justify-between text-sm border-t border-border font-bold">
-                  <span className="text-muted-foreground">Line Total:</span>
-                  <span className="text-orange-500 text-base">₹{(Number(addItemForm.quantity) * Number(addItemForm.rate)).toFixed(2)}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-              <button
-                type="submit"
-                disabled={isAddingItemSaving}
-                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
-              >
-                {isAddingItemSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Add Item
-              </button>
-            </div>
-          </form>
-        </div>
+        <AddInvoiceItemDialog
+          addItemForm={addItemForm} categories={categories} fieldCls={fieldCls}
+          handleAddLineItemToInvoice={handleAddLineItemToInvoice} handleFormKeyDown={handleFormKeyDown}
+          isAddingItemSaving={isAddingItemSaving} selectedInvoiceNumber={selectedInvoiceNumber}
+          setAddItemForm={setAddItemForm} setIsAddingItem={setIsAddingItem}
+        />
       )}
 
       {/* Delete Category Confirmation Modal */}

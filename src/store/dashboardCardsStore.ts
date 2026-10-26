@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import { hasBridge } from '../data/client';
+import { settingsApi } from '../data/settings';
 
-export const DEFAULT_DASHBOARD_CARDS_ORDER = [
+const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'billing',
   'cashier',
   'inventory',
@@ -25,7 +27,7 @@ export const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'recycle-bin',
 ];
 
-export function getDashboardCardsStorageKey(
+function getDashboardCardsStorageKey(
   tenantId?: string | null,
   userId?: string | null,
   role?: string | null
@@ -35,7 +37,7 @@ export function getDashboardCardsStorageKey(
   return `nafid_pos_card_order_${t}_${u}`;
 }
 
-export function getDashboardCardsElectronKey(
+function getDashboardCardsElectronKey(
   userId?: string | null,
   role?: string | null
 ): string {
@@ -43,7 +45,7 @@ export function getDashboardCardsElectronKey(
   return `dashboard_card_order_${u}`;
 }
 
-export function normalizeCardOrder(savedOrder: unknown): string[] {
+function normalizeCardOrder(savedOrder: unknown): string[] {
   if (!Array.isArray(savedOrder)) {
     return [...DEFAULT_DASHBOARD_CARDS_ORDER];
   }
@@ -131,10 +133,10 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
     set({ cardOrder: resolvedOrder, isLoaded: true });
 
     // 2. Try electron settings store if available (asynchronous sync)
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsGet) {
+    if (typeof window !== 'undefined' && hasBridge('settingsGet')) {
       try {
         const electronKey = getDashboardCardsElectronKey(userId, role);
-        const saved = await window.electronAPI.settingsGet({
+        const saved = await settingsApi.get({
           tenant_id: tenantId || 'global',
           key: electronKey,
         });
@@ -144,7 +146,7 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
           set({ cardOrder: normalized });
           try {
             localStorage.setItem(storageKey, JSON.stringify(normalized));
-          } catch {}
+          } catch { /* ignore */ }
           return normalized;
         }
       } catch (err) {
@@ -166,10 +168,10 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
       console.warn('Failed to save card order to localStorage', err);
     }
 
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
       try {
         const electronKey = getDashboardCardsElectronKey(userId, role);
-        await window.electronAPI.settingsSet({
+        await settingsApi.set({
           tenant_id: tenantId || 'global',
           key: electronKey,
           value: normalized,
@@ -232,17 +234,17 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
     const storageKey = getDashboardCardsStorageKey(tenantId, userId, role);
     try {
       localStorage.setItem(storageKey, JSON.stringify(defaults));
-    } catch {}
+    } catch { /* ignore */ }
 
-    if (typeof window !== 'undefined' && window.electronAPI?.settingsSet) {
+    if (typeof window !== 'undefined' && hasBridge('settingsSet')) {
       try {
         const electronKey = getDashboardCardsElectronKey(userId, role);
-        await window.electronAPI.settingsSet({
+        await settingsApi.set({
           tenant_id: tenantId || 'global',
           key: electronKey,
           value: defaults,
         });
-      } catch {}
+      } catch { /* ignore */ }
     }
   },
 }));

@@ -12,11 +12,11 @@ export interface ReceiptItem {
   discountLabel?: string;
   isPriceOverride?: boolean;
   brand?: string;
-  billing_type?: string;
+  billing_type?: string | null;
   pieces_sold?: number;
   pieces_override?: number;
   pieces_per_kg?: number;
-  unit?: string;
+  unit?: string | null;
   hsn?: string;
   hsn_code?: string;
   hsn_sac_code?: string;
@@ -158,7 +158,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
   let rateVal = item.unit_price;
 
   if (isWeightHidden) {
-    let pcs = (item.pieces_override != null && item.pieces_override > 0)
+    const pcs = (item.pieces_override != null && item.pieces_override > 0)
       ? item.pieces_override
       : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : 1);
     if (pcs > 0) {
@@ -168,7 +168,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
     qtyStr = appendPcs ? `${pcs} PCS` : `${pcs}`;
   } else {
     const numQty = Number(item.quantity);
-    let rawQtyStr = isNaN(numQty)
+    const rawQtyStr = isNaN(numQty)
       ? String(item.quantity)
       : (isWeightProduct ? numQty.toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1') : String(numQty));
 
@@ -208,7 +208,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   if (dateInput instanceof Date) return dateInput;
   if (typeof dateInput === 'number') return new Date(dateInput);
 
-  let dateStr = String(dateInput).trim();
+  const dateStr = String(dateInput).trim();
   if (!dateStr) return new Date();
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -217,7 +217,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   }
 
   // If string explicitly contains UTC 'Z' or offset like +04:00, let Date parse absolute instant
-  if (/Z$/i.test(dateStr) || /[\+\-]\d{2}:?\d{2}$/.test(dateStr)) {
+  if (/Z$/i.test(dateStr) || /[+-]\d{2}:?\d{2}$/.test(dateStr)) {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) return d;
   }
@@ -238,7 +238,7 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   }
 
   const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? new Date(dateInput as any) : d;
+  return isNaN(d.getTime()) ? new Date(dateInput as string) : d;
 }
 
 export function formatBillDateTime(date: Date | string | number): string {
@@ -268,7 +268,6 @@ export function formatBillDateTime(date: Date | string | number): string {
   }
 }
 
-
 export interface ReceiptData {
   shopName: string;
   shopGstin?: string;
@@ -297,7 +296,7 @@ export interface ReceiptData {
   oldBalance?: number;
   customerBalance?: number;
   paymentMethod?: string;
-  splitDetails?: any;
+  splitDetails?: string | Record<string, number>;
   isReprint?: boolean;
   invoiceType?: string;
   customerName?: string;
@@ -320,7 +319,7 @@ export interface ReceiptData {
   scrapInvoiceNumber?: string;
   returnDeduction?: number;
   returnInvoiceNumber?: string;
-  referenceInvoiceNumber?: string;
+  referenceInvoiceNumber?: string | null;
   refundMethod?: string;
   showProductOffers?: boolean;
   showPriceOverrideMrp?: boolean;
@@ -342,7 +341,7 @@ export interface ReceiptData {
   creditPeriodDays?: number;
 }
 
-export function shouldShowItemMrp(data: ReceiptData, item: ReceiptItem): boolean {
+function shouldShowItemMrp(data: ReceiptData, item: ReceiptItem): boolean {
   if (item.isPriceOverride) {
     return data.showPriceOverrideMrp !== false;
   }
@@ -405,7 +404,7 @@ function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMo
   }
 }
 
-export function formatBalanceLines(
+function formatBalanceLines(
   data: ReceiptData,
   labelW: number,
   totalW: number,
@@ -419,9 +418,9 @@ export function formatBalanceLines(
   const pm = (data.paymentMethod || '').toUpperCase();
   const isCredit = pm === 'CREDIT' || (data.oldBalance != null && data.oldBalance !== 0) || (data.customerBalance != null) || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
 
-  let rawSd: any = data.splitDetails || (data as any).split_details;
+  let rawSd: string | Record<string, number> | undefined = data.splitDetails || (data as ReceiptData & { split_details?: string | Record<string, number> }).split_details;
   if (typeof rawSd === 'string') {
-    try { rawSd = JSON.parse(rawSd); } catch {}
+    try { rawSd = JSON.parse(rawSd); } catch { /* ignore */ }
   }
 
   if (pm === 'SPLIT' && rawSd && typeof rawSd === 'object') {
@@ -780,7 +779,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += LIGHT + '\n';
     }
@@ -1107,7 +1106,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += THIN + '\n';
     }
@@ -1311,7 +1310,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
     }
 
@@ -1496,7 +1495,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += LIGHT + '\n';
     }
@@ -1958,7 +1957,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           const finalTotal = netPayable;
           const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${finalTotal.toFixed(2)}&cu=INR`;
           text += '\n[[QR:' + upiUrl + ']]\n';
-        } catch {}
+        } catch { /* ignore */ }
       }
       text += THIN + '\n';
     }
@@ -2000,7 +1999,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       cells.forEach((c, i) => {
         const w = widths[i];
         const align = aligns && aligns[i] ? aligns[i] : 'left';
-        let paddedCell = c;
+        let paddedCell: string;
         if (c.length > w) {
           paddedCell = c.substring(0, w);
         } else if (align === 'right') {
@@ -2244,7 +2243,6 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // Align totals vertical separator with minimum 8 chars for value field so 2-decimal numbers are never clipped
     const VAL_W = Math.max(amtW, 8);
-    const LAB_W = Math.max(4, INNER - VAL_W - 1);
     const tRow = (label: string, val: string) => {
       const effValW = Math.max(VAL_W, val.length);
       const effLabW = INNER - effValW - 1;
@@ -2419,7 +2417,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       try {
         const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
         text += '[[QR:' + upiUrl + ']]\n';
-      } catch {}
+      } catch { /* ignore */ }
     }
 
     // ── Loyalty Points ────────────────────────────────────────────────────────

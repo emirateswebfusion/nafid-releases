@@ -16,6 +16,13 @@
     "package:mac": "npm run build && electron-builder build --config electron-builder.config.js --mac",
     "package:all": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --mac",
     "lint": "eslint .",
+    "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "lint:baseline": "node scripts/lint-ratchet.mjs --update",
+    "check:arch": "node scripts/check-architecture.mjs",
+    "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "tsc -b && npm run typecheck:electron && npm run test && npm run check:arch",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -68,6 +75,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.2.2",
+    "vitest": "^3.2.7",
     "wait-on": "^9.0.5"
   }
 }

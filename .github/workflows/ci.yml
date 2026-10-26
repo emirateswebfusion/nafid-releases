@@ -1,0 +1,29 @@
+# Runs the POS gate from AGENTS.md on every push to main / refactor branches and on pull requests.
+name: CI
+
+on:
+  push:
+    branches: [main, 'refactor/**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # The gate needs only types and JS: skip native builds and the Electron binary download.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      # tsc (app + electron), Vitest, architecture guard
+      - run: pnpm run verify
+      # lint debt may not grow (npm run lint alone is not a gate)
+      - run: pnpm run lint:ratchet

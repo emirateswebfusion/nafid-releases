@@ -66,7 +66,7 @@ export interface Tab {
   manualTotalOverride?: number | null;
   editingInvoiceContribution?: number;
   editingInvoicePartyKey?: string;
-  /** Actual physical cash refunded to customer �?" may differ from computed refundAmount */
+  /** Actual physical cash refunded to customer — may differ from computed refundAmount */
   actualRefundPaid: number;
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;
@@ -94,7 +94,7 @@ interface TabState {
   getActiveTab: () => Tab | undefined;
 }
 
-function getSnapshotFromCartStore(cartState: any): TabSnapshot {
+function getSnapshotFromCartStore(cartState: ReturnType<typeof useCartStore.getState>): TabSnapshot {
   return {
     items: cartState.items,
     invoiceType: cartState.invoiceType,
@@ -113,7 +113,7 @@ function getSnapshotFromCartStore(cartState: any): TabSnapshot {
     editingQuotationNumber: cartState.editingQuotationNumber,
     editingInvoiceId: cartState.editingInvoiceId,
     editingInvoiceNumber: cartState.editingInvoiceNumber,
-    editingInvoiceRole: cartState.editingInvoiceRole,
+    editingInvoiceRole: cartState.editingInvoiceRole as TabSnapshot['editingInvoiceRole'],
     pendingScrapInvoiceToEdit: cartState.pendingScrapInvoiceToEdit,
     manualTotalOverride: useTabStore?.getState?.()?.getActiveTab?.()?.manualTotalOverride ?? null,
     isB2B: useTabStore?.getState?.()?.getActiveTab?.()?.isB2B ?? false,
@@ -431,5 +431,5 @@ export const useTabStore = create<TabState>((set, get) => ({
 }));
 
 if (typeof window !== 'undefined') {
-  (window as any).useTabStore = useTabStore;
+  (window as Window & { useTabStore?: typeof useTabStore }).useTabStore = useTabStore;
 }

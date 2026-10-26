@@ -1,6 +1,12 @@
-import { create } from 'zustand';
+import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { useCartStore } from './cartStore';
 import { convertLegacyRestrictedPageToPermissions } from '../utils/permissions';
+import { authApi } from '../data/auth';
+import { hasBridge, isDesktopRuntime } from '../data/client';
+import { settingsApi } from '../data/settings';
+import { syncApi } from '../data/sync';
+import { CLOUD_API, registerCloudAuth } from '../data/cloud/client';
+import { authCloud } from '../data/cloud/authCloud';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -29,7 +35,7 @@ export interface AuthState {
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' {
+function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' {
   if (!rawRole) return 'STAFF';
   const r = rawRole.toUpperCase().trim();
   if (r === 'SUPER_ADMIN') return 'SUPER_ADMIN';
@@ -37,11 +43,9 @@ export function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN'
   return 'STAFF';
 }
 
-// Cloud API URL — set VITE_CLOUD_API in .env
-const CLOUD_API = (import.meta.env.VITE_CLOUD_API as string).replace(/\/$/, '');
 const BROWSER_AUTH_KEY = 'nafid_pos_auth_session';
 
-function decodeJwtPayload(token: string): any {
+function decodeJwtPayload(token: string): { exp?: number; role?: string; permissions?: string[]; restricted_page?: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length < 2) return null;
@@ -76,12 +80,12 @@ function parsePermissionsFromToken(token: string): string[] {
   return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
 }
 
-function formatError(err: any, fallback: string): string {
+function formatError(err: unknown, fallback: string): string {
   if (!err) return fallback;
   if (typeof err === 'string') return err;
   if (typeof err === 'object') {
-    if (typeof err.message === 'string') return err.message;
-    if (typeof err.error === 'string') return err.error;
+    if (typeof (err as { message?: unknown }).message === 'string') return (err as { message: string }).message;
+    if (typeof (err as { error?: unknown }).error === 'string') return (err as { error: string }).error;
     try {
       return JSON.stringify(err);
     } catch {
@@ -91,7 +95,9 @@ function formatError(err: any, fallback: string): string {
   return String(err);
 }
 
-export const useAuthStore = create<AuthState>()((set, get) => ({
+// Explicit type: the initializer calls useAuthStore.getState() itself, and with noImplicitAny off that circular
+// reference made tsc infer `any` for the whole store (every screen read tenantId etc. untyped).
+export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState>()((set, _get) => ({
   isAuthenticated: false,
   token: null,
   tenantId: null,
@@ -113,14 +119,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     try {
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         // Reset local store confirmation state before restoring either session type.
         useCartStore.getState().resetDomainConfirmation();
-        const offlineSession = await window.electronAPI.authGetOfflineSession?.();
+        const offlineSession = await authApi.getOfflineSession();
         if (offlineSession?.tenant_id && offlineSession.user_id) {
           const roleVal = normalizeRole(offlineSession.role);
           if (roleVal === 'SUPER_ADMIN') {
-            await window.electronAPI.authClearToken();
+            await authApi.clearToken();
             set({ isAuthenticated: false, permissions: [] });
             return;
           }
@@ -144,13 +150,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           return;
         }
 
-        const stored = await window.electronAPI.authGetToken();
+        const stored = await authApi.getToken();
         if (stored?.jwt_token) {
           const expired = isTokenExpired(stored.jwt_token);
           const perms = parsePermissionsFromToken(stored.jwt_token);
-          let rawRole = (stored.role || '') as any;
+          let rawRole = (stored.role || '') as NonNullable<AuthState['role']>;
           if (rawRole === 'SUPER_ADMIN') {
-            if (window.electronAPI) await window.electronAPI.authClearToken();
+            if (isDesktopRuntime()) await authApi.clearToken();
             set({ isAuthenticated: false, permissions: [] });
             return;
           }
@@ -158,14 +164,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
           let resolvedShopName = stored.shop_name;
           try {
-            const localName = await window.electronAPI.settingsGet({
+            const localName = await settingsApi.get({
               tenant_id: stored.tenant_id || 'global',
               key: 'shop_name'
             });
             if (typeof localName === 'string' && localName.trim()) {
               resolvedShopName = localName.trim();
             }
-          } catch {}
+          } catch { /* ignore */ }
 
           set({
             isAuthenticated: true,
@@ -182,9 +188,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           });
           useCartStore.getState().setRole(rawRole);
           if (stored.domain_type) {
-            useCartStore.getState().setDomain(stored.domain_type as any);
+            useCartStore.getState().setDomain(stored.domain_type as Parameters<ReturnType<typeof useCartStore.getState>['setDomain']>[0]);
             // Check local DB for confirmation if offline/restarting
-            const confirmed = await window.electronAPI.settingsGet({ 
+            const confirmed = await settingsApi.get({ 
               tenant_id: stored.tenant_id, 
               key: 'isDomainConfirmed' 
             });
@@ -237,8 +243,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   // ── Login: call Cloud API then persist token via IPC ─────────────────────
   login: async (email, password, apiBase = CLOUD_API) => {
-    const applyOfflineLogin = async (user: any, reason: string) => {
-      let roleVal = normalizeRole(user.role);
+    const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string | null; tenant_id: string; user_id: string; name?: string }, reason: string) => {
+      const roleVal = normalizeRole(user.role);
       if (roleVal === 'SUPER_ADMIN') {
         return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
       }
@@ -248,9 +254,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         : (Array.isArray(user.permissions) && user.permissions.length > 0 ? user.permissions : convertLegacyRestrictedPageToPermissions(user.restricted_page));
       let resolvedShopName = email;
       try {
-        const local = await window.electronAPI?.settingsGet({ tenant_id: user.tenant_id || 'global', key: 'shop_name' });
+        const local = await settingsApi.get({ tenant_id: user.tenant_id || 'global', key: 'shop_name' });
         if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
-      } catch {}
+      } catch { /* ignore */ }
 
       const offlineSession = {
         tenant_id: user.tenant_id,
@@ -261,14 +267,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         restricted_page: user.restricted_page || null,
         permissions,
       };
-      if (window.electronAPI) {
+      if (isDesktopRuntime()) {
         try {
-          const saved = await window.electronAPI.authSaveOfflineSession(offlineSession);
+          const saved = await authApi.saveOfflineSession(offlineSession);
           if (!saved?.success) {
             return { success: false, error: saved?.error || 'Could not save the offline session. Please try again.' };
           }
-        } catch (error: any) {
-          return { success: false, error: error?.message || 'Could not save the offline session. Please try again.' };
+        } catch (error) {
+          return { success: false, error: (error as Error)?.message || 'Could not save the offline session. Please try again.' };
         }
       }
 
@@ -293,11 +299,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Reset local store confirmation state before logging in
       useCartStore.getState().resetDomainConfirmation();
       const baseUrl = apiBase.replace(/\/$/, '');
-      const res = await fetch(`${baseUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await authCloud.login(baseUrl, email, password);
       const data = await res.json();
 
       if (!res.ok) {
@@ -307,19 +309,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             return { success: false, error: errMsg };
           }
         }
-        if (window.electronAPI?.authLoginOffline) {
+        if (hasBridge('authLoginOffline')) {
           console.warn(`[AuthStore] Cloud login returned HTTP ${res.status} (${data?.error || 'Server Error'}), attempting local DB auth...`);
-          const offlineAuth = await window.electronAPI.authLoginOffline({ email, password });
+          const offlineAuth = await authApi.loginOffline({ email, password });
           if (offlineAuth.success && offlineAuth.user) {
             return await applyOfflineLogin(offlineAuth.user, 'Operating in Local Mode (Central DB unavailable). POS active.');
-          } else if (offlineAuth.error && !offlineAuth.error.includes('User not found')) {
-            return { success: false, error: offlineAuth.error };
+          } else if ((offlineAuth as { error?: string }).error && !(offlineAuth as { error?: string }).error!.includes('User not found')) {
+            return { success: false, error: (offlineAuth as { error: string }).error };
           }
         }
         return { success: false, error: formatError(data?.error || data, 'Login failed') };
       }
 
-      let roleVal = (data.role || '') as any;
+      let roleVal = (data.role || '') as NonNullable<AuthState['role']>;
       if (roleVal === 'SUPER_ADMIN') {
         return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
       }
@@ -327,17 +329,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const perms = parsePermissionsFromToken(data.token);
 
       let resolvedShopName = data.shop_name;
-      if (!resolvedShopName && window.electronAPI) {
+      if (!resolvedShopName && isDesktopRuntime()) {
         try {
-          const local = await window.electronAPI.settingsGet({ tenant_id: data.tenant_id || 'global', key: 'shop_name' });
+          const local = await settingsApi.get({ tenant_id: data.tenant_id || 'global', key: 'shop_name' });
           if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
-        } catch {}
+        } catch { /* ignore */ }
       }
       if (!resolvedShopName) resolvedShopName = email;
 
       // Persist to disk and local SQLite database via IPC
-      if (window.electronAPI) {
-        await window.electronAPI.authSaveToken({
+      if (isDesktopRuntime()) {
+        await authApi.saveToken({
           jwt_token: data.token,
           tenant_id: data.tenant_id,
           user_id: data.user_id,
@@ -384,8 +386,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         useCartStore.getState().confirmDomain();
         
         // Also ensure it's saved locally for offline persistence
-        if (window.electronAPI) {
-          await window.electronAPI.settingsSet({ 
+        if (isDesktopRuntime()) {
+          await settingsApi.set({ 
             tenant_id: data.tenant_id, 
             key: 'isDomainConfirmed', 
             value: true 
@@ -394,15 +396,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }
 
       // If background sync worker is running, trigger an immediate cycle
-      if (window.electronAPI?.runInitialSync) {
-        window.electronAPI.runInitialSync().catch(() => {});
+      if (hasBridge('runInitialSync')) {
+        syncApi.runInitialSync().catch(() => {});
       }
 
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       // Offline fallback: Attempt local authentication using cached user credentials in SQLite
-      if (window.electronAPI?.authLoginOffline) {
-        const offlineAuth = await window.electronAPI.authLoginOffline({ email, password });
+      if (hasBridge('authLoginOffline')) {
+        const offlineAuth = await authApi.loginOffline({ email, password });
         if (offlineAuth.success && offlineAuth.user) {
           return await applyOfflineLogin(offlineAuth.user, 'Offline Mode — Cloud Sync paused. Check network connection.');
         }
@@ -413,13 +415,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   // ── Logout ────────────────────────────────────────────────────────────────
   logout: async () => {
-    if (window.electronAPI) await window.electronAPI.authClearToken();
+    if (isDesktopRuntime()) await authApi.clearToken();
     localStorage.removeItem(BROWSER_AUTH_KEY);
     try {
       localStorage.removeItem('nafid_pos_ai_conversations_v3');
       localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
       localStorage.removeItem('nafid_pos_ai_conversations');
-    } catch {}
+    } catch { /* ignore */ }
     useCartStore.getState().clearCart();
     set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null });
   },
@@ -429,29 +431,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!token || !tenantId) return { success: false, error: 'Not authenticated' };
 
     try {
-      const res = await fetch(`${CLOUD_API}/auth/tenant/domain`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ domain_type: domain }),
-      });
+      const res = await authCloud.updateTenantDomain(token, domain);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
 
       // Update local cart store
-      useCartStore.getState().setDomain(domain as any);
+      useCartStore.getState().setDomain(domain as Parameters<ReturnType<typeof useCartStore.getState>['setDomain']>[0]);
       useCartStore.getState().confirmDomain();
 
       // Update local config file via IPC (re-save current config with new domain)
-      if (window.electronAPI) {
-        const current = await window.electronAPI.authGetToken();
+      if (isDesktopRuntime()) {
+        const current = await authApi.getToken();
         if (current) {
-          await window.electronAPI.authSaveToken({ ...current, domain_type: domain });
+          await authApi.saveToken({ ...current, domain_type: domain });
         }
         // Also update local DB settings
-        await window.electronAPI.settingsSet({ 
+        await settingsApi.set({ 
           tenant_id: tenantId, 
           key: 'isDomainConfirmed', 
           value: true 
@@ -459,7 +454,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }
 
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       console.error('Update domain error:', err);
       return { success: false, error: 'Authentication failed' };
     }
@@ -467,30 +462,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   
   forgotPassword: async (email: string) => {
     try {
-      const res = await fetch(`${CLOUD_API}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const res = await authCloud.forgotPassword(email);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Request failed') };
       return { success: true };
-    } catch (err: any) {
+    } catch {
       return { success: false, error: 'Cannot reach server.' };
     }
   },
 
   resetPassword: async (token: string, password: string) => {
     try {
-      const res = await fetch(`${CLOUD_API}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
-      });
+      const res = await authCloud.resetPassword(token, password);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Reset failed') };
       return { success: true };
-    } catch (err: any) {
+    } catch {
       return { success: false, error: 'Cannot reach server.' };
     }
   },
@@ -500,19 +487,34 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!token) return { success: false, error: 'Not authenticated' };
 
     try {
-      const res = await fetch(`${CLOUD_API}/auth/change-password`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ oldPassword, newPassword }),
-      });
+      const res = await authCloud.changePassword(token, oldPassword, newPassword);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
       return { success: true };
-    } catch (err: any) {
+    } catch {
       return { success: false, error: 'Cannot reach server.' };
     }
   }
 }));
+
+// Cloud calls (src/data/cloud) take the session token from this store; a 401 pauses cloud sync and asks to sign in.
+registerCloudAuth({
+  getToken: async () => {
+    let token = useAuthStore.getState().token;
+    // Auto-recover the token from the stored Electron config if the in-memory session was cleared.
+    if (!token && typeof window !== 'undefined' && hasBridge('authGetToken')) {
+      try {
+        const stored = await authApi.getToken();
+        if (stored?.jwt_token) {
+          token = stored.jwt_token;
+          useAuthStore.setState({ token: stored.jwt_token });
+        }
+      } catch { /* keep going without a token */ }
+    }
+    return token;
+  },
+  onUnauthorized: () => {
+    useAuthStore.getState().setCloudSyncPaused(true, 'Token expired — Cloud Sync paused. Re-login to resume cloud sync.');
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-session-expired-modal'));
+  },
+});

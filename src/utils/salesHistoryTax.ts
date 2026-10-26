@@ -1,6 +1,10 @@
+import { splitTaxAmount } from './checkoutLines';
+
+type TaxInvoice = { customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
+type TaxItem = { product_id: string; item_id?: string | null; cgst_rate?: number | string | null; sgst_rate?: number | string | null; igst_rate?: number | string | null; tax_rate?: number | string | null; quantity?: number | string | null; unit_price?: number | string | null; total?: number | string | null; tax_amount?: number | string | null; name?: string | null; hsn_sac_code?: string | null; hsn_code?: string | null; hsn?: string | null; uom?: string | null; unit?: string | null };
 export interface InvoiceProductRow {
-  invoice: any;
-  item: any;
+  invoice: TaxInvoice;
+  item: TaxItem;
   invoiceId: string;
   invoiceNumber: string;
   createdAt: string;
@@ -33,9 +37,9 @@ export interface InvoiceProductTotals {
 
 const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 const round1 = (value: number) => Math.round((Number(value) || 0) * 10) / 10;
-const positive = (value: any) => Math.max(0, Number(value) || 0);
+const positive = (value: unknown) => Math.max(0, Number(value) || 0);
 
-function getItemRate(item: any, taxable: number, tax: number): number {
+function getItemRate(item: TaxItem, taxable: number, tax: number): number {
   const splitRate = positive(item?.cgst_rate) + positive(item?.sgst_rate) + positive(item?.igst_rate);
   if (splitRate > 0) return round1(splitRate);
   const declaredRate = positive(item?.tax_rate);
@@ -44,13 +48,13 @@ function getItemRate(item: any, taxable: number, tax: number): number {
   return 0;
 }
 
-function isInterStateInvoice(inv: any, items: any[]): boolean {
+function isInterStateInvoice(inv: TaxInvoice, items: TaxItem[]): boolean {
   if (String(inv?.supply_type || '').toUpperCase() === 'INTER') return true;
-  return items.some((item: any) => positive(item?.igst_rate) > 0);
+  return items.some((item: TaxItem) => positive(item?.igst_rate) > 0);
 }
 
-export function sortInvoicesByInvoiceNumber<T = any>(invoices: T[]): T[] {
-  return [...(Array.isArray(invoices) ? invoices : [])].sort((a: any, b: any) =>
+export function sortInvoicesByInvoiceNumber<T extends { invoice_number?: string | null } = TaxInvoice>(invoices: T[]): T[] {
+  return [...(Array.isArray(invoices) ? invoices : [])].sort((a: T, b: T) =>
     String(a?.invoice_number || '').localeCompare(String(b?.invoice_number || ''), undefined, {
       numeric: true,
       sensitivity: 'base',
@@ -58,7 +62,7 @@ export function sortInvoicesByInvoiceNumber<T = any>(invoices: T[]): T[] {
   );
 }
 
-export function buildInvoiceProductRows(inv: any, invoiceItems: any[]): InvoiceProductRow[] {
+export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]): InvoiceProductRow[] {
   const items = (Array.isArray(invoiceItems) ? invoiceItems : []).filter(Boolean);
   const interState = isInterStateInvoice(inv, items);
   const discountTotal = positive(inv?.discount_total);
@@ -72,7 +76,7 @@ export function buildInvoiceProductRows(inv: any, invoiceItems: any[]): InvoiceP
     Math.abs(storedItemTotalSum - (invoiceSubtotalRaw + invoiceTax)) <
     Math.abs(storedItemTotalSum - invoiceSubtotalRaw);
 
-  const normalized = items.map((item: any) => {
+  const normalized = items.map((item: TaxItem) => {
     const quantity = positive(item?.quantity);
     const unitPrice = positive(item?.unit_price);
     const storedTotal = positive(item?.total);
@@ -110,12 +114,13 @@ export function buildInvoiceProductRows(inv: any, invoiceItems: any[]): InvoiceP
     const grossTotal = round2(taxableBase + invoiceTax);
     const storedGrand = Number(inv?.grand_total);
     const netRatio = grossTotal > 0 && Number.isFinite(storedGrand) ? Math.max(0, storedGrand / grossTotal) : 1;
-    const cgstAmount = interState ? 0 : round2(invoiceTax / 2);
-    const sgstAmount = interState ? 0 : round2(invoiceTax - cgstAmount);
+    const taxSplit = splitTaxAmount(invoiceTax);
+    const cgstAmount = interState ? 0 : taxSplit.cgst;
+    const sgstAmount = interState ? 0 : taxSplit.sgst;
 
     return [{
       invoice: inv,
-      item: null,
+      item: null as unknown as TaxItem,
       invoiceId: String(inv?.invoice_id || ''),
       invoiceNumber: String(inv?.invoice_number || ''),
       createdAt: String(inv?.created_at || ''),
@@ -146,15 +151,16 @@ export function buildInvoiceProductRows(inv: any, invoiceItems: any[]): InvoiceP
     ? Math.max(0, storedGrand / grossInvoiceTotal)
     : 1;
 
-  const rows: InvoiceProductRow[] = normalized.map((entry: any) => {
+  const rows: InvoiceProductRow[] = normalized.map((entry: (typeof normalized)[number]) => {
     const taxable = round2(entry.taxable * taxableScale);
     const tax = storedItemTaxSum > 0
       ? round2(entry.tax * taxScale)
       : round2(taxable * taxScale);
     const discount = round2(entry.taxable - taxable);
     const total = round2(taxable + tax);
-    const cgstAmount = interState ? 0 : round2(tax / 2);
-    const sgstAmount = interState ? 0 : round2(tax - cgstAmount);
+    const taxSplit = splitTaxAmount(tax);
+    const cgstAmount = interState ? 0 : taxSplit.cgst;
+    const sgstAmount = interState ? 0 : taxSplit.sgst;
 
     return {
       invoice: inv,
@@ -196,8 +202,9 @@ export function buildInvoiceProductRows(inv: any, invoiceItems: any[]): InvoiceP
       last.igstAmount = last.tax;
       last.igstRate = last.taxable > 0 ? round1((last.tax / last.taxable) * 100) : last.igstRate;
     } else {
-      last.cgstAmount = round2(last.tax / 2);
-      last.sgstAmount = round2(last.tax - last.cgstAmount);
+      const taxSplit = splitTaxAmount(last.tax);
+      last.cgstAmount = taxSplit.cgst;
+      last.sgstAmount = taxSplit.sgst;
     }
   }
 
@@ -205,8 +212,8 @@ export function buildInvoiceProductRows(inv: any, invoiceItems: any[]): InvoiceP
 }
 
 export function buildTaxFilteredProductRows(
-  invoices: any[],
-  itemsByInvoice: Record<string, any[]>,
+  invoices: TaxInvoice[],
+  itemsByInvoice: Record<string, TaxItem[]>,
   targetRate: number
 ): { rows: InvoiceProductRow[]; totals: InvoiceProductTotals } {
   const rows: InvoiceProductRow[] = [];

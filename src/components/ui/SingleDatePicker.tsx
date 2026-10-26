@@ -153,6 +153,7 @@ export function SingleDatePicker({
   useEffect(() => {
     if (open) {
       const p = parseValue(value);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- value initializes the editable date draft when open becomes true, preserving the current picker timing.
       setSelectedDate(p.dateStr);
       setSelectedTime(p.timeStr);
       const parts = p.dateStr.split('-');
@@ -162,6 +163,7 @@ export function SingleDatePicker({
       }
       updateAlignment();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateAlignment excluded: the date draft continues to initialize only when open or value changes.
   }, [open, value]);
 
   useEffect(() => {
@@ -270,7 +272,7 @@ export function SingleDatePicker({
   const isSelectedToday = parsed.dateStr === todayStr;
   const isSelectedYesterday = parsed.dateStr === yestStr;
 
-  let displayLabel = '';
+  let displayLabel: string;
   if (!isCustomSet) {
     displayLabel = `Today, ${pad(todayDateObj.getDate())}/${pad(todayDateObj.getMonth() + 1)}/${todayDateObj.getFullYear()}`;
   } else if (isSelectedYesterday) {

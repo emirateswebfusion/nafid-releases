@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, Download, RotateCcw, Zap } from 'lucide-react';
 import clsx from 'clsx';
+import { appApi } from '../data/app';
+import { isDesktopRuntime } from '../data/client';
+import { bridgeEvents } from '../data/events';
 
 interface UpdateBannerProps {
   onOpenSettings: () => void;
@@ -15,24 +18,28 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
     const stored = localStorage.getItem('vendora-update-banner-dismissed');
     if (stored) {
       const hoursSince = (Date.now() - Number(stored)) / (1000 * 60 * 60);
-      if (hoursSince < 24) { setDismissed(true); return; }
+      if (hoursSince < 24) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- vendora-update-banner-dismissed hides the banner immediately when its saved suppression window is active.
+        setDismissed(true);
+        return;
+      }
       localStorage.removeItem('vendora-update-banner-dismissed');
     }
 
-    if (!window.electronAPI) return;
+    if (!isDesktopRuntime()) return;
 
-    window.electronAPI.onUpdateStatus?.((status: string) => {
+    bridgeEvents.onUpdateStatus((status: string) => {
       if (status === 'ready-to-install') setUpdateReady(true);
     });
 
-    window.electronAPI.onUpdateInfo?.((info: any) => {
+    bridgeEvents.onUpdateInfo((info) => {
       if (info) {
         setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
-        window.electronAPI!.appDownloadUpdate().catch(() => {});
+        appApi.downloadUpdate().catch(() => {});
       }
     });
 
-    window.electronAPI.appCheckForUpdates().catch(() => {});
+    appApi.checkForUpdates().catch(() => {});
   }, []);
 
   if (!updateInfo && !updateReady) return null;
@@ -44,7 +51,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
   };
 
   const handleInstall = () => {
-    window.electronAPI?.appInstallUpdate();
+    appApi.installUpdate();
   };
 
   return (

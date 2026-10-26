@@ -115,23 +115,24 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left', 
   };
 
   useEffect(() => {
-    if (align === 'right') {
-      setEffectiveAlign('right');
-    } else {
-      updateAlignment();
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- align requires measuring the mounted container to preserve the popup's existing position.
+    updateAlignment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateAlignment excluded: align remains the original alignment recalculation trigger.
   }, [align]);
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- open positions the popup before attaching resize updates, preserving its current opening layout.
       updateAlignment();
       window.addEventListener('resize', updateAlignment);
       return () => window.removeEventListener('resize', updateAlignment);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateAlignment excluded: open and align remain the original popup listener triggers.
   }, [open, align]);
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- startDate and endDate initialize the draft on open; excluding later changes preserves edits made while the picker stays open.
       setTempStartDate(startDate);
       setTempEndDate(endDate);
       

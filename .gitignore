@@ -73,3 +73,6 @@ scratch/
 .eslintcache
 .stylelintcache
 .vite
+
+# refactor tooling scratch
+.moved.txt

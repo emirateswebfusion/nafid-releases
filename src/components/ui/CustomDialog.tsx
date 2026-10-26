@@ -1,14 +1,5 @@
 import React from 'react';
-import {
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  Trash2,
-  X,
-  Loader2,
-  type LucideIcon
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Trash2, X, Loader2, type LucideIcon } from 'lucide-react';
 import clsx from 'clsx';
 
 export type DialogVariant = 'danger' | 'warning' | 'info' | 'success';
@@ -166,4 +157,3 @@ export function CustomDialog({
   );
 }
 
-export default CustomDialog;
