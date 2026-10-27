@@ -51,13 +51,6 @@ export const updateProductBasePrice = (db: Db) => db.prepare(`UPDATE products SE
 
 export const updateProductOfferPrice = (db: Db) => db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
 
-export const findOnePurchaseBillItemByBillTypeAndProductId = (db: Db) => db.prepare(`
-            SELECT 1 FROM purchase_bill_items pbi
-            JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
-            WHERE pb.bill_type = 'ESTIMATE' AND pbi.product_id = ? AND pb.tenant_id = ?
-            LIMIT 1
-          `);
-
 export const findProductsByProductId = (db: Db) => db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
 
 export const updateProductDomainAttributes = (db: Db) => db.prepare(`UPDATE products SET domain_attributes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
@@ -93,7 +86,7 @@ export const updateProductCurrentStock = (db: Db) => db.prepare(`UPDATE products
 
 export const deletePurchaseBillItemByPurchaseBillId = (db: Db) => db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?');
 
-export const findPurchaseBillsByPurchaseBillId2 = (db: Db) => db.prepare('SELECT supplier_id, bill_number, tenant_id, payment_type, total_amount FROM purchase_bills WHERE purchase_bill_id = ?');
+export const findPurchaseBillsByPurchaseBillId2 = (db: Db) => db.prepare('SELECT supplier_id, bill_number, tenant_id, payment_type, total_amount, bill_type FROM purchase_bills WHERE purchase_bill_id = ?');
 
 export const findPartyLedgerByPartyIdAndReferenceNumber = (db: Db) => db.prepare('SELECT ledger_id FROM party_ledger WHERE tenant_id = ? AND party_id = ? AND reference_number = ?');
 
