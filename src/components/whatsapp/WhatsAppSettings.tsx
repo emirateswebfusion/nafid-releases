@@ -8,6 +8,7 @@ import { useWhatsAppSettingsLoaders } from './hooks/useWhatsAppSettingsLoaders';
 import { useWhatsAppConnection } from './hooks/useWhatsAppConnection';
 import { useShopClosingConfigActions } from './hooks/useShopClosingConfigActions';
 import { WhatsAppDisconnectDialog } from './views/WhatsAppDisconnectDialog';
+import { WhatsAppSharingChoices } from './views/WhatsAppSharingChoices';
 import { WhatsAppPreferencesTab } from './views/WhatsAppPreferencesTab';
 import { WhatsAppDeviceTab } from './views/WhatsAppDeviceTab';
 import { ShopClosingTab } from './views/ShopClosingTab';
@@ -95,11 +96,14 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
 
       {/* ─── TAB 2: AUTOMATION & BILLS SETTINGS ─────────────────────────────── */}
       {currentTab === 'settings' && (
+        <>
+        <WhatsAppSharingChoices key={effectiveTenantId} tenantId={effectiveTenantId} />
         <WhatsAppPreferencesTab
           autoSendEnabled={autoSendEnabled} handleTabSelect={handleTabSelect}
           handleToggleIncludeShopName={handleToggleIncludeShopName} handleToggleLedgerAlerts={handleToggleLedgerAlerts}
           onAutoSendChange={onAutoSendChange} shopName={shopName} wa={wa}
         />
+        </>
       )}
 
       {/* ─── TAB 3: SHOP CLOSING OVERVIEW (END TO END) ───────────────────────── */}

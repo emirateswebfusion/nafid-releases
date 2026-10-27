@@ -106,3 +106,14 @@ checks on both sides. Add a new permission key in **both** `src/utils/security/p
 | Grade rate | Per-grade price for `GRADE_RATE` products (e.g. gold/silver purity) |
 | Party | Ledger account (supplier or customer) with GST/estimate balances |
 | Settlement | Cashier day-closing and collection of pending invoices |
+
+## WhatsApp sharing preferences
+
+`utils/print/whatsappSharing.ts` owns format selection, dynamic party-type eligibility, and purchase ledger messages.
+`whatsapp_bill_formats` defaults to text plus the existing invoice PDF; available choices are text, A4 PDF, and thermal receipt PDF.
+`ledger_whatsapp_party_types` defaults to all types (null); an empty array excludes all. Types come from active party rows,
+using custom categories where present. Explicit selections apply to manual ledger messages, statement PDFs, automated ledger alerts,
+and purchase-page messages. Newly encountered categories appear when preferences reopen; all-types mode includes them automatically.
+Purchase messages use the matched historical ledger debit and running balance; opening = running - credit + debit.
+Cash purchases have no supplier ledger entry, so the purchase action reports that limitation instead of guessing balances.
+Tests: `whatsappSharing`, `whatsappSendFlows`, `whatsappPurchaseRegression`, `whatsappPreferences.ui`, `whatsappPdfDelivery`.

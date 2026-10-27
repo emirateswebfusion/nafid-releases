@@ -151,3 +151,9 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
   wipe commands are never accepted through synced settings.
 - The sync payload contract is shared with `nafid-server/src/routes/sync/*`. Any change must update both sides and the
   docs in the same change, and must be preceded by a characterization test (sync is the highest data-risk area).
+
+### WhatsApp bill sharing
+
+`whatsapp:sendInvoice` also accepts optional `receiptText` and `receiptWidthMm` (58 or 80).
+The adapter renders receipt text through the existing hardware receipt renderer, then generates a receipt-width PDF.
+Existing HTML and text payloads retain their behavior; PDF rendering failures return a failed result.

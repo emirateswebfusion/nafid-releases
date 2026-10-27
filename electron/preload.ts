@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   whatsappGetStatus: () => ipcRenderer.invoke('whatsapp:getStatus'),
   whatsappConnect: () => ipcRenderer.invoke('whatsapp:connect'),
   whatsappDisconnect: () => ipcRenderer.invoke('whatsapp:disconnect'),
-  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => ipcRenderer.invoke('whatsapp:sendInvoice', payload),
+  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string; receiptText?: string; receiptWidthMm?: number }) => ipcRenderer.invoke('whatsapp:sendInvoice', payload),
   onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => {
     const listener = (_event: unknown, data: Parameters<typeof callback>[0]) => callback(data);
     ipcRenderer.on('whatsapp:status-update', listener);
