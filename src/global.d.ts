@@ -149,11 +149,11 @@ export interface IElectronAPI {
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
 
   // WhatsApp APIs
-  whatsappGetStatus: () => Promise<{ status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }>;
-  whatsappConnect: () => Promise<{ success: boolean; status: string; qrCode?: string | null; phone?: string | null }>;
+  whatsappGetStatus: () => Promise<{ status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null; error?: string | null }>;
+  whatsappConnect: () => Promise<{ success: boolean; status: string; qrCode?: string | null; phone?: string | null; error?: string }>;
   whatsappDisconnect: () => Promise<{ success: boolean; error?: string }>;
   whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string; receiptText?: string; receiptWidthMm?: number }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
-  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
+  onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null; error?: string | null }) => void) => () => void;
   // Shop Closing Overview WhatsApp APIs
   shopClosingGetConfig: (params: { tenant_id?: string }) => Promise<ShopClosingConfigResult>;
   shopClosingSaveConfig: (params: { tenant_id?: string; config: unknown; user_role?: string }) => Promise<ShopClosingSaveConfigResult>;

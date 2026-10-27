@@ -21,10 +21,13 @@ let sock: import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import
 let currentQrBase64: string | null = null;
 let connectionStatus: 'disconnected' | 'connecting' | 'syncing' | 'connected' = 'disconnected';
 let connectedPhone: string | null = null;
+let lastError: string | null = null;
 let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+// Bumped on every connect/logout so an older, still-starting connection knows it was superseded.
+let connectGeneration = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
-
-// Track if we've shown QR code and are waiting for scan
+const VERSION_LOOKUP_TIMEOUT_MS = 8000;
 
 // Helper to notify all renderer windows about WhatsApp state changes
 function broadcastWhatsAppState() {
@@ -32,6 +35,7 @@ function broadcastWhatsAppState() {
     status: connectionStatus,
     qrCode: currentQrBase64,
     phone: connectedPhone,
+    error: lastError,
   };
   BrowserWindow.getAllWindows().forEach((win) => {
     if (!win.isDestroyed()) {
@@ -59,38 +63,72 @@ function formatToWhatsAppJid(phone: string): string {
   return `${cleaned}@s.whatsapp.net`;
 }
 
+// Baileys looks the current WhatsApp Web version up on raw.githubusercontent.com with no timeout. Where that host
+// is blocked or stalls, the QR never appeared; after the timeout we use the version bundled with Baileys instead.
+export async function resolveWhatsAppVersion(
+  fetchLatest: () => Promise<{ version: [number, number, number] }>
+): Promise<[number, number, number] | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), VERSION_LOOKUP_TIMEOUT_MS); });
+  const latest = fetchLatest().then((r) => r.version).catch(() => undefined);
+  try {
+    return await Promise.race([latest, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Initialize Baileys WhatsApp Connection
 async function startWhatsAppConnection(): Promise<void> {
+  const generation = ++connectGeneration;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   try {
+    lastError = null;
+    connectionStatus = 'connecting';
+    broadcastWhatsAppState();
+
     const baileys = await getBaileys();
     const { makeWASocket, DisconnectReason, useMultiFileAuthState: loadMultiFileAuthState, fetchLatestBaileysVersion } = baileys;
 
     const sessionDir = getWhatsAppSessionDir();
     const { state, saveCreds } = await loadMultiFileAuthState(sessionDir);
-    const { version } = await fetchLatestBaileysVersion();
+    const version = await resolveWhatsAppVersion(fetchLatestBaileysVersion);
+    if (generation !== connectGeneration) return;
 
-    connectionStatus = 'connecting';
-    broadcastWhatsAppState();
+    // Two live sockets on one session overwrite each other's QR and corrupt the saved credentials.
+    const previous = sock;
+    sock = null;
+    if (previous) {
+      try { previous.end(undefined); } catch { /* already closed */ }
+    }
 
     const logger = pino({ level: 'silent' });
 
-    sock = makeWASocket({
-      version,
+    const thisSock = makeWASocket({
+      ...(version ? { version } : {}),
       logger,
       printQRInTerminal: false,
       auth: state,
       browser: ['Nafid POS', 'Chrome', '1.0.0'],
       syncFullHistory: false,
     });
+    sock = thisSock;
 
-    sock.ev.on('creds.update', saveCreds);
+    thisSock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', async (update: Partial<import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).ConnectionState>) => {
+    thisSock.ev.on('connection.update', async (update: Partial<import('@whiskeysockets/baileys', { with: { 'resolution-mode': 'import' } }).ConnectionState>) => {
+      // Events from a socket that was replaced or logged out must not touch the current state.
+      if (sock !== thisSock) return;
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
         try {
-          currentQrBase64 = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+          const qrImage = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+          if (sock !== thisSock) return;
+          currentQrBase64 = qrImage;
           connectionStatus = 'connecting';
           broadcastWhatsAppState();
         } catch (err) {
@@ -100,30 +138,39 @@ async function startWhatsAppConnection(): Promise<void> {
 
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        // These sessions can never log in again; keeping them means WhatsApp never offers a new QR.
+        const sessionUnusable = statusCode === DisconnectReason.loggedOut
+          || statusCode === DisconnectReason.badSession
+          || statusCode === DisconnectReason.multideviceMismatch;
+        const shouldReconnect = !sessionUnusable;
         console.log(`[WhatsApp] Connection closed. Reason code: ${statusCode}, Reconnecting: ${shouldReconnect}`);
 
         currentQrBase64 = null;
         connectionStatus = 'disconnected';
         connectedPhone = null;
         sock = null;
-        broadcastWhatsAppState();
 
-        if (statusCode === DisconnectReason.loggedOut) {
-          console.log('[WhatsApp] Device logged out. Clearing session files...');
+        if (sessionUnusable) {
+          console.log('[WhatsApp] Session is no longer valid. Clearing session files...');
           try {
             fs.rmSync(sessionDir, { recursive: true, force: true });
           } catch (e) {
             console.error('[WhatsApp] Failed to clear session dir:', e);
           }
-        } else if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          lastError = 'WhatsApp session expired. Click "Generate WhatsApp QR Code" to link again.';
+        } else if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++;
           const timeout = Math.min(reconnectAttempts * 2000, 10000);
           console.log(`[WhatsApp] Attempting reconnect #${reconnectAttempts} in ${timeout}ms...`);
-          setTimeout(() => {
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
             startWhatsAppConnection();
           }, timeout);
+        } else {
+          reconnectAttempts = 0;
+          lastError = 'Could not reach WhatsApp. Check the internet connection and generate the QR code again.';
         }
+        broadcastWhatsAppState();
       } else if (connection === 'open') {
         console.log('[WhatsApp] Connection established successfully! QR scanned, waiting for session sync...');
         reconnectAttempts = 0;
@@ -149,8 +196,10 @@ async function startWhatsAppConnection(): Promise<void> {
     });
   } catch (error) {
     console.error('[WhatsApp] startWhatsAppConnection error:', error);
+    if (generation !== connectGeneration) return;
     connectionStatus = 'disconnected';
     currentQrBase64 = null;
+    lastError = `WhatsApp could not start: ${(error as Error)?.message || String(error)}`;
     broadcastWhatsAppState();
   }
 }
@@ -158,13 +207,21 @@ async function startWhatsAppConnection(): Promise<void> {
 // Disconnect / Log out
 async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
   try {
+    connectGeneration++;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    reconnectAttempts = 0;
+    lastError = null;
     if (sock) {
+      const current = sock;
+      sock = null;
       try {
-        await sock.logout();
+        await current.logout();
       } catch (err) {
         console.warn('[WhatsApp] Logout call warning:', err);
       }
-      sock = null;
     }
     const sessionDir = getWhatsAppSessionDir();
     if (fs.existsSync(sessionDir)) {
@@ -309,6 +366,7 @@ export function initWhatsAppIpc(): void {
       status: connectionStatus,
       qrCode: currentQrBase64,
       phone: connectedPhone,
+      error: lastError,
     };
   });
 
@@ -317,6 +375,7 @@ export function initWhatsAppIpc(): void {
       return { success: true, status: connectionStatus, phone: connectedPhone };
     }
     await startWhatsAppConnection();
+    if (lastError) return { success: false, status: connectionStatus, error: lastError };
     return { success: true, status: connectionStatus, qrCode: currentQrBase64 };
   });
 

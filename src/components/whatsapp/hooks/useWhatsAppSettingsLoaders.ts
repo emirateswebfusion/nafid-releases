@@ -39,6 +39,10 @@ export function useWhatsAppSettingsLoaders(ctx: UseWhatsAppSettingsLoadersContex
         setStatus(data.status);
         setQrCode(data.qrCode);
         setPhone(data.phone);
+        if (data.error) {
+          setLoading(false);
+          setMsg({ text: data.error, type: 'error' });
+        }
         if (data.status === 'connected') {
           setLoading(false);
           setMsg({ text: 'WhatsApp connected and synced successfully!', type: 'success' });

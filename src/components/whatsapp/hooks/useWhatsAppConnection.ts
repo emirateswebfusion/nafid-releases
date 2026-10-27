@@ -62,7 +62,7 @@ export function useWhatsAppConnection(ctx: UseWhatsAppConnectionContext) {
     try {
       const res = await whatsappApi.connect();
       if (!res.success) {
-        setMsg({ text: 'Failed to initiate WhatsApp connection', type: 'error' });
+        setMsg({ text: res.error || 'Failed to initiate WhatsApp connection', type: 'error' });
       }
     } catch (err) {
       setMsg({ text: (err as { message?: string } | null)?.message || 'Connection error', type: 'error' });
