@@ -27,7 +27,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@types/bcryptjs": "^3.0.0",
     "@types/papaparse": "^5.5.2",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^3.0.3",
@@ -63,7 +62,6 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/serialport": "^8.0.5",
-    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "electron": "^42.4.1",
