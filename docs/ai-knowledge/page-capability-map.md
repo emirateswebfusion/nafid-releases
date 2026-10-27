@@ -531,5 +531,5 @@ User Chat Query ("Innathe sales ethraya?")
 | **Financial Report (`FinancialReport.tsx`)** | **VERIFIED** | Traced through `db:getInvoicesSummary` in `localDb.ts:1950-2010`. |
 | **Stock Report (`StockReport.tsx`)** | **VERIFIED** | Traced through `db:getStockReport` in `localDb.ts:2050-2100`. |
 | **E-Commerce Portal (`EcommercePortal.tsx`)** | **VERIFIED** | Traced through `ecommerce:*` and `fusionCartBridge.ts`. |
-| **AI Assistant (`offlineAiService.ts`)** | **VERIFIED** | Traced through deterministic intent execution engine in `offlineAiService.ts:1-2946`. |
+| **AI Assistant (`offlineAiService.ts`)** | **VERIFIED** | Traced through deterministic intent execution engine (`offlineAiService.ts` → `src/services/offlineAi/`). |
 | **Hardware Print Views (`PrintRouter.tsx`)** | **VERIFIED** | Traced through hash routing and Electron print window management. |

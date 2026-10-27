@@ -3,7 +3,6 @@
   "servicePrepareCounts": {},
   "syncPrepareCounts": {},
   "sizeCaps": {
-    "src/services/offlineAiService.ts": 4121,
     "src/utils/invoiceHtmlGenerator.ts": 1875,
     "src/utils/quotationHtmlGenerator.ts": 807,
     "src/utils/receiptGenerator.ts": 2449
