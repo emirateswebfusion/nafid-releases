@@ -10,7 +10,7 @@ import { parseUTCDate } from '../../utils/print/receiptGenerator';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { pricingTiersApi } from '../../data/pricingTiers';
-import { settingsApi } from '../../data/settings';
+import { useLoyaltyEnabled } from '../../hooks/useLoyaltyEnabled';
 import { formatCurrency } from '../../utils/pricing/money';
 import { type PricingTier, type Customer, type Party, type LoyaltyTx, type InvoiceRecord, type View, type DetailTab, type InvoiceItemRow } from './customerTypes';
 import { findMatchingPartyForCustomer } from './customerUtils';
@@ -79,7 +79,7 @@ export function CustomersPage({
 
   const [loyaltyTxs, setLoyaltyTxs] = useState<LoyaltyTx[]>([]);
   const [loyaltyTxsLoading, setLoyaltyTxsLoading] = useState(false);
-  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const loyaltyEnabled = useLoyaltyEnabled(tenantId);
 
   // Loyalty Points Adjustment Modal state
   const [adjustPointsModalOpen, setAdjustPointsModalOpen] = useState(false);
@@ -270,21 +270,6 @@ export function CustomersPage({
     }
   }, [customers.length]);
 
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    settingsApi.get({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v) => {
-      if (v && typeof v === 'object' && v.enabled !== undefined) {
-        setLoyaltyEnabled(Boolean(v.enabled));
-      } else {
-        settingsApi.get({ tenant_id: tenantId || 'global', key: 'feature_flags' }).then((flags) => {
-          if (flags && typeof flags.loyalty === 'boolean') {
-            setLoyaltyEnabled(flags.loyalty);
-          }
-        }).catch(() => {});
-      }
-    }).catch(() => {});
-  }, [tenantId]);
-
   // Debounce search query with 0ms instant clear
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -378,7 +363,7 @@ export function CustomersPage({
   }, [invoices, billFilterStart, billFilterEnd]);
 
   const { handleDownloadInvoiceCsv, handleDownloadFilteredInvoicesCsv, handleDownloadFilteredInvoicesPdf } = useCustomerInvoiceExports({
-    billFilterEnd, billFilterStart, filteredInvoices, selectedCustomer, setExportingFilteredInvoices,
+    billFilterEnd, billFilterStart, filteredInvoices, selectedCustomer, loyaltyEnabled, setExportingFilteredInvoices,
     setExportingPdf, setInvoiceBusyId, showStatus, tenantId,
   });
 
@@ -595,7 +580,7 @@ export function CustomersPage({
                   Are you sure you want to delete customer <strong className="text-foreground">{customerToDelete.name}</strong>?
                 </p>
                 <p className="text-muted-foreground leading-relaxed">
-                  This action will soft-delete their customer profile, loyalty points record (<strong>{(customerToDelete.current_points_balance || 0).toFixed(0)} pts</strong>), and any associated <strong>Party Ledger entries</strong>.
+                  This action will soft-delete their customer profile, associated records, and any associated <strong>Party Ledger entries</strong>.
                 </p>
               </div>
             </div>
@@ -674,7 +659,7 @@ export function CustomersPage({
       )}
 
       {/* Adjust Loyalty Points Modal */}
-      {adjustPointsModalOpen && selectedCustomer && (
+      {adjustPointsModalOpen && selectedCustomer && loyaltyEnabled && (
         <Modal
           isOpen={adjustPointsModalOpen}
           onClose={() => { if (!adjustPointsLoading) setAdjustPointsModalOpen(false); }}

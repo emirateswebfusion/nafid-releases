@@ -269,7 +269,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
 
       const state = useCartStore.getState();
       // Calculate loyalty points
-      const previousPointsBalance = Number(loyaltyCustomerData.pointsBalance) || 0;
+      const previousPointsBalance = loyaltyEnabled ? Number(loyaltyCustomerData.pointsBalance) || 0 : 0;
       const hasCustomerForPoints = Boolean(loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim()));
       const shouldAwardPointsNow = paymentMethod !== 'PENDING' || loyaltyAwardOnPending;
       const pointsEarned = loyaltyEnabled && hasCustomerForPoints && shouldAwardPointsNow

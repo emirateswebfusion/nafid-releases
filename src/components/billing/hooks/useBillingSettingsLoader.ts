@@ -150,7 +150,7 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
           if (cfg.awardPointsOnPending !== undefined) awardOnPending = Boolean(cfg.awardPointsOnPending);
         }
         if (flags && typeof flags.loyalty === 'boolean') {
-          isEnabled = flags.loyalty || isEnabled;
+          isEnabled = flags.loyalty && (!(cfg && typeof cfg === 'object') || cfg.enabled !== false);
         }
 
         setLoyaltyEnabled(isEnabled);
@@ -334,7 +334,7 @@ export function useBillingSettingsLoader(ctx: UseBillingSettingsLoaderContext) {
             if (cfg.awardPointsOnPending !== undefined) awardOnPending = Boolean(cfg.awardPointsOnPending);
           }
           if (flags && typeof flags.loyalty === 'boolean') {
-            isEnabled = flags.loyalty || isEnabled;
+            isEnabled = flags.loyalty && (!(cfg && typeof cfg === 'object') || cfg.enabled !== false);
           }
 
           setLoyaltyEnabled(isEnabled);

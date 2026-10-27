@@ -66,6 +66,7 @@ vi.mock('../../src/data/cashier', () => ({ cashierApi: {
 } }));
 vi.mock('../../src/data/purchases', () => ({ purchasesApi: { getPurchaseBills: vi.fn(async () => purchaseBills) } }));
 vi.mock('../../src/data/returns', () => ({ returnsApi: { getReturns: vi.fn(async () => returns), getReturnItems: vi.fn(async () => returnItems) } }));
+vi.mock('../../src/data/settings', () => ({ settingsApi: { get: vi.fn(async () => ({ enabled: true, loyalty: true })) } }));
 vi.mock('../../src/data/sync', () => ({ syncApi: { syncGetPending: vi.fn(async () => ({ invoices: 2, products: 1, total: 3 })) } }));
 
 const { processOfflineAiQuery } = await import('../../src/services/offlineAiService');

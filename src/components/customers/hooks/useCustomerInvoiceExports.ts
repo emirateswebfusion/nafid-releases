@@ -13,6 +13,7 @@ import { printingApi } from '../../../data/printing';
 import type { Customer } from '../customerTypes';
 
 export interface UseCustomerInvoiceExportsContext {
+  loyaltyEnabled: boolean;
   billFilterEnd: string;
   billFilterStart: string;
   filteredInvoices: InvoiceRecord[];
@@ -29,7 +30,7 @@ export interface UseCustomerInvoiceExportsContext {
  * settings (`loadBillConfig`, `buildInvoiceData`).
  */
 export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext) {
-  const { billFilterEnd, billFilterStart, filteredInvoices, selectedCustomer, setExportingFilteredInvoices, setExportingPdf, setInvoiceBusyId, showStatus, tenantId } = ctx;
+  const { loyaltyEnabled, billFilterEnd, billFilterStart, filteredInvoices, selectedCustomer, setExportingFilteredInvoices, setExportingPdf, setInvoiceBusyId, showStatus, tenantId } = ctx;
   type BillConfig = {
     shopNameVal: string | null | undefined; shopAddr: string | null | undefined;
     shopPh: string | null | undefined; shopGstin: string | null | undefined;
@@ -195,7 +196,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
       const headers = [
         'Invoice No', 'Date & Time', 'Type', 'Payment Method',
         'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)', 'Grand Total (₹)',
-        'Received (₹)', 'Balance (₹)', 'Points Earned', 'Points Redeemed',
+        'Received (₹)', 'Balance (₹)', ...(loyaltyEnabled ? ['Points Earned', 'Points Redeemed'] : []),
         'Biller', 'Description / Remarks',
       ];
       const row = [
@@ -209,8 +210,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
         escape((inv.grand_total || 0).toFixed(2)),
         escape((inv.received_amount || 0).toFixed(2)),
         escape((inv.balance_amount || 0).toFixed(2)),
-        escape(inv.points_earned || 0),
-        escape(inv.points_redeemed || 0),
+        ...(loyaltyEnabled ? [escape(inv.points_earned || 0), escape(inv.points_redeemed || 0)] : []),
         escape(inv.biller_name || useAuthStore.getState().userName || ''),
         escape(inv.description || inv.notes || ''),
       ];
@@ -256,7 +256,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
       const headers = [
         'Invoice No', 'Date & Time', 'Customer Name', 'Customer Phone', 'Type', 'Payment Method',
         'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)', 'Grand Total (₹)',
-        'Received (₹)', 'Balance (₹)', 'Points Earned', 'Points Redeemed',
+        'Received (₹)', 'Balance (₹)', ...(loyaltyEnabled ? ['Points Earned', 'Points Redeemed'] : []),
         'Biller', 'Description / Remarks',
       ];
       const rows = filteredInvoices.map(inv => [
@@ -272,8 +272,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
         escape((inv.grand_total || 0).toFixed(2)),
         escape((inv.received_amount || 0).toFixed(2)),
         escape((inv.balance_amount || 0).toFixed(2)),
-        escape(inv.points_earned || 0),
-        escape(inv.points_redeemed || 0),
+        ...(loyaltyEnabled ? [escape(inv.points_earned || 0), escape(inv.points_redeemed || 0)] : []),
         escape(inv.biller_name || useAuthStore.getState().userName || ''),
         escape(inv.description || inv.notes || ''),
       ]);

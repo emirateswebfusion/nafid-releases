@@ -81,42 +81,6 @@ export const updateInvoiceByInvoiceId = (db: Db) => db.prepare(`
         WHERE invoice_id = ?
       `);
 
-export const findSettingsByKey = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'");
-
-export const findSettingsByKeyLoyaltyConfig = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'");
-
-export const findSettingsByKeyFeatureFlags = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'");
-
-export const findSettingsByKeyFeatureFlags2 = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'");
-
-export const findCustomersByCustomerId = (db: Db) => db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?');
-
-export const updateInvoiceByInvoiceId2 = (db: Db) => db.prepare(`
-                UPDATE invoices SET
-                  points_earned = ?,
-                  previous_points_balance = COALESCE(previous_points_balance, ?),
-                  remaining_points_balance = ?
-                WHERE invoice_id = ?
-              `);
-
-export const insertLoyaltyTransaction = (db: Db) => db.prepare(`
-                INSERT INTO loyalty_transactions (
-                  transaction_id, tenant_id, customer_id, invoice_id,
-                  transaction_type, points, points_balance_before, points_balance_after,
-                  reference_number, description, created_by, sync_status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'EARNED', ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
-              `);
-
-export const updateCustomerByCustomerId = (db: Db) => db.prepare(`
-                UPDATE customers SET
-                  total_points_earned = COALESCE(total_points_earned, 0) + ?,
-                  current_points_balance = ?,
-                  last_purchase_date = ?,
-                  sync_status = 'PENDING',
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE customer_id = ?
-              `);
-
 export const insertCashTransaction = (db: Db) => db.prepare(`
               INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
@@ -241,7 +205,6 @@ export const insertCashCategory = (db: Db) => db.prepare(`
 export const findCashCategoriesByCategoryId = (db: Db) => db.prepare(`SELECT * FROM cash_categories WHERE category_id = ? AND tenant_id = ?`);
 
 export const deleteCashCategoryByCategoryId = (db: Db) => db.prepare(`DELETE FROM cash_categories WHERE category_id = ? AND tenant_id = ?`);
-
 
 /** Dynamic SQL: `placeholders` must be built from trusted values (placeholders/column lists), never user input. */
 export const listCashTransactionsForDrawersOrDate = (db: Db, placeholders: string | number) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`);

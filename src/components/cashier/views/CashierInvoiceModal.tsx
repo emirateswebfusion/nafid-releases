@@ -1,3 +1,4 @@
+import { useLoyaltyEnabled } from '../../../hooks/useLoyaltyEnabled';
 import type { DisplayInvoiceItem, DisplayComboItem } from '../../sales/invoiceDisplayTypes';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
@@ -36,6 +37,7 @@ export function CashierInvoiceModal({
   invoiceItems, loadingItems, selectedInvoice, setInvoiceItems, setReprintSuccess, setSelectedInvoice,
   setShowInvoiceModal, showInvoiceModal,
 }: CashierInvoiceModalProps) {
+  const loyaltyEnabled = useLoyaltyEnabled(selectedInvoice?.tenant_id || null);
   return (
     <Modal
       isOpen={showInvoiceModal}
@@ -609,7 +611,7 @@ export function CashierInvoiceModal({
                   )}
                   {ptsDisc > 0 && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-rose-500 font-semibold">Points Discount</span>
+                      <span className="text-rose-500 font-semibold">{loyaltyEnabled ? 'Points Discount' : 'Discount'}</span>
                       <span className="text-rose-500 font-bold">-{formatCurrency(ptsDisc)}</span>
                     </div>
                   )}

@@ -1,4 +1,6 @@
-import type { CreditInvoice, CustomerCreditRow, CustomerInput, LoyaltyConfig, LoyaltyTotals, SettingRow } from './typesB.js';
+import { readLoyaltyConfig, captureInvoicePoints, reconcileInvoicePoints } from './loyaltyService.js';
+import * as loyaltySql from '../db/statements/loyalty.js';
+import type { CreditInvoice, CustomerCreditRow, CustomerInput } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { autoDeduplicateCustomersAndParties } from '../db/customerDedupe.js';
 import { checkCustomerOverdueSync, computeCustomerCreditStatusSync } from './customerCreditService.js';
@@ -391,6 +393,7 @@ export function getCustomerLoyaltyTransactions({ customer_id, tenant_id }: { cus
     const db = getDb();
     if (!customer_id) return [];
     const tid = tenant_id || 'global';
+    if (!readLoyaltyConfig(db, tid).enabled) return [];
     return customersSql.findLoyaltyTransactionsByCustomerId(db).all(customer_id, tid, tid);
   } catch (error) {
     console.error('[db:getCustomerLoyaltyTransactions]', error);
@@ -408,11 +411,13 @@ export function adjustCustomerLoyaltyPoints(payload: {
 }) {
   const db = getDb();
   const tid = payload.tenant_id || 'global';
-  const cust: CustomerCreditRow = customersSql.findCustomersByCustomerId3(db).get(payload.customer_id) as CustomerCreditRow;
+  if (!readLoyaltyConfig(db, tid).enabled) return { success: false, error: 'Loyalty points are disabled' };
+  const cust: CustomerCreditRow = loyaltySql.customer(db).get(payload.customer_id, tid) as CustomerCreditRow;
   if (!cust) return { success: false, error: 'Customer not found' };
 
   const currentBal = Number(cust.current_points_balance) || 0;
   const delta = Number(payload.points) || 0;
+  if (!Number.isSafeInteger(delta)) return { success: false, error: 'Points must be a whole number' };
   if (delta === 0) return { success: false, error: 'Points amount cannot be zero' };
   if (currentBal + delta < 0) return { success: false, error: 'Customer does not have enough points balance to deduct' };
 
@@ -445,43 +450,27 @@ export function adjustCustomerLoyaltyPoints(payload: {
 export function recalculateCustomerLoyaltyPoints(payload: { tenant_id: string }) {
   const db = getDb();
   const tid = payload.tenant_id || 'global';
-  const lCfgRow: SettingRow = customersSql.findSettingsByKey(db).get(tid) as SettingRow
-    || customersSql.findSettingsByKeyLoyaltyConfig(db).get() as SettingRow;
-  let lCfg: LoyaltyConfig | null = null;
-  if (lCfgRow?.value) {
-    try {
-      lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-    } catch { /* ignore */ }
-  }
-  const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
-  const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
-  const paymentFilter = awardOnPending ? "AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('HOLD'))" : "AND (payment_method IS NULL OR UPPER(payment_method) NOT IN ('PENDING', 'HOLD'))";
-
-  const custs: CustomerCreditRow[] = customersSql.findCustomersCustomerIdAndPhone(db).all(tid, tid) as CustomerCreditRow[];
+  if (!readLoyaltyConfig(db, tid).enabled) return { success: false, error: 'Loyalty points are disabled' };
   let updatedCount = 0;
-
-  const transaction = db.transaction(() => {
-    for (const c of custs) {
-      const invRow: LoyaltyTotals = customersSql.sumLoyaltyPointsForCustomer(db, paymentFilter).get(c.customer_id, c.phone || '') as LoyaltyTotals;
-
-      let earned = Number(invRow?.totEarned) || 0;
-      const redeemed = Number(invRow?.totRedeemed) || 0;
-
-      // If invoices did not have points_earned stored previously, compute from sales total
-      if (earned === 0 && redeemed === 0) {
-        const salesRow: LoyaltyTotals = customersSql.sumSalesForCustomer(db, paymentFilter).get(c.customer_id, c.phone || '') as LoyaltyTotals;
-        const totSales = Number(salesRow?.totSales) || 0;
-        if (totSales > 0) {
-          earned = Math.floor(totSales / earningRate);
-        }
+  try {
+  db.transaction(() => {
+    const invoices = loyaltySql.tenantInvoices(db).all(tid) as { invoice_id: string }[];
+    for (const invoice of invoices) {
+      captureInvoicePoints(db, invoice.invoice_id);
+      reconcileInvoicePoints(db, invoice.invoice_id);
+    }
+    const totals = loyaltySql.ledgerTotals(db).all(tid) as { customer_id: string; balance: number; earned: number; redeemed: number }[];
+    for (const total of totals) {
+      const customer = loyaltySql.customer(db).get(total.customer_id, tid) as { current_points_balance: number } | undefined;
+      if (customer && Math.abs(Number(customer.current_points_balance) - total.balance) > 0.000001) {
+        throw new Error('Historical points do not match the available ledger. Review the opening balance before recalculating; no balances were changed.');
       }
-
-      const bal = Math.max(0, earned - redeemed);
-      customersSql.updateCustomerByCustomerId2(db).run(earned, redeemed, bal, invRow?.lastPurchase || null, c.customer_id);
+      loyaltySql.replaceTotals(db).run(total.earned, total.redeemed, total.balance, localTimestamp(), total.customer_id, tid);
       updatedCount++;
     }
-  });
-
-  transaction();
+  })();
   return { success: true, updatedCount };
+  } catch (error) {
+    return { success: false, error: (error as Error).message || 'Points recalculation failed' };
+  }
 }

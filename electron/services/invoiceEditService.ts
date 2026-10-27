@@ -1,12 +1,12 @@
+import { captureInvoicePoints, reconcileInvoicePoints, refreshInvoiceEarnings, validateInvoicePointsEdit } from './loyaltyService.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
 import { syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
-import { localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { recentCheckoutsCache } from './invoiceCheckoutService.js';
-import type { CustomerRow, InvoiceItemRow, InvoiceRow, LoyaltyConfig, SettingRow, SplitDetails, UserRow } from './typesA.js';
+import type { InvoiceItemRow, InvoiceRow, SplitDetails, UserRow } from './typesA.js';
 /** Changes to saved invoices: discounts, edits, payment updates, deletion. Called by electron/ipc handlers via invoicesService. */
 
 /** IPC `db:applyInvoiceDiscount` */
@@ -20,10 +20,11 @@ export function applyInvoiceDiscount({ invoice_id, discount_type, discount_value
       return { success: false, error: 'Admin access required to apply discounts' };
     }
     
+    return db.transaction(() => {
     const invoice = invoicesSql.findInvoicesByInvoiceIdSubtotalAndTaxTotal(db).get(invoice_id) as InvoiceRow | undefined;
     if (!invoice) return { success: false, error: 'Invoice not found' };
 
-    let discount_total = 0;
+    let discount_total: number;
     if (discount_type === 'PERCENTAGE') {
       discount_total = invoice.subtotal * (discount_value / 100);
     } else {
@@ -32,11 +33,14 @@ export function applyInvoiceDiscount({ invoice_id, discount_type, discount_value
 
     const scrapD = Math.max(0, Number(invoice.scrap_deduction) || 0);
     const returnD = Math.max(0, Number(invoice.return_deduction) || 0);
-    const grand_total = Math.max(0, invoice.subtotal + invoice.tax_total - discount_total - scrapD - returnD);
+    const grand_total = Math.max(0, invoice.subtotal + invoice.tax_total - discount_total - scrapD - returnD - (Number(invoice.points_redeemed_discount) || 0));
 
+    captureInvoicePoints(db, invoice_id);
     invoicesSql.updateInvoiceByInvoiceId2(db).run(discount_total, discount_type, discount_value, grand_total, invoice_id);
 
+    refreshInvoiceEarnings(db, invoice_id);
     return { success: true };
+    })();
   } catch (error) {
     console.error('[db:applyInvoiceDiscount]', error);
     return { success: false, error: 'Operation failed' };
@@ -165,6 +169,8 @@ export async function updateInvoice(payload: {
       invoice.customer_address
     );
 
+    validateInvoicePointsEdit(db, payload.invoice_id, customerId || invoice.customer_id || existingInv.customer_id || null, invoice.points_redeemed, invoice.points_redeemed_discount);
+    captureInvoicePoints(db, payload.invoice_id);
     // 1. Get old items for stock adjustment
     const oldItems = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity2(db).all(payload.invoice_id) as InvoiceItemRow[];
 
@@ -184,12 +190,12 @@ export async function updateInvoice(payload: {
       invoice.customer_address || null,
       invoice.scrap_deduction ?? 0, invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0, invoice.return_invoice_number || null,
-      customerId || null,
+      customerId || invoice.customer_id || existingInv.customer_id || null,
       invoice.cgst_total ?? 0, invoice.sgst_total ?? 0,
       invoice.igst_total ?? 0, invoice.supply_type || 'INTRA',
       invoice.notes || invoice.description || null,
       invoice.description || invoice.notes || null,
-      invoice.points_earned ?? null,
+      existingInv.points_earned ?? null,
       invoice.points_redeemed ?? null,
       invoice.points_redeemed_discount ?? null,
       invoice.previous_points_balance ?? null,
@@ -280,74 +286,8 @@ export async function updateInvoice(payload: {
     });
     resetBackfillThrottle(); // reset so next db:getParties re-scans
 
-    // Sync Loyalty Points on invoice update
-    const targetCustId = customerId || payload.customer_id || invoice.customer_id || existingInv.customer_id;
-    if (targetCustId) {
-      try {
-        const targetTenantId = payload.tenant_id || existingInv.tenant_id || 'global';
-        const lCfgRow: SettingRow | undefined = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(targetTenantId) as SettingRow | undefined
-          || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get() as SettingRow | undefined;
-        let lCfg: unknown = null;
-        if (lCfgRow?.value) {
-          lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-        }
-        const flagsRow: SettingRow | undefined = invoicesSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
-          || invoicesSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
-        let flags: unknown = null;
-        if (flagsRow?.value) {
-          flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
-        }
-        const isLoyaltyOn = Boolean((lCfg as Record<string, unknown>)?.enabled) || Boolean((flags as Record<string, unknown>)?.loyalty);
+    refreshInvoiceEarnings(db, payload.invoice_id);
 
-        if (isLoyaltyOn) {
-          const earningRate = Math.max(1, Number((lCfg as Record<string, unknown>)?.earningRate) || 100);
-          const awardOnPending = Boolean((lCfg as LoyaltyConfig)?.awardPointsOnPending);
-          const newPaymentMethod = (invoice.payment_method || existingInv.payment_method || '').toUpperCase();
-          const shouldEarn = newPaymentMethod !== 'PENDING' || awardOnPending;
-
-          let targetPointsEarned: number;
-          if (invoice.points_earned !== undefined && invoice.points_earned !== null) {
-            targetPointsEarned = Number(invoice.points_earned) || 0;
-          } else if (shouldEarn) {
-            targetPointsEarned = Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / earningRate);
-          } else {
-            targetPointsEarned = 0;
-          }
-
-          const prevEarned = Number(existingInv.points_earned) || 0;
-          const diffEarned = targetPointsEarned - prevEarned;
-
-          if (diffEarned !== 0) {
-            const custRow: CustomerRow | undefined = invoicesSql.findCustomersByCustomerIdCurrentPointsBalance(db).get(targetCustId) as CustomerRow | undefined;
-            const curBal = Number(custRow?.current_points_balance) || 0;
-            const newBal = Math.max(0, curBal + diffEarned);
-            const nowTs = localTimestamp();
-
-            const txType = diffEarned > 0 ? 'EARNED' : 'ADJUSTED';
-            const txDesc = diffEarned > 0
-              ? (prevEarned === 0
-                  ? `Earned ${targetPointsEarned} points on invoice ${existingInv.invoice_number}`
-                  : `Earned ${diffEarned} additional points on updated invoice ${existingInv.invoice_number}`)
-              : `Adjusted ${Math.abs(diffEarned)} points on updated invoice ${existingInv.invoice_number}`;
-
-            invoicesSql.insertLoyaltyTransaction3(db).run(
-              crypto.randomUUID(), targetTenantId,
-              targetCustId, payload.invoice_id,
-              txType, Math.abs(diffEarned), curBal, newBal,
-              existingInv.invoice_number, txDesc,
-              payload.user_id || payload.role || 'system',
-              nowTs, nowTs
-            );
-
-            invoicesSql.updateCustomerByCustomerId2(db).run(diffEarned, newBal, nowTs, targetCustId);
-
-            invoicesSql.updateInvoicePointsEarnedAndRemainingPointsBalance(db).run(targetPointsEarned, newBal, payload.invoice_id);
-          }
-        }
-      } catch (lErr) {
-        console.warn('[db:updateInvoice] Failed to sync loyalty points:', lErr);
-      }
-    }
   });
 
   try {
@@ -374,7 +314,7 @@ export async function updateInvoice(payload: {
     return res;
   } catch (error) {
     console.error('[db:updateInvoice]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: (error as Error).message || 'Operation failed' };
   }
 }
 
@@ -392,6 +332,7 @@ export function updateInvoicePayment(payload: {
 }) {
   try {
     const db = getDb();
+    return db.transaction(() => {
     const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as InvoiceRow | undefined;
     if (!existingInv) {
       return { success: false, error: 'Invoice not found' };
@@ -411,6 +352,7 @@ export function updateInvoicePayment(payload: {
       ? JSON.stringify(payload.split_details)
       : (payload.split_details && payload.split_details !== 'null' ? payload.split_details : null);
 
+    captureInvoicePoints(db, payload.invoice_id);
     invoicesSql.updateInvoiceByInvoiceId4(db).run(
       payload.payment_method,
       payload.received_amount,
@@ -451,58 +393,8 @@ export function updateInvoicePayment(payload: {
     });
     resetBackfillThrottle(); // reset so next db:getParties re-scans
 
-    // Award loyalty points if invoice was pending and now paid
-    if (existingInv.customer_id && (!existingInv.points_earned || Number(existingInv.points_earned) <= 0)) {
-      const newPm = (payload.payment_method || '').toUpperCase();
-      if (newPm !== 'PENDING') {
-        try {
-          const targetTenantId = existingInv.tenant_id || payload.tenant_id || 'global';
-          const lCfgRow: SettingRow | undefined = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(targetTenantId) as SettingRow | undefined
-            || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get() as SettingRow | undefined;
-          let lCfg: unknown = null;
-          if (lCfgRow?.value) {
-            lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-          }
-          const flagsRow: SettingRow | undefined = invoicesSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
-            || invoicesSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
-          let flags: unknown = null;
-          if (flagsRow?.value) {
-            flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
-          }
-          const isLoyaltyOn = Boolean((lCfg as Record<string, unknown>)?.enabled) || Boolean((flags as Record<string, unknown>)?.loyalty);
-          if (isLoyaltyOn) {
-            const earningRate = Math.max(1, Number((lCfg as Record<string, unknown>)?.earningRate) || 100);
-            const ptsEarned = Math.floor(Math.max(0, Number(existingInv.grand_total) || 0) / earningRate);
-            if (ptsEarned > 0) {
-              const custRow: CustomerRow | undefined = invoicesSql.findCustomersByCustomerIdCurrentPointsBalance(db).get(existingInv.customer_id) as CustomerRow | undefined;
-              const prevBal = Number(custRow?.current_points_balance) || 0;
-              const newBal = prevBal + ptsEarned;
-              const nowTimestamp = localTimestamp();
-              const eTxId = crypto.randomUUID();
+    refreshInvoiceEarnings(db, payload.invoice_id);
 
-              invoicesSql.updateInvoiceByInvoiceId5(db).run(ptsEarned, prevBal, newBal, payload.invoice_id);
-
-              invoicesSql.insertLoyaltyTransaction2(db).run(
-                eTxId, targetTenantId, existingInv.customer_id, payload.invoice_id,
-                ptsEarned, prevBal, newBal,
-                existingInv.invoice_number,
-                `Earned ${ptsEarned} points on settled invoice ${existingInv.invoice_number}`,
-                'system',
-                nowTimestamp, nowTimestamp
-              );
-
-              invoicesSql.updateCustomerByCustomerId3(db).run(ptsEarned, newBal, nowTimestamp, existingInv.customer_id);
-            }
-          }
-        } catch (lErr) {
-          console.warn('[db:updateInvoicePayment] Failed to award loyalty points on payment update:', lErr);
-        }
-      }
-    }
-
-    import('../sync/syncWorker.js').then(({ runInitialSync }) => {
-      runInitialSync().catch(e => console.error('[Main] Invoice payment update sync error:', e));
-    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     const res = { success: true };
     recentCheckoutsCache.set(paymentCacheKey, { timestamp: now, result: res });
     if (recentCheckoutsCache.size > 100) {
@@ -511,6 +403,7 @@ export function updateInvoicePayment(payload: {
       }
     }
     return res;
+    })();
   } catch (error) {
     console.error('[db:updateInvoicePayment]', error);
     return { success: false, error: 'Operation failed' };
@@ -551,6 +444,7 @@ export function deleteInvoice(invoice_id: string) {
       }
 
       invoicesSql.updateInvoiceIsDeletedAndDeletedAt(db).run(invoice_id);
+      reconcileInvoicePoints(db, invoice_id);
 
       // Soft-delete party_ledger entries immediately within transaction
       if (existingInv && existingInv.invoice_number) {

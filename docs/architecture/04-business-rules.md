@@ -117,3 +117,28 @@ and purchase-page messages. Newly encountered categories appear when preferences
 Purchase messages use the matched historical ledger debit and running balance; opening = running - credit + debit.
 Cash purchases have no supplier ledger entry, so the purchase action reports that limitation instead of guessing balances.
 Tests: `whatsappSharing`, `whatsappSendFlows`, `whatsappPurchaseRegression`, `whatsappPreferences.ui`, `whatsappPdfDelivery`.
+
+## Loyalty points
+
+`electron/services/loyaltyService.ts` is the main-process authority for enabling loyalty, settlement/edit earnings,
+return and cancellation adjustments. Both `loyalty_config.enabled` and `feature_flags.loyalty` must permit loyalty:
+an explicit false wins; if neither setting exists, loyalty is off. Disabled shops cannot newly earn, redeem,
+manually adjust or recalculate points; historical invoice money remains unchanged and historical reversals still
+correct the stored balance. Renderer visibility is read by `src/hooks/useLoyaltyEnabled.ts` (billing also reloads
+its earning/redemption rates on `settings:updated`).
+
+Checkout calculates earnings from saved net grand total and validates whole-point redemption against the actual
+customer balance and configured redemption value. HOLD never earns/redeems; PENDING earns only if its existing
+setting permits it. Payment, discount and edit entry points capture the old contribution and reconcile to the
+new one. Ledger balance differences carry the direction of ADJUSTED and reversal rows; `points` remains absolute.
+Returns proportionally reduce the original stored award, cumulatively, with whole points rounded down on the
+remaining award. Returns on GST conversion copies adjust their original BoS; the copy never earns twice.
+Deleting a return restores the previous contribution. Cancellation removes earned points and restores redeemed
+points once, and restoration re-applies the contribution. Spent awards can produce a negative balance when
+reversed; clamping to zero would create points. Existing historical redemption discounts are not refunded as
+extra points on ordinary returns (the refund already includes the original discount).
+
+Recalculation uses recorded ledger movements, including manual adjustments, instead of re-awarding at today's
+rate or flooring an aggregate of sales. Legacy invoice contributions without a ledger are captured from their
+stored point fields; missing historical awards/manual opening amounts cannot be inferred reliably. Recalculation refuses a ledger/balance mismatch atomically and asks for opening-balance review instead of erasing unknown history. No startup
+backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test.ts`, `loyaltyVisibility.ui.test.tsx`.

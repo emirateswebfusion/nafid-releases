@@ -1,3 +1,4 @@
+import { reconcileInvoicePoints } from './loyaltyService.js';
 import type { InvoiceItem, InvoiceRow, LedgerRow, ReturnRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
@@ -75,6 +76,7 @@ export function createReturn(payload: {
     if (returnData.invoice_id) {
       origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id) as InvoiceRow | null | undefined;
     }
+    if (origInv) reconcileInvoicePoints(db, origInv.invoice_id);
     const origPm = (origInv?.payment_method || '').toUpperCase();
     let origSplitCredit = 0;
     if (origInv?.split_details) {
@@ -328,6 +330,7 @@ export function deleteReturn(return_id: string) {
 
       returnsSql.deleteReturnItemByReturnId(db).run(return_id);
       returnsSql.deleteReturnByReturnId(db).run(return_id);
+      if (returnRow.invoice_id) reconcileInvoicePoints(db, returnRow.invoice_id);
 
       for (const pId of affectedParties) {
         recalcPartyBalances(db, pId);

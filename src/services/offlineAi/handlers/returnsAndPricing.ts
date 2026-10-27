@@ -1,3 +1,4 @@
+import { settingsApi } from '../../../data/settings';
 import { hasBridge } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
 import { resolveDateRange } from '../dates';
@@ -120,6 +121,13 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
     }
 
     case 'LOYALTY_POINTS': {
+      if (hasBridge('settingsGet')) {
+        const [config, flags] = await Promise.all([
+          settingsApi.get({ tenant_id: ctx.tenantId, key: 'loyalty_config' }),
+          settingsApi.get({ tenant_id: ctx.tenantId, key: 'feature_flags' }),
+        ]);
+        if (config?.enabled === false || flags?.loyalty === false) return { content: 'Loyalty points are disabled in Settings.', intent: parsed.intent };
+      }
       const md = isMal
         ? `### 🎁 കസ്റ്റമർ ലോയൽറ്റി പോയിന്റുകൾ\n\n* ലോയൽറ്റി റിവാർഡ് പോയിന്റുകൾ കസ്റ്റമർ അക്കൗണ്ടുമായി ബന്ധിപ്പിച്ചിരിക്കുന്നു.\n`
         : `### 🎁 Customer Loyalty Points\n\n* Active loyalty program tracking points earned and redeemed.\n`;
