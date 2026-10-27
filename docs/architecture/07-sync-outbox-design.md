@@ -22,9 +22,9 @@ cursor stored in `sync_meta` (`pull_cursor:<tenant>:<table>`, `syncTransport.ts:
 locally, so unsynced local edits win until they are pushed.
 
 **Server merge.** Most sync repositories upsert by id with unconditional
-`ON CONFLICT … DO UPDATE SET col = EXCLUDED.col` (e.g. `server:src/db/repositories/syncInvoices.ts:65`,
-`syncCatalog.ts:20`). Exceptions: product stock only moves forward in time (`syncCatalog.ts:166`), cash drawers merge
-with `GREATEST` (`syncCashier.ts:35`).
+`ON CONFLICT … DO UPDATE SET col = EXCLUDED.col` (e.g. `server:src/db/repositories/sync/invoices.ts:65`,
+`sync/catalog.ts:20`). Exceptions: product stock only moves forward in time (`sync/catalog.ts:166`), cash drawers merge
+with `GREATEST` (`sync/cashier.ts:35`).
 
 **LAN.** A primary terminal serves `/api/sync/*` to secondaries (`electron/sync/localHostServer.ts`), authenticated with
 the shop pairing key. Rows a secondary sends are merged by `upsertTableRows` (`electron/sync/lanUpsert.ts`) and then
@@ -34,8 +34,8 @@ pushed to the cloud by the primary like its own rows.
 
 | # | Problem | Where | Effect |
 |---|---|---|---|
-| 1 | Last write wins on the server by **arrival order**, not by edit time | `server:syncInvoices.ts:65`, `syncCatalog.ts`, most `sync*.ts` upserts | A terminal that was offline pushes an old edit after another terminal's newer one: the newer edit is overwritten. |
-| 2 | LAN ingest stamps `updated_at = now` and keeps / sets `PENDING` | `lanUpsert.ts:137-142` | The primary re-pushes secondary rows as if they were edited now: an old edit outranks newer cloud data on every timestamp comparison (#1, stock rule `syncCatalog.ts:166`), and timestamps stop meaning "edit time". |
+| 1 | Last write wins on the server by **arrival order**, not by edit time | `server:sync/invoices.ts:65`, `sync/catalog.ts`, most `sync/*.ts` upserts | A terminal that was offline pushes an old edit after another terminal's newer one: the newer edit is overwritten. |
+| 2 | LAN ingest stamps `updated_at = now` and keeps / sets `PENDING` | `lanUpsert.ts:137-142` | The primary re-pushes secondary rows as if they were edited now: an old edit outranks newer cloud data on every timestamp comparison (#1, stock rule `sync/catalog.ts:166`), and timestamps stop meaning "edit time". |
 | 3 | `markSynced` fallback ignores the timestamp | `syncTransport.ts:276-292` | An edit made while its row was in flight can be marked `SYNCED` without ever being pushed (lost update). |
 | 4 | Pull cursor is a wall-clock timestamp | `syncTransport.ts:301-333` | Rows written on the server with a timestamp older than the cursor (client clock skew, delayed commits, #2) are never pulled; the replay window only covers a few seconds. |
 | 5 | Hard deletes are not propagated | e.g. invoice items removed with `deleteInvoiceItemByInvoiceId` (`electron/db/statements/recycleBin.ts`) | Rows deleted locally stay on the server and other terminals; a later full pull can bring them back (resurrection). |
