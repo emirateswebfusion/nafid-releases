@@ -20,8 +20,6 @@ export interface ProductsSettingsTabProps {
   setShowPaperStockInGst: (v: boolean) => void;
   showPaperStockInEstimate: boolean;
   setShowPaperStockInEstimate: (v: boolean) => void;
-  showProductGstBadge: boolean;
-  setShowProductGstBadge: (v: boolean) => void;
   showBulkSheet: boolean;
   setShowBulkSheet: (v: boolean) => void;
   showPaperOnlyProducts: boolean;
@@ -44,8 +42,6 @@ export const ProductsSettingsTab: React.FC<ProductsSettingsTabProps> = ({
   setShowPaperStockInGst,
   showPaperStockInEstimate,
   setShowPaperStockInEstimate,
-  showProductGstBadge,
-  setShowProductGstBadge,
   setShowBulkSheet,
   showPaperOnlyProducts,
   setShowPaperOnlyProducts,
@@ -301,26 +297,6 @@ export const ProductsSettingsTab: React.FC<ProductsSettingsTabProps> = ({
                       </button>
                     </div>
 
-                    {/* 5. Show Product Type Badges (Real / Paper / Estimate / GST) */}
-                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-card border-border/80 hover:border-purple-500/30 transition-all md:col-span-2">
-                      <div className="flex-1 min-w-0">
-                        <label className="text-xs font-bold text-foreground block flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                          Show GST / Estimate / Paper Badges in Inventory
-                        </label>
-                        <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                          Show or hide small product type badges (Real, Paper, Estimate, GST) directly under each product name in the Inventory list.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowProductGstBadge(!showProductGstBadge)}
-                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductGstBadge ? 'bg-indigo-600 shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                        title={showProductGstBadge ? 'Enabled' : 'Disabled'}
-                      >
-                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductGstBadge ? 'translate-x-5' : 'translate-x-0')} />
-                      </button>
-                    </div>
                   </div>
                 </div>
               ) : (

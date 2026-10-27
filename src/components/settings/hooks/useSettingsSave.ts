@@ -14,6 +14,7 @@ import { useCartStore } from '../../../store/cartStore';
 import { useBillingUIStore } from '../../../store/billingUIStore';
 import type { ShopDomain } from '../../../store/cartStore';
 import type { FeatureFlags } from '../../../config/featureFlags';
+import { findSettingsSection } from '../settingsSections';
 import type { SettingsSnapshotOverrides } from '../settingsTypes';
 import type { SettingsFormState } from './useSettingsFormState';
 
@@ -170,7 +171,8 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'billing_ui_config', value: billingUIConfig }), name: 'billing_ui_config' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: STAFF_DATA_MASKING_KEY, value: JSON.stringify(staffDataMaskingConfig) }), name: 'staff_data_masking' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: EMERGENCY_PANIC_CONFIG_KEY, value: { ...emergencyPanicConfig, updated_at: new Date().toISOString() } }), name: 'emergency_panic_config' },
-        ...(hasBridge('shopClosingSaveConfig') ? [{
+        // The main process rejects non-admins; skip rather than fail the whole save for staff.
+        ...(hasBridge('shopClosingSaveConfig') && isAdminRole(role) ? [{
           promise: whatsappApi.shopClosingSaveConfig({
             tenant_id: tenantId || 'global',
             config: shopClosingConfig,
@@ -181,9 +183,10 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
+      // setSetting resolves to void and throws on failure; other bridge calls resolve to { success, error }.
       for (const { promise, name } of checks) {
-        const res = await promise as { success?: boolean; error?: unknown };
-        if (!res.success) throw new Error(`${name}: ${res.error}`);
+        const res = await promise as { success?: boolean; error?: unknown } | undefined;
+        if (res && res.success === false) throw new Error(`${name}: ${res.error}`);
       }
 
       // Notify application and invalidate stale tab reservations
@@ -234,26 +237,11 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
           text: `Network & sync settings saved successfully! ${syncStatusToast}`
         });
       } else {
-        const sectionLabels: Record<string, string> = {
-          hardware: 'Hardware & device settings',
-          store: 'Store profile settings',
-          products: 'Products & inventory settings',
-          printing: 'Print template settings',
-          print_options: 'Bill & print options',
-          billing_ui: 'Billing Page Customizer settings',
-          system: 'App preferences',
-          features: 'Feature module settings',
-          staff_masking: 'Staff privacy & data masking settings',
-          emergency_purge: 'Emergency reset & kill switch settings',
-          whatsapp: 'WhatsApp integration & closing settings',
-          whatsapp_device: 'WhatsApp integration & closing settings',
-          whatsapp_settings: 'WhatsApp integration & closing settings',
-        };
-        const label = sectionLabels[activeSection] || 'Settings';
+        const section = findSettingsSection(activeSection);
         setMessage({
           type: 'success',
           title: 'SETTINGS SAVED',
-          text: `${label} saved successfully!`
+          text: section ? `${section.label} settings saved successfully!` : 'Settings saved successfully!'
         });
       }
       setInitialSnapshot(buildSettingsSnapshot({
@@ -337,7 +325,8 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error('Failed to save settings:', err);
-      setMessage({ type: 'error', text: 'Failed to save settings. Please try again' });
+      const reason = err instanceof Error && err.message ? ` (${err.message})` : '';
+      setMessage({ type: 'error', text: `Failed to save settings. Please try again${reason}` });
       setTimeout(() => setMessage(null), 3000);
     }
     setSaving(false);

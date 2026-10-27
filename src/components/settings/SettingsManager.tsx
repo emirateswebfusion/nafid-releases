@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Settings, Printer, Save, Loader2, CheckCircle2, AlertCircle, Wifi, X, EyeOff, Palette, Store, Package, Monitor, ChevronRight, Shield, FileText, Power, BookOpen, Layers, AlertOctagon, LayoutGrid } from 'lucide-react';
+import { Settings, Save, Loader2, CheckCircle2, AlertCircle, X, Power } from 'lucide-react';
 import { useCartStore } from '../../store/cartStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
@@ -9,7 +9,6 @@ import { RedCrossButton } from '../ui/RedCrossButton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
-import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { isAdminRole } from '../../utils/security/permissions';
 
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../config/featureFlags';
@@ -23,93 +22,9 @@ import { useSettingsSave } from './hooks/useSettingsSave';
 import { useSettingsFormState } from './hooks/useSettingsFormState';
 import { SettingsSectionContent } from './views/SettingsSectionContent';
 import { LanSyncHelpModal } from './views/LanSyncHelpModal';
+import { SettingsSidebar } from './views/SettingsSidebar';
+import { findSettingsSection } from './settingsSections';
 import type { PrinterConfig } from './settingsTypes';
-
-interface SidebarItem {
-  id: string;
-  label: string;
-  icon: typeof Settings | typeof WhatsAppIcon;
-  ownerOnly?: boolean;
-}
-
-interface SidebarGroup {
-  category: string;
-  icon: typeof Settings | typeof WhatsAppIcon;
-  items: SidebarItem[];
-}
-
-const SIDEBAR_GROUPS: SidebarGroup[] = [
-  {
-    category: 'Store Settings',
-    icon: Store,
-    items: [
-      { id: 'filing_only', label: 'Revenue & Filing-only', icon: FileText, ownerOnly: true },
-      { id: 'store', label: 'Store Profile', icon: Store, ownerOnly: true },
-    ],
-  },
-  {
-    category: 'Hardware & Devices',
-    icon: Monitor,
-    items: [
-      { id: 'hardware', label: 'Devices & Hardware', icon: Monitor },
-    ],
-  },
-  {
-    category: 'Integrations & Services',
-    icon: WhatsAppIcon,
-    items: [
-      { id: 'whatsapp', label: 'WhatsApp Integration', icon: WhatsAppIcon },
-    ],
-  },
-  {
-    category: 'Products & Coding',
-    icon: Package,
-    items: [
-      { id: 'products', label: 'Products & Inventory', icon: Package },
-    ],
-  },
-  {
-    category: 'Printing & Layout',
-    icon: Printer,
-    items: [
-      { id: 'printing', label: 'Print Templates', icon: Printer, ownerOnly: true },
-      { id: 'print_options', label: 'Bill & Print Options', icon: FileText, ownerOnly: true },
-    ],
-  },
-  {
-    category: 'Application',
-    icon: Settings,
-    items: [
-      { id: 'design', label: 'Theme & Typography', icon: Palette },
-      { id: 'terminology', label: 'Ledger Terminology', icon: BookOpen },
-      { id: 'billing_ui', label: 'Billing Page Customizer', icon: LayoutGrid },
-      { id: 'dashboard_cards', label: 'Dashboard Cards Order', icon: Layers },
-      { id: 'system', label: 'App Preferences', icon: Settings },
-    ],
-  },
-  {
-    category: 'Network & Connectivity',
-    icon: Wifi,
-    items: [
-      { id: 'network', label: 'Network & Sync Mode', icon: Wifi, ownerOnly: true },
-    ],
-  },
-  {
-    category: 'Security & Privacy',
-    icon: Shield,
-    items: [
-      { id: 'emergency_purge', label: 'Emergency Reset & Kill Switch', icon: AlertOctagon, ownerOnly: true },
-      { id: 'staff_masking', label: 'Staff Privacy & Data Masking', icon: EyeOff, ownerOnly: true },
-    ],
-  },
-  {
-    category: 'Feature Management',
-    icon: Power,
-    items: [
-      { id: 'features', label: 'Features & Modules', icon: Power, ownerOnly: true },
-    ],
-  },
-];
 
 export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
@@ -137,6 +52,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     return () => clearTimeout(timer);
   }, [message, setMessage]);
   const [activeSection, setActiveSection] = useState(isAdminRole(role) ? 'store' : 'hardware');
+  const selectSection = (id: string) => {
+    setActiveSection(id);
+    if (id === 'hardware') setActiveHardwareTab('receipt');
+    if (id === 'products') setActiveProductsTab('coding');
+  };
 
   const shopDomain = useCartStore((state) => state.shopDomain);
   const [localDomain] = useState(shopDomain || 'GENERAL');
@@ -435,7 +355,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     );
   }
 
-  const activeItem = (SIDEBAR_GROUPS || []).flatMap(g => g?.items || []).find(i => i?.id === activeSection);
+  const activeItem = findSettingsSection(activeSection);
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background font-sans">
       {renderMessage()}
@@ -485,77 +405,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       {/* ── Sidebar + Content ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* ── Left Sidebar Navigation ── */}
-        <aside className="w-56 lg:w-64 shrink-0 bg-muted/30 border-r border-border overflow-y-auto hidden md:block">
-          <nav className="py-4 px-3.5 space-y-6">
-            {SIDEBAR_GROUPS.map((group) => {
-              const visibleItems = group.items.filter(item => !item.ownerOnly || isAdminRole(role));
-              if (visibleItems.length === 0) return null;
-              const GroupIcon = group.icon;
-              return (
-                <div key={group.category} className="space-y-1">
-                  <div className="flex items-center gap-2 px-3 py-1 mb-1.5 select-none">
-                    <GroupIcon className="w-3.5 h-3.5 text-muted-foreground/45" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{group.category}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    {visibleItems.map((item) => {
-                      const ItemIcon = item.icon;
-                      const isActive = activeSection === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setActiveSection(item.id);
-                            if (item.id === 'hardware') setActiveHardwareTab('receipt');
-                            if (item.id === 'products') setActiveProductsTab('coding');
-                          }}
-                          className={clsx(
-                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left border-l-2 group",
-                            isActive
-                              ? "bg-gradient-to-r from-primary/10 to-primary/[0.01] text-primary border-primary shadow-sm font-extrabold"
-                              : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/40 border-transparent"
-                          )}
-                        >
-                          <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-all duration-200", isActive ? "text-primary scale-110" : "text-muted-foreground/50 group-hover:text-foreground group-hover:scale-105")} />
-                          <span className="flex-1 truncate">{item.label}</span>
-                          {item.ownerOnly && (
-                            <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[8px] font-bold rounded-lg border border-amber-500/20 shrink-0">OWNER</span>
-                          )}
-                          {isActive && <ChevronRight className="w-3 h-3 text-primary/60 shrink-0 animate-pulse" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </nav>
-        </aside>
-
-        {/* ── Mobile Section Picker ── */}
-        <div className="md:hidden shrink-0 border-b border-border bg-muted/20 overflow-x-auto">
-          <div className="flex gap-1.5 p-2 whitespace-nowrap">
-            {SIDEBAR_GROUPS.flatMap(g => g.items).filter(item => !item.ownerOnly || isAdminRole(role)).map((item) => {
-              const ItemIcon = item.icon;
-              const isActive = activeSection === item.id;
-              return (
-                <button key={item.id} 
-                  onClick={() => {
-                    setActiveSection(item.id);
-                    if (item.id === 'hardware') setActiveHardwareTab('receipt');
-                    if (item.id === 'products') setActiveProductsTab('coding');
-                  }}
-                  className={clsx("flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border shrink-0 active:scale-95",
-                    isActive ? "bg-primary/10 text-primary border-primary/20 shadow-sm" : "bg-card text-muted-foreground/80 border-border/60 hover:text-foreground hover:bg-muted"
-                  )}>
-                  <ItemIcon className="w-3.5 h-3.5 shrink-0" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <SettingsSidebar activeSection={activeSection} isAdmin={isAdminRole(role)} onSelect={selectSection} />
 
         {/* ─── Main Content Area ─── */}
         <main className="flex-1 overflow-y-auto bg-background" style={{ scrollbarGutter: 'stable' }}>
@@ -576,20 +426,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-2 max-w-2xl text-center leading-relaxed font-medium">
-                  {activeItem.id === 'design' && 'Calibrate system brand accent colors, interface font stacks, and touchscreen reading density.'}
-                  {activeItem.id === 'store' && 'Manage your shop profile, GST registration, invoice counters, and features.'}
-                  {activeItem.id === 'terminology' && 'Customise how Receivable, Payable, Received, and Paid terms are displayed across ledgers and reports.'}
-                  {activeItem.id === 'hardware' && 'Configure receipt printers, barcode label printers, scales, and hardware connections.'}
-                  {activeItem.id === 'products' && 'Manage product categories, grade pricing, and price coding alphabets.'}
-                  {activeItem.id === 'printing' && 'Select paper formats for normal print (BOS/Estimate) and customize invoice & thermal template styles.'}
-                  {activeItem.id === 'print_options' && 'Configure bill content checklists, T&C instructions, BOS tax rate, receipt typography, and label codes.'}
-                  {activeItem.id === 'billing_ui' && 'Rearrange POS billing columns, customize theme colors, adjust touchscreen target density, and tailor layout for cashiers.'}
-                  {activeItem.id === 'dashboard_cards' && 'Rearrange the display sequence of POS dashboard module cards according to your preferred workflow.'}
-                  {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
-                  {activeItem.id === 'network' && 'Configure Cloud API sync, Local Wi-Fi direct connections, and hybrid store networks.'}
-                  {activeItem.id === 'features' && 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.'}
-                  {activeItem.id === 'emergency_purge' && 'Configure on-site panic hotkeys, multi-click gestures, and remote cloud wipe signals.'}
-                  {activeItem.id === 'staff_masking' && 'Mask aggregate stock valuations and customize sales history visibility and revenue display for staff.'}
+                  {activeItem.description}
                 </p>
               </div>
             )}
