@@ -1,3 +1,4 @@
+import { getRegisterCashEntries, isFrozenDrawer } from '../services/cashDrawerSession.js';
 import type { CashDrawerRow } from '../services/typesA.js';
 import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
 
@@ -257,8 +258,10 @@ export function buildShopClosingSummaryData(
   const expensesItems: Array<{ description: string; amount: number; time?: string }> = [];
 
   try {
-    const txRows = shopClosingReportSql.findCashTransactions(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
+    const txRows = drawer && !isFrozenDrawer(db, tid, drawer)
+      ? getRegisterCashEntries(db, tid, drawer)
+      : shopClosingReportSql.findCashTransactions(db)
+        .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
 
     if (Array.isArray(txRows)) {
       for (const row of txRows) {
@@ -361,7 +364,7 @@ export function buildShopClosingSummaryData(
   const scrapSummary: {
     totalAmount: number;
     count: number;
-    items: Array<{ categoryName: string; quantity: number; unit?: string; rate: number; totalAmount: number; partyName?: string }>;
+    items: Array<{ type?: string; categoryName: string; quantity: number; unit?: string; rate: number; totalAmount: number; partyName?: string }>;
   } = {
     totalAmount: 0,
     count: 0,
@@ -378,6 +381,7 @@ export function buildShopClosingSummaryData(
         scrapSummary.totalAmount += total;
         scrapSummary.count++;
         scrapSummary.items.push({
+          type: String(sr.type),
           categoryName: (sr.category_name as string) || (sr.type === 'PURCHASE' ? 'Scrap Purchase' : 'Scrap Sale'),
           quantity: Number(sr.quantity || 0),
           unit: (sr.unit as string | undefined) || ('Kgs' as string | undefined),
@@ -397,6 +401,7 @@ export function buildShopClosingSummaryData(
       scrapSummary.totalAmount += invScrapAmt;
       scrapSummary.count += Number(invScrapRow.inv_scrap_count || 1);
       scrapSummary.items.push({
+        type: 'PURCHASE',
         categoryName: 'Bill Scrap Deductions',
         quantity: Number(invScrapRow.inv_scrap_count || 1),
         unit: 'bills',

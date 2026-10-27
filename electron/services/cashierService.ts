@@ -1,7 +1,10 @@
 import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, CustomerRow, InvoiceRow, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
-import { findOpenDrawersBeforeDate } from './cashDrawerSession.js';
+import { getCashRegisterPreferences } from './cashRegisterPreferences.js';
+import { calculateRegisterPayments } from '../utils/registerPaymentTotals.js';
+import * as registerSql from '../db/statements/cashDrawer.js';
+import { getRegisterCashEntries, getDrawerWindow, findOpenDrawersBeforeDate } from './cashDrawerSession.js';
 import { getStoreTimezoneSetting, parseCleanDate, localDate, localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
@@ -47,7 +50,12 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
       }
     }
 
-    return drawer;
+    if (!drawer) return null;
+    const window = getDrawerWindow(db, tenant_id, drawer);
+    const invoices = registerSql.listRegisterInvoices(db).all(tenant_id, window.from, window.to, window.to) as Array<{
+      payment_method: string; grand_total: number; received_amount: number; split_details: string | null;
+    }>;
+    return { ...drawer, payment_totals: calculateRegisterPayments(invoices, getCashRegisterPreferences(db, tenant_id).paymentMethods) };
   } catch (error) {
     console.error(`[Cashier] getDrawer error:`, (error as Error).message);
     return { error: 'Operation failed' };
@@ -472,18 +480,9 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
 export function getTransactions({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
-    const date = localDate();
-    const dateLike = `${date}%`;
-    let drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, date, date, dateLike, date) as CashDrawerRow[];
-    if (!drawers || drawers.length === 0) {
-      drawers = cashierSql.findOneCashDrawerByStatusOpen(db).all(tenant_id) as CashDrawerRow[];
-    }
-    const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
-    if (drawerIds.length === 0) {
-      return cashierSql.findCashTransactions(db).all(tenant_id, date, dateLike, date);
-    }
-    const placeholders = drawerIds.map(() => '?').join(',');
-    return cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, date, dateLike, date);
+    const drawer = deduplicateAndGetOpenDrawer(db, tenant_id);
+    return drawer ? getRegisterCashEntries(db, tenant_id, drawer).reverse() : [];
+
   } catch (error) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };

@@ -2,7 +2,7 @@ import type { PartyLedgerRow, PartyRow, ScrapCategoryInput, ScrapCategoryRow, Sc
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localDate } from './storeTime.js';
-import { getOpenCashDrawer } from './cashDrawerService.js';
+import { getOpenCashDrawer, reconcileCashDrawer } from './cashDrawerService.js';
 import crypto from 'node:crypto';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
 import { recalcPartyBalances } from './partyLedgerService.js';
@@ -100,10 +100,7 @@ export function addScrapTransaction(t: ScrapTransactionInput) {
             Number(t.total_amount),
             `Scrap purchase ${t.scrap_invoice_number || ''}`.trim()
           );
-          const newCashOut = Number(drawer.cash_out) + Number(t.total_amount);
-          const newCurrentCash = Number(drawer.current_cash) - Number(t.total_amount);
-          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
-          scrapSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, t.tenant_id || 'global', drawer);
         }
       } else if (t.type === 'SALE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
         const todayDate = localDate();
@@ -117,10 +114,7 @@ export function addScrapTransaction(t: ScrapTransactionInput) {
             Number(t.total_amount),
             `Scrap sale ${t.scrap_invoice_number || ''}`.trim()
           );
-          const newCashSales = Number(drawer.cash_sales) + Number(t.total_amount);
-          const newCurrentCash = Number(drawer.current_cash) + Number(t.total_amount);
-          const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - Number(drawer.cash_out);
-          scrapSql.updateCashDrawerByDrawerId2(db).run(newCashSales, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, t.tenant_id || 'global', drawer);
         }
       }
       return { success: true };

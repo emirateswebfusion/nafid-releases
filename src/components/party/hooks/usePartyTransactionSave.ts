@@ -1,7 +1,6 @@
 import type React from 'react';
 import { partiesApi } from '../../../data/parties';
 import { v4 as uuidv4 } from 'uuid';
-import { cashierApi } from '../../../data/cashier';
 import { formatWhatsAppLedgerTxMessage } from '../../../utils/print/whatsappBillHelper';
 import { hasBridge } from '../../../data/client';
 import { whatsappApi } from '../../../data/whatsapp';
@@ -62,8 +61,9 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
         });
         showStatus('Transaction updated', 'success');
       } else {
+        const ledgerId = uuidv4();
         await partiesApi.addPartyLedgerEntry({
-          ledger_id: uuidv4(),
+          ledger_id: ledgerId,
           party_id: selectedParty.party_id,
           tenant_id: tenantId,
           amount: parsedAmount,
@@ -76,19 +76,6 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
           created_by: userId,
           created_by_name: userName || undefined,
         });
-
-        if (txForm.payment_method === 'CASH') {
-          const cashType = txForm.transaction_type === 'CREDIT' ? 'CASH_OUT' : 'CASH_IN';
-          await cashierApi.addTransaction({
-            tenant_id: tenantId!,
-            type: cashType,
-            amount: parsedAmount,
-            category: 'Party ' + (cashType === 'CASH_OUT' ? 'Payment' : 'Receipt'),
-            notes: `${selectedParty.name} - ${txForm.description.trim()}`,
-            user_id: userId!,
-            user_name: userName || undefined,
-          });
-        }
 
         // WhatsApp notification handling
         const isPartyAlertEnabled = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
