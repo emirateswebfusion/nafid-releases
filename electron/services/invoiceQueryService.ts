@@ -86,11 +86,12 @@ export function getInvoiceItems(invoice_id: string) {
 }
 
 /** IPC `db:getBosConvertibleInvoices` */
-export function getBosConvertibleInvoices(tenantId: string) {
+export function getBosConvertibleInvoices(tenantId: string, invoiceIds?: string[]) {
   try {
     const db = getDb();
     if (!tenantId) return [];
-    return invoicesSql.findInvoiceItemsByInvoiceIdAndIsGstApplicable(db).all(tenantId, tenantId);
+    if (invoiceIds !== undefined && (!Array.isArray(invoiceIds) || invoiceIds.length === 0 || invoiceIds.some(id => typeof id !== 'string'))) return [];
+    return invoicesSql.findInvoiceItemsByInvoiceIdAndIsGstApplicable(db, invoiceIds).all(tenantId, tenantId, ...(invoiceIds || []));
   } catch (error) {
     console.error('[db:getBosConvertibleInvoices]', error);
     return [];

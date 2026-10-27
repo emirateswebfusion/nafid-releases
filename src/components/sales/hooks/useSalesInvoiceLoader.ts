@@ -1,5 +1,6 @@
-import type { Invoice, InvoiceItem, InvoiceFilters } from '../../../data/invoices';
+import type { InvoiceItem, InvoiceFilters, InvoiceSummary } from '../../../data/invoices';
 import type React from 'react';
+import { useEffect, useRef } from 'react';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { listInvoices, getInvoiceItems, invoicesApi } from '../../../data/invoices';
 import { buildTaxFilteredProductRows, sortInvoicesByInvoiceNumber } from '../../../utils/pricing/salesHistoryTax';
@@ -16,13 +17,14 @@ export interface UseSalesInvoiceLoaderContext {
   filterDate: string;
   filterDateEnd: string;
   invoiceTypeFilter: string;
-  isFetching: boolean;
   LIMIT: 30;
   maskingConfig: StaffDataMaskingConfig;
   offset: number;
   paymentFilter: string;
-  prefetchInvoiceRef: React.RefObject<(id: string) => void>;
-  setDbSummary: React.Dispatch<React.SetStateAction<{ totalSales: number; totalSalesBeforeDeductions?: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number; } | null>>;
+  enableConvertToGst: boolean;
+  setConvertibleMap: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  setSummaryPending: React.Dispatch<React.SetStateAction<boolean>>;
+  setDbSummary: React.Dispatch<React.SetStateAction<InvoiceSummary | null>>;
   setHasMore: React.Dispatch<React.SetStateAction<boolean>>;
   setInvoices: React.Dispatch<React.SetStateAction<SalesInvoiceRow[]>>;
   setIsFetching: React.Dispatch<React.SetStateAction<boolean>>;
@@ -41,7 +43,11 @@ export interface UseSalesInvoiceLoaderContext {
  * filter is set, the matching product rows and totals (`loadTaxProductRows`).
  */
 export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
-  const { accountingView, debouncedSearch, filterDate, filterDateEnd, invoiceTypeFilter, isFetching, LIMIT, maskingConfig, offset, paymentFilter, prefetchInvoiceRef, setDbSummary, setHasMore, setInvoices, setIsFetching, setLoading, setOffset, setTaxProductLoading, setTaxProductRows, setTaxProductTotals, taxFilterActive, taxPercentageFilter, taxProductRequestRef } = ctx;
+  const { accountingView, debouncedSearch, filterDate, filterDateEnd, invoiceTypeFilter, LIMIT, maskingConfig, offset, paymentFilter, enableConvertToGst, setConvertibleMap, setSummaryPending, setDbSummary, setHasMore, setInvoices, setIsFetching, setLoading, setOffset, setTaxProductLoading, setTaxProductRows, setTaxProductTotals, taxFilterActive, taxPercentageFilter, taxProductRequestRef } = ctx;
+  const generation = useRef(0);
+  const pageInFlight = useRef(false);
+  useEffect(() => () => { generation.current++; }, []);
+
   const loadTaxProductRows = async (filters: InvoiceFilters, targetRate: string) => {
     if (!hasBridge('dbGetInvoices') || !hasBridge('dbGetInvoiceItems')) return;
     const requestId = ++taxProductRequestRef.current;
@@ -92,7 +98,16 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
   };
 
   const loadInvoices = async (reset = false) => {
-    if (!reset && isFetching) return;
+    if (!reset && pageInFlight.current) return;
+    if (reset) {
+      generation.current++;
+      setDbSummary(null);
+      setSummaryPending(hasBridge('dbGetInvoicesSummary'));
+      setConvertibleMap({});
+      taxProductRequestRef.current++;
+    }
+    const requestId = generation.current;
+    pageInFlight.current = true;
     setIsFetching(true);
     if (isDesktopRuntime()) {
       const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
@@ -127,17 +142,18 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
           accounting_view: accountingView,
         };
 
-        const promises: [Promise<Invoice[]>, Promise<Awaited<ReturnType<typeof invoicesApi.getInvoicesSummary>>>?] = [
-          listInvoices({ ...filters, limit: LIMIT, offset: currentOffset })
-        ];
+        const data = await listInvoices({ ...filters, limit: LIMIT, offset: currentOffset });
+        if (requestId !== generation.current) return;
+
+        // Rows become usable before aggregate or conversion work runs in the main process.
         if (reset && hasBridge('dbGetInvoicesSummary')) {
-          promises.push(invoicesApi.getInvoicesSummary(filters));
-        }
-
-        const [data, summaryRes] = await Promise.all(promises);
-
-        if (reset && summaryRes && typeof summaryRes === 'object' && !('error' in summaryRes)) {
-          setDbSummary(summaryRes);
+          void invoicesApi.getInvoicesSummary(filters).then(summary => {
+            if (requestId === generation.current && summary && !('error' in summary)) setDbSummary(summary);
+          }).catch(err => {
+            console.error('[SalesHistory] Failed to load totals:', err);
+          }).finally(() => {
+            if (requestId === generation.current) setSummaryPending(false);
+          });
         }
 
         if (reset) {
@@ -154,14 +170,6 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
         if (Array.isArray(data)) {
           if (reset) {
             setInvoices(data);
-            // Pre-warm top 5 most recent bills quietly so clicking any recent bill is 100% instant
-            if (data.length > 0) {
-              setTimeout(() => {
-                data.slice(0, 5).forEach((item) => {
-                  if (item?.invoice_id) prefetchInvoiceRef.current(item.invoice_id);
-                });
-              }, 200);
-            }
           }
           else {
             setInvoices(prev => {
@@ -169,6 +177,13 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
               const newItems = data.filter(i => !existingIds.has(i.invoice_id));
               return [...prev, ...newItems];
             });
+          }
+          const ids = data.filter(inv => inv.invoice_type === 'BILL_OF_SUPPLY' && !inv.converted_to_invoice_id).map(inv => inv.invoice_id);
+          if (enableConvertToGst && ids.length && hasBridge('dbGetBosConvertibleInvoices')) {
+            void invoicesApi.getBosConvertibleInvoices(tenantId || 'global', ids).then(rows => {
+              if (requestId !== generation.current || !Array.isArray(rows)) return;
+              setConvertibleMap(previous => ({ ...previous, ...Object.fromEntries(rows.map(row => [row.invoice_id, Boolean(row.convertible)])) }));
+            }).catch(err => console.error('[SalesHistory] Failed to check conversion eligibility:', err));
           }
           setOffset(currentOffset + data.length);
           setHasMore(data.length === LIMIT);
@@ -179,12 +194,18 @@ export function useSalesInvoiceLoader(ctx: UseSalesInvoiceLoaderContext) {
         }
       } catch (err) {
         console.error('[SalesHistory] Exception while calling dbGetInvoices:', err);
+        if (requestId === generation.current) setSummaryPending(false);
       } finally {
-        setLoading(false);
-        setIsFetching(false);
+        if (requestId === generation.current) {
+          pageInFlight.current = false;
+          setLoading(false);
+          setIsFetching(false);
+        }
       }
     } else {
       console.warn('[SalesHistory] isDesktopRuntime() is missing - unable to query local database.');
+      pageInFlight.current = false;
+      setSummaryPending(false);
       setLoading(false);
       setIsFetching(false);
     }

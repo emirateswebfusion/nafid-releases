@@ -45,6 +45,20 @@ and `electron/utils/` (ids, cashier settlement math).
   (`autoCloseOverdueDrawers`). An auto close counts the expected cash (no short / excess).
 - Tests: `tests/characterization/drawer-session.mts`.
 
+### Sales History totals and scope
+
+- getSalesTaxBreakdown in salesHistoryAmount.ts separates the stored GST from the tax-inclusive sales total.
+  Sales excluding GST + GST Amount = Grand Total including GST. These sales values are after invoice / points
+  discounts and before scrap / return credits; revenue is the payable amount after those credits.
+- REAL_SALES remains BOS only; TAX_FILING is official GST; ALL includes both document types in the list but totals
+  count each real sale once, excluding synthetic GST conversion copies. Cash drawer session cash sales also exclude
+  those copies. Direct GST bills still count. A payment-method filter shows that payment portion as revenue;
+  the three sales/tax figures describe the matching invoices, not just that payment portion.
+- Compare reports with the same invoice/payment scope and time window: Sales History filters creation dates,
+  while Cash Register sessions and Shop Closing use settlement time when present. Cash collections, credit
+  sales, gross sales and amounts before credits are different measures, not interchangeable totals.
+- New tax breakdown fields are protected when staff revenue is masked; they cannot reveal real revenue by subtraction.
+
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
 - Intra-state tax amounts use `splitTaxAmount` from `src/utils/pricing/checkoutLines.ts`: CGST is rounded first and SGST is

@@ -385,7 +385,7 @@ export const updateInvoiceConvertedToInvoiceIdAndConvertedToInvoiceNumber = (db:
             WHERE invoice_id = ?
           `);
 
-export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db) => db.prepare(`
+export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db, invoiceIds?: readonly string[]) => db.prepare(`
       SELECT i.invoice_id,
              EXISTS(
                SELECT 1 FROM invoice_items ii
@@ -420,7 +420,7 @@ export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db) => db.prep
              ) AS convertible
       FROM invoices i
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR ? = 'global') AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-    `);
+    ` + (invoiceIds === undefined ? '' : ' AND i.invoice_id IN (' + invoiceIds.map(() => '?').join(',') + ')'));
 
 export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?');
 

@@ -1,5 +1,6 @@
+import { SalesTaxSummary } from './SalesTaxSummary';
 import React, { Fragment } from 'react';
-import { IndianRupee, Layers, TrendingUp, Percent, Receipt, BarChart3, Loader2, Search, X, SlidersHorizontal, Building, User, FileText, ShieldAlert, CheckCheck, ArrowDownRight, RefreshCw } from 'lucide-react';
+import { IndianRupee, TrendingUp, Percent, Receipt, BarChart3, Loader2, Search, X, SlidersHorizontal, Building, User, FileText, ShieldAlert, CheckCheck, ArrowDownRight, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
@@ -77,7 +78,7 @@ export function SalesBillsView({
       {/* Compact Single-Row High-Density KPI Bar */}
       <div className="px-4 py-2 border-b border-border/70 bg-card/60 shrink-0">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="flex items-center gap-4 flex-1 min-w-0 flex-wrap">
             {/* KPI 1: Total Revenue / GST Turnover */}
             <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[170px] transition-all">
               <div className="p-1.5 rounded-lg shrink-0 transition-colors bg-emerald-500/10 text-emerald-500">
@@ -98,20 +99,8 @@ export function SalesBillsView({
               </div>
             </div>
 
-            {/* KPI: Total Sales */}
-            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[155px] transition-all">
-              <div className="p-1.5 rounded-lg shrink-0 bg-teal-500/10 text-teal-500">
-                <Layers className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
-                  Total Sales
-                </span>
-                <span className="text-xs font-black font-mono tabular-nums leading-tight block mt-0.5 text-teal-600 dark:text-teal-400">
-                  {summaryLoading ? '…' : maskedTotalSales.isHidden ? '••••••••' : formatCurrency(maskedTotalSales.displayAmount)}
-                </span>
-              </div>
-            </div>
+            <SalesTaxSummary totalIncludingGst={maskedTotalSales.displayAmount} gstAmount={summary.totalTax}
+              isHidden={maskedTotalSales.isHidden} isMasked={maskedTotalSales.isMasked} loading={summaryLoading} />
 
             {/* KPI 2: Avg Order Value */}
             <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[160px]">
@@ -124,21 +113,6 @@ export function SalesBillsView({
                 </span>
                 <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums leading-tight block mt-0.5">
                   {summaryLoading ? '…' : maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)}
-                </span>
-              </div>
-            </div>
-
-            {/* KPI 3: Total Tax */}
-            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[150px]">
-              <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500 shrink-0">
-                <Percent className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
-                  {accountingView === 'TAX_FILING' ? 'Declared GST Tax' : 'Total Tax'}
-                </span>
-                <span className="text-xs font-black text-violet-600 dark:text-violet-400 font-mono tabular-nums leading-tight block mt-0.5">
-                  {summaryLoading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)}
                 </span>
               </div>
             </div>

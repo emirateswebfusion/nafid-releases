@@ -10,6 +10,15 @@ export interface Invoice extends InvoicesRow {
   item_count?: number | null;
 }
 
+export interface InvoiceSummary {
+  totalSales: number;
+  totalSalesBeforeDeductions?: number;
+  totalInvoices: number;
+  totalTax: number;
+  totalDiscount: number;
+  avgOrder: number;
+}
+
 /** An invoice line as stored (`invoice_items`). */
 export type InvoiceItem = InvoiceItemsRow;
 
