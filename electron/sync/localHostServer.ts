@@ -4,6 +4,7 @@ import { getDb } from '../db/localDb.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { LAN_KEY_HEADER, ensureLanPairingKey, isValidLanKey } from '../services/lanPairing.js';
 import { getTableMeta, upsertTableRows } from './lanUpsert.js';
+import { LAN_PULL_TABLES, LAN_PUSH_TABLES } from './lanTables.js';
 import * as localHostServerSql from '../db/statements/sync/localHostServer.js';
 
 function toNormalizedUtc(str: string | null | undefined): string | null {
@@ -22,16 +23,6 @@ function toNormalizedUtc(str: string | null | undefined): string | null {
 
 let server: http.Server | null = null;
 let currentPort: number = 3888;
-
-const ALLOWED_TABLES = new Set([
-  'users', 'product_grades', 'products', 'invoices', 'invoice_items',
-  'parties', 'party_ledger', 'settings', 'scrap_categories', 'scrap_transactions',
-  'quotations', 'quotation_items', 'warranties', 'purchase_bills', 'cash_drawer',
-  'cash_transactions', 'cashier_audit_log', 'cash_categories', 'purchase_bill_items',
-  'returns', 'return_items', 'customers', 'loyalty_transactions', 'payment_sources',
-  'payment_source_transactions', 'pricing_tiers', 'product_pricing', 'combo_offers',
-  'combo_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance', 'sync_meta'
-]);
 
 function parseJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
@@ -304,11 +295,14 @@ export function startLocalHostServer(port: number = 3888) {
         const endpointName = pathname.replace('/api/sync/', '');
         const tableName = endpointName.replace(/-/g, '_');
 
-        if (!ALLOWED_TABLES.has(tableName)) {
+        if (!LAN_PULL_TABLES.has(tableName)) {
           return sendJson(res, 400, { error: `Invalid sync endpoint: ${endpointName}` });
         }
 
         if (req.method === 'POST') {
+          if (!LAN_PUSH_TABLES.has(tableName)) {
+            return sendJson(res, 403, { error: `${endpointName} is read-only over the LAN` });
+          }
           const body = await parseJsonBody(req);
           const key = body[endpointName] ? endpointName : (body[tableName] ? tableName : Object.keys(body)[0]);
           let items = Array.isArray(body[key]) ? body[key] : (Array.isArray(body) ? body : []);
