@@ -12,7 +12,7 @@ export interface PaymentSource extends DataPaymentSource {
 
 export type SourceTransaction = Rows.PaymentSourceTransactionsRow;
 
-export { formatDateTime } from '../../utils/dateDisplay';
+export { formatDateTime } from '../../utils/time/dateDisplay';
 
 export const TYPE_CONFIG: Record<string, { label: string; icon: LucideIcon; gradient: string; badgeBg: string; textColor: string; borderColor: string }> = {
   BANK: {

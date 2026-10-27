@@ -1,7 +1,7 @@
 import type * as B from '../billingTypes';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
-import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
+import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
 import { createPortal } from 'react-dom';
 
 interface ItemRateInputProps {

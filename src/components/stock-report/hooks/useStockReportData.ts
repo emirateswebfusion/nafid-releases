@@ -5,7 +5,7 @@ import { partiesApi } from '../../../data/parties';
 import { productsApi } from '../../../data/products';
 import { purchasesApi } from '../../../data/purchases';
 import { settingsApi } from '../../../data/settings';
-import { parseStaffDataMaskingConfig, STAFF_DATA_MASKING_KEY } from '../../../utils/staffDataMasking';
+import { parseStaffDataMaskingConfig, STAFF_DATA_MASKING_KEY } from '../../../utils/security/staffDataMasking';
 import { CACHE_TTL, reportCache } from '../stockReportCache';
 import type { StockReportState } from './useStockReportState';
 

@@ -4,7 +4,7 @@ import { QrCode, Building, Landmark, Receipt, TrendingUp, Check, Copy, Smartphon
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { INDIAN_STATES } from '../settingsUtils';
-import { SUPPORTED_TIMEZONES, setStoreTimezone } from '../../../utils/timezoneHelper';
+import { SUPPORTED_TIMEZONES, setStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type { SettingsForm } from '../settingsFormTypes';
 
 export interface StoreSettingsTabProps {

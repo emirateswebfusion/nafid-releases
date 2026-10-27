@@ -1,7 +1,7 @@
 import React, { Fragment } from 'react';
 import { Search, CheckCircle2, Receipt, Zap, User } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { Select } from '../../ui/Select';
 import { type PaymentMethod, PAYMENT_OPTIONS } from '../cashierFormat';
 import { cashierApi } from '../../../data/cashier';

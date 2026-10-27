@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { DataUploadModal } from '../data-upload/DataUploadModal';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { FloatToast } from '../ui/FloatToast';
-import { formatWhatsAppStaffSalaryMessage } from '../../utils/whatsappBillHelper';
+import { formatWhatsAppStaffSalaryMessage } from '../../utils/print/whatsappBillHelper';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { authApi } from '../../data/auth';

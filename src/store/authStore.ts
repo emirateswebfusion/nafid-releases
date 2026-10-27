@@ -1,6 +1,6 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { useCartStore } from './cartStore';
-import { convertLegacyRestrictedPageToPermissions } from '../utils/permissions';
+import { convertLegacyRestrictedPageToPermissions } from '../utils/security/permissions';
 import { authApi } from '../data/auth';
 import { hasBridge, isDesktopRuntime } from '../data/client';
 import { settingsApi } from '../data/settings';

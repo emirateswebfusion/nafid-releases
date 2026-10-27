@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { useAuthStore } from '../../store/authStore';
 
-import { MRP_TIER_ID } from '../../utils/pricingTierHelper';
+import { MRP_TIER_ID } from '../../utils/pricing/pricingTierHelper';
 import { usePricingTiersState } from './hooks/usePricingTiersState';
 import { usePricingTiersData } from './hooks/usePricingTiersData';
 import { usePricingTierActions } from './hooks/usePricingTierActions';

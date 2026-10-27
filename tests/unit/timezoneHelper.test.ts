@@ -4,9 +4,9 @@ import {
   getStoreBusinessDate,
   getStoreTimezone,
   setStoreTimezone,
-} from '../../src/utils/timezoneHelper';
-import { formatDateTime, formatShortDate } from '../../src/utils/dateDisplay';
-import { parseUTCDate } from '../../src/utils/receiptGenerator';
+} from '../../src/utils/time/timezoneHelper';
+import { formatDateTime, formatShortDate } from '../../src/utils/time/dateDisplay';
+import { parseUTCDate } from '../../src/utils/print/receiptGenerator';
 
 describe('timezoneHelper', () => {
   const store = new Map<string, string>();

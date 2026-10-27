@@ -2,13 +2,13 @@ import type { Invoice, InvoiceItem, InvoiceFilters } from '../../../data/invoice
 import type React from 'react';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { listInvoices, getInvoiceItems, invoicesApi } from '../../../data/invoices';
-import { buildTaxFilteredProductRows, sortInvoicesByInvoiceNumber } from '../../../utils/salesHistoryTax';
+import { buildTaxFilteredProductRows, sortInvoicesByInvoiceNumber } from '../../../utils/pricing/salesHistoryTax';
 import { useAuthStore } from '../../../store/authStore';
-import { isStaffRole, shouldApplyStaffMasking, getStaffSalesDateScope } from '../../../utils/staffDataMasking';
-import type { StaffDataMaskingConfig } from '../../../utils/staffDataMasking';
-import type { InvoiceProductRow, InvoiceProductTotals } from '../../../utils/salesHistoryTax';
+import { isStaffRole, shouldApplyStaffMasking, getStaffSalesDateScope } from '../../../utils/security/staffDataMasking';
+import type { StaffDataMaskingConfig } from '../../../utils/security/staffDataMasking';
+import type { InvoiceProductRow, InvoiceProductTotals } from '../../../utils/pricing/salesHistoryTax';
 import type { SalesInvoiceRow } from '../salesTypes';
-import { isLegacyBillerRole } from '../../../utils/permissions';
+import { isLegacyBillerRole } from '../../../utils/security/permissions';
 
 export interface UseSalesInvoiceLoaderContext {
   accountingView: "REAL_SALES" | "TAX_FILING" | "ALL";

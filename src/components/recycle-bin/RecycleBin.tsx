@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { isAdminRole, hasPermission } from '../../utils/permissions';
+import { isAdminRole, hasPermission } from '../../utils/security/permissions';
 import { type RecycleBinCategory, type RecycleBinProps } from './recycleBinTypes';
 import { useRecycleBinState } from './hooks/useRecycleBinState';
 import { useRecycleBinToasts } from './hooks/useRecycleBinToasts';

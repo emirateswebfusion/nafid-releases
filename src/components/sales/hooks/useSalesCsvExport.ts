@@ -2,11 +2,11 @@ import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { listInvoices, getInvoiceItems } from '../../../data/invoices';
-import { sortInvoicesByInvoiceNumber, buildInvoiceProductRows } from '../../../utils/salesHistoryTax';
+import { sortInvoicesByInvoiceNumber, buildInvoiceProductRows } from '../../../utils/pricing/salesHistoryTax';
 import { formatDate, PAYMENT_LABELS } from '../salesHistoryFormat';
 import { getProductsByIds } from '../../../data/products';
-import { getInvoiceNetTotal } from '../../../utils/salesHistoryAmount';
-import { isLegacyBillerRole } from '../../../utils/permissions';
+import { getInvoiceNetTotal } from '../../../utils/pricing/salesHistoryAmount';
+import { isLegacyBillerRole } from '../../../utils/security/permissions';
 import type { SalesInvoiceRow } from '../salesTypes';
 
 export interface UseSalesCsvExportContext {

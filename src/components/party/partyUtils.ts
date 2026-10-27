@@ -1,5 +1,5 @@
-import { getStoreTimezone } from '../../utils/timezoneHelper';
-import { parseUTCDate } from '../../utils/receiptGenerator';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { parseUTCDate } from '../../utils/print/receiptGenerator';
 
 export const formatDate = (d: string) => {
   if (!d) return '—';
@@ -7,7 +7,7 @@ export const formatDate = (d: string) => {
   return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export { formatDateTime } from '../../utils/dateDisplay';
+export { formatDateTime } from '../../utils/time/dateDisplay';
 
 export const toLocalInputValue = (iso: string): string => {
   const d = parseUTCDate(iso);

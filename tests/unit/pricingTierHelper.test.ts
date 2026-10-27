@@ -3,7 +3,7 @@ import {
   MRP_TIER_ID,
   sortTiersWithMrp,
   type PricingTier,
-} from '../../src/utils/pricingTierHelper';
+} from '../../src/utils/pricing/pricingTierHelper';
 
 describe('sortTiersWithMrp', () => {
   it('creates a default synthetic MRP tier when tier list is empty or undefined', () => {

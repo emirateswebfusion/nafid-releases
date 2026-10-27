@@ -19,6 +19,7 @@
 | R12 | `electron/sync/**` and `electron/main.ts` contain no `.prepare(`; SQL goes to `electron/db/statements/sync/<module>.ts` / `statements/main.ts` |
 | R13 | Every `eslint-disable` states its reason (`// eslint-disable-next-line rule -- why`) and the total may only shrink (`lintSuppressions` in `arch-baseline.json`, 94 on 27 Oct, all React-hook effect exceptions). Remove them one screen at a time when that screen is changed and tested anyway | `check-architecture.mjs` |
 | R14 | `src/components/` contains folders only: a screen lives in its feature folder next to its views and hooks (`components/<feature>/<Screen>.tsx`); app-wide pieces go to `app/`, `auth/`, `print/` or `ui/` | `check-architecture.mjs` |
+| R15 | `src/utils/` contains folders only: `pricing/`, `print/`, `time/`, `security/`; a new helper goes into the matching group (add a group folder if none fits) | `check-architecture.mjs` |
 
 `arch-baseline.json` and `lint-baseline.json` may shrink, never grow. Re-record them (`--update`, `npm run lint:baseline`)
 only in a deliberate maintenance change after debt went **down**.
@@ -42,7 +43,7 @@ only in a deliberate maintenance change after debt went **down**.
 - Interactive elements are real `<button>`/`<a>`. Dialogs use `components/ui/Modal` plus `hooks/useCloseOnEscape`, and new
   dialogs add `role="dialog"` + `aria-modal`.
 - Shared UI primitives come from `components/ui/`. Do not restyle a new button/input from scratch.
-- Format money with `formatCurrency` from `src/utils/money.ts` (billing screens use the compact
+- Format money with `formatCurrency` from `src/utils/pricing/money.ts` (billing screens use the compact
   `formatCurrency` re-exported by `components/billing/BillingConstants.ts`).
 
 ## 5.4 State

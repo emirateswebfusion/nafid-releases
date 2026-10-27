@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
-import { getUpiPageConfig } from '../../utils/upiConfig';
+import { getUpiPageConfig } from '../../utils/print/upiConfig';
 import { FloatToast } from '../ui/FloatToast';
 import { hasBridge } from '../../data/client';
 import { paymentSourcesApi } from '../../data/paymentSources';

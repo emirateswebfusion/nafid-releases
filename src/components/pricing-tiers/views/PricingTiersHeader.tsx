@@ -1,6 +1,6 @@
 import { BadgePercent, Layers, Package, X, Loader2, Save } from 'lucide-react';
 import clsx from 'clsx';
-import type { PricingTier } from '../../../utils/pricingTierHelper';
+import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import type { Product } from '../pricingTiersTypes';
 import type { PricingTiersState } from '../hooks/usePricingTiersState';
 

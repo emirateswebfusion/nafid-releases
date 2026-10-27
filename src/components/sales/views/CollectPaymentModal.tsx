@@ -1,10 +1,10 @@
 import { Modal } from '../../ui/Modal';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { Banknote, BookOpen, CheckCheck, CreditCard, AlertCircle, FileText, RefreshCw, Smartphone, Wallet } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
 import { Select } from '../../ui/Select';
-import type { UpiPageConfig } from '../../../utils/upiConfig';
+import type { UpiPageConfig } from '../../../utils/print/upiConfig';
 import type { SalesInvoiceRow, UpiSourceOption } from '../salesTypes';
 
 const COLLECT_PAYMENT_OPTIONS = [

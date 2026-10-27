@@ -1,6 +1,6 @@
 import type React from 'react';
-import { parsePrintFormat } from '../../../utils/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/receiptGenerator';
+import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
+import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
 import { type ComboOffer, type InvoiceRecord, type InvoiceItemRow, type ComboItemLine, type InvoiceStyle } from '../customerTypes';
 import { settingsApi } from '../../../data/settings';
 import { combosApi } from '../../../data/combos';
@@ -8,7 +8,7 @@ import { hasBridge } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
 import { useAuthStore } from '../../../store/authStore';
 import { formatDateTime } from '../customerFormat';
-import { generateInvoiceHtml } from '../../../utils/invoiceHtmlGenerator';
+import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { printingApi } from '../../../data/printing';
 import type { Customer } from '../customerTypes';
 

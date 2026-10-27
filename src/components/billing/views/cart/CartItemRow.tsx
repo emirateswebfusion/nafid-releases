@@ -5,7 +5,7 @@ import { ItemRateInput } from '../../ui/ItemRateInput';
 import { ItemTotalInput } from '../../ui/ItemTotalInput';
 import { type CartItem } from '../../../../store/cartStore';
 import { formatCurrency } from '../../BillingConstants';
-import { listRate, resolveLinePrice } from '../../../../utils/linePricing';
+import { listRate, resolveLinePrice } from '../../../../utils/pricing/linePricing';
 import type { BillingCartViewProps } from '../BillingCartView';
 
 export interface CartItemRowProps {

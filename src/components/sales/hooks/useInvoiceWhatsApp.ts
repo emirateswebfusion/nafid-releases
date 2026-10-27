@@ -2,10 +2,10 @@ import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { getSetting, type PrintFormatSettings } from '../../../data/settings';
-import { parsePrintFormat } from '../../../utils/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/receiptGenerator';
-import { generateInvoiceHtml } from '../../../utils/invoiceHtmlGenerator';
-import { formatWhatsAppBillMessage } from '../../../utils/whatsappBillHelper';
+import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
+import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
+import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
+import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelper';
 import { whatsappApi } from '../../../data/whatsapp';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
 

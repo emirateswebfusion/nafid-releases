@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Clock, Globe } from 'lucide-react';
-import { getStoreTimezone, SUPPORTED_TIMEZONES } from '../../utils/timezoneHelper';
-import { getAppTimeFormat } from '../../utils/receiptGenerator';
+import { getStoreTimezone, SUPPORTED_TIMEZONES } from '../../utils/time/timezoneHelper';
+import { getAppTimeFormat } from '../../utils/print/receiptGenerator';
 import clsx from 'clsx';
 
 interface DigitalClockProps {

@@ -3,7 +3,7 @@ import {
   getInvoiceNetTotal,
   getInvoicePreDeductionTotal,
   getSalesHistoryAmount,
-} from '../../src/utils/salesHistoryAmount';
+} from '../../src/utils/pricing/salesHistoryAmount';
 
 describe('getInvoiceNetTotal', () => {
   it('prefers the stored grand total', () => {

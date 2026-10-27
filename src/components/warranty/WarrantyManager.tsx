@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { parseUTCDate } from '../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../utils/timezoneHelper';
+import { parseUTCDate } from '../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { useAuthStore } from '../../store/authStore';
 import { Plus, Search, Printer, Shield, ShieldCheck, Trash, Trash2, AlertCircle, RefreshCw, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';

@@ -1,6 +1,6 @@
 import { Search, RefreshCw, Plus, Eye, Pencil, Trash, FileText } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { formatDateLabel, type Quotation } from '../quotationTypes';
 import type { QuotationState } from '../hooks/useQuotationState';
 

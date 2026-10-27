@@ -1,5 +1,5 @@
 import { Loader2, RotateCcw, X } from 'lucide-react';
-import { formatAmount } from '../../../utils/money';
+import { formatAmount } from '../../../utils/pricing/money';
 import { formatDate, type DeletedInvoice } from '../recycleBinTypes';
 import type { RecycleBinState } from '../hooks/useRecycleBinState';
 

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import { listRate, resolveLinePrice } from '../utils/linePricing';
-import { splitTaxAmount } from '../utils/checkoutLines';
+import { listRate, resolveLinePrice } from '../utils/pricing/linePricing';
+import { splitTaxAmount } from '../utils/pricing/checkoutLines';
 
 export interface CartItem {
   item_id?: string;

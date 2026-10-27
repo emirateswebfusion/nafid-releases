@@ -5,7 +5,7 @@ import { Pencil, Trash } from 'lucide-react';
 import { ItemTotalInput } from '../../ui/ItemTotalInput';
 import { type CartItem } from '../../../../store/cartStore';
 import { formatCurrency } from '../../BillingConstants';
-import { resolveLinePrice } from '../../../../utils/linePricing';
+import { resolveLinePrice } from '../../../../utils/pricing/linePricing';
 import type { BillingCartViewProps } from '../BillingCartView';
 
 export interface CartScrapRowProps {

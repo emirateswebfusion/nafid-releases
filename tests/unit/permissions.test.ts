@@ -8,7 +8,7 @@ import {
   isAdminRole,
   isLegacyBillerRole,
   type UserPermissions,
-} from '../../src/utils/permissions';
+} from '../../src/utils/security/permissions';
 
 describe('isAdminRole', () => {
   it('returns true for admin-equivalent roles (case-insensitive and trimmed)', () => {

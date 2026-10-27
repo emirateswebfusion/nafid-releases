@@ -1,7 +1,7 @@
 import type * as B from './billingTypes';
 import { scrapApi } from '../../data/scrap';
 import { returnsApi } from '../../data/returns';
-import { matchesDocumentNumber } from '../../utils/invoiceNumberHelper';
+import { matchesDocumentNumber } from '../../utils/pricing/invoiceNumberHelper';
 
 /**
  * Resolving scrap / return credits that can be deducted from a bill.

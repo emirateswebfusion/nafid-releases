@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { CartItem } from '../store/cartStore';
+import type { CartItem } from '../../store/cartStore';
 import { listRate, resolveLinePrice } from './linePricing';
 
 /**

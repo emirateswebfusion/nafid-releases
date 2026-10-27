@@ -1,5 +1,5 @@
 import { getStoreTimezone } from './timezoneHelper';
-import { parseUTCDate, getAppTimeFormat } from './receiptGenerator';
+import { parseUTCDate, getAppTimeFormat } from '../print/receiptGenerator';
 
 /** Display helpers for stored UTC timestamps, in the store timezone. Empty / missing values show as an em dash. */
 

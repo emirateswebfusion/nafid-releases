@@ -1,7 +1,7 @@
 import { Modal } from '../../ui/Modal';
 import { X, User, DollarSign, Shield, AlertCircle, Loader2, Save } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { StaffBasicTab } from './StaffBasicTab';
 import { StaffCompensationTab } from './StaffCompensationTab';
 import { StaffAccessTab } from './StaffAccessTab';

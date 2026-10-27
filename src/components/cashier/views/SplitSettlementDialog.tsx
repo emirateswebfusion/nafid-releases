@@ -1,12 +1,12 @@
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { SplitSquareHorizontal, Banknote, CreditCard, Smartphone, Wallet, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { Select } from '../../ui/Select';
 import clsx from 'clsx';
 import { cashierApi } from '../../../data/cashier';
 import { useTabStore } from '../../../store/tabStore';
-import type { UpiPageConfig } from '../../../utils/upiConfig';
+import type { UpiPageConfig } from '../../../utils/print/upiConfig';
 import type { CashierInvoiceRow, CashierUpiSourceRow } from '../cashierTypes';
 
 export interface SplitSettlementDialogProps {

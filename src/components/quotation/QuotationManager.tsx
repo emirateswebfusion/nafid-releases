@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/authStore';
 import { X, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import clsx from 'clsx';
-import { numberToIndianWords } from '../../utils/receiptGenerator';
+import { numberToIndianWords } from '../../utils/print/receiptGenerator';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { useQuotationState } from './hooks/useQuotationState';
 import { useQuotationLoader } from './hooks/useQuotationLoader';

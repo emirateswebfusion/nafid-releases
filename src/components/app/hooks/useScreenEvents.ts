@@ -3,7 +3,7 @@ import { useCartStore } from '../../../store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from '../../../store/tabStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useScaleStore } from '../../../store/scaleStore';
-import { isAdminRole } from '../../../utils/permissions';
+import { isAdminRole } from '../../../utils/security/permissions';
 import { isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../../../config/featureFlags';
 import { isDesktopRuntime } from '../../../data/client';
 import { bridgeEvents } from '../../../data/events';

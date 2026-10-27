@@ -1,8 +1,8 @@
 import React from 'react';
-import { isAdminRole } from '../../../utils/permissions';
+import { isAdminRole } from '../../../utils/security/permissions';
 import { Store, RotateCcw, TrendingUp, PauseCircle, Truck, Recycle, FileText, ArrowLeftRight, Banknote, BookOpen, Users, Package, User, Layers, Shield, Settings, X } from 'lucide-react';
 import clsx from 'clsx';
-import { displayInvoiceNumber } from '../../../utils/invoiceNumberHelper';
+import { displayInvoiceNumber } from '../../../utils/pricing/invoiceNumberHelper';
 import { isHeaderButtonVisible, QUICK_PAGES_LIST } from '../../../store/billingUIStore';
 import { isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';

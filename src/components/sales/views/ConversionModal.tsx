@@ -2,7 +2,7 @@ import { Modal } from '../../ui/Modal';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { ArrowDownRight, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { useAuthStore } from '../../../store/authStore';
 import { isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';

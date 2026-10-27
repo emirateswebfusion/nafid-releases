@@ -4,9 +4,9 @@ import type { UpiSourceOption } from './salesTypes';
 import type { DisplaySplitDetails } from './invoiceDisplayTypes';
 /** Sales History display helpers: payment labels/colours, tax rate filter options, date formatting, day grouping,
  * revenue per payment filter, invoice type info and split / UPI payment details. */
-import { getStoreTimezone } from '../../utils/timezoneHelper';
-import { parseUTCDate, getAppTimeFormat } from '../../utils/receiptGenerator';
-import { getInvoiceNetTotal } from '../../utils/salesHistoryAmount';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { parseUTCDate, getAppTimeFormat } from '../../utils/print/receiptGenerator';
+import { getInvoiceNetTotal } from '../../utils/pricing/salesHistoryAmount';
 import { Building, User, FileText } from 'lucide-react';
 
 export const PAYMENT_LABELS: Record<string, string> = {

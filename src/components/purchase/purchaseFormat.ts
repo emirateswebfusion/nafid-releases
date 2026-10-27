@@ -1,6 +1,6 @@
 /** Purchase bill screen helpers: date formatting and the focusable fields of the bill form (keyboard navigation). */
-import { getStoreTimezone } from '../../utils/timezoneHelper';
-import { parseUTCDate } from '../../utils/receiptGenerator';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { parseUTCDate } from '../../utils/print/receiptGenerator';
 
 export const formatDate = (d: string | null) => {
   if (!d) return '—';

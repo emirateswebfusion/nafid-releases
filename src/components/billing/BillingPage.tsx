@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useTabStore, type SplitDetails } from '../../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { useFeatureFlagsStore } from '../../config/featureFlags';
-import { isAdminRole } from '../../utils/permissions';
+import { isAdminRole } from '../../utils/security/permissions';
 import { useBillingUIStore } from '../../store/billingUIStore';
 
 import { PAYMENT_OPTIONS } from './BillingConstants';

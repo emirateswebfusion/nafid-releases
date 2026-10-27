@@ -9,7 +9,7 @@ import {
   parseEmergencyPanicConfig, 
   type EmergencyPanicConfig,
   type EmergencyWipeCommand
-} from '../../utils/emergencyPurge';
+} from '../../utils/security/emergencyPurge';
 import { emergencyCloud } from '../../data/cloud/emergency';
 import { useAuthStore } from '../../store/authStore';
 import { hasBridge } from '../../data/client';

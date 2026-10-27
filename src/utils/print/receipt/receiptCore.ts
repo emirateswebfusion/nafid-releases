@@ -1,4 +1,4 @@
-import { getStoreTimezone } from '../timezoneHelper';
+import { getStoreTimezone } from '../../time/timezoneHelper';
 
 export interface ReceiptItem {
   name: string;

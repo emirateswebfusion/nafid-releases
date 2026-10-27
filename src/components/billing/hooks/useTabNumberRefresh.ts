@@ -6,7 +6,7 @@ import { invoicesApi } from '../../../data/invoices';
 import { scrapApi } from '../../../data/scrap';
 import { quotationsApi } from '../../../data/quotations';
 import { returnsApi } from '../../../data/returns';
-import { getNextOffsetInvoiceNumber } from '../../../utils/invoiceNumberHelper';
+import { getNextOffsetInvoiceNumber } from '../../../utils/pricing/invoiceNumberHelper';
 import type { InvoiceType } from '../../../store/cartStore';
 import type { Tab } from '../../../store/tabStore';
 

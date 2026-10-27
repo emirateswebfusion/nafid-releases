@@ -1,5 +1,5 @@
 import { type RefObject } from 'react';
-import { MRP_TIER_ID, type PricingTier } from '../../../utils/pricingTierHelper';
+import { MRP_TIER_ID, type PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import { isTierDefault } from '../pricingTiersTypes';
 import { pricingTiersApi } from '../../../data/pricingTiers';
 import { settingsApi } from '../../../data/settings';

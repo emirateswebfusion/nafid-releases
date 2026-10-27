@@ -1,5 +1,5 @@
 /** Stock report screen: product, grade / party / sales rows, category stats, sales totals and masked valuation. */
-import type { calculateMaskedStockValuation } from '../../utils/staffDataMasking';
+import type { calculateMaskedStockValuation } from '../../utils/security/staffDataMasking';
 import type { Product as DataProduct } from '../../data/products';
 
 export type Product = DataProduct;

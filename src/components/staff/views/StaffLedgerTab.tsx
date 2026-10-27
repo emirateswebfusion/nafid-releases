@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { StaffMember, StaffLedgerRow } from '../staffTypes';
 
 export interface StaffLedgerTabProps {

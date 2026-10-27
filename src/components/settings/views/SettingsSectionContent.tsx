@@ -10,7 +10,7 @@ import { StoreSettingsTab } from '../tabs/StoreSettingsTab';
 import { WhatsAppSettingsTab } from '../tabs/WhatsAppSettingsTab';
 import { HardwareSettingsTab } from '../tabs/HardwareSettingsTab';
 import { ProductsSettingsTab } from '../tabs/ProductsSettingsTab';
-import { isAdminRole } from '../../../utils/permissions';
+import { isAdminRole } from '../../../utils/security/permissions';
 import { PrintingSettingsTab } from '../tabs/PrintingSettingsTab';
 import { PrintOptionsSettingsTab } from '../tabs/PrintOptionsSettingsTab';
 import { SystemPreferencesTab } from '../tabs/SystemPreferencesTab';

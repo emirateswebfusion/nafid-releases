@@ -3,7 +3,7 @@ import { hasBridge } from '../../../data/client';
 import { whatsappApi } from '../../../data/whatsapp';
 import { bridgeEvents } from '../../../data/events';
 import { settingsApi } from '../../../data/settings';
-import { DEFAULT_SHOP_CLOSING_CONFIG, DEFAULT_CHECKLIST, type ShopClosingOverviewConfig, getSampleClosingSummary, generateWhatsAppClosingMessage } from '../../../utils/shopClosingHelper';
+import { DEFAULT_SHOP_CLOSING_CONFIG, DEFAULT_CHECKLIST, type ShopClosingOverviewConfig, getSampleClosingSummary, generateWhatsAppClosingMessage } from '../../../utils/time/shopClosingHelper';
 import type { WhatsAppSettingsState } from './useWhatsAppSettingsState';
 
 export interface UseWhatsAppSettingsLoadersContext {

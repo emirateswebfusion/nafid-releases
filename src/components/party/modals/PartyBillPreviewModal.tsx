@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { Modal } from '../../ui/Modal';
 import { formatDateTime } from '../partyUtils';
 import { useAuthStore } from '../../../store/authStore';
-import { hasPermission } from '../../../utils/permissions';
+import { hasPermission } from '../../../utils/security/permissions';
 
 export interface PartyBillPreviewModalProps {
   isOpen: boolean;

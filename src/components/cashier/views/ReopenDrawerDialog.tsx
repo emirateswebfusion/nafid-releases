@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { RotateCcw, AlertTriangle } from 'lucide-react';
 import { formatBusinessDate } from '../cashierFormat';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { CashDrawerRow } from '../cashierTypes';
 
 export interface ReopenDrawerDialogProps {

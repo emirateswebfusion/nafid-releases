@@ -4,14 +4,14 @@ import { User, Phone, MapPin, Building } from 'lucide-react';
 import clsx from 'clsx';
 import { CustomerOutstandingBadge } from '../ui/CustomerOutstandingBadge';
 import { Select } from '../../ui/Select';
-import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
+import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
 import { INDIAN_STATES } from '../BillingConstants';
 import type { PaymentMethod, SplitDetails, Tab } from '../../../store/tabStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { InvoiceType } from '../../../store/cartStore';
 import type { CustomerSuggestion, MatchedParty } from '../customerDirectory';
-import type { PricingTier } from '../../../utils/pricingTierHelper';
+import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import type { CustomerFieldState } from '../hooks/useCustomerFieldState';
 import type { CustomerFieldHandlers } from '../hooks/useCustomerFieldHandlers';
 

@@ -3,7 +3,7 @@ import {
   buildInvoiceProductRows,
   buildTaxFilteredProductRows,
   sortInvoicesByInvoiceNumber,
-} from '../../src/utils/salesHistoryTax';
+} from '../../src/utils/pricing/salesHistoryTax';
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const sum = (values: number[]) => round2(values.reduce((total, value) => total + value, 0));

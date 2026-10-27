@@ -2,8 +2,8 @@ import React from 'react';
 import { lookupReturnCredit, lookupScrapCredit } from '../deductionLookup';
 import { ArrowLeftRight } from 'lucide-react';
 import { formatCurrency } from '../BillingConstants';
-import { parseUTCDate } from '../../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { parseUTCDate } from '../../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type { ScrapDeductionRow } from '../billingTypes';
 
 /** A pending return invoice offered as a deduction (fields the dropdown reads). */

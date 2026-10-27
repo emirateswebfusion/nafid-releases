@@ -1,7 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
 import { Package } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { Skeleton } from '../../ui/Skeleton';
 import type { StockReportState } from '../hooks/useStockReportState';
 import type { EnrichedProduct, MaskedValuation, Product } from '../stockReportTypes';

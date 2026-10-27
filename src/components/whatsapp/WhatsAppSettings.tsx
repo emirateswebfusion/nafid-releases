@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { FloatToast } from '../ui/FloatToast';
 import { useAuthStore } from '../../store/authStore';
-import { isAdminRole } from '../../utils/permissions';
-import { type ShopClosingOverviewConfig, CHECKLIST_DEFINITIONS } from '../../utils/shopClosingHelper';
+import { isAdminRole } from '../../utils/security/permissions';
+import { type ShopClosingOverviewConfig, CHECKLIST_DEFINITIONS } from '../../utils/time/shopClosingHelper';
 import { useWhatsAppSettingsState } from './hooks/useWhatsAppSettingsState';
 import { useWhatsAppSettingsLoaders } from './hooks/useWhatsAppSettingsLoaders';
 import { useWhatsAppConnection } from './hooks/useWhatsAppConnection';

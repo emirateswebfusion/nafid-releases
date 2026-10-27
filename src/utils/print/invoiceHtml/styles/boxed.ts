@@ -1,5 +1,5 @@
 import { getEffectiveBillSettings, formatPrintItem, numberToIndianWords } from '../../receiptGenerator';
-import { splitTaxAmount } from '../../checkoutLines';
+import { splitTaxAmount } from '../../../pricing/checkoutLines';
 import { type InvoiceData, shouldShowItemMrpHtml, formatItemNameForBill } from '../invoiceHtmlCore';
 
 

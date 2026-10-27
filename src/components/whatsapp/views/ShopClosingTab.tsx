@@ -4,8 +4,8 @@ import { ClosingTimingSection } from './ClosingTimingSection';
 import { ClosingChecklistSection } from './ClosingChecklistSection';
 import { ClosingPreviewPanel } from './ClosingPreviewPanel';
 import { ClosingHistoryPanel } from './ClosingHistoryPanel';
-import type { ShopClosingSendTiming, ShopClosingChecklist } from '../../../utils/shopClosingHelper';
-import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
+import type { ShopClosingSendTiming, ShopClosingChecklist } from '../../../utils/time/shopClosingHelper';
+import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 import type { WhatsAppSettingsState } from '../hooks/useWhatsAppSettingsState';
 
 export interface ShopClosingTabProps {

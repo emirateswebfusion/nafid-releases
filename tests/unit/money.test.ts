@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAmount, formatCurrency } from '../../src/utils/money';
+import { formatAmount, formatCurrency } from '../../src/utils/pricing/money';
 
 describe('formatCurrency', () => {
   it('groups digits the Indian way with two decimals', () => {

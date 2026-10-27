@@ -2,7 +2,7 @@ import React from 'react';
 import { QrCode, Settings, Store } from 'lucide-react';
 import clsx from 'clsx';
 import { WhatsAppSettings } from '../../whatsapp/WhatsAppSettings';
-import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
+import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 
 export interface WhatsAppSettingsTabProps {
   tenantId?: string;

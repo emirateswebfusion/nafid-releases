@@ -8,19 +8,19 @@ and update every caller in the same change.
 
 | Rule | Module | Tests |
 |---|---|---|
-| Line unit rate: list/grade rate → catalog offer/discount → ad-hoc cashier adjustment; scrap lines invert discounts | `src/utils/linePricing.ts` (`listRate`, `resolveLinePrice`) | `tests/unit/linePricing.test.ts` (incl. 5,000-case equivalence with the legacy rule) |
-| Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
+| Line unit rate: list/grade rate → catalog offer/discount → ad-hoc cashier adjustment; scrap lines invert discounts | `src/utils/pricing/linePricing.ts` (`listRate`, `resolveLinePrice`) | `tests/unit/linePricing.test.ts` (incl. 5,000-case equivalence with the legacy rule) |
+| Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/pricing/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
-| Money formatting (₹, en-IN grouping, sign) | `src/utils/money.ts` (`formatCurrency`, `formatAmount`) | `tests/unit/money.test.ts` |
-| Document numbers: offsets (including digit-only values with an empty prefix), digit matching | `src/utils/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
+| Money formatting (₹, en-IN grouping, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`) | `tests/unit/money.test.ts` |
+| Document numbers: offsets (including digit-only values with an empty prefix), digit matching | `src/utils/pricing/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
 | Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
-| Sales-history amounts and tax breakdown | `src/utils/salesHistoryAmount.ts`, `src/utils/salesHistoryTax.ts` | `tests/unit/salesHistory*.test.ts` |
-| Permissions: keys, groups, legacy `restricted_page` conversion, `hasPermission`, `isAdminRole` | `src/utils/permissions.ts` | — (add tests when touched) |
-| Pricing tiers applied to products | `src/utils/pricingTierHelper.ts` | — |
-| Store timezone and UTC parsing | `src/utils/timezoneHelper.ts` | — |
-| Staff data masking | `src/utils/staffDataMasking.ts` | — |
-| Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts` | — |
+| Sales-history amounts and tax breakdown | `src/utils/pricing/salesHistoryAmount.ts`, `src/utils/pricing/salesHistoryTax.ts` | `tests/unit/salesHistory*.test.ts` |
+| Permissions: keys, groups, legacy `restricted_page` conversion, `hasPermission`, `isAdminRole` | `src/utils/security/permissions.ts` | — (add tests when touched) |
+| Pricing tiers applied to products | `src/utils/pricing/pricingTierHelper.ts` | — |
+| Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
+| Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
+| Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts` | — |
 
 Main-process rules live in `electron/services/` (document numbering, party ledger, cash drawer reconciliation, store time)
 and `electron/utils/` (ids, cashier settlement math).
@@ -47,12 +47,12 @@ and `electron/utils/` (ids, cashier settlement math).
 
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
-- Intra-state tax amounts use `splitTaxAmount` from `src/utils/checkoutLines.ts`: CGST is rounded first and SGST is
+- Intra-state tax amounts use `splitTaxAmount` from `src/utils/pricing/checkoutLines.ts`: CGST is rounded first and SGST is
   the rounded remainder, so both add up to the tax. Existing invoice rows are not rewritten. Renderer summaries and
   historical fallbacks reuse this helper; the main-process Bill-of-Supply conversion uses the same rule in
   `electron/utils/taxSplit.ts` to keep the process boundary intact.
 - `nafid-server/src/utils/cashierSettlement.ts` and `electron/utils/cashierSettlement.ts`, and the permission conversion in
-  `src/utils/permissions.ts` vs `nafid-server/src/services/permissions.ts`, are **cross-app copies of one rule**.
+  `src/utils/security/permissions.ts` vs `nafid-server/src/services/permissions.ts`, are **cross-app copies of one rule**.
   They must stay behaviourally identical until a shared package exists; change both with tests.
 - `electron/sync/syncWorker.ts` has private copies of the auth-file reader and date parsing that also exist in
   `electron/services/{authStorage,storeTime}.ts`. Consolidate only together with sync characterization tests.
@@ -65,12 +65,12 @@ and `electron/utils/` (ids, cashier settlement math).
 | Offline login (no network) | `authApi.loginOffline` → `electron/ipc/authHandlers.ts` (`localAuthenticateUser`, against users cached locally by sync) |
 | Token persistence | `authApi.saveToken/getToken` → `electron/services/authStorage.ts` (Electron `safeStorage`, `auth.enc`) |
 | Session state, role, permissions | `useAuthStore` (`role`, `permissions`, `isAuthenticated`) |
-| UI permission checks | `hasPermission(user, 'sales.create')` from `src/utils/permissions.ts`; `<PermissionGuard>` component |
+| UI permission checks | `hasPermission(user, 'sales.create')` from `src/utils/security/permissions.ts`; `<PermissionGuard>` component |
 | Biller PIN (quick user switch) | `BillerPinModal` → `staffApi.verifyBillerPin` |
 | Expired token | `bridgeEvents.onTokenExpired` / 401 in `fetchApi` → cloud sync paused + session-expired modal |
 
 Permission keys are the shared contract with the server (`requirePermission('sales.view')`). Admin/owner roles bypass
-checks on both sides. Add a new permission key in **both** `src/utils/permissions.ts` (with its UI group/label) and
+checks on both sides. Add a new permission key in **both** `src/utils/security/permissions.ts` (with its UI group/label) and
 `nafid-server/src/services/permissions.ts`.
 
 `products.create` requires the explicit `products.create` permission, wildcard, or admin/owner bypass. Other

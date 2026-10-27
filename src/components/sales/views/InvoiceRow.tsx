@@ -4,8 +4,8 @@ import type { UpiSourceOption } from '../salesTypes';
 import { PAYMENT_COLORS, PAYMENT_LABELS, getInvoiceTypeInfo, formatDate, parseSplitDetails, getUpiDetailsFromInvoice } from '../salesHistoryFormat';
 import clsx from 'clsx';
 import { Receipt, FileText, Clock, User, ChevronRight } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
-import { getSalesHistoryAmount } from '../../../utils/salesHistoryAmount';
+import { formatCurrency } from '../../../utils/pricing/money';
+import { getSalesHistoryAmount } from '../../../utils/pricing/salesHistoryAmount';
 import type { SalesInvoiceRow } from '../salesTypes';
 
 /* ─── Payment Badge ─── */

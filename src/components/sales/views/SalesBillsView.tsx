@@ -1,16 +1,16 @@
 import React, { Fragment } from 'react';
 import { IndianRupee, Layers, TrendingUp, Percent, Receipt, BarChart3, Loader2, Search, X, SlidersHorizontal, Building, User, FileText, ShieldAlert, CheckCheck, ArrowDownRight, RefreshCw } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { TAX_RATES, formatDate } from '../salesHistoryFormat';
-import { isAdminRole } from '../../../utils/permissions';
+import { isAdminRole } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import { Skeleton } from '../../ui/Skeleton';
 import { InvoiceRow } from './InvoiceRow';
-import type { InvoiceProductRow } from '../../../utils/salesHistoryTax';
+import type { InvoiceProductRow } from '../../../utils/pricing/salesHistoryTax';
 import type { SalesInvoiceRow, UpiSourceOption } from '../salesTypes';
 
 export interface SalesBillsViewProps {

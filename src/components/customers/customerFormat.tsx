@@ -2,9 +2,9 @@
 import { type InvoiceRecord } from './customerTypes';
 import clsx from 'clsx';
 
-export { formatShortDate as formatDate } from '../../utils/dateDisplay';
+export { formatShortDate as formatDate } from '../../utils/time/dateDisplay';
 
-export { formatDateTime } from '../../utils/dateDisplay';
+export { formatDateTime } from '../../utils/time/dateDisplay';
 
 export function getInitials(name: string): string {
   if (!name) return 'C';

@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import Barcode from 'react-barcode';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../../utils/receiptGenerator';
-import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../../utils/invoiceHtmlGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../../utils/print/receiptGenerator';
+import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../../utils/print/invoiceHtmlGenerator';
 import { useAuthStore } from '../../store/authStore';
 
 const SAMPLE_ITEMS: ReceiptItem[] = [

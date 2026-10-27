@@ -3,7 +3,7 @@ import React, { useCallback } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
 import { v4 as uuidv4 } from 'uuid';
-import { listRate, resolveLinePrice } from '../../../utils/linePricing';
+import { listRate, resolveLinePrice } from '../../../utils/pricing/linePricing';
 import type { CartItem, InvoiceType } from '../../../store/cartStore';
 import type { PaymentMethod, SplitDetails, Tab } from '../../../store/tabStore';
 

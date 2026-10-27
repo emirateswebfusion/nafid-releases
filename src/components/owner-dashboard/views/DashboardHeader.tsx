@@ -1,6 +1,6 @@
 import React from 'react';
-import { isAdminRole, formatRoleName } from '../../../utils/permissions';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
 import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';

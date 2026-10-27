@@ -1,5 +1,5 @@
 import { Trash2, RotateCcw, Eye } from 'lucide-react';
-import { formatAmount } from '../../../utils/money';
+import { formatAmount } from '../../../utils/pricing/money';
 import { timeAgo, type DeletedInvoice } from '../recycleBinTypes';
 
 export interface InvoiceTableViewProps {

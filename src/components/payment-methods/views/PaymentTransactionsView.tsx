@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { TYPE_CONFIG, QUICK_CATEGORIES, formatDateTime } from '../paymentMethodsTypes';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { PlusCircle, ArrowDownToLine, ArrowUpFromLine, Search, X, History } from 'lucide-react';
 import { Input } from '../../ui/Input';
 import { Skeleton } from '../../ui/Skeleton';

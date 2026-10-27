@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type PricingTier } from '../../../utils/pricingTierHelper';
+import { type PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import { type Product } from '../pricingTiersTypes';
 
 /**

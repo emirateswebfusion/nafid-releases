@@ -1,5 +1,5 @@
 import type { ScrapInvoiceTxRow } from './scrapTypes';
-import type { ReceiptData } from '../../utils/receiptGenerator';
+import type { ReceiptData } from '../../utils/print/receiptGenerator';
 
 type ScrapPrintSettings = {
   showBillerName?: boolean;

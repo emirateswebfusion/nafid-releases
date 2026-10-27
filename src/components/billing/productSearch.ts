@@ -1,6 +1,6 @@
 import type * as B from './billingTypes';
 import type { Product } from '../../data/products';
-import { sortProductsBySearchPriority, cleanSearchText } from '../../utils/productSort';
+import { sortProductsBySearchPriority, cleanSearchText } from '../../utils/pricing/productSort';
 
 /** A product search row. Combos are mapped into the same list with `isCombo`. */
 export type ProductSearchResult = Product & { isCombo?: boolean; combo_id?: string; pieces_per_kg?: number | null };

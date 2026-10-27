@@ -5,7 +5,7 @@ import {
   parseEmergencyPanicConfig, 
   isMatchingHotkey,
   type EmergencyPanicConfig 
-} from '../utils/emergencyPurge';
+} from '../utils/security/emergencyPurge';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { hasBridge } from '../data/client';

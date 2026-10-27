@@ -2,7 +2,7 @@ import React from 'react';
 import { Banknote, RefreshCw, Clock, History, DollarSign, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { formatBusinessDate, todayStr } from '../cashierFormat';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { hasBridge } from '../../../data/client';
 import { syncApi } from '../../../data/sync';
 import { RedCrossButton } from '../../ui/RedCrossButton';

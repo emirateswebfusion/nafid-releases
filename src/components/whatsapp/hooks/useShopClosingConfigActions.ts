@@ -1,7 +1,7 @@
 import { hasBridge } from '../../../data/client';
 import { whatsappApi } from '../../../data/whatsapp';
-import { type ShopClosingSendTiming, type ShopClosingChecklist, CHECKLIST_DEFINITIONS, ALL_CHECKLIST_SELECTED, ALL_CHECKLIST_CLEARED, DEFAULT_CHECKLIST, isValidPhoneNumber } from '../../../utils/shopClosingHelper';
-import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
+import { type ShopClosingSendTiming, type ShopClosingChecklist, CHECKLIST_DEFINITIONS, ALL_CHECKLIST_SELECTED, ALL_CHECKLIST_CLEARED, DEFAULT_CHECKLIST, isValidPhoneNumber } from '../../../utils/time/shopClosingHelper';
+import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 import type { WhatsAppSettingsState } from './useWhatsAppSettingsState';
 
 export interface UseShopClosingConfigActionsContext {

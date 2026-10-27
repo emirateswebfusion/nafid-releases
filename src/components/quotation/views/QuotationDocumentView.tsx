@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { formatDateLabel, type Quotation } from '../quotationTypes';
 import type { QuotationState } from '../hooks/useQuotationState';
 

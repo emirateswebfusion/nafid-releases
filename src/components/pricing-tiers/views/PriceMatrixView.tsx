@@ -1,7 +1,7 @@
 import { type RefObject } from 'react';
 import { Search, X, Filter, ChevronDown, Tags } from 'lucide-react';
 import { Skeleton } from '../../ui/Skeleton';
-import type { PricingTier } from '../../../utils/pricingTierHelper';
+import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import type { Product } from '../pricingTiersTypes';
 import type { PricingTiersState } from '../hooks/usePricingTiersState';
 import { MatrixRow } from './MatrixRow';

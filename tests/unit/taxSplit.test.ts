@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitTaxAmount as splitRendererTaxAmount } from '../../src/utils/checkoutLines';
+import { splitTaxAmount as splitRendererTaxAmount } from '../../src/utils/pricing/checkoutLines';
 import { splitTaxAmount as splitMainTaxAmount } from '../../electron/utils/taxSplit';
 
 describe('CGST/SGST tax split', () => {

@@ -1,8 +1,8 @@
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { printingApi } from '../../../data/printing';
-import { generateQuotationHtml, type QuotationPrintData, type QuotationPrintItem } from '../../../utils/quotationHtmlGenerator';
-import { parseUTCDate } from '../../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { generateQuotationHtml, type QuotationPrintData, type QuotationPrintItem } from '../../../utils/print/quotationHtmlGenerator';
+import { parseUTCDate } from '../../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type { QuotationState } from './useQuotationState';
 
 export interface UseQuotationExportContext {

@@ -19,7 +19,7 @@ vi.mock('../../src/store/cartStore', () => ({ useCartStore: { getState: () => ca
 vi.mock('../../src/store/tabStore', () => ({ useTabStore: { getState: () => ({ tabs: [{ id: 'tab1' }] }) } }));
 
 const { runScrapCheckout } = await import('../../src/components/billing/checkout/scrapCheckout');
-const { resolveLinePrice } = await import('../../src/utils/linePricing');
+const { resolveLinePrice } = await import('../../src/utils/pricing/linePricing');
 type Ctx = Parameters<typeof runScrapCheckout>[0];
 
 const items = [

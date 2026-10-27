@@ -1,7 +1,7 @@
 import { Search, UserX } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 
 export interface StaffListProps {

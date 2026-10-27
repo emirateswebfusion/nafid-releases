@@ -1,5 +1,5 @@
 
-export { formatDateTime } from '../../utils/dateDisplay';
+export { formatDateTime } from '../../utils/time/dateDisplay';
 
 // Converts a naive local datetime-local value (e.g. "2026-08-16T23:25") into a
 // timezone-aware UTC ISO string so Postgres stores the true instant, not local

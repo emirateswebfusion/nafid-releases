@@ -1,5 +1,5 @@
 import { DollarSign, KeyRound, Lock, CheckCircle2 } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 
