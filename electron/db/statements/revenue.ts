@@ -5,3 +5,8 @@ export function counterSalePredicate(alias: 'i' | '' = ''): string {
   const column = `${alias ? `${alias}.` : ''}converted_from_invoice_id`;
   return `(${column} IS NULL OR ${column} = '')`;
 }
+
+/** Revenue inclusion is stored on the invoice, independent of today's settings. */
+export function countsInRevenue(alias: 'i' | '' = ''): string {
+  return `${alias ? `${alias}.` : ''}counts_in_revenue = 1`;
+}

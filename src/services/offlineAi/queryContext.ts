@@ -17,6 +17,7 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
     try {
       const invs = await invoicesApi.getInvoices({
         tenant_id: tenantId,
+        revenue_only: true,
         filterDate: fromDate,
         filterDateEnd: toDate,
       });
@@ -33,7 +34,8 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
       try {
         const res = await invoicesApi.getInvoicesSummary({
           tenant_id: tenantId,
-          filterDate: fromDate,
+          revenue_only: true,
+        filterDate: fromDate,
           filterDateEnd: toDate,
         });
         if (res && typeof res.totalSales === 'number') {

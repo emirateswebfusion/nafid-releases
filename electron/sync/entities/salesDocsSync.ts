@@ -177,6 +177,9 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 sgst_total: Number(currentInv.sgst_total) || 0,
                 igst_total: Number(currentInv.igst_total) || 0,
                 supply_type: currentInv.supply_type || 'INTRA',
+                counts_in_revenue: currentInv.counts_in_revenue ?? 1,
+                bill_purpose: currentInv.bill_purpose ?? 'SALE',
+                stock_applied: currentInv.stock_applied ?? 1,
                 notes: currentInv.notes || currentInv.description || null,
                 description: currentInv.description || currentInv.notes || null,
               });

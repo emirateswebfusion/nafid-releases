@@ -28,6 +28,8 @@ export interface TabSnapshot {
   isQuotationMode: boolean;
   isReturnMode: boolean;
   isScrapMode: boolean;
+  isFilingOnly?: boolean;
+  filingPreviousInvoiceType?: InvoiceType;
   returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL' | 'CREDIT';
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
@@ -108,6 +110,8 @@ function getSnapshotFromCartStore(cartState: ReturnType<typeof useCartStore.getS
     isQuotationMode: cartState.isQuotationMode,
     isReturnMode: cartState.isReturnMode,
     isScrapMode: cartState.isScrapMode,
+    isFilingOnly: cartState.isFilingOnly,
+    filingPreviousInvoiceType: cartState.filingPreviousInvoiceType,
     returnRefundMethod: cartState.returnRefundMethod,
     editingQuotationId: cartState.editingQuotationId,
     editingQuotationNumber: cartState.editingQuotationNumber,
@@ -135,6 +139,8 @@ function applySnapshotToCartStore(snapshot: TabSnapshot) {
     isQuotationMode: snapshot.isQuotationMode || false,
     isReturnMode: snapshot.isReturnMode || false,
     isScrapMode: snapshot.isScrapMode || false,
+    isFilingOnly: snapshot.isFilingOnly || false,
+    filingPreviousInvoiceType: snapshot.filingPreviousInvoiceType,
     returnRefundMethod: snapshot.returnRefundMethod || 'ADJUST_BILL',
     editingQuotationId: snapshot.editingQuotationId || null,
     editingQuotationNumber: snapshot.editingQuotationNumber || null,
@@ -169,6 +175,7 @@ function resetCartStore(preserveModes = false) {
     isQuotationMode: preserveModes ? currentCartState.isQuotationMode : false,
     isReturnMode: preserveModes ? currentCartState.isReturnMode : false,
     isScrapMode: preserveModes ? currentCartState.isScrapMode : false,
+    isFilingOnly: false,
     returnRefundMethod: 'ADJUST_BILL',
     editingQuotationId: null,
     editingQuotationNumber: null,

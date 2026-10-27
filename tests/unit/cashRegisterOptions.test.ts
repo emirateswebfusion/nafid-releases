@@ -14,10 +14,11 @@ function fixture() {
     INSERT INTO settings VALUES ('t', 'store_timezone', '"Asia/Dubai"');
     CREATE TABLE cash_drawer (drawer_id TEXT, tenant_id TEXT, status TEXT, closed_at TEXT, business_date TEXT);
     CREATE TABLE invoices (tenant_id TEXT, converted_from_invoice_id TEXT, payment_method TEXT, grand_total REAL, received_amount REAL, split_details TEXT, invoice_type TEXT, is_held INTEGER, is_deleted INTEGER, settled_at TEXT, created_at TEXT);
+    ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1;
     CREATE TABLE cash_transactions (tenant_id TEXT, drawer_id TEXT, type TEXT, amount REAL, category TEXT, transaction_date TEXT, transaction_id TEXT PRIMARY KEY, notes TEXT, entered_by TEXT, entered_by_name TEXT, sync_status TEXT);
     CREATE TABLE party_ledger (ledger_id TEXT, transaction_date TEXT, credit_amount REAL, debit_amount REAL, payment_method TEXT, is_deleted INTEGER, tenant_id TEXT DEFAULT 't', description TEXT, created_by TEXT, created_by_name TEXT);
     CREATE TABLE returns (tenant_id TEXT, grand_total REAL, refund_method TEXT, created_at TEXT, return_id TEXT DEFAULT 'r', return_number TEXT DEFAULT 'RET-1', user_id TEXT);
-    INSERT INTO invoices VALUES ('t', NULL, 'CASH', 100, 100, NULL, 'GST', 0, 0, NULL, '2026-10-27T05:00:00Z');
+    INSERT INTO invoices (tenant_id, converted_from_invoice_id, payment_method, grand_total, received_amount, split_details, invoice_type, is_held, is_deleted, settled_at, created_at) VALUES ('t', NULL, 'CASH', 100, 100, NULL, 'GST', 0, 0, NULL, '2026-10-27T05:00:00Z');
     INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, transaction_date) VALUES ('t', 'd', 'CASH_IN', 30, 'SCRAP_SALE', '2026-10-27T05:00:00Z');
     INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, transaction_date) VALUES ('t', 'd', 'CASH_OUT', 20, 'RETURN_REFUND', '2026-10-27T05:00:00Z');
     INSERT INTO returns (tenant_id, grand_total, refund_method, created_at) VALUES ('t', 20, 'CASH', '2026-10-27T05:00:00Z');

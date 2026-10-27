@@ -5,6 +5,7 @@ import { m001ReturnsIndexes } from './001-returns-indexes.js';
 import { m002SyncOutbox } from './002-sync-outbox.js';
 import { m003SyncOutboxTriggers } from './003-sync-outbox-triggers.js';
 import { m004ResyncRecalibratedReturns } from './004-resync-recalibrated-returns.js';
+import { m006FilingOnly } from './006-filing-only.js';
 import { m005OutboxChangeOnlyTriggers } from './005-outbox-change-only-triggers.js';
 
 /**
@@ -18,6 +19,7 @@ export const MIGRATIONS: readonly Migration[] = [
   m003SyncOutboxTriggers,
   m004ResyncRecalibratedReturns,
   m005OutboxChangeOnlyTriggers,
+  m006FilingOnly,
 ];
 
 /** Startup step after the baseline schema: apply pending migrations, then remove a sync apply guard row left by a

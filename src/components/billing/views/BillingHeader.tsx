@@ -1,3 +1,4 @@
+import { FilingOnlyButton } from './FilingOnlyButton';
 import React from 'react';
 import { isAdminRole } from '../../../utils/security/permissions';
 import { Store, RotateCcw, TrendingUp, PauseCircle, Truck, Recycle, FileText, ArrowLeftRight, Banknote, BookOpen, Users, Package, User, Layers, Shield, Settings, X } from 'lucide-react';
@@ -277,6 +278,7 @@ export function BillingHeader({
           )}
         </button>
         )}
+        <FilingOnlyButton />
         {isHeaderButtonVisible(uiConfig, 'showScrap') && enableScrap && (!featureFlags || featureFlags.scrap) && (
           <button
             onClick={() => {

@@ -21,6 +21,7 @@ beforeEach(() => {
       is_held INTEGER DEFAULT 0, is_deleted INTEGER DEFAULT 0,
       converted_from_invoice_id TEXT, settled_at TEXT, created_at TEXT, updated_at TEXT
     );
+    ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1;
     CREATE TABLE users (user_id TEXT, name TEXT);
     CREATE TABLE cash_drawer (drawer_id TEXT, tenant_id TEXT, business_date TEXT,
       opened_by TEXT, closed_by TEXT);

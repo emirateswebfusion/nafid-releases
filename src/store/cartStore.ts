@@ -79,6 +79,8 @@ interface CartState {
   isQuotationMode: boolean;
   isReturnMode: boolean;
   isScrapMode: boolean;
+  isFilingOnly: boolean;
+  filingPreviousInvoiceType?: InvoiceType;
   returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL' | 'CREDIT';
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
@@ -154,6 +156,7 @@ export const useCartStore = create<CartState>()(
       isQuotationMode: false,
       isReturnMode: false,
       isScrapMode: false,
+      isFilingOnly: false,
       returnRefundMethod: 'ADJUST_BILL',
       editingQuotationId: null,
       editingQuotationNumber: null,
@@ -165,7 +168,7 @@ export const useCartStore = create<CartState>()(
       setBillerStaff: (id, name) => set({ billerStaffId: id, billerStaffName: name }),
       clearStaff: () => set({ salesStaffId: null, salesStaffName: null, billerStaffId: null, billerStaffName: null }),
       setPendingScrapInvoiceToEdit: (invoiceNumber) => set({ pendingScrapInvoiceToEdit: invoiceNumber }),
-      setIsScrapMode: (isScrapMode) => set({ isScrapMode }),
+      setIsScrapMode: (isScrapMode) => set({ isScrapMode, ...(isScrapMode ? { isFilingOnly: false } : {}) }),
       setLastAddedProductId: (id) => set({ lastAddedProductId: id }),
 
       addItem: (newItem) =>
@@ -298,20 +301,21 @@ export const useCartStore = create<CartState>()(
       setReturnMode: (isReturnMode) =>
         set((state) => ({
           isReturnMode,
+          ...(isReturnMode ? { isFilingOnly: false } : {}),
           items: isReturnMode
             ? state.items.filter(i => i.isReturnItem)
             : state.items.filter(i => !i.isReturnItem),
         })),
       setReturnRefundMethod: (returnRefundMethod) => set({ returnRefundMethod }),
       setQuotationMode: (isQuotationMode) => {
-        set({ isQuotationMode });
+        set({ isQuotationMode, ...(isQuotationMode ? { isFilingOnly: false } : {}) });
         try {
           (window as Window & { useTabStore?: { getState?: () => { syncActiveSnapshot?: () => void } } }).useTabStore?.getState?.()?.syncActiveSnapshot?.();
         } catch { /* ignore */ }
       },
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: state.isQuotationMode, isReturnMode: state.isReturnMode, isScrapMode: state.isScrapMode, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
+      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isFilingOnly: false, isQuotationMode: state.isQuotationMode, isReturnMode: state.isReturnMode, isScrapMode: state.isScrapMode, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
       name: 'nafid-cart-storage',

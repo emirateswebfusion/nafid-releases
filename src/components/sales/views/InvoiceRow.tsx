@@ -26,7 +26,7 @@ export function InvoiceTypeBadge({ inv }: { inv: DisplayInvoice }) {
   return (
     <span className={clsx('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border', info.bg, info.text, info.border)}>
       <Icon className="w-3 h-3" />
-      {info.label}
+      {info.label}{inv.bill_purpose === 'FILING_ONLY' && <span className="ml-1"> · Filing-only</span>}
     </span>
   );
 }

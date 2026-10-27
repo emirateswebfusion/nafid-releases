@@ -118,6 +118,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       // 1. Fetch Invoices for selected date range
       const invoices = await invoicesApi.getInvoices({
         tenant_id: tenantId,
+        revenue_only: true,
         filterDate: startDate,
         filterDateEnd: endDate,
       });

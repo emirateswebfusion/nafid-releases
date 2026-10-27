@@ -1,3 +1,4 @@
+import { resolveBillPolicy, type BillPolicySettings } from '../utils/billPolicy.js';
 import { readLoyaltyConfig } from './loyaltyService.js';
 import type { CheckoutPayload, CheckoutResult, CustomerCreditRow, InvoiceItem, InvoiceRow, ProductRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
@@ -19,10 +20,17 @@ export function checkout(payload: CheckoutPayload) {
   const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
   const tenantId = invoice.tenant_id || 'global';
+  const policySettings: BillPolicySettings = {};
+  for (const key of ['exclude_b2b_from_revenue', 'exclude_b2c_from_revenue', 'filing_only_mode'] as const) {
+    const row = invoicesSql.findSettingsByKey(db).get(tenantId, key) as SettingRow | undefined;
+    try { if (row?.value) policySettings[key] = JSON.parse(row.value); } catch { /* Missing/invalid settings retain defaults. */ }
+  }
+  const policy = resolveBillPolicy(invoice.invoice_type, invoice.customer_gstin, invoice.bill_purpose === 'FILING_ONLY', policySettings);
+  Object.assign(invoice, policy);
 
   // Deduplication guard: block duplicate checkout calls within a 4-second window
   const itemsSig = (items || []).map((i: InvoiceItem) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
-  const cacheKey = `${tenantId}:${invoice.grand_total}:${itemsSig}`;
+  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}`;
   const now = Date.now();
   const cached = recentCheckoutsCache.get(cacheKey);
   if (cached && (now - cached.timestamp < 4000)) {
@@ -159,14 +167,15 @@ export function checkout(payload: CheckoutPayload) {
     if (!Number.isSafeInteger(ptsRedeemed) || ptsRedeemed < 0 || ptsRedeemed > Math.max(0, previousPointsBal)) {
       throw new Error('Points balance changed or redemption is invalid; refresh the bill');
     }
-    if ((ptsRedeemed || suppliedDiscount) && (!config.enabled || !customerId || pm === 'HOLD')) {
+    if ((ptsRedeemed || suppliedDiscount) && (!config.enabled || !customerId || pm === 'HOLD' || policy.counts_in_revenue !== 1)) {
       throw new Error('Loyalty redemption is unavailable; refresh the bill');
     }
     const ptsRedeemedDiscount = Math.round(ptsRedeemed * Math.max(0.01, Number(config.redemptionRate) || 1) * 100) / 100;
     if (Math.abs(suppliedDiscount - ptsRedeemedDiscount) > 0.001) {
       throw new Error('Points discount changed; refresh the bill');
     }
-    const shouldEarn = config.enabled && customerId && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending);
+    const shouldEarn = config.enabled && customerId && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending)
+      && policy.counts_in_revenue === 1;
     const ptsEarned = shouldEarn ? Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / Math.max(1, Number(config.earningRate) || 100)) : 0;
 
     const remainingPointsBal = previousPointsBal - ptsRedeemed + ptsEarned;
@@ -214,7 +223,8 @@ export function checkout(payload: CheckoutPayload) {
       previousPointsBal,
       remainingPointsBal,
       nowTimestamp,
-      nowTimestamp
+      nowTimestamp,
+      policy.counts_in_revenue, policy.bill_purpose, policy.stock_applied
     );
 
     // Record Loyalty Transactions & Update Customer Points Balance
@@ -294,7 +304,7 @@ export function checkout(payload: CheckoutPayload) {
         item.hsn_sac_code || null,
         item.supply_type || 'INTRA',
       );
-      if (!item.isServiceItem) {
+      if (policy.stock_applied === 1 && !item.isServiceItem) {
         if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
           for (const ci of item.combo_items) {
             const qtyToDeduct = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);

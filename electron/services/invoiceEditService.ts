@@ -248,12 +248,12 @@ export async function updateInvoice(payload: {
 
     const stockDelta: Record<string, number> = {};
     for (const old of oldItems) {
-      if (!isServiceItem(old.product_id)) {
+      if (existingInv.stock_applied !== 0 && !isServiceItem(old.product_id)) {
         stockDelta[old.product_id] = (stockDelta[old.product_id] || 0) + old.quantity;
       }
     }
     for (const item of items) {
-      if (!isServiceItem(item.product_id)) {
+      if (existingInv.stock_applied !== 0 && !isServiceItem(item.product_id)) {
         stockDelta[item.product_id] = (stockDelta[item.product_id] || 0) - item.quantity;
       }
     }
@@ -264,6 +264,7 @@ export async function updateInvoice(payload: {
 
     // Sync party credit ledger
     syncInvoiceCreditLedger(db, {
+      counts_in_revenue: existingInv.counts_in_revenue,
       invoice_id: payload.invoice_id,
       tenant_id: payload.tenant_id,
       invoice_number: existingInv.invoice_number,
@@ -293,7 +294,7 @@ export async function updateInvoice(payload: {
   try {
     transaction();
 
-    const newCash = getCashAmountFromInvoice(payload);
+    const newCash = getCashAmountFromInvoice({ ...payload, counts_in_revenue: existingInv.counts_in_revenue });
     const effectiveInvDate = invoice.created_at
       ? (isNaN(new Date(invoice.created_at).getTime()) ? existingInv.created_at : new Date(invoice.created_at).toISOString())
       : existingInv.created_at;
@@ -373,6 +374,7 @@ export function updateInvoicePayment(payload: {
     adjustPaymentSourcesForInvoice(db, existingInv.tenant_id || payload.tenant_id, updatedInvObj, false);
 
     syncInvoiceCreditLedger(db, {
+      counts_in_revenue: existingInv.counts_in_revenue,
       invoice_id: payload.invoice_id,
       tenant_id: existingInv.tenant_id || payload.tenant_id,
       invoice_number: existingInv.invoice_number,
@@ -426,7 +428,7 @@ export function deleteInvoice(invoice_id: string) {
 
       const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity3(db).all(invoice_id) as InvoiceItemRow[];
       const restoreStockStmt = invoicesSql.updateProductCurrentStockCurrentStock4(db);
-      if (!isConversionCopy) {
+      if (!isConversionCopy && inv.stock_applied !== 0) {
         for (const item of items) {
           restoreStockStmt.run(item.quantity, item.product_id, inv.tenant_id);
         }

@@ -49,6 +49,7 @@ export interface HeaderButtonConfig {
   showHeldBills?: boolean;
   showTransport?: boolean;
   showScrap?: boolean;
+  showFilingOnly?: boolean;
   showQuotation?: boolean;
   showReturn?: boolean;
   showRegister?: boolean;
@@ -130,6 +131,7 @@ export const DEFAULT_HEADER_BUTTON_CONFIG: Required<HeaderButtonConfig> = {
   showHeldBills: true,
   showTransport: false,
   showScrap: true,
+  showFilingOnly: true,
   showQuotation: true,
   showReturn: false,
   showRegister: false,
@@ -173,7 +175,7 @@ export function getTotalSelectedHeaderButtonsCount(config: BillingUIConfig): num
   const hb = config.headerButtons || DEFAULT_HEADER_BUTTON_CONFIG;
   const modeKeys: (keyof HeaderButtonConfig)[] = [
     'showClearCart', 'showHistory', 'showHeldBills', 'showTransport',
-    'showScrap', 'showQuotation', 'showReturn', 'showRegister'
+    'showFilingOnly', 'showScrap', 'showQuotation', 'showReturn', 'showRegister'
   ];
   for (const k of modeKeys) {
     if (hb[k] === true) count++;
@@ -204,7 +206,7 @@ function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfig {
   }
 
   const modePriority: (keyof HeaderButtonConfig)[] = [
-    'showClearCart', 'showHistory', 'showHeldBills', 'showScrap', 'showRegister',
+    'showClearCart', 'showHistory', 'showHeldBills', 'showFilingOnly', 'showScrap', 'showRegister',
     'showQuotation', 'showReturn', 'showTransport'
   ];
 
@@ -256,6 +258,7 @@ function sanitizeBillingUIConfig(config: BillingUIConfig): BillingUIConfig {
     showHeldBills: keptModes.includes('showHeldBills'),
     showTransport: keptModes.includes('showTransport'),
     showScrap: keptModes.includes('showScrap'),
+    showFilingOnly: keptModes.includes('showFilingOnly'),
     showQuotation: keptModes.includes('showQuotation'),
     showReturn: keptModes.includes('showReturn'),
     showRegister: keptModes.includes('showRegister'),

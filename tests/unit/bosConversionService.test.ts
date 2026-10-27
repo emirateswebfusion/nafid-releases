@@ -100,3 +100,11 @@ describe('BOS to B2C service characterization', () => {
     expect(state.inserted).not.toHaveBeenCalled();
   });
 });
+
+
+it('conversion of a stock-off source never moves stock and preserves its saved revenue policy', async () => {
+  state.invoice.stock_applied = 0; state.invoice.counts_in_revenue = 0;
+  const result = await convertBosToGst(payload);
+  expect(result.success).toBe(true);
+  expect(state.inserted.mock.calls[0].slice(-3, -1)).toEqual([0, 'SALE']);
+});

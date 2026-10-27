@@ -1,4 +1,5 @@
 import React from 'react';
+import { FilingOnlySettings } from '../FilingOnlySettings';
 import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
 import { StaffDataMaskingSettings } from '../StaffDataMaskingSettings';
 import { DesignSettings } from '../../design-settings/DesignSettings';
@@ -78,6 +79,8 @@ export function SettingsSectionContent({
           <DashboardCardCustomizer />
         </div>
       );
+    case 'filing_only':
+      return <FilingOnlySettings tenantId={tenantId} />;
     case 'store':
       return (
         <StoreSettingsTab

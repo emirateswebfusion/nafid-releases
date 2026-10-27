@@ -71,6 +71,7 @@ export function HeaderButtonsSection({
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   {[
                     { key: 'showRegister' as const, label: 'Register', icon: Banknote, desc: 'Cash Register drawer panel button', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+                    { key: 'showFilingOnly' as const, label: 'Filing-only', icon: FileText, desc: 'Filing-only bill mode', color: 'text-blue-500', bg: 'bg-blue-500/10' },
                     { key: 'showScrap' as const, label: 'Scrap (F5)', icon: Recycle, desc: 'Scrap billing mode toggle', color: 'text-orange-500', bg: 'bg-orange-500/10' },
                     { key: 'showQuotation' as const, label: 'Quotation (F6)', icon: FileText, desc: 'Quotation mode toggle', color: 'text-blue-500', bg: 'bg-blue-500/10' },
                     { key: 'showReturn' as const, label: 'Return (F7)', icon: ArrowLeftRight, desc: 'Sales return mode toggle', color: 'text-rose-500', bg: 'bg-rose-500/10' },

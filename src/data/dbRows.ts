@@ -215,7 +215,6 @@ export interface InvoiceItemsRow {
   bos_tax_amount: number | null;
   bos_total: number | null;
   qty_from_paper_stock: number | null;
-  is_deleted: number | null;
   row_version: number;
   origin: string | null;
 }
@@ -277,6 +276,9 @@ export interface InvoicesRow {
   description: string | null;
   row_version: number;
   origin: string | null;
+  counts_in_revenue: number;
+  bill_purpose: string;
+  stock_applied: number;
 }
 
 /** Row of `loyalty_transactions`. */
@@ -794,6 +796,11 @@ export interface StaffTransactionsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+/** Row of `sync_apply_guard`. */
+export interface SyncApplyGuardRow {
+  id: number;
 }
 
 /** Row of `sync_meta`. */

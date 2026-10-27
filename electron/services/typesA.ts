@@ -26,6 +26,9 @@ export interface SplitDetails {
 }
 
 export interface InvoiceRow {
+    stock_applied?: number;
+    counts_in_revenue?: number;
+    bill_purpose?: string;
   invoice_id: string;
   tenant_id?: string | null;
   invoice_number: string;
@@ -193,6 +196,8 @@ export interface PartyLedgerBalanceRow {
 }
 
 export interface CreditLedgerInvoice {
+  /** 0 = not revenue (filing-only / excluded): such a bill never posts to the ledger. */
+  counts_in_revenue?: number | null;
   invoice_id?: string;
   tenant_id?: string | null;
   invoice_number?: string | null;
@@ -464,6 +469,7 @@ export interface ScrapTotalRow {
 }
 
 export interface InvoiceCashFields {
+    counts_in_revenue?: number;
   payment_method?: string | null;
   grand_total?: number | null;
   received_amount?: number | null;

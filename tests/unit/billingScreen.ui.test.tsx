@@ -174,3 +174,21 @@ describe('return regressions', () => {
     expect(callsTo('dbCreateReturn')[0].args[0]).toMatchObject({ subtotal: 0.99, tax_total: 0, grand_total: 0.99 });
   });
 });
+
+
+describe('filing-only billing screen', () => {
+  it('hides the header mode by default', async () => {
+    await addSteelRod();
+    expect(screen.queryByRole('button', { name: 'Filing-only' })).toBeNull();
+  });
+  it('enabled header saves the filing intention with normal GST items', async () => {
+    answers.settingsGet = (payload) => (payload as { key: string }).key === 'filing_only_mode' ? { enabled: true, reduceStock: false, countInRevenue: false, showB2bInSalesCategory: true } : null;
+    const user = await addSteelRod();
+    await user.keyboard('{Enter}{Escape}');
+    await user.click(await screen.findByRole('button', { name: 'Filing-only' }));
+    expect(useCartStore.getState().isFilingOnly).toBe(true);
+    await user.keyboard('{F12}');
+    await waitFor(() => expect(callsTo('dbCheckout')).toHaveLength(1));
+    expect(callsTo('dbCheckout')[0].args[0]).toMatchObject({ bill_purpose: 'FILING_ONLY', invoice_type: 'GST', items: [expect.objectContaining({ product_id: 'p1', quantity: 1 })] });
+  });
+});

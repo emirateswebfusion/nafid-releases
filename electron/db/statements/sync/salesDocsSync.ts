@@ -20,7 +20,7 @@ export const insertInvoices = (db: Db) => db.prepare(`
       converted_to_invoice_id, converted_to_invoice_number,
       is_deleted,
       cgst_total, sgst_total, igst_total, supply_type,
-      notes, description
+      notes, description, counts_in_revenue, bill_purpose, stock_applied
     ) VALUES (
       @invoice_id, @tenant_id, @invoice_number, @invoice_type,
       @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
@@ -35,7 +35,7 @@ export const insertInvoices = (db: Db) => db.prepare(`
       @converted_to_invoice_id, @converted_to_invoice_number,
       @is_deleted,
       @cgst_total, @sgst_total, @igst_total, @supply_type,
-      @notes, @description
+      @notes, @description, @counts_in_revenue, @bill_purpose, @stock_applied
     )
     ON CONFLICT(invoice_id) DO UPDATE SET
       customer_name = EXCLUDED.customer_name,
@@ -77,6 +77,9 @@ export const insertInvoices = (db: Db) => db.prepare(`
       supply_type = EXCLUDED.supply_type,
       notes = EXCLUDED.notes,
       description = EXCLUDED.description,
+      counts_in_revenue = EXCLUDED.counts_in_revenue,
+      bill_purpose = EXCLUDED.bill_purpose,
+      stock_applied = EXCLUDED.stock_applied,
       created_at = EXCLUDED.created_at,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
