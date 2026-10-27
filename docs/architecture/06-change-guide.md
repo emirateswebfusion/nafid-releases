@@ -34,6 +34,19 @@
    and one neighbouring flow (for billing: create a bill, hold/recall, print preview).
 7. **Document:** update these docs if you changed a contract, a layer, a rule module or a convention.
 
+### Thermal receipt paper layout
+
+USB/system receipts use `electron/hardware/receiptHtml.ts` (the React print-route view is not used by this path).
+Keep page padding at zero and apply the 3 mm horizontal / 2 mm vertical inset and optional calibration offset once,
+on the body. The receipt window matches the configured roll width. After images and fonts load, the HTML measures
+body height and sends it through the existing `printReady(height)` channel; the hardware adapter forwards height
+only to that window's listener. Both CSS page size and Electron print options use the measured height plus 5 mm,
+rounded up (minimum 80 mm). Never start a receipt from `did-finish-load` or use another window's measurement.
+Receipt jobs require their exact paper dimensions: driver rejection is reported, rather than retrying with a shorter
+native/default page. A4 and barcode fallback behavior is unchanged. Test with `tests/unit/thermalPrint.test.ts` and
+`printerPromise.test.ts`; receipt text snapshots must remain unchanged. Hardware limits and calibrated offsets still
+need physical verification on each configured printer/driver.
+
 ## 6.3 Modifying an existing feature safely
 
 - **Billing / checkout:** line money math is in `utils/pricing/linePricing.ts` and `utils/pricing/checkoutLines.ts`; totals in

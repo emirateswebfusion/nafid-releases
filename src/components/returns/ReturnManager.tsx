@@ -13,6 +13,7 @@ import { parsePrintFormat, formatPrinterError } from '../../utils/print/printFor
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { printingApi } from '../../data/printing';
+import { ReturnCashRegisterNote } from './ReturnCashRegisterNote';
 import { returnsApi } from '../../data/returns';
 import { settingsApi } from '../../data/settings';
 import { formatCurrency } from '../../utils/pricing/money';
@@ -231,6 +232,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           </div>
         </div>
       </header>
+      <ReturnCashRegisterNote tenantId={tenantId} />
 
       {/* Status Message for small screens */}
       {statusMessage && (
@@ -344,6 +346,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                       <span className="text-[10px] font-bold text-muted-foreground hidden sm:block">{formatDate(r.return_date)}</span>
                       <span className="text-sm font-black text-rose-500">
                         -{formatCurrency(r.grand_total)}
+                        <span className="block text-[10px] text-muted-foreground">{r.refund_method || 'Bill adjustment'}</span>
                       </span>
                     </div>
                   </button>

@@ -136,6 +136,16 @@ export function CashRegisterPanel({
           </div>
         </div>
 
+      {drawer?.payment_totals && Object.keys(drawer.payment_totals).length > 0 && (
+        <div className="grid grid-cols-2 gap-2 px-4 py-3 border-b border-border" aria-label="Selected payment collections">
+          {Object.entries(drawer.payment_totals).map(([method, amount]) => (
+            <div key={method} className="rounded-xl border border-border p-3 text-xs">
+              <span>{method === 'BANK_TRANSFER' ? 'Bank Transfer' : method}</span>
+              <strong className="block">{formatCurrency(amount)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Column headers */}
       <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
         <span>Time</span>
@@ -243,7 +253,7 @@ export function CashRegisterPanel({
                           <ChevronDown className="w-3 h-3 text-muted-foreground/70" />
                         </span>
 
-                      ) : isOwner ? (
+                      ) : isOwner && !tx.source ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -268,7 +278,7 @@ export function CashRegisterPanel({
                         </span>
                         <div className="flex items-center gap-2">
                           {tx.entered_by_name && <span>Entered by: {tx.entered_by_name}</span>}
-                          {isOwner && (
+                          {isOwner && !tx.source && (
                             <button
                               onClick={() => initiateDeleteTransaction(tx)}
                               className="flex items-center gap-1 px-2 py-0.5 text-rose-500 hover:text-white bg-rose-500/10 hover:bg-rose-600 rounded-md text-[10px] font-bold transition-colors cursor-pointer"

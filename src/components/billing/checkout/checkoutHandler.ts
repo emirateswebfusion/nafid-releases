@@ -21,7 +21,7 @@ import { invoicesApi } from '../../../data/invoices';
 import { printingApi } from '../../../data/printing';
 import { quotationsApi } from '../../../data/quotations';
 import { returnsApi } from '../../../data/returns';
-import { whatsappApi } from '../../../data/whatsapp';
+import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
 import { listParties } from '../../../data/parties';
 
@@ -269,7 +269,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
 
       const state = useCartStore.getState();
       // Calculate loyalty points
-      const previousPointsBalance = Number(loyaltyCustomerData.pointsBalance) || 0;
+      const previousPointsBalance = loyaltyEnabled ? Number(loyaltyCustomerData.pointsBalance) || 0 : 0;
       const hasCustomerForPoints = Boolean(loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim()));
       const shouldAwardPointsNow = paymentMethod !== 'PENDING' || loyaltyAwardOnPending;
       const pointsEarned = loyaltyEnabled && hasCustomerForPoints && shouldAwardPointsNow
@@ -691,12 +691,12 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
             customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
           });
 
-          whatsappApi.sendInvoice({
-            phone: custPhone,
-            message: waMessage,
-            htmlContent: fullHtml,
-            fileName: `Invoice_${confirmedInvoiceNumber}.pdf`
-          }).catch((err) => console.warn('[WhatsApp Auto Send Error]:', err));
+          sendConfiguredBill(tenantId || 'global', {
+            phone: custPhone, message: waMessage, legacyHtml: fullHtml,
+            a4Html: generateInvoiceHtml(receiptData, (printFmt.a4Style || 'boxed') as B.InvoiceStyle),
+            receiptText: generateReceiptText(receiptData, printFmt.width ? Number(printFmt.width) / 10 : width, undefined, printFmt.thermalStyle || 'standard'),
+            invoiceNumber: confirmedInvoiceNumber, receiptWidthMm: Number(printFmt.width) || 80,
+          }).then(result => { if (!result.success) console.warn('[WhatsApp Auto Send Error]:', result.error); }).catch((err) => console.warn('[WhatsApp Auto Send Error]:', err));
         } catch (e) {
           console.warn('[WhatsApp Build Error]:', e);
         }

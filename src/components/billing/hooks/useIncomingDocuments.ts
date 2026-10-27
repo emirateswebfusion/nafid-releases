@@ -1,3 +1,4 @@
+import { priceReturnSource } from '../../../utils/pricing/returnPricing';
 import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { listInvoices, getInvoiceItems, type Invoice } from '../../../data/invoices';
@@ -426,24 +427,12 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
 
         const invSubtotal = Number(invoice.subtotal) || rawItems.reduce((s: number, i) => s + (Number(i.unit_price) * Number(i.quantity)), 0);
         const invDiscount = (Number(invoice.discount_total) || 0) + (Number(invoice.points_redeemed_discount) || 0);
-        const discountRatio = invSubtotal > 0 ? Math.min(1, Math.max(0, invDiscount / invSubtotal)) : 0;
-
-        const enriched = rawItems
-          .map((item) => {
-            const origPrice = Number(item.unit_price) || 0;
-            const effPrice = Number((origPrice * (1 - discountRatio)).toFixed(2));
-            const origTax = Number(item.tax_amount) || 0;
-            const effTax = Number((origTax * (1 - discountRatio)).toFixed(2));
-            return {
-              ...item,
-              unit_price: effPrice,
-              rawUnitPrice: origPrice,
-              tax_amount: effTax,
-              already_returned: returnedMap[item.item_id] || 0,
-              available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
-            };
-          })
-          .filter((item) => item.available_to_return > 0);
+        const enriched = (rawItems || []).map((item) => ({
+          ...item,
+          ...priceReturnSource(Number(item.unit_price) || 0, Number(item.tax_amount) || 0, invSubtotal, invDiscount),
+          already_returned: returnedMap[item.item_id] || 0,
+          available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
+        })).filter((item) => item.available_to_return > 0);
 
         if (enriched.length === 0) {
           setHardwareError('All items have already been returned');
@@ -507,7 +496,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             originalTaxAmount: Number(item.tax_amount) || 0,
             returnSourceInvoiceId: invoice.invoice_id,
             returnSourceInvoiceNumber: invoice.invoice_number,
-            quantity: item.available_to_return,
+            quantity: 0,
           });
         });
 

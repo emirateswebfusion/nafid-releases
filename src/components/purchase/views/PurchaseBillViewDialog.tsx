@@ -1,4 +1,5 @@
 import React from 'react';
+import { PurchaseWhatsAppButton } from './PurchaseWhatsAppButton';
 import clsx from 'clsx';
 import { Receipt, Printer, Pencil, Trash, X, User, Calendar, Package } from 'lucide-react';
 import { formatDate } from '../purchaseFormat';
@@ -66,6 +67,7 @@ export function PurchaseBillViewDialog({
             </div>
           </div>
           <div className="flex items-center gap-2">
+          <PurchaseWhatsAppButton key={viewingBill.purchase_bill_id} bill={viewingBill} />
           <button
             onClick={() => handlePrintBill(viewingBill, viewingBillItems)}
             className="w-9 h-9 flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-emerald-500/20"

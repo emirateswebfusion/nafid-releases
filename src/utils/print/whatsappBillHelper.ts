@@ -1,3 +1,5 @@
+import { formatPurchaseLedgerMessage } from './whatsappSharing';
+
 export interface WhatsAppBillDetails {
   shopName: string;
   shopPhone?: string;
@@ -116,12 +118,17 @@ export interface WhatsAppLedgerTxDetails {
   newBalance: number;
   paymentMethod: string;
   transactionType?: 'CREDIT' | 'DEBIT';
+  description?: string;
   partyName?: string;
   shopName?: string;
   includeShopName?: boolean;
 }
 
 export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): string {
+  if (/^purchase bill\b/i.test(data.description || '')) {
+    const message = formatPurchaseLedgerMessage({ credit_amount: 0, debit_amount: data.amount, running_balance: data.newBalance });
+    return data.includeShopName && data.shopName?.trim() ? `${message}\n\n— *${data.shopName.trim()}*` : message;
+  }
   const methodMap: Record<string, string> = {
     UPI: 'UPI',
     CASH: 'Cash',

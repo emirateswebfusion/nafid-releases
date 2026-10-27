@@ -78,7 +78,7 @@ export function TotalsActionButtons({
         <>
           <button
             onClick={() => handleProcessReturnFromCart(true)}
-            disabled={returnProcessing || items.length === 0}
+            disabled={returnProcessing || !items.some(i => i.isReturnItem && Number(i.quantity) > 0)}
             className="w-[18%] sm:w-[20%] md:w-[22%] py-2 sm:py-2.5 md:py-3 rounded-xl border-2 border-rose-400/60 text-rose-600 dark:text-rose-400 font-black text-xs sm:text-xs md:text-sm lg:text-base flex items-center justify-center gap-1 sm:gap-1.5 hover:bg-rose-500/10 hover:border-rose-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-xs cursor-pointer shrink-0"
           >
             <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -86,7 +86,7 @@ export function TotalsActionButtons({
           </button>
           <button
             onClick={() => handleProcessReturnFromCart()}
-            disabled={returnProcessing || items.length === 0}
+            disabled={returnProcessing || !items.some(i => i.isReturnItem && Number(i.quantity) > 0)}
             className="flex-1 min-w-0 py-2 sm:py-2.5 md:py-3 flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-rose-500 text-white font-black text-xs sm:text-xs md:text-sm lg:text-base shadow-md hover:bg-rose-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
           >
             {returnProcessed ? (

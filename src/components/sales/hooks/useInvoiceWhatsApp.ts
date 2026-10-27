@@ -3,10 +3,10 @@ import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { getSetting, type PrintFormatSettings } from '../../../data/settings';
 import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelper';
-import { whatsappApi } from '../../../data/whatsapp';
+import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
 
 export interface UseInvoiceWhatsAppContext {
@@ -143,11 +143,14 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         paymentMethod: selectedInvoice.payment_method as string | undefined,
       });
 
-      const res = await whatsappApi.sendInvoice({
+      const res = await sendConfiguredBill(tenantId || 'global', {
         phone: custPhone,
         message: waMessage,
-        htmlContent: invoiceHtml,
-        fileName: "Invoice_" + selectedInvoice.invoice_number + ".pdf"
+        legacyHtml: invoiceHtml,
+        a4Html: generateInvoiceHtml(receiptData, (printFmt.a4Style || 'boxed') as Parameters<typeof generateInvoiceHtml>[1]),
+        receiptText: generateReceiptText(receiptData, printFmt.width ? Number(printFmt.width) / 10 : 8, undefined, printFmt.thermalStyle || 'standard'),
+        invoiceNumber: selectedInvoice.invoice_number as string,
+        receiptWidthMm: Number(printFmt.width) || 80,
       });
 
       if (res?.success) {

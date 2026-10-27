@@ -10,6 +10,7 @@ import type { BillingUIConfig } from '../../../store/billingUIStore';
 import { DeductionEditor } from './DeductionEditor';
 import { TotalsActionButtons } from './totals/TotalsActionButtons';
 import { GrandTotalSection } from './totals/GrandTotalSection';
+import { totalReturnLines } from '../../../utils/pricing/returnPricing';
 import { DiscountRow } from './totals/DiscountRow';
 
 export interface BillingTotalsPanelProps {
@@ -163,6 +164,7 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
   const storeReturnDeduction = useCartStore(s => s.returnDeduction);
   const storeScrapDeduction = useCartStore(s => s.scrapDeduction);
   const updateActiveTab = useTabStore(s => s.updateActiveTab);
+  const returned = totalReturnLines(items);
   return (
       <div className={clsx(
         uiConfig.orientation === 'horizontal-stack'
@@ -202,14 +204,15 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
                 <span className="font-bold text-foreground text-sm font-mono">{formatCurrency(returnTotal)}</span>
               </div>
             </>
-          ) : (!isScrapMode ? subtotal > 0 : scrapTotal > 0) && (
+          ) : (!isScrapMode ? (isReturnMode ? returned.subtotal : subtotal) > 0 : scrapTotal > 0) && (
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
-              <span className="font-bold text-foreground text-sm">{formatCurrency(isScrapMode ? scrapTotal : subtotal)}</span>
+              <span className="font-bold text-foreground text-sm">{formatCurrency(isScrapMode ? scrapTotal : (isReturnMode ? returned.subtotal : subtotal))}</span>
             </div>
           )}
 
-          {invoiceType === 'GST' && totalTax > 0 && (
+          {isReturnMode && returned.tax > 0 && <div className="flex justify-between"><span>Original Invoice Tax</span><span>{formatCurrency(returned.tax)}</span></div>}
+          {!isReturnMode && invoiceType === 'GST' && totalTax > 0 && (
             <>
               {igst > 0 ? (
                 <div className="flex justify-between items-center">

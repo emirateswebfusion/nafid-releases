@@ -1,3 +1,4 @@
+import { totalReturnLines } from '../../../utils/pricing/returnPricing';
 import type { CartItem } from '../../../store/cartStore';
 import type { Tab } from '../../../store/tabStore';
 
@@ -30,27 +31,15 @@ export function useBillingTotals(ctx: UseBillingTotalsContext) {
 
   const refundAmount = !isScrapMode ? Math.max(0, totalDeductions - grandTotal) : 0;
 
-  const returnSubtotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
-    return sum + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
-  }, 0);
-
-  const returnTaxTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
-    const origQty = Number(item.originalQuantity) || 1;
-    return sum + ((Number(item.originalTaxAmount) || 0) / origQty) * (Number(item.quantity) || 0);
-  }, 0);
-
-  const returnTotal = returnSubtotal;
-
-  const originalReturnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
-    return sum + (Number(item.rawUnitPrice) || Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
-  }, 0);
-
-  const returnDiscountTotal = Math.max(0, originalReturnTotal - returnTotal);
+  const returned = totalReturnLines(items);
+  const returnTotal = returned.subtotal;
+  const originalReturnTotal = returned.original;
+  const returnDiscountTotal = returned.discount;
 
   const rawDisplayGrandTotal = isScrapMode
     ? scrapTotal + extraBonus
     : isReturnMode
-      ? returnSubtotal + returnTaxTotal
+      ? returned.total
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
 
   const customerPointsBalance = Number(loyaltyCustomerData?.pointsBalance) || 0;

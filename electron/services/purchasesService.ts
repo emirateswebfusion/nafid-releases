@@ -196,8 +196,8 @@ export function addPurchaseBill(payload: {
         const updateOfferPrice = purchasesSql.updateProductOfferPrice(db);
         for (const item of items) {
           const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-          const hasEstimate = billType === 'GST' ? purchasesSql.findOnePurchaseBillItemByBillTypeAndProductId(db).get(item.product_id, bill.tenant_id) : null;
-          const skipStock = (billType === 'GST' && (item.skip_stock_update === 1 || Boolean(hasEstimate))) ? 1 : (item.skip_stock_update ?? 0);
+          // The line flag identifies paper/shared stock; unrelated historical bills do not.
+          const skipStock = billType === 'GST' && item.skip_stock_update === 1 ? 1 : 0;
           stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null, skipStock);
           const actualPurchasePrice = billType === 'GST' && isGst === 1
             ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
@@ -343,20 +343,9 @@ export function updatePurchaseBill(payload: {
       purchasesSql.updatePurchaseBillByPurchaseBillId(db).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
 
       const decreaseStock = purchasesSql.updateProductCurrentStock(db);
-      if (oldBillType === 'ESTIMATE') {
-        for (const item of oldItems) {
+      for (const item of oldItems) {
+        if (oldBillType === 'ESTIMATE' || item.skip_stock_update !== 1) {
           decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
-        }
-      } else {
-        // For old GST bills, only revert stock if this item was NOT dummy (meaning no skip_stock_update and no Estimate exists for this product)
-        for (const item of oldItems) {
-          if (item.skip_stock_update === 1) {
-            continue; // Was dummy / paper stock, never added to physical shop stock
-          }
-          const hasEstimate = purchasesSql.findOnePurchaseBillItemByBillTypeAndProductId(db).get(item.product_id, bill.tenant_id);
-          if (!hasEstimate) {
-            decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
-          }
         }
       }
 
@@ -369,8 +358,8 @@ export function updatePurchaseBill(payload: {
       const updateOfferPrice = purchasesSql.updateProductOfferPrice(db);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-        const hasEstimate = billType === 'GST' ? purchasesSql.findOnePurchaseBillItemByBillTypeAndProductId(db).get(item.product_id, bill.tenant_id) : null;
-        const skipStock = (billType === 'GST' && (item.skip_stock_update === 1 || Boolean(hasEstimate))) ? 1 : (item.skip_stock_update ?? 0);
+        // The line flag identifies paper/shared stock; unrelated historical bills do not.
+        const skipStock = billType === 'GST' && item.skip_stock_update === 1 ? 1 : 0;
 
         stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null, skipStock);
         const actualPurchasePrice = billType === 'GST' && isGst === 1
@@ -434,6 +423,13 @@ export function deletePurchaseBill(purchase_bill_id: string) {
     db.transaction(() => {
       const bill = purchasesSql.findPurchaseBillsByPurchaseBillId2(db).get(purchase_bill_id) as PurchaseBillRow;
       if (bill) {
+        const items = purchasesSql.findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity(db).all(purchase_bill_id) as InvoiceItem[];
+        const decreaseStock = purchasesSql.updateProductCurrentStock(db);
+        for (const item of items) {
+          if (bill.bill_type === 'ESTIMATE' || item.skip_stock_update !== 1) {
+            decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
+          }
+        }
         if (bill.supplier_id && bill.bill_number) {
           const ledgerEntries = purchasesSql.findPartyLedgerByPartyIdAndReferenceNumber(db).all(bill.tenant_id, bill.supplier_id, bill.bill_number) as LedgerRow[];
           for (const entry of ledgerEntries) {

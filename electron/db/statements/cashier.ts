@@ -1,4 +1,5 @@
 import type { Db } from './types.js';
+import { counterSalePredicate } from './revenue.js';
 
 /** SQL statements used by services/cashierService.ts. Each factory prepares its statement on the given connection. */
 
@@ -81,55 +82,10 @@ export const updateInvoiceByInvoiceId = (db: Db) => db.prepare(`
         WHERE invoice_id = ?
       `);
 
-export const findSettingsByKey = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'");
-
-export const findSettingsByKeyLoyaltyConfig = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'");
-
-export const findSettingsByKeyFeatureFlags = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'");
-
-export const findSettingsByKeyFeatureFlags2 = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'");
-
-export const findCustomersByCustomerId = (db: Db) => db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?');
-
-export const updateInvoiceByInvoiceId2 = (db: Db) => db.prepare(`
-                UPDATE invoices SET
-                  points_earned = ?,
-                  previous_points_balance = COALESCE(previous_points_balance, ?),
-                  remaining_points_balance = ?
-                WHERE invoice_id = ?
-              `);
-
-export const insertLoyaltyTransaction = (db: Db) => db.prepare(`
-                INSERT INTO loyalty_transactions (
-                  transaction_id, tenant_id, customer_id, invoice_id,
-                  transaction_type, points, points_balance_before, points_balance_after,
-                  reference_number, description, created_by, sync_status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'EARNED', ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
-              `);
-
-export const updateCustomerByCustomerId = (db: Db) => db.prepare(`
-                UPDATE customers SET
-                  total_points_earned = COALESCE(total_points_earned, 0) + ?,
-                  current_points_balance = ?,
-                  last_purchase_date = ?,
-                  sync_status = 'PENDING',
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE customer_id = ?
-              `);
-
 export const insertCashTransaction = (db: Db) => db.prepare(`
               INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
             `);
-
-export const findPaymentSourcesBySourceIdAndIsEnabled = (db: Db) => db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0 AND is_enabled = 1`);
-
-export const insertPaymentSourceTransaction = (db: Db) => db.prepare(`
-            INSERT INTO payment_source_transactions (transaction_id, tenant_id, source_id, type, amount, category, reference_number, notes, transaction_date, running_balance, entered_by, entered_by_name, sync_status)
-            VALUES (?, ?, ?, 'CASH_IN', ?, 'Invoice Payment', ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'PENDING')
-          `);
-
-export const updatePaymentSourceCurrentBalance = (db: Db) => db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`);
 
 export const insertCashTransaction2 = (db: Db) => db.prepare(`
         INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, transaction_date, sync_status)
@@ -203,7 +159,6 @@ export const insertCashierAuditLog3 = (db: Db) => db.prepare(`
 
 export const findCashDrawerByBusinessDate = (db: Db) => db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`);
 
-export const findOneCashDrawerByStatusOpen = (db: Db) => db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`);
 
 export const findCashTransactions = (db: Db) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`);
 
@@ -211,8 +166,8 @@ export const findInvoices = (db: Db) => db.prepare(`
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND ${counterSalePredicate('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND ${counterSalePredicate('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -226,7 +181,7 @@ export const findInvoices2 = (db: Db) => db.prepare(`
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.user_id
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
-        AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
+        AND ${counterSalePredicate('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT')
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
         AND (
@@ -251,7 +206,6 @@ export const findCashCategoriesByCategoryId = (db: Db) => db.prepare(`SELECT * F
 
 export const deleteCashCategoryByCategoryId = (db: Db) => db.prepare(`DELETE FROM cash_categories WHERE category_id = ? AND tenant_id = ?`);
 
-
 /** Dynamic SQL: `placeholders` must be built from trusted values (placeholders/column lists), never user input. */
 export const listCashTransactionsForDrawersOrDate = (db: Db, placeholders: string | number) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`);
 
@@ -263,6 +217,7 @@ export function getPendingInvoicesStatement(db: Db, args: { tenant_id: string; s
     FROM invoices i 
     LEFT JOIN users u ON i.user_id = u.user_id 
     WHERE i.tenant_id = ? 
+      AND ${counterSalePredicate('i')}
       AND i.payment_method = 'PENDING' 
       AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
       AND (i.is_held IS NULL OR i.is_held = 0)

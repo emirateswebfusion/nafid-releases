@@ -23,9 +23,9 @@ export function useInventoryState() {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [enableRealPaperStock, setEnableRealPaperStock] = useState(true);
-  const [, setShowZeroPaperStock] = useState(false);
+  const [showZeroPaperStock, setShowZeroPaperStock] = useState(false);
   const [showPaperOnlyProducts, setShowPaperOnlyProducts] = useState(true);
-  const [, setShowProductGstBadge] = useState(true);
+  const [showProductGstBadge, setShowProductGstBadge] = useState(true);
   const [showPriceTiersInInventory, setShowPriceTiersInInventory] = useState(true);
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -71,8 +71,8 @@ export function useInventoryState() {
     setSearchQuery, debouncedSearchQuery, setDebouncedSearchQuery, isSearching, setIsSearching, sortBy, setSortBy,
     stockFilter, setStockFilter, filterDate, setFilterDate, filterDateEnd, setFilterDateEnd, editingProduct,
     setEditingProduct, formData, setFormData, statusMessage, setStatusMessage, showUploadModal, setShowUploadModal,
-    enableRealPaperStock, setEnableRealPaperStock, setShowZeroPaperStock, showPaperOnlyProducts,
-    setShowPaperOnlyProducts, setShowProductGstBadge, showPriceTiersInInventory, setShowPriceTiersInInventory,
+    enableRealPaperStock, setEnableRealPaperStock, showZeroPaperStock, setShowZeroPaperStock, showPaperOnlyProducts,
+    setShowPaperOnlyProducts, showProductGstBadge, setShowProductGstBadge, showPriceTiersInInventory, setShowPriceTiersInInventory,
     deleteConfirmProduct, setDeleteConfirmProduct, isDeleting, setIsDeleting, printQuantity, setPrintQuantity,
     printPrice, setPrintPrice, printModalProduct, setPrintModalProduct, adjustingStockId, setAdjustingStockId,
     adjustModal, setAdjustModal, adjustAmount, setAdjustAmount, adjustPcs, setAdjustPcs, priceCoding, setPriceCoding,

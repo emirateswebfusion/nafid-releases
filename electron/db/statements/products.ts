@@ -1,4 +1,5 @@
 import type { Db } from './types.js';
+import { counterSalePredicate } from './revenue.js';
 import { buildProductSearchConditions } from './productSearch.js';
 
 /** SQL statements used by services/productsService.ts. Each factory prepares its statement on the given connection. */
@@ -253,8 +254,8 @@ export const listProductSalesQuantities = (db: Db, dateClause: string | number) 
              ii.name,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END), 0) as gst_qty,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL THEN ii.quantity ELSE 0 END), 0) as bos_qty,
-             COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN ii.quantity ELSE 0 END), 0) as total_qty,
-             COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN ii.total ELSE 0 END), 0) as total_revenue
+             COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN ii.quantity ELSE 0 END), 0) as total_qty,
+             COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN ii.total ELSE 0 END), 0) as total_revenue
       FROM invoice_items ii
       JOIN invoices i ON ii.invoice_id = i.invoice_id
       WHERE ii.tenant_id = ? AND i.invoice_type IN ('GST', 'BILL_OF_SUPPLY') AND (i.is_deleted IS NULL OR i.is_deleted = 0)

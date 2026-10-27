@@ -1,7 +1,11 @@
-import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, CustomerRow, InvoiceRow, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
+import { captureInvoicePoints, refreshInvoiceEarnings } from './loyaltyService.js';
+import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, InvoiceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
-import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
-import { findOpenDrawersBeforeDate } from './cashDrawerSession.js';
+import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer, adjustPaymentSourcesForInvoice } from './cashDrawerService.js';
+import { getCashRegisterPreferences } from './cashRegisterPreferences.js';
+import { calculateRegisterPayments } from '../utils/registerPaymentTotals.js';
+import * as registerSql from '../db/statements/cashDrawer.js';
+import { getRegisterCashEntries, getDrawerWindow, findOpenDrawersBeforeDate } from './cashDrawerSession.js';
 import { getStoreTimezoneSetting, parseCleanDate, localDate, localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
@@ -47,7 +51,12 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
       }
     }
 
-    return drawer;
+    if (!drawer) return null;
+    const window = getDrawerWindow(db, tenant_id, drawer);
+    const invoices = registerSql.listRegisterInvoices(db).all(tenant_id, window.from, window.to, window.to) as Array<{
+      payment_method: string; grand_total: number; received_amount: number; split_details: string | null;
+    }>;
+    return { ...drawer, payment_totals: calculateRegisterPayments(invoices, getCashRegisterPreferences(db, tenant_id).paymentMethods) };
   } catch (error) {
     console.error(`[Cashier] getDrawer error:`, (error as Error).message);
     return { error: 'Operation failed' };
@@ -159,52 +168,10 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
         ? JSON.stringify(split_details)
         : (split_details && split_details !== 'null' ? split_details : null);
 
+      captureInvoicePoints(db, invoice_id);
       cashierSql.updateInvoiceByInvoiceId(db).run(payment_method, splitStr, storedReceivedAmount, actualRefundPaid, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);
 
-      // If invoice was created with 0 points_earned (e.g. pending bill) but customer exists and loyalty is enabled, award points now!
-      if (invoice.customer_id && (!invoice.points_earned || Number(invoice.points_earned) <= 0)) {
-        try {
-          const lCfgRow: SettingRow | undefined = cashierSql.findSettingsByKey(db).get(targetTenantId) as SettingRow | undefined
-            || cashierSql.findSettingsByKeyLoyaltyConfig(db).get() as SettingRow | undefined;
-          let lCfg: Record<string, unknown> | null = null;
-          if (lCfgRow?.value) {
-            lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-          }
-          const flagsRow: SettingRow | undefined = cashierSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
-            || cashierSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
-          let flags: Record<string, unknown> | null = null;
-          if (flagsRow?.value) {
-            flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
-          }
-          const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
-          if (isLoyaltyOn) {
-            const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
-            const ptsEarned = Math.floor(Math.max(0, Number(newGrandTotal) || 0) / earningRate);
-            if (ptsEarned > 0) {
-              const custRow = cashierSql.findCustomersByCustomerId(db).get(invoice.customer_id) as CustomerRow | undefined;
-              const prevBal = Number(custRow?.current_points_balance) || 0;
-              const newBal = prevBal + ptsEarned;
-              const nowTimestamp = localTimestamp();
-              const eTxId = crypto.randomUUID();
-
-              cashierSql.updateInvoiceByInvoiceId2(db).run(ptsEarned, prevBal, newBal, invoice_id);
-
-              cashierSql.insertLoyaltyTransaction(db).run(
-                eTxId, targetTenantId, invoice.customer_id, invoice_id,
-                ptsEarned, prevBal, newBal,
-                invoice.invoice_number,
-                `Earned ${ptsEarned} points on settled invoice ${invoice.invoice_number}`,
-                user_id || 'system',
-                nowTimestamp, nowTimestamp
-              );
-
-              cashierSql.updateCustomerByCustomerId(db).run(ptsEarned, newBal, nowTimestamp, invoice.customer_id);
-            }
-          }
-        } catch (lErr) {
-          console.warn('[db:cashier:settlePayment] Failed to award loyalty points on settlement:', lErr);
-        }
-      }
+      refreshInvoiceEarnings(db, invoice_id);
       
       const date = localDate();
       const drawer = getOpenCashDrawer(db, targetTenantId, date);
@@ -224,20 +191,13 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
             cashierSql.insertCashTransaction(db).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', actualRefundPaid, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
           }
         }
-      } else if (payment_source_id) {
-        // Non-cash payment against a configured bank / card / UPI source
-        const source = cashierSql.findPaymentSourcesBySourceIdAndIsEnabled(db).get(payment_source_id, tenant_id) as PaymentSourceRow | undefined;
-        if (source) {
-          const newBalance = Number(source.current_balance) + received;
-          cashierSql.insertPaymentSourceTransaction(db).run(
-            crypto.randomUUID(), tenant_id, payment_source_id, received,
-            invoice.invoice_number, `Invoice ${invoice.invoice_number} settled via ${payment_method}`,
-            newBalance, user_id, user_name || null
-          );
-          cashierSql.updatePaymentSourceCurrentBalance(db)
-            .run(newBalance, payment_source_id, tenant_id);
-        }
       }
+      // Share billing's account posting, including non-cash portions of mixed payments.
+      adjustPaymentSourcesForInvoice(db, targetTenantId, {
+        invoice_number: invoice.invoice_number, payment_method, payment_source_id,
+        received_amount: received, grand_total: 0, split_details: splitStr,
+        user_id, user_name,
+      });
       
       if (drawer) {
         reconcileCashDrawer(db, tenant_id, drawer);
@@ -472,18 +432,9 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
 export function getTransactions({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
-    const date = localDate();
-    const dateLike = `${date}%`;
-    let drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, date, date, dateLike, date) as CashDrawerRow[];
-    if (!drawers || drawers.length === 0) {
-      drawers = cashierSql.findOneCashDrawerByStatusOpen(db).all(tenant_id) as CashDrawerRow[];
-    }
-    const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
-    if (drawerIds.length === 0) {
-      return cashierSql.findCashTransactions(db).all(tenant_id, date, dateLike, date);
-    }
-    const placeholders = drawerIds.map(() => '?').join(',');
-    return cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, date, dateLike, date);
+    const drawer = deduplicateAndGetOpenDrawer(db, tenant_id);
+    return drawer ? getRegisterCashEntries(db, tenant_id, drawer).reverse() : [];
+
   } catch (error) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };

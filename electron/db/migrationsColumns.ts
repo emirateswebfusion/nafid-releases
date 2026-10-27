@@ -287,7 +287,7 @@ export function runColumnMigrations(db: Database.Database) {
   }
 
   // Migration: Recalibrate return totals for returns of discounted invoices. Each line is priced like the return screen
-  // does (useSearchSelection): round2(invoice line unit_price * (1 - invoice discount ratio)). The target comes from the
+  // does (useSearchSelection): invoice line unit_price * (1 - invoice discount ratio). The target comes from the
   // invoice line, never from the stored return price, so repeated starts change nothing and returns that an earlier
   // version discounted again on every start are repaired. Lines without their invoice line keep their stored price.
   try {
@@ -303,7 +303,7 @@ export function runColumnMigrations(db: Database.Database) {
       const updateReturnStmt = db.prepare(`UPDATE returns SET subtotal = ?, grand_total = ? WHERE return_id = ?`);
       const updateReturnItemStmt = db.prepare(`UPDATE return_items SET unit_price = ?, total = ? WHERE return_item_id = ?`);
       const getReturnItemsStmt = db.prepare(`
-        SELECT ri.return_item_id, ri.quantity, ri.unit_price, ri.total, ii.unit_price AS invoice_unit_price
+        SELECT ri.return_item_id, ri.quantity, ri.unit_price, ri.total, ri.tax_amount, ii.unit_price AS invoice_unit_price
         FROM return_items ri
         LEFT JOIN invoice_items ii ON ii.item_id = ri.invoice_item_id
         WHERE ri.return_id = ?
@@ -325,7 +325,7 @@ export function runColumnMigrations(db: Database.Database) {
               newRetSubtotal += currentTotal;
               continue;
             }
-            const effPrice = round2((Number(item.invoice_unit_price) || 0) * (1 - discountRatio));
+            const effPrice = (Number(item.invoice_unit_price) || 0) * (1 - discountRatio);
             const effTotal = round2(effPrice * Number(item.quantity));
             if (Math.abs((Number(item.unit_price) || 0) - effPrice) > 0.001 || Math.abs(currentTotal - effTotal) > 0.001) {
               updateReturnItemStmt.run(effPrice, effTotal, item.return_item_id);
@@ -333,9 +333,8 @@ export function runColumnMigrations(db: Database.Database) {
             newRetSubtotal += effTotal;
           }
           newRetSubtotal = round2(newRetSubtotal);
-          if (newRetSubtotal > 0 && Math.abs(Number(ret.ret_grand_total) - newRetSubtotal) > 0.001) {
-            updateReturnStmt.run(newRetSubtotal, newRetSubtotal, ret.return_id);
-          }
+          const grandTotal = round2(newRetSubtotal + rItems.reduce((sum, item) => sum + (Number(item.tax_amount) || 0), 0));
+          if (Math.abs(Number(ret.ret_grand_total) - grandTotal) > 0.001) updateReturnStmt.run(newRetSubtotal, grandTotal, ret.return_id);
         }
       })();
     }

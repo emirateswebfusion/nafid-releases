@@ -71,6 +71,11 @@ const inv = await scrapApi.getScrapInvoiceByNumber({ tenant_id, scrap_invoice_nu
    (or a typed wrapper function next to it). UI code calls `<domain>Api.doThing(...)`.
 
 Keep existing channel names and payload shapes stable — the LAN server and older terminals depend on them.
+db:getBosConvertibleInvoices keeps its legacy (tenant_id) form. Sales History supplies an optional
+invoice_ids: string[] as its second argument, limited to the just-fetched page (30 rows). An empty list returns
+no rows; the service binds IDs in the statement factory. It does not scan all shop invoices during screen opening.
+The invoice list renders independently of its full-filter summary; stale filter responses are ignored.
+
 Main → renderer events follow the same path with `bindEvents` in `src/data/events.ts`.
 
 ### Error handling
@@ -146,3 +151,9 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
   wipe commands are never accepted through synced settings.
 - The sync payload contract is shared with `nafid-server/src/routes/sync/*`. Any change must update both sides and the
   docs in the same change, and must be preceded by a characterization test (sync is the highest data-risk area).
+
+### WhatsApp bill sharing
+
+`whatsapp:sendInvoice` also accepts optional `receiptText` and `receiptWidthMm` (58 or 80).
+The adapter renders receipt text through the existing hardware receipt renderer, then generates a receipt-width PDF.
+Existing HTML and text payloads retain their behavior; PDF rendering failures return a failed result.

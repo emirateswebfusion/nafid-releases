@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { FONT_OPTIONS } from '../settingsUtils';
 import { useBillingUIStore } from '../../../store/billingUIStore';
 import { CODE_TYPES } from '../../../config/labelCodeTypes';
+import { CashRegisterSettings } from './CashRegisterSettings';
 import { CashDrawerAutoCloseSettings } from './CashDrawerAutoCloseSettings';
 import type { SettingsForm } from '../settingsFormTypes';
 
@@ -135,6 +136,7 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                   </button>
                 </div>
 
+                <CashRegisterSettings />
                 <CashDrawerAutoCloseSettings
                   autoCloseEnabled={autoCloseCashDrawer}
                   setAutoCloseEnabled={setAutoCloseCashDrawer}

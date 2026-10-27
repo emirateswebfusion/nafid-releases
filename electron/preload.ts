@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   whatsappGetStatus: () => ipcRenderer.invoke('whatsapp:getStatus'),
   whatsappConnect: () => ipcRenderer.invoke('whatsapp:connect'),
   whatsappDisconnect: () => ipcRenderer.invoke('whatsapp:disconnect'),
-  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => ipcRenderer.invoke('whatsapp:sendInvoice', payload),
+  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string; receiptText?: string; receiptWidthMm?: number }) => ipcRenderer.invoke('whatsapp:sendInvoice', payload),
   onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => {
     const listener = (_event: unknown, data: Parameters<typeof callback>[0]) => callback(data);
     ipcRenderer.on('whatsapp:status-update', listener);
@@ -212,7 +212,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetProductSuppliers: (tenant_id: string) => ipcRenderer.invoke('db:getProductSuppliers', tenant_id),
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => ipcRenderer.invoke('db:updateProductGstFlag', payload),
   dbGetProductSalesSummary: (payload: { tenant_id: string; fromDate?: string; toDate?: string }) => ipcRenderer.invoke('db:getProductSalesSummary', payload),
-  dbGetBosConvertibleInvoices: (tenant_id: string) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id),
+  dbGetBosConvertibleInvoices: (tenant_id: string, invoice_ids?: string[]) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id, invoice_ids),
 
   // Quotations
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextQuotationNumber', payload),

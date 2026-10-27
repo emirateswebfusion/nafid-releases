@@ -3,12 +3,12 @@ import type React from 'react';
 import { hasBridge } from '../../../data/client';
 import { getSetting, type PrintFormatSettings } from '../../../data/settings';
 import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
 import { listRate } from '../../../utils/pricing/linePricing';
 import { useAuthStore } from '../../../store/authStore';
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelper';
-import { whatsappApi } from '../../../data/whatsapp';
+import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import type { CartItem, InvoiceType } from '../../../store/cartStore';
 import type { Tab, PaymentMethod } from '../../../store/tabStore';
 
@@ -129,15 +129,17 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
         paymentMethod,
       });
 
-      const sendRes = await whatsappApi.sendInvoice({
+      const sendRes = await sendConfiguredBill(tenantId || 'global', {
         phone: custPhone,
         message: waMessage,
-        htmlContent: fullHtml,
-        fileName: "Invoice_" + billNo + ".pdf"
+        legacyHtml: fullHtml,
+        a4Html: generateInvoiceHtml(activeReceiptData, (printFmt.a4Style || 'boxed') as B.InvoiceStyle),
+        receiptText: generateReceiptText(activeReceiptData, printFmt.width ? Number(printFmt.width) / 10 : 8, undefined, printFmt.thermalStyle || 'standard'),
+        receiptWidthMm: Number(printFmt.width) || 80, invoiceNumber: billNo,
       });
 
       if (sendRes?.success) {
-        setInfoToast("Invoice PDF sent to WhatsApp (" + custPhone + ") successfully!");
+        setInfoToast("Bill sent to WhatsApp (" + custPhone + ") successfully!");
         setTimeout(() => setInfoToast(null), 4000);
       } else {
         setHardwareError("WhatsApp Send Failed: " + (sendRes?.error || 'Unknown error'));

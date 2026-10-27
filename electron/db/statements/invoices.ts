@@ -1,4 +1,5 @@
 import type { Db } from './types.js';
+import { counterSalePredicate } from './revenue.js';
 
 /** SQL statements used by services/invoicesService.ts. Each factory prepares its statement on the given connection. */
 
@@ -20,14 +21,6 @@ export const findPartiesByPhone = (db: Db) => db.prepare('SELECT * FROM parties 
 export const findPartiesByName = (db: Db) => db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)');
 
 export const findCustomersByCustomerId = (db: Db) => db.prepare('SELECT customer_id, total_points_earned, total_points_redeemed, current_points_balance FROM customers WHERE customer_id = ?');
-
-export const findSettingsByKeyLoyaltyConfig = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'");
-
-export const findSettingsByKeyLoyaltyConfig2 = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'");
-
-export const findSettingsByKeyFeatureFlags = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'");
-
-export const findSettingsByKeyFeatureFlags2 = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'");
 
 export const insertInvoice = (db: Db) => db.prepare(`
       INSERT INTO invoices (
@@ -182,7 +175,7 @@ export const findInvoicesByInvoiceType = (db: Db) => db.prepare(`
 
 export const updateInvoiceIsDeletedAndIsHeld = (db: Db) => db.prepare(`UPDATE invoices SET is_deleted = 1, is_held = 0 WHERE tenant_id = ? AND invoice_type IN ('EXPIRED_HOLD', 'RECALLED_HOLD') AND (is_deleted IS NULL OR is_deleted = 0)`);
 
-export const findInvoicesByInvoiceIdSubtotalAndTaxTotal = (db: Db) => db.prepare('SELECT subtotal, tax_total, scrap_deduction, return_deduction FROM invoices WHERE invoice_id = ?');
+export const findInvoicesByInvoiceIdSubtotalAndTaxTotal = (db: Db) => db.prepare('SELECT subtotal, tax_total, scrap_deduction, return_deduction, points_redeemed_discount FROM invoices WHERE invoice_id = ?');
 
 export const updateInvoiceByInvoiceId2 = (db: Db) => db.prepare(`
       UPDATE invoices 
@@ -209,7 +202,7 @@ export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
-        AND (converted_from_invoice_id IS NULL OR converted_from_invoice_id = '')
+        AND ${counterSalePredicate()}
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
@@ -262,33 +255,6 @@ export const findProductsByProductIdIsServiceItem = (db: Db) => db.prepare('SELE
 
 export const updateProductCurrentStockCurrentStock3 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
 
-export const findCustomersByCustomerIdCurrentPointsBalance = (db: Db) => db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?');
-
-export const insertLoyaltyTransaction3 = (db: Db) => db.prepare(`
-              INSERT INTO loyalty_transactions (
-                transaction_id, tenant_id, customer_id, invoice_id,
-                transaction_type, points, points_balance_before, points_balance_after,
-                reference_number, description, created_by, sync_status, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
-            `);
-
-export const updateCustomerByCustomerId2 = (db: Db) => db.prepare(`
-              UPDATE customers SET
-                total_points_earned = COALESCE(total_points_earned, 0) + ?,
-                current_points_balance = ?,
-                last_purchase_date = COALESCE(last_purchase_date, ?),
-                sync_status = 'PENDING',
-                updated_at = CURRENT_TIMESTAMP
-              WHERE customer_id = ?
-            `);
-
-export const updateInvoicePointsEarnedAndRemainingPointsBalance = (db: Db) => db.prepare(`
-              UPDATE invoices SET
-                points_earned = ?,
-                remaining_points_balance = ?
-              WHERE invoice_id = ?
-            `);
-
 export const updateInvoiceByInvoiceId4 = (db: Db) => db.prepare(`
       UPDATE invoices SET
         payment_method = ?,
@@ -299,24 +265,6 @@ export const updateInvoiceByInvoiceId4 = (db: Db) => db.prepare(`
         updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `);
-
-export const updateInvoiceByInvoiceId5 = (db: Db) => db.prepare(`
-                UPDATE invoices SET
-                  points_earned = ?,
-                  previous_points_balance = COALESCE(previous_points_balance, ?),
-                  remaining_points_balance = ?
-                WHERE invoice_id = ?
-              `);
-
-export const updateCustomerByCustomerId3 = (db: Db) => db.prepare(`
-                UPDATE customers SET
-                  total_points_earned = COALESCE(total_points_earned, 0) + ?,
-                  current_points_balance = ?,
-                  last_purchase_date = ?,
-                  sync_status = 'PENDING',
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE customer_id = ?
-              `);
 
 export const findInvoiceItemsByInvoiceId3 = (db: Db) => db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
 
@@ -385,7 +333,7 @@ export const updateInvoiceConvertedToInvoiceIdAndConvertedToInvoiceNumber = (db:
             WHERE invoice_id = ?
           `);
 
-export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db) => db.prepare(`
+export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db, invoiceIds?: readonly string[]) => db.prepare(`
       SELECT i.invoice_id,
              EXISTS(
                SELECT 1 FROM invoice_items ii
@@ -420,14 +368,13 @@ export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db) => db.prep
              ) AS convertible
       FROM invoices i
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR ? = 'global') AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-    `);
+    ` + (invoiceIds === undefined ? '' : ' AND i.invoice_id IN (' + invoiceIds.map(() => '?').join(',') + ')'));
 
 export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?');
 
 export const findInvoiceItemsByInvoiceIdProductIdAndQuantity3 = (db: Db) => db.prepare('SELECT product_id, quantity, qty_from_paper_stock FROM invoice_items WHERE invoice_id = ?');
 
 export const updateProductCurrentStockCurrentStock4 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
-
 
 export const updateInvoiceItemIsDeleted = (db: Db) => db.prepare("UPDATE invoice_items SET is_deleted = 1, sync_status = 'PENDING' WHERE invoice_id = ?");
 
@@ -514,11 +461,11 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
       // tax rate filter is active, the synthetic GST copies are excluded so the list
       // matches the de-duplicated summary and product totals.
       if (tax_rate_percent !== undefined && tax_rate_percent !== '' && tax_rate_percent !== 'all') {
-        query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
+        query += ` AND ${counterSalePredicate('i')}`;
       }
     } else {
       // Default to REAL_SALES: Show genuine counter transactions
-      query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
+      query += ` AND ${counterSalePredicate('i')}`;
     }
 
     if (search) {
@@ -636,19 +583,19 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         AND (i.is_held IS NULL OR i.is_held = 0)
     ` : `
       SELECT 
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
               THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
             ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ELSE 0 END), 0) as totalSales,
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN
           MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
         ELSE 0 END), 0) as totalSalesBeforeDeductions,
-        COUNT(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 1 END) as totalInvoices,
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.tax_total ELSE 0 END), 0) as totalTax,
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.discount_total ELSE 0 END), 0) as totalDiscount
+        COUNT(CASE WHEN ${counterSalePredicate('i')} THEN 1 END) as totalInvoices,
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.tax_total ELSE 0 END), 0) as totalTax,
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.discount_total ELSE 0 END), 0) as totalDiscount
       FROM invoices i 
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)

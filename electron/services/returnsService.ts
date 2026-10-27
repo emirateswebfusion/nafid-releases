@@ -1,8 +1,9 @@
+import { reconcileInvoicePoints } from './loyaltyService.js';
 import type { InvoiceItem, InvoiceRow, LedgerRow, ReturnRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localTimestamp, localDate } from './storeTime.js';
-import { getOpenCashDrawer } from './cashDrawerService.js';
+import { getOpenCashDrawer, reconcileCashDrawer } from './cashDrawerService.js';
 import crypto from 'node:crypto';
 import { syncReturnLedger, recalcPartyBalances } from './partyLedgerService.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
@@ -38,6 +39,10 @@ export function createReturn(payload: {
     total: number;
   }>;
 }) {
+  if (!Array.isArray(payload.items) || payload.items.length === 0 ||
+      payload.items.some(item => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+    return { success: false, error: 'Enter a positive quantity for at least one return item; omit zero-quantity items.' };
+  }
   const { items, ...returnData } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
@@ -71,6 +76,7 @@ export function createReturn(payload: {
     if (returnData.invoice_id) {
       origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id) as InvoiceRow | null | undefined;
     }
+    if (origInv) reconcileInvoicePoints(db, origInv.invoice_id);
     const origPm = (origInv?.payment_method || '').toUpperCase();
     let origSplitCredit = 0;
     if (origInv?.split_details) {
@@ -111,10 +117,7 @@ export function createReturn(payload: {
             `Return refund for ${returnData.return_number}`,
             returnData.user_id || 'system'
           );
-          const newCashOut = Number(drawer.cash_out) + Number(returnData.grand_total);
-          const newCurrentCash = Number(drawer.current_cash) - Number(returnData.grand_total);
-          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
-          returnsSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, returnData.tenant_id, drawer);
         }
       }
     }
@@ -324,6 +327,7 @@ export function deleteReturn(return_id: string) {
 
       returnsSql.deleteReturnItemByReturnId(db).run(return_id);
       returnsSql.deleteReturnByReturnId(db).run(return_id);
+      if (returnRow.invoice_id) reconcileInvoicePoints(db, returnRow.invoice_id);
 
       for (const pId of affectedParties) {
         recalcPartyBalances(db, pId);

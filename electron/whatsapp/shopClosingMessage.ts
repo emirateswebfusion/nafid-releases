@@ -205,11 +205,29 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
   if (checklist.scrap && summaryData.scrapSummary && (summaryData.scrapSummary.totalAmount > 0 || summaryData.scrapSummary.count > 0)) {
     lines.push(``);
     lines.push(`♻️ *SCRAP ENTRIES:*`);
+    if (checklist.scrapSales !== undefined || checklist.scrapCategories !== undefined) {
+      const items = summaryData.scrapSummary.items.filter(item => checklist.scrapSales !== false || item.type !== 'SALE');
+      if (checklist.scrapCategories !== false) {
+        const categories = new Map<string, number>();
+        for (const item of items) {
+          const label = `${item.categoryName} (${item.type === 'SALE' ? 'Sale' : 'Purchase'})`;
+          categories.set(label, (categories.get(label) || 0) + item.totalAmount);
+        }
+        for (const [label, amount] of categories) lines.push(`• ${label}: *${formatCurrency(amount)}*`);
+      }
+      const purchases = items.filter(item => item.type !== 'SALE').reduce((sum, item) => sum + item.totalAmount, 0);
+      lines.push(`*Scrap Purchase Total:* ${formatCurrency(purchases)}`);
+      if (checklist.scrapSales !== false) {
+        const sales = items.filter(item => item.type === 'SALE').reduce((sum, item) => sum + item.totalAmount, 0);
+        lines.push(`*Scrap Sales Total:* ${formatCurrency(sales)}`);
+      }
+    } else {
     summaryData.scrapSummary.items.forEach((sc: Record<string, unknown>) => {
       const qtyTxt = (sc.quantity as number) > 0 ? ` (${sc.quantity} ${sc.unit || 'Kgs'}${(sc.rate as number) > 0 ? ` @ ${formatCurrency((sc.rate as number | null | undefined))}` : ''})` : '';
       lines.push(`• ${sc.categoryName}${qtyTxt}: *${formatCurrency((sc.totalAmount as number | null | undefined))}*`);
     });
     lines.push(`*Total Scrap:* ${formatCurrency(summaryData.scrapSummary.totalAmount)}`);
+    }
   }
 
   // Returns & Refunds

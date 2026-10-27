@@ -214,9 +214,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     ? `<div style="border:2px solid black;padding:6px 3px;width:100%;box-sizing:border-box;background:#fff;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;">${rowsHtml}</div>`
     : rowsHtml;
 
-  const leftMarginCss = leftMarginOffsetMm !== 0
-    ? `margin-left: ${leftMarginOffsetMm}mm !important;`
-    : '';
+  const offset = Number.isFinite(leftMarginOffsetMm) ? leftMarginOffsetMm : 0;
 
   return `<!DOCTYPE html>
 <html>
@@ -229,7 +227,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
-    padding: 2mm 3mm;
+    padding: 0;
     font-family: ${fontFamily};
     font-size: ${fontSize};
     color: #000;
@@ -237,15 +235,30 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     width: ${widthMm}mm;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    ${leftMarginCss}
+  }
+  body {
+    padding: 2mm 3mm;
+    position: relative;
+    left: ${offset}mm;
+    height: auto;
+  }
+  pre, img, svg { max-width: 100%; }
+  pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
+  @media print {
+    html, body { height: auto; overflow: visible; }
   }
 </style>
 </head>
 <body>
   ${contentBody}
   <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      const height = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+    window.addEventListener('load', async () => {
+      if (document.fonts) await document.fonts.ready;
+      const height = document.body.scrollHeight;
+      const pageHeightMm = Math.max(80, Math.ceil(height * 25.4 / 96 + 5));
+      const pageStyle = document.createElement('style');
+      pageStyle.textContent = '@page { size: ${widthMm}mm ' + pageHeightMm + 'mm; margin: 0; }';
+      document.head.appendChild(pageStyle);
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);
       }
