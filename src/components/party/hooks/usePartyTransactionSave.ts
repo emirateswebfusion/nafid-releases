@@ -1,4 +1,5 @@
 import type React from 'react';
+import { isLedgerRecipientAllowed } from '../../../data/whatsappSharing';
 import { partiesApi } from '../../../data/parties';
 import { v4 as uuidv4 } from 'uuid';
 import { cashierApi } from '../../../data/cashier';
@@ -92,7 +93,7 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
 
         // WhatsApp notification handling
         const isPartyAlertEnabled = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;
-        const shouldSendWa = Boolean(ledgerWhatsappEnabled && isPartyAlertEnabled && txForm.send_whatsapp);
+        const shouldSendWa = Boolean(ledgerWhatsappEnabled && isPartyAlertEnabled && txForm.send_whatsapp) && await isLedgerRecipientAllowed(tenantId || 'global', selectedParty);
 
         if (shouldSendWa) {
           const partyPhone = (selectedParty.phone || '').trim();

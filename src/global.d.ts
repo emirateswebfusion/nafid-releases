@@ -152,7 +152,7 @@ export interface IElectronAPI {
   whatsappGetStatus: () => Promise<{ status: 'disconnected' | 'connecting' | 'connected'; qrCode: string | null; phone: string | null }>;
   whatsappConnect: () => Promise<{ success: boolean; status: string; qrCode?: string | null; phone?: string | null }>;
   whatsappDisconnect: () => Promise<{ success: boolean; error?: string }>;
-  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
+  whatsappSendInvoice: (payload: { phone: string; message: string; htmlContent?: string; fileName?: string; receiptText?: string; receiptWidthMm?: number }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
   onWhatsAppStatusUpdate: (callback: (data: { status: 'disconnected' | 'connecting' | 'syncing' | 'connected'; qrCode: string | null; phone: string | null }) => void) => () => void;
   // Shop Closing Overview WhatsApp APIs
   shopClosingGetConfig: (params: { tenant_id?: string }) => Promise<ShopClosingConfigResult>;

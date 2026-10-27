@@ -1,3 +1,4 @@
+import { isLedgerRecipientAllowed } from '../../../data/whatsappSharing';
 import { hasBridge } from '../../../data/client';
 import { formatWhatsAppLedgerTxMessage, formatWhatsAppStatementMessage } from '../../../utils/print/whatsappBillHelper';
 import { whatsappApi } from '../../../data/whatsapp';
@@ -37,6 +38,10 @@ export function useLedgerSharing(ctx: UseLedgerSharingContext) {
     }
 
     try {
+      if (!await isLedgerRecipientAllowed(tenantId || 'global', selectedParty)) {
+        showStatus('This party type is excluded in WhatsApp settings', 'error');
+        return;
+      }
       const amt = Number(entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount) || 0;
       const runningBal = Number(entry.running_balance) || 0;
       const ob = runningBal - (Number(entry.credit_amount) || 0) + (Number(entry.debit_amount) || 0);
@@ -47,6 +52,7 @@ export function useLedgerSharing(ctx: UseLedgerSharingContext) {
         amount: amt,
         newBalance: runningBal,
         paymentMethod: entry.payment_method || 'CASH',
+        description: entry.description,
         transactionType: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
         partyName: selectedParty.name,
         shopName: effectiveShopName,
@@ -141,6 +147,10 @@ export function useLedgerSharing(ctx: UseLedgerSharingContext) {
     }
     setIsSendingWhatsAppPdf(true);
     try {
+      if (!await isLedgerRecipientAllowed(tenantId || 'global', selectedParty)) {
+        showStatus('This party type is excluded in WhatsApp settings', 'error');
+        return;
+      }
       let effectiveLedgerForPdf = ledger;
       if (enablePartyGst && !enablePartyEstimate) {
         effectiveLedgerForPdf = ledger.filter(e => (e.balance_type || 'GST') === 'GST');

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { buildReceiptHtml } from '../hardware/receiptHtml.js';
 import { setSharedA4Html } from './sharedPrintHtml.js';
 import path from 'path';
 import fs from 'fs';
@@ -181,7 +182,7 @@ async function logoutWhatsApp(): Promise<{ success: boolean; error?: string }> {
 }
 
 // Helper to generate PDF Buffer from HTML content using a headless BrowserWindow
-async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
+async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): Promise<Buffer> {
   const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
   const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
   const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;
@@ -198,7 +199,11 @@ async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
     },
   });
 
-  if (app.isPackaged) {
+  if (thermal) {
+    // Receipt HTML is generated locally and escapes bill text. Render it directly so
+    // the A4 view's sanitizer does not remove receipt QR images and barcodes.
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  } else if (app.isPackaged) {
     printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-a4' });
   } else {
     printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-a4`);
@@ -225,7 +230,7 @@ async function generatePdfBufferFromHtml(htmlContent: string): Promise<Buffer> {
           printBackground: true,
           pageSize: 'A4',
           landscape: false,
-          preferCSSPageSize: false,
+          preferCSSPageSize: thermal,
           margins: { marginType: 'none' },
         });
         clearTimeout(timer);
@@ -328,15 +333,24 @@ export function initWhatsAppIpc(): void {
         message: string;
         htmlContent?: string;
         fileName?: string;
+        receiptText?: string;
+        receiptWidthMm?: number;
       }
     ) => {
       try {
         let pdfBuf: Buffer | undefined = undefined;
-        if (payload.htmlContent) {
+        if (payload.htmlContent || payload.receiptText) {
           try {
-            pdfBuf = await generatePdfBufferFromHtml(payload.htmlContent);
+            let html = payload.htmlContent || '';
+            if (payload.receiptText) {
+              const width = payload.receiptWidthMm === 58 ? 58 : 80;
+              html = await buildReceiptHtml(payload.receiptText, width);
+              html = html.replace('@page {', `@page { size: ${width}mm 297mm;`);
+            }
+            pdfBuf = await generatePdfBufferFromHtml(html, Boolean(payload.receiptText));
           } catch (err) {
             console.warn('[WhatsApp] Could not render PDF buffer:', err);
+            return { success: false, error: 'Could not generate the selected PDF. Please retry.' };
           }
         }
         return await sendWhatsAppBill({

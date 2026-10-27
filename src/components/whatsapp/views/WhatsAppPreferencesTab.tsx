@@ -85,7 +85,7 @@ export function WhatsAppPreferencesTab({
                 Auto-send WhatsApp Bill on Checkout
               </span>
               <span className="text-[11px] text-muted-foreground block leading-snug">
-                When a customer phone number is entered during billing, automatically send the PDF invoice and bill summary.
+                When a customer phone number is entered during billing, automatically send the bill in the selected formats.
               </span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer shrink-0 select-none">
@@ -104,7 +104,7 @@ export function WhatsAppPreferencesTab({
               What does the customer receive?
             </h5>
             <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside leading-snug">
-              <li>High-resolution standalone PDF invoice document</li>
+              <li>The selected bill formats (text, invoice PDF, or receipt PDF)</li>
               <li>Itemized purchase summary (descriptions, quantities &amp; totals)</li>
               <li>Credit period &amp; Due date reminder (for credit invoices)</li>
               <li>Live ledger balance summary</li>
@@ -148,7 +148,7 @@ export function WhatsAppPreferencesTab({
               </span>
               <span className="text-[11px] text-muted-foreground block leading-snug">
                 {ledgerAlertsEnabled
-                  ? 'Active for all parties. You can silence individual parties anytime from their ledger profile.'
+                  ? 'Active for selected party types. You can silence individual parties from their ledger profile.'
                   : 'Turned off for all parties. No automated transaction messages will be sent.'}
               </span>
             </div>
