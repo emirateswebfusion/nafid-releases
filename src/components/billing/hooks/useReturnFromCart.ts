@@ -1,3 +1,4 @@
+import { priceReturnLine, totalReturnLines } from '../../../utils/pricing/returnPricing';
 import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -81,11 +82,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
       const tid = tenantId || 'global';
       const numRes = await returnsApi.getNextReturnNumber({ tenant_id: tid });
       const returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RTN-${Date.now()}`;
-      const returnSubtotal = returnCartItems.reduce((s, item) => s + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0), 0);
-      const returnTaxTotal = returnCartItems.reduce((s, item) => {
-        const origQty = Number(item.originalQuantity) || 1;
-        return s + ((Number(item.originalTaxAmount) || 0) / origQty) * (Number(item.quantity) || 0);
-      }, 0);
+      const { subtotal: returnSubtotal, tax: returnTaxTotal, total: returnGrandTotal } = totalReturnLines(returnCartItems);
       const returnItems = returnCartItems.map(item => ({
         return_item_id: uuidv4(),
         product_id: item.product_id,
@@ -93,9 +90,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
         name: item.name,
         brand_manufacturer: item.brand_manufacturer || null,
         quantity: Number(item.quantity) || 0,
-        unit_price: Number(item.originalUnitPrice) || 0,
-        tax_amount: ((Number(item.originalTaxAmount) || 0) / Math.max(1, Number(item.originalQuantity) || 1)) * (Number(item.quantity) || 0),
-        total: (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0),
+        ...priceReturnLine(item),
       }));
 
       const result = await returnsApi.createReturn({
@@ -109,7 +104,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
         customer_address: (selectedReturnInvoice as B.BillingInvoice)?.customer_address || customerAddress || undefined,
         subtotal: returnSubtotal,
         tax_total: returnTaxTotal,
-        grand_total: returnSubtotal + returnTaxTotal,
+        grand_total: returnGrandTotal,
         reason: '',
         refund_method: returnRefundMethod,
         adjusted_invoice_number: undefined,
@@ -126,7 +121,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
           await cashierApi.addTransaction({
             tenant_id: tid,
             type: 'CASH_OUT',
-            amount: returnSubtotal + returnTaxTotal,
+            amount: returnGrandTotal,
             category: 'RETURN_REFUND',
             notes: `Return refund for ${returnNumber} (Ref: ${selectedReturnInvoice.invoice_number})`,
             user_id: userId as string, // type-only: the IPC param is typed string; value unchanged
@@ -136,7 +131,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
       }
 
       if (returnRefundMethod === 'ADJUST_BILL') {
-        setReturnDeduction(returnSubtotal + returnTaxTotal, returnNumber);
+        setReturnDeduction(returnGrandTotal, returnNumber);
       }
 
       if (!saveOnly) {
@@ -158,7 +153,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
           subtotal: returnSubtotal,
           tax: returnTaxTotal,
           discount: returnDiscountTotal,
-          grandTotal: returnSubtotal + returnTaxTotal,
+          grandTotal: returnGrandTotal,
           invoiceType: 'RETURN',
           customerName: selectedReturnInvoice.customer_name || customerName || undefined,
           customerPhone: selectedReturnInvoice.customer_phone || customerPhone || undefined,

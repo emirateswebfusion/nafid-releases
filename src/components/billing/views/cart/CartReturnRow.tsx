@@ -1,3 +1,4 @@
+import { priceReturnLine } from '../../../../utils/pricing/returnPricing';
 import React from 'react';
 import clsx from 'clsx';
 import { Minus, Pencil, Plus, Trash } from 'lucide-react';
@@ -35,7 +36,7 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
   const rate = Number(item.originalUnitPrice) || 0;
   const rawRate = Number(item.rawUnitPrice) || rate;
   const qtyText = Number(item.quantity) || 0;
-  const total = rate * qtyText;
+  const total = priceReturnLine(item).total;
   const rawTotal = rawRate * qtyText;
   const avail = item.availableToReturn ?? 0;
 
@@ -126,14 +127,14 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
               onChange={e => {
                 const raw = sanitizeQtyText(e.target.value);
                 setLocalKgStr(p => ({ ...p, [item.product_id]: raw }));
-                const num = parseFloat(raw);
-                if (!isNaN(num) && num > 0) {
+                const num = Number(raw);
+                if (!isNaN(num) && num >= 0) {
                   updateQuantity(item.product_id, Math.min(avail, +num.toFixed(3)));
                 }
               }}
               onBlur={() => {
                 const val = Number(item.quantity);
-                const validVal = (!val || isNaN(val) || val <= 0) ? 0.1 : Math.min(avail, val);
+                const validVal = (!val || isNaN(val) || val <= 0) ? 0 : Math.min(avail, val);
                 updateQuantity(item.product_id, validVal);
                 setLocalKgStr(p => ({ ...p, [item.product_id]: String(validVal) }));
               }}
@@ -146,7 +147,7 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
         </div>
       ) : (
         <div className="flex items-center gap-0.5 bg-rose-500/10 border border-rose-500/30 rounded-lg py-0.5 shrink-0">
-          <button onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); }}
+          <button onClick={() => { const q = Number(item.quantity); if (q > 0) updateQuantity(item.product_id, q - 1); }}
             className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
           ><Minus className="w-3 h-3" /></button>
           <input type="text" inputMode="numeric"
@@ -163,7 +164,7 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
             onFocus={e => e.target.select()}
             onBlur={e => {
               const num = Number(e.target.value);
-              const validVal = (!e.target.value || isNaN(num) || num <= 0) ? 1 : Math.min(avail, num);
+              const validVal = (!e.target.value || isNaN(num) || num <= 0) ? 0 : Math.min(avail, num);
               updateQuantity(item.product_id, validVal);
             }}
             onChange={e => {

@@ -38,6 +38,10 @@ export function createReturn(payload: {
     total: number;
   }>;
 }) {
+  if (!Array.isArray(payload.items) || payload.items.length === 0 ||
+      payload.items.some(item => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+    return { success: false, error: 'Enter a positive quantity for at least one return item; omit zero-quantity items.' };
+  }
   const { items, ...returnData } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
