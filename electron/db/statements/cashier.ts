@@ -122,15 +122,6 @@ export const insertCashTransaction = (db: Db) => db.prepare(`
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
             `);
 
-export const findPaymentSourcesBySourceIdAndIsEnabled = (db: Db) => db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0 AND is_enabled = 1`);
-
-export const insertPaymentSourceTransaction = (db: Db) => db.prepare(`
-            INSERT INTO payment_source_transactions (transaction_id, tenant_id, source_id, type, amount, category, reference_number, notes, transaction_date, running_balance, entered_by, entered_by_name, sync_status)
-            VALUES (?, ?, ?, 'CASH_IN', ?, 'Invoice Payment', ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'PENDING')
-          `);
-
-export const updatePaymentSourceCurrentBalance = (db: Db) => db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`);
-
 export const insertCashTransaction2 = (db: Db) => db.prepare(`
         INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, transaction_date, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')

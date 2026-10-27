@@ -10,6 +10,8 @@ export interface InventoryTableViewProps {
   isAllSelected: boolean;
   isSomeSelected: boolean;
   handleToggleSelectAll: () => void;
+  showZeroPaperStock: boolean;
+  showProductGstBadge: boolean;
   showPriceTiersInInventory: boolean;
   activePricingTiers: import('../hooks/useInventoryState').InventoryState['pricingTiers'];
   listScrollRef: React.RefObject<HTMLDivElement | null>;
@@ -47,6 +49,8 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
   isAllSelected,
   isSomeSelected,
   handleToggleSelectAll,
+  showZeroPaperStock,
+  showProductGstBadge,
   showPriceTiersInInventory,
   activePricingTiers,
   listScrollRef,
@@ -221,6 +225,14 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                               {p.sku_barcode}
                             </p>
                             <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                              {enableRealPaperStock && showZeroPaperStock && Number(p.paper_stock ?? da.paper_stock ?? 0) === 0 && (
+                                <span className="text-[10px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded font-semibold">Paper: 0</span>
+                              )}
+                              {showProductGstBadge && (
+                                <span data-product-type-badge className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">
+                                  {enableRealPaperStock ? (isPaperProduct ? 'Paper' : 'Real') : (Number(p.is_gst_applicable) === 1 ? 'GST' : 'Estimate')}
+                                </span>
+                              )}
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                               {showPriceTiersInInventory && allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
