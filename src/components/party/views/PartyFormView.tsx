@@ -224,7 +224,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                 </div>
               </div>
               {/* ── Commercial & Credit Configuration ── */}
-              <div className="mt-5 pt-5 border-t border-border/70 space-y-5">
+              {partyForm.party_type === 'CUSTOMER' && (<div className="mt-5 pt-5 border-t border-border/70 space-y-5">
                 {/* Section Header */}
                 <div className="flex items-center gap-2">
                   <div className="p-1 rounded-md bg-amber-500/10 text-amber-500">
@@ -473,7 +473,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                     </div>
                   )}
                 </div>
-              </div>
+              </div>)}
             </section>
             {!editingParty && (
               <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
