@@ -93,6 +93,21 @@ describe('BOS to B2C service characterization', () => {
     await convertBosToGst(payload);
     expect(state.inserted.mock.calls[0].slice(26, 30)).toEqual([0, 0, 18, 'INTER']);
   });
+  it('does not allocate or burn an invoice number when items have no available GST stock', async () => {
+    state.items = [];
+    const result = await convertBosToGst(payload);
+    expect(result.results?.[0].success).toBe(false);
+    expect(result.results?.[0].error).toContain('No items have available GST stock');
+    expect(state.allocate).not.toHaveBeenCalled();
+    expect(state.inserted).not.toHaveBeenCalled();
+  });
+  it('prices again inside the transaction, so stock used while the number was requested is not sold twice', async () => {
+    state.allocate.mockImplementationOnce(() => { state.items = []; });
+    const result = await convertBosToGst(payload);
+    expect(state.allocate).toHaveBeenCalledOnce();
+    expect(result.results?.[0]).toMatchObject({ success: false });
+    expect(state.inserted).not.toHaveBeenCalled();
+  });
   it('does not create a second copy when the BOS is already converted', async () => {
     state.invoice.converted_to_invoice_id = 'gst';
     const result = await convertBosToGst(payload);

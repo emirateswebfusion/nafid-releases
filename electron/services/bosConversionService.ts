@@ -323,6 +323,9 @@ export async function convertBosToGst(payload: {
 
     const results: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string }[] = [];
 
+    // A server number reserved for an invoice that then failed is used for the next invoice of the same series.
+    let reusableAllocation: { invoiceNumber: string; configKey: string } | null = null;
+
     for (const invoice_id of payload.invoice_ids) {
       // Look up invoice number first so it's available even if the transaction fails
       let invoiceNumber = '';
@@ -331,60 +334,20 @@ export async function convertBosToGst(payload: {
         invoiceNumber = invLookup.invoice_number;
       }
 
+      let activeAllocation: { invoiceNumber: string; configKey: string } | null = null;
+
       try {
-        const numberInvoice = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
-        let preallocatedInvoiceNumber = '';
-        if (numberInvoice && numberInvoice.invoice_type !== 'GST' && !numberInvoice.converted_to_invoice_id) {
-          const numberTid = numberInvoice.tenant_id || payload.tenant_id || 'global';
-          const numberTripleRow: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(numberTid, 'three_invoice_series') as SettingRow | undefined
-            || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow | undefined;
-          const numberTriple = numberTripleRow ? (parseSetting(numberTripleRow) as SeriesSetting) : null;
-          const numberIsB2B = Boolean(numberInvoice.customer_gstin && String(numberInvoice.customer_gstin).trim() !== '');
-          const numberSeries = numberTriple?.enabled ? (numberIsB2B ? 'gst_b2b' : 'gst_b2c') : 'gst';
-          const numberConfigKey = numberSeries === 'gst_b2b' ? 'gst_b2b_invoice_counter_config'
-            : numberSeries === 'gst_b2c' ? 'gst_b2c_invoice_counter_config'
-            : 'gst_invoice_counter_config';
-          const localNext = peekGuaranteedNextInvoiceNumber(db, numberTid, numberConfigKey);
-          const serverAllocation = await requestServerInvoiceNumber(db, numberTid, numberSeries, numberConfigKey, localNext.counter, 1500);
-          if (serverAllocation.success) preallocatedInvoiceNumber = serverAllocation.invoiceNumber;
-        }
+        const inv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
+        if (!inv) throw new Error('Invoice not found');
+        if (inv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
+        if (inv.converted_to_invoice_id) throw new Error('Invoice is already converted');
 
-        const invoice = db.transaction(() => {
-          // Get the invoice
-          const inv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
-          if (!inv) throw new Error('Invoice not found');
-          if (inv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
-          if (inv.converted_to_invoice_id) throw new Error('Invoice is already converted');
+        const tid = inv.tenant_id || payload.tenant_id || 'global';
+        const oldInvoiceNumber = inv.invoice_number;
 
-          const tid = inv.tenant_id || payload.tenant_id || 'global';
-          const oldInvoiceNumber = inv.invoice_number;
-
-          // Check if three invoice series is enabled
-          const tripleSeriesRow: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(tid, 'three_invoice_series') as SettingRow | undefined
-            || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow | undefined;
-          const tripleSeries = tripleSeriesRow ? (parseSetting(tripleSeriesRow) as SeriesSetting) : null;
-
-          const isB2B = Boolean(inv.customer_gstin && inv.customer_gstin.trim() !== '');
-          let configKey: string;
-
-          if (tripleSeries && tripleSeries.enabled) {
-            configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
-          } else {
-            // Dedicated GST counter so GST invoices NEVER steal or continue regular Bill of Supply numbers
-            const dualSeriesRow2: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(tid, 'dual_invoice_series') as SettingRow | undefined
-              || invoicesSql.findSettingsByKey(db).get('global', 'dual_invoice_series') as SettingRow | undefined;
-            const dualSeries2 = dualSeriesRow2 ? (parseSetting(dualSeriesRow2) as SeriesSetting) : null;
-            if (dualSeries2 && dualSeries2.enabled) {
-              configKey = 'gst_invoice_counter_config';
-            } else {
-              configKey = 'gst_invoice_counter_config';
-            }
-          }
-
-          const { invoiceNumber: newInvoiceNumber } = preallocatedInvoiceNumber
-            ? { invoiceNumber: preallocatedInvoiceNumber }
-            : getGuaranteedNextInvoiceNumber(db, tid, configKey);
-
+        // Pricing reads GST stock. It runs once here so no invoice number is reserved for a bill that cannot convert,
+        // and again inside the transaction: the number request awaits, and another conversion may use the same stock meanwhile.
+        const priceInvoice = (inv: InvoiceRow) => {
           // Get invoice items
           const items = invoicesSql.findInvoiceItemsByInvoiceId3(db).all(invoice_id) as InvoiceItemRow[];
 
@@ -405,13 +368,11 @@ export async function convertBosToGst(payload: {
             const originalQty = Number(item.quantity) || 0;
 
             // ─── Compute available GST stock WITH rates from all GST purchase bills (FIFO) ───
-            // Includes both Real GST purchases (skip_stock_update = 0) and Paper GST purchases (skip_stock_update = 1)
             const gstStockRows = invoicesSql.findPurchaseBillItemsByProductIdAndBillType(db).all(gstProduct.product_id, tid) as PurchaseBillItemRow[];
 
             let da: DomainAttributes = {};
             try { da = JSON.parse(gstProduct.domain_attributes || '{}'); } catch { /* ignore */ }
 
-            // A product is Real GST if is_gst_applicable is 1 and its gst_type is not explicitly PAPER
             const isRealGstProduct = gstProduct.is_gst_applicable === 1 && da.gst_type !== 'PAPER';
 
             const isPaperProduct = !isRealGstProduct && (
@@ -422,17 +383,14 @@ export async function convertBosToGst(payload: {
               (da.paper_stock !== undefined && Number(da.paper_stock) > 0)
             );
 
-            // ─── Rule 3: Skip estimate (not paper) products from bill conversion ───
             if (!isRealGstProduct && !isPaperProduct && gstStockRows.length === 0) {
               skippedItems.push(`${item.name || item.product_id} (Estimate non-paper product skipped)`);
               continue;
             }
 
-            // Total GST quantity already sold on existing GST invoices
             const gstSoldRow = invoicesSql.findInvoiceItemsByProductIdAndInvoiceType(db).get(gstProduct.product_id, tid, invoice_id) as { total_gst_sold?: number | string | null } | undefined;
             const totalGstSold = gstSoldRow ? Number(gstSoldRow.total_gst_sold) : 0;
 
-            // Calculate remaining qty per purchase bill item (FIFO consumption)
             let remainingSold = totalGstSold;
             const availableGstBatches: { item_id: string; qty: number; purchase_price: number; selling_price: number; offer_price: number; tax_rate_percent: number }[] = [];
 
@@ -441,7 +399,7 @@ export async function convertBosToGst(payload: {
               const alreadyConsumed = Math.min(batchQty, remainingSold);
               const availableQty = batchQty - alreadyConsumed;
               remainingSold = Math.max(0, remainingSold - alreadyConsumed);
-              
+            
               if (availableQty > 0) {
                 availableGstBatches.push({
                   item_id: batch.item_id,
@@ -454,7 +412,6 @@ export async function convertBosToGst(payload: {
               }
             }
 
-            // If manual paper stock is defined in product domain_attributes without purchase bill
             if (gstStockRows.length === 0 && isPaperProduct && Number(da.paper_stock || 0) > 0) {
               const paperStock = Number(da.paper_stock) || 0;
               const availPaper = Math.max(0, paperStock - totalGstSold);
@@ -491,16 +448,13 @@ export async function convertBosToGst(payload: {
               continue;
             }
 
-            // ─── Determine Unit Price based on user specifications: ───
             let newUnitPrice: number;
             let batchTaxRate = 0;
 
             if (isRealGstProduct) {
-              // ─── Rule 1: Real GST product -> same BOS price (no any changes) ───
               newUnitPrice = Number(item.unit_price) || 0;
               batchTaxRate = Number(item.tax_rate) || Number(gstProduct.tax_rate_percent) || 0;
             } else {
-              // ─── Rule 2: Paper details available -> use paper MRP/offer; if not available -> use settings percentage on purchase price ───
               let paperSellingPrice = 0;
               let paperPurchasePrice = 0;
 
@@ -599,7 +553,6 @@ export async function convertBosToGst(payload: {
           newSubtotal = Math.round(newSubtotal * 100) / 100;
           newTotalTax = Math.round(newTotalTax * 100) / 100;
 
-          // Recalculate discount on new subtotal
           let newDiscountTotal = 0;
           if (inv.discount_type === 'PERCENTAGE' && Number(inv.discount_value) > 0) {
             newDiscountTotal = Math.round(newSubtotal * (Number(inv.discount_value) / 100) * 100) / 100;
@@ -633,11 +586,56 @@ export async function convertBosToGst(payload: {
           const newReceivedAmount = wasFullyPaid ? newGrandTotal : Math.min(originalReceived, newGrandTotal);
           const newBalanceAmount = Math.max(0, Math.round((newGrandTotal - newReceivedAmount) * 100) / 100);
 
-          // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
-          //    No stock movement: stock was already deducted when the BoS was sold.
-          //    Inherits the actual bill date (created_at) from the original Bill of Supply!
           const actualBillDate = inv.created_at || new Date().toISOString();
+          return {
+            copyItems, skippedItems, newSubtotal, adjustedTax, newDiscountTotal, newGrandTotal, newReceivedAmount, newBalanceAmount,
+            pointsDiscount, scrapDeduction, returnDeduction, newInvoiceId, isInterStateConv, convSupplyType,
+            convCgstTotal, convSgstTotal, convIgstTotal, actualBillDate,
+          };
+        };
+        priceInvoice(inv);
 
+        // ─── Resolve Invoice Number (ONLY after confirming items are convertible!) ───
+        const tripleSeriesRow: SettingRow | undefined = invoicesSql.findSettingsByKey(db).get(tid, 'three_invoice_series') as SettingRow | undefined
+          || invoicesSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow | undefined;
+        const tripleSeries = tripleSeriesRow ? (parseSetting(tripleSeriesRow) as SeriesSetting) : null;
+
+        const isB2B = Boolean(inv.customer_gstin && String(inv.customer_gstin).trim() !== '');
+        const numberSeries = tripleSeries?.enabled ? (isB2B ? 'gst_b2b' : 'gst_b2c') : 'gst';
+        const configKey = numberSeries === 'gst_b2b' ? 'gst_b2b_invoice_counter_config'
+          : numberSeries === 'gst_b2c' ? 'gst_b2c_invoice_counter_config'
+          : 'gst_invoice_counter_config';
+
+        let preallocatedInvoiceNumber = '';
+        if (reusableAllocation && reusableAllocation.configKey === configKey) {
+          preallocatedInvoiceNumber = reusableAllocation.invoiceNumber;
+          activeAllocation = reusableAllocation;
+          reusableAllocation = null;
+        } else {
+          const localNext = peekGuaranteedNextInvoiceNumber(db, tid, configKey);
+          const serverAllocation = await requestServerInvoiceNumber(db, tid, numberSeries, configKey, localNext.counter, 1500);
+          if (serverAllocation.success) {
+            preallocatedInvoiceNumber = serverAllocation.invoiceNumber;
+            activeAllocation = { invoiceNumber: serverAllocation.invoiceNumber, configKey };
+          }
+        }
+
+        const invoice = db.transaction(() => {
+          const freshInv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
+          if (!freshInv) throw new Error('Invoice not found');
+          if (freshInv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
+          if (freshInv.converted_to_invoice_id) throw new Error('Invoice is already converted');
+          const {
+            copyItems, skippedItems, newSubtotal, adjustedTax, newDiscountTotal, newGrandTotal, newReceivedAmount, newBalanceAmount,
+            pointsDiscount, scrapDeduction, returnDeduction, newInvoiceId, isInterStateConv, convSupplyType,
+            convCgstTotal, convSgstTotal, convIgstTotal, actualBillDate,
+          } = priceInvoice(freshInv);
+
+          const { invoiceNumber: newInvoiceNumber } = preallocatedInvoiceNumber
+            ? { invoiceNumber: preallocatedInvoiceNumber }
+            : getGuaranteedNextInvoiceNumber(db, tid, configKey);
+
+          // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
           invoicesSql.insertInvoice3(db).run(
             newInvoiceId,
             inv.tenant_id,
@@ -678,10 +676,8 @@ export async function convertBosToGst(payload: {
             inv.counts_in_revenue ?? 1, inv.bill_purpose || 'SALE', actualBillDate
           );
 
-          // 2. Copy the priced items — they remember their original BoS values so
-          //    returns refund what the customer actually paid.
+          // 2. Copy the priced items
           const insertItemStmt = invoicesSql.insertInvoiceItem4(db);
-
           for (const ci of copyItems) {
             const itemTaxSplit = splitTaxAmount(ci.newTaxAmount);
             const itemCgst = isInterStateConv ? 0 : itemTaxSplit.cgst;
@@ -720,7 +716,7 @@ export async function convertBosToGst(payload: {
             );
           }
 
-          // 3. Mark the BoS as superseded — linked to its GST copy (original Estimate remains untouched)
+          // 3. Mark the BoS as superseded
           invoicesSql.updateInvoiceConvertedToInvoiceIdAndConvertedToInvoiceNumber(db).run(newInvoiceId, newInvoiceNumber, invoice_id);
 
           return {
@@ -729,6 +725,8 @@ export async function convertBosToGst(payload: {
             skipped: skippedItems.length > 0 ? skippedItems : undefined
           };
         })();
+
+        activeAllocation = null;
 
         results.push({
           invoice_id,
@@ -739,6 +737,10 @@ export async function convertBosToGst(payload: {
         });
         console.log('[convertBosToGst] Converted', invoice_id, '→', invoice.new_number);
       } catch (err) {
+        if (activeAllocation) {
+          reusableAllocation = activeAllocation;
+          activeAllocation = null;
+        }
         console.error('[convertBosToGst] Failed', invoice_id, (err as Error).message);
         results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: (err as Error)?.message || 'Conversion failed' });
       }
