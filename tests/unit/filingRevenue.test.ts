@@ -14,6 +14,9 @@ describe('stored revenue decisions and filing history', () => {
       for (const accounting_view of ['ALL', 'TAX_FILING']) {
         const summary = getInvoicesSummaryStatement(db, { ...args, accounting_view });
         expect(summary.statement.get(...summary.params)).toMatchObject({ totalSales: included * 100 });
+        // The record counter counts what the list shows: the filing bill is listed even when it is not revenue.
+        expect(summary.listedStatement.get(...summary.params)).toMatchObject({ totalInvoices: 1 });
+        expect(summary.statement.get(...summary.params)).toMatchObject({ totalInvoices: included });
       }
       expect(sumCashSalesInWindow(db).get('t1', '2026-10-27T00:00:00Z', null, null)).toMatchObject({ total_cash_sales: included * 100 });
       const hiddenCategory = getInvoicesStatement(db, { ...args, invoice_type: 'GST_B2B', showFilingB2b: false });

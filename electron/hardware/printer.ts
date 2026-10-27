@@ -694,6 +694,8 @@ function executePrintWithFallback(
   });
 }
 
+/** Page length used only when the receipt window cannot report its measured height. */
+export const RECEIPT_FALLBACK_HEIGHT_MICRONS = 600000;
 function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: string = 'global'): Promise<void> {
   return pendingPrint(async (resolve, reject) => {
     const printFmt = getPrintFormatConfig(tenantId);
@@ -734,10 +736,15 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
 
     let printed = false;
     const triggerPrint = async (contentHeightPx?: number) => {
-      if (printed || !Number.isFinite(contentHeightPx) || !contentHeightPx || contentHeightPx <= 0) return;
+      if (printed) return;
       printed = true;
-      // CSS pixels use 96 dpi. Round up and allow 5 mm for feed/rounding.
-      const pageHeightMicrons = Math.max(80000, Math.ceil(contentHeightPx * 25.4 / 96 + 5) * 1000);
+      // CSS pixels use 96 dpi. Round up and allow 5 mm for feed/rounding. If the page could not be measured, still print
+      // (a receipt must never be silently skipped) with a generous length rather than the old short 200 mm fallback.
+      const measured = Number.isFinite(contentHeightPx) && Number(contentHeightPx) > 0;
+      if (!measured) console.warn('[Printer] Receipt height not measured; printing with the 600 mm fallback length');
+      const pageHeightMicrons = measured
+        ? Math.max(80000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 5) * 1000)
+        : RECEIPT_FALLBACK_HEIGHT_MICRONS;
 
       try {
         await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);

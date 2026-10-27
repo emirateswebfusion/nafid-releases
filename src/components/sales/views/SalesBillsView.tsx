@@ -53,7 +53,7 @@ export interface SalesBillsViewProps {
   setShowGraphBanner: React.Dispatch<React.SetStateAction<boolean>>;
   setTaxPercentageFilter: React.Dispatch<React.SetStateAction<string>>;
   showGraphBanner: boolean;
-  summary: { totalSales: number; totalSalesBeforeDeductions: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number; };
+  summary: { totalSales: number; totalSalesBeforeDeductions: number; totalInvoices: number; listedInvoices?: number; totalTax: number; totalDiscount: number; avgOrder: number; };
   summaryLoading: boolean;
   taxFilterActive: boolean;
   taxPercentageFilter: string;
@@ -72,6 +72,8 @@ export function SalesBillsView({
   setSelectionMode, setShowGraphBanner, setTaxPercentageFilter, showGraphBanner, summary, summaryLoading,
   taxFilterActive, taxPercentageFilter, taxProductLoading, taxProductRows, upiSources,
 }: SalesBillsViewProps) {
+  // Bills the list shows (filing-only included); revenue cards keep using summary.totalInvoices.
+  const listedTotal = summary.listedInvoices ?? summary.totalInvoices;
   return (
     <div className="flex flex-col flex-1 overflow-hidden w-full">
 
@@ -413,9 +415,9 @@ export function SalesBillsView({
                   </button>
                 </span>
               )
-              : invoices.length === summary.totalInvoices
-                ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}`
-                : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
+              : invoices.length === listedTotal
+                ? `${listedTotal} record${listedTotal !== 1 ? 's' : ''}`
+                : `Showing ${invoices.length} of ${listedTotal} records`}
         </div>
 
         {!taxFilterActive && enableConvertToGst && isAdminRole(useAuthStore.getState().role) && (
@@ -683,7 +685,7 @@ export function SalesBillsView({
                     className="h-9 px-5 rounded-xl border border-border/80 bg-card hover:bg-muted text-xs font-bold text-foreground transition-all duration-150 cursor-pointer inline-flex items-center gap-2 active:scale-95 shadow-2xs hover:shadow-xs disabled:opacity-50"
                   >
                     <RefreshCw className={clsx("w-3.5 h-3.5 text-primary", isFetching && "animate-spin")} />
-                    <span>{isFetching ? 'Loading more records…' : `Load More Records (${invoices.length} of ${summary.totalInvoices} loaded)`}</span>
+                    <span>{isFetching ? 'Loading more records…' : `Load More Records (${invoices.length} of ${listedTotal} loaded)`}</span>
                   </button>
                 </td>
               </tr>

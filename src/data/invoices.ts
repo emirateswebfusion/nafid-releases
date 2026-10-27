@@ -14,6 +14,8 @@ export interface InvoiceSummary {
   totalSales: number;
   totalSalesBeforeDeductions?: number;
   totalInvoices: number;
+  /** Bills the list shows for the same filters, including bills that do not count as revenue. */
+  listedInvoices?: number;
   totalTax: number;
   totalDiscount: number;
   avgOrder: number;

@@ -315,7 +315,7 @@ export const useCartStore = create<CartState>()(
       },
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isFilingOnly: false, isQuotationMode: state.isQuotationMode, isReturnMode: state.isReturnMode, isScrapMode: state.isScrapMode, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
+      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.isFilingOnly ? (state.filingPreviousInvoiceType || state.invoiceType) : state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isFilingOnly: false, filingPreviousInvoiceType: undefined, isQuotationMode: state.isQuotationMode, isReturnMode: state.isReturnMode, isScrapMode: state.isScrapMode, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
       name: 'nafid-cart-storage',
