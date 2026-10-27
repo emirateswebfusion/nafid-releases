@@ -308,7 +308,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       const loyaltyCfg = allSettings['loyalty_config'];
       if (loyaltyCfg && typeof loyaltyCfg === 'object') {
         if (loyaltyCfg.enabled !== undefined) {
-          finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled) || Boolean(finalFlags?.loyalty);
+          finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled) && finalFlags?.loyalty !== false;
         }
         if (loyaltyCfg.earningRate) finalLoyaltyEarningRate = Number(loyaltyCfg.earningRate) || 100;
         if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate) || 1;

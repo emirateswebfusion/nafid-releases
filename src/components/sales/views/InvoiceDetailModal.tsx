@@ -1,3 +1,4 @@
+import { useLoyaltyEnabled } from '../../../hooks/useLoyaltyEnabled';
 import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
@@ -44,6 +45,7 @@ export function InvoiceDetailModal({
   handleSendWhatsAppInvoice, handleViewLinkedInvoice, isSendingWhatsApp, items, itemsLoading, openCollectPayment,
   selectedInvoice, setConversionOpen, setDeleteConfirmOpen, setDrawerOpen, setSelectedInvoiceIds, upiSources,
 }: InvoiceDetailModalProps) {
+  const loyaltyEnabled = useLoyaltyEnabled(selectedInvoice?.tenant_id || null);
   return (
     <Modal
       isOpen={drawerOpen}
@@ -509,7 +511,7 @@ export function InvoiceDetailModal({
                   )}
                   {ptsDisc > 0 && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-rose-500 font-semibold">Points Discount</span>
+                      <span className="text-rose-500 font-semibold">{loyaltyEnabled ? 'Points Discount' : 'Discount'}</span>
                       <span className="text-rose-500 font-bold">-{formatCurrency(ptsDisc)}</span>
                     </div>
                   )}

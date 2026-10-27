@@ -587,7 +587,7 @@ export function CustomerDetailView({
                           tx.transaction_type === 'EARNED' ? 'text-emerald-600 dark:text-emerald-400' :
                           tx.transaction_type === 'REDEEMED' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600'
                         )}>
-                          {tx.transaction_type === 'EARNED' ? '+' : '-'}{(Number(tx.points) || 0).toFixed(0)} pts
+                          {Number(tx.points_balance_after) >= Number(tx.points_balance_before) ? '+' : '-'}{(Number(tx.points) || 0).toFixed(0)} pts
                         </p>
                         <p className="text-[10px] text-muted-foreground font-bold mt-0.5">
                           Balance: {(Number(tx.points_balance_after) || 0).toFixed(0)} pts
