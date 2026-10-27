@@ -1,3 +1,17 @@
+# Nafid POS v2.1.0 Release Notes
+
+## What's New
+- **Filing-only Bill**: A new "Filing-only" button on the Billing screen makes GST bills only for tax filing. In Settings you choose whether these bills reduce stock or count as sales. They never change your cash, customer balance or loyalty points.
+- **Choose What Counts as Sales**: Leave B2B or B2C bills out of your daily sales totals. Applies to new bills only, so past totals never change.
+- **Faster Sales History**: Opens in under a second even with thousands of bills, and shows Sales without GST, GST Amount and Grand Total with GST separately.
+- **Safer Returns**: Return quantity starts at 0, return totals with discount and GST are exact, and cash returns are taken out of the cash register (can be changed in Settings).
+- **Cash Register Your Way**: Choose which payment methods appear, and whether scrap sales and ledger cash entries are included. Converted GST bills are no longer counted twice in cash.
+- **Better WhatsApp Messages**: Choose the bill format (text, A4 PDF or receipt), choose which party types get ledger messages, correct supplier purchase messages, and scrap details in the closing report.
+- **Accurate Loyalty Points**: Points stay correct after returns, edits and cancellations; turning points off hides them everywhere.
+- **Better Receipt Printing**: Thermal receipts print centred, and long bills print as one receipt instead of two papers. A margin adjustment is available.
+- **Fixes**: Purchase bill products reach Inventory correctly, paper stock settings work, the supplier form shows only supplier fields, and payment methods from Cash Settlement appear on the Payment Methods page.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.0.7...v2.1.0
+
 # Nafid POS v2.0.7 Release Notes
 
 ## What's Changed

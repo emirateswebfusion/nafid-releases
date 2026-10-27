@@ -6,6 +6,7 @@ import { useThemeStore } from '../../../store/themeStore';
 import { DefaultStockReportViewSelector } from '../settingsConstants';
 import { formatTimeAgo, formatBytes } from '../settingsUtils';
 import type { SettingsForm } from '../settingsFormTypes';
+import { WHATS_NEW } from '../whatsNew';
 
 export interface SystemPreferencesTabProps {
   appVersion: string;
@@ -178,155 +179,25 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                   </div>
 
                   <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs", whatsNewLang === 'ml' && "font-malayalam")}>
-                    {/* 1. Real Sales / Bill of Supply Mode in Sales History */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-emerald-500/40 hover:bg-emerald-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'റിയൽ കൗണ്ടർ സെയിൽസ് & BOS ഫിൽട്ടർ' : 'Real Counter Sales (BOS Mode)'}
-                            </p>
+                    {WHATS_NEW.map((item) => (
+                      <div key={item.title.en} className={clsx("p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 transition-all flex flex-col justify-between", item.accent.hover)}>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={clsx("w-2 h-2 rounded-full shrink-0", item.accent.dot)}></span>
+                              <p className="font-bold text-foreground text-xs truncate">{item.title[whatsNewLang]}</p>
+                            </div>
+                            <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0", item.accent.tag)}>{item.tag[whatsNewLang]}</span>
                           </div>
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'പുതിയത്' : 'New'}
-                          </span>
+                          {whatsNewLang === 'ml' && (
+                            <p className={clsx("text-[10px] font-semibold pl-4 -mt-0.5", item.accent.text)}>{item.subtitle}</p>
+                          )}
+                          <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                            {item.text[whatsNewLang]}
+                          </p>
                         </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold pl-4 -mt-0.5">Strict BOS Counter Isolation & Accurate Totals</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'സെയിൽസ് ഹിസ്റ്ററിയിൽ "Real Sales (BOS)" മോഡ് തിരഞ്ഞെടുത്താൽ യഥാർത്ഥ കൗണ്ടർ ബില്ലുകൾ (Bill of Supply) മാത്രമേ ലിസ്റ്റ് ചെയ്യൂ. ടാക്സ് ഫയലിംഗ് കോപ്പികളും GST ബില്ലുകളും പൂർണ്ണമായി ഒഴിവാക്കി കൃത്യമായ കച്ചവട സംഗ്രഹം ലഭ്യമാക്കുന്നു.'
-                            : 'In Sales History, selecting "Real Sales (BOS)" strictly isolates pure counter Bill of Supply transactions, completely filtering out synthetic GST copies and direct tax invoices for 100% accurate daily counter revenue.'}
-                        </p>
                       </div>
-                    </div>
-
-                    {/* 2. Interactive Tax Rate Filters with One-Click Clear */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-violet-500/40 hover:bg-violet-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'ടാക്സ് റേറ്റ് ഫിൽട്ടറും വൺ-ക്ലിക്ക് റീസെറ്റും' : 'GST Tax Rate Filter & Quick Reset'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'റിപ്പോർട്ടിംഗ്' : 'Tax Reports'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold pl-4 -mt-0.5">5%, 12%, 18%, 28% Breakdown with Dismiss Pill</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ടാക്സ് ഫയലിംഗ് മോഡിൽ ഉൽപ്പന്നങ്ങളെ നികുതി നിരക്കനുസരിച്ച് (0%, 5%, 12%, 18%, 28%) വേർതിരിച്ചു കാണാം. സജീവമായ ഫിൽട്ടർ പെട്ടെന്ന് ഒഴിവാക്കാൻ വൺ-ക്ലിക്ക് ക്ലിയർ ബാഡ്ജും സജ്ജമാക്കി.'
-                            : 'Filter itemized sales by exact GST tax slabs (0%, 5%, 12%, 18%, 28%) with instant product-level breakdown, item counts, and a one-click dismiss pill to return to full invoices list.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 3. Recycle Bin & Safe Recovery */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-rose-500/40 hover:bg-rose-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'റീസൈക്കിൾ ബിൻ & സുരക്ഷിത വീണ്ടെടുക്കൽ' : 'Recycle Bin & Safe Restore'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'റിക്കവറി' : 'Recovery'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold pl-4 -mt-0.5">Undo Delete for Bills, Stock & Contacts</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഡിലീറ്റ് ചെയ്ത സെയിൽസ് ബില്ലുകൾ, ഇൻവെന്ററി ഉൽപ്പന്നങ്ങൾ, കസ്റ്റമർമാർ, പാർട്ടികൾ എന്നിവ ഒരൊറ്റ ക്ലിക്കിലൂടെ തിരികെ റീസ്റ്റോർ ചെയ്യാം. സ്റ്റോക്ക് അളവും കൃത്യമായി പുനഃസ്ഥാപിക്കപ്പെടും.'
-                            : 'Safely recover deleted sales invoices, inventory items, customer profiles, and ledger parties with one-click restore and automatic stock balance reconciliation.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 4. Custom Billing Date & Time Picker */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-indigo-500/40 hover:bg-indigo-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'കസ്റ്റം ബിൽ ഡേറ്റ് & ടൈം' : 'Custom Bill Date & Time'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'ബില്ലിംഗ്' : 'Billing'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold pl-4 -mt-0.5">Calendar & Time Selector for Past Bills</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'പഴയ തീയതികളിൽ ബിൽ അടിക്കുമ്പോൾ തീയതിയും സമയവും കൃത്യമായി തിരഞ്ഞെടുക്കാൻ ബില്ലിംഗ് സ്ക്രീനിൽ മനോഹരമായ കലണ്ടറും ടൈം സെലക്ടറും ലഭ്യമാക്കി.'
-                            : 'Set custom invoice dates and timestamps directly from the billing screen with a modern calendar picker and quick Today/Yesterday presets.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 5. Instant Zero-Lag Sales History */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-blue-500/40 hover:bg-blue-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'തത്സമയ സെയിൽസ് ഹിസ്റ്ററി & പ്രിവ്യൂ' : 'Zero-Lag Sales History'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'വേഗത' : 'Speed'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold pl-4 -mt-0.5">Instant Bill Drawer & Smart Hover Caching</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'പഴയ ബില്ലുകൾ ക്ലിക്ക് ചെയ്യുമ്പോൾ കാത്തിരിപ്പില്ലാതെ തൽക്ഷണം സൈഡ് പാനൽ തുറക്കുന്നു. ഇൻ-മെമ്മറി പ്രീ-ഫെച്ചിംഗ് വഴി ബില്ലുകൾ മിന്നൽ വേഗത്തിൽ പരിശോധിക്കാം.'
-                            : 'Past bills open instantly with zero loading delay thanks to background hover prefetching and intelligent in-memory drawer caching.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 6. Advanced WhatsApp Closing Report Customization */}
-                    <div className="p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 hover:border-teal-500/40 hover:bg-teal-500/[0.02] transition-all flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0"></span>
-                            <p className="font-bold text-foreground text-xs truncate">
-                              {whatsNewLang === 'ml' ? 'വിശദമായ വാട്സാപ്പ് ക്ലോസിംഗ് റിപ്പോർട്ട്' : 'Advanced WhatsApp Closing'}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded-md shrink-0">
-                            {whatsNewLang === 'ml' ? 'വാട്സാപ്പ്' : 'WhatsApp'}
-                          </span>
-                        </div>
-                        {whatsNewLang === 'ml' && (
-                          <p className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold pl-4 -mt-0.5">Granular Section & Sub-Item Toggles</p>
-                        )}
-                        <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
-                          {whatsNewLang === 'ml'
-                            ? 'ഷോപ്പ് ക്ലോസിംഗ് വാട്സാപ്പ് മെസ്സേജിൽ ഏതൊക്കെ വിഭാഗങ്ങൾ വേണമെന്ന് (സെയിൽസ് സംഗ്രഹം, ബില്ലർ കണക്കുകൾ, ചിലവുകൾ, സ്ക്രാപ്പ്, ലെഡ്ജർ) വ്യക്തിഗതമായി ടിക്ക് ചെയ്ത് തിരഞ്ഞെടുക്കാം.'
-                            : 'Fine-tune end-of-day WhatsApp closing summaries by toggling exact sections and sub-metrics including cashier breakdown, expenses, scrap, and credit collections.'}
-                        </p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
