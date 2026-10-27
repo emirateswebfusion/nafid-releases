@@ -45,6 +45,18 @@ and `electron/utils/` (ids, cashier settlement math).
   (`autoCloseOverdueDrawers`). An auto close counts the expected cash (no short / excess).
 - Tests: `tests/characterization/drawer-session.mts`.
 
+### Conversion copies and revenue (`electron/db/statements/revenue.ts`)
+
+`counterSalePredicate` is the shared SQL rule for excluding BOS-to-GST copies from actual collections.
+The original BOS remains the sale; its GST copy is a tax document linked by `converted_from_invoice_id`.
+Dashboard totals, sales summaries, product revenue, drawer cash, cashier lists/history and shop-closing
+queries reuse this predicate. Direct GST bills still count. Tax-filing views deliberately include the copy.
+Copies are excluded from pending settlement to prevent collecting the same sale twice. Frozen closed drawer
+balances are not rewritten; active sessions use the corrected query on reconciliation.
+Tests: `bosConversionRevenue.test.ts` (real in-memory SQLite) and `bosConversionService.test.ts`.
+Filing-only billing and configurable direct-GST revenue exclusion need synced invoice metadata and matching
+server support; they are not implemented by this conversion-copy rule.
+
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
 - Intra-state tax amounts use `splitTaxAmount` from `src/utils/pricing/checkoutLines.ts`: CGST is rounded first and SGST is

@@ -1,4 +1,5 @@
 import type { Db } from './types.js';
+import { counterSalePredicate } from './revenue.js';
 
 /** SQL statements used by services/invoicesService.ts. Each factory prepares its statement on the given connection. */
 
@@ -209,7 +210,7 @@ export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
-        AND (converted_from_invoice_id IS NULL OR converted_from_invoice_id = '')
+        AND ${counterSalePredicate()}
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
@@ -514,11 +515,11 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
       // tax rate filter is active, the synthetic GST copies are excluded so the list
       // matches the de-duplicated summary and product totals.
       if (tax_rate_percent !== undefined && tax_rate_percent !== '' && tax_rate_percent !== 'all') {
-        query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
+        query += ` AND ${counterSalePredicate('i')}`;
       }
     } else {
       // Default to REAL_SALES: Show genuine counter transactions
-      query += " AND (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '')";
+      query += ` AND ${counterSalePredicate('i')}`;
     }
 
     if (search) {
@@ -636,19 +637,19 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         AND (i.is_held IS NULL OR i.is_held = 0)
     ` : `
       SELECT 
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
               THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
             ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ELSE 0 END), 0) as totalSales,
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN
           MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
         ELSE 0 END), 0) as totalSalesBeforeDeductions,
-        COUNT(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN 1 END) as totalInvoices,
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.tax_total ELSE 0 END), 0) as totalTax,
-        COALESCE(SUM(CASE WHEN (i.converted_from_invoice_id IS NULL OR i.converted_from_invoice_id = '') THEN i.discount_total ELSE 0 END), 0) as totalDiscount
+        COUNT(CASE WHEN ${counterSalePredicate('i')} THEN 1 END) as totalInvoices,
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.tax_total ELSE 0 END), 0) as totalTax,
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.discount_total ELSE 0 END), 0) as totalDiscount
       FROM invoices i 
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)

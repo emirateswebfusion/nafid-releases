@@ -1,4 +1,5 @@
 import type { Db } from './types.js';
+import { counterSalePredicate } from './revenue.js';
 
 /** SQL statements used by services/cashierService.ts. Each factory prepares its statement on the given connection. */
 
@@ -211,8 +212,8 @@ export const findInvoices = (db: Db) => db.prepare(`
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND ${counterSalePredicate('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND ${counterSalePredicate('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -226,7 +227,7 @@ export const findInvoices2 = (db: Db) => db.prepare(`
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.user_id
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
-        AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
+        AND ${counterSalePredicate('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT')
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
         AND (
@@ -263,6 +264,7 @@ export function getPendingInvoicesStatement(db: Db, args: { tenant_id: string; s
     FROM invoices i 
     LEFT JOIN users u ON i.user_id = u.user_id 
     WHERE i.tenant_id = ? 
+      AND ${counterSalePredicate('i')}
       AND i.payment_method = 'PENDING' 
       AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
       AND (i.is_held IS NULL OR i.is_held = 0)
