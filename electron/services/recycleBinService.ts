@@ -96,7 +96,7 @@ export function restoreInvoice(invoice_id: string) {
 
       const isConversionCopy = !!(inv && (inv.converted_from_invoice_id || inv.converted_from_invoice_number));
 
-      if (!isConversionCopy) {
+      if (!isConversionCopy && inv.stock_applied !== 0) {
         const items = recycleBinSql.findInvoiceItemsByInvoiceId(db).all(invoice_id) as InvoiceItem[];
         for (const item of items) {
           // Deduct stock back (re-apply the sale)

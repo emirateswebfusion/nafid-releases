@@ -327,11 +327,13 @@ export function SalesBillsView({
                   { value: '', label: 'All GST Types' },
                   { value: 'GST_B2B', label: 'B2B' },
                   { value: 'GST_B2C', label: 'B2C' },
+                  { value: 'FILING_ONLY', label: 'Filing-only' },
                 ]
               : [
                   { value: '', label: 'All Types' },
                   { value: 'GST_B2B', label: 'B2B' },
                   { value: 'GST_B2C', label: 'B2C' },
+                  { value: 'FILING_ONLY', label: 'Filing-only' },
                   { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
                 ];
 

@@ -11,5 +11,6 @@ export function salesHistoryDb() {
   createCoreTables(db);
   createExtendedTables(db);
   ensureSchemaColumns(db);
+  db.exec("ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1; ALTER TABLE invoices ADD COLUMN bill_purpose TEXT NOT NULL DEFAULT 'SALE'; ALTER TABLE invoices ADD COLUMN stock_applied INTEGER NOT NULL DEFAULT 1;");
   return { db, memory };
 }

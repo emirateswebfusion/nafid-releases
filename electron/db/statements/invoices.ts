@@ -1,5 +1,5 @@
 import type { Db } from './types.js';
-import { counterSalePredicate } from './revenue.js';
+import { counterSalePredicate, countsInRevenue } from './revenue.js';
 
 /** SQL statements used by services/invoicesService.ts. Each factory prepares its statement on the given connection. */
 
@@ -30,9 +30,9 @@ export const insertInvoice = (db: Db) => db.prepare(`
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
         cgst_total, sgst_total, igst_total, supply_type, actual_refund_paid, notes, description, settled_at, due_date,
         points_earned, points_redeemed, points_redeemed_discount, previous_points_balance, remaining_points_balance,
-        created_at, updated_at
+        created_at, updated_at, counts_in_revenue, bill_purpose, stock_applied
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 export const insertLoyaltyTransaction = (db: Db) => db.prepare(`
@@ -202,7 +202,7 @@ export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
-        AND ${counterSalePredicate()}
+        AND ${counterSalePredicate()} AND ${countsInRevenue()}
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
@@ -308,9 +308,9 @@ export const insertInvoice3 = (db: Db) => db.prepare(`
               cgst_total, sgst_total, igst_total, supply_type,
               points_redeemed, points_redeemed_discount,
               scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number,
-              created_at
+              counts_in_revenue, bill_purpose, stock_applied, created_at
             )
-            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
           `);
 
 export const insertInvoiceItem4 = (db: Db) => db.prepare(`
@@ -370,7 +370,7 @@ export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db, invoiceIds
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR ? = 'global') AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
     ` + (invoiceIds === undefined ? '' : ' AND i.invoice_id IN (' + invoiceIds.map(() => '?').join(',') + ')'));
 
-export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?');
+export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id, stock_applied FROM invoices WHERE invoice_id = ?');
 
 export const findInvoiceItemsByInvoiceIdProductIdAndQuantity3 = (db: Db) => db.prepare('SELECT product_id, quantity, qty_from_paper_stock FROM invoice_items WHERE invoice_id = ?');
 
@@ -407,6 +407,8 @@ export const updatePartyLedgerIsDeleted = (db: Db) => db.prepare(`
 
 /** Filters of the invoice list / summary queries. */
 export interface InvoiceListQuery {
+  revenue_only?: boolean;
+  showFilingB2b?: boolean;
   activeTenantId: string;
   onlyUserInvoices: boolean;
   user_id?: string;
@@ -485,8 +487,12 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
       }
     }
 
-    if (invoice_type === 'GST_B2B') {
+    if (args.revenue_only) query += ` AND ${countsInRevenue('i')} AND ${counterSalePredicate('i')}`;
+    if (invoice_type === 'FILING_ONLY') {
+      query += " AND i.bill_purpose = 'FILING_ONLY'";
+    } else if (invoice_type === 'GST_B2B') {
       query += " AND i.invoice_type = 'GST' AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''";
+      if (args.showFilingB2b === false) query += " AND i.bill_purpose != 'FILING_ONLY'";
     } else if (invoice_type === 'GST_B2C') {
       query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
     } else if (invoice_type === 'BILL_OF_SUPPLY') {
@@ -602,6 +608,7 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
+    query += ` AND ${countsInRevenue('i')}`;
     const params: unknown[] = [activeTenantId];
 
     if (onlyUserInvoices && user_id) {
@@ -626,8 +633,12 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
       }
     }
 
-    if (invoice_type === 'GST_B2B') {
+    if (args.revenue_only) query += ` AND ${countsInRevenue('i')} AND ${counterSalePredicate('i')}`;
+    if (invoice_type === 'FILING_ONLY') {
+      query += " AND i.bill_purpose = 'FILING_ONLY'";
+    } else if (invoice_type === 'GST_B2B') {
       query += " AND i.invoice_type = 'GST' AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''";
+      if (args.showFilingB2b === false) query += " AND i.bill_purpose != 'FILING_ONLY'";
     } else if (invoice_type === 'GST_B2C') {
       query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
     } else if (invoice_type === 'BILL_OF_SUPPLY') {

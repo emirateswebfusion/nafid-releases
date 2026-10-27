@@ -72,6 +72,7 @@ export function syncInvoiceCreditLedger(
   invoice: CreditLedgerInvoice,
   isDelete = false
 ) {
+  if (invoice.counts_in_revenue === 0) return; // not real money: nothing was posted, so nothing to post or reverse
   try {
     const tenantId = invoice.tenant_id || 'global';
     const invoiceNumber = (invoice.invoice_number || '').trim();

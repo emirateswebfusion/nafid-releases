@@ -4,8 +4,13 @@ import { localDate, parseCleanDate, getUtcRangeForStoreDateRange } from './store
 import * as invoicesSql from '../db/statements/invoices.js';
 /** Invoice read models: lists, summaries, dashboard stats, items, numbering previews. Called by electron/ipc handlers via invoicesService. */
 
+function readFilingB2bVisibility(db: Parameters<typeof invoicesSql.findSettingsByKey>[0], tenantId: string): boolean {
+  const row = invoicesSql.findSettingsByKey(db).get(tenantId, 'filing_only_mode') as { value?: string } | undefined;
+  try { return JSON.parse(row?.value || '{}').showB2bInSalesCategory !== false; } catch { return true; }
+}
+
 /** IPC `db:getInvoices` */
-export function getInvoices(filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; tax_rate_percent?: string; only_user_invoices?: boolean; accounting_view?: 'REAL_SALES' | 'TAX_FILING' | 'ALL'; invoice_id?: string }) {
+export function getInvoices(filters?: { revenue_only?: boolean; user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; tax_rate_percent?: string; only_user_invoices?: boolean; accounting_view?: 'REAL_SALES' | 'TAX_FILING' | 'ALL'; invoice_id?: string }) {
   try {
     const db = getDb();
     const { user_id, tenant_id, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent, accounting_view, invoice_id } = filters || {};
@@ -23,7 +28,7 @@ export function getInvoices(filters?: { user_id?: string; tenant_id?: string; ro
     const dateRange = filterDate
       ? getUtcRangeForStoreDateRange(parseCleanDate(filterDate), filterDateEnd ? parseCleanDate(filterDateEnd) : parseCleanDate(filterDate), activeTenantId)
       : null;
-    const { statement, params } = invoicesSql.getInvoicesStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, invoice_id, limit, offset, dateRange });
+    const { statement, params } = invoicesSql.getInvoicesStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, invoice_id, limit, offset, dateRange, revenue_only: filters?.revenue_only, showFilingB2b: readFilingB2bVisibility(db, activeTenantId) });
     const results = statement.all(...params);
     console.log(`[db:getInvoices] Returned ${results.length} invoices for tenant_id=${tenant_id} filterDate=${filterDate||'any'} offset=${offset||0}`);
     return results;
@@ -44,7 +49,7 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
     const dateRange = filterDate
       ? getUtcRangeForStoreDateRange(parseCleanDate(filterDate), filterDateEnd ? parseCleanDate(filterDateEnd) : parseCleanDate(filterDate), activeTenantId)
       : null;
-    const { statement, params } = invoicesSql.getInvoicesSummaryStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, dateRange });
+    const { statement, params } = invoicesSql.getInvoicesSummaryStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, dateRange, showFilingB2b: readFilingB2bVisibility(db, activeTenantId) });
     const row = statement.get(...params) as Record<string, number>;
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
     const totalSalesBeforeDeductions = row ? Number(row.totalSalesBeforeDeductions) || 0 : 0;

@@ -504,6 +504,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         });
       } else {
         result = await invoicesApi.checkout({
+          bill_purpose: useCartStore.getState().isFilingOnly ? 'FILING_ONLY' : 'SALE',
           invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset',
           biller_staff_id: useCartStore.getState().billerStaffId || null,
           sales_staff_id: useCartStore.getState().salesStaffId || null,

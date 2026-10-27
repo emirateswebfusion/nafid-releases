@@ -1,5 +1,5 @@
 import type { Db } from './types.js';
-import { counterSalePredicate } from './revenue.js';
+import { counterSalePredicate, countsInRevenue } from './revenue.js';
 
 /** SQL statements used by whatsapp/shopClosingReportService.ts. Each factory prepares its statement on the given connection. */
 
@@ -36,7 +36,7 @@ export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
           AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
           AND (i.is_held IS NULL OR i.is_held = 0)
           AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-          AND ${counterSalePredicate('i')}
+          AND ${counterSalePredicate('i')} AND ${countsInRevenue('i')}
           AND (
             date(COALESCE(i.settled_at, i.created_at)) = ?
             OR date(COALESCE(i.settled_at, i.created_at)) = ?
@@ -121,7 +121,7 @@ export const countInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
           AND scrap_deduction > 0
           AND (is_deleted IS NULL OR is_deleted = 0)
-          AND ${counterSalePredicate()}
+          AND ${counterSalePredicate()} AND ${countsInRevenue()}
           AND (
             date(COALESCE(settled_at, created_at)) = ?
             OR date(COALESCE(settled_at, created_at)) = ?

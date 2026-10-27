@@ -43,6 +43,7 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     category: 'Store Settings',
     icon: Store,
     items: [
+      { id: 'filing_only', label: 'Revenue & Filing-only', icon: FileText, ownerOnly: true },
       { id: 'store', label: 'Store Profile', icon: Store, ownerOnly: true },
     ],
   },

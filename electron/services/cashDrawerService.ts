@@ -55,7 +55,7 @@ export function getOpenCashDrawer(db: Db, tenantId: string, dateStr?: string): C
 }
 
 export function getCashAmountFromInvoice(inv: InvoiceCashFields | null | undefined): number {
-  if (!inv) return 0;
+  if (!inv || inv.counts_in_revenue === 0) return 0;
   const pm = (inv.payment_method || '').toUpperCase();
   const grand = Math.max(0, Number(inv.grand_total) || 0);
   const retD = Math.max(0, Number(inv.return_deduction) || 0);
@@ -228,7 +228,7 @@ export function adjustPaymentSourcesForInvoice(
   invoice: InvoicePaymentFields | null | undefined,
   isDeleteOrCancel: boolean = false
 ) {
-  if (!db || !tenantId || !invoice) return;
+  if (!db || !tenantId || !invoice || invoice.counts_in_revenue === 0) return; // not real money (see getCashAmountFromInvoice)
   try {
     const pm = (invoice.payment_method || '').toUpperCase();
     let splitObj: SplitDetails | null = null;

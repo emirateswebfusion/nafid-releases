@@ -43,6 +43,7 @@ export interface InvoiceItemWithProduct extends InvoiceItem {
 }
 
 export interface InvoiceFilters {
+  revenue_only?: boolean;
   /** Optional: the main process falls back to the active session tenant. */
   tenant_id?: string;
   search?: string;

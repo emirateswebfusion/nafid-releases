@@ -675,7 +675,7 @@ export async function convertBosToGst(payload: {
             scrapDeduction > 0 ? (inv.scrap_invoice_number || null) : null,
             returnDeduction > 0 ? returnDeduction : null,
             returnDeduction > 0 ? (inv.return_invoice_number || null) : null,
-            actualBillDate
+            inv.counts_in_revenue ?? 1, inv.bill_purpose || 'SALE', actualBillDate
           );
 
           // 2. Copy the priced items — they remember their original BoS values so

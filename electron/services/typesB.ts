@@ -91,6 +91,9 @@ export interface LedgerRow {
     reference_number: string;
 }
 export interface InvoiceRow extends CreditInvoice {
+    counts_in_revenue?: number;
+    stock_applied?: number;
+    bill_purpose?: string;
     tenant_id: string;
     user_id: string;
     invoice_type: string;

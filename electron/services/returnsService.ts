@@ -60,6 +60,7 @@ export function createReturn(payload: {
       now, now
     );
 
+    const stockInvoice = returnData.invoice_id ? returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id) as InvoiceRow | undefined : undefined;
     const itemStmt = returnsSql.insertReturnItem(db);
     const stockStmt = returnsSql.updateProductCurrentStock(db);
 
@@ -69,7 +70,7 @@ export function createReturn(payload: {
         item.invoice_item_id || null, item.product_id, item.name,
         item.quantity, item.unit_price, item.tax_amount, item.total
       );
-      stockStmt.run(item.quantity, item.product_id);
+      if (stockInvoice?.stock_applied !== 0) stockStmt.run(item.quantity, item.product_id);
     }
 
     let origInv: InvoiceRow | null | undefined = null;
@@ -291,9 +292,10 @@ export function deleteReturn(return_id: string) {
       const returnRow = returnsSql.findReturnsByReturnId(db).get(return_id) as ReturnRow;
       if (!returnRow) return;
 
+      const stockInvoice = returnRow.invoice_id ? returnsSql.findInvoicesByInvoiceId(db).get(returnRow.invoice_id) as InvoiceRow | undefined : undefined;
       const items = returnsSql.findReturnItemsByReturnIdProductIdAndQuantity(db).all(return_id) as InvoiceItem[];
       for (const item of items) {
-        returnsSql.updateProductCurrentStockAlt(db).run(item.quantity, item.product_id);
+        if (stockInvoice?.stock_applied !== 0) returnsSql.updateProductCurrentStockAlt(db).run(item.quantity, item.product_id);
       }
 
       // Restore original invoice balance_amount if it was a credit bill
