@@ -2,11 +2,7 @@
   "ipcCounts": {},
   "servicePrepareCounts": {},
   "syncPrepareCounts": {},
-  "sizeCaps": {
-    "src/utils/invoiceHtmlGenerator.ts": 1875,
-    "src/utils/quotationHtmlGenerator.ts": 807,
-    "src/utils/receiptGenerator.ts": 2449
-  },
+  "sizeCaps": {},
   "startupBaselineLines": {
     "electron/db/localDb.ts": 312,
     "electron/db/migrationsColumns.ts": 518,
