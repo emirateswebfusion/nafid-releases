@@ -37,7 +37,7 @@ function sale(points = 10, redeemed = 0) {
   raw.prepare("INSERT INTO invoices (invoice_id, tenant_id, invoice_number, invoice_type, subtotal, tax_total, discount_total, grand_total, payment_method, customer_id, points_earned, points_redeemed) VALUES ('i', 't', 'POS1-1', 'ESTIMATE', 1000, 0, 0, 1000, 'CASH', 'c', ?, ?)").run(points, redeemed);
 }
 function balance() { return (raw.prepare("SELECT current_points_balance AS balance FROM customers WHERE customer_id = 'c'").get() as { balance: number }).balance; }
-function returnSale() { return createReturn({ return_id: 'r', invoice_id: 'i', tenant_id: 't', return_number: 'RET1', subtotal: 500, tax_total: 0, grand_total: 500, items: [] }); }
+function returnSale() { return createReturn({ return_id: 'r', invoice_id: 'i', tenant_id: 't', return_number: 'RET1', subtotal: 500, tax_total: 0, grand_total: 500, items: [{ return_item_id: 'ri', product_id: 'p', name: 'Item', quantity: 1, unit_price: 500, tax_amount: 0, total: 500 }] }); }
 describe('loyalty persistence regressions', () => {
   it('characterizes enabled checkout earning without supplied points', () => {
     expect(checkout({ invoice_id: 'new', user_id: 'u', tenant_id: 't', invoice_number: 'POS1-2', invoice_type: 'ESTIMATE', subtotal: 500, tax_total: 0, discount_total: 0, grand_total: 500, payment_method: 'CASH', customer_id: 'c', items: [] }).success).toBe(true);
@@ -112,7 +112,7 @@ describe('conversion ownership', () => {
     sale();
     raw.prepare("INSERT INTO invoices (invoice_id, tenant_id, invoice_number, invoice_type, subtotal, grand_total, customer_id, points_earned, converted_from_invoice_id) VALUES ('gst', 't', 'GST1', 'GST', 1000, 1000, 'c', 0, 'i')").run();
     raw.prepare("UPDATE invoices SET converted_to_invoice_id = 'gst' WHERE invoice_id = 'i'").run();
-    const result = createReturn({ return_id: 'rg', invoice_id: 'gst', tenant_id: 't', return_number: 'RG', subtotal: 500, tax_total: 0, grand_total: 500, items: [] });
+    const result = createReturn({ return_id: 'rg', invoice_id: 'gst', tenant_id: 't', return_number: 'RG', subtotal: 500, tax_total: 0, grand_total: 500, items: [{ return_item_id: 'rig', product_id: 'p', name: 'Item', quantity: 1, unit_price: 500, tax_amount: 0, total: 500 }] });
     expect(result.success).toBe(true); expect(balance()).toBe(5);
     expect(recalculateCustomerLoyaltyPoints({ tenant_id: 't' }).success).toBe(true); expect(balance()).toBe(5);
   });
