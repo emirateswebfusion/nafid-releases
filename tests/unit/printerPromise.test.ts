@@ -16,7 +16,7 @@ const compiled = ts.transpileModule(functions, {
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 
 function harness(name: string, failure?: 'setup' | 'print' | 'load') {
-  const listeners = new Map<string, () => Promise<void>>();
+  const listeners = new Map<string, (height?: number) => Promise<void>>();
   const timers: { callback: () => void; delay: number; cleared: boolean }[] = [];
   const error = new Error('simulated failure');
   const close = vi.fn();
@@ -36,7 +36,7 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
       return { deviceName: 'printer', actualNameUsed: 'printer' };
     },
     executePrintWithFallback: print,
-    ipcMain: { once: (event: string, callback: () => Promise<void>) => listeners.set(event, callback) },
+    ipcMain: { once: (event: string, callback: (height?: number) => Promise<void>) => listeners.set(event, callback) },
     setTimeout: (callback: () => void, delay: number) => {
       const timer = { callback, delay, cleared: false };
       timers.push(timer);
@@ -63,7 +63,7 @@ describe.each(names)('%s promise behavior', name => {
     const h = harness(name);
     await flush();
     expect(h.settled).not.toHaveBeenCalled();
-    await h.listeners.get('print-ready-1')!();
+    await h.listeners.get('print-ready-1')!(600);
     await flush();
     expect(h.print).toHaveBeenCalledOnce();
     expect(h.settled).toHaveBeenCalledWith('resolved');
@@ -74,7 +74,7 @@ describe.each(names)('%s promise behavior', name => {
   it('rejects print failures and keeps delayed window cleanup', async () => {
     const h = harness(name, 'print');
     await flush();
-    await h.listeners.get('print-ready-1')!();
+    await h.listeners.get('print-ready-1')!(600);
     await flush();
     expect(h.settled).toHaveBeenCalledWith(h.error);
     expect(h.timers.some(t => t.delay === (name.includes('Barcode') ? 2000 : 1500))).toBe(true);

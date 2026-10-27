@@ -49,7 +49,6 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
 let currentBulkPrintItems: BulkPrintItem[] = [];
 let currentReceiptText: string = '';
 let currentA4Html: string = '';
-let pendingReceiptHeightPx: number = 0; // measured by renderer before printReady; used by printReceiptUSB
 
 function getPrintFormatConfig(tenantId: string) {
   try {
@@ -107,10 +106,7 @@ export function initPrinter() {
   }, 2000);
 
   ipcMain.handle('hardware:printReady', (event, contentHeightPx?: number) => {
-    if (contentHeightPx && contentHeightPx > 0) {
-      pendingReceiptHeightPx = contentHeightPx;
-    }
-    ipcMain.emit(`print-ready-${event.sender.id}`);
+    ipcMain.emit(`print-ready-${event.sender.id}`, contentHeightPx);
     return { success: true };
   });
 
@@ -612,7 +608,8 @@ function executePrintWithFallback(
   widthMm?: number,
   heightMicrons?: number,
   pageSizeName?: string,
-  landscape: boolean = false
+  landscape: boolean = false,
+  requireExactPaper: boolean = false
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!printWindow || printWindow.isDestroyed()) {
@@ -643,6 +640,11 @@ function executePrintWithFallback(
 
       if (printWindow.isDestroyed()) {
         return reject(new Error(`Print attempt 1 failed: ${failureReason1}`));
+      }
+
+      // A native/default page may be shorter or wider than this receipt.
+      if (requireExactPaper) {
+        return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected roll width and a supported receipt length.`));
       }
 
       console.warn(`[Printer] Print attempt 1 failed (${failureReason1}). Retrying attempt 2 without custom pageSize...`);
@@ -709,8 +711,9 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
 
     const printWindow = new BrowserWindow({
       show: false,
-      width: 400,
+      width: Math.ceil(widthMm * 96 / 25.4),
       height: 600,
+      useContentSize: true,
       webPreferences: {
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
@@ -731,18 +734,13 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
 
     let printed = false;
     const triggerPrint = async (contentHeightPx?: number) => {
-      if (printed) return;
+      if (printed || !Number.isFinite(contentHeightPx) || !contentHeightPx || contentHeightPx <= 0) return;
       printed = true;
-      const safetyMm = 15;
-      const heightToUse = (contentHeightPx && contentHeightPx > 0) ? contentHeightPx : pendingReceiptHeightPx;
-      const measuredMm = heightToUse > 0
-        ? Math.ceil((heightToUse + 16) * (25.4 / 96)) + safetyMm
-        : 200;
-      const pageHeightMicrons = Math.max(80, measuredMm) * 1000;
-      pendingReceiptHeightPx = 0;
+      // CSS pixels use 96 dpi. Round up and allow 5 mm for feed/rounding.
+      const pageHeightMicrons = Math.max(80000, Math.ceil(contentHeightPx * 25.4 / 96 + 5) * 1000);
 
       try {
-        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons);
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
@@ -753,11 +751,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
       }
     };
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => triggerPrint());
-
-    printWindow.webContents.once('did-finish-load', () => {
-      setImmediate(() => triggerPrint());
-    });
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, (height: unknown) => triggerPrint(typeof height === 'number' ? height : undefined));
 
     try {
       const receiptHtml = await buildReceiptHtml(currentReceiptText, widthMm, chosenFont, leftMarginOffsetMm);
