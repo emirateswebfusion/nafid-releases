@@ -253,7 +253,14 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   ${contentBody}
   <script>
     window.addEventListener('load', async () => {
-      if (document.fonts) await document.fonts.ready;
+      if (document.fonts) {
+        try {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise((r) => setTimeout(r, 600))
+          ]);
+        } catch { /* proceed */ }
+      }
       const height = document.body.scrollHeight;
       const pageHeightMm = Math.max(80, Math.ceil(height * 25.4 / 96 + 5));
       const pageStyle = document.createElement('style');

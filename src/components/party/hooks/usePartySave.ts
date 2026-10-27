@@ -76,6 +76,7 @@ export function usePartySave(ctx: UsePartySaveContext) {
 
         const updatedFields = {
           party_id: editingParty.party_id,
+          tenant_id: tenantId || editingParty.tenant_id,
           name: trimmedName,
           phone: partyForm.phone.trim() || null,
           address: partyForm.address.trim() || null,
@@ -163,8 +164,14 @@ export function usePartySave(ctx: UsePartySaveContext) {
         }
       }
 
-      await loadParties();
-      if (editReturnView === 'ledger' && selectedParty) {
+      const freshParties = await loadParties();
+      if (editingParty) {
+        const updated = (freshParties || []).find(p => p.party_id === editingParty.party_id);
+        if (updated) {
+          setSelectedParty(updated);
+        }
+      }
+      if (editReturnView === 'ledger' && (selectedParty || editingParty)) {
         setView('ledger');
       } else {
         setView('list');

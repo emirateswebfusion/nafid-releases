@@ -1,59 +1,23 @@
-import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import React from 'react';
-import { FileText, Shield, AlertCircle, Info, CheckCircle2, Tags } from 'lucide-react';
+import { FileText, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { FONT_OPTIONS } from '../settingsUtils';
-import { useBillingUIStore } from '../../../store/billingUIStore';
-import { CODE_TYPES } from '../../../config/labelCodeTypes';
-import { CashRegisterSettings } from './CashRegisterSettings';
-import { CashDrawerAutoCloseSettings } from './CashDrawerAutoCloseSettings';
 import type { SettingsForm } from '../settingsFormTypes';
 
 export interface PrintOptionsSettingsTabProps {
-  autoOpenCashDrawer: boolean; setAutoOpenCashDrawer: (v: boolean) => void;
-  autoCloseCashDrawer: boolean; setAutoCloseCashDrawer: (v: boolean) => void;
-  autoCloseCashDrawerTime: string; setAutoCloseCashDrawerTime: (v: string) => void;
-  autoPrintBarcode: boolean; setAutoPrintBarcode: (v: boolean) => void;
   billSettings: SettingsForm['billSettings']; setBillSettings: SettingsForm['setBillSettings'];
-  billingUIConfig: SettingsForm['billingUIConfig']; setBillingUIConfig: SettingsForm['setBillingUIConfig'];
-  defaultOpeningBalance: SettingsForm['defaultOpeningBalance']; setDefaultOpeningBalance: SettingsForm['setDefaultOpeningBalance'];
-  enableConvertToGst: boolean; setEnableConvertToGst: (v: boolean) => void;
-  labelCodeType: SettingsForm['labelCodeType']; setLabelCodeType: SettingsForm['setLabelCodeType'];
-  labelShowShopName: boolean; setLabelShowShopName: (v: boolean) => void;
-  openCashDrawerOnPending: boolean; setOpenCashDrawerOnPending: (v: boolean) => void;
   receiptFont: string; setReceiptFont: (v: string) => void;
   scrapBillSettings: SettingsForm['scrapBillSettings']; setScrapBillSettings: SettingsForm['setScrapBillSettings'];
-  showFullyPaidCashInLedger: boolean; setShowFullyPaidCashInLedger: (v: boolean) => void;
-  showPriceOverrideMrp: boolean; setShowPriceOverrideMrp: (v: boolean) => void;
   showProductOffers: boolean; setShowProductOffers: (v: boolean) => void;
-  loyaltyEnabled: boolean; setLoyaltyEnabled: (v: boolean) => void;
-  loyaltyEarningRate: number | string; setLoyaltyEarningRate: SettingsForm['setLoyaltyEarningRate'];
-  loyaltyRedemptionRate: number | string; setLoyaltyRedemptionRate: SettingsForm['setLoyaltyRedemptionRate'];
-  loyaltyAwardOnPending: boolean; setLoyaltyAwardOnPending: (v: boolean) => void;
-  enableScrap: boolean; setEnableScrap: (v: boolean) => void;
-  previewFormat: SettingsForm['previewFormat']; setPreviewFormat: SettingsForm['setPreviewFormat'];
-  previewStyle: SettingsForm['previewStyle']; setPreviewStyle: SettingsForm['setPreviewStyle'];
 }
 
+/** Bill Content: what appears on printed bills (checklist, column order, T&C, declarations, scrap bills, font). */
 export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = ({
-  autoOpenCashDrawer, setAutoOpenCashDrawer,
-  autoCloseCashDrawer, setAutoCloseCashDrawer,
-  autoCloseCashDrawerTime, setAutoCloseCashDrawerTime,
-  autoPrintBarcode, setAutoPrintBarcode,
   billSettings, setBillSettings,
-  billingUIConfig, setBillingUIConfig,
-  defaultOpeningBalance, setDefaultOpeningBalance,
-  enableConvertToGst, setEnableConvertToGst,
-  labelCodeType, setLabelCodeType,
-  labelShowShopName, setLabelShowShopName,
-  openCashDrawerOnPending, setOpenCashDrawerOnPending,
   receiptFont, setReceiptFont,
   scrapBillSettings, setScrapBillSettings,
-  showFullyPaidCashInLedger, setShowFullyPaidCashInLedger,
-  showPriceOverrideMrp, setShowPriceOverrideMrp,
   showProductOffers, setShowProductOffers,
 }) => {
-  const { flags: featureFlags } = useFeatureFlagsStore();
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Card 1: General Bill Options & Checklist */}
@@ -68,16 +32,6 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
               <div className="space-y-6">
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)}>Auto Print Barcode for New Products</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When a new product is created from the Billing page, automatically print its barcode label.</p>
-                  </div>
-                  <button type="button" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoPrintBarcode ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoPrintBarcode ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
                     <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Pre-Set Catalog Offers on Bills</label>
                     <p className="text-[10px] text-muted-foreground/75 mt-0.5">Controls whether original MRP is shown for pre-set product catalog offers &amp; discounts created in Product Master (e.g. MRP ₹100 → Offer Price ₹80).</p>
                   </div>
@@ -85,93 +39,6 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowPriceOverrideMrp(!showPriceOverrideMrp)}>Show Old MRP on Price Overrides (Billing Page)</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Controls whether original MRP is shown when unit price is manually overridden or discounted directly on the Billing checkout page (e.g. MRP ₹100 → Overridden ₹80).</p>
-                  </div>
-                  <button type="button" onClick={() => setShowPriceOverrideMrp(!showPriceOverrideMrp)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showPriceOverrideMrp ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showPriceOverrideMrp ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => {
-                      const newVal = !billingUIConfig.showPurchasePriceInPOS;
-                      const updated = { ...billingUIConfig, showPurchasePriceInPOS: newVal };
-                      setBillingUIConfig(updated);
-                      useBillingUIStore.getState().updateConfig(updated);
-                    }}>Show Product Purchase Cost in Price Override Menu (View-Only)</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the product's cost/purchase price is shown in the Price Override &amp; Tier dropdown on POS for reference (View Only, non-selectable).</p>
-                  </div>
-                  <button type="button" onClick={() => {
-                    const newVal = !billingUIConfig.showPurchasePriceInPOS;
-                    const updated = { ...billingUIConfig, showPurchasePriceInPOS: newVal };
-                    setBillingUIConfig(updated);
-                    useBillingUIStore.getState().updateConfig(updated);
-                  }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billingUIConfig.showPurchasePriceInPOS ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billingUIConfig.showPurchasePriceInPOS ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
-                  </div>
-                  <button type="button" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', openCashDrawerOnPending ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoOpenCashDrawer(!autoOpenCashDrawer)}>Auto Open Cash Drawer</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Automatically open the cash register drawer session with a default balance on session start.</p>
-                  </div>
-                  <button type="button" onClick={() => setAutoOpenCashDrawer(!autoOpenCashDrawer)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoOpenCashDrawer ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoOpenCashDrawer ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                <CashRegisterSettings />
-                <CashDrawerAutoCloseSettings
-                  autoCloseEnabled={autoCloseCashDrawer}
-                  setAutoCloseEnabled={setAutoCloseCashDrawer}
-                  autoCloseTime={autoCloseCashDrawerTime}
-                  setAutoCloseTime={setAutoCloseCashDrawerTime}
-                />
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none">Show Fully Paid Cash Transactions in Party Ledger</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, sales where the customer pays the full bill amount in cash will appear in the party ledger as a sale and payment entry (net zero effect on balance). When disabled, such transactions are hidden from the party ledger.</p>
-                  </div>
-                  <button type="button" onClick={() => setShowFullyPaidCashInLedger(!showFullyPaidCashInLedger)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showFullyPaidCashInLedger ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showFullyPaidCashInLedger ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {autoOpenCashDrawer && (
-                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <label className="text-xs font-bold text-foreground mb-1 block">Default Opening Amount (₹)</label>
-                    <p className="text-[10px] text-muted-foreground/75 mb-2.5">Set a default cash amount to start the drawer with. If empty or cleared, opening balance will be 0 (starts from 0).</p>
-                    <div className="relative max-w-xs">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        placeholder="0"
-                        value={defaultOpeningBalance}
-                        onChange={(e) => setDefaultOpeningBalance(e.target.value)}
-                        className="w-full pl-7 pr-3 py-2 bg-background border border-border rounded-xl text-xs font-bold text-foreground focus:outline-none focus:border-primary transition-colors"
-                      />
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
@@ -554,165 +421,6 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                   <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
                     Changes apply only to new invoices. Previously generated invoices remain unaffected.
                   </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Label Format */}
-            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
-                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 shadow-[0_4px_12px_rgba(168,85,247,0.1)] shrink-0">
-                  <Tags className="w-4.5 h-4.5" />
-                </div>
-                <span className="text-xs font-black text-purple-600 uppercase tracking-widest">Product Label Codes</span>
-              </div>
-              <div className="space-y-5">
-                <div>
-                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Default Code Type</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {CODE_TYPES.map((ct) => (
-                      <button
-                        type="button"
-                        key={ct.id}
-                        onClick={() => setLabelCodeType(ct.id)}
-                        className={clsx(
-                          "relative flex items-center gap-3.5 p-4.5 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
-                          labelCodeType === ct.id
-                            ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
-                            : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
-                        )}
-                      >
-                        <div className={clsx(
-                          "p-2.5 rounded-xl shrink-0",
-                          labelCodeType === ct.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                        )}>
-                          {ct.id === 'barcode' ? (
-                            <svg className="w-5 h-5 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M2 4h2v16H2zM6 4h1v16H6zM9 4h2v16H9zM13 4h1v16h-1zM16 4h2v16h-2zM20 4h2v16h-2z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-5 h-5 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="3" width="18" height="18" rx="2" />
-                              {[7,9,11,13,15].map(x => (
-                                <g key={x}>
-                                  <rect x={x} y="7" width="1" height="2" fill="currentColor" />
-                                  <rect x={x} y="11" width="1" height="2" fill="currentColor" />
-                                  <rect x={x} y="15" width="1" height="2" fill="currentColor" />
-                                </g>
-                              ))}
-                              <rect x="17" y="7" width="1" height="10" fill="currentColor" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-foreground truncate">{ct.label}</p>
-                          <p className="text-xs text-muted-foreground/75 truncate mt-0.5">{ct.description}</p>
-                        </div>
-                        {labelCodeType === ct.id && (
-                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setLabelShowShopName(!labelShowShopName)}>Show Shop Name on Labels</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Print the shop name at the top of product barcode and QR labels.</p>
-                  </div>
-                  <button type="button" onClick={() => setLabelShowShopName(!labelShowShopName)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', labelShowShopName ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', labelShowShopName ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                <div className="p-4 bg-blue-500/[0.04] border border-blue-500/20 rounded-2xl flex items-start gap-3">
-                  <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium leading-relaxed">
-                    The selected code type will be used as the default for generating, previewing, and printing product labels. Existing labels remain unaffected.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Billing Security & Actions */}
-            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
-                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
-                  <Shield className="w-4.5 h-4.5" />
-                </div>
-                <span className="text-xs font-black text-primary uppercase tracking-widest">Billing Security &amp; Actions</span>
-              </div>
-
-              <div className="space-y-3.5">
-                {/* Convert to GST Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block">Convert to GST in Sales History</label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                      Show "Convert to GST" button in Sales History to convert Bill of Supply invoices to GST invoices.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEnableConvertToGst(!enableConvertToGst)}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableConvertToGst ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                    title={enableConvertToGst ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableConvertToGst ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {/* Biller PIN Protection Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block">Biller PIN Protection</label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Require security PIN before switching biller or completing billing actions</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { const v = !featureFlags?.biller_pin; useFeatureFlagsStore.getState().setFlag('biller_pin', v); }}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags?.biller_pin ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                    title={featureFlags?.biller_pin ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.biller_pin ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {/* Sales Staff Tracking Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block">Sales Staff Tracking</label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Track sales staff per invoice for performance and commission reporting</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { const v = !featureFlags?.sales_staff; useFeatureFlagsStore.getState().setFlag('sales_staff', v); }}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags?.sales_staff ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                    title={featureFlags?.sales_staff ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.sales_staff ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
-                {/* Staff Credit Billing & Ledger Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-foreground block">Show Staff in Customer Search & Credit Ledger</label>
-                    <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                      Show staff in billing customer search. Credit sales to staff automatically update their staff ledger without creating duplicate customer parties.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { const v = !featureFlags?.staff_credit_billing; useFeatureFlagsStore.getState().setFlag('staff_credit_billing', v); }}
-                    className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags?.staff_credit_billing ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                    title={featureFlags?.staff_credit_billing ? 'Enabled' : 'Disabled'}
-                  >
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags?.staff_credit_billing ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
                 </div>
               </div>
             </div>

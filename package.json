@@ -27,6 +27,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@keyv/serialize": "^1.1.1",
     "@types/papaparse": "^5.5.2",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^3.0.3",

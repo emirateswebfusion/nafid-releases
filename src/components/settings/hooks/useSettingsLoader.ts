@@ -120,7 +120,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
   });
 
   const loadSettings = async () => {
-    logError('[SettingsManager] loadSettings STARTED');
+    console.debug('[SettingsManager] loadSettings STARTED');
     if (!isDesktopRuntime()) {
       setLoading(false);
       return;
@@ -128,7 +128,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
     try {
       const { tenantId } = useAuthStore.getState();
       const currentTenant = tenantId || 'global';
-      logError(`[SettingsManager] tenantId: ${currentTenant}`);
+      console.debug(`[SettingsManager] tenantId: ${currentTenant}`);
 
       partyConnectCloud.getConnectCode()
         .then((res) => {
@@ -742,7 +742,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
 
       // Settings loaded: dismiss skeleton loader immediately (<30ms)
       setLoading(false);
-      logError('[SettingsManager] loadSettings COMPLETED SUCCESS');
+      console.debug('[SettingsManager] loadSettings COMPLETED SUCCESS');
 
       // 2. Non-blocking asynchronous background jobs: Printers, Version, Service Charge Item
       // A. Printers (Windows Print Spooler enumeration can take several seconds - do NOT block UI)
@@ -762,7 +762,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
                 .filter((p) => Number(p.is_service_item) === 1 || String(p.name || '').trim() === 'Service Charge')
                 .sort((a, b) => {
                   const rank = (p: { is_service_item?: unknown; sku_barcode?: unknown }) => (Number(p.is_service_item) === 1 ? (String(p.sku_barcode || '') === '99' ? 0 : 1) : 2);
-                  return rank(a) - rank(b) || String(a.created_at || '').localeCompare(String(a.created_at || ''));
+                  return rank(a) - rank(b) || String(a.created_at || '').localeCompare(String(b.created_at || ''));
                 })[0]
             : null;
           if (svcProd) {

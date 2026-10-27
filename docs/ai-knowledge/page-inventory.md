@@ -474,18 +474,17 @@ In Nafid POS, the user interface follows a single-page hybrid desktop model with
 - **Roles & Permissions:** `settings.view` (general: `settings.edit`, business: `settings.business`, ownerOnly tabs require `OWNER` or `ADMIN`).
 - **Enablement Requirements:** Always available.
 - **Main UI Actions:**
-  - 10 distinct configuration sections:
-    1. `store`: Store Profile (Shop name, address, phone, email, GSTIN, State, invoice sequence counters)
-    2. `hardware`: Devices & Hardware (Thermal printer selection, paper width [58mm/80mm], ESC/POS commands, USB Weighing scale COM port and baud rate)
-    3. `whatsapp`: WhatsApp Integration via Baileys ([`WhatsAppSettings.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/whatsapp/WhatsAppSettings.tsx), QR code pairing, connection status)
-    4. `products`: Products & Coding (Barcode prefix, label type [barcode/QR], bulk product onboarding sheet via [`BulkOnboardingSheet.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/BulkOnboardingSheet.tsx))
-    5. `printing`: Print Templates (Thermal receipt template editor, A4 invoice template editor, live preview modal via [`PaperPreviewModal.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/PaperPreviewModal.tsx))
-    6. `print_options`: Bill & Print Options (Auto-print on checkout, number of copies, 12h/24h time format, receipt footer terms)
-    7. `terminology`: Ledger Terminology Customizer ([`LedgerTerminologySettings.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/LedgerTerminologySettings.tsx))
-    8. `billing_ui`: Billing Page Customizer ([`BillingUICustomizer.tsx`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/billing-ui-customizer/BillingUICustomizer.tsx), visible header action buttons, entry flow presets)
-    9. `system`: App Preferences (Store timezone, light/dark theme, manual cloud sync trigger, check for app updates)
-    10. `network`: Network & Sync Mode (Cloud-only, LAN-only, Hybrid mode, local host server configuration)
-    11. `features`: Features & Modules management (enable/disable any of the 23 system feature flags)
+  - Sections are defined once in [`settingsSections.ts`](file:///c:/EMIRATES%20WEBFUSION%20WORKS/nafid/nafid-pos/src/components/settings/settingsSections.ts) (sidebar groups, page titles, descriptions, search keywords); the sidebar has a search box. Each page holds one kind of setting:
+    1. **Shop:** `store` Shop Profile (connect code, name, contacts, address, timezone) · `tax_bank` Tax, Bank & UPI (GSTIN, state, BOS→GST conversion, bank, UPI / QR) · `numbering` Invoice Numbering (terminal code, invoice / B2B / B2C / scrap / quotation / return / purchase counters) · `filing_only` Revenue & Filing-only
+    2. **Billing & Sales:** `billing` Billing Rules (price override display, purchase cost, biller PIN, sales staff, staff credit, Convert to GST) · `cash` Cash Drawer & Register (open on pending, auto open / opening amount, auto close, register totals) · `customers` Customers & Loyalty (party ledger balance mode, fully paid cash in ledger, loyalty rules) · `billing_ui` Billing Page Layout
+    3. **Printing:** `printing` Print Templates (formats, styles, time format) · `print_options` Bill Content (checklist, column order, T&C, declarations, scrap bills, font) · `labels` Barcode Labels (code type, shop name, auto-print for new products)
+    4. **Products & Inventory:** `products` (price coding, service charge, bulk import, paper stock, inventory / stock report default views, product name badges)
+    5. **Devices:** `hardware` Printers & Devices (receipt / barcode / A4 printers, weighing scale)
+    6. **Connections:** `network` Network & Sync · `whatsapp` WhatsApp
+    7. **Security & Privacy:** `account` Change Password · `staff_masking` · `emergency_purge`
+    8. **App & Appearance:** `design` Theme & Font Size · `terminology` · `dashboard_cards` · `system` Updates & What's New
+    9. **Features & Modules:** `features` (module on / off switches only)
+  - One Save button saves every page (`useSettingsSave`); Cash register totals, Filing-only and WhatsApp closing have their own save buttons.
 - **Related Components:** `BillingUICustomizer`, `LedgerTerminologySettings`, `WhatsAppSettings`, `BulkOnboardingSheet`, `PaperPreviewModal`, `Modal`, `Input`, `Select`.
 - **States:** Loading settings, Saving in-progress, QR code syncing, Test print running.
 - **Status:** **Active** (VERIFIED).

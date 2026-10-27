@@ -17,6 +17,14 @@ import { PrintOptionsSettingsTab } from '../tabs/PrintOptionsSettingsTab';
 import { SystemPreferencesTab } from '../tabs/SystemPreferencesTab';
 import { FeaturesTab } from '../tabs/FeaturesTab';
 import { NetworkSyncTab } from '../tabs/NetworkSyncTab';
+import { TaxBankSettingsTab } from '../tabs/TaxBankSettingsTab';
+import { NumberingSettingsTab } from '../tabs/NumberingSettingsTab';
+import { BillingRulesTab } from '../tabs/BillingRulesTab';
+import { CashDrawerSettingsTab } from '../tabs/CashDrawerSettingsTab';
+import { CustomersLoyaltyTab } from '../tabs/CustomersLoyaltyTab';
+import { LabelSettingsTab } from '../tabs/LabelSettingsTab';
+import { AccountSecurityTab } from '../tabs/AccountSecurityTab';
+import { InventoryDisplaySettings } from '../tabs/InventoryDisplaySettings';
 import type { FeatureFlags, FeatureKey } from '../../../config/featureFlags';
 import type { SettingsFormState } from '../hooks/useSettingsFormState';
 
@@ -42,7 +50,7 @@ export function SettingsSectionContent({
   activeSection, featureFlags, fetchPrinters, handleChangePassword, handleInstallUpdate, handleRetryDownload,
   handleToggleFeatureFlag, returnPrefix, returnStartNumber, role, sectionId, setActiveSection, tenantId, form,
 }: SettingsSectionContentProps) {
-  const { a4Printer, a4Style, a5Orientation, activeHardwareTab, activeProductsTab, activeWhatsAppTab, appVersion, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, autoWhatsAppSend, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, changingPass, confirmTurnOffAllModalOpen, connectCode, copiedCode, copiedFirewallCmd, defaultOpeningBalance, detectedLocalIp, downloadProgress, drainingQueue, effectiveCloudState, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableScrap, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, isDownloading, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, lastChecked, loading, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, networkDetails, openCashDrawerOnPending, osPrinters, pass, previewFormat, previewStyle, priceCoding, printersLoading, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, saving, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, setA4Printer, setA4Style, setA5Orientation, setActiveHardwareTab, setActiveProductsTab, setActiveWhatsAppTab, setAutoCloseCashDrawer, setAutoCloseCashDrawerTime, setAutoOpenCashDrawer, setAutoPrintBarcode, setAutoWhatsAppSend, setB2bPrefix, setB2bStartNumber, setB2cPrefix, setB2cStartNumber, setBankAccount, setBankBranch, setBankIfsc, setBankName, setBarcodePrinter, setBillingUIConfig, setBillSettings, setConfirmTurnOffAllModalOpen, setCopiedCode, setCopiedFirewallCmd, setDefaultOpeningBalance, setDrainingQueue, setEffectiveCloudState, setEmergencyPanicConfig, setEnableConvertToGst, setEnablePartyEstimate, setEnablePartyGst, setEnableRealPaperStock, setEnableScrap, setEnableThreeInvoiceSeries, setGstConversionTaxInclusive, setGstProfitPercentage, setInventoryDefaultView, setInvoiceStartNumber, setLabelCodeType, setLabelShowShopName, setLanHostIp, setLanRole, setLoyaltyAwardOnPending, setLoyaltyEarningRate, setLoyaltyEnabled, setLoyaltyRedemptionRate, setMessage, setNetworkDetails, setOpenCashDrawerOnPending, setPass, setPreviewFormat, setPreviewStyle, setPriceCoding, setPrintFormat, setPrintWidth, setPurchaseBillPrefix, setPurchaseBillStartNumber, setQuotationPrefix, setQuotationStartNumber, setReceiptFont, setReceiptPrinter, setReturnPrefix, setReturnStartNumber, setScale, setScrapBillSettings, setScrapPrefix, setScrapStartNumber, setServiceChargeBarcode, setShopAddress, setShopClosingConfig, setShopEmail, setShopGstin, setShopNameLocal, setShopPhone, setShopState, setShopWebsite, setShowBulkSheet, setShowCashRegister, setShowConfirmPass, setShowFullyPaidCashInLedger, setShowLanHelpModal, setShowNewPass, setShowOldPass, setShowPaperOnlyProducts, setShowPaperStockInEstimate, setShowPaperStockInGst, setShowPriceOverrideMrp, setShowPriceTiersInInventory, setShowProductGstBadge, setShowProductOffers, setShowUpiQr, setShowZeroPaperStock, setStaffDataMaskingConfig, setStockReportDefaultView, setStoreTimezoneState, setSyncFrequency, setSyncMode, setTerminalCode, setTestingNetwork, setThermalStyle, setTimeFormat, setUpiId, setWhatsNewLang, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showBulkSheet, showCashRegister, showConfirmPass, showFullyPaidCashInLedger, showLanHelpModal, showNewPass, showOldPass, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, storeTimezone, syncFrequency, syncMode, terminalCode, testingNetwork, thermalStyle, timeFormat, updateInfo, updateReady, updateStatus, upiId, whatsNewLang } = form;
+  const { a4Printer, a4Style, a5Orientation, activeHardwareTab, activeProductsTab, activeWhatsAppTab, appVersion, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, autoWhatsAppSend, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, changingPass, connectCode, copiedCode, copiedFirewallCmd, defaultOpeningBalance, detectedLocalIp, downloadProgress, drainingQueue, effectiveCloudState, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, isDownloading, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, lastChecked, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyRedemptionRate, networkDetails, openCashDrawerOnPending, osPrinters, pass, priceCoding, printersLoading, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, saving, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, setA4Printer, setA4Style, setA5Orientation, setActiveHardwareTab, setActiveProductsTab, setActiveWhatsAppTab, setAutoCloseCashDrawer, setAutoCloseCashDrawerTime, setAutoOpenCashDrawer, setAutoPrintBarcode, setAutoWhatsAppSend, setB2bPrefix, setB2bStartNumber, setB2cPrefix, setB2cStartNumber, setBankAccount, setBankBranch, setBankIfsc, setBankName, setBarcodePrinter, setBillingUIConfig, setBillSettings, setConfirmTurnOffAllModalOpen, setCopiedCode, setCopiedFirewallCmd, setDefaultOpeningBalance, setDrainingQueue, setEffectiveCloudState, setEmergencyPanicConfig, setEnableConvertToGst, setEnablePartyEstimate, setEnablePartyGst, setEnableRealPaperStock, setEnableThreeInvoiceSeries, setGstConversionTaxInclusive, setGstProfitPercentage, setInventoryDefaultView, setInvoiceStartNumber, setLabelCodeType, setLabelShowShopName, setLanHostIp, setLanRole, setLoyaltyAwardOnPending, setLoyaltyEarningRate, setLoyaltyRedemptionRate, setMessage, setNetworkDetails, setOpenCashDrawerOnPending, setPass, setPreviewFormat, setPreviewStyle, setPriceCoding, setPrintFormat, setPrintWidth, setPurchaseBillPrefix, setPurchaseBillStartNumber, setQuotationPrefix, setQuotationStartNumber, setReceiptFont, setReceiptPrinter, setReturnPrefix, setReturnStartNumber, setScale, setScrapBillSettings, setScrapPrefix, setScrapStartNumber, setServiceChargeBarcode, setShopAddress, setShopClosingConfig, setShopEmail, setShopGstin, setShopNameLocal, setShopPhone, setShopState, setShopWebsite, setShowBulkSheet, setShowCashRegister, setShowConfirmPass, setShowFullyPaidCashInLedger, setShowLanHelpModal, setShowNewPass, setShowOldPass, setShowPaperOnlyProducts, setShowPaperStockInEstimate, setShowPaperStockInGst, setShowPriceOverrideMrp, setShowPriceTiersInInventory, setShowProductGstBadge, setShowProductOffers, setShowUpiQr, setShowZeroPaperStock, setStaffDataMaskingConfig, setStockReportDefaultView, setStoreTimezoneState, setSyncFrequency, setSyncMode, setTerminalCode, setTestingNetwork, setThermalStyle, setTimeFormat, setUpiId, setWhatsNewLang, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showBulkSheet, showConfirmPass, showFullyPaidCashInLedger, showLanHelpModal, showNewPass, showOldPass, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, storeTimezone, syncFrequency, syncMode, terminalCode, testingNetwork, thermalStyle, timeFormat, updateInfo, updateReady, updateStatus, upiId, whatsNewLang } = form;
 
   switch (sectionId) {
     case 'emergency_purge':
@@ -92,17 +100,29 @@ export function SettingsSectionContent({
           shopPhone={shopPhone} setShopPhone={setShopPhone}
           shopEmail={shopEmail} setShopEmail={setShopEmail}
           shopWebsite={shopWebsite} setShopWebsite={setShopWebsite}
+          storeTimezone={storeTimezone} setStoreTimezoneState={setStoreTimezoneState}
+        />
+      );
+
+    case 'tax_bank':
+      return (
+        <TaxBankSettingsTab
           shopGstin={shopGstin} setShopGstin={setShopGstin}
           shopState={shopState} setShopState={setShopState}
           gstProfitPercentage={gstProfitPercentage} setGstProfitPercentage={setGstProfitPercentage}
           gstConversionTaxInclusive={gstConversionTaxInclusive} setGstConversionTaxInclusive={setGstConversionTaxInclusive}
-          storeTimezone={storeTimezone} setStoreTimezoneState={setStoreTimezoneState}
           bankName={bankName} setBankName={setBankName}
           bankAccount={bankAccount} setBankAccount={setBankAccount}
           bankIfsc={bankIfsc} setBankIfsc={setBankIfsc}
           bankBranch={bankBranch} setBankBranch={setBankBranch}
           upiId={upiId} setUpiId={setUpiId}
           showUpiQr={showUpiQr} setShowUpiQr={setShowUpiQr}
+        />
+      );
+
+    case 'numbering':
+      return (
+        <NumberingSettingsTab
           terminalCode={terminalCode} setTerminalCode={setTerminalCode}
           invoiceStartNumber={invoiceStartNumber} setInvoiceStartNumber={setInvoiceStartNumber}
           enableThreeInvoiceSeries={enableThreeInvoiceSeries} setEnableThreeInvoiceSeries={setEnableThreeInvoiceSeries}
@@ -118,6 +138,40 @@ export function SettingsSectionContent({
           quotationStartNumber={quotationStartNumber} setQuotationStartNumber={setQuotationStartNumber}
           purchaseBillPrefix={purchaseBillPrefix} setPurchaseBillPrefix={setPurchaseBillPrefix}
           purchaseBillStartNumber={purchaseBillStartNumber} setPurchaseBillStartNumber={setPurchaseBillStartNumber}
+        />
+      );
+
+    case 'billing':
+      return (
+        <BillingRulesTab
+          billingUIConfig={billingUIConfig} setBillingUIConfig={setBillingUIConfig}
+          enableConvertToGst={enableConvertToGst} setEnableConvertToGst={setEnableConvertToGst}
+          showPriceOverrideMrp={showPriceOverrideMrp} setShowPriceOverrideMrp={setShowPriceOverrideMrp}
+        />
+      );
+
+    case 'cash':
+      return (
+        <CashDrawerSettingsTab
+          autoOpenCashDrawer={autoOpenCashDrawer} setAutoOpenCashDrawer={setAutoOpenCashDrawer}
+          autoCloseCashDrawer={autoCloseCashDrawer} setAutoCloseCashDrawer={setAutoCloseCashDrawer}
+          autoCloseCashDrawerTime={autoCloseCashDrawerTime} setAutoCloseCashDrawerTime={setAutoCloseCashDrawerTime}
+          defaultOpeningBalance={defaultOpeningBalance} setDefaultOpeningBalance={setDefaultOpeningBalance}
+          openCashDrawerOnPending={openCashDrawerOnPending} setOpenCashDrawerOnPending={setOpenCashDrawerOnPending}
+        />
+      );
+
+    case 'customers':
+      return (
+        <CustomersLoyaltyTab
+          featureFlags={featureFlags}
+          enablePartyEstimate={enablePartyEstimate} setEnablePartyEstimate={setEnablePartyEstimate}
+          enablePartyGst={enablePartyGst} setEnablePartyGst={setEnablePartyGst}
+          showFullyPaidCashInLedger={showFullyPaidCashInLedger} setShowFullyPaidCashInLedger={setShowFullyPaidCashInLedger}
+          loyaltyAwardOnPending={loyaltyAwardOnPending} setLoyaltyAwardOnPending={setLoyaltyAwardOnPending}
+          loyaltyEarningRate={loyaltyEarningRate} setLoyaltyEarningRate={setLoyaltyEarningRate}
+          loyaltyRedemptionRate={loyaltyRedemptionRate} setLoyaltyRedemptionRate={setLoyaltyRedemptionRate}
+          onOpenFeatures={() => setActiveSection('features')}
         />
       );
 
@@ -159,19 +213,26 @@ export function SettingsSectionContent({
 
     case 'products':
       return (
-        <ProductsSettingsTab
-          isAdminRole={isAdminRole(role)}
-          activeProductsTab={activeProductsTab} setActiveProductsTab={setActiveProductsTab}
-          priceCoding={priceCoding} setPriceCoding={setPriceCoding}
-          serviceChargeBarcode={serviceChargeBarcode} setServiceChargeBarcode={setServiceChargeBarcode}
-          enableRealPaperStock={enableRealPaperStock} setEnableRealPaperStock={setEnableRealPaperStock}
-          showZeroPaperStock={showZeroPaperStock} setShowZeroPaperStock={setShowZeroPaperStock}
-          showPaperStockInGst={showPaperStockInGst} setShowPaperStockInGst={setShowPaperStockInGst}
-          showPaperStockInEstimate={showPaperStockInEstimate} setShowPaperStockInEstimate={setShowPaperStockInEstimate}
-          showProductGstBadge={showProductGstBadge} setShowProductGstBadge={setShowProductGstBadge}
-          showBulkSheet={showBulkSheet} setShowBulkSheet={setShowBulkSheet}
-          showPaperOnlyProducts={showPaperOnlyProducts} setShowPaperOnlyProducts={setShowPaperOnlyProducts}
-        />
+        <div className="space-y-6">
+          <ProductsSettingsTab
+            isAdminRole={isAdminRole(role)}
+            activeProductsTab={activeProductsTab} setActiveProductsTab={setActiveProductsTab}
+            priceCoding={priceCoding} setPriceCoding={setPriceCoding}
+            serviceChargeBarcode={serviceChargeBarcode} setServiceChargeBarcode={setServiceChargeBarcode}
+            enableRealPaperStock={enableRealPaperStock} setEnableRealPaperStock={setEnableRealPaperStock}
+            showZeroPaperStock={showZeroPaperStock} setShowZeroPaperStock={setShowZeroPaperStock}
+            showPaperStockInGst={showPaperStockInGst} setShowPaperStockInGst={setShowPaperStockInGst}
+            showPaperStockInEstimate={showPaperStockInEstimate} setShowPaperStockInEstimate={setShowPaperStockInEstimate}
+            showBulkSheet={showBulkSheet} setShowBulkSheet={setShowBulkSheet}
+            showPaperOnlyProducts={showPaperOnlyProducts} setShowPaperOnlyProducts={setShowPaperOnlyProducts}
+          />
+          <InventoryDisplaySettings
+            inventoryDefaultView={inventoryDefaultView} setInventoryDefaultView={setInventoryDefaultView}
+            stockReportDefaultView={stockReportDefaultView} setStockReportDefaultView={setStockReportDefaultView}
+            showPriceTiersInInventory={showPriceTiersInInventory} setShowPriceTiersInInventory={setShowPriceTiersInInventory}
+            showProductGstBadge={showProductGstBadge} setShowProductGstBadge={setShowProductGstBadge}
+          />
+        </div>
       );
 
     case 'printing':
@@ -192,29 +253,30 @@ export function SettingsSectionContent({
     case 'print_options':
       return (
         <PrintOptionsSettingsTab
-          autoOpenCashDrawer={autoOpenCashDrawer} setAutoOpenCashDrawer={setAutoOpenCashDrawer}
-          autoCloseCashDrawer={autoCloseCashDrawer} setAutoCloseCashDrawer={setAutoCloseCashDrawer}
-          autoCloseCashDrawerTime={autoCloseCashDrawerTime} setAutoCloseCashDrawerTime={setAutoCloseCashDrawerTime}
-          autoPrintBarcode={autoPrintBarcode} setAutoPrintBarcode={setAutoPrintBarcode}
           billSettings={billSettings} setBillSettings={setBillSettings}
-          billingUIConfig={billingUIConfig} setBillingUIConfig={setBillingUIConfig}
-          defaultOpeningBalance={defaultOpeningBalance} setDefaultOpeningBalance={setDefaultOpeningBalance}
-          enableConvertToGst={enableConvertToGst} setEnableConvertToGst={setEnableConvertToGst}
-          labelCodeType={labelCodeType} setLabelCodeType={setLabelCodeType}
-          labelShowShopName={labelShowShopName} setLabelShowShopName={setLabelShowShopName}
-          openCashDrawerOnPending={openCashDrawerOnPending} setOpenCashDrawerOnPending={setOpenCashDrawerOnPending}
           receiptFont={receiptFont} setReceiptFont={setReceiptFont}
           scrapBillSettings={scrapBillSettings} setScrapBillSettings={setScrapBillSettings}
-          showFullyPaidCashInLedger={showFullyPaidCashInLedger} setShowFullyPaidCashInLedger={setShowFullyPaidCashInLedger}
-          showPriceOverrideMrp={showPriceOverrideMrp} setShowPriceOverrideMrp={setShowPriceOverrideMrp}
           showProductOffers={showProductOffers} setShowProductOffers={setShowProductOffers}
-          loyaltyEnabled={loyaltyEnabled} setLoyaltyEnabled={setLoyaltyEnabled}
-          loyaltyEarningRate={loyaltyEarningRate} setLoyaltyEarningRate={setLoyaltyEarningRate}
-          loyaltyRedemptionRate={loyaltyRedemptionRate} setLoyaltyRedemptionRate={setLoyaltyRedemptionRate}
-          loyaltyAwardOnPending={loyaltyAwardOnPending} setLoyaltyAwardOnPending={setLoyaltyAwardOnPending}
-          enableScrap={enableScrap} setEnableScrap={setEnableScrap}
-          previewFormat={previewFormat} setPreviewFormat={setPreviewFormat}
-          previewStyle={previewStyle} setPreviewStyle={setPreviewStyle}
+        />
+      );
+
+    case 'labels':
+      return (
+        <LabelSettingsTab
+          autoPrintBarcode={autoPrintBarcode} setAutoPrintBarcode={setAutoPrintBarcode}
+          labelCodeType={labelCodeType} setLabelCodeType={setLabelCodeType}
+          labelShowShopName={labelShowShopName} setLabelShowShopName={setLabelShowShopName}
+        />
+      );
+
+    case 'account':
+      return (
+        <AccountSecurityTab
+          changingPass={changingPass} setPass={setPass} pass={pass}
+          showOldPass={showOldPass} setShowOldPass={setShowOldPass}
+          showNewPass={showNewPass} setShowNewPass={setShowNewPass}
+          showConfirmPass={showConfirmPass} setShowConfirmPass={setShowConfirmPass}
+          handleChangePassword={handleChangePassword}
         />
       );
 
@@ -222,24 +284,13 @@ export function SettingsSectionContent({
       return (
         <SystemPreferencesTab
           appVersion={appVersion}
-          changingPass={changingPass} setPass={setPass} pass={pass}
-          showOldPass={showOldPass} setShowOldPass={setShowOldPass}
-          showNewPass={showNewPass} setShowNewPass={setShowNewPass}
-          showConfirmPass={showConfirmPass} setShowConfirmPass={setShowConfirmPass}
-          inventoryDefaultView={inventoryDefaultView} setInventoryDefaultView={setInventoryDefaultView}
           isDownloading={isDownloading}
           downloadProgress={downloadProgress}
           lastChecked={lastChecked}
-          loading={loading}
-          stockReportDefaultView={stockReportDefaultView} setStockReportDefaultView={setStockReportDefaultView}
-          showPriceTiersInInventory={showPriceTiersInInventory} setShowPriceTiersInInventory={setShowPriceTiersInInventory}
-          showProductGstBadge={showProductGstBadge} setShowProductGstBadge={setShowProductGstBadge}
           updateInfo={updateInfo}
           updateReady={updateReady}
           updateStatus={updateStatus}
           whatsNewLang={whatsNewLang} setWhatsNewLang={setWhatsNewLang}
-          setActiveSection={setActiveSection}
-          handleChangePassword={handleChangePassword}
           handleRetryDownload={handleRetryDownload}
           handleInstallUpdate={handleInstallUpdate}
         />
@@ -250,14 +301,8 @@ export function SettingsSectionContent({
         <FeaturesTab
           featureFlags={featureFlags}
           handleToggleFeatureFlag={handleToggleFeatureFlag}
-          enablePartyEstimate={enablePartyEstimate} setEnablePartyEstimate={setEnablePartyEstimate}
-          enablePartyGst={enablePartyGst} setEnablePartyGst={setEnablePartyGst}
-          loyaltyAwardOnPending={loyaltyAwardOnPending} setLoyaltyAwardOnPending={setLoyaltyAwardOnPending}
-          loyaltyEarningRate={loyaltyEarningRate} setLoyaltyEarningRate={setLoyaltyEarningRate}
-          loyaltyRedemptionRate={loyaltyRedemptionRate} setLoyaltyRedemptionRate={setLoyaltyRedemptionRate}
-          saving={saving}
-          confirmTurnOffAllModalOpen={confirmTurnOffAllModalOpen} setConfirmTurnOffAllModalOpen={setConfirmTurnOffAllModalOpen}
-          showCashRegister={showCashRegister} setShowCashRegister={setShowCashRegister}
+          setConfirmTurnOffAllModalOpen={setConfirmTurnOffAllModalOpen}
+          setShowCashRegister={setShowCashRegister}
         />
       );
 

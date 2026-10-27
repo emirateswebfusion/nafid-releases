@@ -226,7 +226,7 @@ export const PrintingSettingsTab: React.FC<PrintingSettingsTabProps> = ({
                       Thermal Roll Width: <strong className="text-foreground font-bold">{printWidth}mm</strong>
                     </span>
                     <button type="button" onClick={() => setActiveSection('hardware')} className="text-primary hover:underline text-[11px] font-bold cursor-pointer">
-                      Configure in Devices &amp; Hardware &rarr;
+                      Configure in Printers &amp; Devices &rarr;
                     </button>
                   </div>
 

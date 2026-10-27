@@ -31,7 +31,7 @@ export function WhatsAppSettingsHeader({
               ? 'Scan the QR code to link your shop phone for automated invoice & ledger messaging'
               : currentTab === 'closing'
               ? 'Configure automated end-of-day sales, cash reconciliation & multi-counter reports to the shop owner'
-              : 'Configure automated PDF bill dispatch and party ledger transaction alert rules'}
+              : 'Send bills to customers after checkout and alert parties about ledger entries'}
           </p>
         </div>
       </div>

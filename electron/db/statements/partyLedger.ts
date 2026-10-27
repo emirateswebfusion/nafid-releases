@@ -245,6 +245,12 @@ export const findReturnsByReferenceNumber = (db: Db) => db.prepare(`
           OR UPPER(COALESCE(r.refund_method, '')) IN ('CREDIT', 'STORE_CREDIT', 'ADJUST_BILL')
         )
           AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+          -- Walk-in returns have no party to post to; syncReturnLedger skips them, so selecting them re-scans them forever.
+          AND (
+            TRIM(COALESCE(r.customer_name, '')) <> '' OR TRIM(COALESCE(i.customer_name, '')) <> ''
+            OR TRIM(COALESCE(r.customer_phone, '')) <> '' OR TRIM(COALESCE(i.customer_phone, '')) <> ''
+            OR COALESCE(i.customer_id, '') <> ''
+          )
           AND NOT EXISTS (
             SELECT 1 FROM party_ledger pl
             WHERE pl.reference_number = r.return_number
