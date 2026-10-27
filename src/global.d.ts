@@ -64,7 +64,7 @@ export interface IElectronAPI {
   dbCheckout: (payload: Record<string, unknown> & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; invoice_number?: string; error?: string }>;
   dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: unknown) => Promise<Invoice[]>;
-  dbGetInvoicesSummary: (filters: unknown) => Promise<{ totalSales: number; totalSalesBeforeDeductions?: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number }>;
+  dbGetInvoicesSummary: (filters: unknown) => Promise<import('./data/invoices').InvoiceSummary>;
   dbGetDashboardStats: (tenantId: string) => Promise<{ success: boolean; totalSales: number; invoiceCount: number; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<InvoiceItem[]>;
   dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -234,7 +234,7 @@ export interface IElectronAPI {
   dbGetProductBillQuantities: (tenant_id: string) => Promise<{ product_id: string; gst_qty: number; estimate_qty: number }[]>;
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => Promise<{ success: boolean; error?: string }>;
   dbGetProductSalesSummary: (payload: { tenant_id: string; fromDate?: string; toDate?: string }) => Promise<{ product_id: string; name: string; gst_qty: number; bos_qty: number; total_qty: number; total_revenue?: number }[]>;
-  dbGetBosConvertibleInvoices: (tenant_id: string) => Promise<{ invoice_id: string; convertible: number }[]>;
+  dbGetBosConvertibleInvoices: (tenant_id: string, invoice_ids?: string[]) => Promise<{ invoice_id: string; convertible: number }[]>;
 
   // Quotations
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;

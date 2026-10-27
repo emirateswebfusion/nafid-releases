@@ -1,9 +1,11 @@
+import { SalesTaxSummary } from './SalesTaxSummary';
 import { StatCard } from './StatCard';
-import { IndianRupee, Layers, TrendingUp, Percent, Tag } from 'lucide-react';
+import { IndianRupee, Layers, TrendingUp, Tag } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 
 export interface SalesAnalyticsViewProps {
+  summaryLoading?: boolean;
   dailySales: { date: string; sales: number; }[];
   maskedAvgOrder: { displayAmount: number; isHidden: boolean; isMasked: boolean; };
   maskedRevenue: { displayAmount: number; isMasked: boolean; isHidden: boolean; };
@@ -13,12 +15,12 @@ export interface SalesAnalyticsViewProps {
 
 /** Analytics tab of Sales History: summary stat cards and the daily sales trend chart. */
 export function SalesAnalyticsView({
-  dailySales, maskedAvgOrder, maskedRevenue, maskedTotalSales, summary,
+  dailySales, maskedAvgOrder, maskedRevenue, maskedTotalSales, summary, summaryLoading,
 }: SalesAnalyticsViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full">
       {/* Top Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <StatCard 
           icon={IndianRupee} 
           label="Total Revenue" 
@@ -27,27 +29,14 @@ export function SalesAnalyticsView({
           bgClass="bg-emerald-500/10" 
           sub={maskedRevenue.isHidden ? 'Protected' : `${summary.totalInvoices} settled invoices`} 
         />
-        <StatCard 
-          icon={Layers} 
-          label="Total Sales" 
-          value={maskedTotalSales.isHidden ? '••••••••' : formatCurrency(maskedTotalSales.displayAmount)} 
-          colorClass="text-teal-500" 
-          bgClass="bg-teal-500/10" 
-          sub="Before scrap / returns" 
-        />
+        <SalesTaxSummary totalIncludingGst={maskedTotalSales.displayAmount} gstAmount={summary.totalTax}
+          isHidden={maskedTotalSales.isHidden} isMasked={maskedTotalSales.isMasked} loading={summaryLoading} />
         <StatCard 
           icon={TrendingUp} 
           label="Avg Order Value" 
           value={maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)} 
           colorClass="text-blue-500" 
           bgClass="bg-blue-500/10" 
-        />
-        <StatCard 
-          icon={Percent} 
-          label="Total GST Tax" 
-          value={maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalTax)} 
-          colorClass="text-violet-500" 
-          bgClass="bg-violet-500/10" 
         />
         {summary.totalDiscount > 0
           ? <StatCard icon={Tag} label="Discounts Given" value={formatCurrency(summary.totalDiscount)} colorClass="text-rose-500" bgClass="bg-rose-500/10" sub="Total savings" />

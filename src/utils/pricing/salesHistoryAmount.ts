@@ -52,3 +52,11 @@ export function getInvoiceNetTotal(inv: SalesAmountInvoice): number {
   const returned = Number(inv.return_deduction) || 0;
   return Math.max(0, subtotal + tax - discount - pointsDiscount - scrap - returned);
 }
+
+/** Header GST is already calculated by checkout. Do not apply the GST rate to a tax-inclusive total again. */
+export function getSalesTaxBreakdown(summary: { totalSalesBeforeDeductions: number; totalTax: number }) {
+  const round = (value: number) => Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+  const grandTotalIncludingGst = round(Number(summary.totalSalesBeforeDeductions));
+  const gstAmount = round(Number(summary.totalTax));
+  return { salesExcludingGst: round(grandTotalIncludingGst - gstAmount), gstAmount, grandTotalIncludingGst };
+}

@@ -212,7 +212,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetProductSuppliers: (tenant_id: string) => ipcRenderer.invoke('db:getProductSuppliers', tenant_id),
   dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => ipcRenderer.invoke('db:updateProductGstFlag', payload),
   dbGetProductSalesSummary: (payload: { tenant_id: string; fromDate?: string; toDate?: string }) => ipcRenderer.invoke('db:getProductSalesSummary', payload),
-  dbGetBosConvertibleInvoices: (tenant_id: string) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id),
+  dbGetBosConvertibleInvoices: (tenant_id: string, invoice_ids?: string[]) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id, invoice_ids),
 
   // Quotations
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextQuotationNumber', payload),

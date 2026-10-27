@@ -3,7 +3,6 @@ import { RefreshCw, Trash2, CheckCheck, AlertCircle, Download } from 'lucide-rea
 import { useAuthStore } from '../../store/authStore';
 import { getSetting } from '../../data/settings';
 import { listInvoices, getInvoiceItems } from '../../data/invoices';
-import { getInvoicePreDeductionTotal } from '../../utils/pricing/salesHistoryAmount';
 import {
   type InvoiceProductRow,
   type InvoiceProductTotals,
@@ -28,13 +27,14 @@ import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
 import { invoicesApi } from '../../data/invoices';
 import { paymentSourcesApi } from '../../data/paymentSources';
-import { formatGroupDate, getInvoiceRevenueForFilter, groupByDay } from './salesHistoryFormat';
+import { formatGroupDate, groupByDay } from './salesHistoryFormat';
 import type { InvoiceDetailsCacheEntry, SalesInvoiceItemRow, SalesInvoiceRow, UpiSourceOption } from './salesTypes';
 import { useSalesCsvExport } from './hooks/useSalesCsvExport';
 import { useInvoiceReprint } from './hooks/useInvoiceReprint';
 import { useInvoiceWhatsApp } from './hooks/useInvoiceWhatsApp';
 import { useInvoiceDetails } from './hooks/useInvoiceDetails';
 import { useSalesInvoiceLoader } from './hooks/useSalesInvoiceLoader';
+import { useSalesSummary } from './hooks/useSalesSummary';
 import { useConversionPreview } from './hooks/useConversionPreview';
 import { ConversionModal } from './views/ConversionModal';
 import { CollectPaymentModal } from './views/CollectPaymentModal';
@@ -77,7 +77,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
   // High-performance in-memory cache for instant zero-lag bill drawer rendering
   const invoiceDetailsCache = useRef<Map<string, InvoiceDetailsCacheEntry>>(new Map());
-  const prefetchInvoiceRef = useRef<(id: string) => void>(() => {});
   const loadInvoicesRef = useRef<((reset?: boolean) => Promise<void>) | null>(null);
   const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
   const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CHEQUE' | 'CREDIT'>('CASH');
@@ -89,12 +88,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [upiSources, setUpiSources] = useState<UpiSourceOption[]>([]);
   const [collectUpiSourceId, setCollectUpiSourceId] = useState<string>('');
   const LIMIT = 30;
-  const [dbSummary, setDbSummary] = useState<{ totalSales: number; totalSalesBeforeDeductions?: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number } | null>(null);
   const [taxProductRows, setTaxProductRows] = useState<InvoiceProductRow[]>([]);
   const [taxProductTotals, setTaxProductTotals] = useState<InvoiceProductTotals | null>(null);
   const [taxProductLoading, setTaxProductLoading] = useState(false);
   const taxProductRequestRef = useRef(0);
   const taxFilterActive = accountingView !== 'REAL_SALES' && taxPercentageFilter !== '' && taxPercentageFilter !== 'all';
+
+  const { summary, summaryLoading, setDbSummary, setSummaryPending } = useSalesSummary({
+    invoices, accountingView, paymentFilter, loading, taxFilterActive, taxProductLoading, taxProductTotals,
+  });
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
@@ -194,8 +196,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [search]);
 
   const { loadInvoices } = useSalesInvoiceLoader({
-    accountingView, debouncedSearch, filterDate, filterDateEnd, invoiceTypeFilter, isFetching, LIMIT,
-    maskingConfig, offset, paymentFilter, prefetchInvoiceRef, setDbSummary, setHasMore, setInvoices,
+    accountingView, debouncedSearch, filterDate, filterDateEnd, invoiceTypeFilter, LIMIT,
+    maskingConfig, offset, paymentFilter, enableConvertToGst, setConvertibleMap, setDbSummary, setSummaryPending, setHasMore, setInvoices,
     setIsFetching, setLoading, setOffset, setTaxProductLoading, setTaxProductRows, setTaxProductTotals,
     taxFilterActive, taxPercentageFilter, taxProductRequestRef,
   });
@@ -206,7 +208,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setHasMore(true);
     loadInvoices(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadInvoices is recreated per render; filter and accounting values are the intended refresh triggers.
-  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig, accountingView]);
+  }, [debouncedSearch, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter, maskingConfig, accountingView, tenantId]);
 
   useEffect(() => {
     if ((accountingView === 'REAL_SALES' || invoiceTypeFilter === 'BILL_OF_SUPPLY') && taxPercentageFilter !== '') {
@@ -265,21 +267,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     return () => clearTimeout(t);
   }, [reprintSuccess]);
 
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    let cancelled = false;
-    const { tenantId } = useAuthStore.getState();
-    invoicesApi.getBosConvertibleInvoices(tenantId || 'global')
-      .then(res => {
-        if (cancelled || !Array.isArray(res)) return;
-        const map: Record<string, boolean> = {};
-        res.forEach(r => { map[r.invoice_id] = !!r.convertible; });
-        setConvertibleMap(map);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [selectionMode, invoices.length]);
-
   const sentinelRef = useRef<HTMLTableRowElement | null>(null);
 
   useEffect(() => {
@@ -320,9 +307,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       fetchInvoiceDetails(invoiceId).catch(() => {});
     }
   }, [fetchInvoiceDetails]);
-  useEffect(() => {
-    prefetchInvoiceRef.current = prefetchInvoice;
-  });
 
   const handleSelectInvoice = async (inv: SalesInvoiceRow) => {
     if (!inv || !inv.invoice_id) return;
@@ -378,44 +362,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const { handleViewLinkedInvoice } = useLinkedInvoiceView({
     accountingView, handleSelectInvoice, invoices, setAccountingView, showToast,
   });
-
-  const liveInvoicesForSummary = invoices.filter(i =>
-    accountingView === 'TAX_FILING'
-      ? i.invoice_type === 'GST'
-      : accountingView === 'REAL_SALES'
-        ? i.invoice_type === 'BILL_OF_SUPPLY'
-        : !i.converted_from_invoice_id
-  );
-  const fallbackSummary = {
-    totalSales: liveInvoicesForSummary.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
-    totalSalesBeforeDeductions: liveInvoicesForSummary.reduce((s, i) => s + getInvoicePreDeductionTotal(i), 0),
-    totalInvoices: liveInvoicesForSummary.length,
-    totalTax: liveInvoicesForSummary.reduce((s, i) => s + (i.tax_total || 0), 0),
-    totalDiscount: liveInvoicesForSummary.reduce((s, i) => s + (i.discount_total || 0), 0),
-    avgOrder: 0,
-  };
-  fallbackSummary.avgOrder = fallbackSummary.totalInvoices > 0
-    ? fallbackSummary.totalSales / fallbackSummary.totalInvoices
-    : 0;
-
-  const baseSummary = dbSummary
-    ? { ...dbSummary, totalSalesBeforeDeductions: dbSummary.totalSalesBeforeDeductions ?? fallbackSummary.totalSalesBeforeDeductions }
-    : fallbackSummary;
-
-  const summary = taxFilterActive
-    ? {
-        totalSales: taxProductTotals?.netRevenue ?? 0,
-        totalSalesBeforeDeductions: taxProductTotals?.totalSales ?? 0,
-        totalInvoices: taxProductTotals?.invoiceCount ?? 0,
-        totalTax: taxProductTotals?.totalTax ?? 0,
-        totalDiscount: taxProductTotals?.totalDiscount ?? 0,
-        avgOrder: taxProductTotals && taxProductTotals.invoiceCount > 0
-          ? taxProductTotals.netRevenue / taxProductTotals.invoiceCount
-          : 0,
-      }
-    : baseSummary;
-
-  const summaryLoading = loading || (taxFilterActive && taxProductLoading);
 
   const conversionDeductionsTotal = conversionPreview?.invoices?.reduce(
     (sum, inv) => sum + (Number(inv.deductions_total) || 0),
@@ -621,7 +567,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       ) : (
         <SalesAnalyticsView
           dailySales={dailySales} maskedAvgOrder={maskedAvgOrder} maskedRevenue={maskedRevenue}
-          maskedTotalSales={maskedTotalSales} summary={summary}
+          maskedTotalSales={maskedTotalSales} summary={summary} summaryLoading={summaryLoading}
         />
       )}
       </div>
