@@ -31,9 +31,6 @@ export const insertCashTransaction = (db: Db) => db.prepare(`
             VALUES (?, ?, ?, 'CASH_OUT', ?, 'RETURN_REFUND', ?, ?, 'PENDING')
           `);
 
-export const updateCashDrawerByDrawerId = (db: Db) => db.prepare(`
-            UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
-          `);
 
 export const findReturnItemsByReturnIdAndInvoiceId = (db: Db) => db.prepare(`
     SELECT invoice_item_id, COALESCE(SUM(quantity), 0) as returned_qty

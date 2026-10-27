@@ -1,4 +1,5 @@
 import type { CustomerRow, PartyInput, PartyLedgerEntryInput, PartyLedgerRow, PartyRow } from './typesA.js';
+import { recordLedgerCashEntry } from './cashRegisterLedgerService.js';
 import { getDb } from '../db/localDb.js';
 import { backfillCreditInvoices, reconcileAllPartyBalances, recalcPartyBalances } from './partyLedgerService.js';
 import { deterministicUUID } from '../utils/ids.js';
@@ -456,38 +457,41 @@ export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: st
 export function addPartyLedgerEntry(entry: PartyLedgerEntryInput) {
   try {
     const db = getDb();
+    return db.transaction(() => {
     
-    // Get current party balance
-    const party = partiesSql.findPartiesByPartyIdBalance(db).get(entry.party_id) as PartyRow | undefined;
-    if (!party) return { success: false, error: 'Party not found' };
+      // Get current party balance
+      const party = partiesSql.findPartiesByPartyIdBalance(db).get(entry.party_id) as PartyRow | undefined;
+      if (!party) return { success: false, error: 'Party not found' };
 
-    const currentBalance = parseFloat(party.balance as string) || 0;
-    const parsedAmount = Math.abs(parseFloat(entry.amount as string));
-    const creditAmount = entry.transaction_type === 'CREDIT' ? parsedAmount : 0;
-    const debitAmount = entry.transaction_type === 'DEBIT' ? parsedAmount : 0;
-    const balanceType = entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
-    const paymentMethod = entry.payment_method || null;
-    const newBalance = currentBalance + creditAmount - debitAmount;
+      const currentBalance = parseFloat(party.balance as string) || 0;
+      const parsedAmount = Math.abs(parseFloat(entry.amount as string));
+      const creditAmount = entry.transaction_type === 'CREDIT' ? parsedAmount : 0;
+      const debitAmount = entry.transaction_type === 'DEBIT' ? parsedAmount : 0;
+      const balanceType = entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
+      const paymentMethod = entry.payment_method || null;
+      const newBalance = currentBalance + creditAmount - debitAmount;
 
-    partiesSql.insertPartyLedger3(db).run(
-      entry.ledger_id,
-      entry.party_id,
-      entry.tenant_id,
-      entry.transaction_date || new Date().toISOString(),
-      entry.description,
-      creditAmount,
-      debitAmount,
-      newBalance,
-      balanceType,
-      paymentMethod,
-      entry.reference_number || null,
-      entry.created_by || null,
-      entry.created_by_name || null
-    );
+      partiesSql.insertPartyLedger3(db).run(
+        entry.ledger_id,
+        entry.party_id,
+        entry.tenant_id,
+        entry.transaction_date || new Date().toISOString(),
+        entry.description,
+        creditAmount,
+        debitAmount,
+        newBalance,
+        balanceType,
+        paymentMethod,
+        entry.reference_number || null,
+        entry.created_by || null,
+        entry.created_by_name || null
+      );
 
-    recalcPartyBalances(db, entry.party_id);
+      recordLedgerCashEntry(db, entry.tenant_id || 'global', entry.ledger_id);
+      recalcPartyBalances(db, entry.party_id);
 
-    return { success: true };
+      return { success: true };
+    })();
   } catch (error) {
     console.error('[db:addPartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };
@@ -498,39 +502,41 @@ export function addPartyLedgerEntry(entry: PartyLedgerEntryInput) {
 export function updatePartyLedgerEntry(entry: Partial<PartyLedgerEntryInput> & { ledger_id: string; party_id: string }) {
   try {
     const db = getDb();
+    return db.transaction(() => {
 
-    const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(entry.ledger_id, entry.party_id) as PartyLedgerRow | undefined;
-    if (!existing) return { success: false, error: 'Ledger entry not found' };
+      const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(entry.ledger_id, entry.party_id) as PartyLedgerRow | undefined;
+      if (!existing) return { success: false, error: 'Ledger entry not found' };
 
-    const parsedAmount = entry.amount !== undefined ? Math.abs(parseFloat(entry.amount as string)) : (existing.credit_amount || existing.debit_amount || 0);
-    const txType = entry.transaction_type || ((existing.credit_amount as number) > 0 ? 'CREDIT' : 'DEBIT');
-    const creditAmount = txType === 'CREDIT' ? parsedAmount : 0;
-    const debitAmount = txType === 'DEBIT' ? parsedAmount : 0;
+      const parsedAmount = entry.amount !== undefined ? Math.abs(parseFloat(entry.amount as string)) : (existing.credit_amount || existing.debit_amount || 0);
+      const txType = entry.transaction_type || ((existing.credit_amount as number) > 0 ? 'CREDIT' : 'DEBIT');
+      const creditAmount = txType === 'CREDIT' ? parsedAmount : 0;
+      const debitAmount = txType === 'DEBIT' ? parsedAmount : 0;
 
-    partiesSql.updatePartyLedgerByLedgerIdAndPartyId(db).run(
-      entry.transaction_date || existing.transaction_date,
-      entry.description || existing.description,
-      creditAmount,
-      debitAmount,
-      entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : (existing.balance_type || 'GST'),
-      entry.payment_method !== undefined ? entry.payment_method : (existing.payment_method || null),
-      entry.reference_number !== undefined ? entry.reference_number : existing.reference_number,
-      entry.ledger_id,
-      entry.party_id
-    );
+      partiesSql.updatePartyLedgerByLedgerIdAndPartyId(db).run(
+        entry.transaction_date || existing.transaction_date,
+        entry.description || existing.description,
+        creditAmount,
+        debitAmount,
+        entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : (existing.balance_type || 'GST'),
+        entry.payment_method !== undefined ? entry.payment_method : (existing.payment_method || null),
+        entry.reference_number !== undefined ? entry.reference_number : existing.reference_number,
+        entry.ledger_id,
+        entry.party_id
+      );
 
-    // Recalculate running balances for all entries
-    const entries = partiesSql.findPartyLedgerByPartyId(db).all(entry.party_id) as PartyLedgerRow[];
+      // Recalculate running balances for all entries
+      const entries = partiesSql.findPartyLedgerByPartyId(db).all(entry.party_id) as PartyLedgerRow[];
 
-    let running = 0;
-    for (const row of entries) {
-      running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
-      partiesSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
-    }
+      let running = 0;
+      for (const row of entries) {
+        running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
+        partiesSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
+      }
 
-    recalcPartyBalances(db, entry.party_id);
+      recalcPartyBalances(db, entry.party_id);
 
-    return { success: true };
+      return { success: true };
+    })();
   } catch (error) {
     console.error('[db:updatePartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };

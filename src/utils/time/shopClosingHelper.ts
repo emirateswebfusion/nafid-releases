@@ -166,6 +166,8 @@ export const CHECKLIST_DEFINITIONS: ChecklistItemDefinition[] = [
   { key: 'partyTransactions', label: 'Party Transactions List', description: 'Each customer/supplier transaction (e.g. - Suhaib: ₹1000)', category: 'ops' },
   { key: 'staffTransactions', label: 'Staff Transactions List', description: 'Each employee transaction (e.g. - Rahul: ₹500 Advance)', category: 'ops' },
   { key: 'scrap', label: 'Scrap Transactions & Deductions', description: 'Scrap purchases, rates, materials & bill deductions', category: 'ops' },
+  { key: 'scrapSales', label: 'Include Scrap Sales Total', description: 'Show scrap sales alongside purchase totals', category: 'ops', parentKey: 'scrap' },
+  { key: 'scrapCategories', label: 'Scrap by Category', description: 'Group scrap purchases and sales separately by material', category: 'ops', parentKey: 'scrap' },
   { key: 'returns', label: 'Sales Returns', description: 'Count and total amount of items returned by customers', category: 'ops' },
   { key: 'refunds', label: 'Refunds Paid', description: 'Actual cash/payment refunds paid out to customers', category: 'ops' },
   { key: 'purchases', label: 'Supplier Purchases', description: 'Total supplier purchase bills recorded today', category: 'ops' },
@@ -383,11 +385,29 @@ export function generateWhatsAppClosingMessage(
   if (checklist.scrap && data.scrapSummary && (data.scrapSummary.totalAmount > 0 || data.scrapSummary.count > 0)) {
     lines.push(``);
     lines.push(`♻️ *SCRAP ENTRIES:*`);
+    if (checklist.scrapSales !== undefined || checklist.scrapCategories !== undefined) {
+      const items = data.scrapSummary.items.filter(item => checklist.scrapSales !== false || item.type !== 'SALE');
+      if (checklist.scrapCategories !== false) {
+        const categories = new Map<string, number>();
+        for (const item of items) {
+          const label = `${item.categoryName} (${item.type === 'SALE' ? 'Sale' : 'Purchase'})`;
+          categories.set(label, (categories.get(label) || 0) + item.totalAmount);
+        }
+        for (const [label, amount] of categories) lines.push(`• ${label}: *${formatCurrency(amount)}*`);
+      }
+      const purchases = items.filter(item => item.type !== 'SALE').reduce((sum, item) => sum + item.totalAmount, 0);
+      lines.push(`*Scrap Purchase Total:* ${formatCurrency(purchases)}`);
+      if (checklist.scrapSales !== false) {
+        const sales = items.filter(item => item.type === 'SALE').reduce((sum, item) => sum + item.totalAmount, 0);
+        lines.push(`*Scrap Sales Total:* ${formatCurrency(sales)}`);
+      }
+    } else {
     data.scrapSummary.items.forEach((sc) => {
       const qtyTxt = sc.quantity > 0 ? ` (${sc.quantity} ${sc.unit || 'Kgs'}${sc.rate > 0 ? ` @ ${formatCurrency(sc.rate)}` : ''})` : '';
       lines.push(`• ${sc.categoryName}${qtyTxt}: *${formatCurrency(sc.totalAmount)}*`);
     });
     lines.push(`*Total Scrap:* ${formatCurrency(data.scrapSummary.totalAmount)}`);
+    }
   }
 
   // Returns & Refunds

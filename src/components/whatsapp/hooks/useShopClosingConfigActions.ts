@@ -64,7 +64,7 @@ export function useShopClosingConfigActions(ctx: UseShopClosingConfigActionsCont
   const handleChecklistToggle = (key: keyof ShopClosingChecklist) => {
     if (!isAdmin) return;
     setClosingConfig((prev) => {
-      const nextVal = !prev.checklist[key];
+      const nextVal = key === 'scrapSales' || key === 'scrapCategories' ? prev.checklist[key] === false : !prev.checklist[key];
       const newChecklist = { ...prev.checklist, [key]: nextVal };
 
       // If user toggled a parent group header (e.g. paymentMethods or sales), also sync all its children

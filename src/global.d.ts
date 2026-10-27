@@ -264,7 +264,7 @@ export interface IElectronAPI {
   dbCashierAutoCloseNow: (params: { tenant_id: string; drawer_id: string; user_id?: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierReopenDrawer: (params: { tenant_id: string; drawer_id: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierDeleteTransaction: (params: { tenant_id: string; transaction_id: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
-  dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<Rows.CashTransactionsRow[]>;
+  dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<import('./data/cashier').CashTransactionViewRow[]>;
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<Rows.CashDrawerRow[]>;
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => Promise<Invoice[]>;
   dbCashierGetDayTransactions?: (params: { tenant_id: string; business_date?: string; from_date?: string; to_date?: string }) => Promise<Rows.CashTransactionsRow[]>;

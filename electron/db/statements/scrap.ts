@@ -37,18 +37,12 @@ export const insertCashTransaction = (db: Db) => db.prepare(`
             VALUES (?, ?, ?, 'CASH_OUT', ?, 'SCRAP_PURCHASE', ?, 'system', 'PENDING')
           `);
 
-export const updateCashDrawerByDrawerId = (db: Db) => db.prepare(`
-            UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
-          `);
 
 export const insertCashTransaction2 = (db: Db) => db.prepare(`
             INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, sync_status)
             VALUES (?, ?, ?, 'CASH_IN', ?, 'SCRAP_SALE', ?, 'system', 'PENDING')
           `);
 
-export const updateCashDrawerByDrawerId2 = (db: Db) => db.prepare(`
-            UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
-          `);
 
 export const findScrapCategories3 = (db: Db) => db.prepare(`
       SELECT * FROM scrap_categories 

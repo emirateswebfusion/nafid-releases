@@ -158,7 +158,6 @@ export const insertCashierAuditLog3 = (db: Db) => db.prepare(`
 
 export const findCashDrawerByBusinessDate = (db: Db) => db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`);
 
-export const findOneCashDrawerByStatusOpen = (db: Db) => db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`);
 
 export const findCashTransactions = (db: Db) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`);
 

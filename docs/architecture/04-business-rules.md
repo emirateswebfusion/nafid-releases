@@ -60,6 +60,32 @@ and `electron/utils/` (ids, cashier settlement math).
   sales, gross sales and amounts before credits are different measures, not interchangeable totals.
 - New tax breakdown fields are protected when staff revenue is masked; they cannot reveal real revenue by subtraction.
 
+### Cash-register preferences
+
+- `getRegisterCashEntries` and `computeDrawerTotals` in `electron/services/cashDrawerSession.ts` are the canonical
+  cash feed and calculation used by Cash Register, Cash Settlement, drawer reconciliation and closing.
+- Tenant settings `cash_register_include_scrap_sales` and `cash_register_deduct_returns` default to true.
+  Turning them off excludes the corresponding cash flow without changing the underlying scrap/return document.
+  Cash returns are derived from persisted return rows in the drawer session; old RETURN_REFUND cash transactions
+  are excluded to prevent double counting and stale deductions after a return is deleted.
+- `cash_register_ledger_mode` defaults to `all` (current behavior); `off` excludes manual ledger cash,
+  `today` includes only entries dated the drawer business day in the store timezone. Both date modes select entries
+  recorded in this drawer session; `all` permits any ledger document date, without recounting all historical cash.
+- New manual CASH ledger creations atomically write one idempotent cash transaction with category
+  `PARTY_LEDGER:<ledger_id>`. The cash feed resolves the current ledger amount, direction, payment method and deletion
+  state. These derived entries are edited in the Ledger, and return refunds in Return History, not deleted in Cash Register.
+- Legacy `Party Payment` / `Party Receipt` cash transactions have no ledger id. Their original ledger date and later
+  edits cannot be recovered reliably; today-only uses the cash-entry date. Existing non-cash ledger entries changed
+  to cash do not gain a new cash link. Migrating/relinking those historical entries needs a separate decision.
+- `cash_register_payment_methods` defaults to `[]`, preserving the existing display. Selected UPI, CARD,
+  BANK_TRANSFER and CHEQUE collections use the drawer's invoice session, including split parts. These amounts
+  are informational and never added to physical cash. `electron/utils/registerPaymentTotals.ts` owns the rule.
+- WhatsApp checklist `scrapSales` and `scrapCategories` are optional booleans. Unset preserves the old message.
+  Explicit selection enables purchase totals, optional sales totals and optional grouping by category and direction;
+  the existing `scrap` master toggle controls the whole section. Preview and sending have matching unit coverage.
+- Tests: `cashRegisterOptions.test.ts`, `registerPaymentTotals.test.ts`, `closingScrapOptions.test.ts`,
+  `cashRegisterSettings.ui.test.tsx`; existing `tests/characterization/drawer-session.mts` remains applicable.
+
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
 - Intra-state tax amounts use `splitTaxAmount` from `src/utils/pricing/checkoutLines.ts`: CGST is rounded first and SGST is

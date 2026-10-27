@@ -21,6 +21,8 @@ export interface ShopClosingChecklist {
   partyTransactions: boolean;
   staffTransactions: boolean;
   scrap: boolean;
+  scrapSales?: boolean;
+  scrapCategories?: boolean;
   returns: boolean;
   refunds: boolean;
   purchases: boolean;

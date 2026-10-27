@@ -3,7 +3,7 @@ import type { InvoiceItem, InvoiceRow, LedgerRow, ReturnRow, SettingRow } from '
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localTimestamp, localDate } from './storeTime.js';
-import { getOpenCashDrawer } from './cashDrawerService.js';
+import { getOpenCashDrawer, reconcileCashDrawer } from './cashDrawerService.js';
 import crypto from 'node:crypto';
 import { syncReturnLedger, recalcPartyBalances } from './partyLedgerService.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
@@ -117,10 +117,7 @@ export function createReturn(payload: {
             `Return refund for ${returnData.return_number}`,
             returnData.user_id || 'system'
           );
-          const newCashOut = Number(drawer.cash_out) + Number(returnData.grand_total);
-          const newCurrentCash = Number(drawer.current_cash) - Number(returnData.grand_total);
-          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
-          returnsSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, returnData.tenant_id, drawer);
         }
       }
     }

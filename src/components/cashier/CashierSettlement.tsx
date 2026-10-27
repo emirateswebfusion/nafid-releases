@@ -34,7 +34,7 @@ import { useSettlementAmountEdit } from './hooks/useSettlementAmountEdit';
 import { useCashierInvoiceView } from './hooks/useCashierInvoiceView';
 import { CashierLoadingSkeleton } from './views/CashierLoadingSkeleton';
 import { PreviousDrawerOpenBanner } from './views/PreviousDrawerOpenBanner';
-import type { CashDrawerRow as CashDrawerContractRow } from '../../data/dbRows';
+import type { CashDrawerViewRow as CashDrawerContractRow } from '../../data/cashier';
 
 interface CashierSettlementProps {
   onClose: () => void;
@@ -431,8 +431,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   }
 
   // ── Derived summary values ────────────────────────────────────────────────
-  const totalIn  = drawerClosed ? 0 : (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t) => t.type === 'CASH_IN' ).reduce((s: number, t) => s + Number(t.amount), 0));
-  const totalOut = drawerClosed ? 0 : (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t) => s + Number(t.amount), 0));
+  const totalIn  = (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t) => t.type === 'CASH_IN' ).reduce((s: number, t) => s + Number(t.amount), 0));
+  const totalOut = (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t) => t.type === 'CASH_OUT').reduce((s: number, t) => s + Number(t.amount), 0));
 
   // ── Feature-based sections ────────────────────────────────────────────────
   const showSettlement = !featureFlags || featureFlags.cash_settlement;
