@@ -1,7 +1,7 @@
 # Nafid POS — Offline AI Knowledge Integration & Capability Registry Design
 
 **Application:** Nafid POS  
-**Module:** Offline AI Business Assistant (`src/services/offlineAiService.ts`, `src/components/AiAssistant.tsx`)  
+**Module:** Offline AI Business Assistant (`src/services/offlineAiService.ts` + `src/services/offlineAi/`, `src/components/AiAssistant.tsx`)  
 **Design Standard:** 100% Offline-First, Zero Cloud LLM Dependency, Real Implementation Reference, Deterministic Local Database Execution.  
 **Deliverable File:** `docs/ai-knowledge/ai-integration-design.md`  
 

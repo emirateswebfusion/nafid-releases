@@ -32,6 +32,8 @@ src/
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
   utils/                  pure rules and generators (money, pricing, checkout lines, tax, numbering, HTML)
   services/               long-running renderer services (offline AI engine, FusionCart client)
+    offlineAi/            offline AI engine: intentParser + intentRules* (question → intent), handlers/<domain>
+                          (intent → answer from local data); offlineAiService.ts is the entry point
   featureFlags.ts, labelCodeTypes.ts   static configuration/types
   global.d.ts             the typed bridge contract (`IElectronAPI`)
 ```
