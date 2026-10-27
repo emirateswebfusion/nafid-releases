@@ -30,6 +30,8 @@ export interface ShopClosingChecklist {
   partyTransactions: boolean;
   staffTransactions: boolean;
   scrap: boolean;
+  scrapSales?: boolean;
+  scrapCategories?: boolean;
   returns: boolean;
   refunds: boolean;
   purchases: boolean;
@@ -84,7 +86,7 @@ export interface ShopClosingSummary {
   scrapSummary: {
     totalAmount: number;
     count: number;
-    items: Array<{ categoryName: string; quantity: number; unit?: string; rate: number; totalAmount: number; partyName?: string }>;
+    items: Array<{ type?: string; categoryName: string; quantity: number; unit?: string; rate: number; totalAmount: number; partyName?: string }>;
   };
   returnsCount: number;
   returnsAmount: number;

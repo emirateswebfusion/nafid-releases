@@ -121,6 +121,7 @@ export function ClosingChecklistSection({
             title: '5. Credit, Ledger, Staff & Operations',
             subtitle: 'Credit sales, ledger payments, party & staff lists, scrap, returns and supplier purchases',
             keys: ['creditSales', 'customerPayments', 'partyTransactions', 'staffTransactions', 'scrap', 'returns', 'refunds', 'purchases'] as (keyof ShopClosingChecklist)[],
+            subItems: [{ key: 'scrapSales' as keyof ShopClosingChecklist, parentKey: 'scrap' as keyof ShopClosingChecklist }, { key: 'scrapCategories' as keyof ShopClosingChecklist, parentKey: 'scrap' as keyof ShopClosingChecklist }],
           },
         ].map((group) => {
           return (
@@ -194,7 +195,7 @@ export function ClosingChecklistSection({
                     {group.subItems.map((sub) => {
                       const def = CHECKLIST_DEFINITIONS.find((d) => d.key === sub.key);
                       if (!def) return null;
-                      const isChecked = Boolean(closingConfig.checklist?.[sub.key]);
+                      const isChecked = (sub.key === 'scrapSales' || sub.key === 'scrapCategories') ? closingConfig.checklist?.[sub.key] !== false : Boolean(closingConfig.checklist?.[sub.key]);
                       const parentChecked = Boolean(closingConfig.checklist?.[sub.parentKey]);
 
                       return (
