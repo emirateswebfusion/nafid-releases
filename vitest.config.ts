@@ -5,5 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/unit/**/*.test.ts'],
     passWithNoTests: false,
+    // Same clock zone on every machine as in CI, so date-dependent tests (e.g. the offline AI snapshot) are stable.
+    env: { TZ: 'UTC' },
   },
 });
