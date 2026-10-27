@@ -1,4 +1,5 @@
-import type { CheckoutPayload, CheckoutResult, CustomerCreditRow, InvoiceItem, InvoiceRow, LoyaltyConfig, ProductRow, SettingRow } from './typesB.js';
+import { readLoyaltyConfig } from './loyaltyService.js';
+import type { CheckoutPayload, CheckoutResult, CustomerCreditRow, InvoiceItem, InvoiceRow, ProductRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice, getOpenCashDrawer } from './cashDrawerService.js';
@@ -150,44 +151,25 @@ export function checkout(payload: CheckoutPayload) {
       custRow = invoicesSql.findCustomersByCustomerId(db).get(customerId) as CustomerCreditRow | null | undefined;
     }
 
-    const previousPointsBal = custRow ? (Number(custRow.current_points_balance) || 0) : (Number(invoice.previous_points_balance) || 0);
-    let ptsRedeemed = Math.max(0, Number(invoice.points_redeemed) || 0);
-    if (ptsRedeemed > previousPointsBal) {
-      ptsRedeemed = previousPointsBal;
+    const previousPointsBal = Number(custRow?.current_points_balance) || 0;
+    const config = readLoyaltyConfig(db, tenantId);
+    const pm = (invoice.payment_method || 'PENDING').toUpperCase();
+    const ptsRedeemed = Number(invoice.points_redeemed) || 0;
+    const suppliedDiscount = Number(invoice.points_redeemed_discount) || 0;
+    if (!Number.isSafeInteger(ptsRedeemed) || ptsRedeemed < 0 || ptsRedeemed > Math.max(0, previousPointsBal)) {
+      throw new Error('Points balance changed or redemption is invalid; refresh the bill');
     }
-    const ptsRedeemedDiscount = Math.max(0, Number(invoice.points_redeemed_discount) || 0);
-
-    let ptsEarned = Math.max(0, Number(invoice.points_earned) || 0);
-    if (customerId && invoice.payment_method !== 'HOLD') {
-      try {
-        const lCfgRow: SettingRow = invoicesSql.findSettingsByKeyLoyaltyConfig(db).get(tenantId) as SettingRow
-          || invoicesSql.findSettingsByKeyLoyaltyConfig2(db).get() as SettingRow;
-        let lCfg: LoyaltyConfig | null = null;
-        if (lCfgRow?.value) {
-          lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-        }
-        const flagsRow: SettingRow = invoicesSql.findSettingsByKeyFeatureFlags(db).get(tenantId) as SettingRow
-          || invoicesSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow;
-        let flags: { loyalty?: boolean } | null = null;
-        if (flagsRow?.value) {
-          flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
-        }
-        const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
-        const awardOnPending = Boolean(lCfg?.awardPointsOnPending);
-        const shouldAwardNow = invoice.payment_method !== 'PENDING' || awardOnPending;
-
-        if (!shouldAwardNow) {
-          ptsEarned = 0;
-        } else if (isLoyaltyOn && ptsEarned === 0) {
-          const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
-          ptsEarned = Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / earningRate);
-        }
-      } catch (e) {
-        console.warn('[db:checkout] Failed to evaluate loyalty points on checkout:', e);
-      }
+    if ((ptsRedeemed || suppliedDiscount) && (!config.enabled || !customerId || pm === 'HOLD')) {
+      throw new Error('Loyalty redemption is unavailable; refresh the bill');
     }
+    const ptsRedeemedDiscount = Math.round(ptsRedeemed * Math.max(0.01, Number(config.redemptionRate) || 1) * 100) / 100;
+    if (Math.abs(suppliedDiscount - ptsRedeemedDiscount) > 0.001) {
+      throw new Error('Points discount changed; refresh the bill');
+    }
+    const shouldEarn = config.enabled && customerId && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending);
+    const ptsEarned = shouldEarn ? Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / Math.max(1, Number(config.earningRate) || 100)) : 0;
 
-    const remainingPointsBal = Math.max(0, previousPointsBal - ptsRedeemed + ptsEarned);
+    const remainingPointsBal = previousPointsBal - ptsRedeemed + ptsEarned;
 
     const invStmt = invoicesSql.insertInvoice(db);
     invStmt.run(

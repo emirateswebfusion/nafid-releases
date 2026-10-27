@@ -1,4 +1,5 @@
-import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, CustomerRow, InvoiceRow, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
+import { captureInvoicePoints, refreshInvoiceEarnings } from './loyaltyService.js';
+import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, InvoiceRow, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
 import { findOpenDrawersBeforeDate } from './cashDrawerSession.js';
@@ -159,52 +160,10 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
         ? JSON.stringify(split_details)
         : (split_details && split_details !== 'null' ? split_details : null);
 
+      captureInvoicePoints(db, invoice_id);
       cashierSql.updateInvoiceByInvoiceId(db).run(payment_method, splitStr, storedReceivedAmount, actualRefundPaid, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);
 
-      // If invoice was created with 0 points_earned (e.g. pending bill) but customer exists and loyalty is enabled, award points now!
-      if (invoice.customer_id && (!invoice.points_earned || Number(invoice.points_earned) <= 0)) {
-        try {
-          const lCfgRow: SettingRow | undefined = cashierSql.findSettingsByKey(db).get(targetTenantId) as SettingRow | undefined
-            || cashierSql.findSettingsByKeyLoyaltyConfig(db).get() as SettingRow | undefined;
-          let lCfg: Record<string, unknown> | null = null;
-          if (lCfgRow?.value) {
-            lCfg = typeof lCfgRow.value === 'string' ? JSON.parse(lCfgRow.value) : lCfgRow.value;
-          }
-          const flagsRow: SettingRow | undefined = cashierSql.findSettingsByKeyFeatureFlags(db).get(targetTenantId) as SettingRow | undefined
-            || cashierSql.findSettingsByKeyFeatureFlags2(db).get() as SettingRow | undefined;
-          let flags: Record<string, unknown> | null = null;
-          if (flagsRow?.value) {
-            flags = typeof flagsRow.value === 'string' ? JSON.parse(flagsRow.value) : flagsRow.value;
-          }
-          const isLoyaltyOn = Boolean(lCfg?.enabled) || Boolean(flags?.loyalty);
-          if (isLoyaltyOn) {
-            const earningRate = Math.max(1, Number(lCfg?.earningRate) || 100);
-            const ptsEarned = Math.floor(Math.max(0, Number(newGrandTotal) || 0) / earningRate);
-            if (ptsEarned > 0) {
-              const custRow = cashierSql.findCustomersByCustomerId(db).get(invoice.customer_id) as CustomerRow | undefined;
-              const prevBal = Number(custRow?.current_points_balance) || 0;
-              const newBal = prevBal + ptsEarned;
-              const nowTimestamp = localTimestamp();
-              const eTxId = crypto.randomUUID();
-
-              cashierSql.updateInvoiceByInvoiceId2(db).run(ptsEarned, prevBal, newBal, invoice_id);
-
-              cashierSql.insertLoyaltyTransaction(db).run(
-                eTxId, targetTenantId, invoice.customer_id, invoice_id,
-                ptsEarned, prevBal, newBal,
-                invoice.invoice_number,
-                `Earned ${ptsEarned} points on settled invoice ${invoice.invoice_number}`,
-                user_id || 'system',
-                nowTimestamp, nowTimestamp
-              );
-
-              cashierSql.updateCustomerByCustomerId(db).run(ptsEarned, newBal, nowTimestamp, invoice.customer_id);
-            }
-          }
-        } catch (lErr) {
-          console.warn('[db:cashier:settlePayment] Failed to award loyalty points on settlement:', lErr);
-        }
-      }
+      refreshInvoiceEarnings(db, invoice_id);
       
       const date = localDate();
       const drawer = getOpenCashDrawer(db, targetTenantId, date);

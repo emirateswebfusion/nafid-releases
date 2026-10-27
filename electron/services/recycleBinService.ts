@@ -1,3 +1,4 @@
+import { reconcileInvoicePoints } from './loyaltyService.js';
 import type { ColumnRow, InvoiceItem, InvoiceRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { dbEmergencyPurgeLocalData } from './emergencyPurgeService.js';
@@ -114,6 +115,7 @@ export function restoreInvoice(invoice_id: string) {
         recycleBinSql.updateInvoiceIsDeleted(db).run(invoice_id);
       }
 
+      reconcileInvoicePoints(db, invoice_id);
       // Re-link converted copy if applicable
       if (isConversionCopy && inv.converted_from_invoice_id) {
         recycleBinSql.updateInvoiceConvertedToInvoiceIdAndConvertedToInvoiceNumber(db).run(inv.invoice_id, inv.invoice_number, inv.converted_from_invoice_id);

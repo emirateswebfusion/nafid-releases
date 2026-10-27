@@ -21,14 +21,6 @@ export const findPartiesByName = (db: Db) => db.prepare('SELECT * FROM parties W
 
 export const findCustomersByCustomerId = (db: Db) => db.prepare('SELECT customer_id, total_points_earned, total_points_redeemed, current_points_balance FROM customers WHERE customer_id = ?');
 
-export const findSettingsByKeyLoyaltyConfig = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'");
-
-export const findSettingsByKeyLoyaltyConfig2 = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'");
-
-export const findSettingsByKeyFeatureFlags = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'feature_flags'");
-
-export const findSettingsByKeyFeatureFlags2 = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'feature_flags'");
-
 export const insertInvoice = (db: Db) => db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
@@ -182,7 +174,7 @@ export const findInvoicesByInvoiceType = (db: Db) => db.prepare(`
 
 export const updateInvoiceIsDeletedAndIsHeld = (db: Db) => db.prepare(`UPDATE invoices SET is_deleted = 1, is_held = 0 WHERE tenant_id = ? AND invoice_type IN ('EXPIRED_HOLD', 'RECALLED_HOLD') AND (is_deleted IS NULL OR is_deleted = 0)`);
 
-export const findInvoicesByInvoiceIdSubtotalAndTaxTotal = (db: Db) => db.prepare('SELECT subtotal, tax_total, scrap_deduction, return_deduction FROM invoices WHERE invoice_id = ?');
+export const findInvoicesByInvoiceIdSubtotalAndTaxTotal = (db: Db) => db.prepare('SELECT subtotal, tax_total, scrap_deduction, return_deduction, points_redeemed_discount FROM invoices WHERE invoice_id = ?');
 
 export const updateInvoiceByInvoiceId2 = (db: Db) => db.prepare(`
       UPDATE invoices 
@@ -262,33 +254,6 @@ export const findProductsByProductIdIsServiceItem = (db: Db) => db.prepare('SELE
 
 export const updateProductCurrentStockCurrentStock3 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
 
-export const findCustomersByCustomerIdCurrentPointsBalance = (db: Db) => db.prepare('SELECT current_points_balance FROM customers WHERE customer_id = ?');
-
-export const insertLoyaltyTransaction3 = (db: Db) => db.prepare(`
-              INSERT INTO loyalty_transactions (
-                transaction_id, tenant_id, customer_id, invoice_id,
-                transaction_type, points, points_balance_before, points_balance_after,
-                reference_number, description, created_by, sync_status, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
-            `);
-
-export const updateCustomerByCustomerId2 = (db: Db) => db.prepare(`
-              UPDATE customers SET
-                total_points_earned = COALESCE(total_points_earned, 0) + ?,
-                current_points_balance = ?,
-                last_purchase_date = COALESCE(last_purchase_date, ?),
-                sync_status = 'PENDING',
-                updated_at = CURRENT_TIMESTAMP
-              WHERE customer_id = ?
-            `);
-
-export const updateInvoicePointsEarnedAndRemainingPointsBalance = (db: Db) => db.prepare(`
-              UPDATE invoices SET
-                points_earned = ?,
-                remaining_points_balance = ?
-              WHERE invoice_id = ?
-            `);
-
 export const updateInvoiceByInvoiceId4 = (db: Db) => db.prepare(`
       UPDATE invoices SET
         payment_method = ?,
@@ -299,24 +264,6 @@ export const updateInvoiceByInvoiceId4 = (db: Db) => db.prepare(`
         updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `);
-
-export const updateInvoiceByInvoiceId5 = (db: Db) => db.prepare(`
-                UPDATE invoices SET
-                  points_earned = ?,
-                  previous_points_balance = COALESCE(previous_points_balance, ?),
-                  remaining_points_balance = ?
-                WHERE invoice_id = ?
-              `);
-
-export const updateCustomerByCustomerId3 = (db: Db) => db.prepare(`
-                UPDATE customers SET
-                  total_points_earned = COALESCE(total_points_earned, 0) + ?,
-                  current_points_balance = ?,
-                  last_purchase_date = ?,
-                  sync_status = 'PENDING',
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE customer_id = ?
-              `);
 
 export const findInvoiceItemsByInvoiceId3 = (db: Db) => db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
 
@@ -427,7 +374,6 @@ export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id
 export const findInvoiceItemsByInvoiceIdProductIdAndQuantity3 = (db: Db) => db.prepare('SELECT product_id, quantity, qty_from_paper_stock FROM invoice_items WHERE invoice_id = ?');
 
 export const updateProductCurrentStockCurrentStock4 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
-
 
 export const updateInvoiceItemIsDeleted = (db: Db) => db.prepare("UPDATE invoice_items SET is_deleted = 1, sync_status = 'PENDING' WHERE invoice_id = ?");
 

@@ -118,8 +118,6 @@ export const findLoyaltyTransactionsByCustomerId = (db: Db) => db.prepare(`
       ORDER BY lt.created_at DESC
     `);
 
-export const findCustomersByCustomerId3 = (db: Db) => db.prepare('SELECT * FROM customers WHERE customer_id = ?');
-
 export const insertLoyaltyTransaction = (db: Db) => db.prepare(`
       INSERT INTO loyalty_transactions (
         transaction_id, tenant_id, customer_id, invoice_id,
@@ -137,44 +135,6 @@ export const updateCustomerByCustomerId = (db: Db) => db.prepare(`
         updated_at = CURRENT_TIMESTAMP
       WHERE customer_id = ?
     `);
-
-export const findSettingsByKey = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'loyalty_config'");
-
-export const findSettingsByKeyLoyaltyConfig = (db: Db) => db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'loyalty_config'");
-
-export const findCustomersCustomerIdAndPhone = (db: Db) => db.prepare(`SELECT customer_id, phone, name FROM customers WHERE (tenant_id = ? OR tenant_id = 'global' OR ? = 'global') AND (is_deleted IS NULL OR is_deleted = 0)`);
-
-export const updateCustomerByCustomerId2 = (db: Db) => db.prepare(`
-        UPDATE customers SET
-          total_points_earned = ?,
-          total_points_redeemed = ?,
-          current_points_balance = ?,
-          last_purchase_date = COALESCE(?, last_purchase_date),
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-        WHERE customer_id = ?
-      `);
-
-/** Dynamic SQL: `paymentFilter` must be built from trusted values (placeholders/column lists), never user input. */
-export const sumLoyaltyPointsForCustomer = (db: Db, paymentFilter: string | number) => db.prepare(`
-        SELECT 
-          COALESCE(SUM(points_earned), 0) as totEarned,
-          COALESCE(SUM(points_redeemed), 0) as totRedeemed,
-          MAX(created_at) as lastPurchase
-        FROM invoices
-        WHERE (customer_id = ? OR (customer_phone IS NOT NULL AND customer_phone = ? AND customer_phone != ''))
-          AND (is_deleted IS NULL OR is_deleted = 0)
-          ${paymentFilter}
-      `);
-
-/** Dynamic SQL: `paymentFilter` must be built from trusted values (placeholders/column lists), never user input. */
-export const sumSalesForCustomer = (db: Db, paymentFilter: string | number) => db.prepare(`
-          SELECT COALESCE(SUM(grand_total), 0) as totSales, MAX(created_at) as lastPurchase
-          FROM invoices
-          WHERE (customer_id = ? OR (customer_phone IS NOT NULL AND customer_phone = ? AND customer_phone != ''))
-            AND (is_deleted IS NULL OR is_deleted = 0)
-            ${paymentFilter}
-        `);
 
 /** Builds and prepares the dynamic query of `getCustomers` (filters appended in code; user values are bound). */
 export function getCustomersStatement(db: Db, args: { tenant_id: string; search: string | undefined; active: boolean | undefined; credit: boolean | undefined; pricing_tier_id: string | undefined }) {
