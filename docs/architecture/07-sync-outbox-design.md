@@ -1,6 +1,6 @@
 # 7. Sync outbox design (proposal)
 
-Status: **rollout steps 1–4 implemented; outbox engine defaults OFF**. Today's sync is pinned by `tests/characterization/sync-run.mts` (cloud
+Status: **rollout steps 1–4 implemented; outbox engine defaults OFF; field checks pending (§7.6)**. Today's sync is pinned by `tests/characterization/sync-run.mts` (cloud
 push / pull, login and no-login) and `lan-run.mts` (LAN primary / secondary); any change below must keep those green or
 update their goldens in a reviewed diff. File references are to `nafid-pos` unless prefixed with `server:` (`nafid-server`).
 
@@ -147,3 +147,23 @@ Tests that must stay green at every step: `tests/characterization/sync-run.mts` 
 2. Which tables need delete propagation first (invoice items, quotation items, staff attendance)?
 3. Can older terminals be required to update before step 5, or must the old endpoints stay indefinitely?
 4. Should the LAN primary also be the only terminal that talks to the cloud (simpler), or keep every terminal online?
+
+## 7.6 Pending field checks (owner, recorded 28 Oct 2026)
+
+Code and automated tests for these are merged; they still need a check in a real shop. The shop currently has
+**one computer**, configured as the **LAN PRIMARY**.
+
+1. **Install the current build.** Bump the version, `npm run package`, install it on the shop computer (it updates from
+   `emirateswebfusion/nafid-releases`).
+2. **Sync engine (beta), about one week.** LAN and HYBRID PRIMARY/SECONDARY terminals always use the legacy engine
+   (§7.4 step 4), so the beta cannot run on the shop computer as it is configured today. Decide one of:
+   - *One computer for the foreseeable future:* switch Settings → Network & Connectivity to plain cloud mode (back up
+     `%APPDATA%\Nafid` first), enable **Sync engine (beta)** and use the app normally for a week; or
+   - *A second computer is planned:* keep LAN PRIMARY and run the beta once the second terminal exists.
+
+   Watch for: sync progress showing ops "for review" (`last_error`), missing or doubled bills/payments in the cloud
+   dashboard, conflicts. Then do step 5 (§7.4) and schedule `pruneSyncOps` on the server (`03-sync-api.md`).
+3. **LAN push restriction (POS PR #20, `electron/sync/lanTables.ts`).** Covered by `tests/unit/lanTables.test.ts`, not
+   yet exercised with two real terminals. When a second terminal is paired, check that bills, payments, customers,
+   products, cash drawer and settings made on the secondary still reach the primary, and that staff accounts edited
+   on the primary still appear on the secondary (pull). A push to staff tables must answer 403.
