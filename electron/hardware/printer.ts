@@ -632,7 +632,23 @@ function executePrintWithFallback(
       primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
     }
 
-    // Attempt 1: Print with primary options
+    const runAttempt2 = (prevReason?: string) => {
+      const fallbackOpts: Electron.WebContentsPrintOptions = { silent: true, margins: { marginType: 'none' }, landscape, printBackground: true };
+      if (deviceName) fallbackOpts.deviceName = deviceName;
+      printWindow.webContents.print(fallbackOpts, (success2, failureReason2) => {
+        if (success2) return resolve();
+        if (printWindow.isDestroyed()) return reject(new Error(`Print attempt 2 failed: ${failureReason2}`));
+        console.warn(`[Printer] Print attempt 2 failed (${failureReason2}). Retrying attempt 3 on System Default Printer...`);
+        printWindow.webContents.print({ silent: true, margins: { marginType: 'none' }, landscape, printBackground: true }, (success3, failureReason3) => {
+          if (success3) return resolve();
+          const reason = failureReason3 || failureReason2 || prevReason || 'Spooler error';
+          reject(new Error(`Could not print to printer "${deviceName || 'Default'}": ${reason}. Check printer power, USB cable, and paper.`));
+        });
+      });
+    };
+
+    // Attempt 1: Print with primary options. Retry only after the driver reports failure: a slow job is still
+    // spooled, so retrying on a timer prints the receipt twice (the caller's overall timeout covers a hung driver).
     printWindow.webContents.print(primaryOptions, (success1, failureReason1) => {
       if (success1) {
         return resolve();
@@ -643,53 +659,14 @@ function executePrintWithFallback(
       }
 
       // A native/default page may be shorter or wider than this receipt.
-      if (requireExactPaper) {
+      // If requireExactPaper is true, only reject if the receipt is actually longer than standard roll length (297mm).
+      // For standard short receipts (<= 297mm), the native driver roll page will never cut content.
+      if (requireExactPaper && (!heightMicrons || heightMicrons > 297000)) {
         return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected roll width and a supported receipt length.`));
       }
 
       console.warn(`[Printer] Print attempt 1 failed (${failureReason1}). Retrying attempt 2 without custom pageSize...`);
-
-      // Attempt 2: Retry without custom pageSize (lets driver use native roll/page size)
-      const fallbackOptions2: Electron.WebContentsPrintOptions = {
-        silent: true,
-        margins: { marginType: 'none' },
-        landscape,
-        printBackground: true,
-      };
-      if (deviceName) {
-        fallbackOptions2.deviceName = deviceName;
-      }
-
-      printWindow.webContents.print(fallbackOptions2, (success2, failureReason2) => {
-        if (success2) {
-          console.log('[Printer] Print attempt 2 (native driver page size) succeeded!');
-          return resolve();
-        }
-
-        if (printWindow.isDestroyed()) {
-          return reject(new Error(`Print attempt 2 failed: ${failureReason2}`));
-        }
-
-        console.warn(`[Printer] Print attempt 2 failed (${failureReason2}). Retrying attempt 3 on System Default Printer...`);
-
-        // Attempt 3: Retry without deviceName on OS Default Printer
-        const fallbackOptions3: Electron.WebContentsPrintOptions = {
-          silent: true,
-          margins: { marginType: 'none' },
-          landscape,
-          printBackground: true,
-        };
-
-        printWindow.webContents.print(fallbackOptions3, (success3, failureReason3) => {
-          if (success3) {
-            console.log('[Printer] Print attempt 3 (OS Default Printer) succeeded!');
-            return resolve();
-          }
-
-          const reason = failureReason3 || failureReason2 || failureReason1 || 'Spooler error';
-          reject(new Error(`Could not print to printer "${deviceName || 'Default'}": ${reason}. Check printer power, USB cable, and paper.`));
-        });
-      });
+      runAttempt2(failureReason1);
     });
   });
 }
@@ -721,6 +698,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        backgroundThrottling: false,
       }
     });
 
@@ -758,7 +736,25 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
       }
     };
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, (height: unknown) => triggerPrint(typeof height === 'number' ? height : undefined));
+    let didFinishLoadTimer: NodeJS.Timeout | null = null;
+    printWindow.webContents.once('did-finish-load', () => {
+      // The page reports its height after fonts load (it waits at most 600 ms). If that never arrives, print with the
+      // fallback length rather than waiting for the 20 s timeout; 2.5 s leaves room for slow PCs.
+      didFinishLoadTimer = setTimeout(() => {
+        if (!printed) {
+          console.warn('[Printer] Receipt height measurement delayed; printing with fallback length');
+          void triggerPrint();
+        }
+      }, 2500);
+    });
+
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, (height: unknown) => {
+      if (didFinishLoadTimer) {
+        clearTimeout(didFinishLoadTimer);
+        didFinishLoadTimer = null;
+      }
+      triggerPrint(typeof height === 'number' ? height : undefined);
+    });
 
     try {
       const receiptHtml = await buildReceiptHtml(currentReceiptText, widthMm, chosenFont, leftMarginOffsetMm);

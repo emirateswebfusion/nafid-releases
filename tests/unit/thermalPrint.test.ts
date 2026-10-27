@@ -107,3 +107,36 @@ it('reports unsupported thermal dimensions instead of silently printing on a sho
   await expect(invoke({ isDestroyed: () => false, webContents: { print } }, 'thermal', 58, 520000, undefined, false, true)).rejects.toThrow('unsupported paper');
   expect(print).toHaveBeenCalledOnce();
 });
+
+it('never retries a print the driver has not answered yet, so a slow printer does not print the receipt twice', async () => {
+  const print = vi.fn();
+  const timers = vi.fn();
+  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console, setTimeout: timers });
+  void invoke({ isDestroyed: () => false, webContents: { print } }, 'XP-80C', 80, 120000, undefined, false, true);
+  await Promise.resolve();
+  expect(print).toHaveBeenCalledOnce();
+  expect(timers).not.toHaveBeenCalled();
+});
+
+it('falls back to native driver page size for standard receipts when custom paper size is rejected', async () => {
+  const printCalls: Record<string, unknown>[] = [];
+  const print = vi.fn((options: Record<string, unknown>, callback: (success: boolean, reason?: string) => void) => {
+    printCalls.push(options);
+    if (options.pageSize) {
+      callback(false, 'unsupported custom paper size');
+    } else {
+      callback(true);
+    }
+  });
+  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, {
+    console: { ...console, warn: vi.fn(), log: vi.fn() },
+    setTimeout: () => 0,
+    clearTimeout: () => {},
+  });
+  // 120mm receipt height (120000 microns <= 297000)
+  await expect(invoke({ isDestroyed: () => false, webContents: { print } }, 'XP-80C', 80, 120000, undefined, false, true)).resolves.toBeUndefined();
+  expect(print).toHaveBeenCalledTimes(2);
+  expect(printCalls[0].pageSize).toEqual({ width: 80000, height: 120000 });
+  expect(printCalls[1].pageSize).toBeUndefined();
+  expect(printCalls[1].deviceName).toBe('XP-80C');
+});
