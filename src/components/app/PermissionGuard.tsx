@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { hasPermission } from '../../utils/permissions';
+import { hasPermission } from '../../utils/security/permissions';
 
 interface PermissionGuardProps {
   permission: string;

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { purchasesApi } from '../../../data/purchases';
-import { cleanSearchText, sortProductsBySearchPriority } from '../../../utils/productSort';
+import { cleanSearchText, sortProductsBySearchPriority } from '../../../utils/pricing/productSort';
 import { type Product } from '../purchaseTypes';
 
 export interface UsePurchaseProductSearchResultsContext {

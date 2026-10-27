@@ -1,5 +1,5 @@
-import { getStoreTimezone } from '../../utils/timezoneHelper';
-import { parseUTCDate } from '../../utils/receiptGenerator';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { parseUTCDate } from '../../utils/print/receiptGenerator';
 import type * as Rows from '../../data/dbRows';
 
 /** Quotation screen: quotation and line-item rows as the quotations IPC returns them, and date labelling. */

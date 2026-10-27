@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
-import { getStoreTimezone } from '../../utils/timezoneHelper';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { invoicesApi } from '../../data/invoices';
 import { purchasesApi } from '../../data/purchases';

@@ -26,7 +26,7 @@ export interface PartyLedgerViewProps {
   isOwner: boolean;
   tLabels: import('../../../store/terminologyStore').TerminologyLabels;
   getPartyBalance: (p: import('../partyTypes').Party) => number;
-  statementData: import('../../../utils/partyLedgerPdfGenerator').StatementReconciliation | null;
+  statementData: import('../../../utils/print/partyLedgerPdfGenerator').StatementReconciliation | null;
   activeGstBal: number;
   activeEstimateBal: number;
   displayLedger: import('../partyTypes').LedgerEntry[];

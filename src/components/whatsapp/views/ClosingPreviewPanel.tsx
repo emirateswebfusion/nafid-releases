@@ -1,7 +1,7 @@
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { Button } from '../../ui/Button';
 import { Loader2, Send, Check } from 'lucide-react';
-import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
+import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 import type { WhatsAppSettingsState } from '../hooks/useWhatsAppSettingsState';
 
 export interface ClosingPreviewPanelProps {

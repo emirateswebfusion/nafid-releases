@@ -2,7 +2,7 @@ import React from 'react';
 import { getInitials, formatDate, formatDateTime, renderPaymentMethodBadge, renderBillTypeBadge } from '../customerFormat';
 import { Phone, MapPin, Calendar, Building2, ExternalLink, Clock, Award, ShoppingBag, Receipt, TrendingUp, Gift, Loader2, FileText, Download, RotateCw, SlidersHorizontal, CreditCard, FilterX, Eye, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { Skeleton } from '../../ui/Skeleton';
 import type { Customer, Party, LoyaltyTx, InvoiceRecord, DetailTab } from '../customerTypes';

@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { ListChecks, RotateCcw, CheckSquare, Square } from 'lucide-react';
-import { type ShopClosingChecklist, CHECKLIST_DEFINITIONS } from '../../../utils/shopClosingHelper';
-import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
+import { type ShopClosingChecklist, CHECKLIST_DEFINITIONS } from '../../../utils/time/shopClosingHelper';
+import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 
 export interface ClosingChecklistSectionProps {
   closingConfig: ShopClosingOverviewConfig;

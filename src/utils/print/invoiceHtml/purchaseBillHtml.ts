@@ -1,6 +1,6 @@
 import { parseUTCDate } from '../receiptGenerator';
-import { getStoreTimezone } from '../timezoneHelper';
-import { splitTaxAmount } from '../checkoutLines';
+import { getStoreTimezone } from '../../time/timezoneHelper';
+import { splitTaxAmount } from '../../pricing/checkoutLines';
 
 
 export function generatePurchaseBillHtml(

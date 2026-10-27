@@ -1,10 +1,10 @@
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { renderPaymentMethodBadge, renderBillTypeBadge, formatDateTime } from '../customerFormat';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
 import { Loader2, Edit3 } from 'lucide-react';
-import { hasPermission } from '../../../utils/permissions';
+import { hasPermission } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import type { InvoiceRecord } from '../customerTypes';
 import type { InvoiceItemRow } from '../customerTypes';

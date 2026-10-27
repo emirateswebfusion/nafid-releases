@@ -1,6 +1,6 @@
 import { StatCard } from './StatCard';
 import { IndianRupee, Layers, TrendingUp, Percent, Tag } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 
 export interface SalesAnalyticsViewProps {

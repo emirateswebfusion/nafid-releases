@@ -1,6 +1,6 @@
 import { parseUTCDate } from './receiptGenerator';
-import { getStoreTimezone } from './timezoneHelper';
-import type { TerminologyLabels } from '../store/terminologyStore';
+import { getStoreTimezone } from '../time/timezoneHelper';
+import type { TerminologyLabels } from '../../store/terminologyStore';
 
 const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
   receivable: "You'll Get",

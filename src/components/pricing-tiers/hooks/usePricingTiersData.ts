@@ -4,7 +4,7 @@ import { bridgeEvents } from '../../../data/events';
 import { pricingTiersApi } from '../../../data/pricingTiers';
 import { productsApi } from '../../../data/products';
 import { settingsApi } from '../../../data/settings';
-import { sortTiersWithMrp } from '../../../utils/pricingTierHelper';
+import { sortTiersWithMrp } from '../../../utils/pricing/pricingTierHelper';
 import type { PricingTiersState } from './usePricingTiersState';
 
 export interface UsePricingTiersDataContext {

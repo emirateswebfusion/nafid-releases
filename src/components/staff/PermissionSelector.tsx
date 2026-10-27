@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, CheckSquare, Square, ChevronDown, ChevronRight, ShieldCheck, Zap } from 'lucide-react';
-import { PERMISSION_GROUPS, ALL_PERMISSION_KEYS } from '../../utils/permissions';
+import { PERMISSION_GROUPS, ALL_PERMISSION_KEYS } from '../../utils/security/permissions';
 import clsx from 'clsx';
 
 interface PermissionSelectorProps {

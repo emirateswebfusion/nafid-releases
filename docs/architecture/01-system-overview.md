@@ -44,7 +44,7 @@ SQLite database that synchronises with the cloud API (`nafid-server`) in the bac
 
 ## Offline-first write path (checkout)
 
-1. `BillingPage` gathers cart state and builds lines with the pure builders in `src/utils/checkoutLines.ts`.
+1. `BillingPage` gathers cart state and builds lines with the pure builders in `src/utils/pricing/checkoutLines.ts`.
 2. It calls `invoicesApi.checkout(payload)` (`src/data/invoices.ts`).
 3. `electron/ipc/invoiceHandlers.ts` routes `db:checkout` to `invoiceCheckoutService.checkout`, which deduplicates,
    numbers the invoice (`electron/services/invoiceNumberService.ts`) and writes invoice, items, stock and ledger rows in **one SQLite transaction**, marking rows `sync_status = 'PENDING'`.
@@ -62,4 +62,4 @@ After a sync pull the main process emits `onSyncDataUpdated`; screens subscribe 
 - Row ids are UUIDs created on the terminal (`uuid`), or deterministic UUIDs for derived rows
   (`electron/utils/ids.ts`, mirrored by `nafid-server/src/utils/ids.ts` — they must stay identical).
 - Human document numbers (GST, BOS, estimate, quotation, return, scrap, purchase) are issued per series by
-  `electron/services/invoiceNumberService.ts` and formatted by `src/utils/invoiceNumberHelper.ts`.
+  `electron/services/invoiceNumberService.ts` and formatted by `src/utils/pricing/invoiceNumberHelper.ts`.

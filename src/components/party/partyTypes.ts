@@ -1,4 +1,4 @@
-import { type LedgerEntryData } from '../../utils/partyLedgerPdfGenerator';
+import { type LedgerEntryData } from '../../utils/print/partyLedgerPdfGenerator';
 import type { Party as DataParty } from '../../data/parties';
 
 export interface Party extends DataParty {

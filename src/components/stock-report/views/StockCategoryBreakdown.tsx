@@ -1,5 +1,5 @@
 import { Package } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { Skeleton } from '../../ui/Skeleton';
 import type { StockReportState } from '../hooks/useStockReportState';
 import type { StockCategoryStat } from '../stockReportTypes';

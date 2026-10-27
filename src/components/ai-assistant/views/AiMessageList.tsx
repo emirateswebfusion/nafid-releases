@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { BarChart3, Check, Copy, VolumeX, Volume2 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar } from 'recharts';
 import { humanizeKey } from '../aiAssistantTypes';
-import { formatCurrency as formatINR } from '../../../utils/money';
+import { formatCurrency as formatINR } from '../../../utils/pricing/money';
 import type { ChatMessage } from '../aiAssistantTypes';
 import type { LucideProps } from 'lucide-react';
 import type { AiAssistantState } from '../hooks/useAiAssistantState';

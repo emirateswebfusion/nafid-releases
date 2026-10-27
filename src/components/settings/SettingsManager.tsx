@@ -10,7 +10,7 @@ import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
-import { isAdminRole } from '../../utils/permissions';
+import { isAdminRole } from '../../utils/security/permissions';
 
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../config/featureFlags';
 import { appApi } from '../../data/app';

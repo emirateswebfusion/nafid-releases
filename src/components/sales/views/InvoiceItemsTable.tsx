@@ -1,8 +1,8 @@
 import type { DisplayComboItem, DisplayInvoiceItem } from '../invoiceDisplayTypes';
 import { RefreshCw, Boxes, Package } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
-import { splitTaxAmount } from '../../../utils/checkoutLines';
+import { formatCurrency } from '../../../utils/pricing/money';
+import { splitTaxAmount } from '../../../utils/pricing/checkoutLines';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
 
 export interface InvoiceItemsTableProps {

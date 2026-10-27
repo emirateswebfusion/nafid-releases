@@ -7,15 +7,15 @@ import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { Modal } from '../ui/Modal';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { FloatToast } from '../ui/FloatToast';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, parseUTCDate } from '../../utils/receiptGenerator';
-import { generateInvoiceHtml } from '../../utils/invoiceHtmlGenerator';
-import { parsePrintFormat, formatPrinterError } from '../../utils/printFormatHelper';
-import { getStoreTimezone } from '../../utils/timezoneHelper';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, parseUTCDate } from '../../utils/print/receiptGenerator';
+import { generateInvoiceHtml } from '../../utils/print/invoiceHtmlGenerator';
+import { parsePrintFormat, formatPrinterError } from '../../utils/print/printFormatHelper';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { printingApi } from '../../data/printing';
 import { returnsApi } from '../../data/returns';
 import { settingsApi } from '../../data/settings';
-import { formatCurrency } from '../../utils/money';
+import { formatCurrency } from '../../utils/pricing/money';
 import type * as Rows from '../../data/dbRows';
 
 interface ReturnInvoice extends Rows.ReturnsRow {

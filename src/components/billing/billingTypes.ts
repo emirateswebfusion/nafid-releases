@@ -3,9 +3,9 @@ import type { SplitDetails, Tab, PaymentMethod } from '../../store/tabStore';
 import type { Product, ProductPricingRow } from '../../data/products';
 import type { Invoice, InvoiceItem } from '../../data/invoices';
 import type { ScrapInvoiceListItem } from '../../data/scrap';
-import type { PricingTier } from '../../utils/pricingTierHelper';
+import type { PricingTier } from '../../utils/pricing/pricingTierHelper';
 import type { Party } from '../../data/parties';
-import type { UpiPageConfig } from '../../utils/upiConfig';
+import type { UpiPageConfig } from '../../utils/print/upiConfig';
 import type { Dispatch, SetStateAction, MutableRefObject, KeyboardEvent, ComponentType } from 'react';
 
 export type { CartItem, ProductPricingRow, UpiPageConfig, PaymentMethod, Tab, Party };
@@ -135,7 +135,7 @@ export type QuantityRefs = MutableRefObject<Record<string, HTMLInputElement | nu
 export interface PaymentOption { value: PaymentMethod; label: string; icon: ComponentType<{ className?: string }>; color: string; activeBg?: string; activeText?: string; activeBorder?: string; activeIconBg?: string }
 export type SplitField = 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'CHEQUE';
 export type SplitKeyHandler = (e: KeyboardEvent<HTMLInputElement>, field: SplitField) => void;
-export type InvoiceStyle = Parameters<typeof import('../../utils/invoiceHtmlGenerator').generateInvoiceHtml>[1];
+export type InvoiceStyle = Parameters<typeof import('../../utils/print/invoiceHtmlGenerator').generateInvoiceHtml>[1];
 export interface CheckoutResult { created_at?: string; success: boolean; error?: string; invoice_id?: string; invoice_number?: string; customer_id?: string; points_earned?: number; points_redeemed?: number; loyalty_points_earned?: number }
 export type PrintSetting = { billSettings?: { bosTaxRatePercent?: number; bosTaxInclusive?: boolean; showDescription?: boolean } } | null;
 export type SettingsEvent = Event & { detail?: { terminalCode?: string; shopName?: string } };

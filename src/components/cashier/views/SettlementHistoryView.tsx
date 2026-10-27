@@ -2,7 +2,7 @@ import React from 'react';
 import { History, Search, X, TrendingUp, DollarSign, TrendingDown, CheckCircle2, ChevronDown, ChevronRight, Receipt, User, Banknote, RotateCcw, Clock, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { todayStr, formatTime } from '../cashierFormat';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { CashDrawerRow, CashTransactionRow, CashierInvoiceRow, DaySettlementRow } from '../cashierTypes';
 
 export interface SettlementHistoryViewProps {

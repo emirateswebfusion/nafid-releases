@@ -2,8 +2,8 @@ import React, { Fragment } from 'react';
 import { Layers, IndianRupee, Package, Search, X, Recycle, FileText, Pencil, Trash } from 'lucide-react';
 import { formatCurrency, formatGroupDate } from '../scrapFormat';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
-import { parseUTCDate } from '../../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { parseUTCDate } from '../../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
 import type { ScrapInvoiceRow } from '../scrapTypes';
 

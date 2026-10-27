@@ -34,8 +34,11 @@ src/
   data/                   THE data-access layer (one module per domain; see 03-data-access.md)
   store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, …)
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
-  utils/                  pure rules and generators (money, pricing, checkout lines, tax, numbering, HTML)
-    receipt/, invoiceHtml/  print generators split by style (receiptGenerator.ts / invoiceHtmlGenerator.ts are the entry points)
+  utils/                  pure rules and generators, grouped (folders only, guard R15):
+    pricing/              money, line pricing, checkout lines, pricing tiers, invoice numbering, sales-history amounts/tax
+    print/                receipt / invoice / quotation / ledger generators (receipt/, invoiceHtml/ split by style), UPI, WhatsApp bill
+    time/                 store time zone, date display, shop closing (business day)
+    security/             permissions, staff data masking, emergency purge
   services/               long-running renderer services (offline AI engine, FusionCart client)
     offlineAi/            offline AI engine: intentParser + intentRules* (question → intent), handlers/<domain>
                           (intent → answer from local data); offlineAiService.ts is the entry point

@@ -1,6 +1,6 @@
 import type * as B from '../billingTypes';
 import { useState } from 'react';
-import { type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../../../utils/upiConfig';
+import { type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../../../utils/print/upiConfig';
 import { type MostSoldProductRow } from '../productSearch';
 import { type DeductionSearchRow } from '../deductionLookup';
 

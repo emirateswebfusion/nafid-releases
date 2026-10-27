@@ -1,4 +1,4 @@
-import { MRP_TIER_ID, type PricingTier } from '../../utils/pricingTierHelper';
+import { MRP_TIER_ID, type PricingTier } from '../../utils/pricing/pricingTierHelper';
 import type { Product as DataProduct } from '../../data/products';
 
 /** Pricing tiers screen: default-tier rule, product row and memoized matrix row props. */

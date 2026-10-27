@@ -1,5 +1,5 @@
 import { KeyRound, Plus } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { StaffLedgerTab } from './StaffLedgerTab';
 import { StaffAttendanceTab } from './StaffAttendanceTab';
 import type { FeatureFlags } from '../../../config/featureFlags';

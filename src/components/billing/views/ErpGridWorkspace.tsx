@@ -1,9 +1,9 @@
 import React from 'react';
-import { displayInvoiceNumber } from '../../../utils/invoiceNumberHelper';
+import { displayInvoiceNumber } from '../../../utils/pricing/invoiceNumberHelper';
 import type { DeductionState } from './DeductionEditor';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
 import { Select } from '../../ui/Select';
-import { MRP_TIER_ID } from '../../../utils/pricingTierHelper';
+import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
 import clsx from 'clsx';
 import { X, Banknote, QrCode, CreditCard, BookOpen, Clock, Recycle, ArrowLeftRight, Coins, Save } from 'lucide-react';
 import { type PaymentMethod, formatCurrency } from '../BillingConstants';
@@ -12,7 +12,7 @@ import { returnsApi } from '../../../data/returns';
 import type { Tab } from '../../../store/tabStore';
 import type { CartItem, InvoiceType, ShopDomain } from '../../../store/cartStore';
 import type { MatchedParty } from '../customerDirectory';
-import type { PricingTier } from '../../../utils/pricingTierHelper';
+import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import type { CustomerFieldState } from '../hooks/useCustomerFieldState';
 
 export interface ErpGridWorkspaceProps {

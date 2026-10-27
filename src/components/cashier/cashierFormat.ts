@@ -1,7 +1,7 @@
 /** Cashier settlement helpers: payment methods / options, labels and colours, time and business-date formatting. */
 import { Banknote, CreditCard, Smartphone, Wallet, FileText, SplitSquareHorizontal } from 'lucide-react';
-import { getStoreTimezone, getStoreBusinessDate } from '../../utils/timezoneHelper';
-import { parseUTCDate, getAppTimeFormat } from '../../utils/receiptGenerator';
+import { getStoreTimezone, getStoreBusinessDate } from '../../utils/time/timezoneHelper';
+import { parseUTCDate, getAppTimeFormat } from '../../utils/print/receiptGenerator';
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'CHEQUE' | 'SPLIT';
 

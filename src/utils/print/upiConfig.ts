@@ -1,5 +1,5 @@
-import { hasBridge } from '../data/client';
-import { settingsApi } from '../data/settings';
+import { hasBridge } from '../../data/client';
+import { settingsApi } from '../../data/settings';
 export interface UpiPageConfig {
   billing: boolean;
   settlement: boolean;

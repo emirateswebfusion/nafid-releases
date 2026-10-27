@@ -1,5 +1,5 @@
 import { getEffectiveBillSettings, formatPrintItem } from '../../receiptGenerator';
-import { getStoreTimezone } from '../../timezoneHelper';
+import { getStoreTimezone } from '../../../time/timezoneHelper';
 import { type InvoiceData, shouldShowItemMrpHtml, formatItemNameForBill, renderHtmlBalanceRows } from '../invoiceHtmlCore';
 
 

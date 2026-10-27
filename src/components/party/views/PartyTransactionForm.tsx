@@ -6,7 +6,7 @@ import {
 import clsx from 'clsx';
 import { PaymentMethodIcon } from '../partyHelpers';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
-import { formatWhatsAppLedgerTxMessage } from '../../../utils/whatsappBillHelper';
+import { formatWhatsAppLedgerTxMessage } from '../../../utils/print/whatsappBillHelper';
 
 const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
 

@@ -3,21 +3,21 @@ import React from 'react';
 import { Modal } from '../../ui/Modal';
 import clsx from 'clsx';
 import { InvoiceTypeBadge } from '../../sales/views/InvoiceRow';
-import { hasPermission, isAdminRole } from '../../../utils/permissions';
+import { hasPermission, isAdminRole } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
 import { useCartStore } from '../../../store/cartStore';
 import { Edit3, Printer, Calendar, Clock, CheckCircle2, BookOpen, RefreshCw, Boxes, Package } from 'lucide-react';
 import { settingsApi } from '../../../data/settings';
-import { parsePrintFormat } from '../../../utils/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/receiptGenerator';
-import { generateInvoiceHtml } from '../../../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
+import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/print/receiptGenerator';
+import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { printingApi } from '../../../data/printing';
 import { formatDate } from '../cashierFormat';
 import { PaymentBadge } from './PaymentBadge';
-import { formatCurrency } from '../../../utils/money';
-import { splitTaxAmount } from '../../../utils/checkoutLines';
+import { formatCurrency } from '../../../utils/pricing/money';
+import { splitTaxAmount } from '../../../utils/pricing/checkoutLines';
 import type { CashierInvoiceItemRow, CashierInvoiceRow } from '../cashierTypes';
 
 export interface CashierInvoiceModalProps {

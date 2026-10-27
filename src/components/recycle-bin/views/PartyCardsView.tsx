@@ -1,6 +1,6 @@
 import { Trash2, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
-import { formatAmount } from '../../../utils/money';
+import { formatAmount } from '../../../utils/pricing/money';
 import { timeAgo, type DeletedParty } from '../recycleBinTypes';
 
 export interface PartyCardsViewProps {

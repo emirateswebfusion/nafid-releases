@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { Trash2, RefreshCw, X, Receipt, Package, Users, Handshake, ShieldAlert } from 'lucide-react';
-import { formatAmount } from '../../../utils/money';
+import { formatAmount } from '../../../utils/pricing/money';
 import { CATEGORIES, type RecycleBinCategory } from '../recycleBinTypes';
 import type { RecycleBinState } from '../hooks/useRecycleBinState';
 

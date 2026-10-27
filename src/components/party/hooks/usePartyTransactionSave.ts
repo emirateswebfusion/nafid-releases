@@ -2,7 +2,7 @@ import type React from 'react';
 import { partiesApi } from '../../../data/parties';
 import { v4 as uuidv4 } from 'uuid';
 import { cashierApi } from '../../../data/cashier';
-import { formatWhatsAppLedgerTxMessage } from '../../../utils/whatsappBillHelper';
+import { formatWhatsAppLedgerTxMessage } from '../../../utils/print/whatsappBillHelper';
 import { hasBridge } from '../../../data/client';
 import { whatsappApi } from '../../../data/whatsapp';
 import { toUtcIso } from '../partyFormat';

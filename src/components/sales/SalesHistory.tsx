@@ -3,11 +3,11 @@ import { RefreshCw, Trash2, CheckCheck, AlertCircle, Download } from 'lucide-rea
 import { useAuthStore } from '../../store/authStore';
 import { getSetting } from '../../data/settings';
 import { listInvoices, getInvoiceItems } from '../../data/invoices';
-import { getInvoicePreDeductionTotal } from '../../utils/salesHistoryAmount';
+import { getInvoicePreDeductionTotal } from '../../utils/pricing/salesHistoryAmount';
 import {
   type InvoiceProductRow,
   type InvoiceProductTotals,
-} from '../../utils/salesHistoryTax';
+} from '../../utils/pricing/salesHistoryTax';
 import { 
   type StaffDataMaskingConfig, 
   DEFAULT_STAFF_DATA_MASKING_CONFIG, 
@@ -17,13 +17,13 @@ import {
   shouldApplyStaffMasking, 
   calculateMaskedSalesRevenue,
   getStaffSalesDateScope 
-} from '../../utils/staffDataMasking';
+} from '../../utils/security/staffDataMasking';
 import { useCartStore } from '../../store/cartStore';
 import clsx from 'clsx';
 import { Modal } from '../ui/Modal';
 import { RedCrossButton } from '../ui/RedCrossButton';
-import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../../utils/upiConfig';
-import { isAdminRole, hasPermission } from '../../utils/permissions';
+import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../../utils/print/upiConfig';
+import { isAdminRole, hasPermission } from '../../utils/security/permissions';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
 import { invoicesApi } from '../../data/invoices';

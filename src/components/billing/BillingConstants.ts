@@ -7,7 +7,7 @@ import {
   Banknote,
   Split
 } from 'lucide-react';
-import { formatCurrency as formatMoney } from '../../utils/money';
+import { formatCurrency as formatMoney } from '../../utils/pricing/money';
 
 export const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },

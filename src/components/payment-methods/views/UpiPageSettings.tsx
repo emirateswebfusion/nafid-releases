@@ -1,6 +1,6 @@
 import { Smartphone, Settings2, ShoppingCart, Wallet, History, Layers } from 'lucide-react';
 import clsx from 'clsx';
-import type { UpiPageConfig } from '../../../utils/upiConfig';
+import type { UpiPageConfig } from '../../../utils/print/upiConfig';
 import type { PaymentMethodsState } from '../hooks/usePaymentMethodsState';
 
 export interface UpiPageSettingsProps {

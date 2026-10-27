@@ -1,5 +1,5 @@
 import type React from 'react';
-import { type UpiPageConfig, saveUpiPageConfig } from '../../../utils/upiConfig';
+import { type UpiPageConfig, saveUpiPageConfig } from '../../../utils/print/upiConfig';
 import { defaultForm, type PaymentSource } from '../paymentMethodsTypes';
 import { paymentSourcesApi } from '../../../data/paymentSources';
 import type { PaymentMethodsState } from './usePaymentMethodsState';

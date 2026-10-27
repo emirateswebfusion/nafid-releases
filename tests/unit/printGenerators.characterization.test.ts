@@ -5,9 +5,9 @@
  * change updates it in review (`npx vitest run tests/unit/printGenerators.characterization.test.ts -u`).
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_BILL_SETTINGS, generateReceiptText, type ReceiptData } from '../../src/utils/receiptGenerator';
-import { generateInvoiceHtml, generatePurchaseBillHtml, type InvoiceData } from '../../src/utils/invoiceHtmlGenerator';
-import { generateQuotationHtml, type QuotationPrintData } from '../../src/utils/quotationHtmlGenerator';
+import { DEFAULT_BILL_SETTINGS, generateReceiptText, type ReceiptData } from '../../src/utils/print/receiptGenerator';
+import { generateInvoiceHtml, generatePurchaseBillHtml, type InvoiceData } from '../../src/utils/print/invoiceHtmlGenerator';
+import { generateQuotationHtml, type QuotationPrintData } from '../../src/utils/print/quotationHtmlGenerator';
 
 const gstItems = [
   { name: 'Steel Rod 12mm TMT Fe500 Premium Quality Long Name', quantity: 2, unit_price: 590, total: 1180, originalRate: 650, discountLabel: '9% off', brand: 'Tata', hsn_code: '7214', tax_rate_percent: 18, gst_percent: 18, cgst_rate: 9, sgst_rate: 9, cgst_amount: 90, sgst_amount: 90, unit: 'Pcs' },

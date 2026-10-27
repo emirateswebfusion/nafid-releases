@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { type View, type PaymentSource, defaultForm, type SourceTransaction } from '../paymentMethodsTypes';
-import { type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../../../utils/upiConfig';
+import { type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../../../utils/print/upiConfig';
 
 /**
  * State of the payment methods screen: view, payment sources and filters, the add / edit form, the selected source's

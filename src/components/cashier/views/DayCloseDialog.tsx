@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { RedCrossButton } from '../../ui/RedCrossButton';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { CashDrawerRow, DayCloseResult } from '../cashierTypes';
 
 export interface DayCloseDialogProps {

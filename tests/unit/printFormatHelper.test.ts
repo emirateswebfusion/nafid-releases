@@ -3,7 +3,7 @@ import {
   formatPrinterError,
   parsePrintFormat,
   type PrintFormatConfig,
-} from '../../src/utils/printFormatHelper';
+} from '../../src/utils/print/printFormatHelper';
 
 describe('parsePrintFormat', () => {
   it('returns default thermal format when input is null, undefined, or empty', () => {

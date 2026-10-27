@@ -3,10 +3,10 @@ import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
-import { parsePrintFormat, formatPrinterError } from '../../../utils/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/receiptGenerator';
+import { parsePrintFormat, formatPrinterError } from '../../../utils/print/printFormatHelper';
+import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/print/receiptGenerator';
 import { combosApi } from '../../../data/combos';
-import { generateInvoiceHtml } from '../../../utils/invoiceHtmlGenerator';
+import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { printingApi } from '../../../data/printing';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
 

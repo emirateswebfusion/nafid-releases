@@ -1,6 +1,6 @@
 import React from 'react';
 import { Package, PackagePlus, Pencil, Save, Upload, Search, Loader2, X, Layers, CheckCircle2, AlertTriangle, AlertCircle, Tag, Plus, Trash } from 'lucide-react';
-import { isAdminRole, formatRoleName } from '../../../utils/permissions';
+import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { Select } from '../../ui/Select';

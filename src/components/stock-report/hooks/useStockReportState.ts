@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type StaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/staffDataMasking';
+import { type StaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/security/staffDataMasking';
 import {
   type Product, type ProductBillQty, type StockGradeRow, type StockPartyRow, type StockSalesSummaryRow,
 } from '../stockReportTypes';

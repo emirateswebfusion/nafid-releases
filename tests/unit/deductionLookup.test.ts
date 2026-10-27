@@ -6,7 +6,7 @@ vi.mock('../../src/data/scrap', () => ({ scrapApi: scrap }));
 vi.mock('../../src/data/returns', () => ({ returnsApi: returns }));
 
 const { findScrapCredit, findReturnCredit, lookupScrapCredit, lookupReturnCredit } = await import('../../src/components/billing/deductionLookup');
-const { getNumericPart, matchesDocumentNumber } = await import('../../src/utils/invoiceNumberHelper');
+const { getNumericPart, matchesDocumentNumber } = await import('../../src/utils/pricing/invoiceNumberHelper');
 
 beforeEach(() => vi.resetAllMocks());
 

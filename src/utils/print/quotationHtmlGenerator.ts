@@ -1,6 +1,6 @@
 import { numberToIndianWords } from './receiptGenerator';
-import { formatCurrency } from './money';
-import { splitTaxAmount } from './checkoutLines';
+import { formatCurrency } from '../pricing/money';
+import { splitTaxAmount } from '../pricing/checkoutLines';
 import type { QuotationPrintData } from './quotationPrintTypes';
 
 export type { QuotationPrintData, QuotationPrintItem } from './quotationPrintTypes';

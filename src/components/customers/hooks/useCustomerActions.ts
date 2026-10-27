@@ -4,7 +4,7 @@ import { customersApi } from '../../../data/customers';
 import { type InvoiceRecord, type InvoiceItemRow } from '../customerTypes';
 import { invoicesApi } from '../../../data/invoices';
 import { useAuthStore } from '../../../store/authStore';
-import { hasPermission, isAdminRole } from '../../../utils/permissions';
+import { hasPermission, isAdminRole } from '../../../utils/security/permissions';
 import { useCartStore } from '../../../store/cartStore';
 import type { Customer, Party, LoyaltyTx, View } from '../customerTypes';
 

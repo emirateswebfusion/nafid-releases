@@ -9,7 +9,7 @@ import type { ProductSearchResult } from '../productSearch';
 import type { Invoice } from '../../../data/invoices';
 import type { Tab } from '../../../store/tabStore';
 import type { CartItem } from '../../../store/cartStore';
-import type { PricingTier } from '../../../utils/pricingTierHelper';
+import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import type { ProductSearchState } from './useProductSearchState';
 import type { CustomerFieldState } from './useCustomerFieldState';
 

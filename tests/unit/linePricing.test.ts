@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listRate, resolveLinePrice, type PricedLine } from '../../src/utils/linePricing';
+import { listRate, resolveLinePrice, type PricedLine } from '../../src/utils/pricing/linePricing';
 
 /** The rule as it was copy-pasted across BillingPage/BillingCartView/cartStore before consolidation. */
 function legacy(item: PricedLine, rate: number, scrap: boolean): number {

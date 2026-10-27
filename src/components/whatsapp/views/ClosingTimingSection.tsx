@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { Clock, Layers } from 'lucide-react';
-import { type ShopClosingSendTiming } from '../../../utils/shopClosingHelper';
-import type { ShopClosingOverviewConfig } from '../../../utils/shopClosingHelper';
+import { type ShopClosingSendTiming } from '../../../utils/time/shopClosingHelper';
+import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 
 export interface ClosingTimingSectionProps {
   closingConfig: ShopClosingOverviewConfig;

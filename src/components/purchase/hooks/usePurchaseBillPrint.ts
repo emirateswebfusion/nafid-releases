@@ -4,7 +4,7 @@ import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { purchasesApi } from '../../../data/purchases';
 import { useAuthStore } from '../../../store/authStore';
 import { settingsApi } from '../../../data/settings';
-import { generatePurchaseBillHtml } from '../../../utils/invoiceHtmlGenerator';
+import { generatePurchaseBillHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { printingApi } from '../../../data/printing';
 
 export interface UsePurchaseBillPrintContext {

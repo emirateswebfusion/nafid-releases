@@ -1,8 +1,8 @@
 import { isDesktopRuntime } from '../../../data/client';
 import { printingApi } from '../../../data/printing';
-import { formatCurrency } from '../../../utils/money';
-import { calculateMaskedStockValuation } from '../../../utils/staffDataMasking';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { formatCurrency } from '../../../utils/pricing/money';
+import { calculateMaskedStockValuation } from '../../../utils/security/staffDataMasking';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type { Product, ProductBillQty, StockGradeRow } from '../stockReportTypes';
 import type { StockReportState } from './useStockReportState';
 

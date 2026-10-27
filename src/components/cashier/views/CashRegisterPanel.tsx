@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { Receipt, Plus, AlertTriangle, RotateCcw, TrendingUp, TrendingDown, CheckCircle2, Banknote, Clock, FileText, ChevronDown, Trash2 } from 'lucide-react';
 import { partiesApi } from '../../../data/parties';
 import { cashierApi } from '../../../data/cashier';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { formatTime } from '../cashierFormat';
 import type { CashCategoryRow, CashDrawerRow, CashPartyRow, CashTransactionRow } from '../cashierTypes';
 

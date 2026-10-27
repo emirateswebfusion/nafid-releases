@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type ShopClosingOverviewConfig, DEFAULT_SHOP_CLOSING_CONFIG } from '../../../utils/shopClosingHelper';
+import { type ShopClosingOverviewConfig, DEFAULT_SHOP_CLOSING_CONFIG } from '../../../utils/time/shopClosingHelper';
 import { type WhatsAppStatus, type ClosingHistoryRow } from '../whatsAppTypes';
 
 /**

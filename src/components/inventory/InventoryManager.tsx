@@ -5,9 +5,9 @@ import clsx from 'clsx';
 import { DataUploadModal } from '../data-upload/DataUploadModal';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
-import { isLegacyBillerRole } from '../../utils/permissions';
-import { parseUTCDate } from '../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../utils/timezoneHelper';
+import { isLegacyBillerRole } from '../../utils/security/permissions';
+import { parseUTCDate } from '../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 
 import { type Product, isGstProduct } from './inventoryUtils';
 import { InventoryTableView } from './views/InventoryTableView';

@@ -2,7 +2,7 @@ import { useState, useId } from 'react';
 import { CheckCircle2, Shield, Lock } from 'lucide-react';
 import { useThemeStore, COLOR_PRESETS, FONT_PRESETS, LIGHT_THEME_PRESETS, DARK_THEME_PRESETS } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
-import { isAdminRole } from '../../utils/permissions';
+import { isAdminRole } from '../../utils/security/permissions';
 import { DensityScaleSection } from './views/DensityScaleSection';
 import { TypographySection } from './views/TypographySection';
 import { BrandAccentSection } from './views/BrandAccentSection';

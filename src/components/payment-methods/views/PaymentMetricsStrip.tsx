@@ -1,5 +1,5 @@
 import { Wallet, ArrowUpRight, Layers, Star, History } from 'lucide-react';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { PaymentSource } from '../paymentMethodsTypes';
 
 export interface PaymentMetricsStripProps {

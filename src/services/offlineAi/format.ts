@@ -1,5 +1,5 @@
 /** Formatting and text helpers of the offline AI assistant. */
-import { formatCurrency } from '../../utils/money';
+import { formatCurrency } from '../../utils/pricing/money';
 import type { AiRow } from './types';
 
 export function formatINR(val: number | string | null | undefined): string {

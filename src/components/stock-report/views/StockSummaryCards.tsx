@@ -1,6 +1,6 @@
 import { Activity, Package, Percent, ShoppingCart, Tag, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { Skeleton } from '../../ui/Skeleton';
 import type { StockReportState } from '../hooks/useStockReportState';
 import type { MaskedValuation } from '../stockReportTypes';

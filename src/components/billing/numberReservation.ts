@@ -5,7 +5,7 @@ import { returnsApi } from '../../data/returns';
 import { scrapApi } from '../../data/scrap';
 import type { InvoiceType } from '../../store/cartStore';
 import { useTabStore, type Tab } from '../../store/tabStore';
-import { getNextOffsetInvoiceNumber } from '../../utils/invoiceNumberHelper';
+import { getNextOffsetInvoiceNumber } from '../../utils/pricing/invoiceNumberHelper';
 
 /**
  * Number previews for billing tabs. Each tab shows the next invoice / scrap / quotation / return number; it is

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pencil, X, Recycle as RecycleIcon, Loader2, Save } from 'lucide-react';
 import { Select } from '../../ui/Select';
-import type { UpiPageConfig } from '../../../utils/upiConfig';
+import type { UpiPageConfig } from '../../../utils/print/upiConfig';
 import type { ScrapInvoiceRow, ScrapUpiSourceRow } from '../scrapTypes';
 
 export interface EditInvoiceHeaderDialogProps {

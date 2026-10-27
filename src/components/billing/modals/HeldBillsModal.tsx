@@ -2,8 +2,8 @@ import type * as B from '../billingTypes';
 import { PauseCircle, Play, Trash } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { formatCurrency } from '../BillingConstants';
-import { parseUTCDate } from '../../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { parseUTCDate } from '../../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 
 interface HeldBillsModalProps {
   isOpen: boolean;

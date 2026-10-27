@@ -2,8 +2,8 @@ import React from 'react';
 import { Recycle, Pencil, Plus, Printer, Trash } from 'lucide-react';
 import clsx from 'clsx';
 import { formatDateTime, formatCurrency } from '../scrapFormat';
-import { parseUTCDate } from '../../../utils/receiptGenerator';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
+import { parseUTCDate } from '../../../utils/print/receiptGenerator';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type { ScrapInvoiceTxRow } from '../scrapTypes';
 
 export interface ScrapInvoiceDetailViewProps {

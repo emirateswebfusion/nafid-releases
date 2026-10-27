@@ -7,10 +7,10 @@ import {
   STAFF_DATA_MASKING_KEY, 
   DEFAULT_STAFF_DATA_MASKING_CONFIG, 
   parseStaffDataMaskingConfig 
-} from '../../utils/staffDataMasking';
+} from '../../utils/security/staffDataMasking';
 import { isDesktopRuntime } from '../../data/client';
 import { settingsApi } from '../../data/settings';
-import { formatCurrency } from '../../utils/money';
+import { formatCurrency } from '../../utils/pricing/money';
 
 export interface StaffDataMaskingSettingsProps {
   config?: StaffDataMaskingConfig;

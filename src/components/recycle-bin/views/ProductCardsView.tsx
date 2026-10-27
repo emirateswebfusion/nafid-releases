@@ -1,5 +1,5 @@
 import { Trash2, RotateCcw } from 'lucide-react';
-import { formatAmount } from '../../../utils/money';
+import { formatAmount } from '../../../utils/pricing/money';
 import { timeAgo, type DeletedProduct } from '../recycleBinTypes';
 
 export interface ProductCardsViewProps {

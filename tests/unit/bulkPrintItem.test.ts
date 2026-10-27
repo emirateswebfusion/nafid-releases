@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBulkPrintItem } from '../../src/utils/bulkPrintItem';
+import { buildBulkPrintItem } from '../../src/utils/print/bulkPrintItem';
 
 const baseProduct = {
   sku_barcode: 'SKU-1',

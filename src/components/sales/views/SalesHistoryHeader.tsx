@@ -2,9 +2,9 @@ import React from 'react';
 import { TrendingUp, Receipt, BarChart3, Shield, Lock, Trash2, RefreshCw, Download, X } from 'lucide-react';
 import clsx from 'clsx';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
-import { hasPermission } from '../../../utils/permissions';
+import { hasPermission } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
-import type { StaffDataMaskingConfig } from '../../../utils/staffDataMasking';
+import type { StaffDataMaskingConfig } from '../../../utils/security/staffDataMasking';
 
 export interface SalesHistoryHeaderProps {
   /** Closes Sales History itself. */

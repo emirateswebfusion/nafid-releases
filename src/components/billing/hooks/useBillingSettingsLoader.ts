@@ -1,15 +1,15 @@
 import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
-import type { UpiPageConfig } from '../../../utils/upiConfig';
+import type { UpiPageConfig } from '../../../utils/print/upiConfig';
 
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { productsApi } from '../../../data/products';
 import { getSetting } from '../../../data/settings';
 import { useAuthStore } from '../../../store/authStore';
-import { getUpiPageConfig } from '../../../utils/upiConfig';
+import { getUpiPageConfig } from '../../../utils/print/upiConfig';
 import { paymentSourcesApi } from '../../../data/paymentSources';
 import { pricingTiersApi } from '../../../data/pricingTiers';
-import { sortTiersWithMrp } from '../../../utils/pricingTierHelper';
+import { sortTiersWithMrp } from '../../../utils/pricing/pricingTierHelper';
 import { listParties } from '../../../data/parties';
 import { bridgeEvents } from '../../../data/events';
 import type { ProductFormState } from './useProductFormState';

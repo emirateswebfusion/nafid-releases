@@ -6,7 +6,7 @@ import {
   buildReceiptLines,
   resolveSupplyType,
   splitTaxAmount,
-} from '../../src/utils/checkoutLines';
+} from '../../src/utils/pricing/checkoutLines';
 
 const item = (over: Partial<CartItem>): CartItem => ({
   product_id: 'p1', name: 'Rice', quantity: 2, base_price: 100, tax_rate_percent: 18, ...over,

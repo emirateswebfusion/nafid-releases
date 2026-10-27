@@ -1,5 +1,5 @@
-import type { BulkPrintItem } from '../data/printing';
-import type { ProductsRow } from '../data/dbRows';
+import type { BulkPrintItem } from '../../data/printing';
+import type { ProductsRow } from '../../data/dbRows';
 
 type BulkPrintProduct = Pick<ProductsRow,
   'sku_barcode' | 'name' | 'base_price' | 'current_stock' | 'pricing_mode' | 'offer_price' | 'discount_flat' | 'discount_percent'

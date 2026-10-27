@@ -4,7 +4,7 @@ import {
   getNextOffsetInvoiceNumber,
   getNumericPart,
   matchesDocumentNumber,
-} from '../../src/utils/invoiceNumberHelper';
+} from '../../src/utils/pricing/invoiceNumberHelper';
 
 describe('getNextOffsetInvoiceNumber', () => {
   it('returns the base number when it is unused', () => {

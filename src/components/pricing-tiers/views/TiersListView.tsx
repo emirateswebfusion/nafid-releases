@@ -2,7 +2,7 @@ import { type RefObject } from 'react';
 import { Plus, Trash, Pencil, Check, X, Loader2, Tags, Shield, Star, GripVertical, IndianRupee } from 'lucide-react';
 import { Skeleton } from '../../ui/Skeleton';
 import clsx from 'clsx';
-import type { PricingTier } from '../../../utils/pricingTierHelper';
+import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import { isTierDefault } from '../pricingTiersTypes';
 import type { PricingTiersState } from '../hooks/usePricingTiersState';
 

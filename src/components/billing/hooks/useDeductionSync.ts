@@ -2,7 +2,7 @@ import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { scrapApi } from '../../../data/scrap';
-import { getNumericPart } from '../../../utils/invoiceNumberHelper';
+import { getNumericPart } from '../../../utils/pricing/invoiceNumberHelper';
 import { returnsApi } from '../../../data/returns';
 
 export interface UseDeductionSyncContext {

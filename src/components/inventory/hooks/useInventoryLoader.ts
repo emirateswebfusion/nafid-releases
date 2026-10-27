@@ -3,7 +3,7 @@ import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { listProducts, countProducts } from '../../../data/products';
 import { toInventoryProducts } from '../inventoryUtils';
-import { sortProductsBySearchPriority } from '../../../utils/productSort';
+import { sortProductsBySearchPriority } from '../../../utils/pricing/productSort';
 import type { InventoryState } from './useInventoryState';
 
 export interface UseInventoryLoaderContext {

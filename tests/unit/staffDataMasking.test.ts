@@ -8,7 +8,7 @@ import {
   parseStaffDataMaskingConfig,
   shouldApplyStaffMasking,
   type StaffDataMaskingConfig,
-} from '../../src/utils/staffDataMasking';
+} from '../../src/utils/security/staffDataMasking';
 
 describe('isStaffRole', () => {
   it('identifies admin roles as non-staff (case-insensitive and trimmed)', () => {

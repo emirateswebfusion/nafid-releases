@@ -12,7 +12,7 @@ import { isDesktopRuntime } from '../../data/client';
 import { gradesApi } from '../../data/grades';
 import { printingApi } from '../../data/printing';
 import { productsApi } from '../../data/products';
-import { buildBulkPrintItem } from '../../utils/bulkPrintItem';
+import { buildBulkPrintItem } from '../../utils/print/bulkPrintItem';
 
 interface RowData {
   id: string;

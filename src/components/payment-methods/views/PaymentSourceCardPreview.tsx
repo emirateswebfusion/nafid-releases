@@ -1,7 +1,7 @@
 import { ShieldCheck, Star, Lightbulb } from 'lucide-react';
 import clsx from 'clsx';
 import { TYPE_CONFIG } from '../paymentMethodsTypes';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 
 export interface PaymentSourceCardPreviewProps {
   form: { name: string; type: "BANK" | "CARD" | "UPI"; bank_name: string; account_number: string; holder_name: string; upi_id: string; opening_balance: string; is_default: boolean; is_enabled: boolean; sort_order: number; };

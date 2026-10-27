@@ -3,7 +3,7 @@ import { Skeleton } from '../../ui/Skeleton';
 import { Wallet, Plus, Star, Loader2, Check, Copy, History, Pencil, Trash2 } from 'lucide-react';
 import { TYPE_CONFIG } from '../paymentMethodsTypes';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { PaymentSource } from '../paymentMethodsTypes';
 import type { PaymentMethodsState } from '../hooks/usePaymentMethodsState';
 

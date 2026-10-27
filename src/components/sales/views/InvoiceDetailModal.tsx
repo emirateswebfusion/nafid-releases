@@ -3,14 +3,14 @@ import React from 'react';
 import { Modal } from '../../ui/Modal';
 import clsx from 'clsx';
 import { InvoiceTypeBadge, PaymentBadge } from './InvoiceRow';
-import { isAdminRole, hasPermission } from '../../../utils/permissions';
+import { isAdminRole, hasPermission } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import { ArrowDownRight, Edit3, Trash2, Package, CreditCard, Printer, Building, Receipt, Calendar, Clock, CheckCircle2, BookOpen, Smartphone, FileText } from 'lucide-react';
 import { useCartStore } from '../../../store/cartStore';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { formatDate, getUpiDetailsFromInvoice, parseSplitDetails } from '../salesHistoryFormat';
-import { formatCurrency } from '../../../utils/money';
-import { splitTaxAmount } from '../../../utils/checkoutLines';
+import { formatCurrency } from '../../../utils/pricing/money';
+import { splitTaxAmount } from '../../../utils/pricing/checkoutLines';
 import type { SalesInvoiceItemRow, SalesInvoiceRow, UpiSourceOption } from '../salesTypes';
 import { InvoiceItemsTable } from './InvoiceItemsTable';
 

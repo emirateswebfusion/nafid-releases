@@ -1,14 +1,14 @@
 import { useCartStore } from '../../../store/cartStore';
 import { v4 as uuidv4 } from 'uuid';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../../../utils/receiptGenerator';
-import { formatPrinterError } from '../../../utils/printFormatHelper';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../../../utils/print/receiptGenerator';
+import { formatPrinterError } from '../../../utils/print/printFormatHelper';
 import { useTabStore } from '../../../store/tabStore';
 import { cashierApi } from '../../../data/cashier';
 import { isDesktopRuntime } from '../../../data/client';
 import { printingApi } from '../../../data/printing';
 import { scrapApi } from '../../../data/scrap';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
-import { resolveLinePrice } from '../../../utils/linePricing';
+import { resolveLinePrice } from '../../../utils/pricing/linePricing';
 import type { CheckoutContext } from './checkoutHandler';
 
 /**

@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { CashTransactionRow } from '../cashierTypes';
 
 export interface DeleteTransactionDialogProps {

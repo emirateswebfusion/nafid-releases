@@ -24,6 +24,7 @@
  *       electron/db/migrations/, listed in migrations/index.ts.
  *
  *  R14. src/components/ holds folders only: every component lives in its feature folder (or app/, auth/, print/, ui/).
+ *  R15. src/utils/ holds folders only: print/, pricing/, time/, security/ (add a new group folder if none fits).
  *  R13. Every eslint-disable states its reason (`-- why`), and the total number of suppressions may only shrink
  *       (arch-baseline.json `lintSuppressions`): fix the code instead of adding one.
  *  R12. electron/sync/** and electron/main.ts may only call `.prepare(` for the dynamic query builders grandfathered
@@ -111,6 +112,11 @@ for (const full of walk(path.join(root, 'electron'), (n) => n.endsWith('.ts'))) 
 // R14: no loose files directly in src/components.
 for (const name of readdirSync(path.join(root, 'src/components'))) {
   if (statSync(path.join(root, 'src/components', name)).isFile()) violations.push(`src/components/${name}: put it in its feature folder (src/components/<feature>/), or app/, auth/, print/, ui/ (R14).`);
+}
+
+// R15: no loose files directly in src/utils.
+for (const name of readdirSync(path.join(root, 'src/utils'))) {
+  if (statSync(path.join(root, 'src/utils', name)).isFile()) violations.push(`src/utils/${name}: put it in a group folder (src/utils/print|pricing|time|security/) (R15).`);
 }
 
 // R13: lint suppressions need a reason and may not grow.

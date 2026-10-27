@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { type PrinterConfig, type OsPrinterRow, type ServiceChargeProductRow } from '../settingsTypes';
-import { getStoreTimezone } from '../../../utils/timezoneHelper';
-import { type BillSettings, DEFAULT_BILL_SETTINGS } from '../../../utils/receiptGenerator';
+import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
+import { type BillSettings, DEFAULT_BILL_SETTINGS } from '../../../utils/print/receiptGenerator';
 import { type CodeType, DEFAULT_CODE_TYPE } from '../../../config/labelCodeTypes';
 import { type BillingUIConfig, useBillingUIStore } from '../../../store/billingUIStore';
-import { type StaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/staffDataMasking';
-import { type EmergencyPanicConfig, DEFAULT_EMERGENCY_PANIC_CONFIG } from '../../../utils/emergencyPurge';
-import { type ShopClosingOverviewConfig, DEFAULT_SHOP_CLOSING_CONFIG } from '../../../utils/shopClosingHelper';
+import { type StaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/security/staffDataMasking';
+import { type EmergencyPanicConfig, DEFAULT_EMERGENCY_PANIC_CONFIG } from '../../../utils/security/emergencyPurge';
+import { type ShopClosingOverviewConfig, DEFAULT_SHOP_CLOSING_CONFIG } from '../../../utils/time/shopClosingHelper';
 import type { EffectiveCloudState } from '../../../data/sync';
 
 /**
