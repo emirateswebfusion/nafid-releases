@@ -117,6 +117,7 @@ module.exports = {
       private: false,
       releaseType: 'release'
     },
-    ...legacyPublish
+    // Skip the legacy entry when it names the same repo (publishing twice fails with 422 "already exists").
+    ...legacyPublish.filter((p) => p.owner !== repository.owner || p.repo !== repository.repo)
   ] : null
 };
