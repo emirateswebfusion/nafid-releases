@@ -39,7 +39,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     view, setView, loading, isFetching, products, debouncedSearchQuery,
     sortBy, stockFilter, setStockFilter, filterDate, filterDateEnd, formData,
     setFormData, statusMessage, setStatusMessage, showUploadModal, setShowUploadModal, enableRealPaperStock,
-    showPaperOnlyProducts, showPriceTiersInInventory, deleteConfirmProduct, setDeleteConfirmProduct, isDeleting, printQuantity,
+    showPaperOnlyProducts, showZeroPaperStock, showProductGstBadge, showPriceTiersInInventory, deleteConfirmProduct, setDeleteConfirmProduct, isDeleting, printQuantity,
     setPrintQuantity, printPrice, setPrintPrice, printModalProduct, setPrintModalProduct, adjustingStockId,
     adjustModal, setAdjustModal, adjustAmount, setAdjustAmount, adjustPcs, setAdjustPcs,
     priceCoding, viewMode, showLowStockAlert, setShowLowStockAlert, labelCodeType, qrPreviewUrl,
@@ -446,6 +446,8 @@ return (
         isAllSelected={isAllSelected}
         isSomeSelected={isSomeSelected}
         handleToggleSelectAll={handleToggleSelectAll}
+        showZeroPaperStock={showZeroPaperStock}
+        showProductGstBadge={showProductGstBadge}
         showPriceTiersInInventory={showPriceTiersInInventory}
         activePricingTiers={activePricingTiers}
         listScrollRef={listScrollRef}
