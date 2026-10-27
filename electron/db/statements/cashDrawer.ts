@@ -66,6 +66,7 @@ const CASH_SALES_FROM = `
           UPPER(payment_method) IN ('CASH', 'SPLIT')
           OR (UPPER(payment_method) = 'CREDIT' AND (received_amount > 0 OR (split_details IS NOT NULL AND CAST(json_extract(split_details, '$.cash') AS REAL) > 0)))
         )
+        AND (converted_from_invoice_id IS NULL OR converted_from_invoice_id = '')
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
