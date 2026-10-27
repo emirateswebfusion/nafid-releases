@@ -608,7 +608,6 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
-    query += ` AND ${countsInRevenue('i')}`;
     const params: unknown[] = [activeTenantId];
 
     if (onlyUserInvoices && user_id) {
@@ -672,5 +671,6 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
       params.push(startUtc, endUtc);
     }
 
-    return { statement: db.prepare(query), params };
+    // Revenue figures count only revenue bills; `listedStatement` counts every bill the list shows (filing-only too).
+    return { statement: db.prepare(`${query} AND ${countsInRevenue('i')}`), listedStatement: db.prepare(query), params };
 }

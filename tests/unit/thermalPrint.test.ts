@@ -74,6 +74,33 @@ it('does not print a long bill on did-finish-load before its own measurement arr
   expect(print.mock.calls[0][3]).toBeGreaterThan(1800 * 25.4 / 96 * 1000);
 });
 
+it('still prints a receipt whose height could not be measured, with the long fallback page', async () => {
+  const listeners = new Map<string, (height?: number) => Promise<void>>();
+  const print = vi.fn();
+  class Window {
+    webContents = { id: 12, once: () => {} };
+    isDestroyed = () => false;
+    close = vi.fn();
+    loadURL = vi.fn();
+  }
+  const context = {
+    BrowserWindow: Window, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
+    executePrintWithFallback: print, buildReceiptHtml: async () => '',
+    pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
+    ipcMain: { once: (event: string, fn: (height?: number) => Promise<void>) => listeners.set(event, fn) },
+    setTimeout: vi.fn(), clearTimeout: vi.fn(), setImmediate: (fn: () => void) => fn(),
+    path: { join: () => '' }, __dirname: '', currentReceiptText: '', pendingReceiptHeightPx: 0,
+    console: { ...console, warn: vi.fn() }, RECEIPT_FALLBACK_HEIGHT_MICRONS: 600000,
+  };
+  const invoke = runInNewContext(`${compile('printReceiptUSB')}
+printReceiptUSB`, context);
+  void invoke('thermal', 58);
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  await listeners.get('print-ready-12')!(0);
+  expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, 600000, undefined, false, true);
+});
+
 it('reports unsupported thermal dimensions instead of silently printing on a shorter driver page', async () => {
   const print = vi.fn((_options, callback) => callback(false, 'unsupported paper'));
   const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });

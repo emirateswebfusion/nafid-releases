@@ -49,7 +49,7 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
     const dateRange = filterDate
       ? getUtcRangeForStoreDateRange(parseCleanDate(filterDate), filterDateEnd ? parseCleanDate(filterDateEnd) : parseCleanDate(filterDate), activeTenantId)
       : null;
-    const { statement, params } = invoicesSql.getInvoicesSummaryStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, dateRange, showFilingB2b: readFilingB2bVisibility(db, activeTenantId) });
+    const { statement, listedStatement, params } = invoicesSql.getInvoicesSummaryStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, dateRange, showFilingB2b: readFilingB2bVisibility(db, activeTenantId) });
     const row = statement.get(...params) as Record<string, number>;
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
     const totalSalesBeforeDeductions = row ? Number(row.totalSalesBeforeDeductions) || 0 : 0;
@@ -57,8 +57,9 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
     const totalTax = row ? Number(row.totalTax) || 0 : 0;
     const totalDiscount = row ? Number(row.totalDiscount ?? row.discount_total) || 0 : 0;
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
+    const listedInvoices = Number((listedStatement.get(...params) as Record<string, number> | undefined)?.totalInvoices) || 0;
 
-    return { totalSales, totalSalesBeforeDeductions, totalInvoices, totalTax, totalDiscount, avgOrder };
+    return { totalSales, totalSalesBeforeDeductions, totalInvoices, listedInvoices, totalTax, totalDiscount, avgOrder };
   } catch (error) {
     console.error('[db:getInvoicesSummary] Error:', error);
     return { totalSales: 0, totalSalesBeforeDeductions: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
