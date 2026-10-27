@@ -138,7 +138,9 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
 - **Push**: `syncWorker.ts` scans `PENDING` rows per table and posts batches to `POST /api/sync/<entity>`; rows reported in
   `synced[]` become `SYNCED`.
 - **Pull**: `POST /api/sync/delta-pull` with a per-table `since` cursor; local upserts are guarded by
-  `WHERE sync_status != 'PENDING'` so unsynced local edits are not overwritten.
+  `WHERE sync_status != 'PENDING'` so unsynced local edits are not overwritten. Do not add an `updated_at` tiebreak:
+  local `CURRENT_TIMESTAMP` (`2026-10-27 12:00:00`) and server ISO strings (`…T12:00:00Z`) compare as text, so the
+  server always looked newer and pulls overwrote pending party phone edits (`tests/unit/partyPhoneSyncProtection.test.ts`).
 - **LAN**: the primary terminal serves a subset of the sync API to other terminals (`localHostServer.ts`). Every
   endpoint except `/health` requires the **shop pairing key** in the `X-Nafid-Lan-Key` header (401 otherwise). The
   primary generates the key on first start of its LAN server; it is shown in Settings → Network (copy/regenerate)

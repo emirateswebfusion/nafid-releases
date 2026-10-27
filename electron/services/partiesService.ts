@@ -196,8 +196,12 @@ export function updateParty(p: Partial<PartyInput> & { party_id: string }) {
     const hasRestrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined;
     const hasWhatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined;
 
+    const cleanPhone = typeof p.phone === 'string' ? (p.phone.trim() || null) : (p.phone || null);
+    const cleanName = typeof p.name === 'string' ? p.name.trim() : '';
+    // The update always writes the name, so a missing or blank one would erase it.
+    if (!cleanName) return { success: false, error: 'Party name is required' };
     const columns: partiesSql.PartyProfileColumn[] = [];
-    const params: unknown[] = [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null];
+    const params: unknown[] = [cleanName, cleanPhone, p.address || null, p.gstin || null, p.notes || null];
 
     if (hasTier) {
       columns.push('pricing_tier_id');
@@ -265,8 +269,8 @@ export function updateParty(p: Partial<PartyInput> & { party_id: string }) {
       }
       if (cust) {
         partiesSql.updateCustomerByCustomerId(db).run(
-          p.name,
-          p.phone || null,
+          cleanName,
+          cleanPhone,
           p.address || null,
           p.gstin !== undefined ? (p.gstin ? p.gstin.trim().toUpperCase() : null) : null,
           p.notes !== undefined ? (p.notes ? p.notes.trim() : null) : null,

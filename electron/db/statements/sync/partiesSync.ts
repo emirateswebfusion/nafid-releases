@@ -59,7 +59,7 @@ export const insertParties = (db: Db) => db.prepare(`
       created_at = COALESCE(parties.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE parties.sync_status != 'PENDING' OR excluded.updated_at >= parties.updated_at OR parties.updated_at IS NULL
+    WHERE parties.sync_status != 'PENDING'
   `);
 export const selectParties2 = (db: Db) => db.prepare(`
     SELECT party_id FROM parties
@@ -159,7 +159,7 @@ export const insertCustomers = (db: Db) => db.prepare(`
       is_deleted = excluded.is_deleted,
       sync_status = 'SYNCED',
       updated_at = excluded.updated_at
-    WHERE customers.sync_status != 'PENDING' OR excluded.updated_at >= customers.updated_at OR customers.updated_at IS NULL
+    WHERE customers.sync_status != 'PENDING'
   `);
 export const selectCustomers = (db: Db) => db.prepare(`
     SELECT customer_id FROM customers 
@@ -182,7 +182,7 @@ export const updateCustomers = (db: Db) => db.prepare(`
         is_deleted = @is_deleted,
         sync_status = 'SYNCED',
         updated_at = @updated_at
-    WHERE customer_id = @target_customer_id AND (sync_status != 'PENDING' OR @updated_at >= updated_at OR updated_at IS NULL)
+    WHERE customer_id = @target_customer_id AND sync_status != 'PENDING'
   `);
 export const insertLoyaltyTransactions = (db: Db) => db.prepare(`
     INSERT INTO loyalty_transactions (transaction_id, tenant_id, customer_id, invoice_id,
