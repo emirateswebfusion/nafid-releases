@@ -1,6 +1,6 @@
-import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, CustomerRow, InvoiceRow, PaymentSourceRow, SettingRow, SplitDetails } from './typesA.js';
+import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, CustomerRow, InvoiceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
-import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer } from './cashDrawerService.js';
+import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer, adjustPaymentSourcesForInvoice } from './cashDrawerService.js';
 import { findOpenDrawersBeforeDate } from './cashDrawerSession.js';
 import { getStoreTimezoneSetting, parseCleanDate, localDate, localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
@@ -224,20 +224,13 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
             cashierSql.insertCashTransaction(db).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', actualRefundPaid, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
           }
         }
-      } else if (payment_source_id) {
-        // Non-cash payment against a configured bank / card / UPI source
-        const source = cashierSql.findPaymentSourcesBySourceIdAndIsEnabled(db).get(payment_source_id, tenant_id) as PaymentSourceRow | undefined;
-        if (source) {
-          const newBalance = Number(source.current_balance) + received;
-          cashierSql.insertPaymentSourceTransaction(db).run(
-            crypto.randomUUID(), tenant_id, payment_source_id, received,
-            invoice.invoice_number, `Invoice ${invoice.invoice_number} settled via ${payment_method}`,
-            newBalance, user_id, user_name || null
-          );
-          cashierSql.updatePaymentSourceCurrentBalance(db)
-            .run(newBalance, payment_source_id, tenant_id);
-        }
       }
+      // Share billing's account posting, including non-cash portions of mixed payments.
+      adjustPaymentSourcesForInvoice(db, targetTenantId, {
+        invoice_number: invoice.invoice_number, payment_method, payment_source_id,
+        received_amount: received, grand_total: 0, split_details: splitStr,
+        user_id, user_name,
+      });
       
       if (drawer) {
         reconcileCashDrawer(db, tenant_id, drawer);

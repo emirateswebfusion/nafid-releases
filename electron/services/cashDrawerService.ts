@@ -247,7 +247,7 @@ export function adjustPaymentSourcesForInvoice(
         source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
       }
       if (!source) {
-        source = cashDrawerSql.findOnePaymentSourceByTypeAndIsEnabled(db).get(tenantId, sourceType) as PaymentSourceRow | undefined;
+        source = cashDrawerSql.findOnePaymentSourceByTypeAndIsEnabled(db).get(tenantId, sourceType === 'BANK_TRANSFER' ? 'BANK' : sourceType) as PaymentSourceRow | undefined;
       }
       if (source) {
         const delta = isDeleteOrCancel ? -amount : amount;

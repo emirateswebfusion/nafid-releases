@@ -250,7 +250,7 @@ export function SplitSettlementDialog({
                 disabled={!isMatched || totalEntered <= 0 || splitSubmitting}
                 onClick={async () => {
                   setSplitSubmitting(true);
-                  const splitDetails = { cash: c, card: cd, upi: u, bank_transfer: b };
+                  const splitDetails = { cash: c, card: cd, upi: u, bank_transfer: b, upi_source_id: u > 0 && upiPageConfig.settlement ? (selectedUpiSourceId || upiSources[0]?.source_id || undefined) : undefined };
                   const r = await cashierApi.settlePayment({
                     tenant_id: tenantId!,
                     invoice_id: splitModalInvoice.invoice_id,
