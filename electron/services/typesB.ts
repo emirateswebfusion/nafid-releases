@@ -380,6 +380,13 @@ export interface ReturnRow extends Record<string, unknown> {
     refund_method: string;
     user_id: string;
     user_name: string;
+    /** Original bill fields joined by `findReturnsByReturnNumber3`. */
+    orig_invoice_number?: string | null;
+    orig_customer_id?: string | null;
+    orig_customer_name?: string | null;
+    orig_customer_phone?: string | null;
+    orig_customer_address?: string | null;
+    orig_customer_gstin?: string | null;
 }
 export interface WarrantyInput {
     warranty_id: string;

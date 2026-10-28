@@ -169,7 +169,13 @@ export async function updateInvoice(payload: {
       invoice.customer_address
     );
 
-    validateInvoicePointsEdit(db, payload.invoice_id, customerId || invoice.customer_id || existingInv.customer_id || null, invoice.points_redeemed, invoice.points_redeemed_discount);
+    // A bill whose customer was cleared is a walk-in bill: it keeps no customer (and so no credit on anyone's ledger).
+    // (A payload without customer fields keeps the bill's customer.)
+    const customerCleared = (invoice.customer_name !== undefined || invoice.customer_phone !== undefined)
+      && !(invoice.customer_name || '').trim() && !(invoice.customer_phone || '').trim();
+    const hasCustomer = !customerCleared;
+    const billCustomerId = hasCustomer ? (customerId || invoice.customer_id || existingInv.customer_id || null) : null;
+    validateInvoicePointsEdit(db, payload.invoice_id, billCustomerId, invoice.points_redeemed, invoice.points_redeemed_discount);
     captureInvoicePoints(db, payload.invoice_id);
     // 1. Get old items for stock adjustment
     const oldItems = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity2(db).all(payload.invoice_id) as InvoiceItemRow[];
@@ -190,7 +196,7 @@ export async function updateInvoice(payload: {
       invoice.customer_address || null,
       invoice.scrap_deduction ?? 0, invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0, invoice.return_invoice_number || null,
-      customerId || invoice.customer_id || existingInv.customer_id || null,
+      billCustomerId,
       invoice.cgst_total ?? 0, invoice.sgst_total ?? 0,
       invoice.igst_total ?? 0, invoice.supply_type || 'INTRA',
       invoice.notes || invoice.description || null,
@@ -273,7 +279,8 @@ export async function updateInvoice(payload: {
       payment_method: invoice.payment_method,
       received_amount: finalReceivedAmount,
       balance_amount: finalBalanceAmount,
-      customer_id: customerId || payload.customer_id || invoice.customer_id || existingInv.customer_id,
+      // The customer now on the bill (resolved from its name / phone), never the previous one.
+      customer_id: hasCustomer ? (customerId || payload.customer_id || existingInv.customer_id) : null,
       customer_name: invoice.customer_name,
       customer_phone: invoice.customer_phone,
       customer_address: invoice.customer_address,
@@ -448,16 +455,9 @@ export function deleteInvoice(invoice_id: string) {
       invoicesSql.updateInvoiceIsDeletedAndDeletedAt(db).run(invoice_id);
       reconcileInvoicePoints(db, invoice_id);
 
-      // Soft-delete party_ledger entries immediately within transaction
-      if (existingInv && existingInv.invoice_number) {
-        const invNum = String(existingInv.invoice_number).trim();
-        invoicesSql.updatePartyLedgerIsDeleted(db).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
-      }
+      // Retire this bill's own ledger rows (and give back a return credit it used), then recalculate the balances.
+      if (existingInv) syncInvoiceCreditLedger(db, existingInv, true);
     })();
-
-    if (existingInv) {
-      syncInvoiceCreditLedger(db, existingInv, true);
-    }
 
     if (existingInv) {
       adjustPaymentSourcesForInvoice(db, existingInv.tenant_id as string, existingInv, true);

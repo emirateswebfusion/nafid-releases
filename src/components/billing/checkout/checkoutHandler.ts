@@ -122,7 +122,15 @@ export interface CheckoutContext {
 }
 
 export function createCheckoutHandler(ctx: CheckoutContext) {
-  const { items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, customerName, customerPhone, tenantId, customerAddress, userId, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod, splitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem } = ctx;
+  const { items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, customerName, customerPhone, tenantId, customerAddress, userId, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod: tabPaymentMethod, splitDetails: tabSplitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem } = ctx;
+  // Credit mode with amounts in the Cash / Card / UPI / Cheque tiles is a split payment: save it as SPLIT with each
+  // part kept and the rest on credit. (Saved as CREDIT, the parts collapsed into one "received" amount that every
+  // report and the ledger count as cash.)
+  const creditModeParts = tabPaymentMethod === 'CREDIT' ? splitTotal : 0;
+  const paymentMethod: PaymentMethod = creditModeParts > 0 ? 'SPLIT' : tabPaymentMethod;
+  const splitDetails: SplitDetails = creditModeParts > 0
+    ? { ...tabSplitDetails, credit: Math.max(0, Math.round((displayGrandTotal - creditModeParts) * 100) / 100) }
+    : tabSplitDetails;
   return async (saveOnly = false) => {
     if (items.length === 0) {
       setHardwareError('Cart is empty. Add items to checkout.');
@@ -209,6 +217,11 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         if (displayGrandTotal > 0 && totalSplitEntered < displayGrandTotal && Math.abs(displayGrandTotal - totalSplitEntered) > 0.01) {
           const shortfall = (displayGrandTotal - totalSplitEntered).toFixed(2);
           setHardwareError(`Split payment total (₹${totalSplitEntered.toFixed(2)}) is less than Grand Total (₹${displayGrandTotal.toFixed(2)}). Remaining shortfall: ₹${shortfall}`);
+          return;
+        }
+        // With a credit part the amounts must add up exactly: more would leave the customer's due ambiguous.
+        if ((Number(splitDetails?.credit) || 0) > 0 && totalSplitEntered - displayGrandTotal > 0.01) {
+          setHardwareError(`Split payment total (₹${totalSplitEntered.toFixed(2)}) is more than Grand Total (₹${displayGrandTotal.toFixed(2)}). Reduce the credit or payment amounts by ₹${(totalSplitEntered - displayGrandTotal).toFixed(2)}`);
           return;
         }
       }
@@ -353,7 +366,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           const excess = projectedBalance - creditLimit;
           const fmtNum = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           setHardwareError(
-            `Credit Limit Exceeded for ${matchedParty.name}! Limit: ï¿½,1${fmtNum(creditLimit)}, Current Due: ï¿½,1${fmtNum(partyOldBalance)}, Bill Credit: ï¿½,1${fmtNum(newPartyContribution)}. Exceeds limit by ï¿½,1${fmtNum(excess)} ï¿½?" Cannot complete bill.`
+            `Credit Limit Exceeded for ${matchedParty.name}! Limit: ₹${fmtNum(creditLimit)}, Current Due: ₹${fmtNum(partyOldBalance)}, Bill Credit: ₹${fmtNum(newPartyContribution)}. Exceeds limit by ₹${fmtNum(excess)} — Cannot complete bill.`
           );
           return;
         }

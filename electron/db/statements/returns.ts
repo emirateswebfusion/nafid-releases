@@ -46,8 +46,11 @@ export const findReturnsByReturnNumber2 = (db: Db) => db.prepare('SELECT * FROM 
 export const findReturns = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND grand_total > COALESCE(adjusted_amount, 0)');
 
 export const findReturnsByReturnNumber3 = (db: Db) => db.prepare(`
-    SELECT return_id, return_number, customer_name, customer_phone, customer_address, grand_total, refund_method, created_at, user_id
-    FROM returns WHERE tenant_id = ? AND return_number = ?
+    SELECT r.return_id, r.return_number, r.customer_name, r.customer_phone, r.customer_address, r.grand_total, r.refund_method, r.created_at, r.user_id,
+      i.invoice_number AS orig_invoice_number, i.customer_id AS orig_customer_id, i.customer_name AS orig_customer_name,
+      i.customer_phone AS orig_customer_phone, i.customer_address AS orig_customer_address, i.customer_gstin AS orig_customer_gstin
+    FROM returns r LEFT JOIN invoices i ON i.invoice_id = r.invoice_id
+    WHERE r.tenant_id = ? AND r.return_number = ?
   `);
 
 export const updateReturnAdjustedAmountAndAdjustedInvoiceNumber = (db: Db) => db.prepare(`
@@ -65,15 +68,6 @@ export const findReturnsByReturnId = (db: Db) => db.prepare('SELECT * FROM retur
 export const findReturnItemsByReturnIdProductIdAndQuantity = (db: Db) => db.prepare('SELECT product_id, quantity FROM return_items WHERE return_id = ?');
 
 export const updateProductCurrentStockAlt = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
-
-export const findPartyLedgerByReferenceNumber = (db: Db) => db.prepare(`
-        SELECT ledger_id, party_id FROM party_ledger
-        WHERE reference_number = ?
-           OR reference_number LIKE ? || '-%'
-           OR description LIKE '%' || ? || '%'
-      `);
-
-export const updatePartyLedgerIsDeleted = (db: Db) => db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?");
 
 export const deleteReturnItemByReturnId = (db: Db) => db.prepare('DELETE FROM return_items WHERE return_id = ?');
 

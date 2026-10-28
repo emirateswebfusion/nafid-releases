@@ -3,7 +3,7 @@ vi.mock('../../electron/db/localDb', () => ({ getDb: vi.fn(() => { throw new Err
 vi.mock('../../electron/db/customerIdentity', () => ({ upsertCustomerRecord: vi.fn() }));
 vi.mock('../../electron/services/storeTime', () => ({ localTimestamp: vi.fn(), localDate: vi.fn() }));
 vi.mock('../../electron/services/cashDrawerService', () => ({ getOpenCashDrawer: vi.fn() }));
-vi.mock('../../electron/services/partyLedgerService', () => ({ syncReturnLedger: vi.fn(), recalcPartyBalances: vi.fn() }));
+vi.mock('../../electron/services/partyLedgerService', () => ({ syncReturnLedger: vi.fn(), removeReturnLedger: vi.fn() }));
 vi.mock('../../electron/services/invoiceNumberService', () => ({ getOrInitTerminalCode: vi.fn() }));
 import { createReturn } from '../../electron/services/returnsService';
 import { getDb } from '../../electron/db/localDb';

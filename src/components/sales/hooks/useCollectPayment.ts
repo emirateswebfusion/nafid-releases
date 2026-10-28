@@ -31,8 +31,13 @@ export function useCollectPayment(ctx: UseCollectPaymentContext) {
     setCollectPaymentSaving(true);
     try {
       const { tenantId } = useAuthStore.getState();
-      const isCreditPayment = collectPaymentMethod === 'CREDIT';
       const invGrandTotal = Number(selectedInvoice.grand_total) || 0;
+      // Cash received short of the bill total is a part payment: the rest stays on the customer's credit
+      // (saved as CREDIT with the amount paid), never a fully paid cash bill.
+      const paymentMethod = collectPaymentMethod === 'CASH' && collectReceivedAmount > 0 && collectReceivedAmount < invGrandTotal - 0.005
+        ? 'CREDIT'
+        : collectPaymentMethod;
+      const isCreditPayment = paymentMethod === 'CREDIT';
       const balanceAmount = isCreditPayment
         ? Math.max(0, invGrandTotal - collectReceivedAmount)
         : (collectReceivedAmount > invGrandTotal ? (collectReceivedAmount - invGrandTotal) : 0);
@@ -45,7 +50,7 @@ export function useCollectPayment(ctx: UseCollectPaymentContext) {
       const result = await invoicesApi.updateInvoicePayment({
         invoice_id: selectedInvoice.invoice_id,
         tenant_id: tenantId || 'global',
-        payment_method: collectPaymentMethod,
+        payment_method: paymentMethod,
         received_amount: collectReceivedAmount,
         balance_amount: balanceAmount,
         split_details: collectSplitDetails,
@@ -57,7 +62,7 @@ export function useCollectPayment(ctx: UseCollectPaymentContext) {
         // Refresh the selected invoice to show updated payment
         setSelectedInvoice({
           ...selectedInvoice,
-          payment_method: collectPaymentMethod,
+          payment_method: paymentMethod,
           received_amount: collectReceivedAmount,
           balance_amount: balanceAmount,
           split_details: collectSplitDetails && typeof collectSplitDetails === 'object' ? JSON.stringify(collectSplitDetails) : (collectSplitDetails && collectSplitDetails !== 'null' ? collectSplitDetails : null),

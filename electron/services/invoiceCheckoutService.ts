@@ -30,7 +30,11 @@ export function checkout(payload: CheckoutPayload) {
 
   // Deduplication guard: block duplicate checkout calls within a 4-second window
   const itemsSig = (items || []).map((i: InvoiceItem) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
-  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}`;
+  // The customer and payment are part of the key: the same goods billed to another customer (or paid differently)
+  // within 4 s is a different bill, not a double click, and must not be dropped.
+  const customerSig = `${(invoice.customer_name || '').trim().toLowerCase()}|${(invoice.customer_phone || '').trim()}`;
+  const paymentSig = `${invoice.payment_method || ''}|${invoice.received_amount ?? ''}|${typeof invoice.split_details === 'string' ? invoice.split_details : JSON.stringify(invoice.split_details ?? null)}`;
+  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}:${customerSig}:${paymentSig}`;
   const now = Date.now();
   const cached = recentCheckoutsCache.get(cacheKey);
   if (cached && (now - cached.timestamp < 4000)) {

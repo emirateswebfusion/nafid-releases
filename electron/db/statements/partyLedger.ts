@@ -2,57 +2,82 @@ import type { Db } from './types.js';
 
 /** SQL statements used by services/partyLedgerService.ts. Each factory prepares its statement on the given connection. */
 
-export const findPartyLedgerByPartyId = (db: Db) => db.prepare(`
-      SELECT reference_number, description, credit_amount, debit_amount, COUNT(*) as cnt 
-      FROM party_ledger 
-      WHERE party_id = ? 
-        AND reference_number IS NOT NULL 
-        AND TRIM(reference_number) <> '' 
-        AND (is_deleted IS NULL OR is_deleted = 0)
-      GROUP BY reference_number, description, credit_amount, debit_amount 
-      HAVING cnt > 1
+/**
+ * SQL condition: ledger row `pl` was posted by bill number `inv` itself: its sale entry (reference = the bill number,
+ * "Credit Sale …" / "Cash Sale …") or a payment taken at checkout (reference = bill number + -PAY/-CASH/-UPI/…).
+ * Exact references only: a LIKE on the number also matched bill 10 for bill 1, and payments or returns that merely
+ * mention the bill in their description. Callers add the tenant condition.
+ */
+export const invoiceOwnedEntry = (inv: string) => `(
+  (pl.reference_number = ${inv} AND (pl.description LIKE 'Credit Sale %' OR pl.description LIKE 'Cash Sale %'))
+  OR pl.reference_number IN (${inv} || '-PAY', ${inv} || '-CASH', ${inv} || '-UPI', ${inv} || '-CARD', ${inv} || '-BANK', ${inv} || '-CHEQUE')
+)`;
+
+/** Active ledger rows a bill posted itself (see `invoiceOwnedEntry`). Params: tenant_id, invoice_number. */
+export const findInvoiceLedgerEntries = (db: Db) => db.prepare(`
+      SELECT pl.* FROM party_ledger pl
+      WHERE pl.tenant_id = @tenant AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+        AND ${invoiceOwnedEntry('@inv')}
     `);
 
-export const findPartyLedgerByPartyIdAndReferenceNumber = (db: Db) => db.prepare(`
-        SELECT ledger_id FROM party_ledger
-        WHERE party_id = ? 
-          AND reference_number = ? 
-          AND description = ?
-          AND credit_amount = ?
-          AND debit_amount = ?
-          AND (is_deleted IS NULL OR is_deleted = 0)
-        ORDER BY created_at ASC, rowid ASC
-      `);
+/** Return-credit uses posted when a bill consumed an ADJUST_BILL return (reference `<return>-ADJ-<bill>`). */
+export const findReturnCreditUses = (db: Db, deleted: boolean) => db.prepare(`
+      SELECT * FROM party_ledger
+      WHERE tenant_id = @tenant AND COALESCE(is_deleted, 0) = ${deleted ? 1 : 0}
+        AND SUBSTR(reference_number, -LENGTH('-ADJ-' || @inv)) = '-ADJ-' || @inv
+    `);
+
+export const updateReturnAdjustedAmount = (db: Db) => db.prepare(`
+      UPDATE returns SET adjusted_amount = MAX(0, ROUND(COALESCE(adjusted_amount, 0) + ?, 2)), sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ? AND return_number = ?
+    `);
+
+export const restorePartyLedgerEntry = (db: Db) => db.prepare(`
+      UPDATE party_ledger SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?
+    `);
+
+/** Insert or rewrite one ledger row by id (both sides written, so a row can change side). */
+export const upsertPartyLedgerEntry = (db: Db) => db.prepare(`
+      INSERT INTO party_ledger (
+        ledger_id, party_id, tenant_id, transaction_date, description,
+        credit_amount, debit_amount, running_balance, balance_type,
+        payment_method, reference_number, created_by, created_by_name,
+        is_deleted, sync_status, created_at, updated_at
+      )
+      VALUES (@ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount, 0, @balance_type,
+        @payment_method, @reference_number, @created_by, @created_by_name, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(ledger_id) DO UPDATE SET
+        party_id = excluded.party_id,
+        credit_amount = excluded.credit_amount,
+        debit_amount = excluded.debit_amount,
+        description = excluded.description,
+        transaction_date = excluded.transaction_date,
+        balance_type = excluded.balance_type,
+        payment_method = excluded.payment_method,
+        reference_number = excluded.reference_number,
+        is_deleted = 0,
+        sync_status = 'PENDING',
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+/** Active ledger rows of one return: the return itself, its money refund and its credit uses. Params: tenant_id, return_number. */
+export const findReturnLedgerEntries = (db: Db) => db.prepare(`
+      SELECT * FROM party_ledger
+      WHERE tenant_id = @tenant AND (is_deleted IS NULL OR is_deleted = 0)
+        AND (reference_number = @ret OR reference_number = @ret || '-REFUND'
+          OR SUBSTR(reference_number, 1, LENGTH(@ret || '-ADJ-')) = @ret || '-ADJ-')
+    `);
 
 export const updatePartyLedgerIsDeleted = (db: Db) => db.prepare(`
-          UPDATE party_ledger 
-          SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+          UPDATE party_ledger
+          SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
           WHERE ledger_id = ?
         `);
-
-export const findPartyLedgerByPartyId2 = (db: Db) => db.prepare(`
-      SELECT description, credit_amount, debit_amount, transaction_date, COUNT(*) as cnt
-      FROM party_ledger
-      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      GROUP BY description, credit_amount, debit_amount, transaction_date
-      HAVING cnt > 1
-    `);
-
-export const findPartyLedgerByPartyIdAndDescription = (db: Db) => db.prepare(`
-        SELECT ledger_id FROM party_ledger
-        WHERE party_id = ? 
-          AND description = ? 
-          AND credit_amount = ? 
-          AND debit_amount = ? 
-          AND transaction_date = ? 
-          AND (is_deleted IS NULL OR is_deleted = 0)
-        ORDER BY created_at ASC, rowid ASC
-      `);
 
 export const findPartyLedgerByPartyId3 = (db: Db) => db.prepare(`
       SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
       WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      ORDER BY transaction_date ASC, created_at ASC
+      ORDER BY transaction_date ASC, created_at ASC, rowid ASC
     `);
 
 export const updatePartyLedgerRunningBalance = (db: Db) => db.prepare(`UPDATE party_ledger SET running_balance = ? WHERE ledger_id = ?`);
@@ -66,17 +91,6 @@ export const findOnePartyLedgerByPartyId = (db: Db) => db.prepare(`SELECT transa
 
 export const updatePartyByPartyId = (db: Db) => db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`);
 
-export const findPartyLedgerByReferenceNumber = (db: Db) => db.prepare(`
-        SELECT ledger_id, party_id FROM party_ledger
-        WHERE (
-          reference_number = ? 
-          OR reference_number = ? 
-          OR reference_number LIKE ? 
-          OR description LIKE ?
-        )
-        AND (is_deleted IS NULL OR is_deleted = 0)
-      `);
-
 export const updatePartyLedgerRunningBalanceAlt = (db: Db) => db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`);
 
 export const findStaffTransactionsByReferenceNumberAndType = (db: Db) => db.prepare(`
@@ -87,17 +101,6 @@ export const findStaffTransactionsByReferenceNumberAndType = (db: Db) => db.prep
 export const deleteStaffLedgerByTransactionId = (db: Db) => db.prepare(`DELETE FROM staff_ledger WHERE transaction_id = ?`);
 
 export const deleteStaffTransactionByTransactionId = (db: Db) => db.prepare(`DELETE FROM staff_transactions WHERE transaction_id = ?`);
-
-export const findPartyLedgerByReferenceNumber2 = (db: Db) => db.prepare(`
-      SELECT * FROM party_ledger 
-      WHERE (
-        reference_number = ? 
-        OR reference_number = ? 
-        OR reference_number LIKE ?
-        OR description LIKE ?
-      )
-      AND (is_deleted IS NULL OR is_deleted = 0)
-    `);
 
 export const findOneSettingByKey = (db: Db) => db.prepare(`SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'feature_flags' LIMIT 1`);
 
@@ -190,47 +193,20 @@ export const upsertPartyLedger2 = (db: Db) => db.prepare(`
       `);
 
 export const findOnePartyLedgerByReferenceNumber = (db: Db) => db.prepare(`
-      SELECT * FROM party_ledger WHERE tenant_id = ? AND reference_number = ? LIMIT 1
+      SELECT * FROM party_ledger WHERE tenant_id = ? AND reference_number = ? ORDER BY COALESCE(is_deleted, 0) ASC LIMIT 1
     `);
 
-export const updatePartyLedgerByLedgerId = (db: Db) => db.prepare(`
-        UPDATE party_ledger SET
-          credit_amount = 0, debit_amount = ?, description = ?, transaction_date = ?,
-          balance_type = ?, payment_method = ?, is_deleted = 0,
-          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-        WHERE ledger_id = ?
-      `);
-
-export const upsertPartyLedger3 = (db: Db) => db.prepare(`
-        INSERT INTO party_ledger (
-          ledger_id, party_id, tenant_id, transaction_date, description,
-          credit_amount, debit_amount, running_balance, balance_type,
-          payment_method, reference_number, created_by, created_by_name,
-          is_deleted, sync_status, created_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT(ledger_id) DO UPDATE SET
-          credit_amount = 0,
-          debit_amount = excluded.debit_amount,
-          description = excluded.description,
-          transaction_date = excluded.transaction_date,
-          balance_type = excluded.balance_type,
-          payment_method = excluded.payment_method,
-          is_deleted = 0,
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-      `);
+/** SQL condition: a SPLIT payment of invoice `i` with a credit part above zero. */
+const splitCredit = `(UPPER(i.payment_method) = 'SPLIT' AND json_valid(i.split_details) AND CAST(json_extract(i.split_details, '$.credit') AS REAL) > 0)`;
 
 export const findInvoicesByReferenceNumber = (db: Db) => db.prepare(`
       SELECT i.* FROM invoices i
-      WHERE (
-        UPPER(i.payment_method) = 'CREDIT'
-        OR (UPPER(i.payment_method) = 'SPLIT' AND i.split_details LIKE '%"credit":%' AND i.split_details NOT LIKE '%"credit":0%')
-      )
+      WHERE (UPPER(i.payment_method) = 'CREDIT' OR ${splitCredit})
         AND (i.is_deleted IS NULL OR i.is_deleted = 0)
         AND NOT EXISTS (
           SELECT 1 FROM party_ledger pl
-          WHERE pl.reference_number = i.invoice_number
+          WHERE pl.tenant_id = i.tenant_id
+            AND ${invoiceOwnedEntry('i.invoice_number')}
             AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
         )
     `);
@@ -241,7 +217,7 @@ export const findReturnsByReferenceNumber = (db: Db) => db.prepare(`
         LEFT JOIN invoices i ON i.invoice_id = r.invoice_id
         WHERE (
           UPPER(COALESCE(i.payment_method, '')) = 'CREDIT'
-          OR (UPPER(COALESCE(i.payment_method, '')) = 'SPLIT' AND i.split_details LIKE '%"credit":%' AND i.split_details NOT LIKE '%"credit":0%')
+          OR ${splitCredit}
           OR UPPER(COALESCE(r.refund_method, '')) IN ('CREDIT', 'STORE_CREDIT', 'ADJUST_BILL')
         )
           AND (i.is_deleted IS NULL OR i.is_deleted = 0)
@@ -253,20 +229,21 @@ export const findReturnsByReferenceNumber = (db: Db) => db.prepare(`
           )
           AND NOT EXISTS (
             SELECT 1 FROM party_ledger pl
-            WHERE pl.reference_number = r.return_number
+            WHERE pl.tenant_id = r.tenant_id
+              AND pl.reference_number = r.return_number
               AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
           )
       `);
 
+/** Active rows posted by bills that are now deleted (same shop, exact bill references). */
 export const findPartyLedger = (db: Db) => db.prepare(`
         SELECT pl.ledger_id, pl.party_id FROM party_ledger pl
-        JOIN invoices i ON (
-          i.invoice_number = pl.reference_number 
-          OR pl.reference_number = i.invoice_number || '-PAY'
-          OR pl.reference_number LIKE i.invoice_number || '-%'
-          OR pl.description LIKE '%' || i.invoice_number || '%'
-        )
+        JOIN invoices i ON i.tenant_id = pl.tenant_id AND ${invoiceOwnedEntry('i.invoice_number')}
         WHERE i.is_deleted = 1 AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+          AND NOT EXISTS (
+            SELECT 1 FROM invoices live WHERE live.tenant_id = i.tenant_id AND live.invoice_number = i.invoice_number
+              AND (live.is_deleted IS NULL OR live.is_deleted = 0)
+          )
       `);
 
 export const findOneCustomerByPhoneAndCustomerId = (db: Db) => db.prepare(`
@@ -284,9 +261,9 @@ export const findOneCustomerByPhoneAndCustomerId = (db: Db) => db.prepare(`
   `);
 
 export const findPartyLedgerByPartyId5 = (db: Db) => db.prepare(`
-      SELECT ledger_id, debit_amount, reference_number, transaction_date 
-      FROM party_ledger 
-      WHERE party_id = ? AND tenant_id = ? AND debit_amount > 0 AND (is_deleted IS NULL OR is_deleted = 0)
+      SELECT ledger_id, credit_amount, debit_amount, reference_number, transaction_date
+      FROM party_ledger
+      WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY transaction_date ASC, created_at ASC
     `);
 
@@ -328,21 +305,21 @@ export const recalcAllPartyBalances = (db: Db, tenantClause: string | number) =>
              FROM party_ledger pl
              WHERE pl.party_id = parties.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-            parties.balance, 0
+            0
           ),
           gst_balance = COALESCE(
             (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
              FROM party_ledger pl
              WHERE pl.party_id = parties.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-            parties.gst_balance, parties.balance, 0
+            0
           ),
           estimate_balance = COALESCE(
             (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
              FROM party_ledger pl
              WHERE pl.party_id = parties.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-            parties.estimate_balance, 0
+            0
           ),
           last_transaction_date = COALESCE(
             (SELECT MAX(pl.transaction_date)
@@ -351,5 +328,6 @@ export const recalcAllPartyBalances = (db: Db, tenantClause: string | number) =>
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
             parties.last_transaction_date
           )
-      ${tenantClause} parties.party_id IN (SELECT DISTINCT party_id FROM party_ledger pl WHERE pl.is_deleted IS NULL OR pl.is_deleted = 0)
+      -- Every party with ledger rows, also when all of them are deleted (its balance is then zero, not the stale stored value).
+      ${tenantClause} parties.party_id IN (SELECT DISTINCT party_id FROM party_ledger pl)
     `);
