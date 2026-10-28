@@ -25,13 +25,6 @@ export const updateInvoiceConvertedToInvoiceIdAndConvertedToInvoiceNumber = (db:
           WHERE invoice_id = ?
         `);
 
-export const updatePartyLedgerIsDeleted = (db: Db) => db.prepare(`
-          UPDATE party_ledger
-          SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-          WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
-            AND is_deleted = 1
-        `);
-
 export const findProducts = (db: Db) => db.prepare(`
       SELECT product_id, name, COALESCE(sku_barcode, '') AS barcode, category, current_stock, base_price, updated_at
       FROM products

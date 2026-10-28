@@ -8,48 +8,31 @@ import type Database from 'better-sqlite3';
 import type { Db } from '../db/statements/types.js';
 import type { CreditLedgerInvoice, PartyLedgerBalanceRow, PartyLedgerRow, ReturnRow, SettingRow, SplitDetails, StaffRow, StaffTransactionRow } from './typesA.js';
 
-// Recompute a party's GST / Estimate / total balances from its ledger entries
+/**
+ * Party (customer / supplier) credit ledger. The ledger rows are the only source of a party's balance:
+ * balance = Σ credit_amount − Σ debit_amount over its active rows (positive = the party owes the shop).
+ *
+ * A bill posts its own rows with deterministic ids and exact references (`<bill>` for the sale, `<bill>-PAY|-CASH|…`
+ * for payments taken at checkout); re-posting a bill first retires exactly those rows, so edits, payment changes and
+ * customer changes replace the bill's adjustment instead of adding to it. Rows of other bills, manual payments and
+ * returns are never touched by a bill.
+ */
+
+const money = (n: unknown) => Math.round((Number(n) || 0) * 100) / 100;
+
+// Recompute a party's running balances and its GST / Estimate / total balances from its active ledger rows
 export function recalcPartyBalances(db: Db, partyId: string) {
-  try {
-    // 1. Deduplicate entries by reference_number, description, credit_amount, and debit_amount
-    const refDups = partyLedgerSql.findPartyLedgerByPartyId(db).all(partyId) as PartyLedgerRow[];
-
-    for (const d of refDups) {
-      const rows = partyLedgerSql.findPartyLedgerByPartyIdAndReferenceNumber(db).all(partyId, d.reference_number, d.description, d.credit_amount, d.debit_amount) as PartyLedgerRow[];
-
-      for (let i = 1; i < rows.length; i++) {
-        partyLedgerSql.updatePartyLedgerIsDeleted(db).run(rows[i].ledger_id);
-      }
-    }
-
-    // 2. Deduplicate exact match entries (same description, credit_amount, debit_amount, transaction_date)
-    const exactDups = partyLedgerSql.findPartyLedgerByPartyId2(db).all(partyId) as PartyLedgerRow[];
-
-    for (const d of exactDups) {
-      const rows = partyLedgerSql.findPartyLedgerByPartyIdAndDescription(db).all(partyId, d.description, d.credit_amount, d.debit_amount, d.transaction_date) as PartyLedgerRow[];
-
-      for (let i = 1; i < rows.length; i++) {
-        partyLedgerSql.updatePartyLedgerIsDeleted(db).run(rows[i].ledger_id);
-      }
-    }
-
-    // 3. Re-sequence running_balance for all remaining active entries
-    const activeEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(partyId) as PartyLedgerRow[];
-
-    let running = 0;
-    for (const row of activeEntries) {
-      running += (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0);
-      running = Math.round(running * 100) / 100;
-      partyLedgerSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
-    }
-  } catch (err) {
-    console.error('[recalcPartyBalances] Deduplication error:', err);
+  const activeEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(partyId) as PartyLedgerRow[];
+  let running = 0;
+  for (const row of activeEntries) {
+    running = money(running + (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0));
+    partyLedgerSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
   }
 
   const rows = partyLedgerSql.findPartyLedgerByPartyId4(db).get(partyId) as PartyLedgerBalanceRow;
-  const gst = Math.round((parseFloat(rows.gst as string) || 0) * 100) / 100;
-  const estimate = Math.round((parseFloat(rows.estimate as string) || 0) * 100) / 100;
-  const total = Math.round((gst + estimate) * 100) / 100;
+  const gst = money(parseFloat(rows.gst as string));
+  const estimate = money(parseFloat(rows.estimate as string));
+  const total = money(gst + estimate);
   const latest = partyLedgerSql.findOnePartyLedgerByPartyId(db).get(partyId) as PartyLedgerRow | undefined;
   partyLedgerSql.updatePartyByPartyId(db)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
@@ -66,6 +49,85 @@ export function reconcileAllPartyBalances(db: Db, tenantId?: string) {
   }
 }
 
+/** Soft-delete ledger rows and recalculate every party they belonged to. */
+function retireEntries(db: Db, rows: PartyLedgerRow[], keepParty?: string) {
+  const parties = new Set<string>();
+  for (const row of rows) {
+    partyLedgerSql.updatePartyLedgerIsDeleted(db).run(row.ledger_id);
+    parties.add(row.party_id);
+  }
+  for (const partyId of parties) if (partyId !== keepParty) recalcPartyBalances(db, partyId);
+}
+
+/**
+ * A bill consumed an ADJUST_BILL return credit (`<return>-ADJ-<bill>` rows). Deleting the bill gives the credit back
+ * (`release`), restoring the bill uses it again; the return's adjusted amount follows.
+ */
+export function setInvoiceReturnCreditUse(db: Db, tenantId: string, invoiceNumber: string, inUse: boolean) {
+  const rows = partyLedgerSql.findReturnCreditUses(db, inUse).all({ tenant: tenantId, inv: invoiceNumber }) as PartyLedgerRow[];
+  const parties = new Set<string>();
+  for (const row of rows) {
+    if (inUse) partyLedgerSql.restorePartyLedgerEntry(db).run(row.ledger_id);
+    else partyLedgerSql.updatePartyLedgerIsDeleted(db).run(row.ledger_id);
+    const returnNumber = String(row.reference_number || '').slice(0, -(`-ADJ-${invoiceNumber}`).length);
+    const amount = money(Number(row.credit_amount) || Number(row.debit_amount));
+    if (returnNumber) partyLedgerSql.updateReturnAdjustedAmount(db).run(inUse ? amount : -amount, tenantId, returnNumber);
+    parties.add(row.party_id);
+  }
+  for (const partyId of parties) recalcPartyBalances(db, partyId);
+}
+
+function parseSplit(raw: CreditLedgerInvoice['split_details']): SplitDetails | null {
+  if (!raw || raw === 'null') return null;
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    return null;
+  }
+}
+
+/** Reference suffixes of the payments a bill takes at checkout (`<bill>-PAY`, `<bill>-CASH`, …). */
+export const CHECKOUT_PAYMENT_SUFFIXES = ['PAY', 'CASH', 'UPI', 'CARD', 'BANK', 'CHEQUE'] as const;
+
+/**
+ * The credit rule of one bill: what was paid at checkout (each part, never more than the non-credit part of the
+ * bill) and the credit portion the customer owes (bill total − paid). CREDIT: `received_amount` is paid in cash;
+ * SPLIT: the cash/UPI/card/bank/cheque parts are paid and `credit` is owed; CASH: paid in full; anything else
+ * (UPI, CARD, PENDING, …) is not on the ledger.
+ */
+export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>) {
+  const splitObj = parseSplit(invoice.split_details);
+  const method = (invoice.payment_method || '').toUpperCase();
+  const total = Math.max(0, money(invoice.grand_total));
+  const isSplit = method === 'SPLIT';
+  const isPureCredit = method === 'CREDIT';
+  const splitCredit = Math.min(total, Math.max(0, money(splitObj?.credit)));
+  const isCredit = isPureCredit || (isSplit && splitCredit > 0);
+
+  const payments: Array<{ type: string; amount: number; suffix: typeof CHECKOUT_PAYMENT_SUFFIXES[number]; method: string }> = [];
+  if (isSplit) {
+    let room = money(total - splitCredit);
+    const parts: Array<[string, unknown, typeof CHECKOUT_PAYMENT_SUFFIXES[number], string]> = [
+      ['Cash', splitObj?.cash, 'CASH', 'CASH'],
+      ['UPI', splitObj?.upi, 'UPI', 'UPI'],
+      ['Card', splitObj?.card, 'CARD', 'CARD'],
+      ['Bank', splitObj?.bank_transfer || splitObj?.bank, 'BANK', 'BANK_TRANSFER'],
+      ['Cheque', splitObj?.cheque, 'CHEQUE', 'CHEQUE'],
+    ];
+    for (const [type, raw, suffix, payMethod] of parts) {
+      const amount = Math.min(room, Math.max(0, money(raw)));
+      if (amount > 0) payments.push({ type, amount, suffix, method: payMethod });
+      room = money(room - amount);
+    }
+  } else if (isPureCredit) {
+    const received = Math.min(total, Math.max(0, money(invoice.received_amount)));
+    if (received > 0) payments.push({ type: 'Cash', amount: received, suffix: 'PAY', method: 'CASH' });
+  } else if (method === 'CASH' && total > 0) {
+    payments.push({ type: 'Cash', amount: total, suffix: 'PAY', method: 'CASH' });
+  }
+  const paid = money(payments.reduce((s, p) => s + p.amount, 0));
+  return { method, total, isSplit, isPureCredit, isCredit, payments, creditPortion: isCredit ? money(total - paid) : 0 };
+}
 
 export function syncInvoiceCreditLedger(
   db: Database.Database,
@@ -78,79 +140,31 @@ export function syncInvoiceCreditLedger(
     const invoiceNumber = (invoice.invoice_number || '').trim();
     if (!invoiceNumber) return;
 
-    // ── 1. DELETION HANDLING (MUST BE EVALUATED FIRST) ──────────────────────
+    // Rows this bill posted earlier (this shop only, exact references).
+    const existingEntries = partyLedgerSql.findInvoiceLedgerEntries(db).all({ tenant: tenantId, inv: invoiceNumber }) as PartyLedgerRow[];
+
+    // ── 1. DELETION ─────────────────────────────────────────────────────────
     if (isDelete) {
-      console.log(`[syncInvoiceCreditLedger] Soft-deleting ledger entries for invoice: ${invoiceNumber}`);
-      const toDelete = partyLedgerSql.findPartyLedgerByReferenceNumber(db).all(invoiceNumber, `${invoiceNumber}-PAY`, `${invoiceNumber}%`, `%${invoiceNumber}%`) as PartyLedgerRow[];
-
-      if (toDelete.length > 0) {
-        const affectedParties = new Set<string>();
-        for (const row of toDelete) {
-          affectedParties.add(row.party_id);
-          partyLedgerSql.updatePartyLedgerIsDeleted(db).run(row.ledger_id);
-        }
-
-        for (const pId of affectedParties) {
-          // Re-sequence running_balance for this party
-          const allEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(pId as string) as PartyLedgerRow[];
-
-          let running = 0;
-          for (const row of allEntries) {
-            running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
-            partyLedgerSql.updatePartyLedgerRunningBalanceAlt(db).run(running, row.ledger_id);
-          }
-
-          recalcPartyBalances(db, pId);
-        }
-        console.log(`[syncInvoiceCreditLedger] Soft-deleted ${toDelete.length} entries for ${invoiceNumber}.`);
-      }
+      retireEntries(db, existingEntries);
+      setInvoiceReturnCreditUse(db, tenantId, invoiceNumber, false);
 
       // Also clean up any staff ledger entries for this invoice
       const staffTxToDelete = partyLedgerSql.findStaffTransactionsByReferenceNumberAndType(db).all(invoiceNumber) as StaffTransactionRow[];
-
-      if (staffTxToDelete.length > 0) {
-        for (const stx of staffTxToDelete) {
-          partyLedgerSql.deleteStaffLedgerByTransactionId(db).run(stx.transaction_id);
-          partyLedgerSql.deleteStaffTransactionByTransactionId(db).run(stx.transaction_id);
-          recalcStaffLedgerBalances(db, tenantId, stx.staff_id);
-        }
-        console.log(`[syncInvoiceCreditLedger] Deleted staff purchase ledger entries for invoice: ${invoiceNumber}`);
+      for (const stx of staffTxToDelete) {
+        partyLedgerSql.deleteStaffLedgerByTransactionId(db).run(stx.transaction_id);
+        partyLedgerSql.deleteStaffTransactionByTransactionId(db).run(stx.transaction_id);
+        recalcStaffLedgerBalances(db, tenantId, stx.staff_id);
       }
-
       return;
     }
 
-    // ── 2. FIND ALL EXISTING ENTRIES FOR THIS INVOICE ───────────────────────
-    // Query without strict tenantId to catch any previous entries created under different tenant tags
-    const existingEntries = partyLedgerSql.findPartyLedgerByReferenceNumber2(db).all(invoiceNumber, `${invoiceNumber}-PAY`, `${invoiceNumber}-%`, `%${invoiceNumber}%`) as PartyLedgerRow[];
+    // ── 2. PAYMENT SPLIT ────────────────────────────────────────────────────
+    const terms = invoiceCreditTerms(invoice);
+    const { isPureCredit, isCredit, payments, creditPortion } = terms;
+    const paymentMethodUpper = terms.method;
+    const invoiceGrandTotal = terms.total;
 
-    // ── 3. PARSE PAYMENT METHODS & SPLIT DETAILS ────────────────────────────
-    let splitObj: SplitDetails | null = null;
-    if (invoice.split_details && invoice.split_details !== 'null') {
-      try {
-        splitObj = typeof invoice.split_details === 'string'
-          ? JSON.parse(invoice.split_details)
-          : invoice.split_details;
-      } catch { /* ignore */ }
-    }
-
-    const paymentMethodUpper = (invoice.payment_method || '').toUpperCase();
-    const splitCredit = Math.max(0, Number(splitObj?.credit) || 0);
-    const splitCash = Math.max(0, Number(splitObj?.cash) || 0);
-    const splitUpi = Math.max(0, Number(splitObj?.upi) || 0);
-    const splitCard = Math.max(0, Number(splitObj?.card) || 0);
-    const splitBank = Math.max(0, Number(splitObj?.bank_transfer || splitObj?.bank) || 0);
-    const splitCheque = Math.max(0, Number(splitObj?.cheque) || 0);
-
-    const isSplit = paymentMethodUpper === 'SPLIT';
-    const isSplitCredit = isSplit && splitCredit > 0;
-    const isPureCredit = paymentMethodUpper === 'CREDIT';
-    const isCredit = isPureCredit || isSplitCredit;
-
-    const invoiceGrandTotal = Math.max(0, Number(invoice.grand_total) || 0);
-    const invoiceReceivedAmount = Math.max(0, Number(invoice.received_amount) || 0);
-
-    // ── 3B. CHECK IF THIS INVOICE IS FOR A STAFF MEMBER ─────────────────────
+    // ── 3. STAFF PURCHASES go to the staff ledger ───────────────────────────
     let isStaffCreditBillingEnabled = false;
     try {
       const sfRow = partyLedgerSql.findOneSettingByKey(db).get(tenantId) as SettingRow | undefined;
@@ -178,19 +192,10 @@ export function syncInvoiceCreditLedger(
     }
 
     if (targetStaff) {
-      console.log(`[syncInvoiceCreditLedger] Invoice ${invoiceNumber} is for staff "${targetStaff.name}" (${targetStaff.staff_id}). Processing in Staff Ledger.`);
+      // A staff bill never stays in the party ledger.
+      retireEntries(db, existingEntries);
 
-      // Clean up any accidental entries in party_ledger
-      if (existingEntries.length > 0) {
-        const affectedParties = new Set<string>();
-        for (const entry of existingEntries) {
-          affectedParties.add(entry.party_id);
-          partyLedgerSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-        }
-        for (const pId of affectedParties) recalcPartyBalances(db, pId);
-      }
-
-      const creditDue = isSplit ? splitCredit : (isPureCredit ? Math.max(0, invoiceGrandTotal - invoiceReceivedAmount) : 0);
+      const creditDue = creditPortion;
       const txDate = invoice.created_at || localTimestamp();
       const nowTimestamp = localTimestamp();
 
@@ -200,7 +205,6 @@ export function syncInvoiceCreditLedger(
 
         if (existingStaffTx) {
           partyLedgerSql.updateStaffTransactionByTransactionId(db).run(targetStaff.staff_id, creditDue, desc, txDate, existingStaffTx.transaction_id);
-
           partyLedgerSql.updateStaffLedgerByTransactionId(db).run(targetStaff.staff_id, creditDue, desc, txDate, existingStaffTx.transaction_id);
         } else {
           const txId = crypto.randomUUID();
@@ -237,15 +241,8 @@ export function syncInvoiceCreditLedger(
     const custId = invoice.customer_id || null;
 
     if (!custName && !custPhone && !custId) {
-      // If customer identity is missing, soft delete any existing entries for this bill
-      if (existingEntries.length > 0) {
-        const affectedPartyIds = new Set<string>();
-        for (const entry of existingEntries) {
-          affectedPartyIds.add(entry.party_id);
-          partyLedgerSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-        }
-        for (const pId of affectedPartyIds) recalcPartyBalances(db, pId);
-      }
+      // Walk-in bill: nothing on any party ledger.
+      retireEntries(db, existingEntries);
       return;
     }
 
@@ -264,87 +261,35 @@ export function syncInvoiceCreditLedger(
 
     const targetPartyId = identityResult.party_id;
 
-    // Party changed? Clean up entries from previous party
-    const oldPartyIds = new Set<string>();
-    for (const entry of existingEntries) {
-      if (entry.party_id !== targetPartyId) {
-        oldPartyIds.add(entry.party_id);
-        partyLedgerSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-      }
+    // ── 5. NON-CREDIT BILLS (CASH, UPI, CARD, …) are paid in full: no ledger rows ────────
+    const isCash = paymentMethodUpper === 'CASH';
+    let showFullyPaidCash = false;
+    if (!isCredit && isCash && invoiceGrandTotal > 0) {
+      const showSetting = partyLedgerSql.findSettingsByKey(db).get(tenantId, 'show_fully_paid_cash_in_ledger') as { value: string } | undefined;
+      try { showFullyPaidCash = showSetting ? Boolean(JSON.parse(showSetting.value)) : false; } catch { showFullyPaidCash = false; }
     }
-    for (const opId of oldPartyIds) {
-      recalcPartyBalances(db, opId);
-    }
-
-    // ── 5. HANDLE NON-CREDIT INVOICES (CASH, UPI, CARD, ETC.) ───────────────
-    if (!isCredit) {
-      // Check if show_fully_paid_cash_in_ledger is enabled for cash
-      const isCash = paymentMethodUpper === 'CASH';
-      const isFullyPaidCash = isCash && invoiceGrandTotal > 0 && invoiceReceivedAmount >= invoiceGrandTotal - 0.01;
-
-      let showFullyPaidCash = false;
-      if (isFullyPaidCash) {
-        const showSetting = partyLedgerSql.findSettingsByKey(db).get(tenantId, 'show_fully_paid_cash_in_ledger') as { value: string } | undefined;
-        showFullyPaidCash = showSetting ? JSON.parse(showSetting.value) : false;
-      }
-
-      if (!showFullyPaidCash) {
-        // Soft delete all existing entries for this invoice for this party
-        const targetEntries = existingEntries.filter(e => e.party_id === targetPartyId);
-        if (targetEntries.length > 0) {
-          for (const entry of targetEntries) {
-            partyLedgerSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-          }
-          // Re-sequence and update balance
-          const allEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(targetPartyId) as PartyLedgerRow[];
-
-          let running = 0;
-          for (const row of allEntries) {
-            running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
-            partyLedgerSql.updatePartyLedgerRunningBalanceAlt(db).run(running, row.ledger_id);
-          }
-          recalcPartyBalances(db, targetPartyId);
-        }
-        return;
-      }
+    if (!isCredit && !showFullyPaidCash) {
+      retireEntries(db, existingEntries);
+      return;
     }
 
-    // ── 6. SYNC CREDIT / SPLIT-CREDIT / CASH-IN-LEDGER ENTRIES ─────────────
+    // Retire every earlier row of this bill (also on a previous customer's ledger); the current set is re-posted below
+    // with the same deterministic ids, so the bill always has exactly one adjustment.
+    retireEntries(db, existingEntries, targetPartyId);
+
+    // ── 6. POST THE SALE AND THE PAYMENTS TAKEN AT CHECKOUT ─────────────────
     const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
     const txDate = invoice.created_at || localTimestamp();
 
-    // Mark ALL existing active entries for this invoice for this party as deleted first
-    // so we can cleanly recreate the exact updated set of sale and payment entries
-    const existingForParty = existingEntries.filter(e => e.party_id === targetPartyId);
-    for (const entry of existingForParty) {
-      partyLedgerSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
-    }
-
-    // A. Construct Sale Description and Breakdown
-    const breakdownParts: string[] = [];
-    if (isSplit) {
-      if (splitCash > 0) breakdownParts.push(`Cash ₹${splitCash}`);
-      if (splitUpi > 0) breakdownParts.push(`UPI ₹${splitUpi}`);
-      if (splitCard > 0) breakdownParts.push(`Card ₹${splitCard}`);
-      if (splitBank > 0) breakdownParts.push(`Bank ₹${splitBank}`);
-      if (splitCheque > 0) breakdownParts.push(`Cheque ₹${splitCheque}`);
-      if (splitCredit > 0) breakdownParts.push(`Credit ₹${splitCredit}`);
-    } else if (isPureCredit) {
-      const creditPortion = Math.max(0, invoiceGrandTotal - invoiceReceivedAmount);
-      if (invoiceReceivedAmount > 0) breakdownParts.push(`Paid ₹${invoiceReceivedAmount}`);
-      breakdownParts.push(`Credit ₹${creditPortion}`);
-    } else if (paymentMethodUpper === 'CASH') {
-      breakdownParts.push(`Cash ₹${invoiceGrandTotal}`);
-    }
-
+    const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ₹${p.amount}`);
+    if (isCredit) breakdownParts.push(`Credit ₹${creditPortion}`);
     const breakdownText = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
     const salePrefix = isCredit ? 'Credit Sale' : 'Cash Sale';
     const saleDescription = `${salePrefix} ${invoiceNumber} - Total ₹${invoiceGrandTotal.toFixed(2)}${breakdownText} - ${custName || 'Customer'}`;
 
-    // 1. Sale Entry (Credit Amount = total invoice amount)
-    const saleLedgerId = deterministicUUID(`credit_sale:${tenantId}:${invoiceNumber}`);
+    // Sale entry (credit = the bill total)
     partyLedgerSql.upsertPartyLedger(db).run(
-      saleLedgerId,
+      deterministicUUID(`credit_sale:${tenantId}:${invoiceNumber}`),
       targetPartyId,
       tenantId,
       txDate,
@@ -357,46 +302,21 @@ export function syncInvoiceCreditLedger(
       invoice.user_name || 'System'
     );
 
-    // 2. Immediate Payments received at checkout (Debit Amount = payment amounts)
-    const upsertPaymentEntry = (type: string, amount: number, refSuffix: string, method: string) => {
-      if (amount <= 0) return;
-      const payLedgerId = deterministicUUID(`credit_pay_${refSuffix.toLowerCase()}:${tenantId}:${invoiceNumber}`);
-      const payRef = `${invoiceNumber}-${refSuffix}`;
-      const payDesc = `Payment received (${type}) for ${invoiceNumber}`;
+    // Payment entries (debit = amount paid at checkout)
+    for (const p of payments) {
       partyLedgerSql.upsertPartyLedger2(db).run(
-        payLedgerId,
+        deterministicUUID(`credit_pay_${p.suffix.toLowerCase()}:${tenantId}:${invoiceNumber}`),
         targetPartyId,
         tenantId,
         txDate,
-        payDesc,
-        amount,
+        `Payment received (${p.type}) for ${invoiceNumber}`,
+        p.amount,
         balanceType,
-        method,
-        payRef,
+        p.method,
+        `${invoiceNumber}-${p.suffix}`,
         invoice.user_id || 'system',
         invoice.user_name || 'System'
       );
-    };
-
-    if (isSplit) {
-      upsertPaymentEntry('Cash', splitCash, 'CASH', 'CASH');
-      upsertPaymentEntry('UPI', splitUpi, 'UPI', 'UPI');
-      upsertPaymentEntry('Card', splitCard, 'CARD', 'CARD');
-      upsertPaymentEntry('Bank', splitBank, 'BANK', 'BANK_TRANSFER');
-      upsertPaymentEntry('Cheque', splitCheque, 'CHEQUE', 'CHEQUE');
-    } else if (isPureCredit && invoiceReceivedAmount > 0) {
-      upsertPaymentEntry('Cash', invoiceReceivedAmount, 'PAY', 'CASH');
-    } else if (paymentMethodUpper === 'CASH' && invoiceGrandTotal > 0) {
-      upsertPaymentEntry('Cash', invoiceGrandTotal, 'PAY', 'CASH');
-    }
-
-    // 3. Re-sequence running_balance for the party
-    const allEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(targetPartyId) as PartyLedgerRow[];
-
-    let running = 0;
-    for (const row of allEntries) {
-      running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
-      partyLedgerSql.updatePartyLedgerRunningBalanceAlt(db).run(running, row.ledger_id);
     }
 
     recalcPartyBalances(db, targetPartyId);
@@ -405,7 +325,20 @@ export function syncInvoiceCreditLedger(
   }
 }
 
+/** Retire every ledger row of a return (the return, its money refund and its credit uses). */
+export function removeReturnLedger(db: Db, tenantId: string, returnNumber: string) {
+  const rows = partyLedgerSql.findReturnLedgerEntries(db).all({ tenant: tenantId, ret: returnNumber }) as PartyLedgerRow[];
+  retireEntries(db, rows);
+}
 
+/**
+ * Post a return to the customer's ledger.
+ * - CREDIT / STORE_CREDIT / ADJUST_BILL: the returned value is owed to the customer (debit = return total).
+ * - CASH / UPI / CARD / BANK_TRANSFER / CHEQUE: the value was paid back, so the return (debit) and the refund
+ *   (credit, reference `<return>-REFUND`) cancel out and the balance does not change.
+ * - With `adjusted_invoice_number`: an ADJUST_BILL return credit was used on that bill, whose total is already lower
+ *   by that amount, so the use is posted as a credit (reference `<return>-ADJ-<bill>`) that cancels the return credit.
+ */
 export function syncReturnLedger(
   db: Database.Database,
   params: {
@@ -440,7 +373,9 @@ export function syncReturnLedger(
 
     if (!custName && !custPhone && !params.customer_id) return;
 
-    // Use the unified CustomerIdentityService for consistent party resolution
+    const amount = Math.max(0, money(params.amount ?? params.grand_total));
+    if (amount <= 0) return;
+
     const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
       customer_id: params.customer_id || undefined,
       name: custName,
@@ -454,81 +389,37 @@ export function syncReturnLedger(
       return;
     }
 
-    const party = { party_id: identityResult.party_id, name: custName || custPhone };
-
-    // Determine the reference number for the ledger entry
-    const referenceNumber = params.adjusted_invoice_number
-      ? `${returnNumber}-ADJ-${params.adjusted_invoice_number}`
-      : returnNumber;
-
-    // Check for existing entry
-    const existingEntry = partyLedgerSql.findOnePartyLedgerByReferenceNumber(db).get(tenantId, referenceNumber) as PartyLedgerRow | undefined;
-
+    const partyId = identityResult.party_id;
+    const who = custName || custPhone || 'Customer';
     const refundMethod = (params.refund_method || '').toUpperCase();
-    const isCashRefund = refundMethod === 'CASH';
-    const isAdjustBill = refundMethod === 'ADJUST_BILL';
-    const isCreditRefund = refundMethod === 'CREDIT' || refundMethod === 'STORE_CREDIT';
-    const isOtherRefund = ['CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE'].includes(refundMethod);
-    const adjustmentAmount = Math.max(0, Number(params.amount ?? params.grand_total) || 0);
-
-    if (adjustmentAmount <= 0) return;
-
-    const balanceType = 'GST'; // Returns typically affect GST balance
+    const isMoneyRefund = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE'].includes(refundMethod);
     const txDate = params.created_at || localTimestamp();
     const refText = params.invoice_number ? ` (Ref: ${params.invoice_number})` : '';
-    let description = `Return ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
-    if (isCashRefund) {
-      description = `Return refund (Cash) ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
-    } else if (isAdjustBill) {
-      description = params.adjusted_invoice_number
-        ? `Return credit adjusted ${returnNumber} → ${params.adjusted_invoice_number}${refText} - ${custName || party.name || 'Customer'}`
-        : `Sales Return ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
-    } else if (isCreditRefund) {
-      description = `Sales Return ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
-    } else if (isOtherRefund) {
-      description = `Return refund (${refundMethod}) ${returnNumber}${refText} - ${custName || party.name || 'Customer'}`;
-    }
+    const parties = new Set<string>([partyId]);
 
-    const debitAmount = adjustmentAmount;
+    const post = (reference: string, credit: number, debit: number, description: string, method: string) => {
+      // Keep the id of a row posted earlier under this reference (older versions used random ids).
+      const earlier = partyLedgerSql.findOnePartyLedgerByReferenceNumber(db).get(tenantId, reference) as PartyLedgerRow | undefined;
+      if (earlier && earlier.party_id !== partyId) parties.add(earlier.party_id);
+      partyLedgerSql.upsertPartyLedgerEntry(db).run({
+        ledger_id: earlier?.ledger_id || deterministicUUID(`return:${tenantId}:${reference}`),
+        party_id: partyId, tenant_id: tenantId, transaction_date: txDate, description,
+        credit_amount: credit, debit_amount: debit, balance_type: 'GST', payment_method: method,
+        reference_number: reference, created_by: params.user_id || 'system', created_by_name: params.user_name || 'System',
+      });
+    };
 
-    if (existingEntry) {
-      // Update existing entry
-      partyLedgerSql.updatePartyLedgerByLedgerId(db).run(
-        debitAmount,
-        description,
-        txDate,
-        balanceType,
-        refundMethod,
-        existingEntry.ledger_id
-      );
+    if (params.adjusted_invoice_number) {
+      post(`${returnNumber}-ADJ-${params.adjusted_invoice_number}`, amount, 0,
+        `Return credit ${returnNumber} used on ${params.adjusted_invoice_number} - ${who}`, 'ADJUST_BILL');
     } else {
-      // Create new entry with deterministic UUID
-      const ledgerId = deterministicUUID(`return:${tenantId}:${referenceNumber}`);
-      partyLedgerSql.upsertPartyLedger3(db).run(
-        ledgerId,
-        party.party_id,
-        tenantId,
-        txDate,
-        description,
-        debitAmount,
-        balanceType,
-        refundMethod,
-        referenceNumber,
-        params.user_id || 'system',
-        params.user_name || 'System'
-      );
+      post(returnNumber, 0, amount, `Sales Return ${returnNumber}${refText} - ${who}`, refundMethod || 'CREDIT');
+      if (isMoneyRefund) {
+        post(`${returnNumber}-REFUND`, amount, 0, `Return refund (${refundMethod}) ${returnNumber}${refText} - ${who}`, refundMethod);
+      }
     }
 
-    // Re-sequence running_balance for the party
-    const allEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(party.party_id) as PartyLedgerRow[];
-
-    let running = 0;
-    for (const row of allEntries) {
-      running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
-      partyLedgerSql.updatePartyLedgerRunningBalanceAlt(db).run(running, row.ledger_id);
-    }
-
-    recalcPartyBalances(db, party.party_id);
+    for (const id of parties) recalcPartyBalances(db, id);
   } catch (err) {
     console.error('[syncReturnLedger] Error:', err);
   }
@@ -565,7 +456,7 @@ export function backfillCreditInvoices(db: Database.Database) {
       if (unlinkedReturns.length > 0) {
         console.log(`[DB] Backfilling ${unlinkedReturns.length} returns into party ledger...`);
         for (const ret of unlinkedReturns) {
-          syncReturnLedger(db, {
+          const base = {
             tenant_id: ret.tenant_id || 'global',
             return_number: ret.return_number,
             return_id: ret.return_id,
@@ -578,10 +469,15 @@ export function backfillCreditInvoices(db: Database.Database) {
             customer_gstin: ret.orig_customer_gstin || null,
             grand_total: Number(ret.grand_total) || 0,
             refund_method: ret.refund_method || 'CREDIT',
-            amount: Number(ret.grand_total) || 0,
             user_id: ret.user_id,
             created_at: ret.created_at,
-          });
+          };
+          syncReturnLedger(db, { ...base, amount: Number(ret.grand_total) || 0 });
+          // A return credit already used on a bill: post that use too, or the credit would count twice.
+          const used = money(ret.adjusted_amount);
+          if ((ret.refund_method || '').toUpperCase() === 'ADJUST_BILL' && used > 0 && ret.adjusted_invoice_number) {
+            syncReturnLedger(db, { ...base, adjusted_invoice_number: ret.adjusted_invoice_number, amount: used });
+          }
         }
         console.log(`[DB] Returns backfill completed.`);
       }
@@ -595,14 +491,7 @@ export function backfillCreditInvoices(db: Database.Database) {
 
       if (staleEntries.length > 0) {
         console.log(`[DB] Cleaning up ${staleEntries.length} stale ledger entries for soft-deleted invoices...`);
-        const affectedParties = new Set<string>();
-        for (const row of staleEntries) {
-          affectedParties.add(row.party_id);
-          partyLedgerSql.updatePartyLedgerIsDeleted(db).run(row.ledger_id);
-        }
-        for (const pId of affectedParties) {
-          recalcPartyBalances(db, pId);
-        }
+        retireEntries(db, staleEntries);
       }
     } catch (e) {
       console.error('[DB] Failed to clean stale deleted invoice ledger entries in backfill:', e);
@@ -611,4 +500,3 @@ export function backfillCreditInvoices(db: Database.Database) {
     console.error('[DB] Failed to backfill credit invoices:', err);
   }
 }
-

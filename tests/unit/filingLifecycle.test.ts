@@ -10,7 +10,7 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }));
 vi.mock('../../electron/whatsapp/shopClosingReportService', () => ({ sendShopClosingReport: vi.fn() }));
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
 vi.mock('../../electron/services/cashDrawerService', () => ({ getCashAmountFromInvoice: () => 0, adjustPaymentSourcesForInvoice: vi.fn(), adjustCashDrawerForInvoice: vi.fn(), getOpenCashDrawer: () => null }));
-vi.mock('../../electron/services/partyLedgerService', () => ({ syncInvoiceCreditLedger: vi.fn(), syncReturnLedger: vi.fn(), recalcPartyBalances: vi.fn(), resetBackfillThrottle: vi.fn() }));
+vi.mock('../../electron/services/partyLedgerService', () => ({ syncInvoiceCreditLedger: vi.fn(), syncReturnLedger: vi.fn(), removeReturnLedger: vi.fn(), setInvoiceReturnCreditUse: vi.fn(), recalcPartyBalances: vi.fn(), resetBackfillThrottle: vi.fn() }));
 vi.mock('../../electron/services/invoiceNumberService', () => ({ getOrInitTerminalCode: () => 'POS1', getGuaranteedNextInvoiceNumber: () => ({ invoiceNumber: 'POS1-1' }) }));
 vi.mock('../../electron/services/storeTime', () => ({ localTimestamp: () => '2026-10-27T10:00:00Z', localDate: () => '2026-10-27' }));
 vi.mock('../../electron/sync/syncWorker', () => ({ runInitialSync: async () => {}, triggerUrgentInvoiceSync: async () => {}, triggerUrgentCashSync: async () => {} }));

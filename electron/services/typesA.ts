@@ -252,6 +252,9 @@ export interface ReturnRow {
   orig_customer_gstin?: string | null;
   grand_total?: number | string | null;
   refund_method?: string | null;
+  /** ADJUST_BILL credit already used on bills, and the last bill it was used on. */
+  adjusted_amount?: number | string | null;
+  adjusted_invoice_number?: string | null;
   user_id?: string;
   created_at?: string;
 }

@@ -1,11 +1,11 @@
 import { reconcileInvoicePoints } from './loyaltyService.js';
-import type { InvoiceItem, InvoiceRow, LedgerRow, ReturnRow, SettingRow } from './typesB.js';
+import type { InvoiceItem, InvoiceRow, ReturnRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import { getOpenCashDrawer, reconcileCashDrawer } from './cashDrawerService.js';
 import crypto from 'node:crypto';
-import { syncReturnLedger, recalcPartyBalances } from './partyLedgerService.js';
+import { syncReturnLedger, removeReturnLedger } from './partyLedgerService.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
 import * as returnsSql from '../db/statements/returns.js';
 /** returns use-cases for the main process (called by electron/ipc handlers). */
@@ -234,10 +234,13 @@ export function settleReturnInvoice({ tenant_id, return_number, adjusted_invoice
       tenant_id: tenant_id || 'global',
       return_number: returnData.return_number,
       return_id: returnData.return_id,
-      customer_name: returnData.customer_name,
-      customer_phone: returnData.customer_phone,
-      customer_address: returnData.customer_address,
-      customer_gstin: null,
+      // The same customer the return was posted to (createReturn falls back to the original bill's customer).
+      invoice_number: returnData.orig_invoice_number || null,
+      customer_id: returnData.orig_customer_id || null,
+      customer_name: (returnData.customer_name || '').trim() || returnData.orig_customer_name || null,
+      customer_phone: (returnData.customer_phone || '').trim() || returnData.orig_customer_phone || null,
+      customer_address: returnData.customer_address || returnData.orig_customer_address || null,
+      customer_gstin: returnData.orig_customer_gstin || null,
       grand_total: returnData.grand_total,
       refund_method: 'ADJUST_BILL',
       adjusted_invoice_number: adjusted_invoice_number,
@@ -318,22 +321,12 @@ export function deleteReturn(return_id: string) {
         }
       }
 
-      // Soft delete party ledger entries for this return
-      const ledgerRows = returnsSql.findPartyLedgerByReferenceNumber(db).all(returnRow.return_number, returnRow.return_number, returnRow.return_number) as LedgerRow[];
-
-      const affectedParties = new Set<string>();
-      for (const row of ledgerRows) {
-        affectedParties.add(row.party_id);
-        returnsSql.updatePartyLedgerIsDeleted(db).run(row.ledger_id);
-      }
+      // Retire this return's ledger rows (exact references, this shop only) and recalculate the balances.
+      removeReturnLedger(db, returnRow.tenant_id || 'global', returnRow.return_number);
 
       returnsSql.deleteReturnItemByReturnId(db).run(return_id);
       returnsSql.deleteReturnByReturnId(db).run(return_id);
       if (returnRow.invoice_id) reconcileInvoicePoints(db, returnRow.invoice_id);
-
-      for (const pId of affectedParties) {
-        recalcPartyBalances(db, pId);
-      }
     });
     transaction();
     return { success: true };

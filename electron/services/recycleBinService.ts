@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { setSyncActive } from '../sync/syncWorker.js';
 import { session, BrowserWindow } from 'electron';
 import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
-import { syncInvoiceCreditLedger } from './partyLedgerService.js';
+import { setInvoiceReturnCreditUse, syncInvoiceCreditLedger } from './partyLedgerService.js';
 import * as recycleBinSql from '../db/statements/recycleBin.js';
 /** recycleBin use-cases for the main process (called by electron/ipc handlers). */
 
@@ -121,15 +121,14 @@ export function restoreInvoice(invoice_id: string) {
         recycleBinSql.updateInvoiceConvertedToInvoiceIdAndConvertedToInvoiceNumber(db).run(inv.invoice_id, inv.invoice_number, inv.converted_from_invoice_id);
       }
 
-      // Restore related party_ledger entries
-      if (inv.invoice_number) {
-        const invNum = String(inv.invoice_number).trim();
-        recycleBinSql.updatePartyLedgerIsDeleted(db).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
+      // Re-post the bill's own ledger rows from the restored bill, and use its return credit again.
+      if (inv.counts_in_revenue !== 0 && inv.invoice_number) {
+        syncInvoiceCreditLedger(db, inv, false);
+        setInvoiceReturnCreditUse(db, inv.tenant_id || 'global', String(inv.invoice_number).trim(), true);
       }
     })();
 
     if (restoredInv) {
-      syncInvoiceCreditLedger(db, restoredInv, false);
       adjustPaymentSourcesForInvoice(db, restoredInv.tenant_id, restoredInv, false);
       if (oldCash > 0) {
         adjustCashDrawerForInvoice(db, restoredInv.tenant_id, restoredInv.created_at, 0, oldCash);

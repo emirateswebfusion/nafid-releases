@@ -1,4 +1,5 @@
 import type { Db } from './types.js';
+import { invoiceOwnedEntry } from './partyLedger.js';
 
 /** SQL statements used by services/partiesService.ts. Each factory prepares its statement on the given connection. */
 
@@ -114,13 +115,12 @@ export const findPartyLedgerByPartyIdAndInvoiceNumber = (db: Db) => db.prepare(`
           AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
           AND (
             EXISTS (
-              SELECT 1 FROM invoices i 
-              WHERE i.is_deleted = 1 
-                AND (
-                  i.invoice_number = pl.reference_number 
-                  OR pl.reference_number = i.invoice_number || '-PAY'
-                  OR pl.reference_number LIKE i.invoice_number || '-%'
-                  OR pl.description LIKE '%' || i.invoice_number || '%'
+              SELECT 1 FROM invoices i
+              WHERE i.is_deleted = 1 AND i.tenant_id = pl.tenant_id
+                AND ${invoiceOwnedEntry('i.invoice_number')}
+                AND NOT EXISTS (
+                  SELECT 1 FROM invoices live WHERE live.tenant_id = i.tenant_id AND live.invoice_number = i.invoice_number
+                    AND (live.is_deleted IS NULL OR live.is_deleted = 0)
                 )
             )
           )
@@ -215,8 +215,8 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
 
 /** Ledger entries of a party in transaction order; soft-deleted entries only when `includeDeleted`. */
 export const listPartyLedger = (db: Db, includeDeleted: boolean) => db.prepare(includeDeleted
-      ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC`
-      : `SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC`);
+      ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC, rowid ASC`
+      : `SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC, rowid ASC`);
 
 /** Columns `updatePartyProfile` may set besides name / phone / address / gstin / notes. */
 export type PartyProfileColumn = 'pricing_tier_id' | 'credit_limit' | 'credit_period_enabled' | 'credit_period_days' | 'credit_period_basis'

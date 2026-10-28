@@ -398,12 +398,6 @@ export const updateInvoiceConvertedFromInvoiceIdAndConvertedFromInvoiceNumber = 
 
 export const updateInvoiceIsDeletedAndDeletedAt = (db: Db) => db.prepare("UPDATE invoices SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?");
 
-export const updatePartyLedgerIsDeleted = (db: Db) => db.prepare(`
-          UPDATE party_ledger 
-          SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
-          WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
-            AND (is_deleted IS NULL OR is_deleted = 0)
-        `);
 
 /** Filters of the invoice list / summary queries. */
 export interface InvoiceListQuery {
