@@ -1,3 +1,17 @@
+# Nafid POS v2.1.1 Release Notes
+
+## What's Changed
+- **Party Credit Ledger**: Ledger entries are strictly isolated per bill; re-posting or editing bills retires only the bill's own rows, preventing balance drift and double entries.
+- **Customer Credit Status**: Accurate allocation of debits and cash payments against credit invoices; FIFO allocation for unallocated payments.
+- **Settings Navigation**: Settings split into single-topic pages with sidebar search for faster access.
+- **WhatsApp Reliability**: Prevent session stall on version lookup; clean socket cleanup and error reporting.
+- **Returns & Backfill**: Stop re-scanning walk-in returns during backfill, exact proportionate discounts preserved.
+- **GST Conversion**: Reserve invoice numbers only for convertible bills.
+- **Receipt Printing**: Prevent duplicate receipts and slow-driver print hangs.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.1.0...v2.1.1
+
+**Download:** [Nafid-Setup-2.1.1.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.1/Nafid-Setup-2.1.1.exe)
+
 # Nafid POS v2.1.0 Release Notes
 
 ## What's New
