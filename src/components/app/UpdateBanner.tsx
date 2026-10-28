@@ -83,7 +83,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
                 'text-xs font-black uppercase tracking-wider',
                 updateReady ? 'text-emerald-600' : 'text-blue-600'
               )}>
-                {updateReady ? 'Update Ready to Install' : 'New Update Available'}
+                {updateReady ? 'Update Ready' : 'New Update Available'}
               </span>
               {updateInfo && (
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold font-mono bg-background/60 border border-border/50">
@@ -100,7 +100,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
             )}
             {updateReady && (
               <p className="text-[10px] text-emerald-600/70 mt-0.5">
-                Restart to apply the latest update
+                Restart to update
               </p>
             )}
           </div>
@@ -111,7 +111,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all active:scale-95 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
-                Install Now
+                Update →
               </button>
             ) : (
               <button

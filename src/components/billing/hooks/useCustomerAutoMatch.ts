@@ -47,7 +47,7 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
         const cp = String(c.phone || '').trim();
         const cn = String(c.name || '').trim().toLowerCase();
         if (cleanPhone && cp && cp === cleanPhone) return true;
-        if (cleanName && cn && cn === cleanName) return true;
+        if (cleanName && cn && cn === cleanName && !cleanPhone && !cp) return true;
         return false;
       });
 
@@ -56,7 +56,12 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
         ? Number(custMatch.current_points_balance) || 0
         : (matched?.current_points_balance !== undefined ? Number(matched.current_points_balance) || 0 : 0);
 
-      if (resolvedCustId) {
+      const hasDefinitePhoneMatch = Boolean(cleanPhone && (
+        (matched && String(matched.phone || '').trim() === cleanPhone) ||
+        (custMatch && String(custMatch.phone || '').trim() === cleanPhone)
+      ));
+
+      if (resolvedCustId && hasDefinitePhoneMatch) {
         setLoyaltyCustomerData({
           customerId: resolvedCustId,
           pointsBalance: Number(resolvedPoints) || 0,
@@ -64,19 +69,17 @@ export function useCustomerAutoMatch(ctx: UseCustomerAutoMatchContext) {
         if (!activeTab?.customerId) {
           updateActiveTab({ customerId: resolvedCustId });
         }
-      } else if (cleanPhone || cleanName) {
-        // Query backend directly if not loaded in memory yet
+      } else if (cleanPhone) {
+        // Query backend directly by exact phone if not loaded in memory yet
         if (hasBridge('dbFindCustomers')) {
           customersApi.findCustomers({
             tenant_id: tenantId || 'global',
-            phone: cleanPhone || undefined,
-            name: cleanName || undefined,
+            phone: cleanPhone,
           }).then((res) => {
             const list = Array.isArray(res) ? res : [];
             const found = list.find((c) =>
-              (cleanPhone && String(c.phone || '').trim() === cleanPhone) ||
-              (cleanName && String(c.name || '').trim().toLowerCase() === cleanName)
-            ) || list[0];
+              cleanPhone && String(c.phone || '').trim() === cleanPhone
+            );
             if (found && found.customer_id) {
               setLoyaltyCustomerData({
                 customerId: found.customer_id,

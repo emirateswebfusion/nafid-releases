@@ -92,7 +92,7 @@ electron/
       invoiceCheckoutService.ts · heldBillsService.ts · invoiceQueryService.ts
       invoiceEditService.ts · bosConversionService.ts
     productsService · gradesService · pricingTiersService · combosService
-    customersService · partiesService · partyLedgerService
+    customersService · partiesService · partyLedgerService · ledgerPaymentAccounts
     customerCreditService (credit limits/overdue) · quotationsService · returnsService · warrantiesService
     scrapService · purchasesService · cashierService · cashDrawerService · paymentSourcesService
     staffService (staff, biller PIN, staff ledger, attendance) · localAuthService (offline login)

@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { getDb } from '../db/localDb.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { parsePermissionList } from './localAuthService.js';
+import { syncStaffPaymentAccount } from './ledgerPaymentAccounts.js';
 import * as staffSql from '../db/statements/staff.js';
 /** Staff use-cases: staff records, biller PIN, staff ledger (salary/advances/purchases) and attendance. */
 
@@ -183,8 +184,9 @@ export function addStaffTransaction(params: {
   create_cash_transaction?: boolean;
 }) {
   const db = getDb();
+  return db.transaction(() => {
   const { tenant_id, staff_id, type, amount, payment_method = 'CASH', payment_source_id, reference_number, notes, user_id, user_name } = params;
-  if (amount <= 0) throw new Error('Transaction amount must be greater than zero');
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Transaction amount must be greater than zero');
 
   const staff = staffSql.findStaffByStaffIdStaffIdAndName(db).get(staff_id, tenant_id) as StaffRow;
   if (!staff) throw new Error('Staff member not found');
@@ -260,12 +262,15 @@ export function addStaffTransaction(params: {
     debitAmt, creditAmt, newBal, type, user_id || null, now
   );
 
+  syncStaffPaymentAccount(db, { ...params, transaction_id: txId, payment_method, staff_name: staff.name });
+
   return {
     success: true,
     transaction_id: txId,
     ledger_id: ledgerId,
     new_balance: newBal
   };
+  })();
 }
 
 export function recalcStaffLedgerBalances(dbInstance: ServiceDb | null | undefined, tenantId: string, staffId: string) {

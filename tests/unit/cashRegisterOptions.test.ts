@@ -5,6 +5,7 @@ vi.mock('../../electron/db/localDb', () => ({ getDb: () => null }));
 import { buildShopClosingSummaryData } from '../../electron/whatsapp/shopClosingSummary';
 import { recordLedgerCashEntry } from '../../electron/services/cashRegisterLedgerService';
 import { computeDrawerTotals, getRegisterCashEntries } from '../../electron/services/cashDrawerSession';
+import { createCoreTables } from '../../electron/db/schemaCoreTables';
 
 function fixture() {
   const sql = new DatabaseSync(':memory:');
@@ -12,7 +13,7 @@ function fixture() {
     CREATE TABLE settings (tenant_id TEXT, key TEXT, value TEXT);
     INSERT INTO settings VALUES ('t', 'cash_drawer_session_since', '"2026-10-01T00:00:00Z"');
     INSERT INTO settings VALUES ('t', 'store_timezone', '"Asia/Dubai"');
-    CREATE TABLE cash_drawer (drawer_id TEXT, tenant_id TEXT, status TEXT, closed_at TEXT, business_date TEXT);
+    CREATE TABLE cash_drawer (drawer_id TEXT, tenant_id TEXT, status TEXT, closed_at TEXT, business_date TEXT, sync_status TEXT);
     CREATE TABLE invoices (tenant_id TEXT, converted_from_invoice_id TEXT, payment_method TEXT, grand_total REAL, received_amount REAL, split_details TEXT, invoice_type TEXT, is_held INTEGER, is_deleted INTEGER, settled_at TEXT, created_at TEXT);
     ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1;
     CREATE TABLE cash_transactions (tenant_id TEXT, drawer_id TEXT, type TEXT, amount REAL, category TEXT, transaction_date TEXT, transaction_id TEXT PRIMARY KEY, notes TEXT, entered_by TEXT, entered_by_name TEXT, sync_status TEXT);
@@ -28,6 +29,23 @@ function fixture() {
   const setting = (key: string, value: unknown) => sql.prepare('INSERT INTO settings VALUES (?, ?, ?)').run('t', key, JSON.stringify(value));
   return { sql, db, drawer, setting };
 }
+
+it('records a first repayment with the production NOT NULL drawer constraint', () => {
+  const sql = new DatabaseSync(':memory:');
+  const db = sql as unknown as Parameters<typeof createCoreTables>[0];
+  createCoreTables(db);
+  sql.exec("PRAGMA foreign_keys = ON");
+  sql.prepare("INSERT INTO parties (party_id,tenant_id,name) VALUES ('p','t','Wholesale customer')").run();
+  sql.prepare(`INSERT INTO party_ledger (ledger_id,party_id,tenant_id,description,credit_amount,debit_amount,running_balance,payment_method)
+    VALUES ('first','p','t','Part repayment',0,2000,5510,'CASH')`).run();
+  recordLedgerCashEntry(db, 't', 'first');
+  recordLedgerCashEntry(db, 't', 'first');
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM cash_drawer').get()?.n).toBe(1);
+  expect(sql.prepare('SELECT amount, drawer_id FROM cash_transactions').get()).toMatchObject({ amount: 2000, drawer_id: expect.any(String) });
+  expect(sql.prepare('SELECT COUNT(*) AS n FROM cash_transactions').get()?.n).toBe(1);
+  expect(sql.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  sql.close();
+});
 
 describe('shared cash register totals', () => {
   it('preserves existing scrap and cash-return inclusion by default', () => {
@@ -88,7 +106,9 @@ describe('shared cash register totals', () => {
     expect(sql.prepare("SELECT COUNT(*) AS n FROM cash_transactions WHERE category = 'PARTY_LEDGER:new'").get()?.n).toBe(1);
     // Set a deterministic entry time, independent of when the test runs.
     sql.exec("UPDATE cash_transactions SET transaction_date = '2026-10-27T06:00:00Z' WHERE category = 'PARTY_LEDGER:new'");
-    expect(computeDrawerTotals(db, 't', drawer).cash_in).toBe(70);
+    const opened = sql.prepare('SELECT drawer_id FROM cash_drawer').get() as { drawer_id: string };
+    expect(computeDrawerTotals(db, 't', { ...drawer, drawer_id: opened.drawer_id }).cash_in).toBe(70);
+    expect(computeDrawerTotals(db, 't', drawer).cash_in).toBe(30);
     sql.close();
   });
   it('uses edited ledger amounts and omits soft-deleted linked entries in both totals and feed', () => {

@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { localTimestamp, localDate } from './storeTime.js';
 import { getOpenCashDrawer } from './cashDrawerService.js';
 import { recalcPartyBalances } from './partyLedgerService.js';
+import { syncPurchasePaymentAccount } from './ledgerPaymentAccounts.js';
 import * as purchasesSql from '../db/statements/purchases.js';
 /** purchases use-cases for the main process (called by electron/ipc handlers). */
 
@@ -265,6 +266,7 @@ export function addPurchaseBill(payload: {
         }
       }
 
+      syncPurchasePaymentAccount(db, { ...bill, payment_type: paymentType });
       return { success: true };
     })();
     return result;
@@ -407,6 +409,7 @@ export function updatePurchaseBill(payload: {
         }
       }
 
+      syncPurchasePaymentAccount(db, { ...bill, payment_type: paymentType });
       return { success: true };
     })();
     return result;
@@ -423,6 +426,7 @@ export function deletePurchaseBill(purchase_bill_id: string) {
     db.transaction(() => {
       const bill = purchasesSql.findPurchaseBillsByPurchaseBillId2(db).get(purchase_bill_id) as PurchaseBillRow;
       if (bill) {
+        syncPurchasePaymentAccount(db, { ...bill, purchase_bill_id }, true);
         const items = purchasesSql.findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity(db).all(purchase_bill_id) as InvoiceItem[];
         const decreaseStock = purchasesSql.updateProductCurrentStock(db);
         for (const item of items) {

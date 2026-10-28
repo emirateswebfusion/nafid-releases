@@ -76,7 +76,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                 setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
                 setShowCustomerDropdown(false);
               } else {
-                updateActiveTab({ customerName: val });
+                updateActiveTab({ customerName: val, customerId: '' });
                 setShowCustomerDropdown(true);
                 setSelectedCustomerIndex(0);
               }
@@ -166,7 +166,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                 setLoyaltyCustomerData({ customerId: '', pointsBalance: 0 });
                 setShowCustomerDropdown(false);
               } else {
-                updateActiveTab({ customerPhone: val });
+                updateActiveTab({ customerPhone: val, customerId: '' });
                 setShowCustomerDropdown(true);
                 setSelectedCustomerIndex(0);
               }

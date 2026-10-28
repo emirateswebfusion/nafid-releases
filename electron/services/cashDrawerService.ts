@@ -222,6 +222,66 @@ export function adjustCashDrawerForInvoice(
   }
 }
 
+/**
+ * Money a bill puts in each payment account (UPI / card / bank), by account: UPI, CARD and BANK bills the amount
+ * received (else the total); SPLIT bills their upi / card / bank_transfer parts. Cash, cheque and credit go to no account.
+ */
+function invoiceSourceAmounts(db: Db, tenantId: string, invoice: InvoicePaymentFields) {
+  const amounts = new Map<string, { source: PaymentSourceRow; type: string; amount: number }>();
+  if (invoice.counts_in_revenue === 0) return amounts; // not real money (see getCashAmountFromInvoice)
+  const pm = (invoice.payment_method || '').toUpperCase();
+  let splitObj: SplitDetails | null = null;
+  if (invoice.split_details && invoice.split_details !== 'null') {
+    if (typeof invoice.split_details === 'string') {
+      try { splitObj = JSON.parse(invoice.split_details); } catch { /* ignore */ }
+    } else if (typeof invoice.split_details === 'object') {
+      splitObj = invoice.split_details;
+    }
+  }
+
+  const add = (sourceId: string | null | undefined, sourceType: string, amount: number) => {
+    if (!(amount > 0)) return;
+    let source: PaymentSourceRow | null | undefined = null;
+    if (sourceId) {
+      source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
+    }
+    if (!source) {
+      source = cashDrawerSql.findOnePaymentSourceByTypeAndIsEnabled(db).get(tenantId, sourceType === 'BANK_TRANSFER' ? 'BANK' : sourceType) as PaymentSourceRow | undefined;
+    }
+    if (!source) return;
+    const entry = amounts.get(source.source_id) || { source, type: sourceType, amount: 0 };
+    entry.amount = round2(entry.amount + amount);
+    amounts.set(source.source_id, entry);
+  };
+
+  if (pm === 'UPI') {
+    add(invoice.payment_source_id || splitObj?.upi_source_id, 'UPI', Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0));
+  } else if (pm === 'CARD') {
+    add(invoice.payment_source_id || splitObj?.card_source_id, 'CARD', Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0));
+  } else if (pm === 'BANK_TRANSFER' || pm === 'BANK') {
+    add(invoice.payment_source_id || splitObj?.bank_source_id, 'BANK_TRANSFER', Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0));
+  } else if (pm === 'SPLIT' && splitObj) {
+    add(splitObj.upi_source_id || invoice.payment_source_id, 'UPI', Number(splitObj.upi));
+    add(splitObj.card_source_id || invoice.payment_source_id, 'CARD', Number(splitObj.card));
+    add(splitObj.bank_source_id || invoice.payment_source_id, 'BANK_TRANSFER', Number(splitObj.bank_transfer));
+  }
+  return amounts;
+}
+
+/** Post one bill movement to a payment account: positive = money in (sale), negative = money out (cancellation). */
+function postSourceMovement(db: Db, tenantId: string, invoice: InvoicePaymentFields, source: PaymentSourceRow, type: string, delta: number) {
+  const fresh = cashDrawerSql.findPaymentSourcesBySourceId(db).get(source.source_id, tenantId) as PaymentSourceRow | undefined;
+  const newBalance = round2(Number((fresh || source).current_balance) + delta);
+  const isOut = delta < 0;
+  cashDrawerSql.insertPaymentSourceTransaction(db).run(
+    crypto.randomUUID(), tenantId, source.source_id, isOut ? 'CASH_OUT' : 'CASH_IN', round2(Math.abs(delta)),
+    isOut ? 'Invoice Cancellation' : 'Invoice Sale', invoice.invoice_number || null,
+    `Invoice ${invoice.invoice_number || ''} ${isOut ? 'cancelled' : 'payment'} via ${type}`,
+    newBalance, invoice.user_id || 'system', invoice.user_name || null
+  );
+  cashDrawerSql.updatePaymentSourceCurrentBalance(db).run(newBalance, source.source_id);
+}
+
 export function adjustPaymentSourcesForInvoice(
   db: Db,
   tenantId: string,
@@ -230,64 +290,39 @@ export function adjustPaymentSourcesForInvoice(
 ) {
   if (!db || !tenantId || !invoice || invoice.counts_in_revenue === 0) return; // not real money (see getCashAmountFromInvoice)
   try {
-    const pm = (invoice.payment_method || '').toUpperCase();
-    let splitObj: SplitDetails | null = null;
-    if (invoice.split_details && invoice.split_details !== 'null') {
-      if (typeof invoice.split_details === 'string') {
-        try { splitObj = JSON.parse(invoice.split_details); } catch { /* ignore */ }
-      } else if (typeof invoice.split_details === 'object') {
-        splitObj = invoice.split_details;
-      }
-    }
-
-    const processSourceTransaction = (sourceId: string | null | undefined, sourceType: string, amount: number) => {
-      if (amount <= 0) return;
-      let source: PaymentSourceRow | null | undefined = null;
-      if (sourceId) {
-        source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
-      }
-      if (!source) {
-        source = cashDrawerSql.findOnePaymentSourceByTypeAndIsEnabled(db).get(tenantId, sourceType === 'BANK_TRANSFER' ? 'BANK' : sourceType) as PaymentSourceRow | undefined;
-      }
-      if (source) {
-        const delta = isDeleteOrCancel ? -amount : amount;
-        const newBalance = Number(source.current_balance) + delta;
-        const txnType = isDeleteOrCancel ? 'CASH_OUT' : 'CASH_IN';
-        const category = isDeleteOrCancel ? 'Invoice Cancellation' : 'Invoice Sale';
-        
-        cashDrawerSql.insertPaymentSourceTransaction(db).run(
-          crypto.randomUUID(), tenantId, source.source_id, txnType, amount,
-          category, invoice.invoice_number || null, `Invoice ${invoice.invoice_number || ''} ${isDeleteOrCancel ? 'cancelled' : 'payment'} via ${sourceType}`,
-          newBalance, invoice.user_id || 'system', invoice.user_name || null
-        );
-
-        cashDrawerSql.updatePaymentSourceCurrentBalance(db)
-          .run(newBalance, source.source_id);
-      }
-    };
-
-    if (pm === 'UPI') {
-      const upiAmt = Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0);
-      processSourceTransaction(invoice.payment_source_id || splitObj?.upi_source_id, 'UPI', upiAmt);
-    } else if (pm === 'CARD') {
-      const cardAmt = Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0);
-      processSourceTransaction(invoice.payment_source_id || splitObj?.card_source_id, 'CARD', cardAmt);
-    } else if (pm === 'BANK_TRANSFER' || pm === 'BANK') {
-      const bankAmt = Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0);
-      processSourceTransaction(invoice.payment_source_id || splitObj?.bank_source_id, 'BANK_TRANSFER', bankAmt);
-    } else if (pm === 'SPLIT' && splitObj) {
-      if (Number(splitObj.upi) > 0) {
-        processSourceTransaction(splitObj.upi_source_id || invoice.payment_source_id, 'UPI', Number(splitObj.upi));
-      }
-      if (Number(splitObj.card) > 0) {
-        processSourceTransaction(splitObj.card_source_id || invoice.payment_source_id, 'CARD', Number(splitObj.card));
-      }
-      if (Number(splitObj.bank_transfer) > 0) {
-        processSourceTransaction(splitObj.bank_source_id || invoice.payment_source_id, 'BANK_TRANSFER', Number(splitObj.bank_transfer));
-      }
+    for (const { source, type, amount } of invoiceSourceAmounts(db, tenantId, invoice).values()) {
+      postSourceMovement(db, tenantId, invoice, source, type, isDeleteOrCancel ? -amount : amount);
     }
   } catch (err) {
     console.error('[PaymentSources] adjustPaymentSourcesForInvoice error:', (err as Error).message);
+  }
+}
+
+/**
+ * Bring the payment accounts in line with a bill as it is now (after an edit, a payment change, a delete or a
+ * restore): what the bill should have in each account minus what it already posted there is posted as one movement.
+ * Idempotent: repeating it, or editing back and forth, never adds money twice. A deleted bill should have nothing.
+ */
+export function syncPaymentSourcesForInvoice(db: Db, tenantId: string, invoice: (InvoicePaymentFields & { is_deleted?: number | boolean | null }) | null | undefined) {
+  if (!db || !tenantId || !invoice?.invoice_number) return;
+  try {
+    const target = invoice.is_deleted ? new Map<string, { source: PaymentSourceRow; type: string; amount: number }>() : invoiceSourceAmounts(db, tenantId, invoice);
+    const posted = new Map<string, number>();
+    for (const row of cashDrawerSql.sumInvoicePaymentSourcePostings(db).all(tenantId, invoice.invoice_number) as Array<{ source_id: string; net: number }>) {
+      posted.set(row.source_id, Number(row.net) || 0);
+    }
+    for (const [sourceId, { source, type, amount }] of target) {
+      const delta = round2(amount - (posted.get(sourceId) || 0));
+      if (Math.abs(delta) >= 0.01) postSourceMovement(db, tenantId, invoice, source, type, delta);
+      posted.delete(sourceId);
+    }
+    for (const [sourceId, net] of posted) {
+      if (Math.abs(net) < 0.01) continue;
+      const source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
+      if (source) postSourceMovement(db, tenantId, invoice, source, String(source.type || 'account'), -net);
+    }
+  } catch (err) {
+    console.error('[PaymentSources] syncPaymentSourcesForInvoice error:', (err as Error).message);
   }
 }
 

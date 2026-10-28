@@ -274,7 +274,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['Card', finData.paymentMethods.card.toFixed(2)],
       ['Bank Transfer', finData.paymentMethods.bank.toFixed(2)],
       ['Cheque', finData.paymentMethods.cheque.toFixed(2)],
-      ['Credit / Ledger', finData.paymentMethods.credit.toFixed(2)],
+      ['Credit Sales', finData.paymentMethods.credit.toFixed(2)],
     ];
 
     const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
@@ -516,17 +516,17 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
               <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-4 flex flex-col justify-between select-none">
                 <div>
                   <h3 className="text-base font-extrabold text-foreground">Payment Method Distribution</h3>
-                  <p className="text-xs text-muted-foreground">Breakdown of cash, UPI, card, and credit collections</p>
+                  <p className="text-xs text-muted-foreground">Invoice payment allocation at checkout; later repayments and refunds are shown in the ledgers</p>
                 </div>
 
                 <div className="space-y-3.5">
                   {[
-                    { name: 'Cash Collections', amount: finData.paymentMethods.cash, color: 'bg-emerald-500' },
+                    { name: 'Cash Sales', amount: finData.paymentMethods.cash, color: 'bg-emerald-500' },
                     { name: 'UPI & QR Digital', amount: finData.paymentMethods.upi, color: 'bg-cyan-500' },
                     { name: 'Credit & Debit Cards', amount: finData.paymentMethods.card, color: 'bg-blue-500' },
                     { name: 'Bank Transfers', amount: finData.paymentMethods.bank, color: 'bg-purple-500' },
                     { name: 'Cheque', amount: finData.paymentMethods.cheque, color: 'bg-indigo-500' },
-                    { name: 'Credit / Khata Balance', amount: finData.paymentMethods.credit, color: 'bg-amber-500' },
+                    { name: 'Credit Sales', amount: finData.paymentMethods.credit, color: 'bg-amber-500' },
                   ].map(item => {
                     const pct = finData.netSales > 0 ? (item.amount / finData.netSales) * 100 : 0;
                     return (
@@ -544,7 +544,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                 </div>
 
                 <div className="pt-3.5 border-t border-border flex items-center justify-between text-xs font-extrabold text-muted-foreground">
-                  <span>Total Realized Collection</span>
+                  <span>Total Invoice Allocation</span>
                   <span className="text-foreground font-black text-sm">{fmtCurr(finData.netSales)}</span>
                 </div>
               </div>

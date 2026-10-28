@@ -232,9 +232,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
 
       const effectiveFinalPaymentMethod = paymentMethod === 'SPLIT' ? 'SPLIT' : paymentMethod;
       const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
-      const defaultFullPaid = (effectiveFinalPaymentMethod === 'CASH' || effectiveFinalPaymentMethod === 'UPI' || effectiveFinalPaymentMethod === 'CARD') ? effectiveGrandTotal : 0;
+      const defaultFullPaid = ['CASH', 'UPI', 'CARD', 'CHEQUE'].includes(effectiveFinalPaymentMethod) ? effectiveGrandTotal : 0;
       const effectiveReceivedAmount = isPaymentPending ? 0 : (effectiveFinalPaymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
-      const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
+      const effectiveBalanceAmount = isPaymentPending || refundAmount > 0 ? 0 : Math.round((balanceAmount + effectiveReceivedAmount - receivedAmount) * 100) / 100;
 
       const invoice_id = isEditing ? editingInvoiceId : uuidv4();
       const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (isB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (invoiceType === 'GST' ? 'gst' : undefined);

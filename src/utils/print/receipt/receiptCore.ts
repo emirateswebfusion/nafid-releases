@@ -475,3 +475,74 @@ export function formatBalanceLines(
   }
   return lines;
 }
+
+/** Formats a clean, dedicated Tax Breakup table for thermal printed receipts. */
+export function formatTaxBreakupSection(
+  data: ReceiptData,
+  charsPerLine: number,
+  padLeft: (text: string, width: number) => string,
+  _padRight: (text: string, width: number) => string,
+  centerText: (text: string, width: number) => string,
+  sepChar: string = '-'
+): string {
+  if (!data.tax || data.tax <= 0) return '';
+  const isGst = data.invoiceType === 'GST' || Boolean(data.isB2B);
+  if (!isGst && data.billSettings?.showBosTaxBreakup === false) return '';
+
+  const hasIgst = Boolean(data.igst && data.igst > 0);
+  const rawTaxable = (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05)
+    ? data.subtotal
+    : Math.max(0, data.grandTotal - data.tax);
+  const taxableVal = rawTaxable.toFixed(2);
+  const totalTaxVal = data.tax.toFixed(2);
+  const sep = sepChar.repeat(charsPerLine);
+
+  let out = '';
+  out += centerText('TAX BREAKUP', charsPerLine) + '\n';
+
+  if (charsPerLine >= 40) {
+    const colCount = 5;
+    const w = Math.floor(charsPerLine / colCount);
+    const wLast = charsPerLine - (w * (colCount - 1));
+    const widths = [w, w, w, w, wLast];
+    const headers = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
+    const values = [
+      taxableVal,
+      data.cgst ? data.cgst.toFixed(2) : '0.00',
+      data.sgst ? data.sgst.toFixed(2) : '0.00',
+      data.igst ? data.igst.toFixed(2) : '0.00',
+      totalTaxVal,
+    ];
+    out += headers.map((h, i) => padLeft(h, widths[i])).join('') + '\n';
+    out += values.map((v, i) => padLeft(v, widths[i])).join('') + '\n';
+  } else if (hasIgst) {
+    const w1 = Math.floor(charsPerLine * 0.38);
+    const w2 = Math.floor(charsPerLine * 0.31);
+    const w3 = charsPerLine - w1 - w2;
+    const widths = [w1, w2, w3];
+    const headers = ['Taxable', 'IGST', 'Total GST'];
+    const values = [
+      taxableVal,
+      data.igst ? data.igst.toFixed(2) : '0.00',
+      totalTaxVal,
+    ];
+    out += headers.map((h, i) => padLeft(h, widths[i])).join('') + '\n';
+    out += values.map((v, i) => padLeft(v, widths[i])).join('') + '\n';
+  } else {
+    const w = Math.floor(charsPerLine / 4);
+    const wLast = charsPerLine - (w * 3);
+    const widths = [w, w, w, wLast];
+    const headers = ['Taxable', 'CGST', 'SGST', 'Total'];
+    const values = [
+      taxableVal,
+      data.cgst ? data.cgst.toFixed(2) : '0.00',
+      data.sgst ? data.sgst.toFixed(2) : '0.00',
+      totalTaxVal,
+    ];
+    out += headers.map((h, i) => padLeft(h, widths[i])).join('') + '\n';
+    out += values.map((v, i) => padLeft(v, widths[i])).join('') + '\n';
+  }
+
+  out += sep + '\n';
+  return out;
+}

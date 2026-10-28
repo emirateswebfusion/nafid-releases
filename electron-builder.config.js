@@ -91,10 +91,9 @@ module.exports = {
     artifactName: '${productName}-Setup-${version}.${ext}'
   },
   nsis: {
-    oneClick: false,
+    oneClick: true,
     perMachine: false,
     allowElevation: true,
-    allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
@@ -105,6 +104,7 @@ module.exports = {
     runAfterFinish: true,
     installerLanguages: ['en'],
     license: 'build/license.txt',
+    differentialPackage: true,
   },
   // First entry = the feed installed apps read (public, no token). LEGACY_PRIVATE_REPO_URL (optional, transition only)
   // also uploads the release to the old private repo so installs from before this change can still find it; remove

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import { generateReceiptText, type ReceiptData } from '../../src/utils/print/receiptGenerator';
 import { JSDOM } from 'jsdom';
 import { buildReceiptHtml } from '../../electron/hardware/receiptHtml';
 
@@ -139,4 +140,84 @@ it('falls back to native driver page size for standard receipts when custom pape
   expect(printCalls[0].pageSize).toEqual({ width: 80000, height: 120000 });
   expect(printCalls[1].pageSize).toBeUndefined();
   expect(printCalls[1].deviceName).toBe('XP-80C');
+});
+
+it('preserves left-aligned metadata and indented lines without falsely centering them', async () => {
+  const receipt = [
+    '          PAATHRA PEEDIKA           ',
+    '====================================',
+    '  INV No:  M8DG-271',
+    '  Date:    27/10/2026, 05:09:06 PM',
+    '  Staff:   Haroon',
+    '------------------------------------',
+    '              CUSTOMER              ',
+    '  State: KL',
+    '------------------------------------',
+    ' 1. GLASS                        1    46.00',
+    '  MRP ₹140.00 → ₹130.00  (Offer)',
+  ].join('\n');
+
+  const html = await buildReceiptHtml(receipt, 80);
+  const dom = new JSDOM(html);
+  const pres = Array.from(dom.window.document.querySelectorAll('pre'));
+
+  // Header should be centered
+  expect(pres[0].style.textAlign).toBe('center');
+  expect(pres[0].textContent).toBe('PAATHRA PEEDIKA');
+
+  // Metadata should remain left-aligned and retain leading spaces
+  expect(pres[2].style.textAlign).toBe('left');
+  expect(pres[2].textContent).toBe('  INV No:  M8DG-271');
+
+  expect(pres[3].style.textAlign).toBe('left');
+  expect(pres[3].textContent).toBe('  Date:    27/10/2026, 05:09:06 PM');
+
+  expect(pres[4].style.textAlign).toBe('left');
+  expect(pres[4].textContent).toBe('  Staff:   Haroon');
+
+  // CUSTOMER title should be centered
+  expect(pres[6].style.textAlign).toBe('center');
+  expect(pres[6].textContent).toBe('CUSTOMER');
+
+  // Customer state should remain left-aligned
+  expect(pres[7].style.textAlign).toBe('left');
+  expect(pres[7].textContent).toBe('  State: KL');
+
+  // Item and MRP discount should remain left-aligned
+  expect(pres[9].style.textAlign).toBe('left');
+  expect(pres[9].textContent).toBe(' 1. GLASS                        1    46.00');
+
+  expect(pres[10].style.textAlign).toBe('left');
+  expect(pres[10].textContent).toBe('  MRP ₹140.00 → ₹130.00  (Offer)');
+});
+
+it('renders GST in a separate Tax Breakup section instead of inlining it in totals', () => {
+  const sampleReceipt: ReceiptData = {
+    shopName: 'Supermarket',
+    invoiceNumber: 'INV-101',
+    date: '2026-10-28T10:00:00Z',
+    items: [
+      { name: 'Dove Soap 100g', quantity: 1, unit_price: 100, total: 100 },
+    ],
+    subtotal: 100,
+    tax: 15.24,
+    cgst: 7.62,
+    sgst: 7.62,
+    discount: 0,
+    grandTotal: 100,
+    invoiceType: 'GST',
+  };
+
+  const rendered = generateReceiptText(sampleReceipt, 5.8, 32, 'standard');
+
+  // Totals block should not contain CGST or SGST lines
+  const totalsSection = rendered.slice(rendered.indexOf('SUBTOTAL'), rendered.indexOf('** GRAND TOTAL **'));
+  expect(totalsSection).not.toContain('CGST');
+  expect(totalsSection).not.toContain('SGST');
+  expect(totalsSection).toContain('SUBTOTAL');
+
+  // There should be a dedicated TAX BREAKUP table
+  expect(rendered).toContain('TAX BREAKUP');
+  expect(rendered).toMatch(/Taxable\s+CGST\s+SGST\s+Total/);
+  expect(rendered).toMatch(/84\.76\s+7\.62\s+7\.62\s+15\.24/);
 });

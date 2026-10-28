@@ -21,10 +21,38 @@ and update every caller in the same change.
 | Pricing tiers applied to products | `src/utils/pricing/pricingTierHelper.ts` | — |
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
 | Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
+| Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts` | — |
 
 Main-process rules live in `electron/services/` (document numbering, party ledger, cash drawer reconciliation, store time)
 and `electron/utils/` (ids, cashier settlement math).
+
+### Customer credit ledger (`electron/services/partyLedgerService.ts`)
+
+- A party's balance is Σ credit − Σ debit over its active `party_ledger` rows (positive = the party owes the shop);
+  `recalcPartyBalances` re-sequences `running_balance` and stores the totals after every write. Rows are never merged
+  or "deduplicated" by content: two equal payments on the same day are two payments.
+- A bill posts only its own rows, with deterministic ids and exact references: the sale (`<bill>`, "Credit Sale …")
+  and the payments taken at checkout (`<bill>-PAY`, `-CASH`, `-UPI`, `-CARD`, `-BANK`, `-CHEQUE`). Saving, editing,
+  changing the payment or the customer, deleting or restoring a bill first retires exactly those rows of that shop
+  (`findInvoiceLedgerEntries`, `invoiceOwnedEntry`), then re-posts them, so a bill always has one adjustment. Never
+  match ledger rows with `LIKE` on a number (bill 1 would match bill 10, payments and returns that mention it, and
+  bills of another shop on the terminal).
+- `invoiceCreditTerms` is the credit rule of a bill: CREDIT owes total − received; SPLIT owes its `credit` part and
+  pays the other parts (capped at the non-credit part); other methods owe nothing. The billing screen saves a Credit
+  bill with amounts in the Cash / Card / UPI / Cheque tiles as SPLIT (each part kept); a split with a credit part must
+  add up to the bill total. Change Payment with cash below the total is saved as CREDIT with that amount paid.
+- Returns (`syncReturnLedger`): CREDIT / STORE_CREDIT / ADJUST_BILL post a debit (`<return>`); a money refund (CASH,
+  UPI, CARD, BANK_TRANSFER, CHEQUE) also posts the refund as a credit (`<return>-REFUND`), so the balance does not
+  change; a return credit used on a bill posts a credit (`<return>-ADJ-<bill>`), released when that bill is deleted
+  and used again when it is restored.
+- Per-bill outstanding (`customerCreditService.computeCustomerCreditStatusSync`): a bill owes its credit portion less
+  later payments referencing it and less checkout rows beyond what the bill shows as paid; other payments, return
+  credits and overpayments go to the oldest open bills. The per-bill outstanding adds up to the balance. Customer invoice details show this computed `outstanding_amount` (including zero), not the original checkout balance snapshot.
+- Editing a bill: the billing tab keeps the bill's own credit (`editingInvoiceContribution`) so the due, receipt
+  balance and credit-limit check do not count the bill twice.
+- Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
+  `tabStoreEditing.test.ts`.
 
 ### Cash drawer sessions (`electron/services/cashDrawerSession.ts`)
 
@@ -56,7 +84,7 @@ and `electron/utils/` (ids, cashier settlement math).
   those copies. Direct GST bills still count. A payment-method filter shows that payment portion as revenue;
   the three sales/tax figures describe the matching invoices, not just that payment portion.
 - Compare reports with the same invoice/payment scope and time window: Sales History filters creation dates,
-  while Cash Register sessions and Shop Closing use settlement time when present. Cash collections, credit
+  while Cash Register sessions and Shop Closing use settlement time when present. Financial Report payment distribution shows invoice allocations at checkout, excluding later ledger repayments and refunds. Cash collections, credit
   sales, gross sales and amounts before credits are different measures, not interchangeable totals.
 - New tax breakdown fields are protected when staff revenue is masked; they cannot reveal real revenue by subtraction.
 
@@ -71,12 +99,13 @@ and `electron/utils/` (ids, cashier settlement math).
 - `cash_register_ledger_mode` defaults to `all` (current behavior); `off` excludes manual ledger cash,
   `today` includes only entries dated the drawer business day in the store timezone. Both date modes select entries
   recorded in this drawer session; `all` permits any ledger document date, without recounting all historical cash.
-- New manual CASH ledger creations atomically write one idempotent cash transaction with category
+- New manual CASH ledger creations (and entries edited to CASH) atomically write one idempotent cash transaction with category
   `PARTY_LEDGER:<ledger_id>`. The cash feed resolves the current ledger amount, direction, payment method and deletion
   state. These derived entries are edited in the Ledger, and return refunds in Return History, not deleted in Cash Register.
 - Legacy `Party Payment` / `Party Receipt` cash transactions have no ledger id. Their original ledger date and later
-  edits cannot be recovered reliably; today-only uses the cash-entry date. Existing non-cash ledger entries changed
-  to cash do not gain a new cash link. Migrating/relinking those historical entries needs a separate decision.
+  edits cannot be recovered reliably; today-only uses the cash-entry date. Migrating/relinking historical entries
+  needs a separate decision. The first manual cash entry starts a zero-opening drawer when none is open;
+  the real NOT NULL / foreign-key constraints are covered by `cashRegisterOptions.test.ts`.
 - `cash_register_payment_methods` defaults to `[]`, preserving the existing display. Selected UPI, CARD,
   BANK_TRANSFER and CHEQUE collections use the drawer's invoice session, including split parts. These amounts
   are informational and never added to physical cash. `electron/utils/registerPaymentTotals.ts` owns the rule.
@@ -85,6 +114,23 @@ and `electron/utils/` (ids, cashier settlement math).
   the existing `scrap` master toggle controls the whole section. Preview and sending have matching unit coverage.
 - Tests: `cashRegisterOptions.test.ts`, `registerPaymentTotals.test.ts`, `closingScrapOptions.test.ts`,
   `cashRegisterSettings.ui.test.tsx`; existing `tests/characterization/drawer-session.mts` remains applicable.
+
+### Payment fields and electronic repayments/refunds
+
+- Checkout computes saved change from the effective amount received, including the full-paid default for Cash,
+  Card, UPI and Cheque. A fully paid bill has zero change; cheque received and its split allocation agree.
+  Customer account snapshots remain in `old_due` / `new_due` and credit bills retain their account balance semantics.
+- `electron/services/ledgerPaymentAccounts.ts` reconciles manual ledger UPI / CARD / BANK receipts and payouts,
+  electronic return refunds, staff salary/advance payouts, and electronic purchase-bill payments with Payment Methods. It posts only the difference from the document's existing
+  account movements, keyed by ledger id (`Party Ledger`), return id (`Return Refund`), staff transaction id (`Staff Payout`), or purchase id (`Purchase Payment`). Edits, cancellations and
+  restorations therefore do not duplicate money. Staff accruals/bonuses/deductions are ledger adjustments, not payouts. Purchase amount/method edits and deletion replace or reverse their account effect. Invoice-owned checkout rows are excluded because billing posts them.
+- The configured enabled default account of the method receives a new movement; later edits retain the original
+  account while its type still matches. A method without a configured account still records the party payment.
+  Cash/cheque do not automatically post to an electronic account. Account writes share the ledger/return transaction;
+  staff and purchase writes are also atomic with their account posting; a failed posting rolls back the financial operation. Negative, zero, non-finite and malformed ledger amounts are rejected.
+- Historical unlinked receipts/refunds are not automatically rewritten or inferred. No production backfill is part
+  of this change. A failed ledger save keeps its form open and cannot report success or send a payment notice.
+- Tests: `ledgerPaymentAccounts.test.ts`, `partyTransactionSave.ui.test.tsx`, `billingScreen.ui.test.tsx`.
 
 ### Conversion copies and revenue (`electron/db/statements/revenue.ts`)
 
@@ -107,6 +153,9 @@ server support; they are not implemented by this conversion-copy rule.
 - `nafid-server/src/utils/cashierSettlement.ts` and `electron/utils/cashierSettlement.ts`, and the permission conversion in
   `src/utils/security/permissions.ts` vs `nafid-server/src/services/permissions.ts`, are **cross-app copies of one rule**.
   They must stay behaviourally identical until a shared package exists; change both with tests.
+- Per-bill credit outstanding: `electron/services/customerCreditService.ts` (with `invoiceCreditTerms`) and
+  `nafid-server/src/db/repositories/customerCredit.ts` are cross-app copies of one rule (`tests/unit/creditLedger.test.ts`,
+  `nafid-server/tests/customerCredit.test.ts`).
 - `electron/sync/syncWorker.ts` has private copies of the auth-file reader and date parsing that also exist in
   `electron/services/{authStorage,storeTime}.ts`. Consolidate only together with sync characterization tests.
 

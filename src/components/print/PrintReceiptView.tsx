@@ -295,7 +295,7 @@ export function PrintReceiptView({ text }: { text: string }) {
             if (trimmed && !displayValue.includes('│') && !displayValue.includes('|')) {
               const leadingSpaces = displayValue.length - displayValue.trimStart().length;
               const trailingSpaces = displayValue.length - displayValue.trimEnd().length;
-              if (Math.abs(leadingSpaces - trailingSpaces) <= 2) {
+              if (leadingSpaces >= 1 && trailingSpaces >= 1 && Math.abs(leadingSpaces - trailingSpaces) <= 2) {
                 isCentered = true;
                 finalValue = trimmed;
               }

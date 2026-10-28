@@ -1,4 +1,4 @@
-import { formatPrintItem, shouldShowItemMrp, numberToIndianWords, getDocumentTitle, formatBalanceLines } from '../receiptCore';
+import { formatPrintItem, shouldShowItemMrp, numberToIndianWords, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
 /** Thermal receipt style "clean": CLEAN — Follows lines, table with RATE col, Amount in Words, traditional invoice */
@@ -115,13 +115,6 @@ export function renderCleanReceipt(ctx: ReceiptTextContext): string {
 
   // ── Totals ──
   text += `${padRight('SUB TOTAL :', labelW)}  ${padLeft(`₹${data.subtotal.toFixed(2)}`, totalW)}\n`;
-  if (data.tax > 0) {
-    if (data.igst && data.igst > 0) text += `${padRight('IGST :', labelW)}  ${padLeft(`₹${data.igst.toFixed(2)}`, totalW)}\n`;
-    else {
-      if (data.cgst && data.cgst > 0) text += `${padRight('CGST :', labelW)}  ${padLeft(`₹${data.cgst.toFixed(2)}`, totalW)}\n`;
-      if (data.sgst && data.sgst > 0) text += `${padRight('SGST :', labelW)}  ${padLeft(`₹${data.sgst.toFixed(2)}`, totalW)}\n`;
-    }
-  }
   if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
     text += `${padRight('EXTRA / BONUS :', labelW)}  ${padLeft(`₹+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
   } else if (data.discount > 0) {
@@ -192,6 +185,9 @@ export function renderCleanReceipt(ctx: ReceiptTextContext): string {
       } catch { /* ignore */ }
     }
   }
+
+  // ── Tax Breakup ──
+  text += formatTaxBreakupSection(data, charsPerLine, padLeft, padRight, centerText, '-');
 
   // ── Loyalty Points ──
   text = appendLoyaltyBlock(text);

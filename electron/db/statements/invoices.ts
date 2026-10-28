@@ -198,7 +198,9 @@ export const findOneInvoiceItemByInvoiceId = (db: Db) => db.prepare(`
       `);
 
 export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
-      SELECT COALESCE(SUM(MAX(0, COALESCE(grand_total, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
+      SELECT COALESCE(SUM(MAX(0, COALESCE(grand_total, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales,
+             COALESCE(SUM(MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
+             COUNT(*) as invoiceCount
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)

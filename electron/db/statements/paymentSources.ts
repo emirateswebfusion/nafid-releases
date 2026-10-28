@@ -1,4 +1,22 @@
 import type { Db } from './types.js';
+import { invoiceOwnedEntry } from './partyLedger.js';
+
+/** Invoice-owned collections already post through checkout; manual repayments post through the ledger. */
+export const findManualLedgerPayment = (db: Db) => db.prepare(`
+  SELECT pl.* FROM party_ledger pl WHERE pl.ledger_id = ? AND pl.party_id = ?
+    AND NOT EXISTS (SELECT 1 FROM invoices i WHERE i.tenant_id = pl.tenant_id AND ${invoiceOwnedEntry('i.invoice_number')})
+`);
+
+export const sumDocumentAccountPostings = (db: Db) => db.prepare(`
+  SELECT source_id, ROUND(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE -amount END), 2) AS net
+  FROM payment_source_transactions WHERE tenant_id = ? AND category = ? AND reference_number = ?
+  GROUP BY source_id
+`);
+
+export const findEnabledLedgerAccount = (db: Db) => db.prepare(`
+  SELECT * FROM payment_sources WHERE tenant_id = ? AND type = ? AND is_enabled = 1 AND is_deleted = 0
+  ORDER BY is_default DESC, sort_order ASC, source_id ASC LIMIT 1
+`);
 
 /** SQL statements used by services/paymentSourcesService.ts. Each factory prepares its statement on the given connection. */
 

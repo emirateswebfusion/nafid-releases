@@ -9,7 +9,10 @@ vi.mock('../../electron/services/cashDrawerService', async importOriginal => ({
   ...await importOriginal<typeof import('../../electron/services/cashDrawerService')>(),
   getOpenCashDrawer: () => null,
 }));
-vi.mock('../../electron/services/partyLedgerService', () => ({ syncInvoiceCreditLedger: vi.fn() }));
+vi.mock('../../electron/services/partyLedgerService', async importOriginal => ({
+  ...await importOriginal<typeof import('../../electron/services/partyLedgerService')>(),
+  syncInvoiceCreditLedger: vi.fn(),
+}));
 vi.mock('../../electron/whatsapp/shopClosingReportService', () => ({ sendShopClosingReport: vi.fn() }));
 vi.mock('../../electron/services/storeTime', () => ({ localTimestamp: () => '2026-10-27', localDate: () => '2026-10-27' }));
 vi.mock('../../electron/sync/syncWorker', () => ({ triggerUrgentInvoiceSync: async () => {}, triggerUrgentCashSync: async () => {} }));

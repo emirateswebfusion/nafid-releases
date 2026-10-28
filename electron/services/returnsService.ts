@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { syncReturnLedger, removeReturnLedger } from './partyLedgerService.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
 import * as returnsSql from '../db/statements/returns.js';
+import { syncReturnPaymentAccount } from './ledgerPaymentAccounts.js';
 /** returns use-cases for the main process (called by electron/ipc handlers). */
 
 /** IPC `db:createReturn` */
@@ -102,6 +103,7 @@ export function createReturn(payload: {
     }
 
     const refMethod = (returnData.refund_method || (isOrigCredit ? 'CREDIT' : 'ADJUST_BILL')).toUpperCase();
+    syncReturnPaymentAccount(db, { ...returnData, refund_method: refMethod });
 
     if (refMethod === 'CASH' && Number(returnData.grand_total) > 0) {
       const todayDate = localDate();
@@ -294,6 +296,7 @@ export function deleteReturn(return_id: string) {
     const transaction = db.transaction(() => {
       const returnRow = returnsSql.findReturnsByReturnId(db).get(return_id) as ReturnRow;
       if (!returnRow) return;
+      syncReturnPaymentAccount(db, returnRow, true);
 
       const stockInvoice = returnRow.invoice_id ? returnsSql.findInvoicesByInvoiceId(db).get(returnRow.invoice_id) as InvoiceRow | undefined : undefined;
       const items = returnsSql.findReturnItemsByReturnIdProductIdAndQuantity(db).all(return_id) as InvoiceItem[];

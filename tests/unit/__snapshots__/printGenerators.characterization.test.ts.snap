@@ -4407,8 +4407,6 @@ BALANCE DUE               275.50
      1 PCS x 999.00
 --------------------------------
 Subtotal:                2600.00
-CGST @2.5%:               134.50
-SGST @2.5%:               134.50
 Discount (2%):            -50.00
 Grand Total:             2869.00
 Scrap Return Amount:     -100.00
@@ -4432,6 +4430,10 @@ PAYMENT DUE DATE      2026-10-30
             shop@upi            
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+--------------------------------
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
 --------------------------------
 
          LOYALTY POINTS         
@@ -4485,8 +4487,6 @@ Goods once sold will not be take
      1 PCS x 999.00
 ------------------------------------
 Subtotal:                    2600.00
-CGST @2.5%:                   134.50
-SGST @2.5%:                   134.50
 Discount (2%):                -50.00
 Grand Total:                 2869.00
 Scrap Return Amount:         -100.00
@@ -4510,6 +4510,10 @@ PAYMENT DUE DATE          2026-10-30
               shop@upi              
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+------------------------------------
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
 ------------------------------------
 
            LOYALTY POINTS           
@@ -4569,8 +4573,6 @@ No ITEM      QTY    RATE   AMOUNT
    Combo                         
 
 SUB TOTAL :             ₹2600.00
-CGST :                   ₹134.50
-SGST :                   ₹134.50
 DISCOUNT (2%) :          ₹-50.00
 Grand Total :           ₹2869.00
 Scrap Return Amount     ₹-100.00
@@ -4595,6 +4597,10 @@ PAYMENT DUE DATE      2026-10-30
             shop@upi            
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
+--------------------------------
 
          LOYALTY POINTS         
 Previous Balance             100
@@ -4648,8 +4654,6 @@ No ITEM          QTY    RATE   AMOUNT
    Combo                             
 
 SUB TOTAL :                 ₹2600.00
-CGST :                       ₹134.50
-SGST :                       ₹134.50
 DISCOUNT (2%) :              ₹-50.00
 Grand Total :               ₹2869.00
 Scrap Return Amount :       ₹-100.00
@@ -4674,6 +4678,10 @@ PAYMENT DUE DATE          2026-10-30
               shop@upi              
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
+------------------------------------
 
            LOYALTY POINTS           
 Previous Balance                 100
@@ -4719,8 +4727,6 @@ Tool Kit Combo            999.00
  1 PCSx999.00
 --------------------------------
 Subtotal                 2600.00
-CGST                      134.50
-SGST                      134.50
 Discount                  -50.00
 Grand Total              2869.00
 Scrap Return Amount      -100.00
@@ -4743,6 +4749,10 @@ Discount Value            -20.00
 Balance                      108
 --------------------------------
  ** SAVED ₹200.00 **
+--------------------------------
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
 --------------------------------
 UPI: shop@upi
 --------------------------------
@@ -4781,8 +4791,6 @@ Tool Kit Combo                999.00
  1 PCSx999.00
 ------------------------------------
 Subtotal                     2600.00
-CGST                          134.50
-SGST                          134.50
 Discount                      -50.00
 Grand Total                  2869.00
 Scrap Return Amount          -100.00
@@ -4805,6 +4813,10 @@ Discount Value                -20.00
 Balance                          108
 ------------------------------------
  ** SAVED ₹200.00 **
+------------------------------------
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
 ------------------------------------
 UPI: shop@upi
 ------------------------------------
@@ -4846,8 +4858,6 @@ Tool Kit Combo ........... 999.00
   1 PCSx999.00
 --------------------------------
 SUBTOTAL ................ 2600.00
-CGST ..................... 134.50
-SGST ..................... 134.50
 DISCOUNT (2%) ............ -50.00
 Grand Total ............. 2869.00
 Scrap Return Amount ..... -100.00
@@ -4869,6 +4879,10 @@ PAYMENT DUE DATE ..... 2026-10-30
 --------------------------------
 UPI: shop@upi
 --------------------------------
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
+................................
 
          LOYALTY POINTS         
 Previous Balance             100
@@ -4915,8 +4929,6 @@ Tool Kit Combo ............... 999.00
   1 PCSx999.00
 ------------------------------------
 SUBTOTAL .................... 2600.00
-CGST ......................... 134.50
-SGST ......................... 134.50
 DISCOUNT (2%) ................ -50.00
 Grand Total ................. 2869.00
 Scrap Return Amount ......... -100.00
@@ -4938,6 +4950,10 @@ PAYMENT DUE DATE ......... 2026-10-30
 ------------------------------------
 UPI: shop@upi
 ------------------------------------
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
+....................................
 
            LOYALTY POINTS           
 Previous Balance                 100
@@ -4992,8 +5008,6 @@ Goods once sold will not be taken ba
 
 --------------------------------
 Subtotal                ₹2600.00
-CGST                     ₹134.50
-SGST                     ₹134.50
 Discount (2%)            -₹50.00
 Grand Total             ₹2869.00
 Scrap Return Amount     -₹100.00
@@ -5017,6 +5031,10 @@ PAYMENT DUE DATE      2026-10-30
             shop@upi            
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+--------------------------------
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
 --------------------------------
 
          LOYALTY POINTS         
@@ -5072,8 +5090,6 @@ Goods once sold will not be take
 
 ------------------------------------
 Subtotal                    ₹2600.00
-CGST                         ₹134.50
-SGST                         ₹134.50
 Discount (2%)                -₹50.00
 Grand Total                 ₹2869.00
 Scrap Return Amount         -₹100.00
@@ -5097,6 +5113,10 @@ PAYMENT DUE DATE          2026-10-30
               shop@upi              
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+------------------------------------
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
 ------------------------------------
 
            LOYALTY POINTS           
@@ -5150,8 +5170,6 @@ Goods once sold will not be taken ba
   1 PCS x 999.00
 --------------------------------
 SUBTOTAL                 2600.00
-CGST                      134.50
-SGST                      134.50
 DISCOUNT (2%)             -50.00
 Grand Total              2869.00
 Scrap Return Amount      -100.00
@@ -5175,6 +5193,10 @@ PAYMENT DUE DATE      2026-10-30
             shop@upi            
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+--------------------------------
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
 --------------------------------
 
          LOYALTY POINTS         
@@ -5227,8 +5249,6 @@ Goods once sold will not be take
   1 PCS x 999.00
 ------------------------------------
 SUBTOTAL                     2600.00
-CGST                          134.50
-SGST                          134.50
 DISCOUNT (2%)                 -50.00
 Grand Total                  2869.00
 Scrap Return Amount          -100.00
@@ -5252,6 +5272,10 @@ PAYMENT DUE DATE          2026-10-30
               shop@upi              
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+------------------------------------
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
 ------------------------------------
 
            LOYALTY POINTS           
@@ -5299,8 +5323,6 @@ Tool Kit Combo            999.00
  1 PCSx999.00
 
 SUBTOTAL                 2600.00
-CGST                      134.50
-SGST                      134.50
 DISCOUNT                  -50.00
 Grand Total              2869.00
 Scrap Return Amount      -100.00
@@ -5315,6 +5337,10 @@ BALANCE DUE               500.00
 PAYMENT DUE DATE      2026-10-30
 
 YOU SAVED ₹200.00
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
+--------------------------------
 
 UPI: shop@upi
 
@@ -5362,8 +5388,6 @@ Tool Kit Combo                999.00
  1 PCSx999.00
 
 SUBTOTAL                     2600.00
-CGST                          134.50
-SGST                          134.50
 DISCOUNT                      -50.00
 Grand Total                  2869.00
 Scrap Return Amount          -100.00
@@ -5378,6 +5402,10 @@ BALANCE DUE                   500.00
 PAYMENT DUE DATE          2026-10-30
 
 YOU SAVED ₹200.00
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
+------------------------------------
 
 UPI: shop@upi
 
@@ -5435,8 +5463,6 @@ Thank You
   Includes: Hammer (x1), Screwdr
 --------------------------------
 SUBTOTAL                 2600.00
-CGST                      134.50
-SGST                      134.50
 DISCOUNT (2%)             -50.00
 Grand Total              2869.00
 Scrap Return Amount      -100.00
@@ -5455,6 +5481,10 @@ BALANCE DUE               500.00
 PAYMENT DUE DATE      2026-10-30
 --------------------------------
     ++ You Saved ₹200.00 ++     
+--------------------------------
+          TAX BREAKUP           
+ Taxable    CGST    SGST   Total
+ 2600.00  134.50  134.50  269.00
 --------------------------------
           PAY VIA UPI           
             shop@upi            
@@ -5508,8 +5538,6 @@ Goods once sold will not be take
   Includes: Hammer (x1), Screwdriver
 ------------------------------------
 SUBTOTAL                     2600.00
-CGST                          134.50
-SGST                          134.50
 DISCOUNT (2%)                 -50.00
 Grand Total                  2869.00
 Scrap Return Amount          -100.00
@@ -5528,6 +5556,10 @@ BALANCE DUE                   500.00
 PAYMENT DUE DATE          2026-10-30
 ------------------------------------
       ++ You Saved ₹200.00 ++       
+------------------------------------
+            TAX BREAKUP             
+  Taxable     CGST     SGST    Total
+  2600.00   134.50   134.50   269.00
 ------------------------------------
             PAY VIA UPI             
               shop@upi              

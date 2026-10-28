@@ -1,4 +1,4 @@
-import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines } from '../receiptCore';
+import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
 /** Thermal receipt style "classic": CLASSIC — Ornate vintage, *** banners, verbose labels, numbered items */
@@ -100,13 +100,6 @@ export function renderClassicReceipt(ctx: ReceiptTextContext): string {
 
   // ── Totals (verbose labels with colons) ──
   text += `${padRight('Subtotal:', labelW)}  ${padLeft(data.subtotal.toFixed(2), totalW)}\n`;
-  if (data.tax > 0) {
-    if (data.igst && data.igst > 0) text += `${padRight('IGST:', labelW)}  ${padLeft(data.igst.toFixed(2), totalW)}\n`;
-    else {
-      if (data.cgst && data.cgst > 0) text += `${padRight('CGST @2.5%:', labelW)}  ${padLeft(data.cgst.toFixed(2), totalW)}\n`;
-      if (data.sgst && data.sgst > 0) text += `${padRight('SGST @2.5%:', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
-    }
-  }
   if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
     text += `${padRight('Extra / Bonus:', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
   } else if (data.discount > 0) {
@@ -175,6 +168,9 @@ export function renderClassicReceipt(ctx: ReceiptTextContext): string {
     }
     text += LIGHT + '\n';
   }
+
+  // ── Tax Breakup ──
+  text += formatTaxBreakupSection(data, charsPerLine, padLeft, padRight, centerText, '-');
 
   // ── Loyalty Points ──
   text = appendLoyaltyBlock(text);

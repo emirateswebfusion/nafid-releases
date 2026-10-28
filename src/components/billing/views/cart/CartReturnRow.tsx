@@ -78,9 +78,6 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
           {(item.alreadyReturned ?? 0) > 0 && (
             <><span className="mx-0.5">&middot;</span><span>Ret: {item.alreadyReturned} {isPiecesWeight ? 'Kg' : ''}</span></>
           )}
-          {item.returnSourceInvoiceNumber && (
-            <><span className="mx-0.5">&middot;</span><span className="text-[9px]">Inv: {item.returnSourceInvoiceNumber}</span></>
-          )}
         </div>
       </div>
 

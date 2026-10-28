@@ -8,7 +8,7 @@ import { getEncryptedPath, getConfigPath, clearOfflineSession } from './authStor
 import fs from 'node:fs';
 import { setSyncActive } from '../sync/syncWorker.js';
 import { session, BrowserWindow } from 'electron';
-import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
+import { getCashAmountFromInvoice, syncPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
 import { setInvoiceReturnCreditUse, syncInvoiceCreditLedger } from './partyLedgerService.js';
 import * as recycleBinSql from '../db/statements/recycleBin.js';
 /** recycleBin use-cases for the main process (called by electron/ipc handlers). */
@@ -129,7 +129,7 @@ export function restoreInvoice(invoice_id: string) {
     })();
 
     if (restoredInv) {
-      adjustPaymentSourcesForInvoice(db, restoredInv.tenant_id, restoredInv, false);
+      syncPaymentSourcesForInvoice(db, restoredInv.tenant_id, { ...restoredInv, is_deleted: 0 });
       if (oldCash > 0) {
         adjustCashDrawerForInvoice(db, restoredInv.tenant_id, restoredInv.created_at, 0, oldCash);
       }

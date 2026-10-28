@@ -4,7 +4,7 @@ import fs from 'fs';
 import { getDb } from '../db/localDb';
 import * as printerSql from '../db/statements/printer.js';
 import { buildReceiptHtml } from './receiptHtml.js';
-import { getSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
+import { getSharedA4Html, setSharedA4Html, clearSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
 import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
 import type { BulkPrintItem } from './printingTypes.js';
 
@@ -112,12 +112,14 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:getReceiptText', () => currentReceiptText);
 
-  ipcMain.handle('hardware:getA4Html', () => {
-    if (currentA4Html) return currentA4Html;
+  ipcMain.handle('hardware:getA4Html', (event) => {
     try {
+      const windowHtml = getSharedA4Html(event?.sender?.id);
+      if (windowHtml) return windowHtml;
+      if (currentA4Html) return currentA4Html;
       return getSharedA4Html() || '';
     } catch {
-      return '';
+      return currentA4Html || '';
     }
   });
 
@@ -141,7 +143,6 @@ export function initPrinter() {
         }
       }
 
-      currentA4Html = htmlContent;
       const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
       const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
       const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;
@@ -150,7 +151,7 @@ export function initPrinter() {
       const targetPageSize = isHalfA4 ? 'A4' : (isA5 ? 'A5' : 'A4');
       const targetLandscape = isHalfA4 ? false : isLandscape;
 
-      await printA4USB(config.deviceName || '', targetPageSize, targetLandscape);
+      await printA4USB(config.deviceName || '', targetPageSize, targetLandscape, htmlContent);
 
       return { success: true };
     } catch (error) {
@@ -177,6 +178,10 @@ export function initPrinter() {
         }
       });
 
+      const winId = printWindow.webContents.id;
+      setSharedA4Html(htmlContent, winId);
+      currentA4Html = htmlContent;
+
       if (app.isPackaged) {
         printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-a4' });
       } else {
@@ -184,17 +189,21 @@ export function initPrinter() {
         printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-a4`);
       }
 
-      currentA4Html = htmlContent;
+      const cleanupWindow = () => {
+        clearSharedA4Html(winId);
+        currentA4Html = '';
+        if (!printWindow.isDestroyed()) {
+          printWindow.close();
+        }
+      };
 
       const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
         const timer = setTimeout(() => {
-          if (!printWindow.isDestroyed()) {
-            printWindow.close();
-            reject(new Error('PDF generation timeout'));
-          }
+          cleanupWindow();
+          reject(new Error('PDF generation timeout'));
         }, 30000);
 
-        ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
+        ipcMain.once(`print-ready-${winId}`, async () => {
           try {
             const pdfOpts: Electron.PrintToPDFOptions & { margins: { marginType: string } } = {
               printBackground: true,
@@ -220,11 +229,11 @@ export function initPrinter() {
             }
             const data = await printWindow.webContents.printToPDF(pdfOpts);
             clearTimeout(timer);
-            if (!printWindow.isDestroyed()) printWindow.close();
+            cleanupWindow();
             resolve(data);
           } catch (err) {
             clearTimeout(timer);
-            if (!printWindow.isDestroyed()) printWindow.close();
+            cleanupWindow();
             reject(err);
           }
         });
@@ -549,7 +558,7 @@ async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: stri
   return { deviceName: requestedName, actualNameUsed: requestedName };
 }
 
-function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: boolean = false): Promise<void> {
+function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: boolean = false, htmlContent?: string): Promise<void> {
   return pendingPrint(async (resolve, reject) => {
     const isA5 = pageSize === 'A5';
     const winWidth = isA5 ? (landscape ? 794 : 560) : (landscape ? 1123 : 794);
@@ -598,7 +607,8 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
       setImmediate(triggerPrint);
     });
 
-    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(currentA4Html)}`);
+    const content = htmlContent || currentA4Html || getSharedA4Html() || '';
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
   });
 }
 

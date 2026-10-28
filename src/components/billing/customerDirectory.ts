@@ -1,5 +1,6 @@
 import type * as B from './billingTypes';
 import type { Party } from '../../data/parties';
+import { isAllowedInBilling, hasPartyRole } from '../../data/partyRoles';
 
 /**
  * Customer lookup rules for the billing customer fields: which parties, customers and staff are offered as
@@ -46,11 +47,7 @@ export function buildPartyMap(parties: DirectoryRow[], staffEnabled: boolean): M
   const map = new Map<string, DirectoryRow>();
   (parties || []).forEach((p) => {
     if (!p || !p.name) return;
-    const pType = String(p.party_type || '').toUpperCase();
-    // In billing page, strictly NO suppliers!
-    if (pType === 'SUPPLIER') return;
-    // Staff only when ON in settings
-    if (pType === 'STAFF' && !staffEnabled) return;
+    if (!isAllowedInBilling(p.party_type, staffEnabled)) return;
 
     const pName = (p.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
     const pPhone = (p.phone || '').trim();
@@ -66,12 +63,7 @@ export function buildPartyCustomers(parties: DirectoryRow[], customers: Director
   return (parties || [])
     .filter((p) => {
       if (!p || !p.name) return false;
-      const pType = String(p.party_type || '').toUpperCase();
-      // In billing page, strictly NO suppliers!
-      if (pType === 'SUPPLIER') return false;
-      // Staff only when ON in settings
-      if (pType === 'STAFF' && !staffEnabled) return false;
-      return true;
+      return isAllowedInBilling(p.party_type, staffEnabled);
     })
     .map((p) => {
       const pPhone = (p.phone || '').trim();
@@ -93,7 +85,7 @@ export function buildPartyCustomers(parties: DirectoryRow[], customers: Director
         current_points_balance: cust ? Number(cust.current_points_balance) || 0 : undefined,
         balance: p.balance,
         party_type: p.party_type,
-        is_staff: String(p.party_type || '').toUpperCase() === 'STAFF',
+        is_staff: hasPartyRole(p.party_type, 'STAFF'),
       };
     });
 }
@@ -130,13 +122,8 @@ export function filterCustomerSuggestions(
 
   for (const c of combined) {
     if (!c || !c.name) continue;
-    const pType = String(c.party_type || '').toUpperCase();
-    // In billing page, strictly NO suppliers!
-    if (pType === 'SUPPLIER') continue;
-
-    const isStaff = Boolean(c.is_staff || pType === 'STAFF');
-    // Staff only when ON in settings
-    if (isStaff && !isStaffEnabled) continue;
+    if (!isAllowedInBilling(c.party_type, isStaffEnabled)) continue;
+    const isStaff = Boolean(c.is_staff || hasPartyRole(c.party_type, 'STAFF'));
 
     const cNormName = c.name.trim().replace(/\s+/g, ' ').toLowerCase();
     const cPhone = (c.phone || '').trim();
@@ -176,26 +163,21 @@ export function findMatchingParty(
   if (!cleanName && !cleanPhone) return null;
   const isStaffEnabled = lists.staffEnabled;
   const combinedList = [
-    ...(lists.parties || []).filter((p) => {
-      if (!p) return false;
-      const pType = String(p.party_type || '').toUpperCase();
-      if (pType === 'SUPPLIER') return false;
-      if (pType === 'STAFF' && !isStaffEnabled) return false;
-      return true;
-    }),
-    ...(lists.customers || []).filter((c) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
-    ...(lists.searchResults || []).filter((c) => String(c?.party_type || '').toUpperCase() !== 'SUPPLIER'),
+    ...(lists.parties || []).filter((p) => p && isAllowedInBilling(p.party_type, isStaffEnabled)),
+    ...(lists.customers || []).filter((c) => isAllowedInBilling(c?.party_type, isStaffEnabled)),
+    ...(lists.searchResults || []).filter((c) => isAllowedInBilling(c?.party_type, isStaffEnabled)),
   ];
   const match = combinedList.find((c) => {
     if (!c) return false;
     const cName = (c.name || '').trim().toLowerCase();
     const cPhone = String(c.phone || '').trim();
+    if (cleanPhone && cPhone && cPhone !== cleanPhone) return false;
     const matchName = cleanName && cName && (
       cName === cleanName ||
       cName.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, '')
     );
     const matchPhone = cleanPhone && cPhone && cPhone === cleanPhone;
-    return Boolean(matchName || matchPhone);
+    return Boolean(matchPhone || (matchName && (!cleanPhone || !cPhone)));
   }) || null;
 
   if (match) {
@@ -203,7 +185,8 @@ export function findMatchingParty(
       if (!c) return false;
       const cp = String(c.phone || '').trim();
       const cn = String(c.name || '').trim().toLowerCase();
-      return (cleanPhone && cp && cp === cleanPhone) || (cleanName && cn && cn === cleanName);
+      if (cleanPhone && cp && cp !== cleanPhone) return false;
+      return (cleanPhone && cp && cp === cleanPhone) || (cleanName && cn && cn === cleanName && (!cleanPhone || !cp));
     });
     return {
       ...match,

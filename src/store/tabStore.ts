@@ -377,7 +377,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
       'title', 'customerId', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
-      'billDate',
+      'billDate', 'editingInvoiceContribution', 'editingInvoicePartyKey',
       'description', 'transporterName', 'vehicleNumber', 'transporterDocNo', 'transporterDocDate',
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
@@ -398,7 +398,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
       'title', 'customerId', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
-      'billDate',
+      'billDate', 'editingInvoiceContribution', 'editingInvoicePartyKey',
       'description', 'transporterName', 'vehicleNumber', 'transporterDocNo', 'transporterDocDate',
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',

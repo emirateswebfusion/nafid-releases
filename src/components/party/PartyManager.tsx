@@ -25,6 +25,7 @@ import { type Party, type LedgerEntry, type View } from './partyTypes';
 import { PartyManagerHeader } from './views/PartyManagerHeader';
 import { usePartyLoaders } from './hooks/usePartyLoaders';
 import { usePartyManagerEffects } from './hooks/usePartyManagerEffects';
+import { hasPartyRole } from '../../data/partyRoles';
 
 // Converts a stored timestamp back to a local naive "YYYY-MM-DDTHH:mm" value
 // for the datetime-local input when editing an entry. SQLite stores UTC wall
@@ -439,11 +440,11 @@ export function PartyManager({
     let staff = 0;
     let custom = 0;
     for (let i = 0; i < parties.length; i++) {
-      const t = (parties[i].party_type || 'CUSTOMER').toUpperCase();
-      if (t === 'CUSTOMER') customer++;
-      else if (t === 'SUPPLIER') supplier++;
-      else if (t === 'STAFF') staff++;
-      else if (t === 'CUSTOM') custom++;
+      const pt = parties[i].party_type;
+      if (hasPartyRole(pt, 'CUSTOMER')) customer++;
+      if (hasPartyRole(pt, 'SUPPLIER')) supplier++;
+      if (hasPartyRole(pt, 'STAFF')) staff++;
+      if (hasPartyRole(pt, 'CUSTOM')) custom++;
     }
     return { customer, supplier, staff, custom };
   }, [parties]);
@@ -462,12 +463,12 @@ export function PartyManager({
         if (!nameMatch && !phoneMatch && !gstinMatch) return false;
       }
 
-      const pType = (p.party_type || 'CUSTOMER').toUpperCase();
-      if (activeTab === 'CUSTOMER') return pType === 'CUSTOMER';
-      if (activeTab === 'SUPPLIER') return pType === 'SUPPLIER';
-      if (activeTab === 'STAFF') return pType === 'STAFF';
+      const pt = p.party_type;
+      if (activeTab === 'CUSTOMER') return hasPartyRole(pt, 'CUSTOMER');
+      if (activeTab === 'SUPPLIER') return hasPartyRole(pt, 'SUPPLIER');
+      if (activeTab === 'STAFF') return hasPartyRole(pt, 'STAFF');
       if (activeTab === 'CUSTOM') {
-        if (pType !== 'CUSTOM') return false;
+        if (!hasPartyRole(pt, 'CUSTOM')) return false;
         if (customCategoryFilter !== 'ALL') {
           return (p.custom_category || '').toLowerCase() === customCategoryFilter.toLowerCase();
         }

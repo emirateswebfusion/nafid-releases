@@ -126,7 +126,46 @@ export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_tot
     payments.push({ type: 'Cash', amount: total, suffix: 'PAY', method: 'CASH' });
   }
   const paid = money(payments.reduce((s, p) => s + p.amount, 0));
-  return { method, total, isSplit, isPureCredit, isCredit, payments, creditPortion: isCredit ? money(total - paid) : 0 };
+  return { method, total, isSplit, isPureCredit, isCredit, payments, paid: isCredit ? paid : 0, creditPortion: isCredit ? money(total - paid) : 0 };
+}
+
+/**
+ * The stored payment breakdown of a bill (`split_details`): cash / upi / card / bank_transfer / cheque / credit set to
+ * exactly what the bill's method says, so every report and filter that reads the split agrees with the ledger, the
+ * cash drawer and the payment accounts. Other keys (UPI account, old / new due) are kept.
+ * CASH: cash = received when 0 < received < total (the drawer rule), else the total; UPI / CARD / CHEQUE / BANK: the
+ * total in that key; CREDIT: cash = the amount received, credit = the rest; SPLIT: the parts as
+ * `invoiceCreditTerms` caps them; anything else (PENDING): nothing received.
+ */
+export function normalizePaymentSplit(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>): SplitDetails {
+  const raw = parseSplit(invoice.split_details) || {};
+  const keep = Object.fromEntries(Object.entries(raw).filter(([k]) => !['cash', 'upi', 'card', 'bank_transfer', 'bank', 'cheque', 'credit'].includes(k)));
+  const out: SplitDetails = { ...keep, cash: 0, upi: 0, card: 0, bank_transfer: 0, cheque: 0, credit: 0 };
+  const terms = invoiceCreditTerms(invoice);
+  const total = terms.total;
+  const received = Math.max(0, money(invoice.received_amount));
+  switch (terms.method) {
+    case 'CASH': out.cash = received > 0 && received < total ? received : total; break;
+    case 'UPI': out.upi = total; break;
+    case 'CARD': out.card = total; break;
+    case 'CHEQUE': out.cheque = total; break;
+    case 'BANK': case 'BANK_TRANSFER': out.bank_transfer = total; break;
+    case 'CREDIT': {
+      // The amount received is what was paid (the ledger posts it as the -PAY cash row); an old split is stale.
+      const cash = Math.min(total, received);
+      out.cash = cash;
+      out.credit = money(total - cash);
+      break;
+    }
+    case 'SPLIT': {
+      const keyOf: Record<string, keyof SplitDetails> = { CASH: 'cash', UPI: 'upi', CARD: 'card', BANK: 'bank_transfer', CHEQUE: 'cheque' };
+      for (const p of terms.payments) out[keyOf[p.suffix]] = p.amount;
+      out.credit = terms.creditPortion;
+      break;
+    }
+    default: break;
+  }
+  return out;
 }
 
 export function syncInvoiceCreditLedger(

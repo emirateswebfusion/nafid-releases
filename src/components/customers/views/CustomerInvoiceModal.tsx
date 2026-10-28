@@ -26,6 +26,8 @@ export function CustomerInvoiceModal({
   handleDownloadInvoiceCsv, handleEditBillFromCustomerModal, invoiceBusyId, invoiceItems, itemsLoading,
   loyaltyEnabled, setViewingInvoice, viewingInvoice,
 }: CustomerInvoiceModalProps) {
+  const isCreditBill = viewingInvoice.is_credit_bill ?? viewingInvoice.payment_method === 'CREDIT';
+  const outstanding = viewingInvoice.outstanding_amount ?? viewingInvoice.balance_amount ?? 0;
   return (
     <Modal isOpen={!!viewingInvoice} className="max-w-6xl w-full" onClose={() => setViewingInvoice(null)} title={`Invoice Detail #${viewingInvoice.invoice_number}`}>
       <div className="space-y-4 select-none w-full">
@@ -152,7 +154,7 @@ export function CustomerInvoiceModal({
           </div>
 
           {/* Received & Balance Breakdown */}
-          {(Number(viewingInvoice.received_amount) > 0 || Number(viewingInvoice.balance_amount) !== 0) && (
+          {(Number(viewingInvoice.received_amount) > 0 || isCreditBill) && (
             <div className="pt-2 border-t border-border/60 grid grid-cols-2 gap-2 text-[11px]">
               {Number(viewingInvoice.received_amount) > 0 && (
                 <div className="bg-muted/40 p-2 rounded-lg border border-border/40">
@@ -160,13 +162,13 @@ export function CustomerInvoiceModal({
                   <span className="font-bold text-foreground font-mono">{formatCurrency(viewingInvoice.received_amount || 0)}</span>
                 </div>
               )}
-              {viewingInvoice.payment_method === 'CREDIT' ? (
+              {isCreditBill ? (
                 <div className="bg-muted/40 p-2 rounded-lg border border-border/40">
                   <span className="text-muted-foreground font-semibold block">
-                    {Number(viewingInvoice.balance_amount) < 0 ? 'Advance Credit:' : 'Outstanding Balance:'}
+                    {Number(outstanding) < 0 ? 'Advance Credit:' : 'Outstanding Balance:'}
                   </span>
-                  <span className={clsx("font-bold font-mono", Number(viewingInvoice.balance_amount) > 0 ? "text-amber-600" : "text-emerald-600")}>
-                    {formatCurrency(Math.abs(viewingInvoice.balance_amount || 0))}
+                  <span className={clsx("font-bold font-mono", Number(outstanding) > 0 ? "text-amber-600" : "text-emerald-600")}>
+                    {formatCurrency(Math.abs(outstanding))}
                   </span>
                 </div>
               ) : (Number(viewingInvoice.received_amount) > Number(viewingInvoice.grand_total)) ? (

@@ -14,6 +14,6 @@ export function ReturnCashRegisterNote({ tenantId }: { tenantId: string | null }
   return <p className="px-5 py-2 text-xs text-muted-foreground" role="status">{failed
     ? 'Could not load the cash register refund setting.'
     : deduct === null ? 'Loading cash register refund setting…'
-    : deduct ? 'Cash refunds are deducted from the register and cash settlement. Return totals record the actual refund.'
-    : 'Cash refunds are excluded from register and cash settlement totals. Return totals still record the actual refund.'}</p>;
+    : deduct ? 'Cash refunds are deducted from the register and cash settlement. Return values include money refunds and credit adjustments.'
+    : 'Cash refunds are excluded from register and cash settlement totals. Return values include money refunds and credit adjustments.'}</p>;
 }

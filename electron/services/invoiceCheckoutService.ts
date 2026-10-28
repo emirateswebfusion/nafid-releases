@@ -4,7 +4,7 @@ import type { CheckoutPayload, CheckoutResult, CustomerCreditRow, InvoiceItem, I
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice, getOpenCashDrawer } from './cashDrawerService.js';
-import { syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
+import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import { checkCustomerOverdueSync } from './customerCreditService.js';
 import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
 import { localTimestamp, localDate } from './storeTime.js';
@@ -27,6 +27,8 @@ export function checkout(payload: CheckoutPayload) {
   }
   const policy = resolveBillPolicy(invoice.invoice_type, invoice.customer_gstin, invoice.bill_purpose === 'FILING_ONLY', policySettings);
   Object.assign(invoice, policy);
+  // Store the exact payment breakdown (reports, filters and the drawer read it).
+  invoice.split_details = normalizePaymentSplit(invoice);
 
   // Deduplication guard: block duplicate checkout calls within a 4-second window
   const itemsSig = (items || []).map((i: InvoiceItem) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
@@ -133,13 +135,17 @@ export function checkout(payload: CheckoutPayload) {
       }
     }
 
-    const customerId = invoice.customer_id || upsertCustomerRecord(
+    const customerId = upsertCustomerRecord(
       db,
       tenantId,
       invoice.customer_name,
       invoice.customer_phone,
-      invoice.customer_address
-    );
+      invoice.customer_address,
+      {
+        customer_id: invoice.customer_id,
+        gstin: invoice.customer_gstin,
+      }
+    ) || invoice.customer_id || null;
 
     // Calculate due date if credit purchase and customer has credit period configured
     let calculatedDueDate: string | null = invoice.due_date || null;

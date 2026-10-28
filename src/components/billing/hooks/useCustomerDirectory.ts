@@ -30,8 +30,7 @@ export function useCustomerDirectory({ tenantId, staffCreditBilling, parties, cu
   const [allCustomersList, setAllCustomersList] = useState<DirectoryRow[]>([]);
   const [allStaffList, setAllStaffList] = useState<DirectoryRow[]>([]);
 
-  // Load all existing customers for fast autocomplete
-  useEffect(() => {
+  const loadCustomers = useCallback(() => {
     if (hasBridge('dbGetCustomers')) {
       customersApi.getCustomers({ tenant_id: tenantId || 'global' })
         .then((data: unknown) => {
@@ -42,6 +41,20 @@ export function useCustomerDirectory({ tenantId, staffCreditBilling, parties, cu
         .catch(() => {});
     }
   }, [tenantId]);
+
+  // Load all existing customers for fast autocomplete
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  // Reload customers after a bill is completed so new customers appear immediately
+  useEffect(() => {
+    const handleCheckoutCompleted = () => {
+      loadCustomers();
+    };
+    window.addEventListener('checkout:completed', handleCheckoutCompleted);
+    return () => window.removeEventListener('checkout:completed', handleCheckoutCompleted);
+  }, [loadCustomers]);
 
   // Load all active staff when staff credit billing feature flag is enabled
   useEffect(() => {

@@ -26,7 +26,11 @@ export function PrintA4View() {
 
     if (isDesktopRuntime() && hasBridge('getA4Html')) {
       printingApi.getA4Html().then((html: string) => {
-        if (html) setHtmlContent(html);
+        if (html) {
+          setHtmlContent(html);
+        } else if (hasBridge('printReady')) {
+          printingApi.printReady();
+        }
       });
     }
   }, []);
