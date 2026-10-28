@@ -16,52 +16,55 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
   // If party balance is <= 0, customer owes nothing (all settled)
   const isSettled = partyBalance <= 0;
 
-  // 2. Payments from the party's ledger rows (the same rows its balance is made of). A credit bill owes its total
-  //    (its sale row) less its own payments: the checkout rows <bill>-PAY / -CASH / … and later payments whose
-  //    reference is the bill number. Other payments and return credits go to the oldest bills first, and so does
-  //    a bill's overpayment. A used return credit or a refund cancels the return credit it belongs to.
-  //    Without a party (no ledger) a bill owes its credit portion from the bill itself.
-  const hasLedger = Boolean(customer.party_id);
+  // 2. Payments from the party's ledger rows (the rows its balance is made of). A credit bill owes its credit
+  //    portion (same rule as the ledger) less later payments whose reference is the bill number, and less whatever its
+  //    own checkout rows (<bill>-PAY / -CASH / -UPI / -CARD / -BANK / -CHEQUE) record beyond the payment the bill
+  //    itself shows. Other payments and return credits, and any bill's overpayment, go to the oldest open bills first;
+  //    a used return credit (-ADJ-) or a refund (-REFUND) cancels the return credit it belongs to.
+  //    nafid-server src/db/repositories/customerCredit.ts is a cross-app copy of this rule.
   let ledgerRows: LedgerRow[] = [];
-  if (hasLedger) {
+  if (customer.party_id) {
     ledgerRows = partyLedgerSql.findPartyLedgerByPartyId5(db).all(customer.party_id, tenantId) as LedgerRow[];
   }
-  const billNumbers = new Set(invoices.filter((inv: CreditInvoice) => invoiceCreditTerms(inv).isCredit)
-    .map((inv: CreditInvoice) => (inv.invoice_number || '').trim()).filter(Boolean));
+
+  // 3. Credit bills, oldest first for FIFO allocation
+  const creditInvoices = invoices
+    .map((inv: CreditInvoice) => ({ inv, terms: invoiceCreditTerms(inv) }))
+    .filter(({ terms }) => terms.isCredit)
+    .sort((a, b) => new Date(a.inv.created_at).getTime() - new Date(b.inv.created_at).getTime());
+
+  const billNumbers = new Set(creditInvoices.map(({ inv }) => (inv.invoice_number || '').trim()).filter(Boolean));
   const checkoutRefOwner = new Map<string, string>();
   for (const no of billNumbers) for (const suffix of CHECKOUT_PAYMENT_SUFFIXES) checkoutRefOwner.set(`${no}-${suffix}`, no);
 
-  const explicitPayments = new Map<string, number>();
+  const checkoutPaid = new Map<string, number>();
+  const laterPaid = new Map<string, number>();
   let pool = 0;
   for (const row of ledgerRows) {
     const ref = (row.reference_number || '').trim();
     const debit = Number(row.debit_amount) || 0;
     const credit = Number(row.credit_amount) || 0;
     if (debit > 0) {
-      const bill = checkoutRefOwner.get(ref) || (billNumbers.has(ref) ? ref : '');
-      if (bill) explicitPayments.set(bill, (explicitPayments.get(bill) || 0) + debit);
+      const owner = checkoutRefOwner.get(ref);
+      if (owner) checkoutPaid.set(owner, (checkoutPaid.get(owner) || 0) + debit);
+      else if (billNumbers.has(ref)) laterPaid.set(ref, (laterPaid.get(ref) || 0) + debit);
       else pool += debit;
     }
     if (credit > 0 && (/-REFUND$/i.test(ref) || /-ADJ-/i.test(ref))) pool -= credit;
   }
   let unallocatedPool = Math.max(0, pool);
-
-  // 3. Credit bills (same rule as the ledger), oldest first for FIFO allocation
-  const creditInvoices = invoices
-    .map((inv: CreditInvoice) => ({ inv, terms: invoiceCreditTerms(inv) }))
-    .filter(({ terms }) => terms.isCredit)
-    .sort((a, b) => new Date(a.inv.created_at).getTime() - new Date(b.inv.created_at).getTime());
-  const billTotal = (terms: ReturnType<typeof invoiceCreditTerms>) => hasLedger ? terms.total : terms.creditPortion;
-  // A bill paid beyond its total: the excess pays the other open bills, oldest first.
+  const directPayment = (invNum: string, terms: ReturnType<typeof invoiceCreditTerms>) =>
+    (laterPaid.get(invNum) || 0) + Math.max(0, (checkoutPaid.get(invNum) || 0) - terms.paid);
+  // A bill paid beyond its credit: the excess pays the other open bills, oldest first.
   for (const { inv, terms } of creditInvoices) {
-    unallocatedPool += Math.max(0, (explicitPayments.get((inv.invoice_number || '').trim()) || 0) - billTotal(terms));
+    unallocatedPool += Math.max(0, directPayment((inv.invoice_number || '').trim(), terms) - terms.creditPortion);
   }
 
   const billAllocations = new Map<string, { outstanding: number; dueDate: Date | null; isOverdue: boolean; overdueDays: number; remainingDays: number; status: string }>();
 
   for (const { inv, terms } of creditInvoices) {
     const invNum = (inv.invoice_number || '').trim();
-    const billCreditTotal = billTotal(terms);
+    const billCreditTotal = terms.creditPortion;
 
     if (isSettled) {
       billAllocations.set(inv.invoice_id, {
@@ -75,7 +78,7 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
       continue;
     }
 
-    const directPay = explicitPayments.get(invNum) || 0;
+    const directPay = directPayment(invNum, terms);
     let rem = Math.max(0, billCreditTotal - directPay);
 
     if (rem > 0 && unallocatedPool > 0) {

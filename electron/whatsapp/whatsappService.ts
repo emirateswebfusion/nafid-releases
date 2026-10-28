@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { buildReceiptHtml } from '../hardware/receiptHtml.js';
-import { setSharedA4Html } from './sharedPrintHtml.js';
+import { setSharedA4Html, clearSharedA4Html } from './sharedPrintHtml.js';
 import path from 'path';
 import fs from 'fs';
 import QRCode from 'qrcode';
@@ -168,7 +168,11 @@ async function startWhatsAppConnection(): Promise<void> {
           }, timeout);
         } else {
           reconnectAttempts = 0;
-          lastError = 'Could not reach WhatsApp. Check the internet connection and generate the QR code again.';
+          lastError = 'Could not reach WhatsApp. Retrying connection in background...';
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            startWhatsAppConnection();
+          }, 30000);
         }
         broadcastWhatsAppState();
       } else if (connection === 'open') {
@@ -256,6 +260,17 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
     },
   });
 
+  const winId = printWindow.webContents.id;
+
+  // Set the currentA4Html globally and per-window BEFORE loading so the print-a4 route renders this bill
+  try {
+    if (typeof setSharedA4Html === 'function') {
+      setSharedA4Html(htmlContent, winId);
+    }
+  } catch (e) {
+    console.error('[WhatsApp] setSharedA4Html error:', e);
+  }
+
   if (thermal) {
     // Receipt HTML is generated locally and escapes bill text. Render it directly so
     // the A4 view's sanitizer does not remove receipt QR images and barcodes.
@@ -266,22 +281,22 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
     printWindow.loadURL(`${process.env.ELECTRON_DEV_SERVER_URL || ''}/#/print-a4`);
   }
 
-  // Set the currentA4Html globally so the print-a4 route renders this bill
-  try {
-    if (setSharedA4Html) {
-      setSharedA4Html(htmlContent);
-    }
-  } catch (e) {
-    console.error('[WhatsApp] setSharedA4Html error:', e);
-  }
+  const cleanup = () => {
+    try {
+      if (typeof clearSharedA4Html === 'function') {
+        clearSharedA4Html(winId);
+      }
+    } catch { /* ignore */ }
+    if (!printWindow.isDestroyed()) printWindow.close();
+  };
 
   return new Promise<Buffer>((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (!printWindow.isDestroyed()) printWindow.close();
+      cleanup();
       reject(new Error('PDF generation timed out (30s)'));
     }, 30000);
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
+    ipcMain.once(`print-ready-${winId}`, async () => {
       try {
         const data = await printWindow.webContents.printToPDF({
           printBackground: true,
@@ -291,11 +306,11 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
           margins: { marginType: 'none' },
         });
         clearTimeout(timer);
-        if (!printWindow.isDestroyed()) printWindow.close();
+        cleanup();
         resolve(data);
       } catch (err) {
         clearTimeout(timer);
-        if (!printWindow.isDestroyed()) printWindow.close();
+        cleanup();
         reject(err);
       }
     });
@@ -315,6 +330,11 @@ export async function sendWhatsAppBill({
   fileName?: string;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   if (!sock || connectionStatus !== 'connected') {
+    const sessionDir = getWhatsAppSessionDir();
+    const credsFile = path.join(sessionDir, 'creds.json');
+    if (fs.existsSync(credsFile) && connectionStatus === 'disconnected') {
+      startWhatsAppConnection().catch(() => {});
+    }
     return {
       success: false,
       error: 'WhatsApp is not connected. Please scan QR code in Settings.',

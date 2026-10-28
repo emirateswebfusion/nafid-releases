@@ -1,5 +1,6 @@
 import type { CustomerRow, PartyInput, PartyLedgerEntryInput, PartyLedgerRow, PartyRow } from './typesA.js';
 import { recordLedgerCashEntry } from './cashRegisterLedgerService.js';
+import { syncLedgerPaymentAccount } from './ledgerPaymentAccounts.js';
 import { getDb } from '../db/localDb.js';
 import { backfillCreditInvoices, reconcileAllPartyBalances, recalcPartyBalances } from './partyLedgerService.js';
 import { deterministicUUID } from '../utils/ids.js';
@@ -441,6 +442,7 @@ export function getPartyLedger(partyId: string, includeDeleted: unknown = false)
 export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: string; party_id: string }) {
   try {
     const db = getDb();
+    return db.transaction(() => {
     partiesSql.updatePartyLedgerIsDeletedAlt(db).run(ledger_id, party_id);
     const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as PartyLedgerRow[];
 
@@ -449,8 +451,10 @@ export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: st
       running += parseFloat(row.credit_amount as unknown as string) - parseFloat(row.debit_amount as unknown as string);
       partiesSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
     }
+    syncLedgerPaymentAccount(db, ledger_id, party_id);
     recalcPartyBalances(db, party_id);
     return { success: true };
+    })();
   } catch (error) {
     console.error('[db:restorePartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };
@@ -468,7 +472,10 @@ export function addPartyLedgerEntry(entry: PartyLedgerEntryInput) {
       if (!party) return { success: false, error: 'Party not found' };
 
       const currentBalance = parseFloat(party.balance as string) || 0;
-      const parsedAmount = Math.abs(parseFloat(entry.amount as string));
+      const parsedAmount = Number(entry.amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return { success: false, error: 'Enter a valid positive amount' };
+      if (entry.transaction_type !== 'CREDIT' && entry.transaction_type !== 'DEBIT') return { success: false, error: 'Invalid transaction type' };
+      if (party.tenant_id !== entry.tenant_id) return { success: false, error: 'Party not found' };
       const creditAmount = entry.transaction_type === 'CREDIT' ? parsedAmount : 0;
       const debitAmount = entry.transaction_type === 'DEBIT' ? parsedAmount : 0;
       const balanceType = entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
@@ -492,6 +499,7 @@ export function addPartyLedgerEntry(entry: PartyLedgerEntryInput) {
       );
 
       recordLedgerCashEntry(db, entry.tenant_id || 'global', entry.ledger_id);
+      syncLedgerPaymentAccount(db, entry.ledger_id, entry.party_id);
       recalcPartyBalances(db, entry.party_id);
 
       return { success: true };
@@ -511,8 +519,10 @@ export function updatePartyLedgerEntry(entry: Partial<PartyLedgerEntryInput> & {
       const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(entry.ledger_id, entry.party_id) as PartyLedgerRow | undefined;
       if (!existing) return { success: false, error: 'Ledger entry not found' };
 
-      const parsedAmount = entry.amount !== undefined ? Math.abs(parseFloat(entry.amount as string)) : (existing.credit_amount || existing.debit_amount || 0);
+      const parsedAmount = entry.amount !== undefined ? Number(entry.amount) : Number(existing.credit_amount || existing.debit_amount || 0);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return { success: false, error: 'Enter a valid positive amount' };
       const txType = entry.transaction_type || ((existing.credit_amount as number) > 0 ? 'CREDIT' : 'DEBIT');
+      if (txType !== 'CREDIT' && txType !== 'DEBIT') return { success: false, error: 'Invalid transaction type' };
       const creditAmount = txType === 'CREDIT' ? parsedAmount : 0;
       const debitAmount = txType === 'DEBIT' ? parsedAmount : 0;
 
@@ -529,6 +539,8 @@ export function updatePartyLedgerEntry(entry: Partial<PartyLedgerEntryInput> & {
       );
 
       // Recalculate running balances for all entries
+      recordLedgerCashEntry(db, existing.tenant_id || 'global', entry.ledger_id);
+      syncLedgerPaymentAccount(db, entry.ledger_id, entry.party_id);
       const entries = partiesSql.findPartyLedgerByPartyId(db).all(entry.party_id) as PartyLedgerRow[];
 
       let running = 0;
@@ -551,8 +563,10 @@ export function updatePartyLedgerEntry(entry: Partial<PartyLedgerEntryInput> & {
 export function deletePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: string; party_id: string }) {
   try {
     const db = getDb();
+    return db.transaction(() => {
     
     partiesSql.updatePartyLedgerIsDeletedIsDeleted2(db).run(ledger_id, party_id);
+    syncLedgerPaymentAccount(db, ledger_id, party_id);
 
     // Recalculate running balance
     const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as PartyLedgerRow[];
@@ -570,6 +584,7 @@ export function deletePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: str
     }).catch(() => {});
 
     return { success: true };
+    })();
   } catch (error) {
     console.error('[db:deletePartyLedgerEntry]', error);
     return { success: false, error: 'Operation failed' };

@@ -21,6 +21,7 @@ describe('revenue & filing-only settings', () => {
     expect(box('Reduce stock').disabled).toBe(false);
     fireEvent.click(box('Reduce stock'));
     fireEvent.click(box('Exclude new B2C bills from revenue'));
+    fireEvent.click(box('Total Revenue (Net Realized Cash)'));
     expect(screen.getByText('You have unsaved changes on this page.')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save revenue settings' }));
@@ -28,15 +29,17 @@ describe('revenue & filing-only settings', () => {
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'filing_only_mode', value: { enabled: true, reduceStock: true, countInRevenue: false, showB2bInSalesCategory: true } });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'exclude_b2b_from_revenue', value: false });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'exclude_b2c_from_revenue', value: true });
+    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'dashboard_sales_metric', value: 'NET_REVENUE' });
   });
 
   it('restores saved values and reports a failed save', async () => {
-    mocks.get.mockImplementation(({ key }: { key: string }) => Promise.resolve(key === 'filing_only_mode' ? { enabled: true, countInRevenue: true } : key === 'exclude_b2b_from_revenue'));
+    mocks.get.mockImplementation(({ key }: { key: string }) => Promise.resolve(key === 'filing_only_mode' ? { enabled: true, countInRevenue: true } : key === 'exclude_b2b_from_revenue' ? true : key === 'dashboard_sales_metric' ? 'NET_REVENUE' : null));
     mocks.set.mockRejectedValue(new Error('down'));
     render(<FilingOnlySettings tenantId="t" />);
     await waitFor(() => expect(box('Include in revenue').checked).toBe(true));
     expect(box('Exclude new B2B bills from revenue').checked).toBe(true);
     expect(box('Exclude new B2C bills from revenue').checked).toBe(false);
+    expect(box('Total Revenue (Net Realized Cash)').checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Save revenue settings' }));
     await screen.findByText('Unable to save billing settings');
   });

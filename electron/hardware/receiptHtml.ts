@@ -199,7 +199,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     if (trimmed && !displayValue.includes('│') && !displayValue.includes('|')) {
       const leading = displayValue.length - displayValue.trimStart().length;
       const trailing = displayValue.length - displayValue.trimEnd().length;
-      if (Math.abs(leading - trailing) <= 2) {
+      if (leading >= 1 && trailing >= 1 && Math.abs(leading - trailing) <= 2) {
         isCentered = true;
         finalValue = trimmed;
       }

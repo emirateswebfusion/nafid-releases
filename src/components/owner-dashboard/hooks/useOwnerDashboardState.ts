@@ -8,6 +8,8 @@ export function useOwnerDashboardState() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [displayTime, setDisplayTime] = useState('...');
     const [totalSales, setTotalSales] = useState(0);
+    const [totalSalesBeforeDeductions, setTotalSalesBeforeDeductions] = useState(0);
+    const [dashboardSalesMetric, setDashboardSalesMetric] = useState<'GROSS_SALES' | 'NET_REVENUE'>('GROSS_SALES');
     const [invoiceCount, setInvoiceCount] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
     const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | 'NONE' | null>(null);
@@ -20,7 +22,7 @@ export function useOwnerDashboardState() {
     const [dragOverDashboardCardId, setDragOverDashboardCardId] = useState<string | null>(null);
 
   return {
-    menuOpen, setMenuOpen, displayTime, setDisplayTime, totalSales, setTotalSales, invoiceCount, setInvoiceCount,
+    menuOpen, setMenuOpen, displayTime, setDisplayTime, totalSales, setTotalSales, totalSalesBeforeDeductions, setTotalSalesBeforeDeductions, dashboardSalesMetric, setDashboardSalesMetric, invoiceCount, setInvoiceCount,
     isOnline, setIsOnline, activeRoute, setActiveRoute, setSyncMode, enableScrap, setEnableScrap, gridMode,
     setGridMode, showCustomizeModal, setShowCustomizeModal, showRestoreDialog, setShowRestoreDialog,
     draggedDashboardCardId, setDraggedDashboardCardId, dragOverDashboardCardId, setDragOverDashboardCardId,

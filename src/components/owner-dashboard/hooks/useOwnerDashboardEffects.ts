@@ -20,7 +20,7 @@ export interface UseOwnerDashboardEffectsContext {
 
 export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
   const { lastSyncTime, loadCardOrder, loadFlags, menuRef, role, setLastSyncTime, tenantId, userId } = ctx;
-  const { setActiveRoute, setDisplayTime, setEnableScrap, setInvoiceCount, setIsOnline, setMenuOpen, setSyncMode, setTotalSales } = ctx.od;
+  const { setActiveRoute, setDisplayTime, setEnableScrap, setInvoiceCount, setIsOnline, setMenuOpen, setSyncMode, setTotalSales, setTotalSalesBeforeDeductions, setDashboardSalesMetric } = ctx.od;
   useEffect(() => {
     loadCardOrder(tenantId, userId, role);
   }, [tenantId, userId, role, loadCardOrder]);
@@ -52,13 +52,37 @@ export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
     const result = await invoicesApi.getDashboardStats(tenantId);
     if (result.success) {
       setTotalSales(result.totalSales ?? 0);
+      setTotalSalesBeforeDeductions(result.totalSalesBeforeDeductions ?? result.totalSales ?? 0);
       setInvoiceCount(result.invoiceCount ?? 0);
     }
-  }, [tenantId, setInvoiceCount, setTotalSales]);
+  }, [tenantId, setInvoiceCount, setTotalSales, setTotalSalesBeforeDeductions]);
+
+  const loadSalesMetric = useCallback(async () => {
+    if (!isDesktopRuntime() || !tenantId) return;
+    try {
+      const metric = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'dashboard_sales_metric' });
+      if (metric === 'NET_REVENUE' || metric === 'GROSS_SALES') {
+        setDashboardSalesMetric(metric);
+      }
+    } catch { /* ignore */ }
+  }, [tenantId, setDashboardSalesMetric]);
 
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    loadSalesMetric();
+  }, [loadSalesMetric]);
+
+  useEffect(() => {
+    const handleSettingsUpdated = () => {
+      loadSalesMetric();
+      loadStats();
+    };
+    window.addEventListener('settings:updated', handleSettingsUpdated);
+    return () => window.removeEventListener('settings:updated', handleSettingsUpdated);
+  }, [loadSalesMetric, loadStats]);
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;

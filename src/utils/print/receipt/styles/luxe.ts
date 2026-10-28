@@ -1,4 +1,4 @@
-import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines } from '../receiptCore';
+import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
 /** Thermal receipt style "luxe": LUXE — Elegant with section headers, padded borders, refined spacing */
@@ -91,13 +91,6 @@ export function renderLuxeReceipt(ctx: ReceiptTextContext): string {
   // ── Totals ──
   text += THIN + '\n';
   text += `${padRight('Subtotal', labelW)}  ${padLeft(`\u20B9${data.subtotal.toFixed(2)}`, totalW)}\n`;
-  if (data.tax > 0) {
-    if (data.igst && data.igst > 0) text += `${padRight('IGST', labelW)}  ${padLeft(`\u20B9${data.igst.toFixed(2)}`, totalW)}\n`;
-    else {
-      if (data.cgst && data.cgst > 0) text += `${padRight('CGST', labelW)}  ${padLeft(`\u20B9${data.cgst.toFixed(2)}`, totalW)}\n`;
-      if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(`\u20B9${data.sgst.toFixed(2)}`, totalW)}\n`;
-    }
-  }
   if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
     text += `${padRight('Extra / Bonus', labelW)}  ${padLeft(`+\u20B9${data.extraBonus.toFixed(2)}`, totalW)}\n`;
   } else if (data.discount > 0) {
@@ -165,6 +158,9 @@ export function renderLuxeReceipt(ctx: ReceiptTextContext): string {
     }
     text += THIN + '\n';
   }
+
+  // ── Tax Breakup ──
+  text += formatTaxBreakupSection(data, charsPerLine, padLeft, padRight, centerText, '-');
 
   // ── Loyalty Points ──
   text = appendLoyaltyBlock(text);

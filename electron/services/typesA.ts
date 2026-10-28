@@ -369,6 +369,7 @@ export interface CashDrawerRow {
 
 export interface PaymentSourceRow {
   source_id: string;
+  type?: string | null;
   current_balance?: number | string | null;
 }
 

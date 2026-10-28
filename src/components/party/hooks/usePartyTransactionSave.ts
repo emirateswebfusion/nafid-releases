@@ -3,7 +3,7 @@ import { isLedgerRecipientAllowed } from '../../../data/whatsappSharing';
 import { partiesApi } from '../../../data/parties';
 import { v4 as uuidv4 } from 'uuid';
 import { formatWhatsAppLedgerTxMessage } from '../../../utils/print/whatsappBillHelper';
-import { hasBridge } from '../../../data/client';
+import { ensureSuccess, hasBridge } from '../../../data/client';
 import { whatsappApi } from '../../../data/whatsapp';
 import { toUtcIso } from '../partyFormat';
 import type { PartyManagerState } from './usePartyManagerState';
@@ -49,7 +49,7 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
     setIsSavingTx(true);
     try {
       if (editingTx) {
-        await partiesApi.updatePartyLedgerEntry({
+        const result = await partiesApi.updatePartyLedgerEntry({
           ledger_id: editingTx.ledger_id,
           party_id: selectedParty.party_id,
           amount: parsedAmount,
@@ -60,10 +60,11 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
           balance_type: effectiveBalanceType,
           payment_method: txForm.payment_method,
         });
+        ensureSuccess(result, 'Update transaction');
         showStatus('Transaction updated', 'success');
       } else {
         const ledgerId = uuidv4();
-        await partiesApi.addPartyLedgerEntry({
+        const result = await partiesApi.addPartyLedgerEntry({
           ledger_id: ledgerId,
           party_id: selectedParty.party_id,
           tenant_id: tenantId,
@@ -77,6 +78,7 @@ export function usePartyTransactionSave(ctx: UsePartyTransactionSaveContext) {
           created_by: userId,
           created_by_name: userName || undefined,
         });
+        ensureSuccess(result, 'Add transaction');
 
         // WhatsApp notification handling
         const isPartyAlertEnabled = selectedParty.whatsapp_alerts_enabled !== 0 && selectedParty.whatsapp_alerts_enabled !== false;

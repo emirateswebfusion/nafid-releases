@@ -10,33 +10,47 @@ const FILING_SUB_OPTIONS = [
   ['showB2bInSalesCategory', 'Show filing-only B2B bills in their Sales History category', 'Also list them under B2B in Sales History, not only under Filing-only.'],
 ] as const;
 
-/** Revenue rules for new B2B / B2C bills and the filing-only bill mode; saved with its own button. */
+/** Revenue rules for new B2B / B2C bills, dashboard sales display metric and the filing-only bill mode; saved with its own button. */
 export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
   const [options, setOptions] = useState<FilingOptions>(DEFAULT_FILING_OPTIONS);
   const [b2b, setB2b] = useState(false);
   const [b2c, setB2c] = useState(false);
+  const [dashboardSalesMetric, setDashboardSalesMetric] = useState<'GROSS_SALES' | 'NET_REVENUE'>('GROSS_SALES');
   const [saved, setSaved] = useState('');
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const tenant_id = tenantId || 'global';
-  const snapshot = JSON.stringify([options, b2b, b2c]);
+  const snapshot = JSON.stringify([options, b2b, b2c, dashboardSalesMetric]);
+
   useEffect(() => {
     let active = true;
-    void Promise.all(['filing_only_mode', 'exclude_b2b_from_revenue', 'exclude_b2c_from_revenue'].map(key => getSetting({ tenant_id, key }))).then(([mode, b, c]) => {
+    void Promise.all([
+      'filing_only_mode',
+      'exclude_b2b_from_revenue',
+      'exclude_b2c_from_revenue',
+      'dashboard_sales_metric',
+    ].map(key => getSetting({ tenant_id, key }))).then(([mode, b, c, metric]) => {
       if (!active) return;
       const next = { ...DEFAULT_FILING_OPTIONS, ...(mode && typeof mode === 'object' ? mode : {}) };
-      setOptions(next); setB2b(b === true); setB2c(c === true); setLoaded(true);
-      setSaved(JSON.stringify([next, b === true, c === true]));
+      const nextMetric = metric === 'NET_REVENUE' ? 'NET_REVENUE' : 'GROSS_SALES';
+      setOptions(next);
+      setB2b(b === true);
+      setB2c(c === true);
+      setDashboardSalesMetric(nextMetric);
+      setLoaded(true);
+      setSaved(JSON.stringify([next, b === true, c === true, nextMetric]));
     }).catch(() => { if (active) setStatus({ text: 'Unable to load billing settings', type: 'error' }); });
     return () => { active = false; };
   }, [tenant_id]);
+
   async function save() {
     setSaving(true); setStatus(null);
     try {
       await setSetting({ tenant_id, key: 'filing_only_mode', value: options });
       await setSetting({ tenant_id, key: 'exclude_b2b_from_revenue', value: b2b });
       await setSetting({ tenant_id, key: 'exclude_b2c_from_revenue', value: b2c });
+      await setSetting({ tenant_id, key: 'dashboard_sales_metric', value: dashboardSalesMetric });
       window.dispatchEvent(new Event('settings:updated'));
       setSaved(snapshot); setStatus({ text: 'Saved', type: 'success' });
     } catch { setStatus({ text: 'Unable to save billing settings', type: 'error' }); }
@@ -49,9 +63,53 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
       <div className="p-4 bg-blue-500/[0.04] border border-blue-500/20 rounded-2xl flex items-start gap-3">
         <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
         <p className="text-xs text-blue-700 dark:text-blue-400 font-medium leading-relaxed">
-          Choices apply to new bills. Existing bills keep their saved revenue and stock treatment.
+          Choices apply to new bills and dashboard summaries. Existing bills keep their saved revenue and stock treatment.
         </p>
       </div>
+
+      <SettingsCard icon={TrendingUp} title="Dashboard Sales Metric" subtitle="Choose what the main dashboard header displays for daily sales">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label className="flex items-start gap-3 p-3.5 rounded-xl border border-border hover:border-primary/40 bg-card cursor-pointer transition-colors">
+            <input
+              type="radio"
+              name="dashboardSalesMetric"
+              value="GROSS_SALES"
+              aria-label="Total Sales (Gross Product Sales)"
+              checked={dashboardSalesMetric === 'GROSS_SALES'}
+              onChange={() => change(() => setDashboardSalesMetric('GROSS_SALES'))}
+              className="mt-1 accent-primary"
+            />
+            <div className="flex-1">
+              <span className="text-xs font-bold text-foreground block">
+                Total Sales (Gross Product Sales)
+              </span>
+              <span className="text-[11px] text-muted-foreground block mt-1 leading-relaxed">
+                Displays the full value of goods sold before scrap or return deductions. For example, if ₹500 scrap is exchanged to buy ₹300 goods, the dashboard counts <strong>₹300 Sales Today</strong>.
+              </span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 p-3.5 rounded-xl border border-border hover:border-primary/40 bg-card cursor-pointer transition-colors">
+            <input
+              type="radio"
+              name="dashboardSalesMetric"
+              value="NET_REVENUE"
+              aria-label="Total Revenue (Net Realized Cash)"
+              checked={dashboardSalesMetric === 'NET_REVENUE'}
+              onChange={() => change(() => setDashboardSalesMetric('NET_REVENUE'))}
+              className="mt-1 accent-primary"
+            />
+            <div className="flex-1">
+              <span className="text-xs font-bold text-foreground block">
+                Total Revenue (Net Realized Cash)
+              </span>
+              <span className="text-[11px] text-muted-foreground block mt-1 leading-relaxed">
+                Displays only net cash/money received after subtracting scrap and return deductions. In the example above, the net revenue is <strong>₹0 Revenue Today</strong>.
+              </span>
+            </div>
+          </label>
+        </div>
+      </SettingsCard>
 
       <SettingsCard icon={TrendingUp} title="Revenue from GST bills" subtitle="Leave GST bills out of revenue totals (they are still saved and printed)">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

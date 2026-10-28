@@ -10,7 +10,7 @@ import { getStoreTimezoneSetting, parseCleanDate, localDate, localTimestamp } fr
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import { calculateCashierSettlement } from '../utils/cashierSettlement.js';
-import { syncInvoiceCreditLedger } from './partyLedgerService.js';
+import { normalizePaymentSplit, syncInvoiceCreditLedger } from './partyLedgerService.js';
 import { sendShopClosingReport } from '../whatsapp/shopClosingReportService.js';
 import * as cashierSql from '../db/statements/cashier.js';
 /** cashier use-cases for the main process (called by electron/ipc handlers). */
@@ -164,9 +164,11 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
         settlementDiscount,
       } = settlement;
 
-      const splitStr = split_details && typeof split_details === 'object'
-        ? JSON.stringify(split_details)
-        : (split_details && split_details !== 'null' ? split_details : null);
+      // Store the exact payment breakdown of the settled bill (reports, filters and the drawer read it).
+      const splitStr = JSON.stringify(normalizePaymentSplit({
+        grand_total: newGrandTotal, payment_method, received_amount: storedReceivedAmount,
+        split_details: split_details ?? null,
+      }));
 
       captureInvoicePoints(db, invoice_id);
       cashierSql.updateInvoiceByInvoiceId(db).run(payment_method, splitStr, storedReceivedAmount, actualRefundPaid, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);

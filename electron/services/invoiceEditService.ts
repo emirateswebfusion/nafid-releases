@@ -1,8 +1,8 @@
 import { captureInvoicePoints, reconcileInvoicePoints, refreshInvoiceEarnings, validateInvoicePointsEdit } from './loyaltyService.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
-import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
-import { syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
+import { getCashAmountFromInvoice, syncPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
+import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { recentCheckoutsCache } from './invoiceCheckoutService.js';
@@ -160,6 +160,7 @@ export async function updateInvoice(payload: {
     return cachedUpdate.result;
   }
 
+  let savedSplit: SplitDetails = {};
   const transaction = db.transaction(() => {
     const customerId = upsertCustomerRecord(
       db,
@@ -184,13 +185,17 @@ export async function updateInvoice(payload: {
       ? (isNaN(new Date(invoice.created_at).getTime()) ? null : new Date(invoice.created_at).toISOString())
       : null;
 
-    // 2. Update invoice header
+    // 2. Update invoice header (with the exact payment breakdown: reports, filters and the drawer read it)
+    savedSplit = normalizePaymentSplit({
+      grand_total: invoice.grand_total, payment_method: invoice.payment_method || 'PENDING',
+      received_amount: finalReceivedAmount, split_details: invoice.split_details ?? existingInv.split_details,
+    });
     invoicesSql.updateInvoiceByInvoiceId3(db).run(
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
       invoice.grand_total, invoice.payment_method || 'PENDING',
       finalReceivedAmount, finalActualRefundPaid, finalBalanceAmount,
-      invoice.split_details && typeof invoice.split_details === 'object' ? JSON.stringify(invoice.split_details) : (invoice.split_details && invoice.split_details !== 'null' ? invoice.split_details : null),
+      JSON.stringify(savedSplit),
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
       invoice.customer_address || null,
@@ -285,7 +290,7 @@ export async function updateInvoice(payload: {
       customer_phone: invoice.customer_phone,
       customer_address: invoice.customer_address,
       customer_gstin: invoice.customer_gstin,
-      split_details: invoice.split_details || payload.split_details || existingInv.split_details,
+      split_details: savedSplit,
       user_id: payload.role,
       user_name: payload.role,
       created_at: updatedCreatedAt || existingInv.created_at,
@@ -307,6 +312,9 @@ export async function updateInvoice(payload: {
       : existingInv.created_at;
     if (existingInv) {
       adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, effectiveInvDate, oldCash, newCash);
+      // UPI / card / bank accounts follow the edited payment (an edit can change the method or the amounts).
+      const updatedInv = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as InvoiceRow | undefined;
+      syncPaymentSourcesForInvoice(db, existingInv.tenant_id || payload.tenant_id, updatedInv);
     }
 
     import('../sync/syncWorker.js').then(({ runInitialSync }) => {
@@ -356,9 +364,12 @@ export function updateInvoicePayment(payload: {
       return cachedPayment.result;
     }
 
-    const splitDetailsVal = payload.split_details && typeof payload.split_details === 'object'
-      ? JSON.stringify(payload.split_details)
-      : (payload.split_details && payload.split_details !== 'null' ? payload.split_details : null);
+    // The new payment replaces the old one: store its exact breakdown (only a SPLIT keeps the amounts it was given).
+    const savedSplit = normalizePaymentSplit({
+      grand_total: existingInv.grand_total, payment_method: payload.payment_method,
+      received_amount: payload.received_amount, split_details: payload.split_details ?? existingInv.split_details,
+    });
+    const splitDetailsVal = JSON.stringify(savedSplit);
 
     captureInvoicePoints(db, payload.invoice_id);
     invoicesSql.updateInvoiceByInvoiceId4(db).run(
@@ -373,12 +384,13 @@ export function updateInvoicePayment(payload: {
       ...existingInv,
       payment_method: payload.payment_method,
       received_amount: payload.received_amount,
-      split_details: payload.split_details ?? existingInv.split_details,
+      split_details: savedSplit,
     };
     const newCash = getCashAmountFromInvoice(updatedInvObj);
 
     adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
-    adjustPaymentSourcesForInvoice(db, existingInv.tenant_id || payload.tenant_id, updatedInvObj, false);
+    // Replace the old method's account money with the new method's (adding only would keep both).
+    syncPaymentSourcesForInvoice(db, existingInv.tenant_id || payload.tenant_id, invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as InvoiceRow | undefined);
 
     syncInvoiceCreditLedger(db, {
       counts_in_revenue: existingInv.counts_in_revenue,
@@ -395,7 +407,7 @@ export function updateInvoicePayment(payload: {
       customer_phone: existingInv.customer_phone,
       customer_address: existingInv.customer_address,
       customer_gstin: existingInv.customer_gstin,
-      split_details: payload.split_details ?? existingInv.split_details,
+      split_details: savedSplit,
       created_at: existingInv.created_at,
       is_staff: Boolean(existingInv.is_staff || payload.is_staff),
       staff_id: payload.staff_id || null,
@@ -460,7 +472,7 @@ export function deleteInvoice(invoice_id: string) {
     })();
 
     if (existingInv) {
-      adjustPaymentSourcesForInvoice(db, existingInv.tenant_id as string, existingInv, true);
+      syncPaymentSourcesForInvoice(db, existingInv.tenant_id as string, { ...existingInv, is_deleted: 1 });
     }
 
     if (existingInv && oldCash > 0) {

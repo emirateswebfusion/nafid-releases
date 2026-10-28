@@ -26,7 +26,10 @@ export function DashboardHeader({
   canOpenSettings, isCloudSyncPaused, isEditMode, isSyncing, menuRef, role, setIsEditMode, shopName, theme,
   toggleTheme, userName, od,
 }: DashboardHeaderProps) {
-  const { activeRoute, gridMode, invoiceCount, isOnline, menuOpen, setGridMode, setMenuOpen, setShowCustomizeModal, totalSales } = od;
+  const { activeRoute, gridMode, invoiceCount, isOnline, menuOpen, setGridMode, setMenuOpen, setShowCustomizeModal, totalSales, totalSalesBeforeDeductions, dashboardSalesMetric } = od;
+  const isRevenueMetric = dashboardSalesMetric === 'NET_REVENUE';
+  const displaySalesAmount = isRevenueMetric ? totalSales : (totalSalesBeforeDeductions || totalSales);
+  const displaySalesLabel = isRevenueMetric ? 'Revenue Today' : 'Sales Today';
   return (
     <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
       <div className="flex items-center justify-between gap-4 px-5 py-3">
@@ -43,9 +46,9 @@ export function DashboardHeader({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20" title={isRevenueMetric ? 'Total Revenue (Net realized collections after scrap/return deductions)' : 'Total Sales (Gross product sales before deductions)'}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">₹{totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Today</span>
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">₹{displaySalesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {displaySalesLabel}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
               <span className="w-2 h-2 rounded-full bg-amber-500" />

@@ -1,4 +1,5 @@
 import { partiesApi } from '../../../data/parties';
+import { hasPartyRole } from '../../../data/partyRoles';
 import { v4 as uuidv4 } from 'uuid';
 import { settingsApi } from '../../../data/settings';
 import type { Party } from '../partyTypes';
@@ -82,7 +83,7 @@ export function usePartySave(ctx: UsePartySaveContext) {
           address: partyForm.address.trim() || null,
           gstin: partyForm.gstin.trim() || null,
           party_type: partyForm.party_type,
-          custom_category: partyForm.party_type === 'CUSTOM' ? (partyForm.custom_category.trim() || null) : null,
+          custom_category: hasPartyRole(partyForm.party_type, 'CUSTOM') ? (partyForm.custom_category.trim() || null) : null,
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
@@ -106,7 +107,7 @@ export function usePartySave(ctx: UsePartySaveContext) {
           address: partyForm.address.trim() || '',
           gstin: partyForm.gstin.trim() || '',
           party_type: partyForm.party_type,
-          custom_category: partyForm.party_type === 'CUSTOM' ? (partyForm.custom_category.trim() || null) : null,
+          custom_category: hasPartyRole(partyForm.party_type, 'CUSTOM') ? (partyForm.custom_category.trim() || null) : null,
           notes: partyForm.notes.trim() || '',
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
@@ -132,7 +133,7 @@ export function usePartySave(ctx: UsePartySaveContext) {
           balance: parseFloat(partyForm.opening_balance) || 0,
           balance_type: partyForm.balance_type,
           party_type: partyForm.party_type,
-          custom_category: partyForm.party_type === 'CUSTOM' ? (partyForm.custom_category.trim() || null) : null,
+          custom_category: hasPartyRole(partyForm.party_type, 'CUSTOM') ? (partyForm.custom_category.trim() || null) : null,
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
           credit_limit: parsedCreditLimit,
@@ -151,7 +152,7 @@ export function usePartySave(ctx: UsePartySaveContext) {
         }
         showStatus('Party created successfully', 'success');
       }
-      if (partyForm.party_type === 'CUSTOM' && partyForm.custom_category.trim()) {
+      if (hasPartyRole(partyForm.party_type, 'CUSTOM') && partyForm.custom_category.trim()) {
         const catName = partyForm.custom_category.trim();
         if (!allCustomCategories.map(c => c.toLowerCase()).includes(catName.toLowerCase())) {
           const updated = [...allCustomCategories, catName];

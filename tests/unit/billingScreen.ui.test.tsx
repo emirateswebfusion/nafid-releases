@@ -71,6 +71,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllTimers(); vi.useRealTimers(); });
 
 describe('billing screen', () => {
+  it.each(['CASH', 'CARD', 'UPI', 'CHEQUE'] as const)('saves a fully paid %s bill with no phantom balance', async paymentMethod => {
+    const user = await addSteelRod();
+    await user.keyboard('{Enter}{Escape}');
+    act(() => useTabStore.getState().updateActiveTab({ paymentMethod, receivedAmount: 0 }));
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await waitFor(() => expect(callsTo('dbCheckout')).toHaveLength(1));
+    expect(callsTo('dbCheckout')[0].args[0]).toMatchObject({ payment_method: paymentMethod,
+      grand_total: 100, received_amount: 100, balance_amount: 0 });
+  });
   it('searches a product, adds it with Enter and shows the totals', async () => {
     await addSteelRod();
     expect(callsTo('dbGetProducts').every((c) => (c.args[0] as { tenant_id: string }).tenant_id === 't1')).toBe(true);

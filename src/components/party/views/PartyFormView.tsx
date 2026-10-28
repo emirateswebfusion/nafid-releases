@@ -1,6 +1,7 @@
 import React from 'react';
 import { UserCircle, Tag, Phone, MapPin, FileText, CreditCard, Clock, Save, Loader2, Banknote, Link, Layers } from 'lucide-react';
 import clsx from 'clsx';
+import { hasPartyRole, type PartyRole } from '../../../data/partyRoles';
 import { Select } from '../../ui/Select';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 
@@ -67,27 +68,114 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                         { key: 'SUPPLIER', label: '📦 Supplier', desc: 'Purchase Supplier' },
                         { key: 'STAFF', label: '👥 Staff', desc: 'Staff Member' },
                         { key: 'CUSTOM', label: '🏦 Custom', desc: 'Chitty / Savings / Other' },
-                      ].map(t => (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() => setPartyForm(f => ({ ...f, party_type: t.key as typeof f.party_type }))}
-                          className={clsx(
-                            "p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-95",
-                            partyForm.party_type === t.key
-                              ? "border-primary bg-primary/10 text-primary font-black shadow-sm"
-                              : "border-border bg-background hover:bg-muted/50 text-muted-foreground font-semibold"
-                          )}
-                        >
-                          <p className="text-xs">{t.label}</p>
-                          <p className="text-[9px] opacity-75 mt-0.5">{t.desc}</p>
-                        </button>
-                      ))}
+                      ].map(t => {
+                        const isPrimary = (
+                          t.key === 'CUSTOMER'
+                            ? (!hasPartyRole(partyForm.party_type, 'SUPPLIER') && !hasPartyRole(partyForm.party_type, 'STAFF') && !hasPartyRole(partyForm.party_type, 'CUSTOM'))
+                            : hasPartyRole(partyForm.party_type, t.key as PartyRole)
+                        );
+                        return (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => setPartyForm(f => ({ ...f, party_type: t.key as typeof f.party_type }))}
+                            className={clsx(
+                              "p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-95",
+                              isPrimary
+                                ? "border-primary bg-primary/10 text-primary font-black shadow-sm"
+                                : "border-border bg-background hover:bg-muted/50 text-muted-foreground font-semibold"
+                            )}
+                          >
+                            <p className="text-xs">{t.label}</p>
+                            <p className="text-[9px] opacity-75 mt-0.5">{t.desc}</p>
+                          </button>
+                        );
+                      })}
                     </div>
+
+                    {/* Dual-Role Toggles */}
+                    {hasPartyRole(partyForm.party_type, 'SUPPLIER') && (
+                      <div className="mt-2.5 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between">
+                        <div>
+                          <label htmlFor="dual-role-customer" className="text-xs font-bold text-purple-700 dark:text-purple-300 cursor-pointer flex items-center gap-1.5">
+                            🛒 Also allow Customer Billing (Dual Role: Supplier + Customer)
+                          </label>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Enable if this supplier also buys goods from your shop. They will appear in POS Billing.
+                          </p>
+                        </div>
+                        <input
+                          id="dual-role-customer"
+                          type="checkbox"
+                          checked={hasPartyRole(partyForm.party_type, 'CUSTOMER')}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setPartyForm(f => ({
+                              ...f,
+                              party_type: (isChecked ? 'SUPPLIER,CUSTOMER' : 'SUPPLIER') as typeof f.party_type,
+                            }));
+                          }}
+                          className="w-4 h-4 rounded text-primary border-border focus:ring-primary cursor-pointer"
+                        />
+                      </div>
+                    )}
+
+                    {!hasPartyRole(partyForm.party_type, 'SUPPLIER') && !hasPartyRole(partyForm.party_type, 'STAFF') && !hasPartyRole(partyForm.party_type, 'CUSTOM') && (
+                      <div className="mt-2.5 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
+                        <div>
+                          <label htmlFor="dual-role-supplier" className="text-xs font-bold text-blue-700 dark:text-blue-300 cursor-pointer flex items-center gap-1.5">
+                            📦 Also allow Purchase Bills (Dual Role: Customer + Supplier)
+                          </label>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Enable if you also purchase goods from this customer. They will appear in Purchase Bills.
+                          </p>
+                        </div>
+                        <input
+                          id="dual-role-supplier"
+                          type="checkbox"
+                          checked={hasPartyRole(partyForm.party_type, 'SUPPLIER')}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setPartyForm(f => ({
+                              ...f,
+                              party_type: (isChecked ? 'CUSTOMER,SUPPLIER' : 'CUSTOMER') as typeof f.party_type,
+                            }));
+                          }}
+                          className="w-4 h-4 rounded text-primary border-border focus:ring-primary cursor-pointer"
+                        />
+                      </div>
+                    )}
+
+                    {(hasPartyRole(partyForm.party_type, 'STAFF') || hasPartyRole(partyForm.party_type, 'CUSTOM')) && !hasPartyRole(partyForm.party_type, 'SUPPLIER') && (
+                      <div className="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+                        <div>
+                          <label htmlFor="dual-role-staff-cust" className="text-xs font-bold text-amber-700 dark:text-amber-300 cursor-pointer flex items-center gap-1.5">
+                            🛒 Also allow Customer Billing
+                          </label>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Enable to allow this party to appear in POS customer billing.
+                          </p>
+                        </div>
+                        <input
+                          id="dual-role-staff-cust"
+                          type="checkbox"
+                          checked={hasPartyRole(partyForm.party_type, 'CUSTOMER')}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            const baseType = hasPartyRole(partyForm.party_type, 'STAFF') ? 'STAFF' : 'CUSTOM';
+                            setPartyForm(f => ({
+                              ...f,
+                              party_type: (isChecked ? `${baseType},CUSTOMER` : baseType) as typeof f.party_type,
+                            }));
+                          }}
+                          className="w-4 h-4 rounded text-primary border-border focus:ring-primary cursor-pointer"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Custom Category Selection if party_type === 'CUSTOM' */}
-                  {partyForm.party_type === 'CUSTOM' && (
+                  {/* Custom Category Selection if party_type includes 'CUSTOM' */}
+                  {hasPartyRole(partyForm.party_type, 'CUSTOM') && (
                     <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
                       <label className="block text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider mb-2">
                         Choose Custom Category <span className="text-red-500">*</span>
@@ -224,7 +312,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                 </div>
               </div>
               {/* ── Commercial & Credit Configuration ── */}
-              {partyForm.party_type === 'CUSTOMER' && (<div className="mt-5 pt-5 border-t border-border/70 space-y-5">
+              {hasPartyRole(partyForm.party_type, 'CUSTOMER') && (<div className="mt-5 pt-5 border-t border-border/70 space-y-5">
                 {/* Section Header */}
                 <div className="flex items-center gap-2">
                   <div className="p-1 rounded-md bg-amber-500/10 text-amber-500">

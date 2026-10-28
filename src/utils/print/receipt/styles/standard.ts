@@ -1,4 +1,4 @@
-import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines } from '../receiptCore';
+import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
 /** Thermal receipt style "standard": STANDARD — Clean framed design, borders items, centered grand total */
@@ -128,13 +128,6 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
   const totalW = 10;
   const labelW = charsPerLine - totalW - 2;
   text += `${padRight('SUBTOTAL', labelW)}  ${padLeft(data.subtotal.toFixed(2), totalW)}\n`;
-  if (data.tax > 0) {
-    if (data.igst && data.igst > 0) text += `${padRight('IGST', labelW)}  ${padLeft(data.igst.toFixed(2), totalW)}\n`;
-    else {
-      if (data.cgst && data.cgst > 0) text += `${padRight('CGST', labelW)}  ${padLeft(data.cgst.toFixed(2), totalW)}\n`;
-      if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
-    }
-  }
   if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
     text += `${padRight('EXTRA / BONUS', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
   } else if (data.discount > 0) {
@@ -189,6 +182,9 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
       text += LIGHT + '\n';
     }
   }
+
+  // ── Tax Breakup ──
+  text += formatTaxBreakupSection(data, charsPerLine, padLeft, padRight, centerText, '-');
 
   // ── UPI ──
   if (data.upiId) {

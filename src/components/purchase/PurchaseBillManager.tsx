@@ -13,6 +13,7 @@ import { RedCrossButton } from '../ui/RedCrossButton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { isDesktopRuntime } from '../../data/client';
 import { partiesApi } from '../../data/parties';
+import { isAllowedInPurchase } from '../../data/partyRoles';
 import { purchasesApi } from '../../data/purchases';
 import { type PurchaseBill, type PurchaseBillItem, type PurchaseBillFormHandle } from './purchaseTypes';
 import { getPurchaseBillFocusables } from './purchaseFormat';
@@ -204,7 +205,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   useEffect(() => {
     if (showAddForm && isDesktopRuntime() && tenantId) {
       partiesApi.getParties(tenantId)
-        .then(res => { if (Array.isArray(res)) setSuppliers(res.filter(party => String(party.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER')); })
+        .then(res => { if (Array.isArray(res)) setSuppliers(res.filter(party => isAllowedInPurchase(party.party_type))); })
         .catch(console.error);
     }
   }, [showAddForm, tenantId]);
@@ -355,7 +356,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       setTimeout(() => setStatusMessage(null), 3000);
       // Refresh suppliers and auto-select
       const updated = await partiesApi.getParties(tenantId);
-      if (Array.isArray(updated)) setSuppliers(updated.filter(party => String(party.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER'));
+      if (Array.isArray(updated)) setSuppliers(updated.filter(party => isAllowedInPurchase(party.party_type)));
       setSupplierName(newPartyForm.name.trim());
       setSupplierId(partyId);
       setSupplierSearch('');

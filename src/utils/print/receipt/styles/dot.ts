@@ -1,9 +1,9 @@
-import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines } from '../receiptCore';
+import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
 /** Thermal receipt style "dot": DOT — Dot-leader retail style (item ... price) */
 export function renderDotReceipt(ctx: ReceiptTextContext): string {
-  const { data, charsPerLine, centerText, wrapText, selectedBillSettings, printFullName, showBrand, isRateQty, appendInstructions, appendLoyaltyBlock } = ctx;
+  const { data, charsPerLine, centerText, padRight, padLeft, wrapText, selectedBillSettings, printFullName, showBrand, isRateQty, appendInstructions, appendLoyaltyBlock } = ctx;
   let text = '';
   const DASH = '-'.repeat(charsPerLine);
   const totalW = 10;
@@ -87,13 +87,6 @@ export function renderDotReceipt(ctx: ReceiptTextContext): string {
   // ── Totals ──
   const dotLine = (label: string, value: string) => text += `${dot(label, value, charsPerLine)}\n`;
   dotLine('SUBTOTAL', data.subtotal.toFixed(2));
-  if (data.tax > 0) {
-    if (data.igst && data.igst > 0) dotLine('IGST', data.igst.toFixed(2));
-    else {
-      if (data.cgst && data.cgst > 0) dotLine('CGST', data.cgst.toFixed(2));
-      if (data.sgst && data.sgst > 0) dotLine('SGST', data.sgst.toFixed(2));
-    }
-  }
   if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
     dotLine('EXTRA / BONUS', `+${data.extraBonus.toFixed(2)}`);
   } else if (data.discount > 0) {
@@ -154,6 +147,9 @@ export function renderDotReceipt(ctx: ReceiptTextContext): string {
     text += `UPI: ${data.upiId}\n`;
     text += DASH + '\n';
   }
+
+  // ── Tax Breakup ──
+  text += formatTaxBreakupSection(data, charsPerLine, padLeft, padRight, centerText, '.');
 
   // ── Loyalty Points ──
   text = appendLoyaltyBlock(text);

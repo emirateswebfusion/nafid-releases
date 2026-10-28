@@ -128,4 +128,13 @@ describe('Sales History loading', () => {
     expect(screen.getByText('GST Amount').parentElement!.textContent).toContain('540.00');
     expect(screen.getByText('Grand Total including GST').parentElement!.textContent).toContain('3,540.00');
   });
+
+  it('renders invoice type options including Filing-only when opening dropdown in GST view', async () => {
+    render(<SalesHistory onClose={() => {}} />);
+    await screen.findByText('BOS-0');
+    fireEvent.click(screen.getByTitle('Official Statutory GST Invoices (GST)'));
+    const typeSelectTrigger = screen.getByText('All GST Types');
+    fireEvent.click(typeSelectTrigger);
+    expect(screen.getByText('Filing-only')).toBeDefined();
+  });
 });

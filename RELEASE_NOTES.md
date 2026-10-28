@@ -1,3 +1,17 @@
+# Nafid POS v2.1.2 Release Notes
+
+## What's New
+- **Refreshed What's New in Settings**: Updated highlights in bilingual English & Malayalam focusing exclusively on user-facing improvements with old entries cleared.
+- **Simpler Settings & Search**: Find any option quickly with the sidebar search bar across newly organized single-topic settings pages.
+- **Exact Credit Balances**: Customer and supplier credit balances stay accurate across bill edits, returns and cash settlements with automatic bill settlement.
+- **Fast WhatsApp QR**: Immediate display of the WhatsApp QR code without stalling, with live connection status in Settings.
+- **Smooth Receipt Printing**: Prevented duplicate printouts and printer hangs during fast consecutive billing.
+- **Sequential GST Invoice Numbers**: Avoid skipped tax invoice numbers when converting bills of supply to GST.
+- **Safe Customer Contact Edits**: Protection for edited customer phone numbers and contacts during cloud sync.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.1.1...v2.1.2
+
+**Download:** [Nafid-Setup-2.1.2.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.2/Nafid-Setup-2.1.2.exe)
+
 # Nafid POS v2.1.1 Release Notes
 
 ## What's Changed

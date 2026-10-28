@@ -36,6 +36,8 @@ function canCheckForUpdates(): boolean {
 
 export function setupAutoUpdater(): void {
   // Updates come from the public releases repo baked into app-update.yml at build time: no credentials.
+  autoUpdater.logger = log;
+  autoUpdater.disableDifferentialDownload = false;
   // Disable auto-download initially - we'll control it via state machine
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -173,10 +175,11 @@ export function setupAutoUpdater(): void {
 
 export function registerUpdaterIpc(): void {
 ipcMain.handle('app:installUpdate', () => {
-  log.info('[Updater] Triggering quitAndInstall...');
+  log.info('[Updater] Triggering silent differential quitAndInstall...');
   setImmediate(() => {
     try {
-      autoUpdater.quitAndInstall(false, true);
+      // Run NSIS silently (/S) without showing wizard dialogs or asking user to reinstall
+      autoUpdater.quitAndInstall(true, true);
     } catch (e) {
       log.error('[Updater] quitAndInstall error:', e);
     }
@@ -185,7 +188,7 @@ ipcMain.handle('app:installUpdate', () => {
         try { w.destroy(); } catch { /* ignore */ }
       });
       app.exit(0);
-    }, 800);
+    }, 1500);
   });
 });
 

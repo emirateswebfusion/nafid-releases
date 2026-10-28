@@ -10,7 +10,7 @@ import { FloatToast } from '../ui/FloatToast';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, parseUTCDate } from '../../utils/print/receiptGenerator';
 import { generateInvoiceHtml } from '../../utils/print/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../../utils/print/printFormatHelper';
-import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { getStoreBusinessDate, getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { printingApi } from '../../data/printing';
 import { ReturnCashRegisterNote } from './ReturnCashRegisterNote';
@@ -191,10 +191,12 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   // Calculations for Stats
   const totalRefunded = returns.reduce((sum, r) => sum + r.grand_total, 0);
 
-  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const todayStr = getStoreBusinessDate();
   const todayReturns = returns.filter(r => {
     try {
-      const datePart = (r.return_date as string).split('T')[0];
+      const stamp = r.return_date || r.created_at;
+      if (!stamp) return false;
+      const datePart = new Intl.DateTimeFormat('en-CA', { timeZone: getStoreTimezone() }).format(parseUTCDate(stamp));
       return datePart === todayStr;
     } catch {
       return false;
@@ -263,7 +265,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
             </div>
             <div className="leading-tight text-left min-w-0 flex-1">
               <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(totalRefunded)}</p>
-              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Refunded</p>
+              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Return Value</p>
             </div>
           </div>
 
@@ -273,7 +275,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
             </div>
             <div className="leading-tight text-left min-w-0 flex-1">
               <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(todayRefundedAmount)}</p>
-              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Today's Refunds</p>
+              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Today's Returns</p>
             </div>
           </div>
         </div>
@@ -343,7 +345,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                       </div>
                     </div>
                     <div className="flex items-center gap-6 shrink-0 ml-4">
-                      <span className="text-[10px] font-bold text-muted-foreground hidden sm:block">{formatDate(r.return_date)}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground hidden sm:block">{formatDate(r.return_date || r.created_at)}</span>
                       <span className="text-sm font-black text-rose-500">
                         -{formatCurrency(r.grand_total)}
                         <span className="block text-[10px] text-muted-foreground">{r.refund_method || 'Bill adjustment'}</span>
@@ -378,7 +380,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
             {/* Refund detail metadata */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-semibold text-muted-foreground">{formatDate(selectedReturn.return_date)}</p>
+                <p className="text-[10px] font-semibold text-muted-foreground">{formatDate(selectedReturn.return_date || selectedReturn.created_at)}</p>
               </div>
               <div className="text-right">
                 <span className="text-[9px] uppercase font-black tracking-wider text-muted-foreground block leading-none mb-1">Refund Amount</span>

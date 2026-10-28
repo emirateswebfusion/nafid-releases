@@ -73,10 +73,15 @@ export function getDashboardStats(tenantId: string) {
     const dateStr = localDate(new Date(), tenantId);
     const { startUtc, endUtc } = getUtcRangeForStoreDateRange(dateStr, dateStr, tenantId);
     const row = invoicesSql.findInvoicesByConvertedFrom_(db).get(tenantId, startUtc, endUtc) as Record<string, number>;
-    return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
+    return {
+      success: true,
+      totalSales: row.totalSales,
+      totalSalesBeforeDeductions: row.totalSalesBeforeDeductions ?? row.totalSales,
+      invoiceCount: row.invoiceCount,
+    };
   } catch (error) {
     console.error('[db:getDashboardStats]', error);
-    return { success: false, totalSales: 0, invoiceCount: 0, error: 'Operation failed' };
+    return { success: false, totalSales: 0, totalSalesBeforeDeductions: 0, invoiceCount: 0, error: 'Operation failed' };
   }
 }
 

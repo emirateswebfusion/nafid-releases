@@ -177,7 +177,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
         {view === 'transactions' && selectedSource && (
           <PaymentTransactionsView
             filteredTransactions={filteredTransactions} isOwner={isOwner} saveTransaction={saveTransaction}
-            txTotalIn={txTotalIn} txTotalOut={txTotalOut} selectedSource={selectedSource} pmState={pmState}
+            txTotalIn={txTotalIn} txTotalOut={txTotalOut} selectedSource={sources.find(source => source.source_id === selectedSource.source_id) ?? selectedSource} pmState={pmState}
           />
         )}
       </div>

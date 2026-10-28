@@ -216,7 +216,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     if (!isDesktopRuntime()) return;
     if (hasBridge('onUpdateStatus')) {
       bridgeEvents.onUpdateStatus((status: string) => {
-        if (status === 'ready-to-install') { setUpdateReady(true); setIsDownloading(false); setDownloadProgress(null); setUpdateStatus('Update ready to install'); }
+        if (status === 'ready-to-install') { setUpdateReady(true); setIsDownloading(false); setDownloadProgress(null); setUpdateStatus('Update ready'); }
         else if (status === 'update-available') { setUpdateStatus('Update available'); }
         else if (status === 'error') { setIsDownloading(false); setUpdateStatus('Download failed'); }
         else { setUpdateStatus(status); }
@@ -245,7 +245,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     returnStartNumber, role, shopDomain, updateDomain,
   });
 
-  const handleInstallUpdate = () => { setUpdateStatus('Restarting to install update...'); appApi.installUpdate(); };
+  const handleInstallUpdate = () => { setUpdateStatus('Restarting to update...'); appApi.installUpdate(); };
 
   const handleRetryDownload = () => {
     if (!isDesktopRuntime()) return;

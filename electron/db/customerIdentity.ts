@@ -84,17 +84,27 @@ export class CustomerIdentityService {
 
       // 0. Try direct customer_id / party_id match first if provided
       if (rawData.customer_id) {
-        existingCustomer = db.prepare<unknown[], IdentityRow>(`
+        const candidateCust = db.prepare<unknown[], IdentityRow>(`
           SELECT * FROM customers 
           WHERE tenant_id = ? AND customer_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           LIMIT 1
         `).get(tenantId, rawData.customer_id);
 
-        existingParty = db.prepare<unknown[], IdentityRow>(`
+        const candidateParty = db.prepare<unknown[], IdentityRow>(`
           SELECT * FROM parties 
           WHERE tenant_id = ? AND party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
           LIMIT 1
         `).get(tenantId, rawData.customer_id);
+
+        const candPhone = String(candidateCust?.phone || candidateParty?.phone || '').replace(/\D/g, '');
+        const candLast10 = candPhone.length >= 7 ? candPhone.slice(-10) : candPhone;
+        const inputLast10 = phoneClean.length >= 7 ? phoneClean.slice(-10) : phoneClean;
+        const phoneContradicts = Boolean(candLast10 && inputLast10 && candLast10 !== inputLast10);
+
+        if (!phoneContradicts) {
+          existingCustomer = candidateCust;
+          existingParty = candidateParty;
+        }
       }
 
       // 1. Try exact name + phone match
@@ -112,7 +122,7 @@ export class CustomerIdentityService {
           existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+              AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND phone = ?
             ORDER BY created_at ASC
             LIMIT 1
@@ -135,7 +145,7 @@ export class CustomerIdentityService {
           existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+              AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
               AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
             ORDER BY created_at ASC
             LIMIT 1
@@ -146,27 +156,32 @@ export class CustomerIdentityService {
       // 3. Try case-insensitive name match
       if (name) {
         if (!existingCustomer) {
-          existingCustomer = db.prepare<unknown[], IdentityRow>(`
-            SELECT * FROM customers 
-            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND LOWER(TRIM(name)) = LOWER(TRIM(?))
-            ORDER BY 
-              CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
-              created_at ASC
-            LIMIT 1
-          `).get(tenantId, name);
+          const custQuery = phoneClean.length >= 7
+            ? `SELECT * FROM customers 
+               WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+                 AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+                 AND (phone IS NULL OR TRIM(phone) = '')
+               ORDER BY created_at ASC LIMIT 1`
+            : `SELECT * FROM customers 
+               WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+                 AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+               ORDER BY CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`;
+          existingCustomer = db.prepare<unknown[], IdentityRow>(custQuery).get(tenantId, name);
         }
         if (!existingParty) {
-          existingParty = db.prepare<unknown[], IdentityRow>(`
-            SELECT * FROM parties 
-            WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
-              AND LOWER(TRIM(name)) = LOWER(TRIM(?))
-            ORDER BY 
-              CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END,
-              created_at ASC
-            LIMIT 1
-          `).get(tenantId, name);
+          const partyQuery = phoneClean.length >= 7
+            ? `SELECT * FROM parties 
+               WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+                 AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
+                 AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+                 AND (phone IS NULL OR TRIM(phone) = '')
+               ORDER BY created_at ASC LIMIT 1`
+            : `SELECT * FROM parties 
+               WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+                 AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
+                 AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+               ORDER BY CASE WHEN phone IS NOT NULL AND phone != '' THEN 0 ELSE 1 END, created_at ASC LIMIT 1`;
+          existingParty = db.prepare<unknown[], IdentityRow>(partyQuery).get(tenantId, name);
         }
       }
 
@@ -179,7 +194,7 @@ export class CustomerIdentityService {
           existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+              AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
               AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
             ORDER BY created_at ASC
             LIMIT 1
@@ -189,7 +204,7 @@ export class CustomerIdentityService {
           existingParty = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+              AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?))
             ORDER BY created_at ASC
             LIMIT 1
@@ -202,7 +217,7 @@ export class CustomerIdentityService {
         existingParty = db.prepare<unknown[], IdentityRow>(`
           SELECT * FROM parties 
           WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-            AND (party_type = 'CUSTOMER' OR party_type IS NULL)
+            AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
             AND name = ? AND (phone = ? OR (phone IS NULL AND ? IS NULL))
           LIMIT 1
         `).get(tenantId, displayName, phone, phone);
@@ -506,13 +521,15 @@ export function upsertCustomerRecord(
   rawName?: string | null,
   rawPhone?: string | null,
   rawAddress?: string | null,
-  opts?: { history?: boolean; purchaseAt?: string | null }
+  opts?: { history?: boolean; purchaseAt?: string | null; customer_id?: string | null; gstin?: string | null }
 ): string | null {
   // Delegate to the new unified CustomerIdentityService for consistency
   const result = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
+    customer_id: opts?.customer_id,
     name: rawName,
     phone: rawPhone,
-    address: rawAddress
+    address: rawAddress,
+    gstin: opts?.gstin,
   }, opts);
   return result?.customer_id || null;
 }

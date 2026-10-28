@@ -38,7 +38,8 @@ const CASH_SALES_SELECT = `
             )
             WHEN UPPER(payment_method) IN ('SPLIT', 'CREDIT') AND split_details IS NOT NULL THEN (
               CASE 
-                WHEN json_extract(split_details, '$.cash') IS NOT NULL 
+                -- A credit bill saved with "cash": 0 in its split took its cash as received_amount (next branch).
+                WHEN CAST(json_extract(split_details, '$.cash') AS REAL) > 0
                 THEN MIN(
                   CAST(json_extract(split_details, '$.cash') AS REAL),
                   MAX(0, COALESCE(grand_total, 0))
@@ -150,6 +151,14 @@ export const insertPaymentSourceTransaction = (db: Db) => db.prepare(`
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'PENDING')
         `);
 
+/** Net money a bill has posted to each payment account (bill sales and cancellations). Params: tenant, invoice_number. */
+export const sumInvoicePaymentSourcePostings = (db: Db) => db.prepare(`
+          SELECT source_id, ROUND(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE -amount END), 2) AS net
+          FROM payment_source_transactions
+          WHERE tenant_id = ? AND reference_number = ? AND category IN ('Invoice Sale', 'Invoice Cancellation')
+          GROUP BY source_id
+        `);
+
 export const updatePaymentSourceCurrentBalance = (db: Db) => db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ?`);
 
 /** Cash entries with current ledger values; ledger ids are stored in the existing category field. */
@@ -181,7 +190,18 @@ export const listRegisterInvoices = (db: Db) => db.prepare(`
     AND (? IS NULL OR datetime(COALESCE(settled_at, created_at)) <= datetime(?))
 `);
 
-/** One source-linked cash entry per manual ledger row, even when a drawer has not been opened yet. */
+/** First cash receipt can start a zero-opening drawer, just like invoice cash collections. */
+export const ensureLedgerCashDrawer = (db: Db) => db.prepare(`
+  INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, status, sync_status)
+  SELECT ?, ?, ?, 'OPEN', 'PENDING'
+  WHERE EXISTS (SELECT 1 FROM party_ledger WHERE tenant_id = ? AND ledger_id = ?
+    AND UPPER(payment_method) = 'CASH' AND COALESCE(is_deleted, 0) = 0
+    AND ABS(credit_amount - debit_amount) > 0)
+    AND NOT EXISTS (SELECT 1 FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN')
+  ON CONFLICT DO NOTHING
+`);
+
+/** One source-linked cash entry per manual ledger row. */
 export const insertLinkedLedgerCashEntry = (db: Db) => db.prepare(`
   INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes,
     entered_by, entered_by_name, transaction_date, sync_status)

@@ -15,7 +15,7 @@ const db = getDb();
 const dir = path.join(tree, 'electron/db/statements');
 const fragment = (p: string) => /placeholder/i.test(p) ? '?' : /col$/i.test(p) ? (/deleted/i.test(p) ? ', deleted_at' : 'gst_balance')
   : /select|fields/i.test(p) ? '*' : /^t$|table/i.test(p) ? 'products' : '';
-const special: Record<string, unknown[]> = { recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'], sumPurchaseBillsForDate: ['total_amount'],
+const special: Record<string, unknown[]> = { findInvoiceItemsByInvoiceIdAndIsGstApplicable: [['statement-check']], recalcAllPartyBalances: ['WHERE tenant_id = ? AND'], listDeletedInvoices: ['', 'ORDER BY created_at DESC'], sumPurchaseBillsForDate: ['total_amount'],
   markSyncedIfUnchanged: ['products', 'product_id', 'updated_at'], markSynced: ['products', 'product_id'], selectMaxTimestamp: ['updated_at', 'products'],
   deltaRowsQuery: ['products', 'updated_at', '', '2026-01-01 00:00:00'], pendingBillsQuery: ['2026-01-01 00:00:00', 'x'],
   tableRowsQuery: ['invoices', ['updated_at', 'created_at'], '2026-01-01 00:00:00', 10, 0],
