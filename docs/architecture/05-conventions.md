@@ -89,3 +89,10 @@ only in a deliberate maintenance change after debt went **down**.
 Source files are UTF-8; keep the file's existing line endings (most are CRLF). Never round-trip a file through a
 Windows-1252 decoder — it produced mojibake such as `Â·` and `â†’` in shipped UI text before. If you script edits in
 Python, open files with `encoding='utf8', newline=''`.
+## 5.9 Release notes and updates
+
+- **Never hardcode release notes in source code:** Do not edit `whatsNew.ts` or add release-specific arrays for new version features.
+- **Dynamic discovery:** Release notes originate from the GitHub Release description (HTML or Markdown) delivered via `electron-updater` (`updateInfo.releaseNotes`).
+- **Rich UI transformation:** The renderer transforms release notes dynamically using `releaseNotesToCards()` (`src/components/settings/releaseNotesUtils.ts`), assigning category tags (Printing, Billing, Hardware, Settings, Checkout, Sync, Improvement, Resource), Tailwind accents, and link buttons.
+- **Persistence:** When an update is detected, `releaseNotes` are cached in `localStorage` under `nafid_release_notes_<version>` and `nafid_cached_release_notes` so the user-facing cards remain active even after updating.
+- **Fallback:** `whatsNew.ts` provides `getWhatsNewItems()`, resolving active notes -> version cache -> general cache -> evergreen baseline (`DEFAULT_WHATS_NEW`).

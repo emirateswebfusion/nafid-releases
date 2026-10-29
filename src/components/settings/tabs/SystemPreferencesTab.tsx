@@ -1,9 +1,10 @@
-import React from 'react';
-import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, Zap, Wrench } from 'lucide-react';
+import React, { useMemo, useEffect } from 'react';
+import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, Zap, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { formatTimeAgo, formatBytes } from '../settingsUtils';
+import { releaseNotesToCards } from '../releaseNotesUtils';
 import type { SettingsForm } from '../settingsFormTypes';
-import { WHATS_NEW } from '../whatsNew';
+import { getWhatsNewItems } from '../whatsNew';
 
 export interface SystemPreferencesTabProps {
   appVersion: string;
@@ -31,6 +32,21 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
   handleRetryDownload,
   handleInstallUpdate,
 }) => {
+  const displayItems = useMemo(() => {
+    return getWhatsNewItems(updateInfo?.releaseNotes, appVersion);
+  }, [updateInfo, appVersion]);
+
+  useEffect(() => {
+    if (updateInfo?.releaseNotes) {
+      try {
+        localStorage.setItem(`nafid_release_notes_${updateInfo.version}`, updateInfo.releaseNotes);
+        localStorage.setItem('nafid_cached_release_notes', updateInfo.releaseNotes);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }, [updateInfo]);
+
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Card 3: Updates */}
@@ -97,56 +113,74 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                       </div>
                       <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-extrabold rounded-lg border border-blue-500/20 shrink-0 uppercase tracking-wider">{updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}</span>
                     </div>
-                    {updateInfo.releaseNotes && (
-                      <div className="px-5 py-4 bg-muted/20 border-b border-border/40 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Zap className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
-                            <p className="text-xs font-black text-foreground uppercase tracking-wider">
-                              What's New in v{updateInfo.version}
-                            </p>
+                    {updateInfo.releaseNotes && (() => {
+                      const updateCards = releaseNotesToCards(updateInfo.releaseNotes);
+                      if (updateCards.length === 0) return null;
+                      return (
+                        <div className="px-5 py-4 bg-muted/20 border-b border-border/40 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Zap className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                              <p className="text-xs font-black text-foreground uppercase tracking-wider">
+                                What's New in v{updateInfo.version}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-semibold text-muted-foreground/70 bg-background/80 px-2 py-0.5 rounded-full border border-border/50">
+                              Release Highlights
+                            </span>
                           </div>
-                          <span className="text-[10px] font-semibold text-muted-foreground/70 bg-background/80 px-2 py-0.5 rounded-full border border-border/50">
-                            Release Highlights
-                          </span>
-                        </div>
 
-                        <div className="bg-background/90 rounded-xl p-3.5 border border-border/60 max-h-56 overflow-y-auto space-y-2 text-xs">
-                          {typeof updateInfo.releaseNotes === 'string'
-                            ? updateInfo.releaseNotes
-                                .split('\n')
-                                .map((line: string) => line.trim())
-                                .filter(Boolean)
-                                .map((line: string, i: number) => {
-                                  const isFix = /fix|bug|issue|error|resolved|patch/i.test(line);
-                                  const cleanLine = line.replace(/^[-*•\d.]+\s*/, '');
-                                  return (
-                                    <div key={i} className="flex items-start gap-2.5 group">
-                                      <div className={clsx(
-                                        "mt-0.5 p-1 rounded-md shrink-0 flex items-center justify-center text-[10px]",
-                                        isFix
-                                          ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                      )}>
-                                        {isFix ? <Wrench className="w-3 h-3" /> : <Zap className="w-3 h-3 fill-amber-500/20" />}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="leading-snug text-foreground/90 font-medium">
-                                          {cleanLine}
+                          <div className="max-h-72 overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                              {updateCards.map((card) => (
+                                <div
+                                  key={card.id}
+                                  className={clsx(
+                                    "p-3 rounded-2xl bg-background/90 border border-border/60 transition-all flex flex-col justify-between space-y-1.5",
+                                    card.accent.hover
+                                  )}
+                                >
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className={clsx("w-2 h-2 rounded-full shrink-0", card.accent.dot)} />
+                                        <p className="font-bold text-foreground text-xs truncate">
+                                          {whatsNewLang === 'ml' ? card.title.ml : card.title.en}
                                         </p>
-                                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-60 text-muted-foreground">
-                                          {isFix ? 'Fix / Improvement' : 'New Feature'}
-                                        </span>
                                       </div>
+                                      <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0", card.accent.tag)}>
+                                        {whatsNewLang === 'ml' ? card.tag.ml : card.tag.en}
+                                      </span>
                                     </div>
-                                  );
-                                })
-                            : (
-                              <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>
-                            )}
+                                    {whatsNewLang === 'ml' && card.subtitle && (
+                                      <p className={clsx("text-[10px] font-semibold pl-4 -mt-0.5", card.accent.text)}>
+                                        {card.subtitle}
+                                      </p>
+                                    )}
+                                    <p className={clsx("text-muted-foreground leading-relaxed pl-4", whatsNewLang === 'ml' ? "text-[11.5px] leading-5 text-foreground/80 font-medium" : "text-[11px]")}>
+                                      {whatsNewLang === 'ml' ? card.text.ml : card.text.en}
+                                    </p>
+                                  </div>
+                                  {card.link && (
+                                    <div className="pt-1.5 pl-4">
+                                      <a
+                                        href={card.link.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-all active:scale-95 cursor-pointer"
+                                      >
+                                        <span>{card.link.text}</span>
+                                        <ExternalLink className="w-2.5 h-2.5" />
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                     {isDownloading && downloadProgress && (
                       <div className="px-5 py-4 bg-muted/10">
                         <div className="w-full bg-border/50 rounded-full h-2 overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300" style={{ width: `${Math.min(downloadProgress.percent, 100)}%` }} /></div>
@@ -242,7 +276,7 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                   </div>
 
                   <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs", whatsNewLang === 'ml' && "font-malayalam")}>
-                    {WHATS_NEW.map((item) => (
+                    {displayItems.map((item) => (
                       <div key={item.title.en} className={clsx("p-3.5 rounded-2xl bg-muted/20 border border-border/60 space-y-1.5 transition-all flex flex-col justify-between", item.accent.hover)}>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between gap-1.5">
@@ -259,6 +293,19 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                             {item.text[whatsNewLang]}
                           </p>
                         </div>
+                        {item.link && (
+                          <div className="pt-2 pl-4">
+                            <a
+                              href={item.link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-all active:scale-95 cursor-pointer"
+                            >
+                              <span>{item.link.text}</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

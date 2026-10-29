@@ -181,7 +181,7 @@ export function PrintReceiptView({ text }: { text: string }) {
   // ─────────────────────────────────────────────────────────────────────────────
   const PX_PER_MM       = 96 / 25.4;
   const charsPerLine    = paperWidth >= 75 ? 42 : 32;
-  const containerWidthMm = paperWidth >= 75 ? 70 : 48;          // 70mm for 80mm roll, 48mm for 58mm roll
+  const containerWidthMm = paperWidth >= 75 ? 76 : 48;          // 70mm for 80mm roll, 48mm for 58mm roll
   const BORDER_PX       = 2;                                     // px each side
   const INNER_PX_VERT   = 8;                                     // top/bottom padding px inside box
   const INNER_PX_HORIZ  = paperWidth >= 75 ? 3 : 2;              // small left/right gap to keep text off the border

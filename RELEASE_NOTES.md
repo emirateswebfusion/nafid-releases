@@ -1,3 +1,14 @@
+# Nafid POS v2.1.5 Release Notes
+
+## What's New
+- **Dynamic Release Notes & Seamless Updates**: "What's New" highlights in Settings are now discovered dynamically directly from release notes without manual updates, with a streamlined glowing update restart banner in the Owner Dashboard.
+- **Accurate Thermal Receipt Totals**: Standardized thermal receipts to show a single clear Net Total after deductions, avoiding confusion from dual grand/net total lines.
+- **Precision Weight & Scrap Formatting**: Quantities for scrap and weighed goods now strictly display with 3 decimal places (e.g. 1.000 kg, 0.250 kg) for accurate retail trade billing.
+- **Accurate Shop Closing Scrap Accounting**: Corrected daily scrap purchase totals in WhatsApp summaries and shop closing reports by removing duplicate bill-level scrap deductions.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.1.4...v2.1.5
+
+**Download:** [Nafid-Setup-2.1.5.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.5/Nafid-Setup-2.1.5.exe)
+
 # Nafid POS v2.1.4 Release Notes
 
 ## What's New

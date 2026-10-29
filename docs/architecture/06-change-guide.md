@@ -21,6 +21,7 @@
 | An IPC channel | `electron/ipc/<domain>Handlers.ts` | One line: `handle('db:doThing', domainService.doThing)` |
 | Printer / scale / scanner / WhatsApp behaviour | `electron/hardware/*`, `electron/whatsapp/*` | Adapters only |
 | A synced table or column | `electron/sync/entities/*Sync.ts` + `nafid-server/src/routes/sync/*` + server migration | A new synced table needs: add it to `SYNCED_TABLES` and a migration that re-creates the outbox triggers. Characterization test first; update both repos and the docs together |
+| Release notes / "What's New" cards | `src/components/settings/releaseNotesUtils.ts` + `whatsNew.ts` | **Never hardcode release notes in source code.** Features are sourced dynamically from GitHub Releases via `updateInfo.releaseNotes`, parsed into rich cards with `releaseNotesToCards()`, and cached in `localStorage`. `whatsNew.ts` provides `getWhatsNewItems()` and evergreen fallback only |
 
 ## 6.2 Workflow for any change
 
@@ -33,18 +34,22 @@
 6. **Verify:** `npm run verify` (must pass), and run the app for UI changes (`npm run dev`) — exercise the screen you changed
    and one neighbouring flow (for billing: create a bill, hold/recall, print preview).
 7. **Document:** update these docs if you changed a contract, a layer, a rule module or a convention.
+8. **Clean up branches and worktrees:** If a dedicated branch or worktree (`C:\nafid-wt\...`) was used, once merged into `main` and verified through gates, promptly delete the worktree and branch so no dead branches or orphaned worktrees remain.
 
 ### Thermal receipt paper layout
 
 USB/system receipts use `electron/hardware/receiptHtml.ts` (the React print-route view is not used by this path).
-Keep page padding at zero and apply the 3 mm horizontal / 2 mm vertical inset and optional calibration offset once,
-on the body. The receipt window matches the configured roll width. After images and fonts load, the HTML measures
-body height and sends it through the existing `printReady(height)` channel; the hardware adapter forwards height
-only to that window's listener. Both CSS page size and Electron print options use the measured height plus 5 mm,
-rounded up (minimum 80 mm). Never start a receipt from `did-finish-load` or use another window's measurement.
-Receipt jobs require their exact paper dimensions: driver rejection is reported, rather than retrying with a shorter
-native/default page. A4 and barcode fallback behavior is unchanged. Test with `tests/unit/thermalPrint.test.ts` and
-`printerPromise.test.ts`; receipt text snapshots must remain unchanged. Hardware limits and calibrated offsets still
+Keep page padding at zero and apply the 2 mm vertical / 3 mm horizontal body padding once.
+The receipt window matches the configured roll width (defaulting to 80 mm / 42 characters wide, boxed style).
+To avoid excessive blank paper feed at the top of continuous thermal rolls, CSS `@page` uses `size: ${widthMm}mm auto; margin: 0;`
+(a fixed oversized height in `@page` causes Chromium to vertically center content and feed empty paper before printing).
+After images and fonts load, the HTML measures body height (`document.body.scrollHeight`) and sends it through `printReady(height)`;
+the hardware adapter forwards height only to that window's listener. Electron print options calculate paper height dynamically as
+`Math.max(40, Math.ceil(height * 25.4 / 96 + 3))` mm without bloated buffer heights. Never start a receipt from `did-finish-load`
+or use another window's measurement. Receipt jobs require their exact paper dimensions: driver rejection is reported,
+rather than retrying with a shorter native/default page. A4 and barcode fallback behavior is unchanged.
+Test with `tests/unit/thermalPrint.test.ts` and `printerPromise.test.ts`; characterization snapshot in
+`tests/unit/__snapshots__/printGenerators.characterization.test.ts.snap`. Hardware limits and calibrated offsets still
 need physical verification on each configured printer/driver.
 
 ## 6.3 Modifying an existing feature safely
@@ -129,6 +134,7 @@ npm run package:win    # rebuild natives + build + electron-builder
 | Fixed defects (23 Oct) | With no cloud login (offline login, or none: tenant id taken from the local DB) the sync worker treated the `lan-local-token` placeholder as a valid cloud token and ran cloud sync with it (49 requests in the no-login sync harness, 41 with that bearer). `electron/sync/syncAuth.ts` `cloudTokenUnusable` now rejects it on the cloud route; LAN is unchanged (sync and LAN harness identical) | Decide whether `getTenantIdFromDb` should be used at all outside LAN |
 | Fixed defects (23 Oct, billing) | GST header badge showed `GST-GST-001` (single-series GST numbers already carry `GST-`; rule now `displayInvoiceNumber` in `utils/pricing/invoiceNumberHelper.ts`); leaving quotation mode kept the GST invoice type set on entry, so the next sale was GST (`billing/hooks/useQuotationToggle.ts` restores it); the ERP grid showed a made-up number `6019` when none was reserved; warranty expiry and a tab-store comment held `�` | — |
 | Fixed defects (23 Oct, customers) | After adjusting or recalculating loyalty points the customer list went empty and the open customer's points did not refresh: the refresh called `customersApi.getCustomers(tenantId)` with a bare string, so the main process (which reads `{ tenant_id }`) returned `[]`. Now `getCustomers({ tenant_id })`. The bug was invisible to the gate because `useAuthStore` resolves to `any` there (see Type safety) | — |
+| Fixed defects (29 Oct, shop closing) | Shop Closing WhatsApp overview double-counted scrap purchases when bills had scrap deductions (`shopClosingSummary.ts` added `invoices.scrap_deduction` as a duplicate purchase on top of `scrap_transactions`). Removed redundant invoice scrap summation; scrap totals now strictly reflect `scrap_transactions`. Tests: `closingScrapOptions.test.ts`. | — |
 | Fixed defects (26 Oct) | (1) Drawer cash sales were matched by the **UTC** date of the bill against the store-local business date (bills between local midnight and 05:30 IST landed on the previous day) and every history listing recomputed and re-synced closed drawers. Now drawers are sessions (`electron/services/cashDrawerSession.ts`, see 04-business-rules §Cash drawer sessions), history is frozen, and auto close is a setting; `tests/characterization/drawer-session.mts`. (2) Startup repairs are idempotent (`tests/characterization/startup-idempotency.mts`): the customer backfill no longer re-stamps `last_purchase_date`/`updated_at`, the return-total recalibration prices each line from its invoice line instead of discounting the stored price again on every start (this repairs returns that had drifted), and the paper-price self-heal skips REAL products without paper stock | — |
 | Versioned SQLite migrations | **Done (26 Oct):** runner `electron/db/migrations/` (`schema_migrations` + `user_version`, one transaction per migration); the inline repairs are a frozen, idempotent startup baseline (guard R10); first migration `001-returns-indexes`; `tests/characterization/migrations.mts` | Move a baseline repair into a migration only when it is provably one-time (old shapes can still arrive by sync) |
 | Sync SQL | **Done (26 Oct):** 201 statements moved verbatim from `electron/sync/*` and `main.ts` to `electron/db/statements/sync/*` and `statements/main.ts` (duplicates merged; guard R12; `check-statements` covers them). Proven: IPC 1,548 calls, sync (login and no-login) and LAN harnesses identical to HEAD, compiled CJS loads. 5 dynamic query builders stay in sync, capped | Move a builder when it is next changed |

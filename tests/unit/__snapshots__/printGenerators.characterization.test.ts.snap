@@ -1381,7 +1381,7 @@ exports[`print generators (characterization) > renders every invoice style the s
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">3</td>
       <td style="text-align: left; border-right: 1px solid #000; padding: 3px 5px; font-weight: 500;">Nails (loose) <span style="font-size:9.5px; color:#4b5563; font-weight: 600;">(30 Pcs)</span></td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">-</td>
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px; font-weight: 600;">0.75 PCS</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">114.29</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px; font-weight: 600;">0.750 PCS</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">114.29</td>
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">85.71</td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 2px;">2.5</td>
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">2.14</td>
@@ -1641,7 +1641,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">3</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">Nails (loose) <span style="font-size:9px;color:#4b5563;font-weight:600">(30 Pcs)</span></td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">0.75 PCS</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹120.00</td>
+      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">0.750 PCS</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹120.00</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹90.00</td>
     </tr>
   
@@ -1900,7 +1900,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; width: 35px;">3</td>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; font-weight: 500;">Nails (loose) <span style="font-size:10px; color:#555; font-weight: 600;">(30 Pcs)</span></td>
-      <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">0.75 PCS</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">120.00</td>
+      <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">0.750 PCS</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">120.00</td>
       <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; font-weight: 600; width: 85px;">90.00</td>
     </tr>
     
@@ -2091,7 +2091,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">3</td>
       <td style="padding:6px 4px;font-size:11px;color:#374151">Nails (loose) <span style="font-size:9px;color:#4b5563;font-weight:600">(30 Pcs)</span></td>
-      <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">0.75 PCS</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹120.00</td>
+      <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">0.750 PCS</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹120.00</td>
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹90.00</td>
     </tr>
   
@@ -2239,7 +2239,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr>
       <td class="text-center">3</td>
       <td>Nails (loose) <span style="font-size:10px; color:#4b5563; font-weight:600;">(30 Pcs)</span></td>
-      <td class="text-center">0.75 PCS</td><td class="text-right">₹120.00</td>
+      <td class="text-center">0.750 PCS</td><td class="text-right">₹120.00</td>
       <td class="text-right">₹90.00</td>
     </tr>
   
@@ -2601,7 +2601,7 @@ exports[`print generators (characterization) > renders every invoice style the s
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">3</td>
       <td style="text-align: left; border-right: 1px solid #000; padding: 3px 5px; font-weight: 500;">Nails (loose) <span style="font-size:9.5px; color:#4b5563; font-weight: 600;">(30 Pcs)</span></td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">-</td>
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px; font-weight: 600;">0.75 PCS</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">114.29</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px; font-weight: 600;">0.750 PCS</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">114.29</td>
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">85.71</td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 2px;">2.5</td>
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">2.14</td>
@@ -2861,7 +2861,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">3</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">Nails (loose) <span style="font-size:9px;color:#4b5563;font-weight:600">(30 Pcs)</span></td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">0.75 PCS</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹120.00</td>
+      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">0.750 PCS</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹120.00</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹90.00</td>
     </tr>
   
@@ -3122,7 +3122,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; width: 35px;">3</td>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; font-weight: 500;">Nails (loose) <span style="font-size:10px; color:#555; font-weight: 600;">(30 Pcs)</span></td>
-      <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">0.75 PCS</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">120.00</td>
+      <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">0.750 PCS</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">120.00</td>
       <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; font-weight: 600; width: 85px;">90.00</td>
     </tr>
     
@@ -3313,7 +3313,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">3</td>
       <td style="padding:6px 4px;font-size:11px;color:#374151">Nails (loose) <span style="font-size:9px;color:#4b5563;font-weight:600">(30 Pcs)</span></td>
-      <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">0.75 PCS</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹120.00</td>
+      <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">0.750 PCS</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹120.00</td>
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹90.00</td>
     </tr>
   
@@ -3461,7 +3461,7 @@ exports[`print generators (characterization) > renders every invoice style the s
     <tr>
       <td class="text-center">3</td>
       <td>Nails (loose) <span style="font-size:10px; color:#4b5563; font-weight:600;">(30 Pcs)</span></td>
-      <td class="text-center">0.75 PCS</td><td class="text-right">₹120.00</td>
+      <td class="text-center">0.750 PCS</td><td class="text-right">₹120.00</td>
       <td class="text-right">₹90.00</td>
     </tr>
   
@@ -3527,18 +3527,17 @@ exports[`print generators (characterization) > renders every thermal receipt sty
 │ Name    : Ravi Kumar                         │
 │ Contact : 9876543210                         │
 ├──────────────────────────────────────────────┤
-│Sr│Product              │ Qty│   Rate│  Amount│
-├──┼─────────────────────┼────┼───────┼────────┤
-│1 │Paint 1L             │   3│ 250.00│  750.00│
-├──┼─────────────────────┼────┼───────┼────────┤
-│2 │Brush                │   1│  45.50│   45.50│
+│Sr│Product            │   Qty│   Rate│  Amount│
+├──┼───────────────────┼──────┼───────┼────────┤
+│1 │Paint 1L           │     3│ 250.00│  750.00│
+├──┼───────────────────┼──────┼───────┼────────┤
+│2 │Brush              │     1│  45.50│   45.50│
 [[LH:0.45]]│  │                                           │
 │  │ MRP 50.00 @ 45.50 (Offer)                 │
 [[LH:0.45]]│  │                                           │
 ├──────────────────────────────────────────────┤
 │Total                                │  795.50│
 │Discount                             │  -20.00│
-│Grand Total                          │  775.50│
 │Round Off                            │   +0.50│
 │Net Total                            │  776.00│
 ├──────────────────────────────────────────────┤
@@ -3575,18 +3574,17 @@ exports[`print generators (characterization) > renders every thermal receipt sty
 │ Name    : Ravi Kumar         │
 │ Contact : 9876543210         │
 ├──────────────────────────────┤
-│Sr│Product│   Rate│Qty│    Amt│
-├──┼───────┼───────┼───┼───────┤
-│1 │Paint..│ 250.00│  3│ 750.00│
-├──┼───────┼───────┼───┼───────┤
-│2 │Brush  │  45.50│  1│  45.50│
+│Sr│Produ│   Rate│  Qty│    Amt│
+├──┼─────┼───────┼─────┼───────┤
+│1 │Pai..│ 250.00│    3│ 750.00│
+├──┼─────┼───────┼─────┼───────┤
+│2 │Brush│  45.50│    1│  45.50│
 [[LH:0.45]]│  │                           │
 │  │ MRP 50.00 @ 45.50 (Offer) │
 [[LH:0.45]]│  │                           │
 ├──────────────────────────────┤
 │Total                │  795.50│
 │Discount             │  -20.00│
-│Grand Total          │  775.50│
 │Round Off            │   +0.50│
 │Net Total            │  776.00│
 ├──────────────────────────────┤
@@ -4218,34 +4216,37 @@ BALANCE DUE               275.50
 │ State   : Kerala (32)        │
 │ Note    : Site delivery      │
 ├──────────────────────────────┤
-│Sr│Product│Qty│   Rate│    Amt│
-├──┼───────┼───┼───────┼───────┤
-│1 │Steel  │2 P│ 590.00│1180.00│
-│  │Rod    │   │       │       │
-│  │12mm   │   │       │       │
-│  │TMT    │   │       │       │
-│  │Fe500  │   │       │       │
-│  │Premium│   │       │       │
-│  │Quality│   │       │       │
-│  │Long   │   │       │       │
-│  │Name   │   │       │       │
+│Sr│Produ│  Qty│   Rate│    Amt│
+├──┼─────┼─────┼───────┼───────┤
+│1 │Steel│2 PCS│ 590.00│1180.00│
+│  │Rod  │     │       │       │
+│  │12mm │     │       │       │
+│  │TMT  │     │       │       │
+│  │Fe500│     │       │       │
+│  │Premi│     │       │       │
+│  │um   │     │       │       │
+│  │Quali│     │       │       │
+│  │ty   │     │       │       │
+│  │Long │     │       │       │
+│  │Name │     │       │       │
 │  │ Brand: Tata               │
 [[LH:0.45]]│  │                           │
 │  │ MRP 650.00 @ 590.00 (9% of│
 [[LH:0.45]]│  │                           │
-├──┼───────┼───┼───────┼───────┤
-│2 │Cement │1.5│ 400.00│ 600.00│
-│  │Bag    │   │       │       │
+├──┼─────┼─────┼───────┼───────┤
+│2 │Cemen│1.5 P│ 400.00│ 600.00│
+│  │t Bag│     │       │       │
 [[LH:0.45]]│  │                           │
 │  │ MRP 420.00 @ 400.00       │
 [[LH:0.45]]│  │                           │
-├──┼───────┼───┼───────┼───────┤
-│3 │Nails  │0.7│ 120.00│  90.00│
-│  │(loose)│   │       │       │
-├──┼───────┼───┼───────┼───────┤
-│4 │Tool   │1 P│ 999.00│ 999.00│
-│  │Kit    │   │       │       │
-│  │Combo  │   │       │       │
+├──┼─────┼─────┼───────┼───────┤
+│3 │Nails│0.750│ 120.00│  90.00│
+│  │(loos│     │       │       │
+│  │e)   │     │       │       │
+├──┼─────┼─────┼───────┼───────┤
+│4 │Tool │1 PCS│ 999.00│ 999.00│
+│  │Kit  │     │       │       │
+│  │Combo│     │       │       │
 │  │Includes: Hammer (x1),     │
 │  │Screwdriver (x2)           │
 ├──────────────────────────────┤
@@ -4253,7 +4254,6 @@ BALANCE DUE               275.50
 │Discount (2%)        │  -50.00│
 │Scrap Return Amount  │ -100.00│
 │Return Credit        │  -60.00│
-│Grand Total          │ 2869.00│
 │Net Total            │ 2709.00│
 ├──────────────────────────────┤
 │* * * YOU SAVED ₹200.00 * * * │
@@ -4310,25 +4310,27 @@ BALANCE DUE               275.50
 │ State   : Kerala (32)                  │
 │ Note    : Site delivery                │
 ├────────────────────────────────────────┤
-│Sr│Product        │ Qty│   Rate│  Amount│
-├──┼───────────────┼────┼───────┼────────┤
-│1 │Steel Rod 12mm │2 PC│ 590.00│ 1180.00│
-│  │TMT Fe500      │    │       │        │
-│  │Premium Quality│    │       │        │
-│  │Long Name      │    │       │        │
+│Sr│Product      │   Qty│   Rate│  Amount│
+├──┼─────────────┼──────┼───────┼────────┤
+│1 │Steel Rod    │ 2 PCS│ 590.00│ 1180.00│
+│  │12mm TMT     │      │       │        │
+│  │Fe500 Premium│      │       │        │
+│  │Quality Long │      │       │        │
+│  │Name         │      │       │        │
 │  │ Brand: Tata                         │
 [[LH:0.45]]│  │                                     │
 │  │ MRP 650.00 @ 590.00 (9% off)        │
 [[LH:0.45]]│  │                                     │
-├──┼───────────────┼────┼───────┼────────┤
-│2 │Cement Bag     │1.5 │ 400.00│  600.00│
+├──┼─────────────┼──────┼───────┼────────┤
+│2 │Cement Bag   │1.5 PC│ 400.00│  600.00│
 [[LH:0.45]]│  │                                     │
 │  │ MRP 420.00 @ 400.00                 │
 [[LH:0.45]]│  │                                     │
-├──┼───────────────┼────┼───────┼────────┤
-│3 │Nails (loose)  │0.75│ 120.00│   90.00│
-├──┼───────────────┼────┼───────┼────────┤
-│4 │Tool Kit Combo │1 PC│ 999.00│  999.00│
+├──┼─────────────┼──────┼───────┼────────┤
+│3 │Nails (loose)│0.750 │ 120.00│   90.00│
+├──┼─────────────┼──────┼───────┼────────┤
+│4 │Tool Kit     │ 1 PCS│ 999.00│  999.00│
+│  │Combo        │      │       │        │
 │  │Includes: Hammer (x1), Screwdriver   │
 │  │(x2)                                 │
 ├────────────────────────────────────────┤
@@ -4336,7 +4338,6 @@ BALANCE DUE               275.50
 │Discount (2%)                  │  -50.00│
 │Scrap Return Amount            │ -100.00│
 │Return Credit                  │  -60.00│
-│Grand Total                    │ 2869.00│
 │Net Total                      │ 2709.00│
 ├────────────────────────────────────────┤
 │     * * * YOU SAVED ₹200.00 * * *      │
@@ -4402,7 +4403,7 @@ BALANCE DUE               275.50
      1.5 PCS x 400.00
 3. Nails (loose)           90.00
      Qty: 30 Pcs
-     0.75 PCS x 120.00
+     0.750 PCS x 120.00
 4. Tool Kit Combo         999.00
      1 PCS x 999.00
 --------------------------------
@@ -4482,7 +4483,7 @@ Goods once sold will not be take
      1.5 PCS x 400.00
 3. Nails (loose)                     90.00
      Qty: 30 Pcs
-     0.75 PCS x 120.00
+     0.750 PCS x 120.00
 4. Tool Kit Combo                   999.00
      1 PCS x 999.00
 ------------------------------------------
@@ -4565,7 +4566,7 @@ No ITEM      QTY    RATE   AMOUNT
 2  Cement  1.5 P  400.00   600.00
    Bag                           
   MRP 420.00 @ 400.00
-3  Nails   0.75   120.00    90.00
+3  Nails   0.750  120.00    90.00
    (loose)                       
   Qty: 30 Pcs
 4  Tool    1 PCS  999.00   999.00
@@ -4644,7 +4645,7 @@ No ITEM                QTY    RATE   AMOUNT
   MRP 650.00 @ 590.00  (9% off)
 2  Cement Bag        1.5 P  400.00   600.00
   MRP 420.00 @ 400.00
-3  Nails (loose)     0.75   120.00    90.00
+3  Nails (loose)     0.750  120.00    90.00
   Qty: 30 Pcs
 4  Tool Kit Combo    1 PCS  999.00   999.00
 
@@ -4717,7 +4718,7 @@ Long Name
 Cement Bag                600.00
  MRP 420.00@400.00 1.5 PCSx400.00
 Nails (loose)              90.00
- 0.75 PCSx120.00
+ 0.750 PCSx120.00
 Tool Kit Combo            999.00
  1 PCSx999.00
 --------------------------------
@@ -4781,7 +4782,7 @@ Quality Long Name
 Cement Bag                          600.00
  MRP 420.00@400.00 1.5 PCSx400.00
 Nails (loose)                        90.00
- 0.75 PCSx120.00
+ 0.750 PCSx120.00
 Tool Kit Combo                      999.00
  1 PCSx999.00
 ------------------------------------------
@@ -4848,7 +4849,7 @@ Cement Bag ............... 600.00
   1.5 PCSx400.00
 Nails (loose) ............. 90.00
   Qty: 30 Pcs
-  0.75 PCSx120.00
+  0.750 PCSx120.00
 Tool Kit Combo ........... 999.00
   1 PCSx999.00
 --------------------------------
@@ -4918,7 +4919,7 @@ Cement Bag ......................... 600.00
   1.5 PCSx400.00
 Nails (loose) ....................... 90.00
   Qty: 30 Pcs
-  0.75 PCSx120.00
+  0.750 PCSx120.00
 Tool Kit Combo ..................... 999.00
   1 PCSx999.00
 ------------------------------------------
@@ -4996,7 +4997,7 @@ Balance                                108
      1.5 PCS × 400.00    MRP ₹420.00
 3. Nails (loose)           90.00
      Qty: 30 Pcs
-     0.75 PCS × 120.00
+     0.750 PCS × 120.00
 4. Tool Kit Combo         999.00
      1 PCS × 999.00
 
@@ -5078,7 +5079,7 @@ Goods once sold will not be take
      1.5 PCS × 400.00    MRP ₹420.00
 3. Nails (loose)                     90.00
      Qty: 30 Pcs
-     0.75 PCS × 120.00
+     0.750 PCS × 120.00
 4. Tool Kit Combo                   999.00
      1 PCS × 999.00
 
@@ -5159,7 +5160,7 @@ Balance                                108
   MRP ₹420.00 → ₹400.00
   1.5 PCS x 400.00
 ▸ Nails (loose)            90.00
-  0.75 PCS x 120.00
+  0.750 PCS x 120.00
 ▸ Tool Kit Combo          999.00
   1 PCS x 999.00
 --------------------------------
@@ -5238,7 +5239,7 @@ Goods once sold will not be take
   MRP ₹420.00 → ₹400.00
   1.5 PCS x 400.00
 ▸ Nails (loose)                      90.00
-  0.75 PCS x 120.00
+  0.750 PCS x 120.00
 ▸ Tool Kit Combo                    999.00
   1 PCS x 999.00
 ------------------------------------------
@@ -5312,7 +5313,7 @@ Cement Bag                600.00
  1.5 PCSx400.00  MRP 420.00
 Nails (loose)              90.00
  Qty: 30 Pcs
- 0.75 PCSx120.00
+ 0.750 PCSx120.00
 Tool Kit Combo            999.00
  1 PCSx999.00
 
@@ -5377,7 +5378,7 @@ Cement Bag                          600.00
  1.5 PCSx400.00  MRP 420.00
 Nails (loose)                        90.00
  Qty: 30 Pcs
- 0.75 PCSx120.00
+ 0.750 PCSx120.00
 Tool Kit Combo                      999.00
  1 PCSx999.00
 

@@ -22,7 +22,7 @@ and update every caller in the same change.
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
 | Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
-| Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts` | — |
+| Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts` |
 
 Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
 
@@ -116,6 +116,9 @@ and `electron/utils/` (ids, cashier settlement math).
 - WhatsApp checklist `scrapSales` and `scrapCategories` are optional booleans. Unset preserves the old message.
   Explicit selection enables purchase totals, optional sales totals and optional grouping by category and direction;
   the existing `scrap` master toggle controls the whole section. Preview and sending have matching unit coverage.
+- **Shop Closing Scrap Accounting**:
+  - `scrapSummary` in `electron/whatsapp/shopClosingSummary.ts` aggregates exclusively from `scrap_transactions` for the given business date.
+  - Bill-level scrap deductions (`invoices.scrap_deduction`) are **never** added into `scrapSummary` as scrap purchases. Scrap deducted on a bill is a payment deduction / credit redemption settling gross sales to net sales; the physical scrap item was already recorded in `scrap_transactions` upon intake. Adding invoice scrap deductions into scrap purchase totals caused duplicate counting (e.g., ₹673 actual purchase reported as ₹1,346).
 - Tests: `cashRegisterOptions.test.ts`, `registerPaymentTotals.test.ts`, `closingScrapOptions.test.ts`,
   `cashRegisterSettings.ui.test.tsx`; existing `tests/characterization/drawer-session.mts` remains applicable.
 
@@ -242,3 +245,10 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 ### UTC storage and shop timezones
 
 `created_at` and other instants are UTC (ISO with Z or legacy SQLite UTC text); `electron/utils/timestamps.ts` parses timezone-free database text as UTC. Business dates are date-only labels, calculated with the tenant timezone by `electron/services/storeTime.ts`, never the viewer PC timezone. The shop timezone setting is saved per tenant, supports plain strings and legacy JSON, and takes priority over the global fallback. Missing/invalid renderer settings reset to India rather than retaining another shop timezone. Store-day UTC bounds include the final millisecond. New held-bill expiry values carry an explicit UTC Z; legacy PC-local expiry text is interpreted using its original local-time convention without rewriting rows. Tests: `utcStorage`, `cashierTimezone`, `storeTime`, `timezoneHelper`, `timezoneSettingsSave.ui`.
+
+### Thermal receipt printing and item quantity formatting
+
+- **Receipt Totals**: Dual `Grand Total` / `Net Total` lines are banned. Thermal receipts must show a single clean `Net Total` after all deductions (`Total` − `Discount` − `Scrap Return Amount` = `Net Total`). This avoids customer confusion when scrap or return deductions are applied. Tax breakdown (CGST, SGST, Cess) is never mingled into the payable calculation lines; it is reported strictly in the dedicated `TAX BREAKUP` section.
+- **Weight and Scrap Quantities**: All weight and scrap items (`billing_type === 'WEIGHT'` or unit in `kg`, `kgs`, `g`, `gm`, `gram`) must format with exactly 3 decimal places (`numQty.toFixed(3)`, e.g., `1.000`, `2.500`, `0.200`), preserving trailing zeroes. In retail scrap and weight trade, decimals denote grams ($1\text{ kg} = 1000\text{ g}$); stripping zeroes (`1.0` or `1`) causes disputes at checkout.
+- **Roll width and column budget**: 80mm roll width (8.0 cm / 42 characters per line) and `boxed` style are the standard defaults. On 42-char lines, the inner table budget is 36 characters: `idxW(2)` + `nameW(13)` + `qtyW(6)` + `rateW(7)` + `amtW(8)` = 36. `qtyW = 6` guarantees quantities up to `99.999` fit without column shifting or truncation. Total labels occupy 31 characters, aligning the right vertical pipe `│` exactly with the column pipe between Rate and Amount.
+- Tests: `tests/unit/thermalPrint.test.ts`, `tests/unit/printGenerators.characterization.test.ts`.

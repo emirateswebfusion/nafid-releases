@@ -121,7 +121,7 @@ export type ReceiptTextContext = ReturnType<typeof createReceiptTextContext>;
 
 export type ReceiptStyle = 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
 
-export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: ReceiptStyle | string = 'standard'): string {
+export function generateReceiptText(data: ReceiptData, widthCm: number = 8.0, charsPerLine?: number, style: ReceiptStyle | string = 'boxed'): string {
   const ctx = createReceiptTextContext(data, widthCm, charsPerLine);
   let text = '';
 

@@ -21,7 +21,7 @@ export function useSettingsFormState() {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string, title?: string } | null>(null);
   const [showBulkSheet, setShowBulkSheet] = useState(false);
   const [barcodePrinter, setBarcodePrinter] = useState<PrinterConfig>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
-  const [receiptPrinter, setReceiptPrinter] = useState<PrinterConfig>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 });
+  const [receiptPrinter, setReceiptPrinter] = useState<PrinterConfig>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 8.0 });
   const [a4Printer, setA4Printer] = useState<PrinterConfig>({ deviceName: '' });
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const [osPrinters, setOsPrinters] = useState<OsPrinterRow[]>([]);
@@ -74,8 +74,8 @@ export function useSettingsFormState() {
   const [a5Orientation, setA5Orientation] = useState<'horizontal' | 'vertical'>('horizontal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [labelShowShopName, setLabelShowShopName] = useState(true);
-  const [printWidth, setPrintWidth] = useState<number>(58);
-  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed'>('standard');
+  const [printWidth, setPrintWidth] = useState<number>(80);
+  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed'>('boxed');
   const [a4Style, setA4Style] = useState<'standard' | 'boxed' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | 'half-a4' | null>(null);
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
