@@ -180,8 +180,8 @@ export function PrintReceiptView({ text }: { text: string }) {
   // To increase the font size without widening the container, we remove the horizontal padding (INNER_PX_HORIZ = 0).
   // ─────────────────────────────────────────────────────────────────────────────
   const PX_PER_MM       = 96 / 25.4;
-  const charsPerLine    = paperWidth >= 75 ? 36 : 32;
-  const containerWidthMm = paperWidth >= 75 ? 64 : 42;          // 64mm (safety for max print widths) or 42mm
+  const charsPerLine    = paperWidth >= 75 ? 42 : 32;
+  const containerWidthMm = paperWidth >= 75 ? 70 : 48;          // 70mm for 80mm roll, 48mm for 58mm roll
   const BORDER_PX       = 2;                                     // px each side
   const INNER_PX_VERT   = 8;                                     // top/bottom padding px inside box
   const INNER_PX_HORIZ  = paperWidth >= 75 ? 3 : 2;              // small left/right gap to keep text off the border
@@ -221,7 +221,7 @@ export function PrintReceiptView({ text }: { text: string }) {
     <div id="receipt-root" style={{ width: '100%', backgroundColor: 'white', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
       <style>{dynamicPrintStyles}</style>
       <div style={{
-        margin: '2mm 0 2mm 5.5mm', // Fixed left margin of 5.5mm shifts container past unprintable areas
+        margin: '2mm auto', // Centered on thermal roll paper with equal left/right margins
         width: `${containerWidthMm}mm`,
         padding: isBillStyle ? `${INNER_PX_VERT}px ${INNER_PX_HORIZ}px` : `${INNER_PX_VERT}px ${INNER_PX_HORIZ}px`,
         display: 'flex',

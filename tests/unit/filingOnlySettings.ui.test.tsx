@@ -22,11 +22,9 @@ describe('revenue & filing-only settings', () => {
     fireEvent.click(box('Reduce stock'));
     fireEvent.click(box('Exclude new B2C bills from revenue'));
     fireEvent.click(box('Total Revenue (Net Realized Cash)'));
-    expect(screen.getByText('You have unsaved changes on this page.')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save revenue settings' }));
-    await screen.findByText('Saved');
-    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'filing_only_mode', value: { enabled: true, reduceStock: true, countInRevenue: false, showB2bInSalesCategory: true, showB2cInSalesCategory: true } });
+    window.dispatchEvent(new Event('settings:request-save'));
+    await waitFor(() => expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'filing_only_mode', value: { enabled: true, reduceStock: true, countInRevenue: false, showB2bInSalesCategory: true, showB2cInSalesCategory: true } }));
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'exclude_b2b_from_revenue', value: false });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'exclude_b2c_from_revenue', value: true });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'dashboard_sales_metric', value: 'NET_REVENUE' });
@@ -40,7 +38,8 @@ describe('revenue & filing-only settings', () => {
     expect(box('Exclude new B2B bills from revenue').checked).toBe(true);
     expect(box('Exclude new B2C bills from revenue').checked).toBe(false);
     expect(box('Total Revenue (Net Realized Cash)').checked).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Save revenue settings' }));
+    fireEvent.click(box('Exclude new B2B bills from revenue'));
+    window.dispatchEvent(new Event('settings:request-save'));
     await screen.findByText('Unable to save billing settings');
   });
 

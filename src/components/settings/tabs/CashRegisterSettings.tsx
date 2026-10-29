@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ArrowDownToLine, BookOpen, CreditCard, Info, Lock } from 'lucide-react';
 import { getSetting, setSetting } from '../../../data/settings';
 import { useAuthStore } from '../../../store/authStore';
 import { isAdminRole } from '../../../utils/security/permissions';
 import { Select } from '../../ui/Select';
-import { SectionSaveBar, SwitchField } from '../views/SettingsControls';
+import { SwitchField } from '../views/SettingsControls';
 
 const KEYS = ['cash_register_include_scrap_sales', 'cash_register_deduct_returns', 'cash_register_ledger_mode', 'cash_register_payment_methods'] as const;
 const METHODS = ['UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE'];
@@ -24,7 +24,7 @@ function GroupTitle({ icon: Icon, title, hint }: { icon: typeof Info; title: str
   );
 }
 
-/** Independently saved owner options, using the same tenant settings as drawer reconciliation. */
+/** Owner options for cash register reconciliation and payment display. */
 export function CashRegisterSettings() {
   const tenantId = useAuthStore(s => s.tenantId) || 'global';
   const role = useAuthStore(s => s.role);
@@ -34,6 +34,12 @@ export function CashRegisterSettings() {
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const stateRef = useRef({ options, savedOptions, ready });
+  useEffect(() => {
+    stateRef.current = { options, savedOptions, ready };
+  }, [options, savedOptions, ready]);
+
   useEffect(() => {
     let active = true;
     Promise.all(KEYS.map(key => getSetting({ tenant_id: tenantId, key }))).then(([scrap, returns, ledger, methods]) => {
@@ -44,19 +50,43 @@ export function CashRegisterSettings() {
     }).catch(() => { if (active) setStatus({ text: 'Could not load cash register options. Reopen settings to retry.', type: 'error' }); });
     return () => { active = false; };
   }, [tenantId]);
+
   const update = (patch: Partial<Options>) => { setOptions({ ...options, ...patch }); setStatus(null); };
-  const save = async () => {
+
+  const save = useCallback(async () => {
     setSaving(true); setStatus(null);
     try {
-      const values = [options.scrap, options.returns, options.ledger, options.methods];
+      const cur = stateRef.current;
+      const values = [cur.options.scrap, cur.options.returns, cur.options.ledger, cur.options.methods];
       await Promise.all(KEYS.map((key, index) => setSetting({ tenant_id: tenantId, key, value: values[index] })));
-      setSavedOptions(options);
+      setSavedOptions(cur.options);
       setStatus({ text: 'Cash register options saved. Reopen the register to see updated totals.', type: 'success' });
-    } catch { setStatus({ text: 'Could not save all cash register options. Please retry.', type: 'error' }); }
-    finally { setSaving(false); }
-  };
+    } catch {
+      setStatus({ text: 'Could not save all cash register options. Please retry.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  }, [tenantId]);
+
   const dirty = JSON.stringify(options) !== JSON.stringify(savedOptions);
   const locked = !ready || saving || !canEdit;
+
+  useEffect(() => {
+    if (ready) {
+      window.dispatchEvent(new CustomEvent('settings:section-dirty', { detail: { dirty } }));
+    }
+  }, [dirty, ready]);
+
+  useEffect(() => {
+    const handleRequestSave = () => {
+      const cur = stateRef.current;
+      if (cur.ready && JSON.stringify(cur.options) !== JSON.stringify(cur.savedOptions)) {
+        void save();
+      }
+    };
+    window.addEventListener('settings:request-save', handleRequestSave);
+    return () => window.removeEventListener('settings:request-save', handleRequestSave);
+  }, [save]);
 
   return <fieldset disabled={locked} className="space-y-6 min-w-0">
     <legend className="sr-only">Cash register totals and payment display</legend>
@@ -111,6 +141,8 @@ export function CashRegisterSettings() {
       </div>
     </div>
 
-    <SectionSaveBar label="Save cash register options" onSave={() => void save()} saving={saving} dirty={dirty} status={status} />
+    {status?.type === 'error' && (
+      <p role="status" className="text-xs font-semibold text-destructive">{status.text}</p>
+    )}
   </fieldset>;
 }

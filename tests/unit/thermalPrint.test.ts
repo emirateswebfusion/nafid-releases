@@ -221,3 +221,50 @@ it('renders GST in a separate Tax Breakup section instead of inlining it in tota
   expect(rendered).toMatch(/Taxable\s+CGST\s+SGST\s+Total/);
   expect(rendered).toMatch(/84\.76\s+7\.62\s+7\.62\s+15\.24/);
 });
+
+it('renders boxed 80mm receipt with strict 42-char lines and exact column alignment', () => {
+  const sampleReceipt: ReceiptData = {
+    shopName: 'PAATHRA PEEDIKA',
+    shopAddress: 'NEAR SOUTH INDIAN BANK, PERUMPUZHA',
+    shopPhone: '9895073063',
+    gstin: '32CEFPK8504N2ZA',
+    state: 'KL',
+    invoiceNumber: 'M8DG-309',
+    date: '2026-10-29T11:31:07',
+    customerName: 'AJAY',
+    customerPhone: '8968340919',
+    items: [
+      { name: 'NOLTA DINNERSET 21', quantity: 1, unit: 'PC', unit_price: 2250, total: 2250, originalRate: 3790, discountLabel: 'Offer' },
+      { name: 'PAINT BRUSH 3"', quantity: 2, unit: 'PC', unit_price: 150, total: 300 },
+    ],
+    subtotal: 2428.57,
+    tax: 121.43,
+    cgst: 60.71,
+    sgst: 60.71,
+    discount: 100,
+    grandTotal: 2450,
+    invoiceType: 'GST',
+  };
+
+  const rendered = generateReceiptText(sampleReceipt, 8.0, 42, 'boxed');
+  const lines = rendered.split('\n').filter(l => l.length > 0);
+
+  // Every line that is part of the box must be strictly 42 characters wide
+  lines.forEach((line) => {
+    if (!line.startsWith('[[') && (line.startsWith('│') || line.startsWith('┌') || line.startsWith('├') || line.startsWith('└'))) {
+      expect(line.length).toBe(42);
+    }
+  });
+
+  // Rates >= 1000 must NOT be truncated to 1 decimal place (e.g. 2250.00 must not be 2250.0)
+  expect(rendered).toContain('2250.00');
+  expect(rendered).not.toMatch(/│\s*2250\.0\s*│/);
+
+  // Totals must have Total, Discount, and Grand Total
+  expect(rendered).toContain('Total');
+  expect(rendered).toContain('Discount');
+  expect(rendered).toContain('Grand Total');
+
+  // Tax Breakup must have clean 4-column layout for intra-state
+  expect(rendered).toMatch(/│\s*Taxable\s*│\s*CGST\s*│\s*SGST\s*│\s*Total\s*│/);
+});

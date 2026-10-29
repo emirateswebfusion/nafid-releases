@@ -12,7 +12,7 @@ import { renderBoxedReceipt } from './styles/boxed';
 /** Shared state and helpers for one receipt: column width, padding / wrapping helpers and effective bill settings. */
 function createReceiptTextContext(data: ReceiptData, widthCm: number, charsPerLine?: number) {
   if (charsPerLine == null) {
-    charsPerLine = widthCm >= 7.5 ? 36 : 32;
+    charsPerLine = widthCm >= 7.5 ? 42 : 32;
   }
 
   const centerText = (text: string, width: number): string => {

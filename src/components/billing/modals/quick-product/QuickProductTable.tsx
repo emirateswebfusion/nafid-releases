@@ -37,6 +37,28 @@ const createBlankRow = (id: string, name = ''): QuickProductRow => ({
   taxRate: 0,
 });
 
+const isCaretAtStart = (input: HTMLInputElement | HTMLSelectElement): boolean => {
+  if (input.tagName === 'SELECT') return true;
+  const el = input as HTMLInputElement;
+  try {
+    return el.selectionStart === 0 || el.selectionStart === null;
+  } catch {
+    // For type="number" or unsupported types, Chromium throws InvalidStateError.
+    return true;
+  }
+};
+
+const isCaretAtEnd = (input: HTMLInputElement | HTMLSelectElement): boolean => {
+  if (input.tagName === 'SELECT') return true;
+  const el = input as HTMLInputElement;
+  try {
+    return el.selectionEnd === (el.value?.length ?? 0) || el.selectionEnd === null;
+  } catch {
+    // For type="number" or unsupported types, Chromium throws InvalidStateError.
+    return true;
+  }
+};
+
 export const QuickProductTable: React.FC<QuickProductTableProps> = ({
   initialProductName = '',
   invoiceType: _invoiceType,
@@ -277,21 +299,50 @@ export const QuickProductTable: React.FC<QuickProductTableProps> = ({
     // 4. Arrow Navigation:
     // "also back arrow for back , front arrow for front"
     if (e.key === 'ArrowRight') {
-      const input = e.currentTarget as HTMLInputElement;
-      const isAtEnd = input.selectionEnd === (input.value?.length ?? 0) || input.type === 'select-one';
-      if (isAtEnd && colIdx < visibleColumns.length - 1) {
-        e.preventDefault();
-        focusCell(rowIdx, colIdx + 1);
+      const input = e.currentTarget;
+      if (isCaretAtEnd(input)) {
+        if (colIdx < visibleColumns.length - 1) {
+          e.preventDefault();
+          focusCell(rowIdx, colIdx + 1);
+        } else if (rowIdx < rows.length - 1) {
+          e.preventDefault();
+          focusCell(rowIdx + 1, 0);
+        }
       }
       return;
     }
 
     if (e.key === 'ArrowLeft') {
-      const input = e.currentTarget as HTMLInputElement;
-      const isAtStart = input.selectionStart === 0 || input.type === 'select-one';
-      if (isAtStart && colIdx > 0) {
-        e.preventDefault();
-        focusCell(rowIdx, colIdx - 1);
+      const input = e.currentTarget;
+      if (isCaretAtStart(input)) {
+        if (colIdx > 0) {
+          e.preventDefault();
+          focusCell(rowIdx, colIdx - 1);
+        } else if (rowIdx > 0) {
+          e.preventDefault();
+          focusCell(rowIdx - 1, visibleColumns.length - 1);
+        }
+      }
+      return;
+    }
+
+    // 5. Tab Navigation
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (colIdx > 0) {
+          focusCell(rowIdx, colIdx - 1);
+        } else if (rowIdx > 0) {
+          focusCell(rowIdx - 1, visibleColumns.length - 1);
+        }
+      } else {
+        if (colIdx < visibleColumns.length - 1) {
+          focusCell(rowIdx, colIdx + 1);
+        } else if (rowIdx < rows.length - 1) {
+          focusCell(rowIdx + 1, 0);
+        } else {
+          appendNewRow();
+        }
       }
       return;
     }

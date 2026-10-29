@@ -519,9 +519,10 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       setEnableScrap(finalScrap);
       setShowCashRegister(finalCashReg);
       useFeatureFlagsStore.getState().setFlags(finalFlags);
+      let finalBillingUI = DEFAULT_BILLING_UI_CONFIG;
       const storedBillingUI = allSettings['billing_ui_config'];
       if (storedBillingUI && typeof storedBillingUI === 'object') {
-        const mergedCfg = {
+        finalBillingUI = {
           ...DEFAULT_BILLING_UI_CONFIG,
           ...storedBillingUI,
           headerButtons: {
@@ -529,8 +530,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
             ...(storedBillingUI.headerButtons || {}),
           },
         };
-        setBillingUIConfig(mergedCfg);
-        useBillingUIStore.getState().updateConfig(mergedCfg);
+        setBillingUIConfig(finalBillingUI);
+        useBillingUIStore.getState().updateConfig(finalBillingUI);
       }
       const rawMasking = allSettings[STAFF_DATA_MASKING_KEY];
       const finalStaffDataMasking = rawMasking ? parseStaffDataMaskingConfig(rawMasking) : DEFAULT_STAFF_DATA_MASKING_CONFIG;
@@ -601,10 +602,14 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       const defaultBalVal = allSettings['default_opening_balance'];
       const autoCloseVal = allSettings['cash_drawer_auto_close'];
       const autoCloseTimeVal = allSettings['cash_drawer_auto_close_time'];
-      setAutoOpenCashDrawer(Boolean(autoOpenVal));
-      setAutoCloseCashDrawer(Boolean(autoCloseVal));
-      setAutoCloseCashDrawerTime(typeof autoCloseTimeVal === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(autoCloseTimeVal) ? autoCloseTimeVal : '23:30');
-      setDefaultOpeningBalance(defaultBalVal !== undefined && defaultBalVal !== null ? defaultBalVal : 0);
+      const finalAutoOpen = Boolean(autoOpenVal);
+      const finalAutoClose = Boolean(autoCloseVal);
+      const finalAutoCloseTime = typeof autoCloseTimeVal === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(autoCloseTimeVal) ? autoCloseTimeVal : '23:30';
+      const finalDefaultBal = defaultBalVal !== undefined && defaultBalVal !== null ? defaultBalVal : 0;
+      setAutoOpenCashDrawer(finalAutoOpen);
+      setAutoCloseCashDrawer(finalAutoClose);
+      setAutoCloseCashDrawerTime(finalAutoCloseTime);
+      setDefaultOpeningBalance(finalDefaultBal);
       setReceiptFont(finalReceiptFont);
       setBillSettings(finalBillSettings);
       setScrapBillSettings(finalScrapBillSettings);
@@ -673,6 +678,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         shopNameLocal: finalName,
         shopAddress: finalAddress,
         shopPhone: finalPhone,
+        shopEmail: finalEmail,
+        shopWebsite: finalWebsite,
         storeTimezone: finalStoreTz,
         upiId: finalUpi,
         showUpiQr: finalShowQr,
@@ -683,6 +690,10 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         showProductOffers: finalShowOffers,
         showPriceOverrideMrp: finalShowPriceOverrideMrp,
         openCashDrawerOnPending: finalOpenCashDrawer,
+        autoOpenCashDrawer: finalAutoOpen,
+        autoCloseCashDrawer: finalAutoClose,
+        autoCloseCashDrawerTime: finalAutoCloseTime,
+        defaultOpeningBalance: finalDefaultBal,
         receiptFont: finalReceiptFont,
         printFormat: finalPrintFmt,
         a5Orientation: finalA5Orientation,
@@ -715,6 +726,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         scrapStartNumber: finalScrapStart,
         quotationPrefix: finalQuotationPrefix,
         quotationStartNumber: finalQuotationStart,
+        purchaseBillPrefix: finalPurchaseBillPrefix,
+        purchaseBillStartNumber: finalPurchaseBillStart,
         stockReportDefaultView: finalSrdv,
         inventoryDefaultView: finalInvdv,
         serviceChargeBarcode: '',
@@ -734,6 +747,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         showProductGstBadge: finalProductGstBadge,
         showPriceTiersInInventory: finalPriceTiers,
         enableConvertToGst: finalConvertGst,
+        billingUIConfig: finalBillingUI,
         staffDataMaskingConfig: finalStaffDataMasking,
         emergencyPanicConfig: finalEmergencyPanic,
         shopClosingConfig: finalShopClosing,

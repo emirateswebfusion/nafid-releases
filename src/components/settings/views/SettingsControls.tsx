@@ -53,30 +53,6 @@ export function SwitchField({ id, label, description, checked, onChange, disable
   );
 }
 
-/** Save button + status line for a block of settings that saves on its own (outside the main Save Changes). */
-export function SectionSaveBar({ label, onSave, saving, dirty, disabled, status }: {
-  label: string;
-  onSave: () => void;
-  saving: boolean;
-  dirty: boolean;
-  disabled?: boolean;
-  status?: { text: string; type: 'success' | 'error' } | null;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-5 mt-1 border-t border-border">
-      <p role="status" className={clsx('text-xs font-semibold min-h-4',
-        status?.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : status?.type === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
-        {status?.text || (dirty ? 'You have unsaved changes on this page.' : 'These options are saved with the button on the right.')}
-      </p>
-      <button type="button" onClick={onSave} disabled={disabled || saving}
-        className={clsx('flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border shrink-0',
-          dirty ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25' : 'bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground')}>
-        {saving ? 'Saving...' : label}
-      </button>
-    </div>
-  );
-}
-
 /** One on/off setting: label, description and a switch. */
 export function ToggleRow({ label, description, checked, onToggle, title }: {
   label: React.ReactNode;

@@ -78,6 +78,74 @@ describe('QuickProductTable and QuickProductColumnsModal', () => {
     expect(document.activeElement).toBe(nameInput1);
   });
 
+  it('navigates through cells with Arrow keys: left and right across columns (including number inputs)', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const onSwitchToGrid = vi.fn();
+
+    render(
+      <QuickProductTable
+        initialProductName=""
+        invoiceType="NON_GST"
+        configuredCategories={[]}
+        onSubmit={onSubmit}
+        onClose={onClose}
+        onSwitchToGrid={onSwitchToGrid}
+      />
+    );
+
+    // Row 0, Col 0: Item Name
+    const nameInput0 = document.querySelector('[data-quick-row="0"][data-quick-col="0"]') as HTMLInputElement;
+    nameInput0.focus();
+
+    // ArrowRight from Name (col 0) -> Rate (col 1)
+    fireEvent.keyDown(nameInput0, { key: 'ArrowRight' });
+    const rateInput0 = document.querySelector('[data-quick-row="0"][data-quick-col="1"]') as HTMLInputElement;
+    expect(document.activeElement).toBe(rateInput0);
+
+    // ArrowRight from Rate (col 1) -> Qty (col 2)
+    fireEvent.keyDown(rateInput0, { key: 'ArrowRight' });
+    const qtyInput0 = document.querySelector('[data-quick-row="0"][data-quick-col="2"]') as HTMLInputElement;
+    expect(document.activeElement).toBe(qtyInput0);
+
+    // ArrowLeft from Qty (col 2) -> Rate (col 1)
+    fireEvent.keyDown(qtyInput0, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(rateInput0);
+
+    // ArrowLeft from Rate (col 1) -> Name (col 0)
+    fireEvent.keyDown(rateInput0, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(nameInput0);
+  });
+
+  it('navigates through cells with Tab and Shift+Tab', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const onSwitchToGrid = vi.fn();
+
+    render(
+      <QuickProductTable
+        initialProductName=""
+        invoiceType="NON_GST"
+        configuredCategories={[]}
+        onSubmit={onSubmit}
+        onClose={onClose}
+        onSwitchToGrid={onSwitchToGrid}
+      />
+    );
+
+    const nameInput0 = document.querySelector('[data-quick-row="0"][data-quick-col="0"]') as HTMLInputElement;
+    nameInput0.focus();
+
+    // Tab -> Rate
+    fireEvent.keyDown(nameInput0, { key: 'Tab' });
+    const rateInput0 = document.querySelector('[data-quick-row="0"][data-quick-col="1"]') as HTMLInputElement;
+    expect(document.activeElement).toBe(rateInput0);
+
+    // Shift+Tab -> Name
+    fireEvent.keyDown(rateInput0, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(nameInput0);
+  });
+
   it('submits items as temp when Save as Temp is triggered', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const onClose = vi.fn();
