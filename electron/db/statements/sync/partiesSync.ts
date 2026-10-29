@@ -184,6 +184,11 @@ export const updateCustomers = (db: Db) => db.prepare(`
         updated_at = @updated_at
     WHERE customer_id = @target_customer_id AND sync_status != 'PENDING'
   `);
+export const reassignCustomerInvoices = (db: Db) => db.prepare('UPDATE invoices SET customer_id = ? WHERE customer_id = ? AND tenant_id = ?');
+export const reassignCustomerLoyalty = (db: Db) => db.prepare('UPDATE loyalty_transactions SET customer_id = ? WHERE customer_id = ? AND tenant_id = ?');
+export const softDeleteCustomer = (db: Db) => db.prepare("UPDATE customers SET phone = NULL, is_deleted = 1, sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?");
+export const ensureStubCustomer = (db: Db) => db.prepare("INSERT OR IGNORE INTO customers (customer_id, tenant_id, name, sync_status) VALUES (?, ?, 'Unknown Customer', 'SYNCED')");
+export const checkInvoiceExists = (db: Db) => db.prepare('SELECT 1 FROM invoices WHERE invoice_id = ? LIMIT 1');
 export const insertLoyaltyTransactions = (db: Db) => db.prepare(`
     INSERT INTO loyalty_transactions (transaction_id, tenant_id, customer_id, invoice_id,
       transaction_type, points, points_balance_before, points_balance_after,

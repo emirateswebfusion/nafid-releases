@@ -25,6 +25,15 @@ describe('stored revenue decisions and filing history', () => {
       expect(shownCategory.statement.all(...shownCategory.params)).toHaveLength(1);
       const filingCategory = getInvoicesStatement(db, { ...args, invoice_type: 'FILING_ONLY', showFilingB2b: false });
       expect(filingCategory.statement.all(...filingCategory.params)).toHaveLength(1);
+      const filingSummary = getInvoicesSummaryStatement(db, { ...args, invoice_type: 'FILING_ONLY' });
+      expect(filingSummary.statement.get(...filingSummary.params)).toMatchObject({ totalSales: 100 });
+      const convertedCategory = getInvoicesStatement(db, { ...args, invoice_type: 'CONVERTED_GST' });
+      expect(convertedCategory.statement.all(...convertedCategory.params)).toEqual([]);
+      memory.prepare("INSERT INTO invoices (invoice_id,tenant_id,invoice_number,invoice_type,customer_gstin,grand_total,subtotal,payment_method,created_at,counts_in_revenue,bill_purpose,stock_applied) VALUES ('f2','t1','GST-2','GST',NULL,50,50,'CASH','2026-10-27T11:00:00Z',1,'FILING_ONLY',0)").run();
+      const hiddenB2c = getInvoicesStatement(db, { ...args, invoice_type: 'GST_B2C', showFilingB2c: false });
+      expect(hiddenB2c.statement.all(...hiddenB2c.params)).toEqual([]);
+      const shownB2c = getInvoicesStatement(db, { ...args, invoice_type: 'GST_B2C', showFilingB2c: true });
+      expect(shownB2c.statement.all(...shownB2c.params)).toHaveLength(1);
     } finally { memory.close(); }
   });
 });

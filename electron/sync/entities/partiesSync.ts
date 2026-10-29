@@ -358,7 +358,9 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
 
   const findCustomerByNameNoPhone = partiesSyncSql.selectCustomers2(db);
 
-  const updateCustomerById = partiesSyncSql.updateCustomers(db);
+  const reassignInvoices = partiesSyncSql.reassignCustomerInvoices(db);
+  const reassignLoyalty = partiesSyncSql.reassignCustomerLoyalty(db);
+  const softDeleteCust = partiesSyncSql.softDeleteCustomer(db);
 
   const result = await pullPaginated({
     token,
@@ -400,14 +402,12 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
             };
 
             if (existingLocalCust && existingLocalCust.customer_id !== r.customer_id) {
-              // Update the existing local customer to prevent UNIQUE constraint violation
-              updateCustomerById.run({
-                ...rowParams,
-                target_customer_id: existingLocalCust.customer_id,
-              });
-            } else {
-              upsertCustomer.run(rowParams);
+              // Reassign child records to incoming canonical cloud customer_id and soft-delete duplicate
+              reassignInvoices.run(r.customer_id, existingLocalCust.customer_id, tId);
+              reassignLoyalty.run(r.customer_id, existingLocalCust.customer_id, tId);
+              softDeleteCust.run(existingLocalCust.customer_id, tId);
             }
+            upsertCustomer.run(rowParams);
           } catch (e) {
             console.error('[SyncWorker] Error pulling customer:', (e as Error).message);
           }
@@ -430,6 +430,8 @@ export async function pullLoyaltyTransactions(token: string, tenantId: string): 
   const db = getDb();
 
   const upsert = partiesSyncSql.insertLoyaltyTransactions(db);
+  const ensureCust = partiesSyncSql.ensureStubCustomer(db);
+  const checkInv = partiesSyncSql.checkInvoiceExists(db);
 
   const result = await pullPaginated({
     token,
@@ -442,15 +444,26 @@ export async function pullLoyaltyTransactions(token: string, tenantId: string): 
     processPage: (rows) => {
       const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const r of rows) {
-          upsert.run({
-            transaction_id: r.transaction_id, tenant_id: r.tenant_id || tenantId,
-            customer_id: r.customer_id, invoice_id: r.invoice_id || null,
-            transaction_type: r.transaction_type, points: r.points,
-            points_balance_before: r.points_balance_before ?? 0,
-            points_balance_after: r.points_balance_after ?? 0,
-            reference_number: r.reference_number || null, description: r.description || null,
-            created_by: r.created_by || null, created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)),
-          });
+          try {
+            const tId = (r.tenant_id as string) || tenantId;
+            const cId = r.customer_id as string;
+            ensureCust.run(cId, tId);
+            let invId = (r.invoice_id as string) || null;
+            if (invId && !checkInv.get(invId)) {
+              invId = null;
+            }
+            upsert.run({
+              transaction_id: r.transaction_id, tenant_id: tId,
+              customer_id: cId, invoice_id: invId,
+              transaction_type: r.transaction_type, points: r.points,
+              points_balance_before: r.points_balance_before ?? 0,
+              points_balance_after: r.points_balance_after ?? 0,
+              reference_number: r.reference_number || null, description: r.description || null,
+              created_by: r.created_by || null, created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)),
+            });
+          } catch (e) {
+            console.error('[SyncWorker] Error pulling loyalty transaction:', (e as Error).message);
+          }
         }
       });
       tx(rows);
