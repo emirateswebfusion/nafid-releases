@@ -63,3 +63,11 @@ After a sync pull the main process emits `onSyncDataUpdated`; screens subscribe 
   (`electron/utils/ids.ts`, mirrored by `nafid-server/src/utils/ids.ts` — they must stay identical).
 - Human document numbers (GST, BOS, estimate, quotation, return, scrap, purchase) are issued per series by
   `electron/services/invoiceNumberService.ts` and formatted by `src/utils/pricing/invoiceNumberHelper.ts`.
+
+## Auto-update and release pipeline
+
+- Updates are published to a public release feed via `electron-builder` (`upload-release.js`).
+- NSIS builds generate `.exe.blockmap` differential files (`differentialPackage: true`, `oneClick: true`).
+- The main process updater (`electron/services/updaterService.ts`) downloads only changed byte blocks over HTTP Range requests (~2–5 MB for typical bug fixes/features instead of the full ~120 MB installer).
+- Updates apply silently on restart (`autoUpdater.quitAndInstall(true, true)`), without setup wizards or manual reinstallation.
+- Full architectural details: see `adr/0006-silent-differential-updates.md`.

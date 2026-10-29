@@ -1,3 +1,4 @@
+import { toEpochMs } from '../utils/timestamps.js';
 import type { ServiceDb, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as storeTimeSql from '../db/statements/storeTime.js';
@@ -8,9 +9,10 @@ export function getStoreTimezoneSetting(db: ServiceDb | null | undefined, tenant
     if (!db || !tenantId) return 'Asia/Kolkata';
     const row = storeTimeSql.findOneSettingByKey(db).get(tenantId) as SettingRow;
     if (row?.value) {
-      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-      if (typeof parsed === 'string' && parsed) return parsed;
-      if (parsed?.timezone) return parsed.timezone;
+      let parsed: unknown = row.value;
+      if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch { /* Plain timezone settings are valid too. */ } }
+      const tz = typeof parsed === 'string' ? parsed : parsed && typeof parsed === 'object' && 'timezone' in parsed ? parsed.timezone : null;
+      if (typeof tz === 'string' && tz) { new Intl.DateTimeFormat('en', { timeZone: tz }); return tz; }
     }
   } catch { /* ignore */ }
   return 'Asia/Kolkata';
@@ -76,6 +78,7 @@ export function getUtcRangeForStoreDateRange(fromDate?: string, toDate?: string,
 
     const startUtcDate = parseWallClock(startDay, false);
     const endUtcDate = parseWallClock(endDay, true);
+    endUtcDate.setUTCMilliseconds(999);
 
     return {
       startUtc: startUtcDate.toISOString(),
@@ -99,21 +102,18 @@ export function parseCleanDate(dStr: unknown, timeZone?: string): string {
   const str = String(dStr).trim();
 
   // 1. Match YYYY-MM-DD or YYYY/MM/DD at start
-  const yyyymmdd = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  const yyyymmdd = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
   if (yyyymmdd) {
     return `${yyyymmdd[1]}-${yyyymmdd[2]}-${yyyymmdd[3]}`;
   }
 
   // 2. Match DD-MM-YYYY or DD/MM/YYYY at start
-  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
+  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
 
-  let formatted = str.replace(/Z$/i, '');
-  if (formatted.includes(' ')) formatted = formatted.replace(' ', 'T');
-
-  const d = new Date(formatted);
+  const d = new Date(toEpochMs(str) ?? NaN);
   if (!isNaN(d.getTime())) {
     try {
       return new Intl.DateTimeFormat('en-CA', { timeZone: activeTz }).format(d);

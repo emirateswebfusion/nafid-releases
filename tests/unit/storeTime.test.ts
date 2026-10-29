@@ -37,6 +37,9 @@ describe('storeTime service (main process)', () => {
       mockFindSetting.get.mockReturnValue({ value: JSON.stringify({ timezone: 'Asia/Dubai' }) });
       expect(getStoreTimezoneSetting(mockDb as never, 'ten-1')).toBe('Asia/Dubai');
 
+      mockFindSetting.get.mockReturnValue({ value: 'Asia/Dubai' });
+      expect(getStoreTimezoneSetting(mockDb as never, 'ten-1')).toBe('Asia/Dubai');
+
       mockFindSetting.get.mockReturnValue({ value: JSON.stringify('Asia/Riyadh') });
       expect(getStoreTimezoneSetting(mockDb as never, 'ten-1')).toBe('Asia/Riyadh');
     });
@@ -76,6 +79,12 @@ describe('storeTime service (main process)', () => {
       expect(parseCleanDate('2026-10-26T15:30:00Z', 'Asia/Kolkata')).toBe('2026-10-26');
     });
 
+    it('converts a UTC timestamp to its selected shop date without changing date-only inputs', () => {
+      expect(parseCleanDate('2026-10-28T23:00:00Z', 'Asia/Dubai')).toBe('2026-10-29');
+      expect(parseCleanDate('2026-10-28 01:00:00', 'America/New_York')).toBe('2026-10-27');
+      expect(parseCleanDate('2026-10-28', 'Asia/Dubai')).toBe('2026-10-28');
+    });
+
     it('normalizes DD-MM-YYYY or DD/MM/YYYY dates into YYYY-MM-DD', () => {
       expect(parseCleanDate('26-10-2026', 'Asia/Kolkata')).toBe('2026-10-26');
       expect(parseCleanDate('26/10/2026', 'Asia/Kolkata')).toBe('2026-10-26');
@@ -88,9 +97,9 @@ describe('storeTime service (main process)', () => {
       const { startUtc, endUtc } = getUtcRangeForStoreDateRange('2026-10-26', '2026-10-26', 'ten-1');
       // In Asia/Kolkata:
       // Start 2026-10-26 00:00:00 IST -> 2026-10-25T18:30:00.000Z
-      // End 2026-10-26 23:59:59 IST -> 2026-10-26T18:29:59.000Z
+      // End 2026-10-26 23:59:59 IST -> 2026-10-26T18:29:59.999Z
       expect(startUtc).toBe('2026-10-25T18:30:00.000Z');
-      expect(endUtc).toBe('2026-10-26T18:29:59.000Z');
+      expect(endUtc).toBe('2026-10-26T18:29:59.999Z');
     });
   });
 });

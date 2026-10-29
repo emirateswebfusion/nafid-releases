@@ -43,4 +43,27 @@ describe('revenue & filing-only settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save revenue settings' }));
     await screen.findByText('Unable to save billing settings');
   });
+
+  it('restores stringified and numeric booleans and saves on settings:request-save event', async () => {
+    mocks.get.mockImplementation(({ key }: { key: string }) => Promise.resolve(
+      key === 'filing_only_mode' ? JSON.stringify({ enabled: 'true', reduceStock: '1', countInRevenue: 1 })
+      : key === 'exclude_b2b_from_revenue' ? 'true'
+      : key === 'exclude_b2c_from_revenue' ? '1'
+      : null
+    ));
+    render(<FilingOnlySettings tenantId="t" />);
+    await waitFor(() => expect(box('Exclude new B2B bills from revenue').checked).toBe(true));
+    expect(box('Exclude new B2C bills from revenue').checked).toBe(true);
+    expect(box('Enable Filing-only bill').checked).toBe(true);
+    expect(box('Reduce stock').checked).toBe(true);
+    expect(box('Include in revenue').checked).toBe(true);
+
+    // Toggle one option to make dirty
+    fireEvent.click(box('Exclude new B2B bills from revenue'));
+    expect(box('Exclude new B2B bills from revenue').checked).toBe(false);
+
+    // Trigger save via global request-save event (e.g. from Settings header Save Changes)
+    window.dispatchEvent(new Event('settings:request-save'));
+    await waitFor(() => expect(mocks.set).toHaveBeenCalledWith(expect.objectContaining({ key: 'exclude_b2b_from_revenue', value: false })));
+  });
 });

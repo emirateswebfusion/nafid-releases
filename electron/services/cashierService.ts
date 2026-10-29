@@ -39,7 +39,7 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
         if (isNaN(defaultBal) || defaultBal < 0) defaultBal = 0;
 
         const storeTz = getStoreTimezoneSetting(db, activeTenantId);
-        const cleanDate = business_date ? parseCleanDate(business_date, storeTz) : localDate();
+        const cleanDate = business_date ? parseCleanDate(business_date, storeTz) : localDate(new Date(), activeTenantId);
 
         const existing = cashierSql.findOneCashDrawerByBusinessDate(db).get(activeTenantId, cleanDate, cleanDate) as CashDrawerRow | undefined;
 
@@ -68,7 +68,7 @@ export function setOpeningBalance({ tenant_id, opening_balance, user_id, user_na
   try {
     const db = getDb();
     autoCloseOverdueDrawers(db, tenant_id);
-    const date = localDate();
+    const date = localDate(new Date(), tenant_id);
 
     const existing = cashierSql.findOneCashDrawerByBusinessDateOpen(db).get(tenant_id, date, date) as CashDrawerRow | undefined;
 
@@ -175,7 +175,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
 
       refreshInvoiceEarnings(db, invoice_id);
       
-      const date = localDate();
+      const date = localDate(new Date(), targetTenantId);
       const drawer = getOpenCashDrawer(db, targetTenantId, date);
 
       let parsedSplitObj: SplitDetails | null = null;
@@ -257,7 +257,7 @@ export function addTransaction({ tenant_id, type, amount, category, notes, user_
   
   try {
     const tx = db.transaction(() => {
-      const date = localDate();
+      const date = localDate(new Date(), tenant_id);
       const drawer = getOpenCashDrawer(db, tenant_id, date);
       if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
       if (drawer.status !== 'OPEN') throw new Error('Cash register is closed for today. Entries are locked.');
@@ -300,7 +300,7 @@ export function dayClosing({ tenant_id, actual_cash, closing_remarks, user_id, u
     let cash_excess = 0;
 
     const tx = db.transaction(() => {
-      const date = business_date ? (typeof business_date === 'string' ? parseCleanDate(business_date) : localDate(new Date(business_date))) : localDate();
+      const date = business_date ? (typeof business_date === 'string' ? parseCleanDate(business_date, getStoreTimezoneSetting(db, tenant_id)) : localDate(new Date(business_date), tenant_id)) : localDate(new Date(), tenant_id);
       const parts = date.split('-');
       const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : date;
       let drawer = cashierSql.findOneCashDrawerByBusinessDate2(db).get(tenant_id, date, altDate, date, `${date}%`, date, altDate) as CashDrawerRow | undefined;

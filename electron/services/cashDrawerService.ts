@@ -13,7 +13,7 @@ export function deduplicateAndGetOpenDrawer(db: Db, tenantId: string, dateStr?: 
   if (!db) return null;
   const activeTenantId = tenantId || 'global';
   const storeTz = getStoreTimezoneSetting(db, activeTenantId);
-  const cleanDate = dateStr ? parseCleanDate(dateStr, storeTz) : localDate();
+  const cleanDate = dateStr ? parseCleanDate(dateStr, storeTz) : localDate(new Date(), activeTenantId);
   const parts = cleanDate.split('-');
   const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
   const dateLike = `${cleanDate}%`;

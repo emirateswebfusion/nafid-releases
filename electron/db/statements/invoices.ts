@@ -1,5 +1,6 @@
 import type { Db } from './types.js';
 import { counterSalePredicate, countsInRevenue } from './revenue.js';
+import { invoiceCreatedInRange, holdExpiryInstant } from './invoiceDates.js';
 
 /** SQL statements used by services/invoicesService.ts. Each factory prepares its statement on the given connection. */
 
@@ -111,7 +112,7 @@ export const insertInvoice2 = (db: Db) => db.prepare(`
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number,
         held_until, is_held, hold_note
       )
-      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, datetime('now', '+24 hours', 'localtime'), 1, ?)
+      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+24 hours'), 1, ?)
     `);
 
 export const insertInvoiceItem2 = (db: Db) => db.prepare(`
@@ -126,7 +127,7 @@ export const findInvoicesByInvoiceTypeAndIsHeld = (db: Db) => db.prepare(`
       WHERE tenant_id = ? 
         AND invoice_type = 'HOLD' 
         AND is_held = 1 
-        AND held_until > datetime('now', 'localtime')
+        AND ${holdExpiryInstant()} > julianday('now')
       ORDER BY created_at DESC
     `);
 
@@ -170,7 +171,7 @@ export const findInvoicesByInvoiceType = (db: Db) => db.prepare(`
         SELECT invoice_id FROM invoices 
         WHERE tenant_id = ? 
           AND (invoice_type = 'HOLD' OR is_held = 1)
-          AND held_until <= datetime('now', 'localtime')
+          AND ${holdExpiryInstant()} <= julianday('now')
       `);
 
 export const updateInvoiceIsDeletedAndIsHeld = (db: Db) => db.prepare(`UPDATE invoices SET is_deleted = 1, is_held = 0 WHERE tenant_id = ? AND invoice_type IN ('EXPIRED_HOLD', 'RECALLED_HOLD') AND (is_deleted IS NULL OR is_deleted = 0)`);
@@ -203,7 +204,7 @@ export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
              COUNT(*) as invoiceCount
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
-        AND (COALESCE(settled_at, created_at) >= ? AND COALESCE(settled_at, created_at) <= ?)
+        AND ${invoiceCreatedInRange()}
         AND ${counterSalePredicate()} AND ${countsInRevenue()}
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
@@ -515,14 +516,12 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
     if (dateRange) {
       const { startUtc, endUtc } = dateRange;
 
-      // Use created_at for date filtering to match the grouping/ordering in the UI.
-      // Using COALESCE(settled_at, created_at) caused invoices created on a different date
-      // to appear under wrong date groups (e.g. filtered for Oct 12 but displayed under Oct 19).
-      query += ` AND (i.created_at >= ? AND i.created_at <= ?)`;
+      // Compare UTC instants, including legacy space-separated timestamps.
+      query += ` AND ${invoiceCreatedInRange('i')}`;
       params.push(startUtc, endUtc);
     }
 
-    query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
+    query += ' ORDER BY julianday(i.created_at) DESC, i.invoice_id ASC';
 
     if (limit) {
       query += ' LIMIT ?';
@@ -660,10 +659,8 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
     if (dateRange) {
       const { startUtc, endUtc } = dateRange;
 
-      // Use created_at for date filtering to match the grouping/ordering in the UI.
-      // Using COALESCE(settled_at, created_at) caused invoices created on a different date
-      // to appear under wrong date groups (e.g. filtered for Oct 12 but displayed under Oct 19).
-      query += ` AND (i.created_at >= ? AND i.created_at <= ?)`;
+      // Compare UTC instants, including legacy space-separated timestamps.
+      query += ` AND ${invoiceCreatedInRange('i')}`;
       params.push(startUtc, endUtc);
     }
 

@@ -94,7 +94,7 @@ function App() {
       }
     });
     getSetting({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: unknown) => {
-      if (v) setStoreTimezone(v as string);
+      setStoreTimezone(v);
     });
 
     const handleSettingsUpdated = () => {
@@ -107,7 +107,7 @@ function App() {
         if (v === '24h' || v === '12h') setAppTimeFormat(v);
       });
       getSetting({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: unknown) => {
-        if (v) setStoreTimezone(v as string);
+        setStoreTimezone(v);
       });
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);

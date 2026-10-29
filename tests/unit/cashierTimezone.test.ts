@@ -1,0 +1,28 @@
+import { DatabaseSync } from 'node:sqlite';
+import type Database from 'better-sqlite3';
+import { afterEach, expect, it, vi } from 'vitest';
+import { createCoreTables } from '../../electron/db/schemaCoreTables';
+import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
+import { ensureSchemaColumns } from '../../electron/db/schemaColumns';
+const state = vi.hoisted(() => ({db:null as unknown as Database.Database}));
+vi.mock('../../electron/db/localDb', () => ({getDb:()=>state.db}));
+vi.mock('electron', () => ({BrowserWindow:{getAllWindows:()=>[]}}));
+vi.mock('../../electron/whatsapp/shopClosingReportService', () => ({sendShopClosingReport:vi.fn()}));
+vi.mock('../../electron/sync/syncWorker', () => ({triggerUrgentCashSync:async()=>{},triggerUrgentInvoiceSync:async()=>{}}));
+import { setOpeningBalance, addTransaction } from '../../electron/services/cashierService';
+let raw: DatabaseSync | undefined;
+afterEach(() => {vi.useRealTimers(); raw?.close();});
+it('opens and posts to the US shop previous-day drawer rather than the default India date', () => {
+  vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-28T01:00:00Z'));
+  raw = new DatabaseSync(':memory:');const sql=raw;
+  state.db=Object.assign(sql,{transaction:(fn:()=>unknown)=>()=>{sql.exec('SAVEPOINT test_tx');try{const result=fn();sql.exec('RELEASE test_tx');return result;}catch(e){sql.exec('ROLLBACK TO test_tx;RELEASE test_tx');throw e;}}}) as unknown as Database.Database;
+  createCoreTables(state.db);createExtendedTables(state.db);ensureSchemaColumns(state.db);
+  sql.exec("ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1");
+  sql.prepare('INSERT INTO settings (tenant_id,key,value) VALUES (?,?,?)').run('global','store_timezone','"Asia/Kolkata"');
+  sql.prepare('INSERT INTO settings (tenant_id,key,value) VALUES (?,?,?)').run('us-shop','store_timezone','"America/New_York"');
+  const open=setOpeningBalance({tenant_id:'us-shop',opening_balance:100,user_id:'owner'});
+  expect(open).toMatchObject({success:true});
+  expect(sql.prepare('SELECT business_date FROM cash_drawer').get()).toEqual({business_date:'2026-10-27'});
+  expect(addTransaction({tenant_id:'us-shop',type:'CASH_IN',amount:25,user_id:'owner'})).toMatchObject({success:true});
+  expect(sql.prepare('SELECT business_date,expected_closing FROM cash_drawer').all()).toEqual([{business_date:'2026-10-27',expected_closing:125}]);
+});

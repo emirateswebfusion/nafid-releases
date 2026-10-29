@@ -12,6 +12,7 @@ import type { InvoiceType } from '../../../store/cartStore';
 import type { ProductSearchState } from './useProductSearchState';
 import type { ProductFormState } from './useProductFormState';
 import type { useSearchSelection } from './useSearchSelection';
+import type { QuickProductItemInput } from '../modals/quick-product/types';
 
 export interface UseProductFormHandlersContext {
   productForm: ProductFormState;
@@ -554,5 +555,142 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
     }
   };
 
-  return { resetProductForm, encodeProductPurchasePrice, stripProductPurchasePriceCode, handleProductPurchasePriceChange, handleProductBasePriceChange, handleProductGradeChange, generateProductBarcode, handleCreateNewGrade, handleEditProduct, handleCreateAndAddProduct };
+  const handleBulkCreateAndAddProducts = async (
+    items: QuickProductItemInput[],
+    asTemp = false
+  ) => {
+    if (!isDesktopRuntime() || !tenantId || items.length === 0) return;
+
+    const isGst = invoiceType === 'GST';
+
+    if (asTemp) {
+      for (const item of items) {
+        const productId = uuidv4();
+        handleSelectProduct({
+          product_id: productId,
+          name: item.name.trim(),
+          base_price: item.basePrice,
+          purchase_price: item.purchasePrice || 0,
+          tax_rate_percent: isGst ? (item.taxRate || 0) : 0,
+          uom: item.uom || 'Pcs',
+          billing_type: 'PIECE',
+          pricing_mode: 'FIXED_PRICE',
+          grade_id: null,
+          grade_rate: null,
+          sku_barcode: null,
+          current_stock: 0,
+        });
+        if (item.qty > 0) {
+          updateQuantity(productId, item.qty);
+        }
+      }
+      setSearchQuery('');
+      setResults([]);
+      resetProductForm();
+      return;
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const productId = uuidv4();
+      let finalBarcode = (item.barcode || '').trim();
+      if (!finalBarcode) {
+        try {
+          const gen = await productsApi.generateBarcode({
+            tenant_id: tenantId,
+            item_code: item.itemCode || undefined,
+          });
+          const generatedBarcode = (gen?.success && gen?.barcode) || `${item.itemCode || '0'}001`;
+          finalBarcode = `${generatedBarcode}${encodeProductPurchasePrice(item.purchasePrice)}`;
+        } catch {
+          finalBarcode = `${Date.now()}${i}`;
+        }
+      }
+
+      const initialStock = (isGst && item.qty > 0) ? 0 : item.qty;
+
+      const res = await productsApi.addProduct({
+        product_id: productId,
+        tenant_id: tenantId,
+        name: item.name.trim(),
+        sku_barcode: finalBarcode,
+        item_code: item.itemCode ? item.itemCode.toUpperCase() : null,
+        category: item.category || '',
+        uom: item.uom || 'Pcs',
+        purchase_price: item.purchasePrice || 0,
+        base_price: item.basePrice,
+        current_stock: initialStock,
+        reorder_level: 0,
+        is_gst_applicable: isGst ? 1 : 0,
+        tax_rate_percent: isGst ? (item.taxRate || 0) : 0,
+        billing_type: 'PIECE',
+        pricing_mode: 'FIXED_PRICE',
+        is_deleted: 0,
+        sync_status: 'PENDING',
+      });
+
+      if (res.success) {
+        if (isGst && item.qty > 0) {
+          const purchaseBillId = uuidv4();
+          const itemId = uuidv4();
+          const totalAmt = item.qty * (item.purchasePrice || 0);
+          await purchasesApi.addPurchaseBill({
+            purchase_bill_id: purchaseBillId,
+            tenant_id: tenantId,
+            bill_number: `AUTO-BILL-${Date.now()}-${i}`,
+            supplier_id: null,
+            supplier_name: 'Unknown Supplier',
+            bill_date: new Date().toLocaleDateString('en-CA'),
+            invoice_number: null,
+            notes: `Auto-created on fly from billing page for product: ${item.name.trim()}`,
+            total_amount: totalAmt,
+            bill_type: 'GST',
+            items: [{
+              item_id: itemId,
+              product_id: productId,
+              name: item.name.trim(),
+              quantity: item.qty,
+              purchase_price: item.purchasePrice || 0,
+              total_amount: totalAmt,
+              is_gst_applicable: 1,
+              tax_rate_percent: item.taxRate || 0,
+              hsn_sac_code: '',
+              skip_stock_update: 0,
+            }],
+          });
+        }
+
+        if (autoPrintBarcode && isDesktopRuntime() && finalBarcode) {
+          printingApi.printBarcode(tenantId, finalBarcode, item.basePrice > 0 ? item.basePrice : undefined, item.name.trim(), 1).catch(() => {});
+        }
+
+        handleSelectProduct({
+          product_id: productId,
+          name: item.name.trim(),
+          base_price: item.basePrice,
+          purchase_price: item.purchasePrice || 0,
+          tax_rate_percent: isGst ? (item.taxRate || 0) : 0,
+          uom: item.uom || 'Pcs',
+          billing_type: 'PIECE',
+          pricing_mode: 'FIXED_PRICE',
+          grade_id: null,
+          grade_rate: null,
+          sku_barcode: finalBarcode,
+          current_stock: item.qty,
+        });
+
+        if (item.qty > 0) {
+          updateQuantity(productId, item.qty);
+        }
+      } else {
+        setHardwareError('Failed to create product ' + item.name + ': ' + (res.error || ''));
+      }
+    }
+
+    setSearchQuery('');
+    setResults([]);
+    resetProductForm();
+  };
+
+  return { resetProductForm, encodeProductPurchasePrice, stripProductPurchasePriceCode, handleProductPurchasePriceChange, handleProductBasePriceChange, handleProductGradeChange, generateProductBarcode, handleCreateNewGrade, handleEditProduct, handleCreateAndAddProduct, handleBulkCreateAndAddProducts };
 }

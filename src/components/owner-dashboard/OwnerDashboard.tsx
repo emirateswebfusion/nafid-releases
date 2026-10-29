@@ -70,7 +70,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             />
 
             {/* Grid Content */}
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 md:p-8 pb-20 md:pb-8">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 md:p-6 pb-20 md:pb-6">
                 {/* Reorder Mode Banner */}
                 {isEditMode && (
                     <ReorderModeBanner

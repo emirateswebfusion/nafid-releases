@@ -4,6 +4,7 @@ import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { getCashAmountFromInvoice, syncPaymentSourcesForInvoice, adjustCashDrawerForInvoice } from './cashDrawerService.js';
 import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import crypto from 'node:crypto';
+import { toEpochMs, toIsoTimestamp } from '../utils/timestamps.js';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { recentCheckoutsCache } from './invoiceCheckoutService.js';
 import type { InvoiceItemRow, InvoiceRow, SplitDetails, UserRow } from './typesA.js';
@@ -182,7 +183,7 @@ export async function updateInvoice(payload: {
     const oldItems = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity2(db).all(payload.invoice_id) as InvoiceItemRow[];
 
     const updatedCreatedAt = invoice.created_at
-      ? (isNaN(new Date(invoice.created_at).getTime()) ? null : new Date(invoice.created_at).toISOString())
+      ? (toEpochMs(invoice.created_at) === null ? null : toIsoTimestamp(invoice.created_at))
       : null;
 
     // 2. Update invoice header (with the exact payment breakdown: reports, filters and the drawer read it)
@@ -308,7 +309,7 @@ export async function updateInvoice(payload: {
 
     const newCash = getCashAmountFromInvoice({ ...payload, counts_in_revenue: existingInv.counts_in_revenue });
     const effectiveInvDate = invoice.created_at
-      ? (isNaN(new Date(invoice.created_at).getTime()) ? existingInv.created_at : new Date(invoice.created_at).toISOString())
+      ? (toEpochMs(invoice.created_at) === null ? existingInv.created_at : toIsoTimestamp(invoice.created_at))
       : existingInv.created_at;
     if (existingInv) {
       adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, effectiveInvDate, oldCash, newCash);

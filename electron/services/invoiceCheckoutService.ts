@@ -7,6 +7,7 @@ import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDra
 import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import { checkCustomerOverdueSync } from './customerCreditService.js';
 import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
+import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
@@ -159,7 +160,7 @@ export function checkout(payload: CheckoutPayload) {
     }
 
     const nowTimestamp = invoice.created_at
-      ? (isNaN(new Date(invoice.created_at).getTime()) ? localTimestamp() : new Date(invoice.created_at).toISOString())
+      ? toIsoTimestamp(invoice.created_at)
       : localTimestamp();
     checkoutCreatedAt = nowTimestamp;
 
@@ -395,7 +396,7 @@ export function checkout(payload: CheckoutPayload) {
 
     const newCash = getCashAmountFromInvoice(invoice);
     if (newCash > 0) {
-      adjustCashDrawerForInvoice(db, invoice.tenant_id || 'global', localDate(), 0, newCash);
+      adjustCashDrawerForInvoice(db, invoice.tenant_id || 'global', localDate(new Date(), invoice.tenant_id || 'global'), 0, newCash);
     }
     adjustPaymentSourcesForInvoice(db, invoice.tenant_id || 'global', invoice, false);
     if (newCash <= 0) {
@@ -411,7 +412,7 @@ export function checkout(payload: CheckoutPayload) {
 
       const pm = (invoice.payment_method || '').toUpperCase();
       if (netRefund > 0 && (pm === 'CASH' || pm === 'SPLIT')) {
-        const todayDate = localDate();
+        const todayDate = localDate(new Date(), invoice.tenant_id || 'global');
         const drawer = getOpenCashDrawer(db, invoice.tenant_id || 'global', todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();

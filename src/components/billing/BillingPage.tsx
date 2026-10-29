@@ -494,7 +494,7 @@ export function BillingPage() {
     setSelectedReturnInvoice, setShowProductCreateForm, showProductCreateForm, tenantId, updateActiveTab,
   });
 
-  const { resetProductForm, handleProductPurchasePriceChange, handleProductBasePriceChange, handleProductGradeChange, generateProductBarcode, handleCreateNewGrade, handleEditProduct, handleCreateAndAddProduct } = useProductFormHandlers({
+  const { resetProductForm, handleProductPurchasePriceChange, handleProductBasePriceChange, handleProductGradeChange, generateProductBarcode, handleCreateNewGrade, handleEditProduct, handleCreateAndAddProduct, handleBulkCreateAndAddProducts } = useProductFormHandlers({
     productForm, productSearch, handleSelectProduct, invoiceType, setHardwareError, setProductPricingMap,
     syncActiveSnapshot, tenantId, updateQuantity,
   });
@@ -763,7 +763,7 @@ export function BillingPage() {
         activeTab={activeTab} cashRegisterOpen={cashRegisterOpen} currentSelectedUpi={currentSelectedUpi}
         enableRealPaperStock={enableRealPaperStock} focusDescriptionOrDiscount={focusDescriptionOrDiscount}
         generateProductBarcode={generateProductBarcode} gradeFormDialogRef={gradeFormDialogRef}
-        handleCheckout={handleCheckout} handleCreateAndAddProduct={handleCreateAndAddProduct}
+        handleCheckout={handleCheckout} handleCreateAndAddProduct={handleCreateAndAddProduct} handleBulkCreateAndAddProducts={handleBulkCreateAndAddProducts}
         handleCreateNewGrade={handleCreateNewGrade} handleProductBasePriceChange={handleProductBasePriceChange}
         handleProductGradeChange={handleProductGradeChange}
         handleProductPurchasePriceChange={handleProductPurchasePriceChange} handleRecallHeldBill={handleRecallHeldBill}

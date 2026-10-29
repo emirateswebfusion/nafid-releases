@@ -118,6 +118,22 @@ const anil = { name: 'Anil Hardware', phone: '9800000002' };
 const sara = { name: 'Sara Builders', phone: '9800000003' };
 
 describe('credit balance after billing operations', () => {
+  it('a receipt explicitly allocated to opening debt does not also settle a new invoice', () => {
+    bill('NEW-531', ravi, 531, { method: 'CREDIT' });
+    const party = partyOf(ravi)!;
+    expect(addPartyLedgerEntry({ ledger_id: crypto.randomUUID(), party_id: party.party_id, tenant_id: SHOP,
+      transaction_type: 'CREDIT', amount: 75, reference_number: 'OPENING-BALANCE', payment_method: 'OTHER',
+      description: 'Opening receivable', transaction_date: '2026-10-26T10:00:00.000Z' }).success).toBe(true);
+    pay(ravi, 50, 'Collect opening debt', '2026-10-27T10:30:00.000Z', 'OPENING-BALANCE');
+    expect(owed(ravi)).toBe(556);
+    const customer = raw.prepare("SELECT customer_id FROM customers WHERE tenant_id = 't' AND name = ?").get(ravi.name) as { customer_id: string };
+    const invoices = raw.prepare("SELECT * FROM invoices WHERE tenant_id = 't'").all() as Parameters<typeof computeCustomerCreditStatusSync>[3];
+    const rows = computeCustomerCreditStatusSync(state.db, SHOP, customer.customer_id, invoices);
+    expect(rows[0].outstanding_amount).toBe(531);
+    pay(ravi, 31, 'Payment toward new invoice', '2026-10-27T11:00:00.000Z', 'NEW-531');
+    expect(computeCustomerCreditStatusSync(state.db, SHOP, customer.customer_id, invoices)[0].outstanding_amount).toBe(500);
+  });
+
   it('full credit, partial credit and full payment bills', () => {
     bill('B-1', ravi, 1000, { method: 'CREDIT' });
     bill('B-2', ravi, 2500, { method: 'CREDIT', received: 1000 });

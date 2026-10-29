@@ -248,7 +248,7 @@ export function addPurchaseBill(payload: {
 
       // If CASH payment, deduct cash from current cash drawer
       if (paymentType === 'CASH' && Number(bill.total_amount) > 0) {
-        const todayDate = localDate();
+        const todayDate = localDate(new Date(), bill.tenant_id);
         const drawer = getOpenCashDrawer(db, bill.tenant_id, todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();

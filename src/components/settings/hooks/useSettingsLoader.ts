@@ -10,7 +10,7 @@ import { EMERGENCY_PANIC_CONFIG_KEY, parseEmergencyPanicConfig, DEFAULT_EMERGENC
 import { type FeatureFlags, sanitizeFeatureFlags, DEFAULT_FEATURE_FLAGS, FEATURE_LIST, useFeatureFlagsStore, wereFeatureFlagsStored } from '../../../config/featureFlags';
 import { type CodeType, DEFAULT_CODE_TYPE, CODE_TYPE_CONFIGS } from '../../../config/labelCodeTypes';
 import { setAppTimeFormat, DEFAULT_BILL_SETTINGS } from '../../../utils/print/receiptGenerator';
-import { getStoreTimezone, setStoreTimezone } from '../../../utils/time/timezoneHelper';
+import { normalizeStoreTimezone, setStoreTimezone } from '../../../utils/time/timezoneHelper';
 import { DEFAULT_BILLING_UI_CONFIG, DEFAULT_HEADER_BUTTON_CONFIG, useBillingUIStore } from '../../../store/billingUIStore';
 import { DEFAULT_SHOP_CLOSING_CONFIG, DEFAULT_CHECKLIST } from '../../../utils/time/shopClosingHelper';
 import { whatsappApi } from '../../../data/whatsapp';
@@ -493,7 +493,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       }
 
       const storeTzVal = allSettings['store_timezone'];
-      const finalStoreTz = typeof storeTzVal === 'string' ? storeTzVal : (storeTzVal?.timezone || getStoreTimezone());
+      const finalStoreTz = normalizeStoreTimezone(storeTzVal);
       setStoreTimezoneState(finalStoreTz);
       setStoreTimezone(finalStoreTz);
 

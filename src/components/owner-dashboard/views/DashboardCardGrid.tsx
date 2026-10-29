@@ -36,7 +36,7 @@ export function DashboardCardGrid({
       </div>
     ) : (
       <div className={clsx(
-        "grid gap-4 items-stretch transition-all duration-300",
+        "grid gap-3 items-stretch transition-all duration-300",
         gridMode === '2COL' && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
         gridMode === '3COL' && "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
       )}>

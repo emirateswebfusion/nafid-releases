@@ -158,6 +158,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_product_gst_badge', value: showProductGstBadge ? 'true' : 'false' }), name: 'show_product_gst_badge' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_price_tiers_in_inventory', value: showPriceTiersInInventory ? 'true' : 'false' }), name: 'show_price_tiers_in_inventory' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'store_timezone', value: storeTimezone }), name: 'store_timezone' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'enable_party_gst_balance' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'enable_party_estimate_balance' },
@@ -182,6 +183,9 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         }] : []),
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
+
+      // Request section-specific forms (such as Revenue & Filing-only) to persist their changes
+      window.dispatchEvent(new Event('settings:request-save'));
 
       // setSetting resolves to void and throws on failure; other bridge calls resolve to { success, error }.
       for (const { promise, name } of checks) {

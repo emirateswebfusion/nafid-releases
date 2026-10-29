@@ -24,6 +24,8 @@ and update every caller in the same change.
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts` | — |
 
+Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
+
 Main-process rules live in `electron/services/` (document numbering, party ledger, cash drawer reconciliation, store time)
 and `electron/utils/` (ids, cashier settlement math).
 
@@ -51,6 +53,8 @@ and `electron/utils/` (ids, cashier settlement math).
   credits and overpayments go to the oldest open bills. The per-bill outstanding adds up to the balance. Customer invoice details show this computed `outstanding_amount` (including zero), not the original checkout balance snapshot.
 - Editing a bill: the billing tab keeps the bill's own credit (`editingInvoiceContribution`) so the due, receipt
   balance and credit-limit check do not count the bill twice.
+- Receipts explicitly referencing `OPENING-BALANCE` settle prior receivables only. They change the party balance,
+  but are excluded from the pool allocated to newer invoices (mirrored by server `customerCredit.ts`).
 - Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
   `tabStoreEditing.test.ts`.
 
@@ -229,3 +233,7 @@ Recalculation uses recorded ledger movements, including manual adjustments, inst
 rate or flooring an aggregate of sales. Legacy invoice contributions without a ledger are captured from their
 stored point fields; missing historical awards/manual opening amounts cannot be inferred reliably. Recalculation refuses a ledger/balance mismatch atomically and asks for opening-balance review instead of erasing unknown history. No startup
 backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test.ts`, `loyaltyVisibility.ui.test.tsx`.
+
+### UTC storage and shop timezones
+
+`created_at` and other instants are UTC (ISO with Z or legacy SQLite UTC text); `electron/utils/timestamps.ts` parses timezone-free database text as UTC. Business dates are date-only labels, calculated with the tenant timezone by `electron/services/storeTime.ts`, never the viewer PC timezone. The shop timezone setting is saved per tenant, supports plain strings and legacy JSON, and takes priority over the global fallback. Missing/invalid renderer settings reset to India rather than retaining another shop timezone. Store-day UTC bounds include the final millisecond. New held-bill expiry values carry an explicit UTC Z; legacy PC-local expiry text is interpreted using its original local-time convention without rewriting rows. Tests: `utcStorage`, `cashierTimezone`, `storeTime`, `timezoneHelper`, `timezoneSettingsSave.ui`.

@@ -48,7 +48,7 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
       const owner = checkoutRefOwner.get(ref);
       if (owner) checkoutPaid.set(owner, (checkoutPaid.get(owner) || 0) + debit);
       else if (billNumbers.has(ref)) laterPaid.set(ref, (laterPaid.get(ref) || 0) + debit);
-      else pool += debit;
+      else if (ref !== 'OPENING-BALANCE') pool += debit;
     }
     if (credit > 0 && (/-REFUND$/i.test(ref) || /-ADJ-/i.test(ref))) pool -= credit;
   }

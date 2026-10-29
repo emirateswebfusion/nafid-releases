@@ -24,6 +24,7 @@ export interface BillingModalsProps {
   gradeFormDialogRef: React.RefObject<HTMLDivElement | null>;
   handleCheckout: (saveOnly?: boolean) => Promise<void>;
   handleCreateAndAddProduct: CreateProductModalProps['handleCreateAndAddProduct'];
+  handleBulkCreateAndAddProducts?: CreateProductModalProps['handleBulkCreateAndAddProducts'];
   handleCreateNewGrade: () => Promise<void>;
   handleProductBasePriceChange: CreateProductModalProps['handleProductBasePriceChange'];
   handleProductGradeChange: CreateProductModalProps['handleProductGradeChange'];
@@ -82,7 +83,7 @@ export interface BillingModalsProps {
 /** Billing page dialogs: held bills, scrap invoice view, deduction dropdowns, create product / grade, cash register, UPI account select, transport details and biller PIN. */
 export function BillingModals({
   activeTab, cashRegisterOpen, currentSelectedUpi, enableRealPaperStock, focusDescriptionOrDiscount,
-  generateProductBarcode, gradeFormDialogRef, handleCheckout, handleCreateAndAddProduct, handleCreateNewGrade,
+  generateProductBarcode, gradeFormDialogRef, handleCheckout, handleCreateAndAddProduct, handleBulkCreateAndAddProducts, handleCreateNewGrade,
   handleProductBasePriceChange, handleProductGradeChange, handleProductPurchasePriceChange, handleRecallHeldBill,
   handleReleaseHeldBill, heldBills, heldBillsLoading, invoiceType, isBillerPinModalOpen, isUpiSelectModalOpen,
   newProductCategory, newProductGradeForm, newProductIsAddingGrade, newProductSavingGrade, paymentOptionRefs,
@@ -143,6 +144,7 @@ export function BillingModals({
       enableRealPaperStock={enableRealPaperStock}
       pricingTiers={pricingTiers}
       handleCreateAndAddProduct={handleCreateAndAddProduct}
+      handleBulkCreateAndAddProducts={handleBulkCreateAndAddProducts}
       productForm={productForm}
     />
     <div ref={gradeFormDialogRef}>

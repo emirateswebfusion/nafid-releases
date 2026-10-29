@@ -20,7 +20,18 @@ export const SUPPORTED_TIMEZONES = [
 
 let activeStoreTimezone: string = DEFAULT_STORE_TIMEZONE;
 
-export function setStoreTimezone(tz: string) {
+export function normalizeStoreTimezone(value: unknown): string {
+  let parsed = value;
+  if (typeof parsed === 'string' && /^[{"]/.test(parsed)) {
+    try { parsed = JSON.parse(parsed); } catch { return DEFAULT_STORE_TIMEZONE; }
+  }
+  const tz = typeof parsed === 'string' ? parsed : parsed && typeof parsed === 'object' && 'timezone' in parsed ? parsed.timezone : null;
+  if (typeof tz !== 'string' || !tz) return DEFAULT_STORE_TIMEZONE;
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }); return tz; } catch { return DEFAULT_STORE_TIMEZONE; }
+}
+
+export function setStoreTimezone(value: unknown) {
+  const tz = normalizeStoreTimezone(value);
   if (tz) {
     activeStoreTimezone = tz;
     try {
@@ -32,14 +43,11 @@ export function setStoreTimezone(tz: string) {
 export function getStoreTimezone(): string {
   try {
     const saved = localStorage.getItem('app_store_timezone');
-    if (saved) return saved;
+    if (saved) return normalizeStoreTimezone(saved);
   } catch { /* ignore */ }
   return activeStoreTimezone || DEFAULT_STORE_TIMEZONE;
 }
 
-/**
- * Returns current instant in UTC ISO 8601 string format
- */
 
 /**
  * Returns current business date in Store Timezone (YYYY-MM-DD)
@@ -47,23 +55,3 @@ export function getStoreTimezone(): string {
 export function getStoreBusinessDate(timeZone: string = getStoreTimezone()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
 }
-
-/**
- * Converts any UTC date/timestamp to Store Business Date string (YYYY-MM-DD)
- */
-
-/**
- * Internal robust date parser that handles UTC ISO, timestamps, and store wall-clock strings
- */
-
-/**
- * Calculates start and end UTC ISO strings for a business date (YYYY-MM-DD) in store timezone
- */
-
-/**
- * Calculates start and end UTC ISO strings for a custom date range (YYYY-MM-DD to YYYY-MM-DD) in store timezone
- */
-
-/**
- * Formats a UTC timestamp into readable store date and time
- */

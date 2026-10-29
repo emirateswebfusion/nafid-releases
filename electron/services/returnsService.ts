@@ -106,7 +106,7 @@ export function createReturn(payload: {
     syncReturnPaymentAccount(db, { ...returnData, refund_method: refMethod });
 
     if (refMethod === 'CASH' && Number(returnData.grand_total) > 0) {
-      const todayDate = localDate();
+      const todayDate = localDate(new Date(), returnData.tenant_id);
       const drawer = getOpenCashDrawer(db, returnData.tenant_id, todayDate);
       if (drawer) {
         const existingTx = returnsSql.findCashTransactionsByDrawerIdAndCategory(db).get(drawer.drawer_id, `%${returnData.return_number}%`);

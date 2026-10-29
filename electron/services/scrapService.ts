@@ -89,7 +89,7 @@ export function addScrapTransaction(t: ScrapTransactionInput) {
       scrapSql.updateScrapCategoryCurrentStock(db).run(delta, t.scrap_category_id);
 
       if (t.type === 'PURCHASE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
-        const todayDate = localDate();
+        const todayDate = localDate(new Date(), t.tenant_id || 'global');
         const drawer = getOpenCashDrawer(db, t.tenant_id || 'global', todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();
@@ -103,7 +103,7 @@ export function addScrapTransaction(t: ScrapTransactionInput) {
           reconcileCashDrawer(db, t.tenant_id || 'global', drawer);
         }
       } else if (t.type === 'SALE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
-        const todayDate = localDate();
+        const todayDate = localDate(new Date(), t.tenant_id || 'global');
         const drawer = getOpenCashDrawer(db, t.tenant_id || 'global', todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();

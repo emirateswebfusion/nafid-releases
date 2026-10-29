@@ -33,6 +33,15 @@ describe('timezoneHelper', () => {
     expect(store.get('app_store_timezone')).toBe('Asia/Dubai');
   });
 
+  it('accepts legacy object settings and resets an absent or invalid shop timezone', () => {
+    setStoreTimezone({ timezone: 'Asia/Dubai' });
+    expect(getStoreTimezone()).toBe('Asia/Dubai');
+    setStoreTimezone(null);
+    expect(getStoreTimezone()).toBe('Asia/Kolkata');
+    setStoreTimezone('Invalid/Zone');
+    expect(getStoreTimezone()).toBe('Asia/Kolkata');
+  });
+
   it('computes business date in the selected store timezone', () => {
     // 2026-10-26 at 20:00:00 UTC
     // In Asia/Kolkata (+5:30) it is 2026-10-27 01:30
