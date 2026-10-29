@@ -7,7 +7,8 @@ import { SectionSaveBar, SettingsCard, SwitchField } from './views/SettingsContr
 const FILING_SUB_OPTIONS = [
   ['reduceStock', 'Reduce stock', 'Items on a filing-only bill are taken out of stock like a normal sale.'],
   ['countInRevenue', 'Include in revenue', 'Filing-only bills are added to sales totals and revenue reports.'],
-  ['showB2bInSalesCategory', 'Show filing-only B2B bills in their Sales History category', 'Also list them under B2B in Sales History, not only under Filing-only.'],
+  ['showB2bInSalesCategory', 'Show filing-only B2B bills in their Sales History category', 'Also list them under B2B in Sales History, not only under Filing-only.'],
+  ['showB2cInSalesCategory', 'Show filing-only B2C bills in their Sales History category', 'Also list them under B2C in Sales History, not only under Filing-only.'],
 ] as const;
 
 function parseBoolSetting(val: unknown): boolean {
@@ -26,7 +27,8 @@ function parseFilingModeSetting(mode: unknown): FilingOptions {
       enabled: parseBoolSetting(obj.enabled),
       reduceStock: parseBoolSetting(obj.reduceStock),
       countInRevenue: parseBoolSetting(obj.countInRevenue),
-      showB2bInSalesCategory: obj.showB2bInSalesCategory !== false && obj.showB2bInSalesCategory !== 'false',
+      showB2bInSalesCategory: obj.showB2bInSalesCategory !== false && obj.showB2bInSalesCategory !== 'false',
+      showB2cInSalesCategory: obj.showB2cInSalesCategory !== false && obj.showB2cInSalesCategory !== 'false',
     };
   }
   return DEFAULT_FILING_OPTIONS;

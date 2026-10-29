@@ -152,6 +152,7 @@ export async function unifiedDeltaPull(token: string, tenantId: string): Promise
     if (data.parties?.length) if (await pullParties(token, tenantId)) dataUpdated = true;
     if (data.party_ledger?.length) if (await pullPartyLedger(token, tenantId)) dataUpdated = true;
     if (data.customers?.length) if (await pullCustomers(token, tenantId)) dataUpdated = true;
+    if (data.invoices?.length) if (await pullInvoices(token, tenantId)) dataUpdated = true;
     if (data.loyalty_transactions?.length) if (await pullLoyaltyTransactions(token, tenantId)) dataUpdated = true;
     if (data.scrap_categories?.length) if (await pullScrapCategories(token, tenantId)) dataUpdated = true;
     if (data.scrap_transactions?.length) if (await pullScrapTransactions(token, tenantId)) dataUpdated = true;
@@ -166,7 +167,6 @@ export async function unifiedDeltaPull(token: string, tenantId: string): Promise
     if (data.combo_offers?.length) if (await pullComboOffers(token, tenantId)) dataUpdated = true;
     if (data.quotations?.length) if (await pullQuotations(token, tenantId)) dataUpdated = true;
     if (data.warranties?.length) if (await pullWarranties(token, tenantId)) dataUpdated = true;
-    if (data.invoices?.length) if (await pullInvoices(token, tenantId)) dataUpdated = true;
     if (data.users?.length) if (await pullUsers(token, tenantId)) dataUpdated = true;
 
     return { success: true, dataUpdated };

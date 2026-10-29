@@ -145,8 +145,13 @@ queries reuse this predicate. Direct GST bills still count. Tax-filing views del
 Copies are excluded from pending settlement to prevent collecting the same sale twice. Frozen closed drawer
 balances are not rewritten; active sessions use the corrected query on reconciliation.
 Tests: `bosConversionRevenue.test.ts` (real in-memory SQLite) and `bosConversionService.test.ts`.
-Filing-only billing and configurable direct-GST revenue exclusion need synced invoice metadata and matching
-server support; they are not implemented by this conversion-copy rule.
+Filing-only billing (`bill_purpose = 'FILING_ONLY'`) captures its revenue and stock decisions at checkout:
+- `filing_only_mode.countInRevenue`: controls whether new filing-only bills count in store revenue (`counts_in_revenue = 1`).
+- `filing_only_mode.showB2bInSalesCategory` and `showB2cInSalesCategory`: control whether filing-only bills appear in the respective B2B/B2C category views or only under the dedicated `Filing-only` filter (`FILING_ONLY`).
+- In Sales History, the dedicated `FILING_ONLY` filter reports statutory filing totals even when `counts_in_revenue = 0`.
+- The `CONVERTED_GST` filter isolates synthetic tax copies converted from Bill of Supply (`converted_from_invoice_id IS NOT NULL`).
+Tests: `tests/unit/filingRevenue.test.ts`, `tests/unit/filingOnlySettings.ui.test.tsx`, `tests/unit/billPolicy.test.ts`.
+
 
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 

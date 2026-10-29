@@ -69,6 +69,8 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
       };
 
       const getTypeLabel = (inv: SalesInvoiceRow) => {
+        if (inv.bill_purpose === 'FILING_ONLY') return 'Filing-only';
+        if (inv.converted_from_invoice_id) return 'Converted GST';
         if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'GST B2B';
         if (inv.invoice_type === 'GST') return 'GST B2C';
         return 'Bill of Supply';

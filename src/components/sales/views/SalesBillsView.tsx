@@ -329,12 +329,14 @@ export function SalesBillsView({
                   { value: '', label: 'All GST Types' },
                   { value: 'GST_B2B', label: 'B2B' },
                   { value: 'GST_B2C', label: 'B2C' },
+                  { value: 'CONVERTED_GST', label: 'Converted from BOS' },
                   { value: 'FILING_ONLY', label: 'Filing-only' },
                 ]
               : [
                   { value: '', label: 'All Types' },
                   { value: 'GST_B2B', label: 'B2B' },
                   { value: 'GST_B2C', label: 'B2C' },
+                  { value: 'CONVERTED_GST', label: 'Converted from BOS' },
                   { value: 'FILING_ONLY', label: 'Filing-only' },
                   { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
                 ];
@@ -343,6 +345,7 @@ export function SalesBillsView({
               '': { bg: 'bg-background border-border/80 hover:bg-muted/30', text: 'text-foreground', border: 'border-border/80' },
               GST_B2B: { bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/25' },
               GST_B2C: { bg: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/25', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-500/25' },
+              CONVERTED_GST: { bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/25' },
               FILING_ONLY: { bg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/25', text: 'text-teal-600 dark:text-teal-400', border: 'border-teal-500/25' },
               BILL_OF_SUPPLY: { bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/25' },
             };
@@ -356,8 +359,8 @@ export function SalesBillsView({
                 className="w-40"
                 triggerClassName={clsx('rounded-xl h-8.5 border px-3 transition-all font-semibold', colors.bg, colors.text, colors.border)}
                 renderOption={(opt) => {
-                  const typeIcon: Record<string, typeof Receipt> = { '': Receipt, GST_B2B: Building, GST_B2C: User, FILING_ONLY: FileCheck2, BILL_OF_SUPPLY: FileText };
-                  const typeColor: Record<string, string> = { '': 'text-foreground', GST_B2B: 'text-blue-500', GST_B2C: 'text-violet-500', FILING_ONLY: 'text-teal-500', BILL_OF_SUPPLY: 'text-amber-500' };
+                  const typeIcon: Record<string, typeof Receipt> = { '': Receipt, GST_B2B: Building, GST_B2C: User, CONVERTED_GST: RefreshCw, FILING_ONLY: FileCheck2, BILL_OF_SUPPLY: FileText };
+                  const typeColor: Record<string, string> = { '': 'text-foreground', GST_B2B: 'text-blue-500', GST_B2C: 'text-violet-500', CONVERTED_GST: 'text-emerald-500', FILING_ONLY: 'text-teal-500', BILL_OF_SUPPLY: 'text-amber-500' };
                   const Icon = typeIcon[opt.value] || Receipt;
                   return (
                     <span className={clsx('flex items-center gap-2 text-xs font-bold', typeColor[opt.value] || 'text-foreground')}>
@@ -491,10 +494,10 @@ export function SalesBillsView({
         )}
       </div>
     {/* Table */}
-    <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
+    <div className={clsx("flex-1 overflow-y-auto transition-opacity duration-200 ease-out", isFetching && "opacity-75")} onScroll={handleScroll}>
       {taxFilterActive ? (
         taxProductLoading ? (
-          <table className="w-full">
+          <table key={`${accountingView}-${invoiceTypeFilter}-${paymentFilter}`} className="w-full animate-in fade-in-50 duration-200">
             <tbody>
               {Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i} className="border-b border-border">
@@ -520,7 +523,7 @@ export function SalesBillsView({
             </div>
           </div>
         ) : (
-          <table className="w-full">
+          <table key={`${accountingView}-${invoiceTypeFilter}-${paymentFilter}`} className="w-full animate-in fade-in-50 duration-200">
             <thead className="sticky top-0 z-10 bg-muted/60 border-b border-border">
               <tr>
                 <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice</th>
@@ -570,7 +573,7 @@ export function SalesBillsView({
           </table>
         )
       ) : loading ? (
-        <table className="w-full">
+        <table key={`${accountingView}-${invoiceTypeFilter}-${paymentFilter}`} className="w-full animate-in fade-in-50 duration-200">
           <tbody>
             {Array.from({ length: 8 }).map((_, i) => (
               <tr key={i} className="border-b border-border">
@@ -595,7 +598,7 @@ export function SalesBillsView({
           </div>
         </div>
       ) : (
-        <table className="w-full">
+        <table key={`${accountingView}-${invoiceTypeFilter}-${paymentFilter}`} className="w-full animate-in fade-in-50 duration-200">
           <thead className="sticky top-0 z-10 bg-muted/60 border-b border-border">
             <tr>
               <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">

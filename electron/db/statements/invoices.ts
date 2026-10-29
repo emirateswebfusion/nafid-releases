@@ -406,6 +406,7 @@ export const updateInvoiceIsDeletedAndDeletedAt = (db: Db) => db.prepare("UPDATE
 export interface InvoiceListQuery {
   revenue_only?: boolean;
   showFilingB2b?: boolean;
+  showFilingB2c?: boolean;
   activeTenantId: string;
   onlyUserInvoices: boolean;
   user_id?: string;
@@ -490,8 +491,11 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
     } else if (invoice_type === 'GST_B2B') {
       query += " AND i.invoice_type = 'GST' AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''";
       if (args.showFilingB2b === false) query += " AND i.bill_purpose != 'FILING_ONLY'";
+    } else if (invoice_type === 'CONVERTED_GST') {
+      query += " AND i.invoice_type = 'GST' AND i.converted_from_invoice_id IS NOT NULL AND i.converted_from_invoice_id != ''";
     } else if (invoice_type === 'GST_B2C') {
       query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
+      if (args.showFilingB2c === false) query += " AND i.bill_purpose != 'FILING_ONLY'";
     } else if (invoice_type === 'BILL_OF_SUPPLY') {
       query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
     } else if (invoice_type === 'GST') {
@@ -633,8 +637,11 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
     } else if (invoice_type === 'GST_B2B') {
       query += " AND i.invoice_type = 'GST' AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''";
       if (args.showFilingB2b === false) query += " AND i.bill_purpose != 'FILING_ONLY'";
+    } else if (invoice_type === 'CONVERTED_GST') {
+      query += " AND i.invoice_type = 'GST' AND i.converted_from_invoice_id IS NOT NULL AND i.converted_from_invoice_id != ''";
     } else if (invoice_type === 'GST_B2C') {
       query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
+      if (args.showFilingB2c === false) query += " AND i.bill_purpose != 'FILING_ONLY'";
     } else if (invoice_type === 'BILL_OF_SUPPLY') {
       query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
     } else if (invoice_type === 'GST') {
@@ -665,5 +672,6 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
     }
 
     // Revenue figures count only revenue bills; `listedStatement` counts every bill the list shows (filing-only too).
-    return { statement: db.prepare(`${query} AND ${countsInRevenue('i')}`), listedStatement: db.prepare(query), params };
+    const statement = invoice_type === 'FILING_ONLY' ? db.prepare(query) : db.prepare(`${query} AND ${countsInRevenue('i')}`);
+    return { statement, listedStatement: db.prepare(query), params };
 }

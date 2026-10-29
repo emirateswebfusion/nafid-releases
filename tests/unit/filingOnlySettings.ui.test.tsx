@@ -26,7 +26,7 @@ describe('revenue & filing-only settings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save revenue settings' }));
     await screen.findByText('Saved');
-    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'filing_only_mode', value: { enabled: true, reduceStock: true, countInRevenue: false, showB2bInSalesCategory: true } });
+    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'filing_only_mode', value: { enabled: true, reduceStock: true, countInRevenue: false, showB2bInSalesCategory: true, showB2cInSalesCategory: true } });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'exclude_b2b_from_revenue', value: false });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'exclude_b2c_from_revenue', value: true });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'dashboard_sales_metric', value: 'NET_REVENUE' });

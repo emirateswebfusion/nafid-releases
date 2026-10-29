@@ -1,3 +1,15 @@
+# Nafid POS v2.1.3 Release Notes
+
+## What's New
+- **Quick Product Entry**: Add multiple products at once directly from the billing screen using an interactive spreadsheet table with custom columns.
+- **Converted Bills Filter**: Quickly isolate and inspect invoices converted from Counter Bills (BOS) to GST in Sales History.
+- **Accurate Shop Time**: Store time and closing reports strictly match your local business day and hours.
+- **Seamless Customer Points Sync**: Automatic deduplication and points reconciliation across multiple billing terminals.
+- **Flexible Tax Filing Settings**: Independent controls for B2B and B2C filing-only bills in your sales views.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.1.2...v2.1.3
+
+**Download:** [Nafid-Setup-2.1.3.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.3/Nafid-Setup-2.1.3.exe)
+
 # Nafid POS v2.1.2 Release Notes
 
 ## What's New
