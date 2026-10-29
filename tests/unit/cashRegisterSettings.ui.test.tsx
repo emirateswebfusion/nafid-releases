@@ -15,15 +15,13 @@ beforeEach(() => { mocks.get.mockReset().mockResolvedValue(null); mocks.set.mock
 describe('cash register settings controls', () => {
   it('loads defaults and saves owner-selected exclusions and payment methods', async () => {
     render(<CashRegisterSettings />);
-    const save = screen.getByRole('button', { name: 'Save cash register options' });
-    await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect((screen.getByLabelText('Include cash received from scrap sales in Cash In') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByLabelText('Include cash received from scrap sales in Cash In'));
     fireEvent.click(screen.getByLabelText('Deduct cash return refunds from the cash register'));
     fireEvent.change(screen.getByLabelText('Ledger date option'), { target: { value: 'today' } });
     fireEvent.click(screen.getByLabelText('UPI'));
-    fireEvent.click(save);
-    await screen.findByText(/Cash register options saved/);
-    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_include_scrap_sales', value: false });
+    window.dispatchEvent(new Event('settings:request-save'));
+    await waitFor(() => expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_include_scrap_sales', value: false }));
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_deduct_returns', value: false });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_ledger_mode', value: 'today' });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_payment_methods', value: ['UPI'] });
@@ -34,14 +32,14 @@ describe('cash register settings controls', () => {
     render(<CashRegisterSettings />);
     await waitFor(() => expect((screen.getByLabelText('CARD') as HTMLInputElement).checked).toBe(true));
     expect((screen.getByLabelText('Deduct cash return refunds from the cash register') as HTMLInputElement).checked).toBe(false);
-    expect(screen.getByRole('button', { name: 'Save cash register options' }).closest('fieldset')?.disabled).toBe(true);
+    expect(screen.getByLabelText('CARD').closest('fieldset')?.disabled).toBe(true);
   });
   it('shows a save failure instead of claiming success', async () => {
     mocks.set.mockRejectedValue(new Error('failed'));
     render(<CashRegisterSettings />);
-    const save = screen.getByRole('button', { name: 'Save cash register options' });
-    await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(save);
+    await waitFor(() => expect((screen.getByLabelText('Include cash received from scrap sales in Cash In') as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(screen.getByLabelText('Include cash received from scrap sales in Cash In'));
+    window.dispatchEvent(new Event('settings:request-save'));
     await screen.findByText(/Could not save all cash register options/);
   });
 });

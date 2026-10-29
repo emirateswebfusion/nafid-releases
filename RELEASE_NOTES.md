@@ -1,3 +1,15 @@
+# Nafid POS v2.1.4 Release Notes
+
+## What's New
+- **Clean Thermal Tax Receipts**: Printed receipts on 80mm thermal printers now feature a clean, uncluttered GST breakdown with clear Taxable, CGST, SGST, and total amounts tailored for retail billing.
+- **Quick Product Units & Pricing**: Choose units (pieces, kg, litres) and tax-inclusive or tax-exclusive pricing directly from the Quick Product Entry table before saving.
+- **Streamlined Filing-Only Mode**: Decide whether filing-only bills count towards your daily drawer collection and sales today, keeping tax filing cleanly separated from physical cash.
+- **Cash Register & Drawer Controls**: Configure automatic cash drawer opening and cash register preferences directly with intuitive toggles for faster checkout and closing.
+- **Accurate Bill Totals & Net Pay**: Clear distinction between Grand Total and Net Total on printouts and screens whenever discounts or roundoffs are applied.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.1.3...v2.1.4
+
+**Download:** [Nafid-Setup-2.1.4.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.4/Nafid-Setup-2.1.4.exe)
+
 # Nafid POS v2.1.3 Release Notes
 
 ## What's New

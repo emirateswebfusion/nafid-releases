@@ -668,9 +668,6 @@ function executePrintWithFallback(
         return reject(new Error(`Print attempt 1 failed: ${failureReason1}`));
       }
 
-      // A native/default page may be shorter or wider than this receipt.
-      // If requireExactPaper is true, only reject if the receipt is actually longer than standard roll length (297mm).
-      // For standard short receipts (<= 297mm), the native driver roll page will never cut content.
       if (requireExactPaper && (!heightMicrons || heightMicrons > 297000)) {
         return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected roll width and a supported receipt length.`));
       }
@@ -701,7 +698,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     const printWindow = new BrowserWindow({
       show: false,
       width: Math.ceil(widthMm * 96 / 25.4),
-      height: 600,
+      height: 4000,
       useContentSize: true,
       webPreferences: {
         preload: path.join(__dirname, '../preload.js'),

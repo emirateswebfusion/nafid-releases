@@ -26,53 +26,53 @@ const ACCENT = {
 
 export const WHATS_NEW: WhatsNewItem[] = [
   {
-    title: { en: 'Quick Product Entry', ml: 'വേഗത്തിൽ പ്രൊഡക്റ്റുകൾ ചേർക്കാം' },
-    tag: { en: 'Billing', ml: 'ബില്ലിംഗ്' },
-    subtitle: 'Add multiple items in one fast table',
+    title: { en: 'Clean Thermal Tax Receipts', ml: 'വൃത്തിയുള്ള തെർമൽ ടാക്സ് ബില്ലുകൾ' },
+    tag: { en: 'Printing', ml: 'പ്രിന്റിംഗ്' },
+    subtitle: 'Clear CGST, SGST and Taxable totals on printed receipts',
     text: {
-      en: 'Add several new products together using an easy spreadsheet-style table right from the billing screen, saving time during new stock arrivals.',
-      ml: 'ബില്ലിംഗ് സ്ക്രീനിൽ നിന്ന് തന്നെ ഒന്നിലധികം പുതിയ പ്രൊഡക്റ്റുകൾ ഒന്നിച്ച് എളുപ്പത്തിൽ ടേബിളിൽ ടൈപ്പ് ചെയ്ത് ചേർക്കാം. സാധനങ്ങൾ സ്റ്റോക്കിൽ കയറ്റുമ്പോൾ സമയം ലാഭിക്കാം.',
+      en: 'Printed receipts on thermal printers now feature a clean, uncluttered GST breakdown with clear Taxable, CGST, SGST, and total amounts tailored for retail billing.',
+      ml: 'തെർമൽ പ്രിന്ററുകളിൽ വരുന്ന ബില്ലുകളിൽ ടാക്സബിൾ തുകയും CGST, SGST എന്നിവയും കൂടുതൽ വ്യക്തമായും ഭംഗിയായും കാണാം.',
     },
     accent: ACCENT.emerald,
   },
   {
-    title: { en: 'Converted Bills Filter', ml: 'മാറ്റിയ ബില്ലുകൾ പ്രത്യേകം കാണാം' },
-    tag: { en: 'Sales History', ml: 'സെയിൽസ് ഹിസ്റ്ററി' },
-    subtitle: 'Quickly view bills changed from counter to GST',
+    title: { en: 'Quick Product Units & Pricing', ml: 'പ്രൊഡക്റ്റ് യൂണിറ്റും വിലയും എളുപ്പത്തിൽ' },
+    tag: { en: 'Billing', ml: 'ബില്ലിംഗ്' },
+    subtitle: 'Pick units and tax types directly while adding items',
     text: {
-      en: 'Find all bills converted from regular counter bills to GST invoices with one click using the new "Converted from BOS" filter in Sales History.',
-      ml: 'സാധാരണ ബില്ലിൽ നിന്ന് GST ആക്കി മാറ്റിയ എല്ലാ ബില്ലുകളും സെയിൽസ് ഹിസ്റ്ററിയിൽ ഒറ്റ ക്ലിക്കിൽ എടുത്തു കാണാൻ പുതിയ ഫിൽട്ടർ.',
+      en: 'Select product units (pieces, kg, litres) and choose whether prices include or exclude tax directly from the Quick Product Entry table before saving.',
+      ml: 'വേഗത്തിൽ പ്രൊഡക്റ്റുകൾ ചേർക്കുമ്പോൾ തന്നെ യൂണിറ്റും (പീസ്, കിലോ, ലിറ്റർ) നികുതി ഉൾപ്പെടെയുള്ള വിലയാണോ എന്നും ടേബിളിൽ നിന്ന് തന്നെ തിരഞ്ഞെടുക്കാം.',
     },
     accent: ACCENT.blue,
   },
   {
-    title: { en: 'Accurate Shop Time', ml: 'കൃത്യമായ ഷോപ്പ് സമയം' },
-    tag: { en: 'Reports', ml: 'റിപ്പോർട്ടുകൾ' },
-    subtitle: 'Sales and closing reports match your business day',
+    title: { en: 'Streamlined Filing-Only Mode', ml: 'ടാക്സ് ഫയലിംഗ് ക്രമീകരണങ്ങൾ' },
+    tag: { en: 'Settings', ml: 'സെറ്റിംഗ്സ്' },
+    subtitle: 'Better control over filing bills in drawer and sales',
     text: {
-      en: "Your daily sales, shift summaries and closing reports strictly follow your shop's official business hours and local time for clean day-end tallies.",
-      ml: 'നിങ്ങളുടെ പ്രതിദിന സെയിൽസും ക്ലോസിംഗ് റിപ്പോർട്ടുകളും ഷോപ്പിലെ യഥാർത്ഥ സമയക്രമം അനുസരിച്ച് കൃത്യമായി കണക്കാക്കപ്പെടുന്നു.',
+      en: 'Easily choose whether filing-only bills count towards your daily drawer collection and sales today, keeping your accountant filing separate from cash on hand.',
+      ml: 'ഫയലിംഗ് മാത്രമായുള്ള ബില്ലുകൾ ദിവസേനയുള്ള ഡ്രോയർ കണക്കിലും ഇന്നത്തെ വരുമാനത്തിലും ഉൾപ്പെടുത്തണോ എന്ന് ഒറ്റ ക്ലിക്കിൽ നിയന്ത്രിക്കാം.',
+    },
+    accent: ACCENT.violet,
+  },
+  {
+    title: { en: 'Cash Register & Drawer Controls', ml: 'ക്യാഷ് ഡ്രോയറും രജിസ്റ്ററും' },
+    tag: { en: 'Hardware', ml: 'ഹാർഡ്‌വെയർ' },
+    subtitle: 'Quick toggles for drawer opening and register workflow',
+    text: {
+      en: 'Configure automatic cash drawer opening and cash register preferences directly with intuitive toggles for faster checkout and shift closing.',
+      ml: 'ബില്ലിംഗ് സമയത്ത് ക്യാഷ് ഡ്രോയർ ഓട്ടോമാറ്റിക് ആയി തുറക്കുന്നതും രജിസ്റ്റർ സെറ്റിംഗ്സുകളും പുതിയ സ്വിച്ചുകളിലൂടെ എളുപ്പത്തിൽ ക്രമീകരിക്കാം.',
     },
     accent: ACCENT.amber,
   },
   {
-    title: { en: 'Smooth Customer Sync', ml: 'സുരക്ഷിതമായ കസ്റ്റമർ വിവരങ്ങൾ' },
-    tag: { en: 'Sync', ml: 'സിങ്ക്' },
-    subtitle: 'Points and customer profiles merge cleanly',
+    title: { en: 'Accurate Bill Totals & Net Pay', ml: 'കൃത്യമായ നെറ്റ് ടോട്ടൽ' },
+    tag: { en: 'Checkout', ml: 'ചെക്ക്ഔട്ട്' },
+    subtitle: 'Clear final payable amount and roundoff',
     text: {
-      en: 'Customer profiles and reward points synchronize smoothly between counters and cloud without creating duplicate profiles or missing points.',
-      ml: 'വിവിധ കൗണ്ടറുകൾ തമ്മിൽ കസ്റ്റമർ വിവരങ്ങളും പോയിന്റുകളും സിങ്ക് ചെയ്യുമ്പോൾ പേരുകൾ ഇരട്ടിക്കാതിരിക്കാനും പോയിന്റുകൾ നഷ്ടപ്പെടാതിരിക്കാനും കൂടുതൽ സുരക്ഷിതമാക്കി.',
+      en: 'Clear distinction between Grand Total and Net Total on printouts and screens whenever discounts or roundoffs are applied, making the final payment clear to customers.',
+      ml: 'ഡിസ്കൗണ്ടുകളോ റൗണ്ട് ഓഫുകളോ ഉള്ളപ്പോൾ കസ്റ്റമർ നൽകേണ്ട കൃത്യമായ നെറ്റ് തുക ബില്ലിൽ കൂടുതൽ വ്യക്തമായി കാണിക്കുന്നു.',
     },
     accent: ACCENT.teal,
-  },
-  {
-    title: { en: 'Flexible Tax Filing', ml: 'കൂടുതൽ എളുപ്പമുള്ള ഫയലിംഗ്' },
-    tag: { en: 'Settings', ml: 'സെറ്റിംഗ്സ്' },
-    subtitle: 'Choose how B2B and B2C filing bills appear',
-    text: {
-      en: 'Independent settings for B2B and B2C tax filing bills give you complete control over how filing-only bills display in your sales views.',
-      ml: 'ടാക്സ് ഫയലിംഗിന് മാത്രമായുള്ള B2B, B2C ബില്ലുകൾ സെയിൽസിൽ എങ്ങനെ കാണിക്കണമെന്ന് സെറ്റിംഗ്സിൽ നിങ്ങളുടെ ഇഷ്ടാനുസരണം തിരഞ്ഞെടുക്കാം.',
-    },
-    accent: ACCENT.violet,
   },
 ];

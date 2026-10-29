@@ -64,7 +64,7 @@ export const CashDrawerSettingsTab: React.FC<CashDrawerSettingsTabProps> = ({
         </div>
       </SettingsCard>
 
-      <SettingsCard icon={Calculator} title="Cash Register Totals" subtitle="Saved separately with its own button">
+      <SettingsCard icon={Calculator} title="Cash Register Totals" subtitle="Cash drawer inclusion rules and ledger modes">
         <CashRegisterSettings />
       </SettingsCard>
     </div>

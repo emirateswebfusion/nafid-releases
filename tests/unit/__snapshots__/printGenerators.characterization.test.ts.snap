@@ -3527,18 +3527,18 @@ exports[`print generators (characterization) > renders every thermal receipt sty
 │ Name    : Ravi Kumar                         │
 │ Contact : 9876543210                         │
 ├──────────────────────────────────────────────┤
-│Sr│Product         │ Qty│   MRP│  Rate│ Amount│
-├──┼────────────────┼────┼──────┼──────┼───────┤
-│1 │Paint 1L        │   3│      │250.00│ 750.00│
-├──┼────────────────┼────┼──────┼──────┼───────┤
-│2 │Brush           │   1│ 50.00│ 45.50│  45.50│
+│Sr│Product              │ Qty│   Rate│  Amount│
+├──┼─────────────────────┼────┼───────┼────────┤
+│1 │Paint 1L             │   3│ 250.00│  750.00│
+├──┼─────────────────────┼────┼───────┼────────┤
+│2 │Brush                │   1│  45.50│   45.50│
 [[LH:0.45]]│  │                                           │
 │  │ MRP 50.00 @ 45.50 (Offer)                 │
 [[LH:0.45]]│  │                                           │
 ├──────────────────────────────────────────────┤
 │Total                                │  795.50│
-│Grand Total                          │  775.50│
 │Discount                             │  -20.00│
+│Grand Total                          │  775.50│
 │Round Off                            │   +0.50│
 │Net Total                            │  776.00│
 ├──────────────────────────────────────────────┤
@@ -3575,18 +3575,18 @@ exports[`print generators (characterization) > renders every thermal receipt sty
 │ Name    : Ravi Kumar         │
 │ Contact : 9876543210         │
 ├──────────────────────────────┤
-│Sr│Product    │ Rate│Qty│  Amt│
-├──┼───────────┼─────┼───┼─────┤
-│1 │Paint 1L   │250.0│  3│750.0│
-├──┼───────────┼─────┼───┼─────┤
-│2 │Brush      │45.50│  1│45.50│
+│Sr│Product│   Rate│Qty│    Amt│
+├──┼───────┼───────┼───┼───────┤
+│1 │Paint..│ 250.00│  3│ 750.00│
+├──┼───────┼───────┼───┼───────┤
+│2 │Brush  │  45.50│  1│  45.50│
 [[LH:0.45]]│  │                           │
 │  │ MRP 50.00 @ 45.50 (Offer) │
 [[LH:0.45]]│  │                           │
 ├──────────────────────────────┤
 │Total                │  795.50│
-│Grand Total          │  775.50│
 │Discount             │  -20.00│
+│Grand Total          │  775.50│
 │Round Off            │   +0.50│
 │Net Total            │  776.00│
 ├──────────────────────────────┤
@@ -4218,37 +4218,42 @@ BALANCE DUE               275.50
 │ State   : Kerala (32)        │
 │ Note    : Site delivery      │
 ├──────────────────────────────┤
-│Sr│Product    │Qty│ Rate│  Amt│
-├──┼───────────┼───┼─────┼─────┤
-│1 │Steel Rod  │2 P│590.0│1180.│
-│  │12mm TMT   │   │     │     │
-│  │Fe500      │   │     │     │
-│  │Premium    │   │     │     │
-│  │Quality    │   │     │     │
-│  │Long Name  │   │     │     │
+│Sr│Product│Qty│   Rate│    Amt│
+├──┼───────┼───┼───────┼───────┤
+│1 │Steel  │2 P│ 590.00│1180.00│
+│  │Rod    │   │       │       │
+│  │12mm   │   │       │       │
+│  │TMT    │   │       │       │
+│  │Fe500  │   │       │       │
+│  │Premium│   │       │       │
+│  │Quality│   │       │       │
+│  │Long   │   │       │       │
+│  │Name   │   │       │       │
 │  │ Brand: Tata               │
 [[LH:0.45]]│  │                           │
 │  │ MRP 650.00 @ 590.00 (9% of│
 [[LH:0.45]]│  │                           │
-├──┼───────────┼───┼─────┼─────┤
-│2 │Cement Bag │1.5│400.0│600.0│
+├──┼───────┼───┼───────┼───────┤
+│2 │Cement │1.5│ 400.00│ 600.00│
+│  │Bag    │   │       │       │
 [[LH:0.45]]│  │                           │
 │  │ MRP 420.00 @ 400.00       │
 [[LH:0.45]]│  │                           │
-├──┼───────────┼───┼─────┼─────┤
-│3 │Nails      │0.7│120.0│90.00│
-│  │(loose)    │   │     │     │
-├──┼───────────┼───┼─────┼─────┤
-│4 │Tool Kit   │1 P│999.0│999.0│
-│  │Combo      │   │     │     │
+├──┼───────┼───┼───────┼───────┤
+│3 │Nails  │0.7│ 120.00│  90.00│
+│  │(loose)│   │       │       │
+├──┼───────┼───┼───────┼───────┤
+│4 │Tool   │1 P│ 999.00│ 999.00│
+│  │Kit    │   │       │       │
+│  │Combo  │   │       │       │
 │  │Includes: Hammer (x1),     │
 │  │Screwdriver (x2)           │
 ├──────────────────────────────┤
-│Total                │ 2600.00│
-│Grand Total          │ 2869.00│
+│Total                │ 2869.00│
 │Discount (2%)        │  -50.00│
 │Scrap Return Amount  │ -100.00│
 │Return Credit        │  -60.00│
+│Grand Total          │ 2869.00│
 │Net Total            │ 2709.00│
 ├──────────────────────────────┤
 │* * * YOU SAVED ₹200.00 * * * │
@@ -4284,92 +4289,87 @@ BALANCE DUE               275.50
 ├──────────────────────────────┤
 └──────────────────────────────┘
 ",
-  "gst/boxed/8": "┌──────────────────────────────────┐
-│     NAFID HARDWARE & PAINTS      │
-│  MG Road, Kochi, Kerala 682016   │
-│          Ph: 9876543210          │
-│      GSTIN: 32ABCDE1234F1Z5      │
-│        State: Kerala (32)        │
-├──────────────────────────────────┤
-│           TAX INVOICE            │
-├──────────────────────────────────┤
-│ Bill No: GST-2026-0102           │
-│ Date: 2026-10-15T09:15:00Z       │
-│ Staff: Admin                     │
-├──────────────────────────────────┤
-│ Customer Details:                │
-│ Name    : Acme Traders Pvt Ltd   │
-│ Address : Industrial Estate, Aluv│
-│ Contact : 9123456780             │
-│ GSTIN   : 32AAACA1111A1Z1        │
-│ State   : Kerala (32)            │
-│ Note    : Site delivery          │
-├──────────────────────────────────┤
-│Sr│Product     │Qty│  Rate│ Amount│
-├──┼────────────┼───┼──────┼───────┤
-│1 │Steel Rod   │2 P│590.00│1180.00│
-│  │12mm TMT    │   │      │       │
-│  │Fe500       │   │      │       │
-│  │Premium     │   │      │       │
-│  │Quality Long│   │      │       │
-│  │Name        │   │      │       │
-│  │ Brand: Tata                   │
-[[LH:0.45]]│  │                               │
-│  │ MRP 650.00 @ 590.00 (9% off)  │
-[[LH:0.45]]│  │                               │
-├──┼────────────┼───┼──────┼───────┤
-│2 │Cement Bag  │1.5│400.00│ 600.00│
-[[LH:0.45]]│  │                               │
-│  │ MRP 420.00 @ 400.00           │
-[[LH:0.45]]│  │                               │
-├──┼────────────┼───┼──────┼───────┤
-│3 │Nails       │0.7│120.00│  90.00│
-│  │(loose)     │   │      │       │
-├──┼────────────┼───┼──────┼───────┤
-│4 │Tool Kit    │1 P│999.00│ 999.00│
-│  │Combo       │   │      │       │
-│  │Includes: Hammer (x1),         │
-│  │Screwdriver (x2)               │
-├──────────────────────────────────┤
-│Total                    │ 2600.00│
-│Grand Total              │ 2869.00│
-│Discount (2%)            │  -50.00│
-│Scrap Return Amount      │ -100.00│
-│Return Credit            │  -60.00│
-│Net Total                │ 2709.00│
-├──────────────────────────────────┤
-│  * * * YOU SAVED ₹200.00 * * *   │
-├──────────────────────────────────┤
-│Taxable│ CGST│ SGST│         Total│
-├───────┼─────┼─────┼──────────────┤
-│2600.00│134.5│134.5│        269.00│
-├──────────────────────────────────┤
-│ Amount in Words:                 │
-│ Two Thousand Seven Hundred Nine  │
-│ ONLY                             │
-├──────────────────────────────────┤
-│ Terms & Conditions:              │
-│ Goods once sold will not be taken│
-│ Thank you!                       │
-├──────────────────────────────────┤
-│                                  │
-│       For NAFID HARDWARE & PAINTS│
-│                                  │
-│              Authorised Signatory│
-├──────────────────────────────────┤
+  "gst/boxed/8": "┌────────────────────────────────────────┐
+│        NAFID HARDWARE & PAINTS         │
+│     MG Road, Kochi, Kerala 682016      │
+│             Ph: 9876543210             │
+│         GSTIN: 32ABCDE1234F1Z5         │
+│           State: Kerala (32)           │
+├────────────────────────────────────────┤
+│              TAX INVOICE               │
+├────────────────────────────────────────┤
+│ Bill No: GST-2026-0102                 │
+│ Date: 2026-10-15T09:15:00Z             │
+│ Staff: Admin                           │
+├────────────────────────────────────────┤
+│ Customer Details:                      │
+│ Name    : Acme Traders Pvt Ltd         │
+│ Address : Industrial Estate, Aluva     │
+│ Contact : 9123456780                   │
+│ GSTIN   : 32AAACA1111A1Z1              │
+│ State   : Kerala (32)                  │
+│ Note    : Site delivery                │
+├────────────────────────────────────────┤
+│Sr│Product        │ Qty│   Rate│  Amount│
+├──┼───────────────┼────┼───────┼────────┤
+│1 │Steel Rod 12mm │2 PC│ 590.00│ 1180.00│
+│  │TMT Fe500      │    │       │        │
+│  │Premium Quality│    │       │        │
+│  │Long Name      │    │       │        │
+│  │ Brand: Tata                         │
+[[LH:0.45]]│  │                                     │
+│  │ MRP 650.00 @ 590.00 (9% off)        │
+[[LH:0.45]]│  │                                     │
+├──┼───────────────┼────┼───────┼────────┤
+│2 │Cement Bag     │1.5 │ 400.00│  600.00│
+[[LH:0.45]]│  │                                     │
+│  │ MRP 420.00 @ 400.00                 │
+[[LH:0.45]]│  │                                     │
+├──┼───────────────┼────┼───────┼────────┤
+│3 │Nails (loose)  │0.75│ 120.00│   90.00│
+├──┼───────────────┼────┼───────┼────────┤
+│4 │Tool Kit Combo │1 PC│ 999.00│  999.00│
+│  │Includes: Hammer (x1), Screwdriver   │
+│  │(x2)                                 │
+├────────────────────────────────────────┤
+│Total                          │ 2869.00│
+│Discount (2%)                  │  -50.00│
+│Scrap Return Amount            │ -100.00│
+│Return Credit                  │  -60.00│
+│Grand Total                    │ 2869.00│
+│Net Total                      │ 2709.00│
+├────────────────────────────────────────┤
+│     * * * YOU SAVED ₹200.00 * * *      │
+├────────────────────────────────────────┤
+│   Taxable│     CGST│     SGST│    Total│
+├──────────┼─────────┼─────────┼─────────┤
+│   2600.00│   134.50│   134.50│   269.00│
+├────────────────────────────────────────┤
+│ Amount in Words:                       │
+│ Two Thousand Seven Hundred Nine ONLY   │
+├────────────────────────────────────────┤
+│ Terms & Conditions:                    │
+│ Goods once sold will not be taken back.│
+│ Thank you!                             │
+├────────────────────────────────────────┤
+│                                        │
+│             For NAFID HARDWARE & PAINTS│
+│                                        │
+│                    Authorised Signatory│
+├────────────────────────────────────────┤
 [[BARCODE:GST-2026-0102]]
-├──────────────────────────────────┤
+├────────────────────────────────────────┤
 [[PROMINENT:Net Total: ₹2709.00]]
-├──────────────────────────────────┤
-│    Thank You... Visit Again !    │
-├──────────────────────────────────┤
+├────────────────────────────────────────┤
+│       Thank You... Visit Again !       │
+├────────────────────────────────────────┤
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-│Bill Points              │   28.00│
-│Used Point               │      20│
-│Used Amt                 │   20.00│
-│Balance Points           │  108.00│
-├──────────────────────────────────┤
-└──────────────────────────────────┘
+│Bill Points                    │   28.00│
+│Used Point                     │      20│
+│Used Amt                       │   20.00│
+│Balance Points                 │  108.00│
+├────────────────────────────────────────┤
+└────────────────────────────────────────┘
 ",
   "gst/classic/5.8": "================================
 *** Nafid Hardware & Paints *** 
@@ -4452,85 +4452,85 @@ Goods once sold will not be take
   * Thank you, visit again! *   
 ================================
 ",
-  "gst/classic/8": "====================================
-  *** Nafid Hardware & Paints ***   
-   MG Road, Kochi, Kerala 682016    
-         Phone: 9876543210          
-       GSTIN: 32ABCDE1234F1Z5       
-      State Code: Kerala (32)       
-        --- TAX INVOICE ---         
-====================================
+  "gst/classic/8": "==========================================
+     *** Nafid Hardware & Paints ***      
+      MG Road, Kochi, Kerala 682016       
+            Phone: 9876543210             
+          GSTIN: 32ABCDE1234F1Z5          
+         State Code: Kerala (32)          
+           --- TAX INVOICE ---            
+==========================================
   Invoice No:  GST-2026-0102
   Date:        2026-10-15T09:15:00Z
   Biller:      Admin
-------------------------------------
-          CUSTOMER DETAILS          
+------------------------------------------
+             CUSTOMER DETAILS             
   Name:    Acme Traders Pvt Ltd
   Phone:   9123456780
   Address: Industrial Estate, Aluva
   GSTIN:   32AAACA1111A1Z1
   State:   Kerala (32)
   Note:    Site delivery
-------------------------------------
-1. Steel Rod 12mm TMT Fe500  1180.00
+------------------------------------------
+1. Steel Rod 12mm TMT Fe500        1180.00
    Premium Quality Long Name
      Brand: Tata
      MRP ₹650.00 → ₹590.00  [9% off]
      2 PCS x 590.00
-2. Cement Bag                 600.00
+2. Cement Bag                       600.00
      MRP ₹420.00 → ₹400.00
      1.5 PCS x 400.00
-3. Nails (loose)               90.00
+3. Nails (loose)                     90.00
      Qty: 30 Pcs
      0.75 PCS x 120.00
-4. Tool Kit Combo             999.00
+4. Tool Kit Combo                   999.00
      1 PCS x 999.00
-------------------------------------
-Subtotal:                    2600.00
-Discount (2%):                -50.00
-Grand Total:                 2869.00
-Scrap Return Amount:         -100.00
-Return Credit:                -60.00
+------------------------------------------
+Subtotal:                          2600.00
+Discount (2%):                      -50.00
+Grand Total:                       2869.00
+Scrap Return Amount:               -100.00
+Return Credit:                      -60.00
 
-====================================
-      ***** GRAND TOTAL *****       
-             ₹ 2869.00              
-====================================
-      ***** NET PAYABLE *****       
-             ₹ 2709.00              
-====================================
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
-------------------------------------
-     *** YOU SAVED ₹200.00 ***      
-------------------------------------
-          PAYMENT VIA UPI           
-              shop@upi              
+==========================================
+         ***** GRAND TOTAL *****          
+                ₹ 2869.00                 
+==========================================
+         ***** NET PAYABLE *****          
+                ₹ 2709.00                 
+==========================================
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
+------------------------------------------
+        *** YOU SAVED ₹200.00 ***         
+------------------------------------------
+             PAYMENT VIA UPI              
+                 shop@upi                 
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-------------------------------------
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
+------------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-    * Thank you, visit again! *     
-====================================
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+       * Thank you, visit again! *        
+==========================================
 ",
   "gst/clean/5.8": "
     Nafid Hardware & Paints     
@@ -4619,11 +4619,11 @@ Goods once sold will not be take
 
 ",
   "gst/clean/8": "
-      Nafid Hardware & Paints       
-   MG Road, Kochi, Kerala 682016    
-           Ph: 9876543210           
-       GSTIN: 32ABCDE1234F1Z5       
-         -- TAX INVOICE --          
+         Nafid Hardware & Paints          
+      MG Road, Kochi, Kerala 682016       
+              Ph: 9876543210              
+          GSTIN: 32ABCDE1234F1Z5          
+            -- TAX INVOICE --             
 
 Date: 2026-10-15T09:15:00Z
 Receipt No: GST-2026-0102
@@ -4636,67 +4636,62 @@ GSTIN: 32AAACA1111A1Z1
 State: Kerala (32)
 Note: Site delivery
 
-No ITEM          QTY    RATE   AMOUNT
-1  Steel Rod   2 PCS  590.00  1180.00
-   12mm TMT                          
-   Fe500                             
-   Premium                           
-   Quality                           
-   Long Name                         
+No ITEM                QTY    RATE   AMOUNT
+1  Steel Rod 12mm    2 PCS  590.00  1180.00
+   TMT Fe500 Premium                       
+   Quality Long Name                       
   Brand: Tata
   MRP 650.00 @ 590.00  (9% off)
-2  Cement Bag  1.5 P  400.00   600.00
+2  Cement Bag        1.5 P  400.00   600.00
   MRP 420.00 @ 400.00
-3  Nails       0.75   120.00    90.00
-   (loose)                           
+3  Nails (loose)     0.75   120.00    90.00
   Qty: 30 Pcs
-4  Tool Kit    1 PCS  999.00   999.00
-   Combo                             
+4  Tool Kit Combo    1 PCS  999.00   999.00
 
-SUB TOTAL :                 ₹2600.00
-DISCOUNT (2%) :              ₹-50.00
-Grand Total :               ₹2869.00
-Scrap Return Amount :       ₹-100.00
-Return Credit :              ₹-60.00
+SUB TOTAL :                       ₹2600.00
+DISCOUNT (2%) :                    ₹-50.00
+Grand Total :                     ₹2869.00
+Scrap Return Amount :             ₹-100.00
+Return Credit :                    ₹-60.00
 
-------------------------------------
-** GRAND TOTAL **           ₹2869.00
-------------------------------------
-** NET PAYABLE **           ₹2709.00
-------------------------------------
+------------------------------------------
+** GRAND TOTAL **                 ₹2869.00
+------------------------------------------
+** NET PAYABLE **                 ₹2709.00
+------------------------------------------
 Amount In Words: 
 Two Thousand Seven Hundred Nine Only.
 
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
 
-         YOU SAVED ₹200.00          
+            YOU SAVED ₹200.00             
 
-          PAYMENT VIA UPI           
-              shop@upi              
+             PAYMENT VIA UPI              
+                 shop@upi                 
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-      Thank You, Visit Again!       
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+         Thank You, Visit Again!          
 
 ",
   "gst/compact/5.8": "Nafid Hardware & Paints
@@ -4769,8 +4764,8 @@ MG Road, Kochi, Kerala 682016
 9876543210
 GST: 32ABCDE1234F1Z5
 Kerala (32)
-         -- TAX INVOICE --          
-------------------------------------
+            -- TAX INVOICE --             
+------------------------------------------
 INV No: GST-2026-0102  2026-10-15T09:15:00Z
 Admin
 Acme Traders Pvt Ltd  9123456780
@@ -4778,55 +4773,55 @@ Industrial Estate, Aluva
 GST: 32AAACA1111A1Z1
 State: Kerala (32)
 Note: Site delivery
-------------------------------------
-Steel Rod 12mm TMT Fe500     1180.00
-Premium Quality Long Name
+------------------------------------------
+Steel Rod 12mm TMT Fe500 Premium   1180.00
+Quality Long Name
  Tata
  MRP 650.00@590.00 (9% off) 2 PCSx590.00
-Cement Bag                    600.00
+Cement Bag                          600.00
  MRP 420.00@400.00 1.5 PCSx400.00
-Nails (loose)                  90.00
+Nails (loose)                        90.00
  0.75 PCSx120.00
-Tool Kit Combo                999.00
+Tool Kit Combo                      999.00
  1 PCSx999.00
-------------------------------------
-Subtotal                     2600.00
-Discount                      -50.00
-Grand Total                  2869.00
-Scrap Return Amount          -100.00
-Return Credit                 -60.00
+------------------------------------------
+Subtotal                           2600.00
+Discount                            -50.00
+Grand Total                        2869.00
+Scrap Return Amount                -100.00
+Return Credit                       -60.00
 
-------------------------------------
-** GRAND TOTAL **            2869.00
-** NET PAYABLE **            2709.00
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
-------------------------------------
+------------------------------------------
+** GRAND TOTAL **                  2869.00
+** NET PAYABLE **                  2709.00
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
+------------------------------------------
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
  ** SAVED ₹200.00 **
-------------------------------------
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
+------------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
 UPI: shop@upi
-------------------------------------
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-             THANK YOU              
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+                THANK YOU                 
 ",
   "gst/dot/5.8": "    Nafid Hardware & Paints     
  MG Road, Kochi, Kerala 682016  
@@ -4899,11 +4894,11 @@ Goods once sold will not be take
 --------------------------------
     Thank you, visit again!     
 ",
-  "gst/dot/8": "      Nafid Hardware & Paints       
-   MG Road, Kochi, Kerala 682016    
-             9876543210             
-        GST: 32ABCDE1234F1Z5        
-            TAX INVOICE             
+  "gst/dot/8": "         Nafid Hardware & Paints          
+      MG Road, Kochi, Kerala 682016       
+                9876543210                
+           GST: 32ABCDE1234F1Z5           
+               TAX INVOICE                
 
 GST-2026-0102     2026-10-15T09:15:00Z
 Staff: Admin
@@ -4913,62 +4908,61 @@ Industrial Estate, Aluva
 GST: 32AAACA1111A1Z1
 State: Kerala (32)
 Note: Site delivery
-Steel Rod 12mm TMT .......... 1180.00
-  Fe500 Premium Quality
-  Long Name
+Steel Rod 12mm TMT Fe500 .......... 1180.00
+  Premium Quality Long Name
   Brand: Tata
   MRP 650.00 @ 590.00 (9% off)
   2 PCSx590.00
-Cement Bag ................... 600.00
+Cement Bag ......................... 600.00
   MRP 420.00 @ 400.00
   1.5 PCSx400.00
-Nails (loose) ................. 90.00
+Nails (loose) ....................... 90.00
   Qty: 30 Pcs
   0.75 PCSx120.00
-Tool Kit Combo ............... 999.00
+Tool Kit Combo ..................... 999.00
   1 PCSx999.00
-------------------------------------
-SUBTOTAL .................... 2600.00
-DISCOUNT (2%) ................ -50.00
-Grand Total ................. 2869.00
-Scrap Return Amount ......... -100.00
-Return Credit ................ -60.00
+------------------------------------------
+SUBTOTAL .......................... 2600.00
+DISCOUNT (2%) ...................... -50.00
+Grand Total ....................... 2869.00
+Scrap Return Amount ............... -100.00
+Return Credit ...................... -60.00
 
-------------------------------------
-         ** GRAND TOTAL **          
-             ₹ 2869.00              
-------------------------------------
-         ** NET PAYABLE **          
-             ₹ 2709.00              
-------------------------------------
-OLD DUE ...................... 500.00
-CASH RCVD ................... 3000.00
-BALANCE DUE .................. 500.00
-PAYMENT DUE DATE ......... 2026-10-30
-------------------------------------
-         YOU SAVED ₹200.00          
-------------------------------------
+------------------------------------------
+            ** GRAND TOTAL **             
+                ₹ 2869.00                 
+------------------------------------------
+            ** NET PAYABLE **             
+                ₹ 2709.00                 
+------------------------------------------
+OLD DUE ............................ 500.00
+CASH RCVD ......................... 3000.00
+BALANCE DUE ........................ 500.00
+PAYMENT DUE DATE ............... 2026-10-30
+------------------------------------------
+            YOU SAVED ₹200.00             
+------------------------------------------
 UPI: shop@upi
-------------------------------------
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-....................................
+------------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+..........................................
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-      Thank you, visit again!       
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+         Thank you, visit again!          
 ",
   "gst/luxe/5.8": "================================
     Nafid Hardware & Paints     
@@ -5053,19 +5047,19 @@ Goods once sold will not be take
     Thank You, Visit Again!     
 --------------------------------
 ",
-  "gst/luxe/8": "====================================
-      Nafid Hardware & Paints       
-   MG Road, Kochi, Kerala 682016    
-            ☎ 9876543210            
-       GSTIN: 32ABCDE1234F1Z5       
-         -- TAX INVOICE --          
-====================================
+  "gst/luxe/8": "==========================================
+         Nafid Hardware & Paints          
+      MG Road, Kochi, Kerala 682016       
+               ☎ 9876543210               
+          GSTIN: 32ABCDE1234F1Z5          
+            -- TAX INVOICE --             
+==========================================
   Invoice: GST-2026-0102
   Date:    2026-10-15T09:15:00Z
   Staff:   Admin
 
-------------------------------------
-              CUSTOMER              
+------------------------------------------
+                 CUSTOMER                 
   Acme Traders Pvt Ltd
   Ph: 9123456780
   Industrial Estate, Aluva
@@ -5073,67 +5067,67 @@ Goods once sold will not be take
   State: Kerala (32)
 
   Note: Site delivery
-------------------------------------
-               ITEMS                
-------------------------------------
-1. Steel Rod 12mm TMT Fe500  1180.00
+------------------------------------------
+                  ITEMS                   
+------------------------------------------
+1. Steel Rod 12mm TMT Fe500        1180.00
    Premium Quality Long Name
      Brand: Tata
      2 PCS × 590.00    MRP ₹650.00 (9% off)
-2. Cement Bag                 600.00
+2. Cement Bag                       600.00
      1.5 PCS × 400.00    MRP ₹420.00
-3. Nails (loose)               90.00
+3. Nails (loose)                     90.00
      Qty: 30 Pcs
      0.75 PCS × 120.00
-4. Tool Kit Combo             999.00
+4. Tool Kit Combo                   999.00
      1 PCS × 999.00
 
-------------------------------------
-Subtotal                    ₹2600.00
-Discount (2%)                -₹50.00
-Grand Total                 ₹2869.00
-Scrap Return Amount         -₹100.00
-Return Credit                -₹60.00
+------------------------------------------
+Subtotal                          ₹2600.00
+Discount (2%)                      -₹50.00
+Grand Total                       ₹2869.00
+Scrap Return Amount               -₹100.00
+Return Credit                      -₹60.00
 
-====================================
-      * * * GRAND TOTAL * * *       
-             ₹ 2869.00              
-====================================
-      * * * NET PAYABLE * * *       
-             ₹ 2709.00              
-====================================
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
-------------------------------------
-         You Saved ₹200.00          
-------------------------------------
-          PAYMENT VIA UPI           
-              shop@upi              
+==========================================
+         * * * GRAND TOTAL * * *          
+                ₹ 2869.00                 
+==========================================
+         * * * NET PAYABLE * * *          
+                ₹ 2709.00                 
+==========================================
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
+------------------------------------------
+            You Saved ₹200.00             
+------------------------------------------
+             PAYMENT VIA UPI              
+                 shop@upi                 
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-------------------------------------
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
+------------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-      Thank You, Visit Again!       
-------------------------------------
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+         Thank You, Visit Again!          
+------------------------------------------
 ",
   "gst/modern/5.8": "  ✦ Nafid Hardware & Paints ✦   
  MG Road, Kochi, Kerala 682016  
@@ -5215,84 +5209,84 @@ Goods once sold will not be take
          ✦ Thank You! ✦         
           Visit Again           
 ",
-  "gst/modern/8": "    ✦ Nafid Hardware & Paints ✦     
-   MG Road, Kochi, Kerala 682016    
-           📞 9876543210            
-        GST: 32ABCDE1234F1Z5        
-         State: Kerala (32)         
-          [ TAX INVOICE ]           
-====================================
+  "gst/modern/8": "       ✦ Nafid Hardware & Paints ✦        
+      MG Road, Kochi, Kerala 682016       
+              📞 9876543210               
+           GST: 32ABCDE1234F1Z5           
+            State: Kerala (32)            
+             [ TAX INVOICE ]              
+==========================================
   INV:  GST-2026-0102
   Date: 2026-10-15T09:15:00Z
   Staff: Admin
-------------------------------------
-            [ CUSTOMER ]            
+------------------------------------------
+               [ CUSTOMER ]               
   Acme Traders Pvt Ltd
   Ph: 9123456780
   Industrial Estate, Aluva
   GSTIN: 32AAACA1111A1Z1
   State: Kerala (32)
   Note: Site delivery
-------------------------------------
-             [ ITEMS ]              
-▸ Steel Rod 12mm TMT Fe500   1180.00
+------------------------------------------
+                [ ITEMS ]                 
+▸ Steel Rod 12mm TMT Fe500         1180.00
   Premium Quality Long Name
   Brand: Tata
   MRP ₹650.00 → ₹590.00 (~ 9% off)
   2 PCS x 590.00
-▸ Cement Bag                  600.00
+▸ Cement Bag                        600.00
   MRP ₹420.00 → ₹400.00
   1.5 PCS x 400.00
-▸ Nails (loose)                90.00
+▸ Nails (loose)                      90.00
   0.75 PCS x 120.00
-▸ Tool Kit Combo              999.00
+▸ Tool Kit Combo                    999.00
   1 PCS x 999.00
-------------------------------------
-SUBTOTAL                     2600.00
-DISCOUNT (2%)                 -50.00
-Grand Total                  2869.00
-Scrap Return Amount          -100.00
-Return Credit                 -60.00
+------------------------------------------
+SUBTOTAL                           2600.00
+DISCOUNT (2%)                       -50.00
+Grand Total                        2869.00
+Scrap Return Amount                -100.00
+Return Credit                       -60.00
 
-------------------------------------
-      >> ** GRAND TOTAL ** <<       
-             ₹ 2869.00              
-------------------------------------
-      >> ** NET PAYABLE ** <<       
-             ₹ 2709.00              
-------------------------------------
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
-------------------------------------
-          ✦ Saved 200.00 ✦          
-------------------------------------
-            [ PAYMENT ]             
-              shop@upi              
+------------------------------------------
+         >> ** GRAND TOTAL ** <<          
+                ₹ 2869.00                 
+------------------------------------------
+         >> ** NET PAYABLE ** <<          
+                ₹ 2709.00                 
+------------------------------------------
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
+------------------------------------------
+             ✦ Saved 200.00 ✦             
+------------------------------------------
+               [ PAYMENT ]                
+                 shop@upi                 
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-------------------------------------
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
+------------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-           ✦ Thank You! ✦           
-            Visit Again             
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+              ✦ Thank You! ✦              
+               Visit Again                
 ",
   "gst/slim/5.8": "Nafid Hardware & Paints
 MG Road, Kochi, Kerala 682016
@@ -5364,7 +5358,7 @@ Thank You
 MG Road, Kochi, Kerala 682016
 9876543210
 GST: 32ABCDE1234F1Z5
-         -- TAX INVOICE --          
+            -- TAX INVOICE --             
 
 GST-2026-0102  2026-10-15T09:15:00Z
 Admin
@@ -5375,53 +5369,53 @@ Industrial Estate, Aluva
 GST: 32AAACA1111A1Z1
 State: Kerala (32)
 Note: Site delivery
-Steel Rod 12mm TMT Fe500     1180.00
-Premium Quality Long Name
+Steel Rod 12mm TMT Fe500 Premium   1180.00
+Quality Long Name
  Tata
  2 PCSx590.00  MRP 650.00 (9% off)
-Cement Bag                    600.00
+Cement Bag                          600.00
  1.5 PCSx400.00  MRP 420.00
-Nails (loose)                  90.00
+Nails (loose)                        90.00
  Qty: 30 Pcs
  0.75 PCSx120.00
-Tool Kit Combo                999.00
+Tool Kit Combo                      999.00
  1 PCSx999.00
 
-SUBTOTAL                     2600.00
-DISCOUNT                      -50.00
-Grand Total                  2869.00
-Scrap Return Amount          -100.00
-Return Credit                 -60.00
+SUBTOTAL                           2600.00
+DISCOUNT                            -50.00
+Grand Total                        2869.00
+Scrap Return Amount                -100.00
+Return Credit                       -60.00
 
-** GRAND TOTAL **            2869.00
-** NET PAYABLE **            2709.00
+** GRAND TOTAL **                  2869.00
+** NET PAYABLE **                  2709.00
 
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
 
 YOU SAVED ₹200.00
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
 
 UPI: shop@upi
 
-           LOYALTY POINTS           
-Previous Balance                 100
-Earned This Bill                 +28
-Redeemed                         -20
-Discount Value                -20.00
-Balance                          108
-------------------------------------
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
 
 Thank You
 ",
@@ -5501,19 +5495,19 @@ Goods once sold will not be take
        Have a great day!        
 ================================
 ",
-  "gst/standard/8": "====================================
-      Nafid Hardware & Paints       
-   MG Road, Kochi, Kerala 682016    
-           Ph: 9876543210           
-       GSTIN: 32ABCDE1234F1Z5       
-         State: Kerala (32)         
-         -- TAX INVOICE --          
-====================================
+  "gst/standard/8": "==========================================
+         Nafid Hardware & Paints          
+      MG Road, Kochi, Kerala 682016       
+              Ph: 9876543210              
+          GSTIN: 32ABCDE1234F1Z5          
+            State: Kerala (32)            
+            -- TAX INVOICE --             
+==========================================
   INV No:  GST-2026-0102
   Date:    2026-10-15T09:15:00Z
   Staff:   Admin
-------------------------------------
-              CUSTOMER              
+------------------------------------------
+                 CUSTOMER                 
   Acme Traders Pvt Ltd
   Ph: 9123456780
   Industrial Estate, Aluva
@@ -5522,59 +5516,58 @@ Goods once sold will not be take
   Transport: Fast Movers Veh:KL-07-AB-1234
   E-Way Bill: EWB123456789
   Note: Site delivery
-------------------------------------
-#  Item                 Qty   Amount
-------------------------------------
-1. Steel Rod 12mm TMT  2 PC  1180.00
-   Fe500 Premium                    
-   Quality Long Name                
+------------------------------------------
+#  Item                       Qty   Amount
+------------------------------------------
+1. Steel Rod 12mm TMT Fe500  2 PC  1180.00
+   Premium Quality Long Name              
   Brand: Tata
   MRP ₹650.00 → ₹590.00  (9% off)
-2. Cement Bag          1.5    600.00
+2. Cement Bag                1.5    600.00
   MRP ₹420.00 → ₹400.00
-3. Nails (loose)       0.75    90.00
-4. Tool Kit Combo      1 PC   999.00
+3. Nails (loose)             0.75    90.00
+4. Tool Kit Combo            1 PC   999.00
   [COMBO OFFER]
-  Includes: Hammer (x1), Screwdriver
-------------------------------------
-SUBTOTAL                     2600.00
-DISCOUNT (2%)                 -50.00
-Grand Total                  2869.00
-Scrap Return Amount          -100.00
-Return Credit                 -60.00
+  Includes: Hammer (x1), Screwdriver (x2)
+------------------------------------------
+SUBTOTAL                           2600.00
+DISCOUNT (2%)                       -50.00
+Grand Total                        2869.00
+Scrap Return Amount                -100.00
+Return Credit                       -60.00
 
-====================================
-         ** GRAND TOTAL **          
-             ₹ 2869.00              
-====================================
-         ** NET PAYABLE **          
-             ₹ 2709.00              
-====================================
-OLD DUE                       500.00
-CASH RCVD                    3000.00
-BALANCE DUE                   500.00
-PAYMENT DUE DATE          2026-10-30
-------------------------------------
-      ++ You Saved ₹200.00 ++       
-------------------------------------
-            TAX BREAKUP             
-  Taxable     CGST     SGST    Total
-  2600.00   134.50   134.50   269.00
-------------------------------------
-            PAY VIA UPI             
-              shop@upi              
+==========================================
+            ** GRAND TOTAL **             
+                ₹ 2869.00                 
+==========================================
+            ** NET PAYABLE **             
+                ₹ 2709.00                 
+==========================================
+OLD DUE                             500.00
+CASH RCVD                          3000.00
+BALANCE DUE                         500.00
+PAYMENT DUE DATE                2026-10-30
+------------------------------------------
+         ++ You Saved ₹200.00 ++          
+------------------------------------------
+               TAX BREAKUP                
+ Taxable    CGST    SGST    IGST Total GST
+ 2600.00  134.50  134.50    0.00    269.00
+------------------------------------------
+               PAY VIA UPI                
+                 shop@upi                 
 
 [[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-------------------------------------
+------------------------------------------
 
-------------------------------------
-         TERMS & CONDITIONS         
-Goods once sold will not be taken ba
-             Thank you!             
-------------------------------------
-     Thank you for your visit!      
-         Have a great day!          
-====================================
+------------------------------------------
+            TERMS & CONDITIONS            
+ Goods once sold will not be taken back.  
+                Thank you!                
+------------------------------------------
+        Thank you for your visit!         
+            Have a great day!             
+==========================================
 ",
   "gst/unknown-style/5.8": "",
   "gst/unknown-style/8": "",

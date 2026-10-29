@@ -78,5 +78,9 @@ describe('BOS conversion copies never collect a second payment', () => {
       });
       expect(statement.get(...params)).toMatchObject({ totalSales: amount, totalInvoices: 1 });
     }
+    const convertedSummary = getInvoicesSummaryStatement(db, {
+      activeTenantId: 'shop', invoice_type: 'CONVERTED_GST', dateRange: null,
+    });
+    expect(convertedSummary.statement.get(...convertedSummary.params)).toMatchObject({ totalSales: 118, totalInvoices: 1 });
   });
 });

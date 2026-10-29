@@ -547,7 +547,7 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
       ? (payment_method.toUpperCase() === 'BANK_TRANSFER' ? 'bank_transfer' : payment_method.toLowerCase())
       : null;
 
-    const isTaxFiling = accounting_view === 'TAX_FILING';
+    const isTaxFiling = accounting_view === 'TAX_FILING' || invoice_type === 'CONVERTED_GST';
     const isBosOnly = accounting_view === 'REAL_SALES';
 
     let query = isTaxFiling ? `
@@ -672,6 +672,6 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
     }
 
     // Revenue figures count only revenue bills; `listedStatement` counts every bill the list shows (filing-only too).
-    const statement = invoice_type === 'FILING_ONLY' ? db.prepare(query) : db.prepare(`${query} AND ${countsInRevenue('i')}`);
+    const statement = (invoice_type === 'FILING_ONLY' || invoice_type === 'CONVERTED_GST') ? db.prepare(query) : db.prepare(`${query} AND ${countsInRevenue('i')}`);
     return { statement, listedStatement: db.prepare(query), params };
 }

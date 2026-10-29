@@ -170,24 +170,23 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
   let mrpW: number | null;
 
   if (charsPerLine >= 42) {
-    // 6 cols: Sr(2) Product Qty(4) MRP(6) Rate(6) Amt(7)
-    idxW = 2; qtyW = 4; mrpW = 6; rateW = 6; amtW = 7;
-    nameW = (charsPerLine - 7) - (idxW + qtyW + mrpW + rateW + amtW);
-    colWidths = isRateQty ? [idxW, nameW, rateW, mrpW, qtyW, amtW] : [idxW, nameW, qtyW, mrpW, rateW, amtW];
-    colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'MRP', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'MRP', 'Rate', 'Amount'];
-    colAligns = ['center', 'left', 'right', 'right', 'right', 'right'];
+    // 5 cols: Sr(2) Product Qty(4) Rate(7) Amt(8)
+    idxW = 2; qtyW = 4; mrpW = null; rateW = 7; amtW = 8;
+    nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
+    colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
+    colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
+    colAligns = ['center', 'left', 'right', 'right', 'right'];
   } else if (charsPerLine >= 36) {
-    // 5 cols: Sr(2) Product Qty(3) Rate(6) Amt(7)
-    idxW = 2; qtyW = 3; mrpW = null; rateW = 6; amtW = 7;
+    // 5 cols: Sr(2) Product Qty(3) Rate(7) Amt(8)
+    idxW = 2; qtyW = 3; mrpW = null; rateW = 7; amtW = 8;
     nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
     colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
     colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
     colAligns = ['center', 'left', 'right', 'right', 'right'];
   } else {
-    // 5 cols: Sr(2) Product Qty(3) Rate(5) Amt(5)
-    idxW = 2; qtyW = 3; mrpW = null; rateW = 5; amtW = 5;
-    nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
-    if (nameW < 4) { nameW = 4; }
+    // 5 cols for narrow paper: Sr(2) Product Qty(3) Rate(7) Amt(7)
+    idxW = 2; qtyW = 3; mrpW = null; rateW = 7; amtW = 7;
+    nameW = Math.max(4, (charsPerLine - 6) - (idxW + qtyW + rateW + amtW));
     colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
     colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amt'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amt'];
     colAligns = ['center', 'left', 'right', 'right', 'right'];
@@ -279,9 +278,13 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
     return B_LINE(l + '│' + v);
   };
 
-  text += tRow('Total', data.subtotal.toFixed(2));
-  text += tRow('Grand Total', data.grandTotal.toFixed(2));
-  if (data.discount > 0) {
+  const itemsTotal = data.items.reduce((s, item) => s + (Number(item.total) || 0), 0);
+  const grossSubtotal = itemsTotal > 0 ? itemsTotal : data.subtotal;
+
+  text += tRow('Total', grossSubtotal.toFixed(2));
+  if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+    text += tRow('Bonus', `+${data.extraBonus.toFixed(2)}`);
+  } else if (data.discount > 0) {
     const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `Discount (${data.discountValue}%)` : 'Discount';
     text += tRow(dLabel, `-${data.discount.toFixed(2)}`);
   }
@@ -293,13 +296,19 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       if (Math.abs(refundRoundOff) >= 0.005) text += tRow('Round Off', `${refundRoundOff >= 0 ? '+' : ''}${refundRoundOff.toFixed(2)}`);
       text += tRow('Refund Amount', `${Math.max(0, refundTotal).toFixed(2)}`);
     } else {
+      text += tRow('Grand Total', data.grandTotal.toFixed(2));
       if (Math.abs(roundOff) >= 0.005) text += tRow('Round Off', `${roundOff >= 0 ? '+' : ''}${roundOff.toFixed(2)}`);
       text += tRow('Net Total', `${Math.max(0, netTotal).toFixed(2)}`);
     }
   } else {
     const gtRoundOff = Math.round(data.grandTotal) - data.grandTotal;
-    if (Math.abs(gtRoundOff) >= 0.005) text += tRow('Round Off', `${gtRoundOff >= 0 ? '+' : ''}${gtRoundOff.toFixed(2)}`);
-    text += tRow('Net Total', `${Math.max(0, Math.round(data.grandTotal)).toFixed(2)}`);
+    if (Math.abs(gtRoundOff) >= 0.005) {
+      text += tRow('Grand Total', data.grandTotal.toFixed(2));
+      text += tRow('Round Off', `${gtRoundOff >= 0 ? '+' : ''}${gtRoundOff.toFixed(2)}`);
+      text += tRow('Net Total', `${Math.max(0, Math.round(data.grandTotal)).toFixed(2)}`);
+    } else {
+      text += tRow('Grand Total', `${data.grandTotal.toFixed(2)}`);
+    }
   }
 
   // ── You Saved ─────────────────────────────────────────────────────────────
@@ -324,22 +333,43 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
     let taxAligns: ('left' | 'right' | 'center')[];
 
     const hasIgst = Boolean(data.igst && data.igst > 0);
+    const hasCgstSgst = Boolean((data.cgst && data.cgst > 0) || (data.sgst && data.sgst > 0));
+    const taxableVal = (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05 ? data.subtotal : Math.max(0, data.grandTotal - data.tax)).toFixed(2);
 
     if (charsPerLine >= 42) {
-      // 5 columns for 80mm/48-char printers
-      const taxSum = charsPerLine - 6;
-      const tw = Math.floor(taxSum / 5);
-      const twLast = taxSum - tw * 4;
-      taxWidths = [tw, tw, tw, tw, twLast];
-      taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
-      taxAligns = ['right', 'right', 'right', 'right', 'right'];
-      taxValues = [
-        data.subtotal.toFixed(2),
-        data.cgst ? data.cgst.toFixed(2) : '0.00',
-        data.sgst ? data.sgst.toFixed(2) : '0.00',
-        data.igst ? data.igst.toFixed(2) : '0.00',
-        data.tax.toFixed(2),
-      ];
+      if (!hasIgst || !hasCgstSgst) {
+        if (hasIgst) {
+          // 3 columns: Taxable, IGST, Total
+          const taxSum = charsPerLine - 4;
+          const wTaxable = Math.floor(taxSum * 0.36);
+          const wIgst = Math.floor(taxSum * 0.32);
+          const wTotal = taxSum - wTaxable - wIgst;
+          taxWidths = [wTaxable, wIgst, wTotal];
+          taxCols = ['Taxable', 'IGST', 'Total'];
+          taxAligns = ['right', 'right', 'right'];
+          taxValues = [taxableVal, (data.igst || 0).toFixed(2), data.tax.toFixed(2)];
+        } else {
+          // 4 columns: Taxable, CGST, SGST, Total (Clean Kerala Intra-State standard)
+          const taxSum = charsPerLine - 5;
+          const wTaxable = Math.max(8, Math.floor(taxSum * 0.28));
+          const wCgst = Math.floor((taxSum - wTaxable) / 3);
+          const wSgst = wCgst;
+          const wTotal = taxSum - wTaxable - wCgst - wSgst;
+          taxWidths = [wTaxable, wCgst, wSgst, wTotal];
+          taxCols = ['Taxable', 'CGST', 'SGST', 'Total'];
+          taxAligns = ['right', 'right', 'right', 'right'];
+          taxValues = [taxableVal, (data.cgst || 0).toFixed(2), (data.sgst || 0).toFixed(2), data.tax.toFixed(2)];
+        }
+      } else {
+        // 5 columns when both IGST and CGST exist (Inter-state mixed)
+        const taxSum = charsPerLine - 6;
+        const tw = Math.floor(taxSum / 5);
+        const twLast = taxSum - tw * 4;
+        taxWidths = [tw, tw, tw, tw, twLast];
+        taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total'];
+        taxAligns = ['right', 'right', 'right', 'right', 'right'];
+        taxValues = [taxableVal, (data.cgst || 0).toFixed(2), (data.sgst || 0).toFixed(2), (data.igst || 0).toFixed(2), data.tax.toFixed(2)];
+      }
     } else if (hasIgst) {
       // 3 columns for Inter-State on narrow thermal printer
       const taxSum = charsPerLine - 4;
@@ -350,7 +380,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       taxCols = ['Taxable', 'IGST', 'Total GST'];
       taxAligns = ['right', 'right', 'right'];
       taxValues = [
-        data.subtotal.toFixed(2),
+        (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05 ? data.subtotal : Math.max(0, data.grandTotal - data.tax)).toFixed(2),
         data.igst ? data.igst.toFixed(2) : '0.00',
         data.tax.toFixed(2),
       ];
@@ -365,7 +395,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       taxCols = ['Taxable', 'CGST', 'SGST', 'Total'];
       taxAligns = ['right', 'right', 'right', 'right'];
       taxValues = [
-        data.subtotal.toFixed(2),
+        (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05 ? data.subtotal : Math.max(0, data.grandTotal - data.tax)).toFixed(2),
         data.cgst ? data.cgst.toFixed(2) : '0.00',
         data.sgst ? data.sgst.toFixed(2) : '0.00',
         data.tax.toFixed(2),
@@ -431,7 +461,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
   }
 
   // ── Prominent Total/Refund ────────────────────────────────────────────────
-  const finalAmountLabel = refundAmount > 0 ? 'Refund Amount' : 'Net Total';
+  const finalAmountLabel = refundAmount > 0 ? 'Refund Amount' : (totalDeductions > 0 || Math.abs(Math.round(data.grandTotal) - data.grandTotal) >= 0.005 ? 'Net Total' : 'Grand Total');
   const finalAmountValue = refundAmount > 0 ? Math.max(0, refundTotal) : Math.max(0, netTotal);
   text += `[[PROMINENT:${finalAmountLabel}: \u20B9${finalAmountValue.toFixed(2)}]]\n`;
   text += B_MID();

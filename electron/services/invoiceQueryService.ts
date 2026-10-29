@@ -60,7 +60,9 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
       : null;
     const filingVisibility = readFilingVisibility(db, activeTenantId);
     const { statement, listedStatement, params } = invoicesSql.getInvoicesSummaryStatement(db, { activeTenantId, onlyUserInvoices: Boolean(filters?.only_user_invoices), user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, dateRange, showFilingB2b: filingVisibility.showB2b, showFilingB2c: filingVisibility.showB2c });
-    const row = statement.get(...params) as Record<string, number>;
+    const isTaxFilingOrFilingOnly = accounting_view === 'TAX_FILING' || invoice_type === 'FILING_ONLY' || invoice_type === 'CONVERTED_GST';
+    const activeStmt = isTaxFilingOrFilingOnly ? listedStatement : statement;
+    const row = activeStmt.get(...params) as Record<string, number>;
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
     const totalSalesBeforeDeductions = row ? Number(row.totalSalesBeforeDeductions) || 0 : 0;
     const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
