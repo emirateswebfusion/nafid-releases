@@ -216,7 +216,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         finalBarcode = { ...finalBarcode, ...cleanLegacy };
       }
 
-      let finalReceipt: { type: string; ip: string; port: number; deviceName: string; receiptWidthCm?: number | string | null } = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
+      let finalReceipt: { type: string; ip: string; port: number; deviceName: string; receiptWidthCm?: number | string | null } = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 8.0 };
       if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
         const cleanReceipt = { ...pReceipt };
         for (let i = 0; i <= 20; i++) delete (cleanReceipt as Record<string, unknown>)[String(i)];
@@ -364,8 +364,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       }
 
       let finalPrintFmt: 'thermal' | 'a4' | 'half-a4' = 'thermal';
-      let finalPrintWidth = 58;
-      let finalThermalStyle: SettingsFormState['thermalStyle'] = 'standard';
+      let finalPrintWidth = 80;
+      let finalThermalStyle: SettingsFormState['thermalStyle'] = 'boxed';
       let finalA4Style: SettingsFormState['a4Style'] = 'standard';
       let finalA5Orientation: 'horizontal' | 'vertical' = 'horizontal';
       let finalShowOffers = true;

@@ -171,21 +171,21 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
 
   if (charsPerLine >= 42) {
     // 5 cols: Sr(2) Product Qty(4) Rate(7) Amt(8)
-    idxW = 2; qtyW = 4; mrpW = null; rateW = 7; amtW = 8;
+    idxW = 2; qtyW = 6; mrpW = null; rateW = 7; amtW = 8;
     nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
     colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
     colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
     colAligns = ['center', 'left', 'right', 'right', 'right'];
   } else if (charsPerLine >= 36) {
     // 5 cols: Sr(2) Product Qty(3) Rate(7) Amt(8)
-    idxW = 2; qtyW = 3; mrpW = null; rateW = 7; amtW = 8;
+    idxW = 2; qtyW = 6; mrpW = null; rateW = 7; amtW = 8;
     nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
     colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
     colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
     colAligns = ['center', 'left', 'right', 'right', 'right'];
   } else {
     // 5 cols for narrow paper: Sr(2) Product Qty(3) Rate(7) Amt(7)
-    idxW = 2; qtyW = 3; mrpW = null; rateW = 7; amtW = 7;
+    idxW = 2; qtyW = 5; mrpW = null; rateW = 7; amtW = 7;
     nameW = Math.max(4, (charsPerLine - 6) - (idxW + qtyW + rateW + amtW));
     colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
     colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amt'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amt'];
@@ -296,19 +296,13 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       if (Math.abs(refundRoundOff) >= 0.005) text += tRow('Round Off', `${refundRoundOff >= 0 ? '+' : ''}${refundRoundOff.toFixed(2)}`);
       text += tRow('Refund Amount', `${Math.max(0, refundTotal).toFixed(2)}`);
     } else {
-      text += tRow('Grand Total', data.grandTotal.toFixed(2));
       if (Math.abs(roundOff) >= 0.005) text += tRow('Round Off', `${roundOff >= 0 ? '+' : ''}${roundOff.toFixed(2)}`);
       text += tRow('Net Total', `${Math.max(0, netTotal).toFixed(2)}`);
     }
   } else {
     const gtRoundOff = Math.round(data.grandTotal) - data.grandTotal;
-    if (Math.abs(gtRoundOff) >= 0.005) {
-      text += tRow('Grand Total', data.grandTotal.toFixed(2));
-      text += tRow('Round Off', `${gtRoundOff >= 0 ? '+' : ''}${gtRoundOff.toFixed(2)}`);
-      text += tRow('Net Total', `${Math.max(0, Math.round(data.grandTotal)).toFixed(2)}`);
-    } else {
-      text += tRow('Grand Total', `${data.grandTotal.toFixed(2)}`);
-    }
+    if (Math.abs(gtRoundOff) >= 0.005) text += tRow('Round Off', `${gtRoundOff >= 0 ? '+' : ''}${gtRoundOff.toFixed(2)}`);
+    text += tRow('Net Total', `${Math.max(0, Math.round(data.grandTotal)).toFixed(2)}`);
   }
 
   // ── You Saved ─────────────────────────────────────────────────────────────

@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react';
-import { X, Download, RotateCcw, Zap } from 'lucide-react';
+import { X, RotateCcw, Zap } from 'lucide-react';
 import clsx from 'clsx';
-import { appApi } from '../../data/app';
-import { isDesktopRuntime } from '../../data/client';
-import { bridgeEvents } from '../../data/events';
+import { getReleaseNotesSummary } from '../settings/releaseNotesUtils';
+import { useUpdateStore } from '../../store/updateStore';
 
 interface UpdateBannerProps {
   onOpenSettings: () => void;
 }
 
 export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
-  const [updateReady, setUpdateReady] = useState(false);
+  const { updateInfo, updateReady, installUpdate, init } = useUpdateStore();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -26,21 +24,8 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
       localStorage.removeItem('vendora-update-banner-dismissed');
     }
 
-    if (!isDesktopRuntime()) return;
-
-    bridgeEvents.onUpdateStatus((status: string) => {
-      if (status === 'ready-to-install') setUpdateReady(true);
-    });
-
-    bridgeEvents.onUpdateInfo((info) => {
-      if (info) {
-        setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
-        appApi.downloadUpdate().catch(() => {});
-      }
-    });
-
-    appApi.checkForUpdates().catch(() => {});
-  }, []);
+    init();
+  }, [init]);
 
   if (!updateInfo && !updateReady) return null;
   if (dismissed) return null;
@@ -51,31 +36,23 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
   };
 
   const handleInstall = () => {
-    appApi.installUpdate();
+    installUpdate();
   };
 
   return (
     <div className="relative z-40 mx-2 mt-2 mb-0 animate-in slide-in-from-top-2 fade-in duration-300">
       <div className={clsx(
-        'relative overflow-hidden rounded-2xl border shadow-lg backdrop-blur-md',
+        'flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border shadow-sm backdrop-blur-md',
         updateReady
-          ? 'bg-emerald-500/10 border-emerald-500/30'
-          : 'bg-blue-500/10 border-blue-500/30'
+          ? 'bg-emerald-500/10 border-emerald-500/30 text-foreground'
+          : 'bg-blue-500/10 border-blue-500/30 text-foreground'
       )}>
-        <div className={clsx(
-          'absolute inset-0',
-          updateReady
-            ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.06),transparent_70%)]'
-            : 'bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.06),transparent_70%)]'
-        )} />
-        <div className="relative px-4 py-3 flex items-center gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <div className={clsx(
             'p-2 rounded-xl shrink-0',
-            updateReady
-              ? 'bg-emerald-500/15 text-emerald-600'
-              : 'bg-blue-500/15 text-blue-600'
+            updateReady ? 'bg-emerald-500/20 text-emerald-600' : 'bg-blue-500/20 text-blue-600'
           )}>
-            {updateReady ? <RotateCcw className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+            {updateReady ? <RotateCcw className="w-4 h-4 animate-spin-reverse" /> : <Zap className="w-4 h-4 fill-blue-500/20" />}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -93,9 +70,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
             </div>
             {updateInfo?.releaseNotes && !updateReady && (
               <p className="text-[10px] text-muted-foreground/80 mt-0.5 line-clamp-1">
-                {typeof updateInfo.releaseNotes === 'string'
-                  ? updateInfo.releaseNotes.split('\n')[0]
-                  : 'New features and improvements'}
+                {getReleaseNotesSummary(updateInfo.releaseNotes)}
               </p>
             )}
             {updateReady && (
@@ -104,31 +79,31 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {updateReady ? (
-              <button
-                onClick={handleInstall}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all active:scale-95 cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Update →
-              </button>
-            ) : (
-              <button
-                onClick={() => { handleDismiss(); onOpenSettings(); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 border border-blue-500/30 transition-all active:scale-95 cursor-pointer"
-              >
-                <Zap className="w-3 h-3 fill-blue-500/20" />
-                See What's New
-              </button>
-            )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {updateReady ? (
             <button
-              onClick={handleDismiss}
-              className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-background/50 transition-all cursor-pointer"
+              onClick={handleInstall}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all active:scale-95 cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3 h-3" />
+              Update →
             </button>
-          </div>
+          ) : (
+            <button
+              onClick={() => { handleDismiss(); onOpenSettings(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 border border-blue-500/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <Zap className="w-3 h-3 fill-blue-500/20" />
+              See What's New
+            </button>
+          )}
+          <button
+            onClick={handleDismiss}
+            className="p-1.5 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-background/50 transition-all cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
     </div>

@@ -392,24 +392,6 @@ export function buildShopClosingSummaryData(
       }
     }
 
-    // Also check invoices for scrap deductions
-    const invScrapRow = shopClosingReportSql.countInvoicesByConvertedFrom_(db)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>;
-
-    if (invScrapRow && Number(invScrapRow.total_inv_scrap) > 0) {
-      const invScrapAmt = Math.round(Number(invScrapRow.total_inv_scrap) * 100) / 100;
-      scrapSummary.totalAmount += invScrapAmt;
-      scrapSummary.count += Number(invScrapRow.inv_scrap_count || 1);
-      scrapSummary.items.push({
-        type: 'PURCHASE',
-        categoryName: 'Bill Scrap Deductions',
-        quantity: Number(invScrapRow.inv_scrap_count || 1),
-        unit: 'bills',
-        rate: invScrapAmt,
-        totalAmount: invScrapAmt,
-      });
-    }
-
     scrapSummary.totalAmount = Math.round(scrapSummary.totalAmount * 100) / 100;
   } catch (err) {
     console.error('[ShopClosing] Scrap query error:', (err as Error).message);

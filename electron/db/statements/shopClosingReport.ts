@@ -115,22 +115,6 @@ export const findScrapTransactions = (db: Db) => db.prepare(`
         ORDER BY st.transaction_date ASC
       `);
 
-export const countInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
-        SELECT COUNT(*) AS inv_scrap_count, COALESCE(SUM(scrap_deduction), 0) AS total_inv_scrap
-        FROM invoices
-        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-          AND scrap_deduction > 0
-          AND (is_deleted IS NULL OR is_deleted = 0)
-          AND ${counterSalePredicate()} AND ${countsInRevenue()}
-          AND (
-            date(COALESCE(settled_at, created_at)) = ?
-            OR date(COALESCE(settled_at, created_at)) = ?
-            OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
-            OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
-            OR COALESCE(settled_at, created_at) LIKE ?
-          )
-      `);
-
 export const countReturns = (db: Db) => db.prepare(`
         SELECT COUNT(*) AS ret_count, COALESCE(SUM(grand_total), 0) AS ret_total
         FROM returns

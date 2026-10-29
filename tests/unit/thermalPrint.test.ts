@@ -260,11 +260,40 @@ it('renders boxed 80mm receipt with strict 42-char lines and exact column alignm
   expect(rendered).toContain('2250.00');
   expect(rendered).not.toMatch(/│\s*2250\.0\s*│/);
 
-  // Totals must have Total, Discount, and Grand Total
+  // Totals must have Total, Discount, and Net Total (clean single final total)
   expect(rendered).toContain('Total');
   expect(rendered).toContain('Discount');
-  expect(rendered).toContain('Grand Total');
+  expect(rendered).toContain('Net Total');
 
   // Tax Breakup must have clean 4-column layout for intra-state
   expect(rendered).toMatch(/│\s*Taxable\s*│\s*CGST\s*│\s*SGST\s*│\s*Total\s*│/);
+});
+
+it('formats scrap and weight items with exactly 3 digits after the dot (e.g. 1.000)', () => {
+  const scrapReceipt: ReceiptData = {
+    shopName: 'PAATHRA PEEDIKA',
+    invoiceNumber: 'SCRAP-101',
+    date: '2026-10-29T11:31:07',
+    items: [
+      { name: 'Copper Scrap', quantity: 1, unit: 'KG', billing_type: 'WEIGHT', unit_price: 680, total: 680 },
+      { name: 'Iron Scrap', quantity: 2.5, unit: 'KG', billing_type: 'WEIGHT', unit_price: 35, total: 87.5 },
+    ],
+    subtotal: 767.5,
+    tax: 0,
+    discount: 0,
+    grandTotal: 767.5,
+    invoiceType: 'SCRAP',
+  };
+
+  const rendered = generateReceiptText(scrapReceipt, 8.0, 42, 'boxed');
+  // Weight quantity must be 3 decimal digits: 1.000 and 2.500
+  expect(rendered).toContain('1.000');
+  expect(rendered).toContain('2.500');
+  // Lines must remain strictly 42 chars
+  const lines = rendered.split('\n').filter(l => l.length > 0);
+  lines.forEach((line) => {
+    if (!line.startsWith('[[') && (line.startsWith('│') || line.startsWith('┌') || line.startsWith('├') || line.startsWith('└'))) {
+      expect(line.length).toBe(42);
+    }
+  });
 });

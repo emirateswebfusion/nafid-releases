@@ -209,14 +209,12 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
   }
 
-  const fontSize = widthMm <= 58 ? '10px' : '11.5px';
+  const fontSize = widthMm <= 58 ? '10px' : '12px';
   const contentBody = isBillStyle
-    ? `<div style="border:2px solid black;padding:6px 3px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
+    ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
     : rowsHtml;
 
   const offset = Number.isFinite(leftMarginOffsetMm) ? leftMarginOffsetMm : 0;
-  const lineCount = activeLines.length;
-  const estimatedPageHeightMm = Math.max(100, Math.ceil(lineCount * (widthMm <= 58 ? 4.2 : 5.0) + 60));
 
   return `<!DOCTYPE html>
 <html>
@@ -224,7 +222,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <meta charset="utf-8">
 <style>
   @page {
-    size: ${widthMm}mm ${estimatedPageHeightMm}mm;
+    size: ${widthMm}mm auto;
     margin: 0;
   }
   * { box-sizing: border-box; }
@@ -236,14 +234,18 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     color: #000;
     background: #fff;
     width: ${widthMm}mm;
+    height: auto !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   body {
     padding: 2mm 3mm;
+    margin: 0;
     position: relative;
     left: ${offset}mm;
-    height: auto;
+    height: auto !important;
+    overflow: visible !important;
   }
   pre, img, svg { max-width: 100%; }
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
@@ -266,7 +268,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
         } catch { /* proceed */ }
       }
       const height = document.body.scrollHeight;
-      const pageHeightMm = Math.max(${estimatedPageHeightMm}, Math.ceil(height * 25.4 / 96 + 15));
+      const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
       const pageStyle = document.createElement('style');
       pageStyle.textContent = '@page { size: ${widthMm}mm ' + pageHeightMm + 'mm; margin: 0; }';
       document.head.appendChild(pageStyle);

@@ -1,8 +1,13 @@
 /**
- * "What's New in Nafid" cards shown in Settings → Appearance. User-facing wording only (no technical terms).
- * Replace the whole list on each release; keep English (`en`) and Malayalam (`ml`) for every text.
- * `accent` holds complete Tailwind class names so the build keeps them.
+ * Dynamic "What's New in Nafid" card system shown in Settings → Appearance & System Updates.
+ *
+ * ARCHITECTURE RULE:
+ * Never hardcode release-specific highlights (e.g. per-version features) into static arrays.
+ * Highlights are sourced dynamically from GitHub Releases / electron-updater payload (`updateInfo.releaseNotes`),
+ * parsed into rich cards by `releaseNotesToCards()`, and cached in localStorage.
  */
+import { releaseNotesToCards, ACCENTS, type DynamicWhatsNewCard } from './releaseNotesUtils';
+
 export interface WhatsNewItem {
   title: { en: string; ml: string };
   tag: { en: string; ml: string };
@@ -10,69 +15,89 @@ export interface WhatsNewItem {
   subtitle: string;
   text: { en: string; ml: string };
   accent: { dot: string; tag: string; text: string; hover: string };
+  link?: { text: string; url: string };
 }
 
-const ACCENT = {
-  emerald: { dot: 'bg-emerald-500', tag: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', hover: 'hover:border-emerald-500/40 hover:bg-emerald-500/[0.02]' },
-  violet: { dot: 'bg-violet-500', tag: 'text-violet-600 dark:text-violet-400 bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', hover: 'hover:border-violet-500/40 hover:bg-violet-500/[0.02]' },
-  blue: { dot: 'bg-blue-500', tag: 'text-blue-600 dark:text-blue-400 bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', hover: 'hover:border-blue-500/40 hover:bg-blue-500/[0.02]' },
-  rose: { dot: 'bg-rose-500', tag: 'text-rose-600 dark:text-rose-400 bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', hover: 'hover:border-rose-500/40 hover:bg-rose-500/[0.02]' },
-  amber: { dot: 'bg-amber-500', tag: 'text-amber-600 dark:text-amber-400 bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', hover: 'hover:border-amber-500/40 hover:bg-amber-500/[0.02]' },
-  teal: { dot: 'bg-teal-500', tag: 'text-teal-600 dark:text-teal-400 bg-teal-500/10', text: 'text-teal-600 dark:text-teal-400', hover: 'hover:border-teal-500/40 hover:bg-teal-500/[0.02]' },
-  indigo: { dot: 'bg-indigo-500', tag: 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10', text: 'text-indigo-600 dark:text-indigo-400', hover: 'hover:border-indigo-500/40 hover:bg-indigo-500/[0.02]' },
-  sky: { dot: 'bg-sky-500', tag: 'text-sky-600 dark:text-sky-400 bg-sky-500/10', text: 'text-sky-600 dark:text-sky-400', hover: 'hover:border-sky-500/40 hover:bg-sky-500/[0.02]' },
-  orange: { dot: 'bg-orange-500', tag: 'text-orange-600 dark:text-orange-400 bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', hover: 'hover:border-orange-500/40 hover:bg-orange-500/[0.02]' },
+export const ACCENT = {
+  emerald: ACCENTS[0],
+  blue: ACCENTS[1],
+  violet: ACCENTS[2],
+  amber: ACCENTS[3],
+  teal: ACCENTS[4],
+  rose: ACCENTS[5],
+  sky: ACCENTS[6],
+  indigo: ACCENTS[7],
+  orange: ACCENTS[8],
 };
 
-export const WHATS_NEW: WhatsNewItem[] = [
+/**
+ * Evergreen fallback highlights displayed only when offline on a fresh install
+ * before any update check has been performed.
+ */
+export const DEFAULT_WHATS_NEW: WhatsNewItem[] = [
   {
-    title: { en: 'Clean Thermal Tax Receipts', ml: 'വൃത്തിയുള്ള തെർമൽ ടാക്സ് ബില്ലുകൾ' },
-    tag: { en: 'Printing', ml: 'പ്രിന്റിംഗ്' },
-    subtitle: 'Clear CGST, SGST and Taxable totals on printed receipts',
+    title: { en: 'Automated System Updates', ml: 'ഓട്ടോമാറ്റിക് സിസ്റ്റം അപ്ഡേറ്റുകൾ' },
+    tag: { en: 'System', ml: 'സിസ്റ്റം' },
+    subtitle: 'Silent differential updates and automatic release notes',
     text: {
-      en: 'Printed receipts on thermal printers now feature a clean, uncluttered GST breakdown with clear Taxable, CGST, SGST, and total amounts tailored for retail billing.',
-      ml: 'തെർമൽ പ്രിന്ററുകളിൽ വരുന്ന ബില്ലുകളിൽ ടാക്സബിൾ തുകയും CGST, SGST എന്നിവയും കൂടുതൽ വ്യക്തമായും ഭംഗിയായും കാണാം.',
+      en: 'Nafid POS checks for updates automatically in the background, applying performance improvements and features without disrupting daily billing.',
+      ml: 'ദിവസേനയുള്ള ബില്ലിംഗിനെ ബാധിക്കാതെ തന്നെ പുതിയ ഫീച്ചറുകളും മെച്ചപ്പെടുത്തലുകളും ആപ്പിലേക്ക് തനിയെ ഡൗൺലോഡ് ചെയ്യപ്പെടുന്നു.',
     },
     accent: ACCENT.emerald,
   },
   {
-    title: { en: 'Quick Product Units & Pricing', ml: 'പ്രൊഡക്റ്റ് യൂണിറ്റും വിലയും എളുപ്പത്തിൽ' },
+    title: { en: 'Fast Retail & GST Billing', ml: 'വേഗതയേറിയ ജിഎസ്ടി ബില്ലിംഗ്' },
     tag: { en: 'Billing', ml: 'ബില്ലിംഗ്' },
-    subtitle: 'Pick units and tax types directly while adding items',
+    subtitle: 'Keyboard shortcuts, barcode scanning and instant thermal printing',
     text: {
-      en: 'Select product units (pieces, kg, litres) and choose whether prices include or exclude tax directly from the Quick Product Entry table before saving.',
-      ml: 'വേഗത്തിൽ പ്രൊഡക്റ്റുകൾ ചേർക്കുമ്പോൾ തന്നെ യൂണിറ്റും (പീസ്, കിലോ, ലിറ്റർ) നികുതി ഉൾപ്പെടെയുള്ള വിലയാണോ എന്നും ടേബിളിൽ നിന്ന് തന്നെ തിരഞ്ഞെടുക്കാം.',
+      en: 'High-speed checkout with keyboard-driven workflows, multi-unit support, and clean thermal tax invoice printing.',
+      ml: 'കീബോർഡ് ഷോർട്ട്കട്ടുകൾ, ബാർകോഡ് സ്കാനിംഗ്, തെർമൽ പ്രിന്റിംഗ് എന്നിവ വഴി മിന്നൽ വേഗത്തിൽ കസ്റ്റമർ ബില്ലുകൾ തയ്യാറാക്കാം.',
     },
     accent: ACCENT.blue,
   },
   {
-    title: { en: 'Streamlined Filing-Only Mode', ml: 'ടാക്സ് ഫയലിംഗ് ക്രമീകരണങ്ങൾ' },
-    tag: { en: 'Settings', ml: 'സെറ്റിംഗ്സ്' },
-    subtitle: 'Better control over filing bills in drawer and sales',
+    title: { en: 'Offline-First Security & Sync', ml: 'ഓഫ്‌ലൈൻ ബാക്കപ്പും സിങ്കും' },
+    tag: { en: 'Sync', ml: 'സിങ്ക്' },
+    subtitle: 'Local SQLite reliability with automatic cloud synchronization',
     text: {
-      en: 'Easily choose whether filing-only bills count towards your daily drawer collection and sales today, keeping your accountant filing separate from cash on hand.',
-      ml: 'ഫയലിംഗ് മാത്രമായുള്ള ബില്ലുകൾ ദിവസേനയുള്ള ഡ്രോയർ കണക്കിലും ഇന്നത്തെ വരുമാനത്തിലും ഉൾപ്പെടുത്തണോ എന്ന് ഒറ്റ ക്ലിക്കിൽ നിയന്ത്രിക്കാം.',
+      en: 'Your store runs 100% locally even without internet, synchronizing transactions to the cloud whenever connectivity is available.',
+      ml: 'ഇന്റർനെറ്റ് ഇല്ലെങ്കിലും കടയിലെ ബില്ലിംഗ് പൂർണ്ണ സുരക്ഷിതമായി നടക്കും; നെറ്റ് വരുമ്പോൾ ഡാറ്റ തനിയെ ക്ലൗഡിലേക്ക് സിങ്ക് ആകും.',
     },
     accent: ACCENT.violet,
   },
-  {
-    title: { en: 'Cash Register & Drawer Controls', ml: 'ക്യാഷ് ഡ്രോയറും രജിസ്റ്ററും' },
-    tag: { en: 'Hardware', ml: 'ഹാർഡ്‌വെയർ' },
-    subtitle: 'Quick toggles for drawer opening and register workflow',
-    text: {
-      en: 'Configure automatic cash drawer opening and cash register preferences directly with intuitive toggles for faster checkout and shift closing.',
-      ml: 'ബില്ലിംഗ് സമയത്ത് ക്യാഷ് ഡ്രോയർ ഓട്ടോമാറ്റിക് ആയി തുറക്കുന്നതും രജിസ്റ്റർ സെറ്റിംഗ്സുകളും പുതിയ സ്വിച്ചുകളിലൂടെ എളുപ്പത്തിൽ ക്രമീകരിക്കാം.',
-    },
-    accent: ACCENT.amber,
-  },
-  {
-    title: { en: 'Accurate Bill Totals & Net Pay', ml: 'കൃത്യമായ നെറ്റ് ടോട്ടൽ' },
-    tag: { en: 'Checkout', ml: 'ചെക്ക്ഔട്ട്' },
-    subtitle: 'Clear final payable amount and roundoff',
-    text: {
-      en: 'Clear distinction between Grand Total and Net Total on printouts and screens whenever discounts or roundoffs are applied, making the final payment clear to customers.',
-      ml: 'ഡിസ്കൗണ്ടുകളോ റൗണ്ട് ഓഫുകളോ ഉള്ളപ്പോൾ കസ്റ്റമർ നൽകേണ്ട കൃത്യമായ നെറ്റ് തുക ബില്ലിൽ കൂടുതൽ വ്യക്തമായി കാണിക്കുന്നു.',
-    },
-    accent: ACCENT.teal,
-  },
 ];
+
+/** Backward compatibility alias. */
+export const WHATS_NEW: WhatsNewItem[] = DEFAULT_WHATS_NEW;
+
+/**
+ * Resolves What's New cards dynamically:
+ * 1. Active release notes from updateInfo
+ * 2. Cached release notes for appVersion from localStorage
+ * 3. Most recent cached release notes
+ * 4. Evergreen baseline fallback
+ */
+export function getWhatsNewItems(releaseNotes?: string | null, appVersion?: string): WhatsNewItem[] {
+  if (releaseNotes) {
+    const cards = releaseNotesToCards(releaseNotes);
+    if (cards.length > 0) return cards;
+  }
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const cached =
+        (appVersion ? localStorage.getItem(`nafid_release_notes_${appVersion}`) : null) ||
+        localStorage.getItem('nafid_cached_release_notes');
+      if (cached) {
+        const cards = releaseNotesToCards(cached);
+        if (cards.length > 0) return cards;
+      }
+    }
+  } catch (_) {
+    /* ignore storage errors */
+  }
+
+  return DEFAULT_WHATS_NEW;
+}
+
+export type { DynamicWhatsNewCard };

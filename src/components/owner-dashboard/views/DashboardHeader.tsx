@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
-import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut } from 'lucide-react';
+import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut, RotateCcw, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
+import { useUpdateStore } from '../../../store/updateStore';
 import type { OwnerDashboardState } from '../hooks/useOwnerDashboardState';
 
 export interface DashboardHeaderProps {
@@ -21,7 +22,7 @@ export interface DashboardHeaderProps {
   od: OwnerDashboardState;
 }
 
-/** Dashboard header: shop and user, clock, sales today, sync status / route, theme toggle and the menu. */
+/** Dashboard header: shop and user, clock, sales today, sync status / route, theme toggle, update action, and the menu. */
 export function DashboardHeader({
   canOpenSettings, isCloudSyncPaused, isEditMode, isSyncing, menuRef, role, setIsEditMode, shopName, theme,
   toggleTheme, userName, od,
@@ -30,6 +31,13 @@ export function DashboardHeader({
   const isRevenueMetric = dashboardSalesMetric === 'NET_REVENUE';
   const displaySalesAmount = isRevenueMetric ? totalSales : (totalSalesBeforeDeductions || totalSales);
   const displaySalesLabel = isRevenueMetric ? 'Revenue Today' : 'Sales Today';
+
+  const { updateInfo, updateReady, isDownloading, installUpdate, init: initUpdate } = useUpdateStore();
+
+  useEffect(() => {
+    initUpdate();
+  }, [initUpdate]);
+
   return (
     <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
       <div className="flex items-center justify-between gap-4 px-5 py-3">
@@ -91,22 +99,39 @@ export function DashboardHeader({
             <span className="w-px h-5 bg-border/40" />
           </div>
 
-          {/* Reorder / Customizer Header Action */}
-          <div className="flex items-center gap-1.5">
+          {/* Dynamic Update Action with smooth transition */}
+          {updateReady ? (
             <button
-              onClick={() => setIsEditMode(!isEditMode)}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 cursor-pointer shadow-xs border",
-                isEditMode
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-muted/60 hover:bg-muted text-foreground border-border"
-              )}
-              title={isEditMode ? "Exit Reorder Mode" : "Enable Reorder Cards Mode"}
+              type="button"
+              onClick={installUpdate}
+              className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md hover:brightness-105 active:scale-95 transition-all duration-300 cursor-pointer animate-in fade-in slide-in-from-right-3 zoom-in-95 border border-emerald-400/30"
+              title="Update is downloaded and ready to apply. Click to restart instantly!"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{isEditMode ? 'Done Reordering' : 'Reorder Cards'}</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+              </span>
+              <RotateCcw className="w-3.5 h-3.5 shrink-0 transition-transform duration-500 group-hover:-rotate-180" />
+              <span className="tracking-wide">Restart to Update</span>
+              {updateInfo?.version && (
+                <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                  v{updateInfo.version}
+                </span>
+              )}
             </button>
-          </div>
+          ) : updateInfo ? (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25 hover:bg-blue-500/20 active:scale-95 transition-all duration-300 cursor-pointer animate-in fade-in slide-in-from-right-3 zoom-in-95 shadow-xs"
+              title="New update available. Click to view release highlights and update progress in Settings."
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-500 fill-amber-500/20 animate-pulse" />
+              <span className="tracking-wide">
+                {isDownloading ? 'Downloading Update...' : `v${updateInfo.version} Available`}
+              </span>
+            </button>
+          ) : null}
 
           {/* Grid Mode Selector */}
           <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
@@ -174,6 +199,16 @@ export function DashboardHeader({
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
                     <span>Customize Cards Order</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setIsEditMode(!isEditMode);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-foreground hover:bg-muted rounded-lg transition-colors text-left cursor-pointer"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                    <span>{isEditMode ? 'Exit Reorder Mode' : 'Reorder Cards on Grid'}</span>
                   </button>
                   <button
                     onClick={() => useAuthStore.getState().logout()}

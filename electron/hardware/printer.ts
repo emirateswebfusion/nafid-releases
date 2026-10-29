@@ -265,7 +265,7 @@ export function initPrinter() {
     // Unified width: prefer print_format.width (mm) over receiptWidthCm (cm)
     const widthMm = printFmt?.width
       ? Number(printFmt.width)
-      : (config.receiptWidthCm || 5.8) * 10;
+      : (config.receiptWidthCm ? config.receiptWidthCm * 10 : 80);
 
     try {
       const receiptText = textData + '\n\n\n\n\n';

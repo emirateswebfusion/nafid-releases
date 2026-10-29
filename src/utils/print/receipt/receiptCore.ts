@@ -170,7 +170,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
     const numQty = Number(item.quantity);
     const rawQtyStr = isNaN(numQty)
       ? String(item.quantity)
-      : (isWeightProduct ? numQty.toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1') : String(numQty));
+      : (isWeightProduct ? numQty.toFixed(3) : String(numQty));
 
     if (bs?.showPcsUnit) {
       qtyStr = `${rawQtyStr} PCS`;

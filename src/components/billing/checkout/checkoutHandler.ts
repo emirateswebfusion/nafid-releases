@@ -269,7 +269,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       const receiptItems = buildReceiptLines(regularCartItems, pcsSnapshot);
 
       const cfg = await getSetting<ReceiptPrinterConfig>({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-      const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
+      const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 8.0;
 
       const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
@@ -650,7 +650,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
             }
           } else {
             const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : width;
-            const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
+            const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'boxed';
             const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
             const printResult = await printingApi.printReceipt(tenantId || 'global', receiptText);
             if (!printResult.success) {
@@ -708,7 +708,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           sendConfiguredBill(tenantId || 'global', {
             phone: custPhone, message: waMessage, legacyHtml: fullHtml,
             a4Html: generateInvoiceHtml(receiptData, (printFmt.a4Style || 'boxed') as B.InvoiceStyle),
-            receiptText: generateReceiptText(receiptData, printFmt.width ? Number(printFmt.width) / 10 : width, undefined, printFmt.thermalStyle || 'standard'),
+            receiptText: generateReceiptText(receiptData, printFmt.width ? Number(printFmt.width) / 10 : width, undefined, printFmt.thermalStyle || 'boxed'),
             invoiceNumber: confirmedInvoiceNumber, receiptWidthMm: Number(printFmt.width) || 80,
           }).then(result => { if (!result.success) console.warn('[WhatsApp Auto Send Error]:', result.error); }).catch((err) => console.warn('[WhatsApp Auto Send Error]:', err));
         } catch (e) {
