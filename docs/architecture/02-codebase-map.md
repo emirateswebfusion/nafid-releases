@@ -29,7 +29,8 @@ src/
     billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
     settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
     app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, prompts, PrintRouter, lazyScreens, hooks/
-    auth/ print/          login screen; receipt / A4 / barcode print views
+    auth/ print/          login + trial sign-up preview (AuthBrandPanel, TrialRegistration,
+                         trialShopDetails validation); receipt / A4 / barcode print views
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
   data/                   THE data-access layer (one module per domain; see 03-data-access.md)
   store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, …)

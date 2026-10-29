@@ -235,39 +235,6 @@ function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       console.warn('[DB Migration] Fix legacy held invoice numbers error:', (e as Error).message);
     }
 
-    // Migration: Sync converted GST invoices' created_at to match their source Bill of Supply's actual created_at
-    try {
-      d.exec(`
-        UPDATE invoices
-        SET created_at = (
-          SELECT src.created_at
-          FROM invoices src
-          WHERE src.invoice_id = invoices.converted_from_invoice_id
-            AND src.created_at IS NOT NULL
-        )
-        WHERE converted_from_invoice_id IS NOT NULL
-          AND EXISTS (
-            SELECT 1 FROM invoices src
-            WHERE src.invoice_id = invoices.converted_from_invoice_id
-              AND src.created_at IS NOT NULL
-              AND src.created_at != invoices.created_at
-          );
-
-        UPDATE invoice_items
-        SET created_at = (
-          SELECT inv.created_at
-          FROM invoices inv
-          WHERE inv.invoice_id = invoice_items.invoice_id
-        )
-        WHERE invoice_id IN (
-          SELECT invoice_id FROM invoices WHERE converted_from_invoice_id IS NOT NULL
-        )
-          AND created_at IS NOT (SELECT inv.created_at FROM invoices inv WHERE inv.invoice_id = invoice_items.invoice_id);
-      `);
-    } catch (migErr) {
-      console.warn('[DB Migration] Could not backfill converted invoices created_at:', (migErr as Error).message);
-    }
-
     // Migration: Clean up erroneous paper prices on Real products in domain_attributes
     try {
       const realProds = d.prepare(`

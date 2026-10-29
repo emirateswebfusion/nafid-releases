@@ -200,7 +200,9 @@ export function generateWhatsAppClosingMessage(
   if (checklist.dateTime) {
     lines.push(`📅 *Date:* ${data.businessDate}`);
     if (data.closingTimestamp) {
-      lines.push(`⏰ *Closing Time:* ${data.closingTimestamp}`);
+      const isClosed = data.registerStatus === 'CLOSED';
+      const timeLabel = isClosed ? 'Closing Time' : 'Report Time';
+      lines.push(`⏰ *${timeLabel}:* ${data.closingTimestamp}`);
     }
   }
 

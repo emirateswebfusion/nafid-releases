@@ -25,7 +25,9 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
   if (checklist.dateTime) {
     lines.push(`📅 *Date:* ${summaryData.businessDate}`);
     if (summaryData.closingTimestamp) {
-      lines.push(`⏰ *Closing Time:* ${summaryData.closingTimestamp}`);
+      const isClosed = summaryData.registerStatus === 'CLOSED';
+      const timeLabel = isClosed ? 'Closing Time' : 'Report Time';
+      lines.push(`⏰ *${timeLabel}:* ${summaryData.closingTimestamp}`);
     }
   }
 

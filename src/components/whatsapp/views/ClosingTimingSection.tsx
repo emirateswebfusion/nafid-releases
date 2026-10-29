@@ -11,6 +11,18 @@ export interface ClosingTimingSectionProps {
   isAdmin: boolean;
 }
 
+function formatScheduledTime12h(time24: string): { formatted: string; isAm: boolean } {
+  if (!time24 || !time24.includes(':')) return { formatted: '', isAm: false };
+  const [hStr, mStr] = time24.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return { formatted: '', isAm: false };
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const mPad = m < 10 ? `0${m}` : `${m}`;
+  return { formatted: `${h12}:${mPad} ${period}`, isAm: h < 12 };
+}
+
 /** Shop closing report dispatch timing: on day close or at a scheduled time, multi-counter option. */
 export function ClosingTimingSection({
   closingConfig, handleMultiCounterToggle, handleScheduledTimeChange, handleTimingChange, isAdmin,
@@ -86,23 +98,40 @@ export function ClosingTimingSection({
       </div>
 
       {/* Scheduled Time Config */}
-      {(closingConfig.sendTiming === 'SCHEDULED' || closingConfig.sendTiming === 'BOTH') && (
-        <div className="p-4 rounded-xl bg-card border border-border/60 flex items-center justify-between gap-4 animate-in fade-in duration-150">
-          <div className="space-y-0.5 text-left">
-            <span className="text-xs font-bold text-foreground block">Daily Scheduled Closing Time</span>
-            <span className="text-[10px] text-muted-foreground block">
-              Using store local timezone. Report checks automatically in the background.
-            </span>
+      {(closingConfig.sendTiming === 'SCHEDULED' || closingConfig.sendTiming === 'BOTH') && (() => {
+        const time12 = formatScheduledTime12h(closingConfig.scheduledTime);
+        return (
+          <div className="p-4 rounded-xl bg-card border border-border/60 space-y-2 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 text-left">
+                <span className="text-xs font-bold text-foreground block">Daily Scheduled Closing Time</span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Using store local timezone. Report checks automatically in the background.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {time12.formatted && (
+                  <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md ${time12.isAm ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' : 'bg-primary/10 text-primary border border-primary/20'}`}>
+                    {time12.formatted}
+                  </span>
+                )}
+                <input
+                  type="time"
+                  disabled={!isAdmin || !closingConfig.enabled}
+                  value={closingConfig.scheduledTime}
+                  onChange={(e) => handleScheduledTimeChange(e.target.value)}
+                  className="bg-background border border-border rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+            {time12.isAm && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 leading-snug">
+                ⚠️ <strong>{time12.formatted}</strong> is morning time (AM). For evening closing time, select PM (e.g. 22:50 for 10:50 PM).
+              </p>
+            )}
           </div>
-          <input
-            type="time"
-            disabled={!isAdmin || !closingConfig.enabled}
-            value={closingConfig.scheduledTime}
-            onChange={(e) => handleScheduledTimeChange(e.target.value)}
-            className="bg-background border border-border rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-foreground focus:border-primary focus:outline-none"
-          />
-        </div>
-      )}
+        );
+      })()}
 
       {/* Multi-counter Breakdown Option */}
       <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/60">

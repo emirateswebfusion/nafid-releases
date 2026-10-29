@@ -1,3 +1,14 @@
+# Nafid POS v2.1.6 Release Notes
+
+## What's New
+- **Reliable Bill Date Editing**: Editing invoice dates on converted GST bills now permanently synchronizes across both documents and item rows without resetting on restart.
+- **Accurate Shop Closing Timings**: Active registers clearly display as Report Time while open and Closing Time once settled, with precise UTC to store timezone conversion.
+- **AM/PM Timing Badge & Scheduling Guard**: Added visual 12-hour AM/PM indicator in WhatsApp closing settings to prevent accidentally scheduling night closing reports during morning hours.
+- **Streamlined Trial Registration**: New branded preview and shop detail validation for trial registrations.
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v2.1.5...v2.1.6
+
+**Download:** [Nafid-Setup-2.1.6.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.6/Nafid-Setup-2.1.6.exe)
+
 # Nafid POS v2.1.5 Release Notes
 
 ## What's New

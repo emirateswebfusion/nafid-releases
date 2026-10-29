@@ -1,6 +1,7 @@
 import { getRegisterCashEntries, isFrozenDrawer } from '../services/cashDrawerSession.js';
 import type { CashDrawerRow } from '../services/typesA.js';
 import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
+import { toEpochMs } from '../utils/timestamps.js';
 
 /**
  * Build consolidated summary data from POS database
@@ -112,7 +113,8 @@ export function buildShopClosingSummaryData(
   let closingTimestamp = '';
   if (drawer?.closed_at) {
     try {
-      const d = new Date((drawer.closed_at as string | number));
+      const ms = toEpochMs(drawer.closed_at);
+      const d = ms !== null ? new Date(ms) : new Date((drawer.closed_at as string | number));
       closingTimestamp = d.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
     } catch {
       closingTimestamp = String(drawer.closed_at);

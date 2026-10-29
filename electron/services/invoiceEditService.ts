@@ -216,6 +216,18 @@ export async function updateInvoice(payload: {
       payload.invoice_id
     );
 
+    // Keep linked conversion documents in sync when invoice date is updated
+    if (updatedCreatedAt) {
+      if (existingInv.converted_from_invoice_id) {
+        invoicesSql.updateInvoiceCreatedAt(db).run(updatedCreatedAt, existingInv.converted_from_invoice_id);
+        invoicesSql.updateInvoiceItemsCreatedAt(db).run(updatedCreatedAt, existingInv.converted_from_invoice_id);
+      }
+      if (existingInv.converted_to_invoice_id) {
+        invoicesSql.updateInvoiceCreatedAt(db).run(updatedCreatedAt, existingInv.converted_to_invoice_id);
+        invoicesSql.updateInvoiceItemsCreatedAt(db).run(updatedCreatedAt, existingInv.converted_to_invoice_id);
+      }
+    }
+
     // 3. Delete old items
     invoicesSql.deleteInvoiceItemByInvoiceId(db).run(payload.invoice_id);
 
@@ -245,6 +257,10 @@ export async function updateInvoice(payload: {
         item.hsn_sac_code || null,
         item.supply_type || invoice.supply_type || 'INTRA',
       );
+    }
+    const finalCreatedAt = updatedCreatedAt || existingInv.created_at;
+    if (finalCreatedAt) {
+      invoicesSql.updateInvoiceItemsCreatedAt(db).run(finalCreatedAt, payload.invoice_id);
     }
 
     // 5. Adjust stock: reverse old quantities, apply new (skip service items)
