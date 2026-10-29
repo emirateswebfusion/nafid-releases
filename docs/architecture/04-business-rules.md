@@ -119,6 +119,10 @@ and `electron/utils/` (ids, cashier settlement math).
 - **Shop Closing Scrap Accounting**:
   - `scrapSummary` in `electron/whatsapp/shopClosingSummary.ts` aggregates exclusively from `scrap_transactions` for the given business date.
   - Bill-level scrap deductions (`invoices.scrap_deduction`) are **never** added into `scrapSummary` as scrap purchases. Scrap deducted on a bill is a payment deduction / credit redemption settling gross sales to net sales; the physical scrap item was already recorded in `scrap_transactions` upon intake. Adding invoice scrap deductions into scrap purchase totals caused duplicate counting (e.g., ₹673 actual purchase reported as ₹1,346).
+- **Shop Closing Timestamps and Status Labels**:
+  - An open / in-progress register (`status === 'OPEN'`) must be labeled `⏰ *Report Time:* <time>`. It must **never** be labeled `Closing Time:`, which falsely represents active trading shifts as closed. Only settled registers (`status === 'CLOSED'`) display `⏰ *Closing Time:* <time>`.
+  - Database timestamps (such as SQLite `closed_at = CURRENT_TIMESTAMP`) are stored in UTC without timezone text. They must always be parsed via `electron/utils/timestamps.ts:toEpochMs()` before formatting in the tenant's store timezone (`store_timezone`). Unparsed `new Date(drawer.closed_at)` is banned because V8 interprets timezone-free strings as host local time, shifting the hour when converted to the store timezone.
+  - Scheduled dispatch times (`scheduledTime`) in settings use 24-hour format (`HH:mm`, default `22:00`). The settings UI provides a live 12-hour AM/PM badge and warns when morning hours (< 12:00) are selected for shop closing, preventing accidental AM scheduling (e.g. `10:50` morning instead of `22:50` night).
 - Tests: `cashRegisterOptions.test.ts`, `registerPaymentTotals.test.ts`, `closingScrapOptions.test.ts`,
   `cashRegisterSettings.ui.test.tsx`; existing `tests/characterization/drawer-session.mts` remains applicable.
 
@@ -147,7 +151,8 @@ Dashboard totals, sales summaries, product revenue, drawer cash, cashier lists/h
 queries reuse this predicate. Direct GST bills still count. Tax-filing views deliberately include the copy.
 Copies are excluded from pending settlement to prevent collecting the same sale twice. Frozen closed drawer
 balances are not rewritten; active sessions use the corrected query on reconciliation.
-Tests: `bosConversionRevenue.test.ts` (real in-memory SQLite) and `bosConversionService.test.ts`.
+When editing an invoice's bill date (invoiceEditService.ts), if the document is a converted GST copy or a source Bill of Supply, both linked documents (converted_from_invoice_id / converted_to_invoice_id) and their line items have their created_at synchronized and marked PENDING for cloud sync. Startup migrations must never overwrite converted invoice dates back to source dates.
+Tests: osConversionRevenue.test.ts (real in-memory SQLite), osConversionService.test.ts, and convertedInvoiceDateEdit.test.ts.
 Filing-only billing (`bill_purpose = 'FILING_ONLY'`) captures its revenue and stock decisions at checkout:
 - `filing_only_mode.countInRevenue`: controls whether new filing-only bills count in store revenue (`counts_in_revenue = 1`). When turned off, filing-only bills are strictly excluded from Dashboard Sales Today and Cash Drawer reconciliation, while Sales History allows accountant review under B2C/B2B (when enabled) and under Tax Filing (`TAX_FILING`).
 - `filing_only_mode.showB2bInSalesCategory` and `showB2cInSalesCategory`: control whether filing-only bills appear in the respective B2B/B2C category views or only under the dedicated `Filing-only` filter (`FILING_ONLY`).

@@ -126,7 +126,7 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
   1. **Startup baseline** (frozen): `schemaCoreTables` / `schemaExtendedTables` / `schemaColumns` create the schema, and
      `migrationsRepairs` / `migrationsColumns` plus the repairs in `localDb.ts` normalise legacy data. It runs on every
      start because older terminals keep syncing old shapes in; it must stay idempotent
-     (`tests/characterization/startup-idempotency.mts`). Guard R10 stops these files from growing.
+     (`tests/characterization/startup-idempotency.mts`). Guard R10 stops these files from growing. Startup repairs must never overwrite user-mutable fields on recurring runs (e.g. converted invoice dates; document synchronization belongs in transactional service logic).
   2. **Versioned migrations** (`electron/db/migrations/`): each runs once, in order, in a transaction, recorded in
      `schema_migrations` and `PRAGMA user_version`; a failing one rolls back and is retried on the next start.
      **Every new schema or data change goes here**: add `NNN-short-name.ts` exporting a `Migration`

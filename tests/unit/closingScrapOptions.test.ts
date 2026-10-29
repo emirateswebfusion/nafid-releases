@@ -56,3 +56,42 @@ describe('Shop closing scrap reconciliation', () => {
     }
   });
 });
+
+describe('Shop closing message timestamps and labels', () => {
+  it('displays Report Time when the register status is OPEN', () => {
+    const openData = { ...sample, registerStatus: 'OPEN', closingTimestamp: '10:50 AM' };
+    const msg = generateWhatsAppClosingMessage(openData, DEFAULT_CHECKLIST);
+    expect(msg).toContain('⏰ *Report Time:* 10:50 AM');
+    expect(msg).not.toContain('*Closing Time:*');
+
+    const sent = formatClosingWhatsAppMessage(openData, DEFAULT_CHECKLIST);
+    expect(sent).toContain('⏰ *Report Time:* 10:50 AM');
+    expect(sent).not.toContain('*Closing Time:*');
+  });
+
+  it('displays Closing Time when the register status is CLOSED', () => {
+    const closedData = { ...sample, registerStatus: 'CLOSED', closingTimestamp: '10:50 PM' };
+    const msg = generateWhatsAppClosingMessage(closedData, DEFAULT_CHECKLIST);
+    expect(msg).toContain('⏰ *Closing Time:* 10:50 PM');
+    expect(msg).not.toContain('*Report Time:*');
+
+    const sent = formatClosingWhatsAppMessage(closedData, DEFAULT_CHECKLIST);
+    expect(sent).toContain('⏰ *Closing Time:* 10:50 PM');
+    expect(sent).not.toContain('*Report Time:*');
+  });
+
+  it('parses SQLite UTC closed_at correctly into store timezone', () => {
+    const { db, memory } = salesHistoryDb();
+    try {
+      // 17:20:00 UTC = 10:50:00 PM in Asia/Kolkata (+5:30)
+      const summary = buildShopClosingSummaryData(db, 't1', '2026-10-29', {
+        status: 'CLOSED',
+        closed_at: '2026-10-29 17:20:00',
+        opening_balance: 0,
+      }, undefined, undefined, undefined, () => 'Asia/Kolkata');
+      expect(summary.closingTimestamp).toMatch(/10:50\s*(?:PM|pm)/i);
+    } finally {
+      memory.close();
+    }
+  });
+});

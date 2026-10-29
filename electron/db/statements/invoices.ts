@@ -675,3 +675,18 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
     const statement = (invoice_type === 'FILING_ONLY' || invoice_type === 'CONVERTED_GST') ? db.prepare(query) : db.prepare(`${query} AND ${countsInRevenue('i')}`);
     return { statement, listedStatement: db.prepare(query), params };
 }
+
+export const updateInvoiceCreatedAt = (db: Db) => db.prepare(`
+  UPDATE invoices
+  SET created_at = ?,
+      sync_status = 'PENDING',
+      updated_at = CURRENT_TIMESTAMP
+  WHERE invoice_id = ?
+`);
+
+export const updateInvoiceItemsCreatedAt = (db: Db) => db.prepare(`
+  UPDATE invoice_items
+  SET created_at = ?,
+      sync_status = 'PENDING'
+  WHERE invoice_id = ?
+`);

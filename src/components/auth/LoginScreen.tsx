@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, ChevronLeft } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { hasBridge } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
+import { AuthBrandPanel } from './AuthBrandPanel';
+import { TrialRegistration } from './TrialRegistration';
 
-type Tab = 'login' | 'forgot-password' | 'reset-password';
+type Tab = 'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export function LoginScreen() {
-  const { login } = useAuthStore();
+  const login = useAuthStore(state => state.login);
 
   const [tab, setTab] = useState<Tab>('login');
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,7 @@ export function LoginScreen() {
     if (!password) errors.password = 'Please enter your password';
     if (Object.keys(errors).length) { setFieldErrors(errors); return; }
     setLoading(true);
-    const res = await login(email, password);
+    const res = await login(email.trim(), password);
     if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Login failed.'));
     setLoading(false);
   };
@@ -89,7 +91,7 @@ export function LoginScreen() {
       setTab('reset-password');
     }
     if (hasBridge('onDeepLink')) {
-      bridgeEvents.onDeepLink((token: string) => {
+      return bridgeEvents.onDeepLink((token: string) => {
         setResetToken(token);
         setTab('reset-password');
       });
@@ -103,59 +105,21 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-background flex select-none overflow-hidden">
+    <div className="min-h-screen w-full bg-background text-foreground flex">
 
-      {/* ── Left Branding Panel ─────────────────────────────────────────── */}
-      <div className="hidden lg:flex w-[45%] flex-col justify-between p-12 relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-primary/10 border-r border-border">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <img src="/logo.png" alt="NAFID Logo" className="w-11 h-11 rounded-xl object-contain shadow-lg shadow-primary/25 bg-primary/10 p-1" />
-            <span className="text-3xl font-black text-foreground tracking-tight">NAFID</span>
-          </div>
-            <p className="text-muted-foreground text-sm ml-1">The Smarter Way to Sell</p>
-        </div>
-
-        <div className="relative z-10 space-y-6">
-          <h1 className="text-4xl font-black text-foreground leading-[1.15]">
-            Your entire retail operation.
-            <br />
-            <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              In one powerful platform.
-            </span>
-          </h1>
-          <p className="text-muted-foreground leading-relaxed max-w-sm">
-            Offline-first billing, hardware integration, GST compliance, and real-time cloud sync. No internet? No problem. No experience? You've got this.
-          </p>
-
-          <div className="grid grid-cols-3 gap-3 pt-2">
-            {[
-              { icon: ShoppingBag, label: 'General Retail' },
-              { icon: Wrench, label: 'Hardware Stores' },
-              { icon: Gem, label: 'Jewelry Shops' },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex flex-col items-center gap-2 p-4 bg-background rounded-xl border border-border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                <Icon className="w-5 h-5 text-primary" />
-                <span className="text-[11px] text-muted-foreground text-center font-medium leading-tight">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative z-10 text-muted-foreground text-xs">&copy; {new Date().getFullYear()} Emirates WebFusion (NAFID). All rights reserved.</p>
-      </div>
+      <AuthBrandPanel />
 
       {/* ── Right Auth Panel ────────────────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-background">
-        <div className="w-full max-w-sm">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background min-w-0">
+        <div className={clsx('w-full', tab === 'register' ? 'max-w-lg' : 'max-w-sm')}>
+          <div className="flex lg:hidden items-center gap-2 mb-8"><img src="/logo.png" alt="" className="h-8 w-8 object-contain" /><span className="text-xl font-black">NAFID</span></div>
+          {tab === 'register' && <TrialRegistration onSignIn={() => switchTab('login')} />}
           {/* ── LOGIN ────────────────────────────────────────────────────── */}
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-                <p className="text-muted-foreground text-sm mt-1">Sign in to pick up where you left off</p>
+                <p className="text-muted-foreground text-sm mt-1">Sign in to manage your shop with Nafid.</p>
               </div>
 
               <div className="space-y-4">
@@ -165,6 +129,7 @@ export function LoginScreen() {
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
                       ref={emailRef}
+                      autoComplete="username"
                       id="login-email"
                       type="email"
                       value={email}
@@ -182,6 +147,7 @@ export function LoginScreen() {
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
                       ref={passwordRef}
+                      autoComplete="current-password"
                       id="login-password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
@@ -194,7 +160,7 @@ export function LoginScreen() {
                       type="button"
                       onClick={() => setShowPassword(p => !p)}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                      tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -228,8 +194,13 @@ export function LoginScreen() {
 
               <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold shadow-sm">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {loading ? 'Signing you in...' : 'Sign In to Nafid'}
+                {loading ? 'Signing you in...' : 'Sign in'}
               </Button>
+              <div className="border-t border-border pt-5 text-center space-y-2">
+                <p className="text-sm text-muted-foreground">New to Nafid?</p>
+                <Button type="button" variant="outline" className="w-full h-11" onClick={() => switchTab('register')}>Sign up for a free trial</Button>
+                <p className="text-xs text-muted-foreground">Preview registration · Trial access coming soon</p>
+              </div>
             </form>
           )}
 
@@ -326,7 +297,7 @@ export function LoginScreen() {
                     type="button"
                     onClick={() => setShowPassword(p => !p)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
