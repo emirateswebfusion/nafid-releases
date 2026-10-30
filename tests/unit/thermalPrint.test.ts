@@ -81,7 +81,7 @@ it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const print = vi.fn();
   class Window {
-    webContents = { id: 12, once: () => {} };
+    webContents = { id: 12, once: () => {}, executeJavaScript: async () => 0 };
     isDestroyed = () => false;
     close = vi.fn();
     loadURL = vi.fn();

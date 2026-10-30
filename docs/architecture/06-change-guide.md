@@ -47,7 +47,8 @@ After images and fonts load, the HTML measures body height (`document.body.scrol
 the hardware adapter forwards height only to that window's listener. Electron print options calculate paper height dynamically as
 `Math.max(40, Math.ceil(height * 25.4 / 96 + 3))` mm without bloated buffer heights. Never start a receipt from `did-finish-load`
 or use another window's measurement. Receipt jobs require their exact paper dimensions: driver rejection is reported,
-rather than retrying with a shorter native/default page. Missing/invalid height reports fail the print with a retry message;
+rather than retrying with a shorter native/default page. Missing/invalid readiness reports recover by measuring that same window directly after fonts settle,
+setting matching CSS paper dimensions before printing. If direct measurement also fails, report a retry error;
 never feed a guessed 600 mm sheet. Each USB job captures its receipt text before awaiting printer discovery.
 A4 and barcode fallback behavior is unchanged.
 Test with `tests/unit/thermalPrint.test.ts` and `printerPromise.test.ts`; characterization snapshot in

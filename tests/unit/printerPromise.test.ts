@@ -19,12 +19,13 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const timers: { callback: () => void; delay: number; cleared: boolean }[] = [];
   const error = new Error('simulated failure');
+  const measure = vi.fn(async (_script: string) => 0);
   const loaded = new Map<string, () => void>();
   const close = vi.fn();
   const print = vi.fn(async () => { if (failure === 'print') throw error; });
   const load = vi.fn(async () => { if (failure === 'load') throw error; });
   class Window {
-    webContents = { id: 1, once: (event: string, callback: () => void) => loaded.set(event, callback) };
+    webContents = { id: 1, executeJavaScript: measure, once: (event: string, callback: () => void) => loaded.set(event, callback) };
     isDestroyed = () => false;
     close = close;
     loadURL = load;
@@ -56,7 +57,7 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
     : name === 'printBulkBarcodeUSB' ? [[], 'printer'] : ['printer'];
   const settled = vi.fn();
   void invoke(...args).then(() => settled('resolved'), err => settled(err));
-  return { listeners, loaded, timers, settled, error, print, close };
+  return { listeners, loaded, measure, timers, settled, error, print, close };
 }
 
 describe.each(names)('%s promise behavior', name => {
@@ -120,6 +121,25 @@ it('fails without feeding guessed paper when the receipt readiness message never
   await flush();
   expect(h.print).not.toHaveBeenCalled();
   expect(h.settled).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('paper length could not be measured') }));
+  h.timers.find(t => t.delay === 1500)!.callback();
   expect(h.close).toHaveBeenCalledOnce();
   expect(h.timers.filter(t => t.delay >= 20000).every(t => t.cleared)).toBe(true);
+});
+
+it.each(['missing', 'invalid'])('measures the real window when readiness is %s and prints only once', async readiness => {
+  const h = harness('printReceiptUSB');
+  h.measure.mockResolvedValue(720);
+  await flush();
+  if (readiness === 'missing') {
+    h.loaded.get('did-finish-load')!();
+    h.timers.find(t => t.delay === 2500)!.callback();
+  } else {
+    await h.listeners.get('print-ready-1')!(0);
+  }
+  await flush();
+  expect(h.measure).toHaveBeenCalledOnce();
+  expect(h.print).toHaveBeenCalledWith(expect.anything(), 'printer', 80, 194000, undefined, false, true);
+  expect(h.settled).toHaveBeenCalledWith('resolved');
+  await h.listeners.get('print-ready-1')!(720);
+  expect(h.print).toHaveBeenCalledOnce();
 });

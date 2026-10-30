@@ -722,15 +722,24 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     const triggerPrint = async (contentHeightPx?: number) => {
       if (printed) return;
       printed = true;
-      // Match the receipt HTML page size exactly. Never guess a long sheet when measurement fails.
-      if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
-        clearTimeout(timer);
-        if (!printWindow.isDestroyed()) printWindow.close();
-        reject(new Error('Receipt paper length could not be measured. Please retry printing the saved bill.'));
-        return;
-      }
-      const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
       try {
+        // Recover directly from this window if the renderer's readiness message was lost or unavailable.
+        if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
+          const height: unknown = await printWindow.webContents.executeJavaScript(`(async () => {
+            if (document.fonts) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 600))]);
+            const height = document.body?.scrollHeight;
+            if (!Number.isFinite(height) || height <= 0) return null;
+            const style = document.createElement('style');
+            style.textContent = '@page { size: ${widthMm}mm ' + Math.max(40, Math.ceil(height * 25.4 / 96 + 3)) + 'mm; margin: 0; }';
+            document.head.appendChild(style);
+            return height;
+          })()`);
+          contentHeightPx = typeof height === 'number' ? height : undefined;
+        }
+        if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
+          throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
+        }
+        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
         await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
@@ -745,7 +754,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     let didFinishLoadTimer: NodeJS.Timeout | null = null;
     printWindow.webContents.once('did-finish-load', () => {
       // The page waits up to 600 ms for fonts before reporting height. Allow 2.5 s on slow PCs;
-      // report a measurement error if readiness never arrives instead of feeding guessed paper.
+      // measure directly if readiness never arrives instead of feeding guessed paper.
       didFinishLoadTimer = setTimeout(() => {
         if (!printed) {
           console.warn('[Printer] Receipt height measurement did not arrive');

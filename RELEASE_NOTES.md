@@ -1,3 +1,13 @@
+# Nafid POS v2.2.1 Release Notes
+
+## What's New
+- **Reliable Thermal Receipt Printing**: If a receipt window does not send a valid readiness message, Nafid measures that same window directly and sets matching paper dimensions before printing. If measurement still fails, it reports a retry error instead of feeding a guessed page.
+- **Duplicate Print Protection**: A late readiness message cannot print the receipt a second time.
+
+Physical printer validation on shop hardware remains unverified.
+
+**Download:** [Nafid-Setup-2.2.1.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.1/Nafid-Setup-2.2.1.exe)
+
 # Nafid POS v2.2.0 Release Notes
 
 ## What's New
